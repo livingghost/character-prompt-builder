@@ -554,6 +554,14 @@ def from_iteration(root: Path, character: str, row: dict) -> dict:
             attachments[key + '.json'] = raw
     sources = []
     recipe = {'model': value.get('upscaler_model') if kind == 'upscale' else value.get('model')}
+    attachment = studio.validate_package_attachment(root, row)
+    if attachment is not None:
+        receipt = c.local(root, row['package_attachment']['path'])
+        evidence = c.local(receipt.parent, attachment['evidence']['path'])
+        evidence_name = 'package-attachment-evidence' + evidence.suffix
+        attachments['package-attachment.json'] = c.read(receipt)
+        attachments[evidence_name] = c.read(evidence)
+        recipe['package_attachment'] = {'record': 'package-attachment.json', 'evidence': evidence_name}
     if kind == 'upscale' and row.get('production'):
         import production_workflow as workflow
         run_dir, prepared, _, _ = workflow.load_run(root, row['production']['run'])

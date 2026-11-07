@@ -567,7 +567,9 @@ def validate_run_content(run: str, prepared: dict, consumer: dict, rows: list[di
         if row['event'] == 'selection':
             reviewed = find(rows, 'review', row['data']['selection']['review'])
             _recorded_selection_basis(prepared, rows, row, reviewed)
-    lifecycle.completion_tail(rows, prepared, run)
+            if row['data']['selection']['scope'] == 'studio-adoption':
+                _recorded_studio_adoption(run, row, rows, read_object)
+    lifecycle.completion_tail(rows, prepared, run, read_object=read_object)
 
 
 def load_run(root: Path, run: str, *, force: bool = False) -> tuple[Path, dict, dict, list[dict]]:
@@ -716,10 +718,9 @@ def require_mutable(records: list[dict]) -> None:
 def append_record(directory: Path, prepared: dict, records: list[dict], event: str, data: dict) -> dict:
     for row in reversed(records):
         if row['event']==event and row['data']==data:return row
-    if (event not in {'external-effect-result','execution-result','cleanup-observation'}
-            and not (event == 'external-step' and data.get('operation') == 'delete')):
-        require_mutable(records)
     if event not in EVENTS:raise ValueError('unknown production event')
+    lifecycle.validate_transition(records, prepared, directory.name, event, data,
+                                  read_object=lambda sha: c.object_read(directory, sha))
     root=directory.parents[2]
     previous=records[-1]['sha256'] if records else None
     return store.append(root,directory.name,prepared['input_sha256'],event,data,
@@ -770,11 +771,12 @@ def authorize(root: Path, run: str, request_file: str) -> dict:
 
 
 def require_open_task(rows: list[dict], run: str) -> None:
-    """An abandoned work task starts no new operation; recorded effects keep their accounting."""
+    """An abandoned work task starts no new production operation."""
     if any(row['event'] == 'abandoned' for row in rows):
-        raise ProductionError('TASK_ABANDONED', 'The work task of this run was abandoned; it starts no new operation.',
+        raise ProductionError('TASK_ABANDONED', 'The work task of this run was abandoned; its production decisions are closed.',
                               phase='authorization', run=run,
-                              required_action='Open a new work task and prepare a new run; recorded executions remain available for recovery.')
+                              required_action='Open a new work task for new production. Recorded effects remain recoverable; '
+                                              'the selected candidate may be adopted under a separate current adopt grant.')
 
 
 def protected_criteria_record(prepared: dict, grant_id: str) -> dict:
@@ -841,8 +843,7 @@ def authorize_value(root: Path, run: str, request: dict, *, evidence_files: list
         for row in rows:
             if row['event'] == 'authorization' and row['data'] == data:
                 return row
-        require_mutable(rows)
-        require_open_task(rows, run)
+        lifecycle.require_operation(rows, prepared, run, request['operation'], request['targets'], request['payload'])
         grant = permissions.check(prepared['authority'], request)
         if request['operation'] == 'direction':
             validate_protected_criteria(root, prepared, grant)
@@ -852,12 +853,12 @@ def authorize_value(root: Path, run: str, request: dict, *, evidence_files: list
 def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
                 operation: str, targets: list[str], payload: dict) -> dict:
     assert_authority_current(root, prepared)
-    require_open_task(rows, prepared['run'])
     row = find(rows, 'authorization', identifier)
     request = row['data']['request']
     compare_exact({'operation':operation,'targets':sorted(targets),'payload':payload},
                   {'operation':request['operation'],'targets':sorted(request['targets']),'payload':request['payload']},
                   intent={'operation': operation, 'targets': sorted(targets), 'run': prepared['run'], 'authorization': identifier})
+    lifecycle.require_operation(rows, prepared, prepared['run'], operation, targets, payload)
     grant = permissions.check(prepared['authority'], request)
     if operation == 'direction':
         validate_protected_criteria(root, prepared, grant)
@@ -1693,14 +1694,15 @@ def require_selected(prepared: dict, rows: list[dict], candidate: str, *, run: s
 def complete(root: Path, run: str) -> dict:
     with c.lock(root):
         directory, prepared, _, rows = load_run(root, run)
+        if any(row['event'] == 'completion' for row in rows):
+            return _refresh_studio_projection(root, verify_completion(root, run, prepared['task']['task_id']))
         selection, chosen, reviewed = current_selection(prepared, rows)
         if chosen['scope'] == 'studio-adoption':
             candidate = find(rows, 'candidate', chosen['candidate'])
             confirm_studio_adoption(root, chosen['adoption'], candidate['data']['files'][0]['sha256'], rows)
         elif chosen['scope'] == 'studio-slot':
             from production_acceptance import verify_slot
-            verify_slot(root, run, selection, rows=rows,
-                        require_current=not any(row['event'] == 'completion' for row in rows))
+            verify_slot(root, run, selection, rows=rows, require_current=True)
         row = append_record(directory, prepared, rows, 'completion',
                             {'selection': selection['sha256'], 'candidate': chosen['candidate'],
                              'scope': chosen['scope'], 'task_id': prepared['task']['task_id'], 'run': run,
@@ -1713,13 +1715,15 @@ def verify_completion(root: Path, run: str, task_id: str) -> dict:
     done = find(rows, 'completion')
     if prepared['task']['task_id'] != task_id or done['data']['task_id'] != task_id or done['data']['run'] != run:
         raise ValueError('completion belongs to another task')
-    lifecycle.completion_tail(rows,prepared,run)
-    if done['data']['selection'] != find(rows, 'selection')['sha256']:
-        raise ValueError('completion is not the terminal selected state')
-    selection, selected, reviewed = current_selection(prepared, rows)
+    completed = [row for row in rows if row['sequence'] < done['sequence']]
+    selection, selected, reviewed = current_selection(prepared, completed)
+    expected = {'selection': selection['sha256'], 'candidate': selected['candidate'],
+                'scope': selected['scope'], 'task_id': task_id, 'run': run,
+                'limitations': [x for ob in reviewed['data']['review']['observations'] for x in ob['limitations']]}
+    if done['data'] != expected:
+        raise ValueError('completion differs from its recorded selected state')
     if selected['scope'] == 'studio-adoption':
-        candidate = find(rows, 'candidate', selected['candidate'])
-        confirm_studio_adoption(root, selected['adoption'], candidate['data']['files'][0]['sha256'], rows)
+        verify_studio_adoption_receipt(root, run, selection, rows=completed)
     elif selected['scope'] == 'studio-slot':
         from production_acceptance import verify_slot
         verify_slot(root, run, selection, rows=rows)
@@ -2053,6 +2057,107 @@ def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
                               'invalid_output_indices': sorted(invalid_output_indices)})
 
 
+def _studio_adoption_result(selector: dict, target: str, rows: list[dict], owner: dict, iteration: dict) -> dict:
+    """Match an owner's receipt to its exact completed Production operation."""
+    import adoption_workflow
+    if not isinstance(owner, dict) or owner.get('artifact_type') != 'studio-adoption' or not isinstance(owner.get('approval'), dict):
+        raise ProductionError('ADOPTION_RECORD_CORRUPT', 'The canonical adoption record is incomplete or malformed.',
+                              phase='adoption-integrity', expected=target)
+    claims = {row['sha256']: row['data']['intent']['payload'] for row in rows if row['event'] == 'adoption-claim'}
+    results = []
+    for row in rows:
+        if row['event'] != 'adoption-result' or row['data']['claim'] != owner.get('production_claim'):
+            continue
+        payload = claims.get(row['data']['claim'])
+        if (payload and payload['character'] == selector['character'] and payload['iteration'] == selector['iteration_id']
+                and payload['approval_sha256'] == c.content_id(owner['approval'])
+                and row['data']['result'] == {'ok': True, **owner}):
+            results.append(row)
+    if len(results) != 1:
+        raise ProductionError('ADOPTION_RESULT_MISSING', 'This run records no exact completed adoption of the cited Studio iteration.',
+            phase='adoption-integrity', expected=target,
+            required_action='Adopt the selected candidate with production_workflow.py adopt under its own adopt authorization.')
+    try:
+        approval = adoption_workflow.validate_approval(owner['approval'], selector['character'], iteration)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ProductionError('ADOPTION_RECORD_CORRUPT', 'The canonical adoption approval differs from its selected artifact.',
+                              phase='adoption-integrity', expected=target) from exc
+    accepted = iteration.get('adoption_status') if iteration.get('production') else iteration.get('status')
+    if (approval['image_sha256'] != target or approval['scope'] != selector['scope']
+            or owner.get('next_action') or accepted != 'accepted'):
+        raise ValueError('Studio adoption is incomplete or targets a different image')
+    return results[0]
+
+
+def _recorded_studio_adoption(run: str, selection: dict, rows: list[dict], read_object) -> dict:
+    """Verify only the immutable evidence captured by this adoption selection."""
+    import sheet_artifacts
+    from character_sheet import validate_sidecar
+    chosen = selection['data']['selection']
+    if chosen['scope'] != 'studio-adoption':
+        raise ValueError('adoption receipt verification needs a studio-adoption selection')
+    selector = chosen['adoption']
+    c.exact(selector, {'character', 'iteration_id', 'scope'}, 'Studio adoption selector')
+    prior = [row for row in rows if row['sequence'] < selection['sequence']]
+    target = find(prior, 'candidate', chosen['candidate'])['data']['files'][0]['sha256']
+    files = {}
+    for item in selection['data']['files']:
+        if item['path'] in files and files[item['path']] != item:
+            raise ValueError('adoption selection records conflicting snapshots of one file')
+        files[item['path']] = item
+
+    def saved(path: str, expected: str | None = None) -> bytes:
+        item = files.get(path)
+        if item is None:
+            raise store.evidence_error('EVIDENCE_SNAPSHOT_MISSING', 'The adoption selection lacks its bound snapshot.',
+                                       file=path, run=run, event=selection['sha256'], expected=expected)
+        raw = read_object(item['sha256'])
+        if c.digest(raw) != item['sha256'] or len(raw) != item['size'] or (expected is not None and item['sha256'] != expected):
+            raise store.evidence_error('EVIDENCE_SNAPSHOT_CORRUPT', 'The saved adoption evidence differs from its receipt.',
+                                       file=path, run=run, event=selection['sha256'], expected=expected or item['sha256'])
+        return raw
+
+    home = Path('characters') / selector['character']
+    owner = c.decode(saved((home / 'adoptions' / (selector['iteration_id'] + '.json')).as_posix()))
+    iterations = [c.decode(line) for line in saved((home / 'iterations.jsonl').as_posix()).splitlines() if line.strip()]
+    matches = [row for row in iterations if row['iteration_id'] == selector['iteration_id']]
+    if len(matches) != 1 or matches[0].get('production') != {'run': run, 'candidate': chosen['candidate']}:
+        raise ValueError('saved Studio iteration differs from its selected Production candidate')
+    iteration = matches[0]
+    result = _studio_adoption_result(selector, target, prior, owner, iteration)
+    for field in ('result', 'package', 'request', 'response', 'answer'):
+        if iteration.get(field):
+            saved(iteration[field]['path'], iteration[field]['sha256'])
+    saved(iteration['accepted_path'], target)
+    sheet = home / 'sheet'
+    sidecar = validate_sidecar(c.decode(saved((sheet / 'sheet-data.json').as_posix())), verify_files=False)
+    accepted = sidecar['slots'][iteration['slot']]['current']
+    if (accepted is None or accepted['artifact']['image']['sha256'] != target
+            or owner['sheet_binding']['current'] != accepted):
+        raise ValueError('saved sheet adoption differs from its selected image')
+    sheet_artifacts.verify_acceptance(accepted, sheet, iteration['slot'],
+        read_source=lambda base, relative, load: saved((base / relative).as_posix()))
+    decision = c.decode(saved((sheet / accepted['approval']['decision_path']).as_posix()))
+    if decision != owner['sheet_decision']:
+        raise ValueError('saved sheet approval differs from the completed adoption')
+    basis = decision['basis']
+    claim = find(prior, 'adoption-claim', basis['claim'])
+    payload = claim['data']['intent']['payload']
+    if (basis['kind'] != 'production' or payload['candidate'] != chosen['candidate']
+            or payload['character'] != selector['character'] or payload['iteration'] != selector['iteration_id']
+            or payload['approval_sha256'] != c.content_id(basis['approval'])):
+        raise ValueError('saved sheet approval differs from its Production adoption claim')
+    return result
+
+
+def verify_studio_adoption_receipt(root: Path, run: str, selection: dict, *, rows: list[dict] | None = None) -> dict:
+    """Historical verification never substitutes today's canonical destination."""
+    if rows is None:
+        rows = load_run(root, run)[3]
+    directory = run_dir(root, run)
+    return _recorded_studio_adoption(run, selection, rows, lambda sha: c.object_read(directory, sha))
+
+
 def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, rows: list[dict]) -> list[Path]:
     """Confirm the Studio adoption a selection cites and return the files that bind it.
 
@@ -2066,25 +2171,8 @@ def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, ro
     home=studio.character_dir(root,selector['character'])
     owner_path=home/'adoptions'/f"{selector['iteration_id']}.json"
     owner=c.load(c.local(root,owner_path.relative_to(root).as_posix()))
-    if not isinstance(owner, dict) or owner.get('artifact_type') != 'studio-adoption' or not isinstance(owner.get('approval'), dict):
-        raise ProductionError('ADOPTION_RECORD_CORRUPT', 'The canonical adoption record is incomplete or malformed.',
-            phase='adoption-integrity', file=owner_path.relative_to(root).as_posix(),
-            expected=target, required_action='Restore the exact approved adoption record and its bound artifacts; selection alone is not adoption.')
-    claims={row['sha256']:row['data']['intent']['payload'] for row in rows if row['event']=='adoption-claim'}
-    adopted=[claims.get(row['data']['claim']) for row in rows if row['event']=='adoption-result']
-    if not any(item and item['character']==selector['character'] and item['iteration']==selector['iteration_id']
-               and item['approval_sha256']==c.content_id(owner['approval']) for item in adopted):
-        raise ProductionError('ADOPTION_RESULT_MISSING', 'This run records no completed adoption of the cited Studio iteration.',
-            phase='adoption-integrity', file=owner_path.relative_to(root).as_posix(), expected=target,
-            required_action='Adopt the selected candidate with production_workflow.py adopt under its own adopt authorization.')
     row=studio._find(studio.read_iterations(home),selector['iteration_id'])
-    try:
-        approval=adoption_workflow.validate_approval(owner['approval'],selector['character'],row)
-    except (ValueError, KeyError, TypeError) as exc:
-        raise ProductionError('ADOPTION_RECORD_CORRUPT', 'The canonical adoption approval no longer matches its selected artifact.',
-            phase='adoption-integrity', file=owner_path.relative_to(root).as_posix(), expected=target) from exc
-    if approval['image_sha256']!=target or approval['scope']!=selector['scope'] or owner.get('next_action') or row['status']!='accepted':
-        raise ValueError('Studio adoption is incomplete or targets a different image')
+    _studio_adoption_result(selector, target, rows, owner, row)
     reference=adoption_workflow.reference_index(root,selector['character'])
     if not reference['ok'] or not any(x['iteration_id']==selector['iteration_id'] and x['image_sha256']==target for x in reference['bindings']):
         raise ValueError('Studio reference index does not confirm the chosen image')
@@ -2100,11 +2188,10 @@ def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, ro
     import sheet_artifacts
     sidecar = c.load(home / 'sheet/sheet-data.json')
     accepted = sidecar['slots'][row['slot']]['current']
-    sheet_artifacts.verify_acceptance(accepted, home / 'sheet', row['slot'])
-    artifact = accepted['artifact']
-    folder = (home / 'sheet' / artifact['provenance']['path']).parent
-    paths.extend(p for p in folder.rglob('*') if p.is_file() or p.is_symlink())
-    paths.extend(home / 'sheet' / accepted['approval'][key] for key in ('decision_path', 'evidence_path'))
+    def retained(base: Path, relative: str, load) -> bytes:
+        paths.append(base / relative)
+        return load()
+    sheet_artifacts.verify_acceptance(accepted, home / 'sheet', row['slot'], read_source=retained)
     return sorted(set(paths))
 
 
@@ -2203,7 +2290,7 @@ COMMAND_HELP = {
     'resume': 'Recover the same execution without sending it again where a send has started.',
     'draft-outcome': "Write the statement to fill when the provider's records hold no task for a started send.",
     'status': 'Report each run by preparation, readiness, submission, capture, review and disposition.',
-    'authority-import': 'Import the grant file of the open work task, or replace the current one.',
+    'authority-import': 'Import the grant file of the named work task, or replace the current one.',
     'recover-publication': 'Register a verified publication whose registration was interrupted.',
     'staging-cleanup': "List one ended operation's unpublished staging, unclaimed journals and unrecoverable publications.",
     'logs': 'List automatic operation logs of the studio, or of the configuration directory without --root.',

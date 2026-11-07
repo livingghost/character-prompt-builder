@@ -146,6 +146,129 @@ def claim_owns(record: dict, token: str) -> bool:
     return record['event'] in CLAIM_EVENTS and token in record['data'].get('authorizations', [])
 
 
+def require_operation(records: list[dict], prepared: dict, run: str,
+                      operation: str, targets: list[str], payload: dict) -> None:
+    """Closing production preserves its selected artifact for a separate adoption.
+
+    This checks the operation's lifecycle, not its current permission. Writers
+    still check the current grant immediately before an effect; replay checks
+    the exact recorded links without renewing historical permission.
+    """
+    import production_workflow as w
+    if operation == 'adopt':
+        c.exact(payload, {'candidate', 'review', 'character', 'iteration', 'approval_sha256',
+                          'registration_sha256', 'pack_dir'}, 'adoption payload')
+        if targets not in (['canon:sheet'], ['canon:catalog']):
+            raise ValueError('adoption requires one exact sheet or catalog target')
+        for key in ('candidate', 'review', 'approval_sha256'):
+            c.sha(payload[key])
+        for key in ('character', 'iteration'):
+            c.text(payload[key], 'adoption ' + key)
+        if targets == ['canon:sheet']:
+            if payload['registration_sha256'] is not None or payload['pack_dir'] is not None:
+                raise ValueError('sheet adoption cannot register a catalog pack')
+        else:
+            c.sha(payload['registration_sha256'])
+            c.text(payload['pack_dir'], 'catalog pack directory')
+        selected = w.require_selected(prepared, records, payload['candidate'], run=run)
+        if payload['review'] != selected['data']['selection']['review']:
+            raise ValueError('adoption must use the current selected review')
+        return
+    w.require_mutable(records)
+    w.require_open_task(records, run)
+
+
+def _adoption_approval(records: list[dict], request: dict, payload: dict, approval: dict) -> None:
+    import production_workflow as w
+    import adoption_workflow
+    candidate = w.find(records, 'candidate', payload['candidate'])
+    target = candidate['data']['files'][0]['sha256']
+    adoption_workflow.validate_approval(approval, payload['character'],
+        {'iteration_id': payload['iteration'], 'slot': approval['slot'], 'result': {'sha256': target}})
+    if (c.content_id(approval) != payload['approval_sha256'] or approval['by'] != request['actor']
+            or request['targets'] != ['canon:' + approval['scope']]):
+        raise ValueError('adoption approval differs from its exact authorized artifact and scope')
+
+
+def validate_transition(records: list[dict], prepared: dict, run: str, event: str, data: dict, *,
+                        read_object) -> None:
+    """One transition policy for append and replay of the existing event chain."""
+    import production_workflow as w
+    adoption = False
+    if event == 'authorization':
+        request = data['request']
+        require_operation(records, prepared, run, request['operation'], request['targets'], request['payload'])
+        adoption = request['operation'] == 'adopt'
+    elif event == 'adoption-claim':
+        c.exact(data, {'intent', 'files', 'authorizations'}, 'adoption claim')
+        intent = data['intent']
+        c.exact(intent, {'operation', 'targets', 'payload'}, 'adoption intent')
+        if (intent['operation'] != 'adopt' or not isinstance(data['authorizations'], list)
+                or len(data['authorizations']) != 1 or not isinstance(data['files'], list) or len(data['files']) != 1):
+            raise ValueError('adoption needs its one exact authorization and saved approval')
+        require_operation(records, prepared, run, **intent)
+        token = data['authorizations'][0]
+        c.sha(token)
+        request = w.find(records, 'authorization', token)['data']['request']
+        if intent != {key: request[key] for key in ('operation', 'targets', 'payload')}:
+            raise ValueError('adoption claim differs from its prior authorization')
+        if any(row['event'] == 'adoption-claim' and token in row['data']['authorizations'] for row in records):
+            raise ValueError('an adoption authorization owns only one claim')
+        _adoption_approval(records, request, intent['payload'], c.decode(read_object(data['files'][0]['sha256'])))
+        adoption = True
+    elif event == 'operation-start':
+        c.exact(data, {'authorization_sha256', 'effect', 'claim'}, 'operation start')
+        token = data['authorization_sha256']
+        c.sha(token)
+        request = w.find(records, 'authorization', token)['data']['request']
+        if request['operation'] == 'submit':
+            raise ValueError('submission starts its owned execution, not a local operation')
+        require_operation(records, prepared, run, request['operation'], request['targets'], request['payload'])
+        if request['operation'] == 'adopt':
+            c.sha(data['claim'])
+            claim = w.find(records, 'adoption-claim', data['claim'])
+            if data['effect'] != 'local-action' or not claim_owns(claim, token):
+                raise ValueError('adoption start needs its exact prior claim and local effect')
+            if any(row['event'] == 'operation-start' and row['data']['authorization_sha256'] == token for row in records):
+                raise ValueError('an adoption claim starts only once')
+            adoption = True
+    elif event == 'adoption-result':
+        c.exact(data, {'claim', 'result'}, 'adoption result')
+        c.sha(data['claim'])
+        claim = w.find(records, 'adoption-claim', data['claim'])
+        token = claim['data']['authorizations'][0]
+        starts = [row for row in records if row['event'] == 'operation-start'
+                  and row['data']['authorization_sha256'] == token and row['data']['claim'] == data['claim']]
+        if len(starts) != 1 or any(row['event'] == 'adoption-result' and row['data']['claim'] == data['claim'] for row in records):
+            raise ValueError('adoption result needs its unique prior start and no previous result')
+        request = w.find(records, 'authorization', token)['data']['request']
+        payload, result = claim['data']['intent']['payload'], data['result']
+        if not isinstance(result, dict):
+            raise ValueError('adoption result must retain its completed owner receipt')
+        approval = result['approval']
+        _adoption_approval(records, request, payload, approval)
+        if (result.get('ok') is not True or result.get('artifact_type') != 'studio-adoption'
+                or result.get('production_claim') != data['claim'] or result['next_action'] is not None
+                or result.get('status') != ('catalog-registered' if approval['scope'] == 'catalog' else 'sheet-bound')):
+            raise ValueError('adoption result differs from its exact authorized artifact and approval')
+        adoption = True
+    closed = next((row['event'] for row in reversed(records) if row['event'] in {'completion', 'abandoned'}), None)
+    if closed is None or adoption:
+        return
+    if (event in {'external-effect-result', 'execution-result', 'cleanup-observation'}
+            or (event == 'external-step' and data.get('operation') == 'delete')):
+        return
+    # Abandoning work does not discard a response from an execution already
+    # started. Its capture remains evidence, without reopening review/selection.
+    if (closed == 'abandoned' and event in {'dispatch-results', 'candidate', 'capture-status',
+                                          'execution-outcome', 'image-edit-output'}
+            and any(row['event'] == 'execution-start' for row in records)):
+        return
+    if closed == 'completion':
+        w.require_mutable(records)
+    w.require_open_task(records, run)
+
+
 def require_active(records: list[dict], prepared: dict, run: str, authorization: str) -> dict:
     state = by_authorization(records, prepared, run, authorization)
     if state is None:
@@ -183,6 +306,8 @@ def begin(root: Path, run: str, authorization: str, *, effect: str, claim: str |
         directory, prepared, _, rows = w.load_run(root, run)
         request = w.find(rows, 'authorization', authorization)['data']['request']
         if request['operation'] != 'submit':
+            w._permission(root, prepared, rows, authorization,
+                          request['operation'], request['targets'], request['payload'])
             return w.append_record(directory, prepared, rows, 'operation-start',
                 {'authorization_sha256': authorization, 'effect': effect, 'claim': claim})
         state = by_authorization(rows, prepared, run, authorization)
@@ -405,16 +530,16 @@ def summary(root: Path, *, task_id: str | None = None, grant: str | None = None,
             'executions': states}
 
 
-def completion_tail(records: list[dict], prepared: dict, run: str) -> None:
+def completion_tail(records: list[dict], prepared: dict, run: str, *, read_object) -> None:
     derive(records, prepared, run)
-    completions = [row for row in records if row['event'] == 'completion']
-    if len(completions) > 1:
-        raise ProductionError('EVENT_CHAIN_CORRUPT', 'The run has more than one completion.', phase='integrity')
-    if completions and any(not (
-            row['event'] in {'execution-result', 'external-effect-result', 'cleanup-observation'}
-            or (row['event'] == 'external-step' and row['data']['operation'] == 'delete'))
-            for row in records if row['sequence'] > completions[0]['sequence']):
-        raise ProductionError('EVENT_CHAIN_CORRUPT', 'Only result evidence and cleanup of owned uploads may follow completion.', phase='integrity')
+    prior = []
+    for row in records:
+        try:
+            validate_transition(prior, prepared, run, row['event'], row['data'], read_object=read_object)
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ProductionError('EVENT_CHAIN_CORRUPT', 'Invalid recorded lifecycle transition: ' + str(exc),
+                                  phase='integrity', run=run, event=row['sha256']) from exc
+        prior.append(row)
 
 
 def commit_effect(root: Path, run: str, event: str, data: dict, tokens: list[str], *, effect: str) -> dict:

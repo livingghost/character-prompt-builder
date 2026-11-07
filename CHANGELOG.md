@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026.11.07.1
+
+- Adopt an existing selected Production candidate under separate current
+  authority after its source task completes or is abandoned. Apply one
+  lifecycle policy when recording and reading the existing event chain;
+  preserve the original production decisions, task closure and image.
+- Verify completed canonical selections against their saved destination
+  evidence. Keep the initial sheet decision and later catalog approval
+  distinct so promotion and subsequent slot choices preserve historical
+  completion while current references verify their current adoption.
+- Attach an original Generation Package and its complete reference companion
+  to an existing imported iteration with attributed source evidence. Retain
+  the image, acceptance history and import ownership, preserve any original
+  Production binding, and recover interrupted attachment without re-importing.
+- Share adoption source checks between preflight and status. Report missing
+  packages, selection problems and unfinished Production results through their
+  owning operations. Refresh active-reference views from committed records
+  through the ordinary Studio projection and recovery path. Bind reference
+  readiness and influence to the exact adopted iteration, including when two
+  iterations retain identical image bytes.
+
 ## 2026.11.05.6
 
 - Own maintenance check execution, conditions and subsystem coverage in a

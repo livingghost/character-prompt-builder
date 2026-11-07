@@ -1245,6 +1245,12 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
             if chosen['scope'] == 'studio-slot':
                 from production_acceptance import verify_slot
                 verify_slot(root, identifier, selection, rows=rows, require_current='completion' not in events)
+            elif chosen['scope'] == 'studio-adoption':
+                if 'completion' in events:
+                    workflow.verify_studio_adoption_receipt(root, identifier, selection, rows=rows)
+                else:
+                    selected = workflow.find(rows, 'candidate', chosen['candidate'])
+                    workflow.confirm_studio_adoption(root, chosen['adoption'], selected['data']['files'][0]['sha256'], rows)
             selection_ready = True
         except ValueError as exc:
             selection_diagnostics.append(from_exception(exc, phase='selection'))

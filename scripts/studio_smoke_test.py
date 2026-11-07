@@ -25,7 +25,7 @@ import validate_studio  # noqa: E402
 import work_ledger  # noqa: E402
 from build_generation_payload import validate_generation_package_carrier_paths  # noqa: E402
 
-EXPECTED_CHECKS = 75
+EXPECTED_CHECKS = 95
 
 
 def gallery_details(root: Path) -> str:
@@ -102,6 +102,184 @@ def failure(fn) -> str:
     except Exception as exc:  # noqa: BLE001 - the message is what is checked
         return f"{type(exc).__name__}: {exc}"
     return ""
+
+
+def package_attachments(tmp: Path, check) -> None:
+    """Recover an original package on the same imported image, with real carriers.
+
+    The bytes and decisions below are explicit synthetic fixtures. No external
+    generation is performed and none of the source declarations are user consent.
+    """
+    import adoption_workflow
+    import catalog_cli
+    import pack_manager as pm
+    from build_generation_payload import materialize_cli_reference_bundle
+    from generation_payload_smoke_test import _write_fixture_pack, _package, PACK_ID, MODEL_ID
+    from prepare_generation_references import prepare_references
+    from verify_generation_payload import verify_content
+    from studio_activity import chronological
+    from PIL import Image
+
+    base = tmp / 'attachments'; base.mkdir()
+    pack = base / 'pack'; _write_fixture_pack(pack)
+    settings = pm.PackSettings(roots=(pack,), state_file=base / 'state.json', cache_dir=base / 'cache',
+        managed_root=base / 'managed', quarantine_root=base / 'quarantine', default_enabled_packs=(PACK_ID,))
+    pm.save_state(settings.state_file, {'pack_roots': [], 'enabled_packs': [PACK_ID]})
+    catalog_cli.configure_pack_runtime(settings)
+    image_path = base / 'image.png'; Image.new('RGB', (24, 24), 'blue').save(image_path)
+    references = prepare_references([{'role': 'scene-geometry', 'source': {'kind': 'supplied-file',
+        'reference_id': 'synthetic-scene', 'resolved_path': str(image_path)}}], model=MODEL_ID,
+        output_dir=base / 'prepared')
+    original = base / 'original'; original.mkdir()
+    references, companion = materialize_cli_reference_bundle(references, model=MODEL_ID,
+        source_root=base / 'prepared', staging_root=original, companion_name='original.references')
+    package = _package(references, prepared_reference_root=original)
+    package_path = original / 'original.json'; package_path.write_bytes(execution_contract.encoded(package))
+    evidence = base / 'receipt.txt'
+    evidence.write_text('Synthetic fixture source receipt: the retained image is attributed to original.json. '
+                        'This tests a later authored attribution, not proof of image generation.\n', encoding='utf-8')
+    root = studio.init(base / 'studio', 'attachment-studio', 'Package attachment fixture')
+    home = studio.add_character(root, 'C01', '')
+    old = studio.iterate(root, 'C01', 'outfit.front', image_path,
+        package=None, request=None, response=None, note='Synthetic original import')
+    studio.accept(root, 'C01', old['iteration_id'])
+    row = studio.iterate(root, 'C01', 'outfit.front', image_path,
+        package=None, request=None, response=None, note='Synthetic selected import')
+    row = studio.accept(root, 'C01', row['iteration_id'])
+    before = studio.read_iterations(home, project=False)
+    accepted = (root / row['accepted_path']).read_bytes()
+    kwargs = {'package': package_path, 'evidence': evidence,
+              'actor': 'SYNTHETIC FIXTURE AUTHOR', 'reason': 'The retained synthetic source receipt relates these exact files.'}
+
+    check('a missing package status names attach-package and its evidence requirement',
+        'studio.py attach-package' in studio.status(root) and 'ADOPTION_PACKAGE_REQUIRED' in studio.status(root))
+    code, out, err = cli('attach-package', '--studio', str(root), '--character', 'C01', '--iteration', row['iteration_id'],
+        '--package', str(package_path), '--evidence', str(evidence), '--actor', kwargs['actor'], '--reason', kwargs['reason'])
+    check('attach-package CLI records the original full package with its discovered companion', code == 0, err)
+    attached = json.loads(out)
+    receipt = studio.validate_package_attachment(root, attached)
+    after = studio.read_iterations(home, project=False)
+    check('package attachment preserves both iterations, accepted image, provenance and acceptance history',
+        len(after) == 2 and after[0] == before[0]
+        and {key: value for key, value in after[1].items() if key not in {'package', 'package_attachment'}} == {
+            key: value for key, value in before[1].items() if key != 'package'}
+        and (root / row['accepted_path']).read_bytes() == accepted
+        and attached['provenance'] == 'external-import' and attached.get('production') is None)
+    check('attachment receipt retains distinct attribution time, actor, source and exact evidence bytes',
+        chronological(receipt['recorded_at']) >= chronological(attached['at']) and receipt['actor'] == kwargs['actor']
+        and receipt['source']['package'] == str(package_path)
+        and (root / attached['package_attachment']['path']).parent.joinpath(receipt['evidence']['path']).read_bytes() == evidence.read_bytes()
+        and receipt['package']['sha256'] == execution_contract.sha256_file(package_path))
+    kept = root / attached['package']['path']
+    check('attached Generation Package verifies with its actual retained companion',
+        verify_content(studio.read_json(kept), package_root=kept.parent)['content_verified'] is True
+        and bool(receipt['companion_files'])
+        and (kept.parent / companion.name).is_dir())
+    saved_rows = (home / 'iterations.jsonl').read_bytes()
+    saved_receipt = (root / attached['package_attachment']['path']).read_bytes()
+    retried = studio.attach_package(root, 'C01', row['iteration_id'], **kwargs)
+    check('identical attachment retry preserves record time and never creates another iteration',
+        retried == attached and (home / 'iterations.jsonl').read_bytes() == saved_rows
+        and (root / attached['package_attachment']['path']).read_bytes() == saved_receipt)
+    original_evidence = evidence.read_bytes(); evidence.write_bytes(original_evidence + b'Changed source.\n')
+    message = failure(lambda: studio.attach_package(root, 'C01', row['iteration_id'], **kwargs))
+    check('changed attribution evidence is refused without rewriting the first receipt', bool(message)
+        and (home / 'iterations.jsonl').read_bytes() == saved_rows
+        and (root / attached['package_attachment']['path']).read_bytes() == saved_receipt, message)
+    evidence.write_bytes(original_evidence)
+    original_package = package_path.read_bytes(); package_path.write_bytes(original_package + b'\n')
+    message = failure(lambda: studio.attach_package(root, 'C01', row['iteration_id'], **kwargs))
+    check('changed original package bytes cannot replace a recorded attachment', bool(message)
+        and (home / 'iterations.jsonl').read_bytes() == saved_rows, message)
+    package_path.write_bytes(original_package)
+    carrier = next(path for path in companion.rglob('*') if path.is_file())
+    carrier_raw = carrier.read_bytes(); carrier.write_bytes(b'Changed carrier')
+    message = failure(lambda: studio.attach_package(root, 'C01', row['iteration_id'], **kwargs))
+    check('changed source companion fails before changing the retained package', bool(message)
+        and (home / 'iterations.jsonl').read_bytes() == saved_rows, message)
+    carrier.write_bytes(carrier_raw)
+    kept_evidence = kept.parent / receipt['evidence']['path']; kept_evidence.write_bytes(b'Changed retained evidence')
+    errors = validate_studio.validate(root)
+    readiness = adoption_workflow.adoption_readiness(root, 'C01', attached)
+    check('validator and adoption readiness both reject damaged retained attribution evidence',
+        any('invalid package attachment' in error for error in errors) and not readiness['source_ready'], errors)
+    kept_evidence.write_bytes(original_evidence)
+    approval = {'scope': 'sheet', 'influence': 'outfit', 'character': 'C01', 'iteration_id': row['iteration_id'],
+        'slot': row['slot'], 'image_sha256': row['result']['sha256'], 'by': 'SYNTHETIC FIXTURE AUTHOR', 'at': '2000-01-01T00:00:00Z'}
+    adoption_workflow.adopt(root, 'C01', row['iteration_id'], approval)
+    check('the same imported iteration can be adopted after attachment without a new acceptance',
+        (home / 'iterations.jsonl').read_bytes() == saved_rows and validate_studio.validate(root) == [],
+        validate_studio.validate(root))
+
+    recovery = studio.add_character(root, 'C02', '')
+    candidate = studio.iterate(root, 'C02', 'base.front', image_path,
+        package=None, request=None, response=None, note='Synthetic interrupted attachment')
+    initial = (recovery / 'iterations.jsonl').read_bytes()
+    destination = recovery / 'iterations' / candidate['iteration_id'] / 'package-attachment'
+    with mock.patch.object(execution_contract, 'publish_directory', side_effect=OSError('Synthetic publish failure')):
+        message = failure(lambda: studio.attach_package(root, 'C02', candidate['iteration_id'], **kwargs))
+    check('attachment publication failure leaves the original iteration and no partial publication',
+        'Synthetic publish failure' in message and not destination.exists()
+        and (recovery / 'iterations.jsonl').read_bytes() == initial, message)
+    with mock.patch.object(studio, 'write_iterations', side_effect=OSError('Synthetic ledger failure')):
+        message = failure(lambda: studio.attach_package(root, 'C02', candidate['iteration_id'], **kwargs))
+    published = (destination / 'record.json').read_bytes()
+    check('a ledger failure retains a complete retryable attachment without changing the iteration',
+        'Synthetic ledger failure' in message and (recovery / 'iterations.jsonl').read_bytes() == initial, message)
+    recovered = studio.attach_package(root, 'C02', candidate['iteration_id'], **kwargs)
+    check('retry completes the same published attachment and keeps its first recorded time',
+        (destination / 'record.json').read_bytes() == published
+        and len(studio.read_iterations(recovery)) == 1
+        and studio.validate_package_attachment(root, recovered) is not None and validate_studio.validate(root) == [],
+        validate_studio.validate(root))
+    check('attachment requires actual attribution actor and a separate evidence file',
+        'actor' in failure(lambda: studio.attach_package(root, 'C02', candidate['iteration_id'], **{**kwargs, 'actor': ''}))
+        and 'separate' in failure(lambda: studio.attach_package(root, 'C02', candidate['iteration_id'], **{**kwargs, 'evidence': package_path})))
+
+    # A genuine local Production package remains source evidence for a separately
+    # imported row even after the run is abandoned. The original projection stays.
+    from test_production_adoption import AdoptionTests
+    import production_workflow as workflow
+    import production_store as store
+    case = AdoptionTests('test_separate_authorized_adoption_and_completion')
+    try:
+        case.setUp()
+        origin_root, origin_row = case.root, case.row
+        origin_home = studio.character_home(origin_root, 'robot')
+        imported = studio.iterate(origin_root, 'robot', origin_row['slot'], origin_root / origin_row['result']['path'],
+            package=None, request=None, response=None, note='Synthetic imported image with distinct ownership')
+        studio.accept(origin_root, 'robot', imported['iteration_id'])
+        workflow.abandon_task(origin_root, case.task['task_id'], actor='SYNTHETIC FIXTURE AUTHOR',
+                              reason='Synthetic source run stopped; the imported image has a separate adoption decision.')
+        before_rows = studio.read_iterations(origin_home, project=False)
+        before_events = store.event_rows(origin_root, case.run)
+        bound_kwargs = {**kwargs, 'package': origin_root / origin_row['package']['path'], 'evidence': origin_root / 'adoption-basis.txt'}
+        recovered = studio.attach_package(origin_root, 'robot', imported['iteration_id'], **bound_kwargs)
+        source_receipt = studio.validate_package_attachment(origin_root, recovered)
+        check('a bound package retains imported ownership and its original abandoned Production projection',
+            recovered.get('production') is None and recovered['provenance'] == 'external-import'
+            and studio.read_iterations(origin_home, project=False)[0] == before_rows[0]
+            and len(studio.read_iterations(origin_home)) == 2
+            and source_receipt['production_candidates'] == [case.candidate]
+            and studio.read_json(origin_root / recovered['package']['path'])['production_binding']['run'] == case.run)
+        check('attaching a bound package creates no Production selection, claim, authorization or event',
+            store.event_rows(origin_root, case.run) == before_events)
+        approval = {**case.approval, 'iteration_id': imported['iteration_id']}
+        adoption_workflow.adopt(origin_root, 'robot', imported['iteration_id'], approval)
+        check('an abandoned run does not block a separately approved imported image adoption',
+            store.event_rows(origin_root, case.run) == before_events and validate_studio.validate(origin_root) == [],
+            validate_studio.validate(origin_root))
+        other = studio.iterate(origin_root, 'robot', 'outfit.front', image_path,
+            package=None, request=None, response=None, note='Synthetic unrelated imported image')
+        message = failure(lambda: studio.attach_package(origin_root, 'robot', other['iteration_id'], **bound_kwargs))
+        check('a bound package for another local candidate image is refused without creating an attachment',
+            'no matching image candidate' in message
+            and not (origin_home / 'iterations' / other['iteration_id'] / 'package-attachment').exists(), message)
+        check('attach-package cannot rewrite a Production-owned iteration',
+            'external-import' in failure(lambda: studio.attach_package(origin_root, 'robot', origin_row['iteration_id'], **bound_kwargs))
+            and studio.read_iterations(origin_home, project=False)[0] == before_rows[0])
+    finally:
+        case.doCleanups()
 
 
 def regressions(tmp: Path, source: Path, check) -> None:
@@ -384,7 +562,8 @@ def main() -> int:
             "status speaks in plain words with correct plurals",
             "3 generated images, 1 slot accepted, 0 candidates waiting" in report
             and "1 slots" not in report and "next=" not in report and "adopt-with-sheet-scope" not in report
-            and "base.front as a reference: accepted, not bound to the sheet; adopt it" in report,
+            and "base.front as a reference: accepted, not bound to the sheet; use studio.py attach-package" in report
+            and "including the evidence that relates it to this image" in report,
             report,
         )
 
@@ -588,6 +767,7 @@ def main() -> int:
         check("an iteration that kept no companion cannot resolve the carriers its package names", unresolved)
 
         regressions(Path(tmp), source, check)
+        package_attachments(Path(tmp), check)
 
     passed = sum(1 for row in results if row["passed"])
     report = {

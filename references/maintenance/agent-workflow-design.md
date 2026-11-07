@@ -121,6 +121,12 @@ without inheriting a claim, a result review or exact-request authorization.
 An existing grant remains subject to its actual scope rather than being
 discarded or broadened merely because the agent changed an input file.
 
+Keep an operation's completion tied to the result and scope it established.
+Later authorized use of its retained artifact records its own decision while
+preserving that completion. Derive continuation guidance and mutation preflight
+from the same eligibility rules, and distinguish a source prerequisite from
+the authority to act on it.
+
 ## Instructions and knowledge
 
 Ordinary instructions teach what to understand and decide, which operation

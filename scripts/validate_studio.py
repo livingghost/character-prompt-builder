@@ -41,7 +41,7 @@ MANIFEST_FIELDS = {
 ITERATION_FIELDS = {
     "iteration_id", "at", "character", "slot", "status", "acceptances", "result", "package", "request",
     "request_layout", "response", "answer", "service", "seed", "note", "accepted_path", "superseded_by", "rejected_at",
-    "reason", "actor", "provenance", "production", "adoption_status",
+    "reason", "actor", "provenance", "production", "adoption_status", "package_attachment",
 }
 
 
@@ -294,6 +294,10 @@ def validate(root: Path) -> list[str]:
             ids.append(str(row.get("iteration_id")))
             for name in ("result", "package", "request", "response", "answer"):
                 check_file_reference(root, row.get(name), f"{label} {name}", errors)
+            try:
+                studio.validate_package_attachment(root, stored)
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                errors.append(f"{label}: invalid package attachment: {exc}")
             check_answer(root, row, label, errors)
             check_layout(root, row, label, errors)
             if row.get("status") == "accepted":

@@ -174,6 +174,161 @@ class StudioSourceTests(unittest.TestCase):
         self.assertEqual(c.load(target),self.source)
 
 
+class ProductionStudioSourceTests(unittest.TestCase):
+    def setUp(self):
+        import adoption_workflow as adoption
+        import production_case_fixtures as fixtures
+        import production_execution as execution
+        import production_fixtures as fixture
+        import production_workflow as workflow
+        from catalog_retrieval import runtime
+        from revision_contract import digest
+        from test_production_execution import decisions
+        from visual_continuity import file_ref
+
+        temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.enterContext(fixture.scratch_home(self.base / 'home'))
+        self.addCleanup(runtime.configure_pack_runtime, None)
+        case = fixtures.create(self.base / 'studio', self.base / 'runtime')
+        self.root, self.settings = case['root'], case['settings']
+        authority = c.load(self.root / 'fixture-authority.json')
+        authority['grants'][0]['targets'].append('canon:catalog')
+        fixtures.write(self.root / 'fixture-authority.json', authority)
+        task = case['task']
+        task['recording'].update(slot='base.front', sheet_panel=True, subject_map={'robot': 'robot'})
+        task['generation']['continuity']['robot'] = 'undecided'
+        fixtures.write(self.root / 'task.json', task)
+        self.run = workflow.prepare(self.root, 'task.json')['run']
+        output = execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
+        self.candidate = output['runs'][0]['candidates'][0]
+        self.row = studio.read_iterations(studio.character_home(self.root, 'robot'))[0]
+        review = workflow.draft_review(self.root, self.run, self.candidate)
+        review.update(reviewer='Synthetic test reviewer', observations=[{
+            'evidence': 'candidate', 'locator': {'kind': 'whole'},
+            'observation': 'A real local synthetic PNG was captured.',
+            'interpretation': 'Protocol fixture only.',
+            'limitations': ['No generative quality or user approval is asserted.']}],
+            conclusion='Synthetic test decision.')
+        for check in review['checks']:
+            check.update(verdict='pass', observation_indices=[0], reason='Explicit synthetic fixture assessment.')
+        fixtures.write(self.root / 'review.json', review)
+        workflow.review(self.root, self.run, 'review.json')
+        selection = workflow.draft_selection(self.root, self.run, self.candidate)
+        selection['reason'] = 'Explicit synthetic selection for later reference adoption.'
+        fixture.selection(self.root, self.run, selection)
+        fixtures.write(self.root / 'selection.json', selection)
+        workflow.select(self.root, self.run, 'selection.json')
+        fixtures.write(self.root / 'adoption-basis.txt', 'Explicit synthetic author decision. Not user consent.')
+        self.approval = {'scope': 'sheet', 'influence': 'identity', 'character': 'robot',
+            'iteration_id': self.row['iteration_id'], 'slot': self.row['slot'],
+            'image_sha256': self.row['result']['sha256'], 'by': fixture.ACTOR, 'at': '2000-01-01T00:00:00Z',
+            'continuity_decision': {'character_id': 'robot', 'continuity': 'recurring',
+                'basis': file_ref(self.root, 'adoption-basis.txt', locator='whole'),
+                'by': fixture.ACTOR, 'at': '2000-01-01T00:00:00Z'}}
+        fixtures.write(self.root / 'sheet-approval.json', self.approval)
+        intent = workflow.adoption_intent(self.root, self.run, self.candidate,
+            'robot', self.row['iteration_id'], self.approval)
+        token = fixture.grant(self.root, self.run, intent)
+        workflow.adopt(self.root, self.run, self.candidate, 'robot', self.row['iteration_id'],
+            'sheet-approval.json', token)
+        self.sheet = self.root / 'characters/robot/sheet/sheet-data.json'
+        self.journal = adoption._journal_path(studio.character_home(self.root, 'robot'), self.row['iteration_id'])
+        self.initial_journal = c.load(self.journal)
+        self.source = sr.current_source(self.root, 'robot', 'base.front')
+        self.record = {'id': 'adopted-test-character', 'label': 'Adopted fixture',
+            'curation_status': 'curated', 'category': 'species', 'prompt': 'a fictional test character',
+            'domains': ['shared'], 'tags': ['fixture', 'character'],
+            'search_terms': [{'phrase': 'adopted test character', 'facet': 'species', 'weight': 1.0, 'source': 'author'}],
+            'scaffold': {'family': 'direct-geometry-required', 'confidence': 'fallback'}}
+        self.catalog_approval = {**self.approval, 'scope': 'catalog', 'registration_record_sha256': digest(self.record)}
+        self.pack = self.base / 'registered-pack'
+        fixtures.write(self.root / 'catalog-approval.json', self.catalog_approval)
+
+    def promotion_authorization(self):
+        import production_fixtures as fixture
+        import production_workflow as workflow
+        intent = workflow.adoption_intent(self.root, self.run, self.candidate,
+            'robot', self.row['iteration_id'], self.catalog_approval,
+            registration_record=self.record, pack_dir=self.pack)
+        return fixture.grant(self.root, self.run, intent)
+
+    def promote(self, token=None):
+        import production_workflow as workflow
+        return workflow.adopt(self.root, self.run, self.candidate, 'robot', self.row['iteration_id'],
+            'catalog-approval.json', token or self.promotion_authorization(),
+            registration_record=self.record, pack_dir=self.pack, settings=self.settings)
+
+    def test_catalog_promotion_preserves_sheet_acceptance_and_yields_current_reference(self):
+        current = c.load(self.sheet)['slots']['base.front']['current']
+        companion = self.base / 'before-promotion.references'
+        sr.archive_source(self.source, companion)
+        self.promote()
+        source = sr.current_source(self.root, 'robot', 'base.front')
+        proof = sr.identity_source(source, root=self.root, character_id='robot')
+        self.assertEqual(c.load(self.sheet)['slots']['base.front']['current'], current)
+        self.assertEqual(c.load(self.journal)['sheet_decision'], self.initial_journal['sheet_decision'])
+        self.assertEqual(source['artifact_id'], self.source['artifact_id'])
+        self.assertEqual(source['acceptance_sha256'], self.source['acceptance_sha256'])
+        self.assertNotEqual(source['proof_sha256'], self.source['proof_sha256'])
+        self.assertEqual(proof['adoption']['approval'], self.catalog_approval)
+        with self.assertRaisesRegex(ValueError, 'no longer matches'):
+            sr.validate_source(self.source)
+        prior = sr.validate_source(self.source, active=False, source_archive=companion / 'sources')
+        self.assertEqual(prior['adoption']['approval'], self.approval)
+
+    def test_promoted_reference_requires_both_original_decision_and_current_claim(self):
+        self.promote()
+        journal = c.load(self.journal)
+        altered_decision = copy.deepcopy(journal['sheet_decision'])
+        altered_decision['reason'] = 'Another decision cannot replace the recorded sheet acceptance.'
+        changes = [
+            {'sheet_decision': altered_decision},
+            {'production_claim': self.initial_journal['production_claim']},
+            {'approval': {**journal['approval'], 'by': 'Another approver'}},
+            {'approval': {**journal['approval'], 'influence': 'outfit'}},
+            {'approval': {**journal['approval'], 'iteration_id': 'another-iteration'}},
+            {'approval': {**journal['approval'], 'image_sha256': '0' * 64}},
+            {'status': 'sheet-bound'},
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                c.atomic_write_json(self.journal, {**journal, **change})
+                with self.assertRaises(ValueError):
+                    sr.current_source(self.root, 'robot', 'base.front')
+        c.atomic_write_json(self.journal, journal)
+        sr.validate_source(sr.current_source(self.root, 'robot', 'base.front'))
+
+    def test_catalog_reference_waits_for_its_completed_result_and_resumes_same_claim(self):
+        import production_workflow as workflow
+        import adoption_workflow as adoption
+        token = self.promotion_authorization()
+        append = workflow.append_record
+        def interrupted(*args, **kwargs):
+            if args[3] == 'adoption-result':
+                raise OSError('Synthetic interruption before recording the catalog adoption result.')
+            return append(*args, **kwargs)
+        with patch.object(workflow, 'append_record', side_effect=interrupted):
+            with self.assertRaises(OSError):
+                self.promote(token)
+        with self.assertRaisesRegex(ValueError, 'ADOPTION_RESULT_MISSING'):
+            sr.current_source(self.root, 'robot', 'base.front')
+        index = adoption.reference_index(self.root, 'robot')
+        self.assertFalse(index['ok'])
+        self.assertEqual(index['bindings'][0]['next_action'], 'record-adoption-result')
+        self.assertTrue(index['bindings'][0]['adoption']['source_ready'])
+        with self.assertRaisesRegex(ValueError, 'reference workflow is incomplete'):
+            adoption.supplied_selection(self.root, 'robot')
+        claim = c.load(self.journal)['production_claim']
+        self.promote(token)
+        self.assertEqual(c.load(self.journal)['production_claim'], claim)
+        sr.validate_source(sr.current_source(self.root, 'robot', 'base.front'))
+        index = adoption.reference_index(self.root, 'robot')
+        self.assertTrue(index['ok'])
+        self.assertIsNone(index['bindings'][0]['next_action'])
+        self.assertEqual(c.load(self.sheet.parent / 'active-references.json'), index)
+
+
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()

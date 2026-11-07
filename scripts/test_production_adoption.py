@@ -1,5 +1,6 @@
 """Explicit canonical adoption is separate from synthetic generation and selection."""
 from __future__ import annotations
+import copy
 from pathlib import Path
 import tempfile
 import unittest
@@ -12,8 +13,11 @@ import production_fixtures as fixture
 import production_execution as execution
 import production_workflow as workflow
 import production_store as store
+import production_acceptance as acceptance
 import execution_lifecycle as accounting
 import studio
+import studio_reference
+import transport_synthetic
 from production_diagnostics import ProductionError
 from test_production_execution import decisions
 from visual_continuity import file_ref
@@ -22,7 +26,11 @@ from visual_continuity import file_ref
 class AdoptionTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        b=Path(self.temp.name);case=f.create(b/'studio',b/'runtime');self.root=case['root'];self.task=case['task']
+        b=Path(self.temp.name)
+        self.enterContext(fixture.scratch_home(b/'home'))
+        from catalog_retrieval import runtime
+        self.addCleanup(runtime.configure_pack_runtime,None)
+        case=f.create(b/'studio',b/'runtime');self.root=case['root'];self.task=case['task'];self.settings=case['settings']
         self.task['recording'].update(slot='base.front',sheet_panel=True,subject_map={'robot':'robot'})
         self.task['generation']['continuity']['robot']='undecided'
         f.write(self.root/'task.json',self.task)
@@ -59,6 +67,238 @@ class AdoptionTests(unittest.TestCase):
 
     def adopt(self,token):
         return workflow.adopt(self.root,self.run,self.candidate,'robot',self.row['iteration_id'],'approval.json',token)
+
+    def close_selected(self,kind):
+        self.select()
+        studio.accept(self.root,'robot',self.row['iteration_id'])
+        if kind=='completed':
+            workflow.complete(self.root,self.run)
+        else:
+            workflow.abandon_task(self.root,self.task['task_id'],actor=fixture.ACTOR,
+                reason='Synthetic production work stops; no canonical adoption was requested yet.')
+        return store.event_rows(self.root,self.run)
+
+    def import_authority(self,authority):
+        f.write(self.root/'updated-authority.json',authority)
+        store.import_authority(self.root,'updated-authority.json',
+            expected=store.authority_record(self.root,self.task['task_id'])['sha256'])
+
+    def assert_later_adoption(self,kind):
+        original=self.close_selected(kind)
+        before=c.encoded(original)
+        iterations=studio.read_iterations(studio.character_home(self.root,'robot'),project=False)
+        reference=adoption_workflow.reference_index(self.root,'robot')['bindings'][0]
+        self.assertEqual(reference['next_action'],'adopt-production-candidate')
+        self.assertTrue(reference['adoption']['source_ready'])
+        with (patch.object(transport_synthetic,'send',side_effect=AssertionError('Adoption must not generate')),
+              patch.object(studio,'iterate',side_effect=AssertionError('Adoption must keep the existing iteration'))):
+            token=self.authorize_adoption()
+            result=self.adopt(token)
+            self.assertEqual(self.adopt(token),result)
+        rows=store.event_rows(self.root,self.run)
+        self.assertEqual(c.encoded(rows[:len(original)]),before)
+        self.assertEqual([row['event'] for row in rows[len(original):]],
+                         ['authorization','adoption-claim','operation-start','adoption-result'])
+        self.assertEqual(sum(row['event']=='selection' for row in rows),1)
+        self.assertEqual(sum(row['event']=='completion' for row in rows),int(kind=='completed'))
+        self.assertEqual(sum(row['event']=='candidate' for row in rows),1)
+        self.assertEqual(len(store.runs(self.root)),1)
+        self.assertEqual(studio.read_iterations(studio.character_home(self.root,'robot'),project=False),iterations)
+        self.assertEqual(accounting.summary(self.root)['submissions'],1)
+        index=adoption_workflow.reference_index(self.root,'robot')
+        self.assertTrue(index['ok'],index['errors'])
+        self.assertIsNone(index['bindings'][0]['next_action'])
+        source=studio_reference.current_source(self.root,'robot','base.front')
+        self.assertEqual(source['sha256'],self.row['result']['sha256'])
+        studio_reference.validate_source(source)
+        status=execution.status(self.root,self.run)['runs'][0]
+        self.assertEqual(status['task_disposition'],kind)
+        self.assertIsNone(status['next_action'])
+        if kind=='completed':
+            done=workflow.find(original,'completion')
+            self.assertEqual(workflow.verify_completion(self.root,self.run,self.task['task_id']),done)
+            self.assertEqual(workflow.complete(self.root,self.run),done)
+        selection=workflow.find(rows,'selection')['data']['selection']
+        with self.assertRaises(ValueError):
+            accounting.begin(self.root,self.run,selection['authorization'],effect='local-action')
+        self.assertEqual(store.event_rows(self.root,self.run),rows)
+
+    def test_completed_selection_can_be_adopted_without_reopening_production(self):
+        self.assert_later_adoption('completed')
+
+    def test_abandoned_selection_can_be_adopted_without_reopening_production(self):
+        self.assert_later_adoption('abandoned')
+
+    def test_completed_slot_acceptance_can_be_adopted_later(self):
+        decision=acceptance.draft(self.root,self.run,self.candidate,'fixture-grant')
+        decision['reason']='Synthetic author accepts this existing image for delivery.'
+        f.write(self.root/'slot-decision.json',decision)
+        acceptance.accept(self.root,self.run,decision_file='slot-decision.json')
+        before=store.event_rows(self.root,self.run)
+        self.adopt(self.authorize_adoption())
+        self.assertEqual(workflow.verify_completion(self.root,self.run,self.task['task_id']),workflow.find(before,'completion'))
+        rows=store.event_rows(self.root,self.run)
+        self.assertEqual(rows[:len(before)],before)
+        for event in ('candidate','selection','slot-acceptance','completion'):
+            self.assertEqual(sum(row['event']==event for row in rows),1,event)
+
+    def assert_revocation_blocks_later_adoption(self,kind):
+        self.select()
+        token=self.authorize_adoption()
+        studio.accept(self.root,'robot',self.row['iteration_id'])
+        if kind=='completed':workflow.complete(self.root,self.run)
+        else:workflow.abandon_task(self.root,self.task['task_id'],actor=fixture.ACTOR,reason='Synthetic work closure.')
+        authority=store.authority(self.root,self.task['task_id'])
+        authority['grants'][0]['revoked_at']='2000-01-01T00:00:00Z'
+        self.import_authority(authority)
+        before=store.event_rows(self.root,self.run)
+        for operation in (lambda:self.adopt(token),self.authorize_adoption):
+            with self.assertRaises(ProductionError) as caught:operation()
+            self.assertEqual(caught.exception.diagnostic.code,'GRANT_REVOKED')
+        self.assertEqual(store.event_rows(self.root,self.run),before)
+        self.assertFalse((studio.character_home(self.root,'robot')/'adoptions').exists())
+
+    def test_completed_adoption_checks_current_grant_after_authorization(self):
+        self.assert_revocation_blocks_later_adoption('completed')
+
+    def test_abandoned_adoption_checks_current_grant_after_authorization(self):
+        self.assert_revocation_blocks_later_adoption('abandoned')
+
+    def test_closed_adoption_recovers_the_same_claim_after_a_sheet_save_failure(self):
+        before=self.close_selected('completed')
+        token=self.authorize_adoption()
+        with patch.object(adoption_workflow,'_bind_sheet',side_effect=OSError('Synthetic adoption interruption')):
+            with self.assertRaises(OSError):self.adopt(token)
+        claimed=store.event_rows(self.root,self.run)
+        claim=workflow.find(claimed,'adoption-claim')
+        self.assertEqual(self.adopt(token)['data']['claim'],claim['sha256'])
+        rows=store.event_rows(self.root,self.run)
+        self.assertEqual(rows[:len(before)],before)
+        for event in ('adoption-claim','operation-start','adoption-result'):
+            self.assertEqual(sum(row['event']==event for row in rows[len(before):]),1,event)
+        self.assertEqual(accounting.summary(self.root)['submissions'],1)
+
+    def test_abandoned_adoption_recovers_a_saved_effect_before_its_result_commit(self):
+        before=self.close_selected('abandoned')
+        token=self.authorize_adoption()
+        append=workflow.append_record
+        def interrupted(*args,**kwargs):
+            if args[3]=='adoption-result':raise OSError('Synthetic interruption before adoption result')
+            return append(*args,**kwargs)
+        with patch.object(workflow,'append_record',side_effect=interrupted):
+            with self.assertRaises(OSError):self.adopt(token)
+        with self.assertRaises(ValueError):studio_reference.current_source(self.root,'robot','base.front')
+        claim=workflow.find(store.event_rows(self.root,self.run),'adoption-claim')
+        self.assertEqual(self.adopt(token)['data']['claim'],claim['sha256'])
+        rows=store.event_rows(self.root,self.run)
+        self.assertEqual(rows[:len(before)],before)
+        for event in ('adoption-claim','operation-start','adoption-result'):
+            self.assertEqual(sum(row['event']==event for row in rows[len(before):]),1,event)
+        studio_reference.current_source(self.root,'robot','base.front')
+
+    def assert_rejected_transition(self,event,data):
+        directory,prepared,_,before=workflow.load_run(self.root,self.run)
+        with self.assertRaises(ValueError):workflow.append_record(directory,prepared,before,event,data)
+        self.assertEqual(store.event_rows(self.root,self.run),before)
+        with self.assertRaises(ProductionError) as caught:
+            with store.transaction(self.root):
+                store.append(self.root,self.run,prepared['input_sha256'],event,data)
+                workflow.load_run(self.root,self.run,force=True)
+        self.assertEqual(caught.exception.diagnostic.code,'EVENT_CHAIN_CORRUPT')
+        self.assertEqual(store.event_rows(self.root,self.run),before)
+
+    def test_append_and_replay_refuse_closed_production_and_unlinked_adoption(self):
+        self.close_selected('completed')
+        token=self.authorize_adoption()
+        rows=store.event_rows(self.root,self.run)
+        selection=workflow.find(rows,'selection')['data']['selection']
+        unrelated=copy.deepcopy(workflow.find(rows,'authorization',selection['authorization'])['data'])
+        unrelated['request']['reason']='A forged new production operation must remain closed.'
+        review=copy.deepcopy(workflow.find(rows,'review')['data'])
+        review['review']['conclusion']='A new review must not change the completed decision.'
+        intent=workflow.adoption_intent(self.root,self.run,self.candidate,'robot',self.row['iteration_id'],self.approval)
+        directory=workflow.run_dir(self.root,self.run)
+        approval=workflow.file_record(self.root,directory,'approval.json')
+        cases=[('authorization',unrelated),('review',review),
+            ('adoption-claim',{'intent':intent,'files':[approval],'authorizations':[selection['authorization']]}),
+            ('operation-start',{'authorization_sha256':token,'effect':'local-action','claim':'f'*64}),
+            ('adoption-result',{'claim':'f'*64,'result':{}})]
+        for event,data in cases:
+            with self.subTest(event=event):self.assert_rejected_transition(event,data)
+        loaded=workflow.load_run(self.root,self.run)
+        claim=workflow.append_record(loaded[0],loaded[1],loaded[3],'adoption-claim',
+            {'intent':intent,'files':[approval],'authorizations':[token]})
+        self.assert_rejected_transition('adoption-result',{'claim':claim['sha256'],'result':{}})
+        self.assertEqual(self.adopt(token)['data']['claim'],claim['sha256'])
+
+    def test_closed_adoption_does_not_authorize_an_unselected_candidate(self):
+        self.close_selected('abandoned')
+        intent=workflow.adoption_intent(self.root,self.run,self.candidate,'robot',self.row['iteration_id'],self.approval)
+        intent['payload']['candidate']='f'*64
+        before=store.event_rows(self.root,self.run)
+        with self.assertRaises(ProductionError) as caught:fixture.grant(self.root,self.run,intent)
+        self.assertEqual(caught.exception.diagnostic.code,'SELECTION_REQUIRED')
+        self.assertEqual(store.event_rows(self.root,self.run),before)
+
+    def test_historical_adoption_completion_survives_later_slot_supersession(self):
+        self.select();self.adopt(self.authorize_adoption());self.select_adoption()
+        done=workflow.complete(self.root,self.run)
+        before=store.event_rows(self.root,self.run)
+        imported=studio.iterate(self.root,'robot','base.front',self.root/self.row['result']['path'],
+            package=None,request=None,response=None,note='Another explicit synthetic slot choice with separate ownership.')
+        studio.accept(self.root,'robot',imported['iteration_id'])
+        self.assertEqual(workflow.verify_completion(self.root,self.run,self.task['task_id']),done)
+        self.assertEqual(workflow.complete(self.root,self.run),done)
+        self.assertEqual(store.event_rows(self.root,self.run),before)
+        self.assertTrue(execution.status(self.root,self.run)['runs'][0]['selection_ready'])
+        with self.assertRaises(ValueError):studio_reference.current_source(self.root,'robot','base.front')
+
+    def test_historical_completion_requires_its_saved_adoption_receipt(self):
+        self.select();self.adopt(self.authorize_adoption());selected=self.select_adoption()
+        workflow.complete(self.root,self.run)
+        path='characters/robot/adoptions/'+self.row['iteration_id']+'.json'
+        snapshot=next(item for item in selected['data']['files'] if item['path']==path)
+        self.assertTrue((self.root/path).is_file())
+        (workflow.run_dir(self.root,self.run)/'objects'/snapshot['sha256']).unlink()
+        with self.assertRaises(ProductionError) as caught:
+            workflow.verify_completion(self.root,self.run,self.task['task_id'])
+        self.assertEqual(caught.exception.diagnostic.code,'EVIDENCE_SNAPSHOT_MISSING')
+
+    def test_sheet_completion_survives_separately_authorized_catalog_promotion(self):
+        from revision_contract import digest
+        self.select();self.adopt(self.authorize_adoption());self.select_adoption()
+        done=workflow.complete(self.root,self.run)
+        original=store.event_rows(self.root,self.run)
+        source=studio_reference.current_source(self.root,'robot','base.front')
+        record={'id':'adopted-test-character','label':'Adopted fixture','curation_status':'curated',
+            'category':'species','prompt':'a fictional test character','domains':['shared'],'tags':['fixture','character'],
+            'search_terms':[{'phrase':'adopted test character','facet':'species','weight':1.0,'source':'author'}],
+            'scaffold':{'family':'direct-geometry-required','confidence':'fallback'}}
+        approval={**self.approval,'scope':'catalog','registration_record_sha256':digest(record)}
+        pack=Path(self.temp.name)/'registered-pack'
+        f.write(self.root/'catalog-approval.json',approval)
+        intent=workflow.adoption_intent(self.root,self.run,self.candidate,'robot',self.row['iteration_id'],approval,
+                                       registration_record=record,pack_dir=pack)
+        with self.assertRaises(ProductionError) as caught:fixture.grant(self.root,self.run,intent)
+        self.assertEqual(caught.exception.diagnostic.code,'GRANT_SCOPE_EXCEEDED')
+        self.assertEqual(store.event_rows(self.root,self.run),original)
+        authority=store.authority(self.root,self.task['task_id'])
+        authority['grants'][0]['targets'].append('canon:catalog')
+        self.import_authority(authority)
+        token=fixture.grant(self.root,self.run,intent)
+        result=workflow.adopt(self.root,self.run,self.candidate,'robot',self.row['iteration_id'],'catalog-approval.json',token,
+            registration_record=record,pack_dir=pack,settings=self.settings)
+        self.assertEqual(result['data']['result']['status'],'catalog-registered')
+        self.assertEqual(workflow.verify_completion(self.root,self.run,self.task['task_id']),done)
+        self.assertEqual(workflow.complete(self.root,self.run),done)
+        rows=store.event_rows(self.root,self.run)
+        self.assertEqual(rows[:len(original)],original)
+        self.assertEqual(sum(row['event']=='completion' for row in rows),1)
+        self.assertEqual(accounting.summary(self.root)['submissions'],1)
+        current=studio_reference.current_source(self.root,'robot','base.front')
+        self.assertEqual(current['artifact_id'],source['artifact_id'])
+        self.assertNotEqual(current['proof_sha256'],source['proof_sha256'])
+        self.assertTrue(execution.status(self.root,self.run)['runs'][0]['selection_ready'])
 
     def test_review_and_delivery_selection_do_not_adopt_identity(self):
         before=(studio.character_home(self.root,'robot')/'sheet/sheet-data.json').read_bytes()

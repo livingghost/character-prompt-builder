@@ -599,10 +599,13 @@ class PackageIntegrationTests(unittest.TestCase):
         w.select(self.root,self.run,'selection.json');w.complete(self.root,self.run)
         self.assertEqual(w.verify_completion(self.root,self.run,self.spec['task_id'])['event'],'completion')
 
-    def test_owner_change_after_completion_is_not_current(self):
-        row,_=self.prepare_adopted_selection();w.select(self.root,self.run,'selection.json');w.complete(self.root,self.run)
+    def test_owner_change_preserves_historical_completion_but_invalidates_live_adoption(self):
+        import studio_reference
+        row,_=self.prepare_adopted_selection();w.select(self.root,self.run,'selection.json');done=w.complete(self.root,self.run)
         (self.root/'characters/robot/adoptions'/f"{row['iteration_id']}.json").write_text('{}',encoding='utf-8')
-        with self.assertRaises(ValueError):w.verify_completion(self.root,self.run,self.spec['task_id'])
+        self.assertEqual(w.verify_completion(self.root,self.run,self.spec['task_id']),done)
+        self.assertEqual(w.complete(self.root,self.run),done)
+        with self.assertRaises(ValueError):studio_reference.current_source(self.root,'robot','base.front')
 
     def test_real_studio_adoption_matches_selected_bytes(self):
         self.prepare_adopted_selection();w.select(self.root,self.run,'selection.json')

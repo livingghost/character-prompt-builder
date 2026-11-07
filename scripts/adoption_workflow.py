@@ -169,7 +169,8 @@ def _registration(root: Path, row: dict[str, Any], journal: dict[str, Any], reco
             "record_id": record["id"], "asset_id": record["id"] + "-reference", "artifact_id": "adopted-image"}
 
 
-def require_production_claim(root: Path, character: str, row: dict[str, Any], approval: Any, claim: str | None) -> None:
+def require_production_claim(root: Path, character: str, row: dict[str, Any], approval: Any,
+                             claim: str | None, *, require_current: bool = False) -> None:
     """Refuse adopting a Production candidate outside the claim its own adopt operation recorded.
 
     `production_workflow.py adopt` records that claim under an adopt
@@ -180,13 +181,85 @@ def require_production_claim(root: Path, character: str, row: dict[str, Any], ap
         raise ValueError(f"{row['iteration_id']} is a Production candidate; adopt it with production_workflow.py adopt "
                          f"under its own adopt authorization")
     import production_workflow as workflow
-    _, _, _, rows = workflow.load_run(root, origin["run"])
+    _, prepared, _, rows = workflow.load_run(root, origin["run"])
     found = [event for event in rows if event["event"] == "adoption-claim" and event["sha256"] == claim]
     payload = found[0]["data"]["intent"]["payload"] if found else None
     from execution_contract import content_id
     if payload is None or payload["candidate"] != origin["candidate"] or payload["character"] != character \
             or payload["iteration"] != row["iteration_id"] or payload["approval_sha256"] != content_id(approval):
         raise ValueError("the Production adoption claim does not name this candidate, iteration and approval")
+    recorded = found[0]
+    tokens = recorded['data']['authorizations']
+    if len(tokens) != 1:
+        raise ValueError('the Production adoption claim needs its exact authorization')
+    request = workflow.find(rows, 'authorization', tokens[0])['data']['request']
+    from production_diagnostics import compare_exact
+    compare_exact(recorded['data']['intent'],
+                  {key: request[key] for key in ('operation', 'targets', 'payload')}, phase='adoption')
+    if request['actor'] != approval['by']:
+        raise ValueError('adoption approver differs from the recorded authorized actor')
+    if require_current:
+        workflow._permission(root, prepared, rows, tokens[0], **recorded['data']['intent'])
+        if not any(event['event'] == 'operation-start'
+                   and event['data'].get('claim') == claim
+                   and event['data'].get('authorization_sha256') == tokens[0]
+                   and event['data'].get('effect') == 'local-action' for event in rows):
+            raise ValueError('the Production adoption claim has no recorded local operation boundary')
+
+
+def require_adoption_source(root: Path, character: str, row: dict[str, Any]) -> None:
+    """Check retained source eligibility for both status and an actual adoption.
+
+    This read establishes neither approval nor reference influence. A completed
+    production decision remains usable evidence for the separately authorized
+    adoption of its selected candidate.
+    """
+    from production_diagnostics import ProductionError
+    if row['status'] in {'rejected', 'superseded'}:
+        raise ValueError('record a new candidate before adopting a rejected or superseded iteration')
+    if not row.get('result'):
+        raise ValueError('iteration has no result')
+    studio.validate_recording_target(root, character, row['slot'])
+    origin = row.get('production')
+    if origin is not None:
+        import production_workflow as workflow
+        _, prepared, _, rows = workflow.load_run(root, origin['run'])
+        workflow.require_selected(prepared, rows, origin['candidate'], run=origin['run'])
+    safe_file(root, row['result']['path'], row['result']['sha256'])
+    if not row.get('package'):
+        action = ('Recover this Production candidate\'s recorded package from its retained run evidence.'
+                  if origin else
+                  'Record the original package on this iteration with studio.py attach-package, '
+                  'including the evidence that relates it to this image; then adopt the same iteration.')
+        raise ProductionError('ADOPTION_PACKAGE_REQUIRED',
+            'Sheet adoption needs the iteration\'s recorded generation package.',
+            phase='adoption', iteration=row['iteration_id'], required_action=action)
+    package_path = safe_file(root, row['package']['path'], row['package']['sha256'])
+    _validate_ready_package(studio.read_json(package_path), field='adoption source')
+    studio.validate_package_attachment(root, row)
+
+
+def adoption_readiness(root: Path, character: str, row: dict[str, Any]) -> dict[str, Any]:
+    """Expose the same mechanical prerequisites as preflight, without a decision."""
+    from production_diagnostics import from_exception
+    origin = row.get('production')
+    result = {'owner': 'production' if origin else 'studio', 'source_ready': False,
+              'production': origin, 'diagnostics': [], 'next_action': None}
+    try:
+        require_adoption_source(root, character, row)
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
+        diagnostic = from_exception(exc, phase='adoption')
+        result['diagnostics'] = [diagnostic]
+        if diagnostic['code'] == 'ADOPTION_PACKAGE_REQUIRED' and origin is None:
+            result['next_action'] = 'record-generation-package'
+        elif diagnostic['code'] in {'SELECTION_REQUIRED', 'SELECTION_WITHDRAWN', 'SELECTION_REVIEW_CHANGED'}:
+            result['next_action'] = 'inspect-production-selection'
+        else:
+            result['next_action'] = 'repair-reference'
+    else:
+        result['source_ready'] = True
+        result['next_action'] = 'adopt-production-candidate' if origin else 'adopt-with-sheet-scope'
+    return result
 
 
 def preflight(root: Path, character: str, iteration: str, approval: Any, *,
@@ -212,26 +285,15 @@ def preflight(root: Path, character: str, iteration: str, approval: Any, *,
         raise ProductionError('ADOPTION_OWNER_MISMATCH',
             'Canonical Production adoption requires this iteration to belong to the exact run and candidate.',
             phase='adoption', expected=expected_production, actual=origin, required_action=action)
-    if row['status'] in {'rejected', 'superseded'}:
-        raise ValueError('record a new candidate before adopting a rejected or superseded iteration')
-    if not row.get('result'):
-        raise ValueError('iteration has no result')
+    require_adoption_source(root, character, row)
     if expected_image is not None and row['result']['sha256'] != expected_image:
         raise ValueError('adoption targets a different candidate')
-    studio.validate_recording_target(root, character, row['slot'])
     if origin is not None:
-        import production_workflow as workflow
-        _, prepared, _, rows = workflow.load_run(root, origin['run'])
-        workflow.require_selected(prepared, rows, origin['candidate'], run=origin['run'])
         if require_claim:
-            require_production_claim(root, character, row, approval, production_claim)
+            require_production_claim(root, character, row, approval, production_claim, require_current=True)
     elif production_claim is not None:
         raise ValueError(f'{iteration} is an external import; a Production adoption claim does not apply')
     confirmed = validate_approval(approval, character, row)
-    safe_file(root, row['result']['path'], row['result']['sha256'])
-    if not row.get('package'):
-        raise ValueError('sheet adoption needs the recorded generation package')
-    safe_file(root, row['package']['path'], row['package']['sha256'])
     if confirmed['influence'] == 'identity':
         from visual_continuity import adoption_subject
         adoption_subject(root, character, row, confirmed)
@@ -347,45 +409,84 @@ def reference_index(root: Path, character: str) -> dict[str, Any]:
         if row["iteration_id"] not in accepted_ids and path.is_file():
             journal = studio.read_json(path)
             if journal.get("next_action") and row.get("status") not in {"rejected", "superseded"}:
-                pending.append({"iteration_id": row["iteration_id"], "next_action": journal["next_action"]})
+                readiness = adoption_readiness(root, character, row)
+                pending.append({"iteration_id": row["iteration_id"], "next_action": journal["next_action"],
+                                "adoption": readiness})
                 errors.append(f"{row['slot']}: adoption incomplete; resume {row['iteration_id']}: {journal['next_action']}")
     bindings: list[dict[str, Any]] = []
     for slot, row in sorted(accepted.items()):
+        origin = None
         try:
             safe_file(root, row["result"]["path"], row["result"]["sha256"])
             current = (sidecar["slots"].get(slot) or {}).get("current")
             if current:
-                from sheet_artifacts import verify_acceptance
-                verify_acceptance(current, sheet, slot)
+                from sheet_artifacts import verify_acceptance, verify_artifact
+                cache: dict = {}
+                verify_acceptance(current, sheet, slot, cache=cache)
+                origin = verify_artifact(current['artifact'], sheet, cache=cache).get('origin')
         except (ValueError, OSError, KeyError) as exc:
             errors.append(f"{slot}: accepted reference is unavailable: {exc}")
             bindings.append({"slot": slot, "iteration_id": row["iteration_id"], "status": "unavailable",
                              "image_sha256": row["result"]["sha256"], "image_path": None,
-                             "influence": "identity", "registration": None, "next_action": "repair-reference"})
+                             "influence": None, "registration": None, "next_action": "repair-reference"})
             continue
         path = _journal_path(home, row["iteration_id"])
         journal = studio.read_json(path) if path.is_file() else None
+        readiness = adoption_readiness(root, character, row)
         bound = current_artifact(sidecar["slots"].get(slot))
         has_binding = bool(bound and bound.get("image"))
-        complete = has_binding and bound["image"]["sha256"] == row["result"]["sha256"]
-        state = "sheet-bound" if complete else "candidate-accepted"
-        if has_binding and not complete:
+        expected_origin = {'kind': 'production' if row.get('production') else 'external-import',
+                           'character': character, 'iteration_id': row['iteration_id'],
+                           **(row.get('production') or {})}
+        bound_here = (has_binding and bound["image"]["sha256"] == row["result"]["sha256"]
+                      and origin == expected_origin)
+        state = "sheet-bound" if bound_here else "candidate-accepted"
+        if has_binding and not bound_here:
             errors.append(f"{slot}: latest accepted image is not bound to the sheet; resume adoption of {row['iteration_id']}")
         if journal and journal.get("next_action"):
             errors.append(f"{slot}: adoption incomplete; next action: {journal['next_action']}")
-        if journal and journal.get("registration") and complete:
+        if bound_here and not readiness['source_ready']:
+            errors.extend(f"{slot}: adopted source is unavailable: {item['message']}"
+                          for item in readiness['diagnostics'])
+        registration_unavailable = False
+        if journal and journal.get("registration") and bound_here:
             registration = journal["registration"]
             report = validate_pack(Path(registration["pack_path"]), require_lock=True)
             if not report.valid or report.pack_id != registration["pack_id"]:
+                registration_unavailable = True
                 errors.append(f"{slot}: registered pack changed or is missing")
             else:
                 state = "catalog-registered"
+        completion_diagnostic = None
+        if bound_here and not (journal and journal.get('next_action')):
+            try:
+                from studio_reference import current_source
+                current_source(root, character, slot)
+            except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
+                from production_diagnostics import from_exception
+                completion_diagnostic = from_exception(exc, phase='adoption-integrity')
+                readiness['diagnostics'].append(completion_diagnostic)
+                errors.append(f"{slot}: {completion_diagnostic['message']}")
+        if registration_unavailable:
+            next_action = 'repair-reference'
+        elif journal and journal.get('next_action'):
+            next_action = journal['next_action'] if readiness['source_ready'] else readiness['next_action']
+        elif completion_diagnostic is not None:
+            next_action = ('record-adoption-result' if completion_diagnostic['code'] == 'ADOPTION_RESULT_MISSING'
+                           else 'repair-reference')
+        elif bound_here:
+            next_action = None if readiness['source_ready'] else readiness['next_action']
+        elif journal:
+            next_action = 'repair-reference'
+            errors.append(f"{slot}: the recorded adoption no longer has its sheet binding")
+        else:
+            next_action = readiness['next_action']
         bindings.append({"slot": slot, "iteration_id": row["iteration_id"], "status": state,
                          "image_sha256": row["result"]["sha256"],
-                         "image_path": str((sheet / bound["image"]["path"]).resolve()) if complete else None,
-                         "influence": journal["approval"]["influence"] if journal else "identity",
+                         "image_path": str((sheet / bound["image"]["path"]).resolve()) if bound_here else None,
+                         "influence": journal["approval"]["influence"] if journal else None,
                          "registration": journal.get("registration") if journal else None,
-                         "next_action": journal.get("next_action") if journal else (None if complete else "adopt-with-sheet-scope")})
+                         "adoption": readiness, "next_action": next_action})
     return {"artifact_type": "studio-reference-index", "ok": not errors, "character": character,
             "bindings": bindings, "pending_adoptions": pending, "errors": errors}
 

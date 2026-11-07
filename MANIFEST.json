@@ -1,9 +1,9 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.11.05.6",
+  "version": "2026.11.07.1",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
-  "generated_at": "2026-11-05",
+  "generated_at": "2026-11-07",
   "license": "GPL-3.0-only",
   "language": "English project content and canonical English retrieval; user-language interpretation belongs to the calling agent",
   "purpose": "state-aware expansion of character ideas into coherent model-aware image prompts",
@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1041,
-  "total_bytes_excluding_manifest": 18572698,
+  "total_bytes_excluding_manifest": 18667668,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -97,12 +97,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "beadb0796fb5cc169a150d370a515c753958bc8481adb9ea3627cdd2184b27ea"
+      "sha256": "612f80883db4ddf51deebd51d20445fe3dbc9390b28a483ea7ca8aa491f69df1"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "01ce9e52f05b473b9f73b3e37eeb72a5d3d80e5cc72576d210629f5c553cfc29"
+      "sha256": "8d284fe998437b40dc6ad09c894ce39802f469a99af5faea11fcdd7aad8953b8"
     },
     {
       "path": ".python-version",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 76665,
-      "sha256": "8d819e4ad7dc10ece3641c96c2479f3529cf46c63d7c26ba9ff58eacf9121d35"
+      "bytes": 77986,
+      "sha256": "68265370c050304111d7253977beda446e5b3a9ad929fd3d02414b655fc17540"
     },
     {
       "path": "CLAUDE.md",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 30237,
-      "sha256": "98abef17ab9d25ff1ee8772d6333c0db960eae2056931111a6d4283917ca5d4b"
+      "sha256": "bb46a5f94c7b42e88334ca9c8e200a34f9147108a244c7b3feb7c163cc2d6392"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -1172,12 +1172,12 @@
     {
       "path": "examples/state-aware-pilot/generated/generation-package-verification.json",
       "bytes": 159290,
-      "sha256": "5513235f9153cf07ccd598e1c221be87b41026c7ed0a8b5b64901debf1d775ba"
+      "sha256": "2e1a4bb241e43f681e872f3969e173b6765509090d51cf15a67f4ea7ba953c87"
     },
     {
       "path": "examples/state-aware-pilot/generated/generation-package.json",
       "bytes": 447405,
-      "sha256": "0c3e6a4ccbcb8e42503e01525e2542b5602a59a2af9f75ee26c31e7c1cc44f66"
+      "sha256": "fa3f5f7fa428f4188d8d593f903b177db4e6491a6e8a2a60183926e3c09a9e15"
     },
     {
       "path": "examples/state-aware-pilot/generated/integrated-prompt.txt",
@@ -1222,7 +1222,7 @@
     {
       "path": "examples/state-aware-pilot/generated/reads.jsonl",
       "bytes": 2407,
-      "sha256": "853cfe6c3f98094c5ffbd940ee1cfcecf910666e4de712c197c28b245fde7e0f"
+      "sha256": "26595c150a30bb379e4cfdfa4e5a4249708e363226a42e3cf9583cdf753aeb89"
     },
     {
       "path": "examples/state-aware-pilot/generated/reference-bundle/C01-A01-left-three-quarter-bust.render-spec.json",
@@ -1252,7 +1252,7 @@
     {
       "path": "examples/state-aware-pilot/generated/route-reading.json",
       "bytes": 4788,
-      "sha256": "e773fd704ccf0be107dec72e78756fbc172aed26d22f942eb6ae9f945546bf38"
+      "sha256": "ee116beaa848a242c109d6d938d608e7f34bd6b488f9483e4d4c7292a99db8f4"
     },
     {
       "path": "examples/state-aware-pilot/generated/scene-context-snapshot.json",
@@ -1472,7 +1472,7 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2115,
-      "sha256": "90c422fd78faa51efe538361eeb510cd35aeaf36460ed8e5b4c279c65a61f733"
+      "sha256": "d8cd6c4b87f938ca4ac343ce9dace64e6dacb13d5bf638cd164dd8707500f323"
     },
     {
       "path": "packs/commons/pack.json",
@@ -2292,7 +2292,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 824,
-      "sha256": "5b9d169e455f338b472cf42a0d76831742394417225a6cc991e6cbf7dc337c49"
+      "sha256": "e5606a9095e47d4fabb81203ce82ed7066f35e58a25d47fb055214db0836d182"
     },
     {
       "path": "references/adapters/gpt-image.md",
@@ -2421,8 +2421,8 @@
     },
     {
       "path": "references/maintenance/agent-workflow-design.md",
-      "bytes": 9957,
-      "sha256": "f1e894fe2c7e0b3cd619e4b6c2823132314ea3896a73c8f729bb7b9af189452d"
+      "bytes": 10295,
+      "sha256": "c2fc11ade52d310a75cc2500b04bb68e7bd46ed7e3c3c8364e2639a90be2a57b"
     },
     {
       "path": "references/maintenance/catalog-export.md",
@@ -2446,8 +2446,8 @@
     },
     {
       "path": "references/maintenance/testing.md",
-      "bytes": 12473,
-      "sha256": "a491490197a40e54fb5f1c233e33a21fe575ace1c880731a6c8a845919d4ce36"
+      "bytes": 12777,
+      "sha256": "b83c5a25158fffe7ed6e20b452d26ddd1de4af34c4908a8e82faf400d0b0b18a"
     },
     {
       "path": "references/model-prompt-recommendations.md",
@@ -2566,8 +2566,8 @@
     },
     {
       "path": "references/runtime/adoption-workflow.md",
-      "bytes": 9443,
-      "sha256": "ee63f23ce1ec55a106f5204cf8ca4d7bc566cadd5b1d5fa9c2305c6ebbdf65b7"
+      "bytes": 11166,
+      "sha256": "7c70a1a6087f23ca25843d8f92f4c4785dc5b5a79842ccd14ae628bd958f3f72"
     },
     {
       "path": "references/runtime/agent-evaluation.md",
@@ -2666,18 +2666,18 @@
     },
     {
       "path": "references/runtime/production-execution.md",
-      "bytes": 110668,
-      "sha256": "ac684e3d225a94ce6a733f31b5b02df29b6300f322b19db9a6f90082cc16024f"
+      "bytes": 112185,
+      "sha256": "cef30140a82b55531dfcfd905a9907b3e9e51afc1e218fbc1fcb8a3c9cb990c4"
     },
     {
       "path": "references/runtime/production-permissions.md",
-      "bytes": 11656,
-      "sha256": "2cb2e88f70661a3f62fe36f54d3e2c9f70de9e17320ef3547379c2e7aef160df"
+      "bytes": 11907,
+      "sha256": "52d2399e8c3e1307f7b85f7cc9fea9437d454074bcc22ad64ad9916f1c511cee"
     },
     {
       "path": "references/runtime/production-workflow.md",
-      "bytes": 7097,
-      "sha256": "74944d46f0515b07daaf3320d98701744c11e015ad8fbd2cddde6606841f1dad"
+      "bytes": 7267,
+      "sha256": "55a04b32a7050658653c8994c00eebc4f0434368e82a1f0022101ac640cc9427"
     },
     {
       "path": "references/runtime/prompt-composition.md",
@@ -2786,8 +2786,8 @@
     },
     {
       "path": "references/runtime/studio.md",
-      "bytes": 32136,
-      "sha256": "6f565079f31efa243ed5bdb9e09d91ebed60f05b15886c4b8e2e4c64786101ff"
+      "bytes": 34232,
+      "sha256": "ff65542511de3cfabde3d0d61427ec52fd075239d68358947d36c4f3039eb186"
     },
     {
       "path": "references/runtime/subject-domain-quick-reference.md",
@@ -3181,8 +3181,8 @@
     },
     {
       "path": "scripts/adoption_workflow.py",
-      "bytes": 30275,
-      "sha256": "cd998395b890a352ef5bc2d2d423923e339c74e3c72600707531a487931bfb54"
+      "bytes": 36201,
+      "sha256": "6c8e53650a6282f29c0d0c1bbf4fd7ebbe1b81a8477cd3738bd8b476886e2bb8"
     },
     {
       "path": "scripts/agent_evaluation.py",
@@ -3531,8 +3531,8 @@
     },
     {
       "path": "scripts/execution_lifecycle.py",
-      "bytes": 25870,
-      "sha256": "5b85b4abd8b1e3efde8df9b69f7c2d72e2d603ea936377fd77f3b1cf97cc2ed3"
+      "bytes": 33452,
+      "sha256": "fa11cdd16be95958ce35864712960cafdc36843bc29adf06649672011db718f5"
     },
     {
       "path": "scripts/execution_lifecycle_smoke_test.py",
@@ -3556,8 +3556,8 @@
     },
     {
       "path": "scripts/feature_workflow_smoke_test.py",
-      "bytes": 39556,
-      "sha256": "7d36016a990a8a33bf93dd3bfd4583633a9a8c8e6a8aa78425bde25d155f50bb"
+      "bytes": 46386,
+      "sha256": "2db1007f05cde44c9177f225585184a6e344ee0a1c9f6928a7d138ebc0acdf0f"
     },
     {
       "path": "scripts/fixtures/model_capability_cases.json",
@@ -3956,8 +3956,8 @@
     },
     {
       "path": "scripts/production_execution.py",
-      "bytes": 87786,
-      "sha256": "039d7030c819c37694aa0b4dd89e8ee33d6338b6b9ee1a153a3b0aabe7e1027b"
+      "bytes": 88216,
+      "sha256": "9807725c5dd96c038798e32ead1c876f35da2d2345afc628fbd4bb8b8e327727"
     },
     {
       "path": "scripts/production_external.py",
@@ -4061,13 +4061,13 @@
     },
     {
       "path": "scripts/production_workflow.py",
-      "bytes": 157936,
-      "sha256": "90ddd556880c111a31b7537e83bf063603dbb7ce220a6bf5c8ca2fe888a63286"
+      "bytes": 163230,
+      "sha256": "974dd07452a660dea82a951b3efb0a0a927176d03b25135a10a49ba587ed7370"
     },
     {
       "path": "scripts/production_workflow_smoke_test.py",
-      "bytes": 45109,
-      "sha256": "412f117af50f1b6243494cce198b7fd115b21705d94a416dbe15496697da60f8"
+      "bytes": 45333,
+      "sha256": "810f346667e6f7197e9b42a7024c172027395b09decfd8838cc139744478e70e"
     },
     {
       "path": "scripts/production_workspace.py",
@@ -4496,8 +4496,8 @@
     },
     {
       "path": "scripts/sheet_artifacts.py",
-      "bytes": 39208,
-      "sha256": "5ec46e878d32f2b05313010e08d560220995ca19cc63b79c7e0561c6c6dd29dd"
+      "bytes": 39739,
+      "sha256": "0d2a0443a07eca66d3e7b20dd30fe306815cb0a0a36773ab310e3298aa3cc8ef"
     },
     {
       "path": "scripts/sheet_artifacts_smoke_test.py",
@@ -4671,13 +4671,13 @@
     },
     {
       "path": "scripts/studio.py",
-      "bytes": 62607,
-      "sha256": "dcea29ee322723faad3c8d2ea0ba88c353e958803d0261c40f3deef6e7809295"
+      "bytes": 80929,
+      "sha256": "91c117ff9243406a42d6681a32d728b0cb43f450df400a668a1fe906fb526d7f"
     },
     {
       "path": "scripts/studio_activity.py",
-      "bytes": 9799,
-      "sha256": "61a3fe1518ea7f3aae43e22d0b84e19a6a3cba0737e65e97f56d702b034b70e6"
+      "bytes": 10707,
+      "sha256": "70e7a11b94c6e941392be988219e7af51233ae02b7e48cea80b501b3e2ac94cb"
     },
     {
       "path": "scripts/studio_auth_smoke_test.py",
@@ -4701,8 +4701,8 @@
     },
     {
       "path": "scripts/studio_reference.py",
-      "bytes": 17762,
-      "sha256": "a28ed6a59b0d2ef5ccc4f212acdb0f049e65cf454f33957daee703bd5e4af84e"
+      "bytes": 19203,
+      "sha256": "43f7cad42b4876db373795d94e72d9d03a80da55304642407201d0ce106943c3"
     },
     {
       "path": "scripts/studio_reference_board_smoke_test.py",
@@ -4721,13 +4721,13 @@
     },
     {
       "path": "scripts/studio_reference_smoke_test.py",
-      "bytes": 10043,
-      "sha256": "9471899f2113525ee5ce16a2eff37572ab5f70fbde7266e440d3c006f01035b8"
+      "bytes": 19860,
+      "sha256": "afbfce87544707948be3b709eae645ee7f6c62a40ed44eb55c917676bd5f52c8"
     },
     {
       "path": "scripts/studio_smoke_test.py",
-      "bytes": 41074,
-      "sha256": "5ec70b9c604bea91ecf27ba4c9f67dad61a71ab0fbe829104606e9c1564e7dff"
+      "bytes": 55070,
+      "sha256": "3ce94c139654c555b65d9ab27d27a354f588b7721fbdc9fd5cb8e1cc005d40d1"
     },
     {
       "path": "scripts/studio_state_reference_smoke_test.py",
@@ -4771,8 +4771,8 @@
     },
     {
       "path": "scripts/test_production_adoption.py",
-      "bytes": 10185,
-      "sha256": "951973cdfde09285bf24bcbb9de36e927307b3fdb27183d7e3b24536520bc994"
+      "bytes": 25883,
+      "sha256": "d4e6984629eb1b35f72700e5cc0c6cb3784333ab1a5dd82a2343d0ef902ae5ad"
     },
     {
       "path": "scripts/test_production_boundaries.py",
@@ -4916,8 +4916,8 @@
     },
     {
       "path": "scripts/validate_studio.py",
-      "bytes": 19473,
-      "sha256": "ea16899b0b3c20f1947f4ef8a7bd3c09d1ac405887eb7ce433dc3d19c23bb0f2"
+      "bytes": 19724,
+      "sha256": "58d7d321b3599809049fb35206877d5d4410ed77c036560b8228c9fb2a98528b"
     },
     {
       "path": "scripts/validate_visual_evidence.py",
@@ -5287,7 +5287,7 @@
     {
       "path": "uv.lock",
       "bytes": 113757,
-      "sha256": "6a698e37de285990813a6c6d3936f21cc95c1b6707d71147d6009a60a59e63fb"
+      "sha256": "02145954e4349ad71239f6b21723e23eb442c4857c998cf836c3243337db9444"
     }
   ]
 }

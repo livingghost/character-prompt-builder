@@ -132,6 +132,7 @@ The full runner above covers the public contracts through these developer checks
 | Input variants and explicit target changes | [test_production_variation.py](../../scripts/test_production_variation.py), [test_production_retarget.py](../../scripts/test_production_retarget.py) |
 | Public commands, JSON files and standard input | [test_production_cli.py](../../scripts/test_production_cli.py), [test_production_file_input.py](../../scripts/test_production_file_input.py) |
 | Candidate evaluation and canonical adoption | [test_production_review.py](../../scripts/test_production_review.py), [test_production_adoption.py](../../scripts/test_production_adoption.py) |
+| Imported package attribution, adoption recovery and current reference evidence | [studio_smoke_test.py](../../scripts/studio_smoke_test.py), [feature_workflow_smoke_test.py](../../scripts/feature_workflow_smoke_test.py), [studio_reference_smoke_test.py](../../scripts/studio_reference_smoke_test.py) |
 | Model trials and observed schemas | [test_model_observation.py](../../scripts/test_model_observation.py) |
 
 Tests use labeled synthetic approvals and local transports, never real credentials.

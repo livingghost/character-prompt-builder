@@ -159,6 +159,41 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual(studio.sha256_file(Path(selection[0]['source']['resolved_path'])),row['result']['sha256'])
         self.assertFalse(validate_studio(self.root))
 
+    def test_import_status_names_missing_package_before_adoption(self):
+        from PIL import Image
+        from production_diagnostics import ProductionError
+        image = self.work / 'import.png'
+        Image.new('RGB', (24, 24), 'blue').save(image)
+        row = studio.iterate(self.root, 'C01', 'outfit.front', image,
+            package=None, request=None, response=None, note='Synthetic import with provenance still to be supplied.')
+        studio.accept(self.root, 'C01', row['iteration_id'])
+        before = (self.home / 'iterations.jsonl').read_bytes()
+        index = self.index()
+        binding = index['bindings'][0]
+        self.assertTrue(index['ok'])
+        self.assertEqual(binding['next_action'], 'record-generation-package')
+        self.assertFalse(binding['adoption']['source_ready'])
+        self.assertEqual(binding['adoption']['diagnostics'][0]['code'], 'ADOPTION_PACKAGE_REQUIRED')
+        with self.assertRaises(ProductionError) as caught:
+            adoption.adopt(self.root, 'C01', row['iteration_id'], self.approval(row, influence='outfit'))
+        self.assertEqual(caught.exception.diagnostic.code, 'ADOPTION_PACKAGE_REQUIRED')
+        self.assertEqual((self.home / 'iterations.jsonl').read_bytes(), before)
+        self.assertFalse((self.home / 'adoptions').exists())
+        self.assertFalse(validate_studio(self.root))
+
+    def test_import_status_separates_available_source_from_author_approval(self):
+        row = self.iteration()
+        studio.accept(self.root, 'C01', row['iteration_id'])
+        index = self.index()
+        binding = index['bindings'][0]
+        self.assertEqual(binding['next_action'], 'adopt-with-sheet-scope')
+        self.assertEqual(binding['adoption']['owner'], 'studio')
+        self.assertTrue(binding['adoption']['source_ready'])
+        self.assertEqual(adoption.supplied_selection(self.root, 'C01'), [])
+        self.assertFalse((self.home / 'adoptions').exists())
+        self.adopt(row)
+        self.assertEqual(len(adoption.supplied_selection(self.root, 'C01')), 1)
+
     def test_07_replacement_preserves_history_and_updates_next_reference(self):
         old=self.iteration(); self.adopt(old); new=self.iteration('red'); self.adopt(new)
         rows=studio.read_iterations(self.home)
@@ -175,6 +210,76 @@ class FeatureWorkflowTests(unittest.TestCase):
         studio.accept(self.root,'C01',new['iteration_id'])
         self.assertFalse(self.index()['ok']); self.assertTrue(validate_studio(self.root))
         with self.assertRaisesRegex(ValueError,'incomplete'): adoption.supplied_selection(self.root,'C01')
+
+    def test_same_image_in_another_iteration_needs_its_own_adoption(self):
+        import studio_reference
+        old = self.iteration(slot='outfit.front')
+        adoption.adopt(self.root, 'C01', old['iteration_id'], self.approval(old, influence='outfit'))
+        sidecar = self.home / 'sheet/sheet-data.json'
+        previous = studio.read_json(sidecar)['slots'][old['slot']]['current']
+        new = self.iteration(slot=old['slot'])
+        self.assertEqual(new['result']['sha256'], old['result']['sha256'])
+        self.assertNotEqual(new['iteration_id'], old['iteration_id'])
+        studio.accept(self.root, 'C01', new['iteration_id'])
+
+        index = self.index()
+        binding = index['bindings'][0]
+        self.assertFalse(index['ok'])
+        self.assertEqual(binding['status'], 'candidate-accepted')
+        self.assertEqual(binding['next_action'], 'adopt-with-sheet-scope')
+        self.assertTrue(binding['adoption']['source_ready'])
+        self.assertIsNone(binding['influence'])
+        self.assertIsNone(binding['image_path'])
+        self.assertEqual(studio.read_json(sidecar)['slots'][old['slot']]['current'], previous)
+        with self.assertRaisesRegex(ValueError, 'incomplete'):
+            adoption.supplied_selection(self.root, 'C01')
+        with self.assertRaisesRegex(ValueError, 'incomplete or no longer accepted'):
+            studio_reference.current_source(self.root, 'C01', old['slot'])
+
+        adoption.adopt(self.root, 'C01', new['iteration_id'], self.approval(new, influence='outfit'))
+        self.assertTrue(self.index()['ok'])
+        selected = adoption.supplied_selection(self.root, 'C01')
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(selected[0]['role'], 'outfit')
+        self.assertTrue(selected[0]['source']['reference_id'].endswith(new['iteration_id']))
+        state = studio.read_json(sidecar)['slots'][old['slot']]
+        self.assertEqual(state['history'][-1], previous)
+        self.assertNotEqual(state['current']['artifact']['artifact_id'], previous['artifact']['artifact_id'])
+        self.assertEqual(studio_reference.current_source(self.root, 'C01', old['slot'])['sha256'],
+                         new['result']['sha256'])
+        self.assertEqual(len(studio.read_iterations(self.home)), 2)
+
+    def test_imported_reference_checks_its_retained_decision_and_approval(self):
+        import studio_reference
+        row = self.iteration(slot='outfit.front')
+        adoption.adopt(self.root, 'C01', row['iteration_id'], self.approval(row, influence='outfit'))
+        path = adoption._journal_path(self.home, row['iteration_id'])
+        journal = studio.read_json(path)
+        source = studio_reference.current_source(self.root, 'C01', row['slot'])
+        changed_decision = copy.deepcopy(journal['sheet_decision'])
+        changed_decision['reason'] = 'A different decision cannot replace retained adoption evidence.'
+        changes = [
+            {'sheet_decision': changed_decision},
+            {'sheet_binding': {**journal['sheet_binding'], 'current': None}},
+            {'approval': self.approval(row, influence='identity')},
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                pm.atomic_write_json(path, {**journal, **change})
+                with self.assertRaises(ValueError):
+                    studio_reference.current_source(self.root, 'C01', row['slot'])
+                index = self.index()
+                self.assertFalse(index['ok'])
+                self.assertEqual(index['bindings'][0]['next_action'], 'repair-reference')
+                with self.assertRaisesRegex(ValueError, 'incomplete'):
+                    adoption.supplied_selection(self.root, 'C01')
+        path.unlink()
+        index = self.index()
+        self.assertFalse(index['ok'])
+        self.assertEqual(index['bindings'][0]['next_action'], 'repair-reference')
+        pm.atomic_write_json(path, journal)
+        self.assertTrue(self.index()['ok'])
+        self.assertEqual(studio_reference.current_source(self.root, 'C01', row['slot']), source)
 
     def test_09_generation_rejects_old_reference_and_wrong_authority(self):
         old=self.iteration(); self.adopt(old); new=self.iteration('red'); self.adopt(new)
@@ -257,6 +362,20 @@ class FeatureWorkflowTests(unittest.TestCase):
         package=_package(prepared,prepared_reference_root=final)
         self.assertTrue(verify(package,package_root=final, studio=self.root)['verified'])
         adoption.validate_for_generation(self.root,'C01',package)
+        registered = Path(reg['pack_path'])
+        moved = registered.with_name('saved-registered-pack')
+        registered.rename(moved)
+        try:
+            index = self.index()
+            self.assertFalse(index['ok'])
+            self.assertEqual(index['bindings'][0]['next_action'], 'repair-reference')
+            self.assertIn('registered pack changed or is missing', '; '.join(index['errors']))
+            with self.assertRaisesRegex(ValueError, 'incomplete'):
+                adoption.supplied_selection(self.root, 'C01')
+        finally:
+            moved.rename(registered)
+        self.assertTrue(self.index()['ok'])
+        self.assertIsNone(self.index()['bindings'][0]['next_action'])
 
     def test_15_catalog_failure_leaves_resumable_sheet_and_no_false_completion(self):
         row=self.iteration()

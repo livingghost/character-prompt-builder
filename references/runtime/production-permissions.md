@@ -166,8 +166,12 @@ criterion-target amendment. The authority to change criteria or submit another
 request remains separate.
 
 Canonical adoption requires the owner's explicit approval plus its own `adopt`
-authorization. It does not submit an image request. Follow selection, adoption and
-completion in [Production execution](production-execution.md#select-optionally-adopt-and-finish).
+authorization. The operation can use the existing selected candidate of a
+completed or abandoned run with current authority. The source task stays closed;
+its selection and review remain the evidence for that candidate. New production
+decisions and submissions keep their own lifecycle and permissions. Follow
+selection, adoption and completion in
+[Production execution](production-execution.md#select-optionally-adopt-and-finish).
 The sheet stores the selected immutable image and provenance together; candidates
 and historical selections cannot silently replace the current image.
 

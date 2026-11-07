@@ -94,8 +94,10 @@ another generation or capture. Resume a committed acceptance with `accept
 --run RUN`. [Production execution](production-execution.md#accept-an-existing-candidate-for-its-studio-slot)
 owns the complete procedure. Close the owning work task with `work_ledger.py
 finish --studio STUDIO --run RUN` after its actual steps and questions are
-resolved. When the requested result includes sheet or catalog reuse, choose its
-separate adoption procedure before completing the run.
+resolved. When the requested result includes sheet or catalog reuse, use its
+separate adoption procedure. A later reuse request can adopt the existing
+selected candidate after completion or abandonment under its own current
+authority; the original production decision and work-task closure remain intact.
 
 `status` reports runs, next commands and execution records. Inspect the
 specific run's readiness and next action; top-level `ok` reports only successful

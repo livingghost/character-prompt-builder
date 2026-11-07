@@ -9,6 +9,7 @@ Activate this document when character work will outlive one session: a character
 - [Service authentication](#service-authentication)
 - [The work trail](#the-work-trail)
 - [Every image with what produced it](#every-image-with-what-produced-it)
+- [Record a missing generation package](#record-a-missing-generation-package)
 - [Failed send recovery](#failed-send-recovery)
 - [Session entry](#session-entry)
 - [Validation](#validation)
@@ -216,6 +217,39 @@ The primary gallery in the Studio root is the auto-updated view. Its `gallery.as
 
 Do not hand-edit generated gallery files, `latest.json`, or the activity timeline. Keep author inputs, immutable evidence, per-attempt exports and generated displays in their declared folders; no automatic cleanup deletes formal images, requests, answers, approvals or history.
 
+### Record a missing generation package
+
+When an imported iteration was recorded before its original Generation Package
+was available, attach that package to the same iteration:
+
+```sh
+python scripts/studio.py attach-package --studio STUDIO --character C02 --iteration it-0006 \
+  --package ORIGINAL_PACKAGE --evidence SOURCE_EVIDENCE --actor "ACTUAL_RECORDER" \
+  --reason "How the source evidence relates this package to the retained image"
+```
+
+Keep the package's original reference companion beside it, or supply its actual
+directory with `--package-companion`. `SOURCE_EVIDENCE` is the real source
+material establishing the relationship, such as retained request/result records
+or the owner's attributed statement. The recorder judges that relationship;
+the runtime validates and preserves the supplied bytes. Constructing new inputs
+does not recover an image's original generation provenance.
+
+The operation records the attachment time, recorder, reason, source locations
+and hashes and keeps the package, its companions and the source evidence
+together. It preserves the image, iteration ID, original recording time,
+acceptance history and imported ownership. A `production_binding` in the
+original package remains source evidence; it creates no selection or authority
+in the source run. When the source run is in this Studio, the attachment checks
+its exact input and candidate image. Production-owned rows retain their own
+recorded package and recovery owner.
+
+Repeating the same attachment is idempotent. A different existing package or
+conflicting evidence is reported for inspection rather than replacing the
+retained record. After attachment, use [Adoption Workflow](adoption-workflow.md)
+with the same iteration and actual approval. Sheet publication also retains the
+attachment record and source evidence with its immutable artwork.
+
 ## Failed send recovery
 
 `execute` copies the run's package and reference companion into the send's journal.
@@ -362,8 +396,10 @@ candidate and destination. Accepted departures remain visible in the review and
 evaluation. No image is imported again, and no new work task is needed.
 
 When the requested result includes sheet or catalog reuse, use Production
-`adoption-intent` and `adopt` under separate approval and authorization before
-completing the run. For imported iterations, the Studio
+`adoption-intent` and `adopt` under separate approval and authorization. The same
+procedure can use the selected candidate after the source run completes or is
+abandoned. It appends its own adoption evidence and preserves the original
+production decision and closure. For imported iterations, the Studio
 owns plain slot acceptance and [Adoption Workflow](adoption-workflow.md) owns
 sheet or catalog binding.
 [Production execution](production-execution.md#select-optionally-adopt-and-finish)

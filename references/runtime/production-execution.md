@@ -449,6 +449,8 @@ Each run also lists its candidates with their states, freshness and selection di
 
 `next_action` is the one command that moves the run forward, as `{command, argv, reason}`.
 It is null when nothing is left: a completed or abandoned run with no unresolved provider outcome or supported input cleanup.
+Later reference adoption has its own status in [Adoption Workflow](adoption-workflow.md).
+It retains the source run's completed or abandoned disposition.
 A step that needs an authored file names its draft command, and the reason names the command that consumes the file.
 A run whose live sources changed before anything was handed over points to `prepare`.
 A synthetic prepared run that waits for authority shows (trimmed, the studio path shortened):
@@ -650,7 +652,7 @@ A drift diagnostic adds `affected_runs` and `actions`.
 | `CREDENTIAL_UNAVAILABLE` | Exit 3. The selected credential is missing, unusable or differs from the execution's pinned source. Follow the diagnostic's Studio credential repair action; an explicit binding keeps its own failure instead of choosing another source. |
 | `HANDOFF_REQUIRED` | Exit 3. The operation needs a recorded handoff that the run lacks. |
 | `HANDOFF_NOT_PERFORMED` | A low-level dispatcher handoff is refused; `execute` records that handoff. |
-| `TASK_ABANDONED` | The run's work task was abandoned, so no new operation starts. |
+| `TASK_ABANDONED` | The run's work task was abandoned, so its production decisions and new execution remain closed. A separately authorized adoption can use its existing selected candidate. |
 | `AUTHORITY_UPDATE_CONFLICT` | An authority import names a stale current event. |
 
 **Execution**
@@ -1248,15 +1250,35 @@ owning task's normal workflow when such work remains.
 
 #### Adopt the selected image as a reusable reference
 
-Choose this procedure while the run is still open when the requested result
-includes sheet or catalog reuse. It has its own approval and authorization. The
-compact `accept` operation completes slot acceptance; a completed run cannot
-append a later canonical adoption.
+Use this procedure when the requested result includes sheet or catalog reuse.
+It has its own approval and authorization, and applies to the existing selected
+candidate of an open, completed or abandoned run. Completion fixes the result
+and scope of the production decision. Later adoption records another use of
+those retained bytes, with its own exact current authority.
 
-1. Select the candidate with `scope: delivery-only`.
+1. Use the run's existing current selection. For an open run without one,
+   select the candidate with `scope: delivery-only`.
 2. Run `adoption-intent`, then `adopt` under its own `adopt` authorization; the Studio accepts the iteration in this step. `adopt` refuses a candidate that is not the run's current selection (`SELECTION_REQUIRED`).
-3. Optionally, select the same candidate with `scope: studio-adoption`, citing the adoption record and retaining any applicable owner acceptance. It needs the run's own adoption result (`ADOPTION_RESULT_MISSING` otherwise).
-4. Complete the selected scope.
+3. For an open run, optionally select the same candidate with
+   `scope: studio-adoption`, citing the adoption record and retaining any
+   applicable owner acceptance. It needs the run's own adoption result
+   (`ADOPTION_RESULT_MISSING` otherwise).
+4. Complete an open run's selected scope. A completed or abandoned run keeps
+   its original selection, completion or abandonment and owning task state.
+
+The adoption authorization, claim, local operation boundary and result append
+to the existing event chain. They identify the same candidate and review and
+do not create another execution or iteration. Current grant scope, actor,
+expiry, revocation and stop assessments apply at authorization and adoption.
+Use `authority-import` for an actual change in the authority declaration.
+A candidate without a valid current selection needs that decision before the
+production task closes; closing a task supplies no missing review or selection.
+
+Retry an interrupted adoption with the same exact approval, authorization and
+destination. A subsequent catalog registration uses a new catalog approval and
+authorization while retaining the initial sheet decision. Completion verification
+uses the adoption evidence captured for its selected scope; a later registration
+or ordinary replacement does not rewrite what the earlier run completed.
 
 `adoption-intent` and `adopt` take `--candidate`, `--character`, `--iteration` and `--approval`.
 `adopt` also takes `--authorization`, the event digest of its adopt authorization.

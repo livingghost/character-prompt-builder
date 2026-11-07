@@ -19,6 +19,8 @@ and continues.
     python scripts/studio.py character add <id> --studio DIR [--profile general|humanoid|anthro|<path>]
     python scripts/studio.py iterate --studio DIR --character <id> --slot <slot> --result <file>
         [--package <file>] [--package-companion <dir>] [--request <file>] [--response <file>] [--note "..."]
+    python scripts/studio.py attach-package --studio DIR --character <id> --iteration <it-id>
+        --package <file> [--package-companion <dir>] --evidence <file> --actor "..." --reason "..."
     python scripts/studio.py accept --studio DIR --character <id> --iteration <it-id>
     python scripts/studio.py reject --studio DIR --character <id> --iteration <it-id> --reason "..." --actor "..."
     python scripts/studio.py recipe --studio DIR --character <id> --slot <slot> [--iteration <it-id>]
@@ -588,6 +590,233 @@ def _find(rows: list[dict[str, Any]], iteration_id: str) -> dict[str, Any]:
     return found
 
 
+def _package_source_candidates(root: Path, row: dict[str, Any], package: dict[str, Any],
+                               recorded: list[str] | None = None) -> list[str] | None:
+    """Check a local Production source without transferring the import's ownership.
+
+    A package records input. Its binding neither selects an image nor grants a
+    run permission. A retained local candidate corroborates the declared source;
+    the separately retained attribution evidence remains the author's judgment.
+    """
+    binding = package.get('production_binding')
+    if binding is None:
+        if recorded is not None:
+            raise ValueError('package attachment names Production candidates without a binding')
+        return None
+    import production_store
+    if not any(run['run_id'] == binding['run'] for run in production_store.runs(root)):
+        if recorded is not None:
+            raise ValueError('package attachment lost its recorded local Production source')
+        return None
+    from production_workflow import load_run
+    _, prepared, consumer, events = load_run(root, binding['run'])
+    if prepared['input_sha256'] != binding['input_sha256'] or execution_contract.content_id(consumer) != binding['consumer_sha256']:
+        raise ValueError('attached package differs from its named Production input')
+    candidates = sorted(event['sha256'] for event in events if event['event'] == 'candidate'
+                        and event['data']['files'][0]['sha256'] == row['result']['sha256'])
+    if not candidates:
+        raise ValueError('attached package has no matching image candidate in its named Production run; '
+                         'inspect the original package and image evidence before attaching it')
+    if recorded is not None and (not recorded or not set(recorded).issubset(candidates)):
+        raise ValueError('package attachment differs from its retained Production candidate evidence')
+    return candidates
+
+
+def _attachment_reference(root: Path, reference: Any, *, fields: set[str] | None = None) -> Path:
+    execution_contract.exact(reference, fields or {'path', 'sha256'}, 'package attachment file')
+    execution_contract.sha(reference['sha256'])
+    path = execution_contract.local(root, reference['path'])
+    if not path.is_file() or sha256_file(path) != reference['sha256']:
+        raise ValueError('package attachment file no longer matches its recorded sha256: ' + reference['path'])
+    return path
+
+
+def validate_package_attachment(root: Path, row: dict[str, Any]) -> dict[str, Any] | None:
+    """Read retained attribution evidence; no attachment is needed for an initial package.
+
+    This checks the historical package content and retained evidence, not live
+    execution readiness or whether the author's attribution is semantically true.
+    """
+    root = root.resolve()
+    reference = row.get('package_attachment')
+    if reference is None:
+        return None
+    if row.get('production') is not None or row.get('provenance') != 'external-import':
+        raise ValueError('package attachment must retain the iteration\'s external-import ownership')
+    expected = f"characters/{row['character']}/iterations/{row['iteration_id']}/package-attachment/record.json"
+    record_path = _attachment_reference(root, reference)
+    if reference['path'] != expected:
+        raise ValueError('package attachment belongs to another iteration')
+    receipt = execution_contract.load(record_path)
+    execution_contract.exact(receipt, {'artifact_type', 'recorded_at', 'actor', 'reason', 'character',
+        'iteration_id', 'image_sha256', 'package', 'evidence', 'source', 'companion_files',
+        'production_candidates'}, 'package attachment')
+    if receipt['artifact_type'] != 'studio-package-attachment' or any(
+            receipt[key] != row[key] for key in ('character', 'iteration_id')) \
+            or receipt['image_sha256'] != row['result']['sha256']:
+        raise ValueError('package attachment does not name this iteration and exact image')
+    from studio_activity import chronological
+    if not isinstance(receipt['recorded_at'], str) or chronological(receipt['recorded_at']) == float('-inf'):
+        raise ValueError('package attachment needs its actual recorded_at time')
+    for key in ('actor', 'reason'):
+        execution_contract.text(receipt[key], 'package attachment ' + key)
+    execution_contract.exact(receipt['source'], {'package', 'evidence', 'companion'}, 'package attachment source')
+    for key in ('package', 'evidence'):
+        execution_contract.text(receipt['source'][key], 'package attachment source ' + key)
+    if receipt['source']['companion'] is not None:
+        execution_contract.text(receipt['source']['companion'], 'package attachment source companion')
+    base = record_path.parent
+    package_path = _attachment_reference(base, receipt['package'],
+        fields={'path', 'sha256', 'generation_input_sha256'})
+    if receipt['package']['path'] != 'package.json':
+        raise ValueError('package attachment must retain package.json')
+    expected_package = {**receipt['package'], 'path': package_path.relative_to(root).as_posix()}
+    if row.get('package') != expected_package:
+        raise ValueError('iteration package differs from its attachment receipt')
+    _attachment_reference(root, row['result'])
+    evidence_path = _attachment_reference(base, receipt['evidence'])
+    if not evidence_path.stat().st_size or evidence_path.stem != 'evidence' or evidence_path.parent != base:
+        raise ValueError('package attachment needs its separate retained attribution evidence')
+    files = receipt['companion_files']
+    if not isinstance(files, list):
+        raise ValueError('package attachment companion_files must be a list')
+    seen = {'package.json', 'record.json', receipt['evidence']['path']}
+    for item in files:
+        _attachment_reference(base, item)
+        if item['path'] in seen:
+            raise ValueError('package attachment contains duplicate file paths')
+        seen.add(item['path'])
+    assert_public_tree(base)
+    if any(path.is_symlink() for path in base.rglob('*')) or {
+            path.relative_to(base).as_posix() for path in base.rglob('*') if path.is_file()} != seen:
+        raise ValueError('package attachment files differ from its retained manifest')
+    document = execution_contract.load(package_path)
+    from verify_generation_payload import verify_content
+    verify_content(document, package_root=base)
+    if document['generation_input_sha256'] != receipt['package']['generation_input_sha256']:
+        raise ValueError('package attachment generation input differs from its package')
+    candidates = receipt['production_candidates']
+    if candidates is not None:
+        if not isinstance(candidates, list):
+            raise ValueError('package attachment production_candidates must be unique sorted identifiers')
+        for candidate in candidates:
+            execution_contract.sha(candidate)
+        if candidates != sorted(set(candidates)):
+            raise ValueError('package attachment production_candidates must be unique sorted identifiers')
+    _package_source_candidates(root, row, document, candidates)
+    return receipt
+
+
+def attach_package(root: Path, character: str, iteration_id: str, *, package: Path,
+                   evidence: Path, actor: str, reason: str,
+                   package_companion: Path | None = None) -> dict[str, Any]:
+    """Attribute an existing original package to one imported image, without re-importing it.
+
+    The immutable receipt says who made this later attribution, when, why and
+    from which retained evidence. It is not proof of generation or a new image
+    decision. A complete publication survives a failed ledger save for retry.
+    """
+    with recording_lock(root):
+        root = require_studio(root).resolve()
+        home = character_home(root, character)
+        rows = read_iterations(home, project=False)
+        row = _find(rows, iteration_id)
+        validate_recording_target(root, character, row['slot'])
+        if row.get('production') is not None or row.get('provenance') != 'external-import':
+            raise ValueError('attach-package records attribution for external-import iterations; '
+                             'recover a Production candidate\'s package from its retained run evidence')
+        if not ITERATION_ID.fullmatch(iteration_id):
+            raise ValueError('invalid iteration id')
+        actor = execution_contract.text(actor, 'package attachment actor').strip()
+        reason = execution_contract.text(reason, 'package attachment reason').strip()
+        _attachment_reference(root, row['result'])
+        if row.get('package') is not None and row.get('package_attachment') is None:
+            raise ValueError('this iteration already records a package; attach-package cannot replace it')
+        package, evidence = Path(package).absolute(), Path(evidence).absolute()
+        assert_public_path(package); assert_public_path(evidence)
+        raw_package, raw_evidence = execution_contract.read(package), execution_contract.read(evidence)
+        if not raw_evidence or package.resolve() == evidence.resolve():
+            raise ValueError('attach-package needs separate nonempty evidence relating the package to the image')
+        document = execution_contract.decode(raw_package)
+        if not isinstance(document, dict) or not isinstance(document.get('prepared_reference_set'), dict):
+            raise ValueError('attach-package needs the original complete Generation Package')
+        destination = execution_contract.local(root,
+            f'characters/{character}/iterations/{iteration_id}/package-attachment', exists=False)
+        source_companion = Path(package_companion).absolute() if package_companion is not None else None
+        from build_generation_payload import validate_generation_package_carrier_paths
+        # The original companion may be supplied from a separate saved location;
+        # its exact name remains the package's signed relative reference root.
+        with tempfile.TemporaryDirectory(prefix='.package-attachment-', dir=destination.parent) as temporary:
+            staging = Path(temporary)
+            execution_contract.atomic(staging / 'package.json', raw_package)
+            evidence_name = 'evidence' + evidence.suffix.lower()
+            execution_contract.atomic(staging / evidence_name, raw_evidence)
+            if source_companion is None:
+                name = validate_generation_package_carrier_paths(document['prepared_reference_set'], package_root=package.parent)
+                source_companion = package.parent / name if name is not None else None
+            companion_files = []
+            if source_companion is not None:
+                assert_public_tree(source_companion)
+                if source_companion.is_symlink() or not source_companion.is_dir() or not source_companion.name.endswith('.references'):
+                    raise ValueError('package companion must be its original named .references directory')
+                for path in sorted(source_companion.rglob('*')):
+                    if path.is_symlink():
+                        raise ValueError('package companion must contain no symbolic links')
+                    if path.is_file():
+                        relative = source_companion.name + '/' + path.relative_to(source_companion).as_posix()
+                        raw = execution_contract.read(path)
+                        execution_contract.atomic(execution_contract.local(staging, relative, exists=False), raw)
+                        companion_files.append({'path': relative, 'sha256': execution_contract.digest(raw)})
+            from verify_generation_payload import verify_content
+            verify_content(document, package_root=staging)
+            candidates = _package_source_candidates(root, row, document)
+            receipt = {'artifact_type': 'studio-package-attachment', 'recorded_at': now(),
+                'actor': actor, 'reason': reason, 'character': character, 'iteration_id': iteration_id,
+                'image_sha256': row['result']['sha256'],
+                'package': {'path': 'package.json', 'sha256': execution_contract.digest(raw_package),
+                            'generation_input_sha256': document['generation_input_sha256']},
+                'evidence': {'path': evidence_name, 'sha256': execution_contract.digest(raw_evidence)},
+                'source': {'package': str(package), 'evidence': str(evidence),
+                           'companion': str(source_companion) if source_companion is not None else None},
+                'companion_files': companion_files, 'production_candidates': candidates}
+            proposed = copy.deepcopy(row)
+            proposed['package'] = {**receipt['package'], 'path': (destination / 'package.json').relative_to(root).as_posix()}
+            if destination.exists():
+                # This is either the same committed attachment, or its complete
+                # publication left by an interrupted iterations.jsonl write.
+                saved_path = execution_contract.local(destination, 'record.json')
+                proposed['package_attachment'] = {'path': saved_path.relative_to(root).as_posix(),
+                                                  'sha256': sha256_file(saved_path)}
+                if row.get('package_attachment') is not None:
+                    validate_package_attachment(root, row)
+                saved = validate_package_attachment(root, proposed)
+                # Later candidates can corroborate the same source. The first
+                # attachment keeps the exact witnesses it recorded at that time.
+                receipt['production_candidates'] = saved['production_candidates']
+                if {key: value for key, value in saved.items() if key != 'recorded_at'} != {
+                        key: value for key, value in receipt.items() if key != 'recorded_at'}:
+                    raise ValueError('package attachment already records different source bytes or attribution; '
+                                     'retain the existing record and inspect the original evidence')
+            else:
+                if row.get('package_attachment') is not None:
+                    raise ValueError('the recorded package attachment is missing; restore its retained evidence')
+                receipt_raw = execution_contract.encoded(receipt)
+                execution_contract.atomic(staging / 'record.json', receipt_raw)
+                proposed['package_attachment'] = {'path': (destination / 'record.json').relative_to(root).as_posix(),
+                                                  'sha256': execution_contract.digest(receipt_raw)}
+                execution_contract.publish_directory(staging, destination)
+            if row != proposed:
+                rows[rows.index(row)] = proposed
+                write_iterations(home, rows)
+        import studio_activity as activity
+        projection = activity.changed(home / 'iterations.jsonl', 'iteration-package-attached',
+            subject=character + '/' + iteration_id, revision=proposed['package_attachment']['sha256'],
+            details={'character': character, 'iteration_id': iteration_id, 'package': proposed['package']['path'],
+                     'attachment': proposed['package_attachment']['path']})
+        result = _find(read_iterations(home), iteration_id)
+        return result if projection.get('ok') else {**result, 'projection_warning': projection}
+
+
 def accept(root: Path, character: str, iteration_id: str, *, production_selection: str | None = None) -> dict[str, Any]:
     """Accept an explicitly chosen iteration, or recover one exact Production effect."""
     with recording_lock(root):
@@ -917,6 +1146,11 @@ REFERENCE_STATES = {
 # What the adoption route does next for a slot, in words.
 REFERENCE_NEXT = {
     "adopt-with-sheet-scope": "adopt it with adoption_workflow.py to use it as a reference",
+    "record-generation-package": "use studio.py attach-package to record the original package and its attribution evidence",
+    "adopt-production-candidate": "use production_workflow.py adoption-intent and adopt with separate adoption authorization",
+    "record-adoption-result": "repeat production_workflow.py adopt with the same candidate, approval and authorization to record its result",
+    "inspect-production-selection": "inspect the Production selection and review diagnostics before adoption",
+    "repair-reference": "inspect the reference diagnostic and restore the required retained evidence",
     "accept-candidate": "adoption stopped before accepting the image; repeat the adoption command",
     "bind-sheet": "adoption stopped before binding the sheet; repeat the adoption command",
     "register-pack": "adoption stopped before registering the pack; repeat the adoption command",
@@ -957,8 +1191,17 @@ def status(root: Path) -> str:
             for item in reference_state["bindings"]:
                 state = REFERENCE_STATES.get(item["status"], item["status"])
                 step = item["next_action"]
+                readiness = item.get('adoption') or {}
+                action = REFERENCE_NEXT.get(step, 'next: ' + str(step)) if step else None
+                if readiness.get('owner') == 'production' and step in {
+                        'accept-candidate', 'bind-sheet', 'register-pack', 'activate-pack'}:
+                    action = 'adoption is pending; repeat production_workflow.py adopt for this exact run and candidate'
                 lines.append(f"  {item['slot']} as a reference: {state}"
-                             + (f"; {REFERENCE_NEXT.get(step, 'next: ' + str(step))}" if step else ""))
+                             + (f"; {action}" if action else ""))
+                for diagnostic in readiness.get('diagnostics', []):
+                    lines.append('    ' + diagnostic.get('code', 'adoption') + ': ' + diagnostic.get('message', ''))
+                    if diagnostic.get('required_action'):
+                        lines.append('    ' + diagnostic['required_action'])
             lines.extend("  reference problem: " + error for error in reference_state["errors"])
         except (ValueError, OSError, RuntimeError) as exc:
             lines.append(f"  reference problem: {exc}")
@@ -1061,6 +1304,17 @@ def main(argv: list[str] | None = None) -> int:
     iterate_parser.add_argument("--request", type=Path, help="the request as sent, JSON")
     iterate_parser.add_argument("--response", type=Path, help="what the service answered, JSON")
     iterate_parser.add_argument("--note")
+    attach_parser = commands.add_parser("attach-package", parents=[after],
+        help="record an imported iteration's original Generation Package with later attribution evidence")
+    attach_parser.add_argument("--character", required=True)
+    attach_parser.add_argument("--iteration", required=True)
+    attach_parser.add_argument("--package", type=Path, required=True)
+    attach_parser.add_argument("--package-companion", type=Path,
+        help="the original .references directory, discovered beside the package when omitted")
+    attach_parser.add_argument("--evidence", type=Path, required=True,
+        help="existing evidence relating this package to the exact imported image; retained with the attribution")
+    attach_parser.add_argument("--actor", required=True, help="Actual person or agent making the attribution")
+    attach_parser.add_argument("--reason", required=True, help="Why the evidence establishes this image's original input package")
     accept_parser = commands.add_parser("accept", help="accept an iteration for its slot; the previous one is superseded", parents=[after])
     accept_parser.add_argument("--character", required=True)
     accept_parser.add_argument("--iteration", required=True)
@@ -1109,6 +1363,10 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "iterate":
             row = iterate(root, args.character, args.slot, args.result, package=args.package, request=args.request,
                           response=args.response, note=args.note, package_companion=args.package_companion)
+            print(json.dumps(row, ensure_ascii=False, indent=2))
+        elif args.command == "attach-package":
+            row = attach_package(root, args.character, args.iteration, package=args.package,
+                package_companion=args.package_companion, evidence=args.evidence, actor=args.actor, reason=args.reason)
             print(json.dumps(row, ensure_ascii=False, indent=2))
         elif args.command == "accept":
             print(json.dumps(accept(root, args.character, args.iteration), ensure_ascii=False, indent=2))

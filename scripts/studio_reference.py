@@ -120,14 +120,31 @@ def _read_current(root: Path, character: str, slot: str) -> tuple[dict, dict]:
             raise ValueError('selected Studio adoption is incomplete or no longer accepted')
         approval = adoption.validate_approval(journal.get('approval'), character, row)
         # The same pixels with another author's acceptance remain distinct.
+        if decision != journal.get('sheet_decision') or current != (journal.get('sheet_binding') or {}).get('current'):
+            raise ValueError('current sheet acceptance differs from its recorded Studio decision')
+        initial = adoption.validate_approval(
+            c.load(fills._file(sheet.parent, current['approval']['evidence_path'])), character, row)
+        if initial != approval and not (initial['scope'] == 'sheet' and approval['scope'] == 'catalog'
+                                       and initial['influence'] == approval['influence']):
+            raise ValueError('current Studio adoption differs from its original sheet approval')
+        if journal['status'] != {'sheet': 'sheet-bound', 'catalog': 'catalog-registered'}[approval['scope']]:
+            raise ValueError('current Studio adoption has not completed its approved scope')
         if decision.get('basis') and decision['basis'].get('kind') == 'production':
-            if decision['basis'].get('approval') != approval or decision['basis'].get('claim') != journal.get('production_claim'):
-                raise ValueError('current sheet acceptance differs from its Studio adoption claim')
+            if origin.get('kind') != 'production' or row.get('production') != {
+                    'run': origin.get('run'), 'candidate': origin.get('candidate')}:
+                raise ValueError('current sheet acceptance differs from its Production candidate')
+            if decision['basis'].get('approval') != initial:
+                raise ValueError('current sheet decision differs from its original approval evidence')
+            # A catalog promotion keeps the original sheet decision and adds a
+            # separate approval and claim for registering that same reference.
             fills._production_decision(provenance, decision, sheet)
+            adoption.require_production_claim(root, character, row, initial, decision['basis']['claim'])
+            adoption.require_production_claim(root, character, row, approval, journal.get('production_claim'))
             import production_workflow as workflow
             _, _, _, records = workflow.load_run(root, origin['run'])
-            if not any(r['event'] == 'adoption-result' and r['data'].get('claim') == journal['production_claim'] for r in records):
-                raise ValueError('Production adoption has no completed result')
+            workflow._studio_adoption_result(
+                {'character': character, 'iteration_id': iteration, 'scope': approval['scope']},
+                current['artifact']['image']['sha256'], records, journal, row)
         elif origin.get('kind') == 'production':
             raise ValueError('Production artwork needs its completed adoption claim')
         proof['adoption'] = {'iteration_id': iteration, 'approval': copy.deepcopy(approval)}

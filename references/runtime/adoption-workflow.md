@@ -7,7 +7,9 @@ only to choose an existing Production candidate for its slot, use
 [the compact acceptance operation](production-execution.md#accept-an-existing-candidate-for-its-studio-slot).
 For an externally imported iteration, `studio.py accept` owns that slot decision.
 When the requested result includes sheet or catalog reuse of a Production
-candidate, use its canonical adoption procedure below before completing the run.
+candidate, use its canonical adoption procedure below. The selected candidate
+remains available for this separate operation after its source run completes or
+is abandoned, with the actual current adoption approval and authorization.
 The operator records actual owner consent; the CLI cannot check whether it is
 truthful.
 
@@ -25,7 +27,13 @@ an adoption claim. Inspect the iteration's actual provenance and choose its
 owner; a Production candidate retains its original run and iteration through
 acceptance and adoption.
 
-Inputs are an existing Studio character, an iteration recorded with its source image and committed Generation Package, and a JSON approval. Record a missing package before adoption; file presence is not provenance. The approval contains exactly these required fields:
+Inputs are an existing Studio character, an iteration recorded with its source
+image and committed Generation Package, and a JSON approval. Use Studio's
+[`attach-package` operation](studio.md#record-a-missing-generation-package) to attach a missing original package to the same
+imported iteration, with evidence of its relationship to that image. The
+iteration's identity, creation time and acceptance history remain unchanged.
+File presence alone establishes no generation provenance. The approval contains
+exactly these required fields:
 
 ```json
 {
@@ -63,9 +71,28 @@ The workflow:
 - updates only the selected slot;
 - writes `sheet/active-references.json`.
 
-Historical iterations and unaffected slots stay as they were. `references` exports the exact supplied-file selection consumed by the existing reference preparer, in that preparer's own format.
+Historical iterations and unaffected slots stay as they were. Reference readiness
+follows the accepted iteration's own adoption evidence and approved influence,
+including when another iteration retains identical image bytes. `references`
+exports that exact supplied-file selection in the reference preparer's own format.
 
 Completion states are `candidate-accepted`, `sheet-bound`, and `catalog-registered`. The durable `adoptions/<iteration>.json` records `next_action` and a failure when a step cannot finish. Repeat the same command with the same approval and destination to resume; it is idempotent and adds no image iteration. A pending pre-acceptance operation is visible too. The operating system releases the recording lock when a process ends, even a killed one, so repeat the approved command and leave `.cpb.lock` in place.
+
+`status` uses the same source checks as adoption preflight. Each binding's
+`adoption` view names its owner, Production origin when present, `source_ready`
+and diagnostics. Source readiness supplies no approval. An imported image
+without a package reports `record-generation-package`; a usable Production
+candidate reports `adopt-production-candidate`, and an imported candidate with
+its retained package reports `adopt-with-sheet-scope`. Selection or evidence
+problems name their own inspection or repair step. A slot-only acceptance is a
+valid Studio state, so a missing optional reference binding does not itself
+make `validate_studio.py` fail.
+
+If the sheet or catalog write finished before Production recorded its result,
+status reports `record-adoption-result` and reference export remains blocked.
+Repeat `production_workflow.py adopt` with the same candidate, approval and
+authorization to finish that claim. The active-reference view refreshes from
+the committed result; `studio.py sync` can rebuild it after a display failure.
 
 `studio status` and `validate_studio.py` report stale sheet bindings and incomplete adoption. Accepting a new image through a plain `studio accept` while an older image is bound leaves status incomplete; resolve adoption before preparing the next run. Preparation and the package builder check each subject recorded under a Studio character. They refuse an incomplete adoption, and a package without the character's current adopted identity image among its prepared references. First-generation work, before any identity is adopted, is permitted.
 
@@ -136,9 +163,11 @@ Run `python scripts/feature_workflow_smoke_test.py`. It covers:
 ## Artifact evidence and completion
 
 Production candidates retain their original run, capture and review through
-acceptance and adoption. Complete the selected scope through
-[Production Execution](production-execution.md), then close that run's owning
-work task. An imported iteration retains its imported provenance and follows
+acceptance and adoption. For an open production task, complete the selected
+scope through [Production Execution](production-execution.md), then close that
+run's owning work task. Later adoption appends its own evidence while preserving
+the original task's closure and completed scope. An imported iteration retains
+its imported provenance and follows
 this workflow's durable adoption journal. Preserve the interpretation, approval
 and scope boundaries above. A progress checkbox, a search hit or the presence of
 an image establishes neither completed adoption nor approval to reuse it.

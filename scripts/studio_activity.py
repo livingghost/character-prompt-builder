@@ -114,6 +114,20 @@ def refresh(root: Path) -> dict:
                 studio.write_gallery(root)
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 projection_errors.append({'projection': 'gallery', 'message': str(exc)})
+            try:
+                characters = studio.listed_characters(root)
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                characters = []
+                projection_errors.append({'projection': 'active-references', 'message': str(exc)})
+            for character in characters:
+                try:
+                    reference_view = studio.character_dir(root, character) / 'sheet/active-references.json'
+                    if reference_view.is_file():
+                        from adoption_workflow import reference_index
+                        c.atomic_write_json(reference_view, reference_index(root, character))
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    projection_errors.append({'projection': 'active-references', 'character': character,
+                                              'message': str(exc)})
         story = None
         try:
             import story_timeline
