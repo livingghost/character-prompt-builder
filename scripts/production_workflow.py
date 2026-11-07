@@ -1152,7 +1152,7 @@ def _review_delivered_reference_evidence(directory: Path, run: str, package: dic
     else:
         from prepare_generation_references import host_reference_transports
         for number, carrier in enumerate(host_reference_transports(prepared, package_root=directory), 1):
-            relative = Path(carrier['resolved_path']).relative_to(directory).as_posix()
+            relative = Path(carrier['resolved_path']).resolve().relative_to(directory.resolve()).as_posix()
             if c.digest(c.read(c.local(directory, relative))) != carrier['sha256']:
                 raise ValueError('prepared review carrier checksum mismatch')
             paths[number] = prefix + relative

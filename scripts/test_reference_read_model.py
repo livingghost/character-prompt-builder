@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import os
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -247,6 +248,26 @@ class ReferenceReadTests(unittest.TestCase):
 
 
 class ProductionReferenceReadTests(unittest.TestCase):
+    def test_live_studio_root_is_resolved_before_identity_check(self):
+        import studio_reference_fixtures as production_fixture
+        case = production_fixture.adopted_case(self)
+        source = studio_reference.current_source(case.root, 'robot', case.row['slot'])
+        ref = {'slot': source['slot'], 'artifact_id': source['artifact_id'],
+               'proof_sha256': source['proof_sha256'], 'source_sha256': source['sha256']}
+        alias = case.root.parent / 'alias-studio'
+        work_id = case.approval['continuity_decision']['character_id']
+        original = Path.resolve
+
+        def resolve(path, *, strict=False):
+            if path == alias:
+                return case.root
+            return original(path, strict=strict)
+
+        with patch.object(Path, 'resolve', new=resolve):
+            proof = visual.studio_identity_binding(ref, source, root=alias,
+                character='robot', character_id=work_id)
+        self.assertEqual(proof['identity']['character_id'], work_id)
+
     def test_reference_index_checks_adopted_run_without_loading_unrelated_history(self):
         import production_workflow as workflow
         import studio_reference_fixtures as production_fixture

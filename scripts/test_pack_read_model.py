@@ -24,7 +24,7 @@ class PackReadModelTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.base = Path(self.temporary.name)
+        self.base = Path(self.temporary.name).resolve()
         self.root = self.base / 'pack'
         self.manifest = packs.initialize_pack(self.root, name='Synthetic acquired catalog', release='2026.11.07.1')
         self.manifest['content']['resource_globs'] = ['resources/**/*']

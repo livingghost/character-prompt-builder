@@ -310,7 +310,7 @@ def archive_source(source: dict, companion: Path, *, read=None) -> list[dict]:
 
 def identity_source(source: dict, *, root: Path, character_id: str | None, read=None,
                     reads: ReferenceReads | None = None) -> dict:
-    if source['studio_root'] != str(root.absolute()):
+    if source['studio_root'] != str(root.resolve()):
         raise ValueError('Studio reference belongs to another Studio')
     proof = validate_source(source, read=read, reads=reads)
     identity = proof['identity']

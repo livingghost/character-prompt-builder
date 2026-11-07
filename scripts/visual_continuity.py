@@ -242,7 +242,7 @@ def studio_identity_binding(ref: dict, source: dict, *, root: Path | None,
             raise ValueError('identity selector differs from its exact Studio acceptance: ' + key)
     if ref['source_sha256'] != source['sha256']:
         raise ValueError('Studio identity source hash mismatch')
-    if live and (root is None or str(root.absolute()) != source['studio_root']):
+    if live and (root is None or str(root.resolve()) != source['studio_root']):
         raise ValueError('Studio reference belongs to another Studio')
     proof = validate_source(source, active=live, source_archive=source_archive, read=read)
     if not isinstance(proof['identity'], dict) or proof['identity']['character_id'] != character_id:
@@ -271,7 +271,7 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
     validate_content(value, production_spec)
     if root is None:
         raise ValueError('visual continuity requires an explicit source or studio root')
-    root = root.absolute()
+    root = root.resolve()
     if basis_reader is None:
         check_file(root, value['basis'], basis=True)
     else:

@@ -206,6 +206,7 @@ def listed_characters(root: Path, *, read_bytes: Callable[[str], bytes] | None =
 
 def character_home(root: Path, character: str, *, read_bytes: Callable[[str], bytes] | None = None) -> Path:
     """The directory of a character the manifest lists; a mistyped id is refused by name."""
+    root = root.resolve()
     home = character_dir(root, character)
     if character not in listed_characters(root, read_bytes=read_bytes) or not home.is_dir():
         raise ValueError(f"character {character!r} is not in this studio")
@@ -1022,6 +1023,7 @@ def verify_accepted_file(root: Path, row: dict[str, Any]) -> None:
 
 def _record_accept(root: Path, character: str, iteration_id: str, *,
                    production_selection: str | None = None, read: StudioRead | None = None) -> dict[str, Any]:
+    root = root.resolve()
     read = read or StudioRead(root)
     home = read.home(character)
     rows = copy.deepcopy(read.iterations(character))

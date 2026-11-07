@@ -429,6 +429,22 @@ class AdoptionTests(unittest.TestCase):
             self.assertEqual(studio.validate_recording_target(self.root, 'robot', 'base.front'),
                              studio.character_home(self.root, 'robot'))
 
+    def test_accept_resolves_a_short_root_before_recording(self):
+        self.select()
+        alias = self.root.parent / 'alias-studio'
+        original = Path.resolve
+
+        def resolve(path, *, strict=False):
+            if path == alias:
+                return self.root
+            return original(path, strict=strict)
+
+        with patch.object(Path, 'resolve', new=resolve):
+            accepted = studio.accept(alias, 'robot', self.row['iteration_id'])
+            home = studio.character_home(alias, 'robot')
+        self.assertEqual(accepted['accepted_path'], 'characters/robot/accepted/base.front.png')
+        self.assertEqual(home, self.root / 'characters' / 'robot')
+
     def test_low_level_adoption_needs_the_production_claim(self):
         self.select()
         with self.assertRaisesRegex(ValueError,'production_workflow.py adopt'):

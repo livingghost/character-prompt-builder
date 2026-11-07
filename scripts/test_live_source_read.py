@@ -15,7 +15,7 @@ class LiveSourceReadTests(unittest.TestCase):
     def setUp(self):
         self.temporary=tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.base=Path(self.temporary.name)
+        self.base=Path(self.temporary.name).resolve()
         self.skill=self.base/'skill'
         self.studio=self.base/'studio'
         self.documents={'config/execution-routes.json':b'{"route":"synthetic"}\n',

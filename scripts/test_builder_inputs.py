@@ -15,7 +15,7 @@ class BuilderInputTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="builder-inputs-")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
 
     def write(self, relative, text):
         path = self.root / relative
@@ -45,6 +45,20 @@ class BuilderInputTests(unittest.TestCase):
         self.assertEqual(source.paths, frozenset({
             "scripts/entry.py", "scripts/__init__.py", "scripts/plugins/__init__.py",
             "scripts/plugins/extension.py", "scripts/unimported.py"}))
+
+    def test_absolute_path_is_resolved_before_root_membership(self):
+        entry = self.write("scripts/entry.py", "VALUE = 1\n")
+        source = self.capture()
+        alias = self.root.parent / 'alias-root'
+        original = Path.resolve
+
+        def resolve(path, *, strict=False):
+            if path == alias / 'scripts/entry.py':
+                return entry
+            return original(path, strict=strict)
+
+        with mock.patch.object(Path, 'resolve', new=resolve):
+            self.assertEqual(source.read_bytes(alias / 'scripts/entry.py'), b"VALUE = 1\n")
 
     def test_same_size_and_mtime_module_edit_changes_identity_at_next_capture(self):
         self.write("scripts/entry.py", "VALUE = 1\n")

@@ -22,7 +22,7 @@ class FoundationTests(unittest.TestCase):
         from publication_artifacts import StagedArtifacts
         import stat
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / 'staged'
+            root = (Path(temporary) / 'staged').resolve()
             root.mkdir()
             artifacts = StagedArtifacts(root)
             synchronized = []
@@ -526,7 +526,7 @@ class SchemaDocumentContextTests(unittest.TestCase):
         import state_protocol as protocol
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             schema_path = root/'item.json'
             schema_path.write_text('{"type":"integer"}', encoding='utf-8')
             schema = {'type':'array','items':{'$ref':'item.json'}}

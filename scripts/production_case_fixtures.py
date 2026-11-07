@@ -187,7 +187,7 @@ def copy_studio(origin:Path,target:Path)->Path:
                                      'because a copy holds a plain folder in its place.')
                 if stat.S_ISDIR(info.st_mode):folders.append(entry.path)
     shutil.copytree(origin,target,symlinks=True)
-    return target
+    return target.resolve()
 
 
 def alternate_task(root: Path, *, steps: int = 22) -> str:

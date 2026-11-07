@@ -64,6 +64,7 @@ class BuilderInputs:
         """Read acquired bytes by relative path or an absolute path inside root."""
         selected = Path(path)
         if selected.is_absolute():
+            selected = selected.resolve()
             try:
                 selected = selected.relative_to(self.root)
             except ValueError as exc:
