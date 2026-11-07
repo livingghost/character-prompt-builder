@@ -7,12 +7,10 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-import threading
 import tempfile
 
 import execution_contract as c
 
-_LOCK = threading.Lock()
 FORMAT = 'cpb-scene-mask-refinement'
 
 
@@ -86,11 +84,11 @@ def fit_region(source, proposal, protection, *, inside, outside, iterations, see
     bg_model = np.zeros((1, 65), dtype=np.float64)
     fg_model = np.zeros((1, 65), dtype=np.float64)
     try:
-        with _LOCK:
-            # A fresh CLI process is the reproducible execution boundary.
-            cv2.setRNGSeed(seed)
-            cv2.grabCut(np.asarray(source.convert('RGB'))[:, :, ::-1].copy(), classes,
-                        None, bg_model, fg_model, iterations, cv2.GC_INIT_WITH_MASK)
+        # OpenCV's default RNG is thread-local. Each fit owns its arrays and
+        # seed, so independent fits do not need a process-wide mutex.
+        cv2.setRNGSeed(seed)
+        cv2.grabCut(np.asarray(source.convert('RGB'))[:, :, ::-1].copy(), classes,
+                    None, bg_model, fg_model, iterations, cv2.GC_INIT_WITH_MASK)
     except cv2.error as exc:
         raise ValueError('GrabCut could not fit the declared foreground/background samples: ' + str(exc)) from exc
     result = (classes == cv2.GC_FGD) | (classes == cv2.GC_PR_FGD)

@@ -120,7 +120,7 @@ def check_history(root: Path, rows: list[dict[str, Any]], character: str, errors
                     selections.add(selection_id)
                     if origin['run'] not in runs:
                         try:
-                            runs[origin['run']] = workflow.load_run(root, origin['run'])
+                            runs[origin['run']] = workflow.read_run(root, origin['run'])
                         except (ValueError, OSError, KeyError, TypeError) as exc:
                             runs[origin['run']] = exc
                     loaded = runs[origin['run']]
@@ -179,7 +179,7 @@ def unshown_candidates(root: Path, characters: set[str], shown: set[tuple[str, s
     errors = []
     for run in runs:
         try:
-            _, prepared, _, events = production_workflow.load_run(root, run)
+            _, prepared, _, events = production_workflow.read_run(root, run)
         except (ValueError, OSError, KeyError) as exc:
             errors.append(f"production run {run}: {exc}")
             continue

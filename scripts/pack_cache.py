@@ -12,24 +12,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from execution_contract import lock
+from builder_inputs import capture as capture_builder_inputs
 from pack_manager import (
     DiscoveredPack,
     PackError,
     PackRecord,
     PackSettings,
     PackValidation,
-    active_snapshot,
+    RuntimeInputs,
+    acquire_runtime_inputs,
     canonical_json,
     default_settings,
-    load_effective_state,
     pack_cli_command,
     required_dependency_cycles,
-    resolve_enabled_lenient,
     sha256_bytes,
-    sha256_file,
-    validate_pack,
+    validate_pack_input,
 )
+from owned_json import freeze
+from state_protocol import schema_read_scope
+
 from search_discovery import (
     FACET_BY_CATEGORY,
     KIND_PRIMARY_FACET,
@@ -75,28 +76,11 @@ class RuntimePackCatalog:
     warnings: tuple[str, ...] = ()
     # The root of each pack the catalog uses, by pack ID.
     pack_roots: Mapping[str, Path] = field(default_factory=dict)
-
-
-def _builder_fingerprint() -> str:
-    paths = (
-        Path(__file__).resolve(),
-        Path(__file__).with_name("pack_manager.py").resolve(),
-        Path(__file__).with_name("resource_policy.py").resolve(),
-        Path(__file__).with_name("model_suitability.py").resolve(),
-        Path(__file__).with_name("search_discovery.py").resolve(),
-        Path(__file__).with_name("state_protocol.py").resolve(),
-        ROOT / "schemas" / "pack.schema.json",
-        ROOT / "schemas" / "pack-lock.schema.json",
-        ROOT / "schemas" / "pack-record-file.schema.json",
-        ROOT / "schemas" / "model-prompt-input.schema.json",
-        ROOT / "schemas" / "prompt-syntax.schema.json",
-        ROOT / "schemas" / "pack-state.schema.json",
-    )
-    payload = [
-        {"path": path.name, "sha256": sha256_file(path)}
-        for path in paths
-    ]
-    return sha256_bytes(canonical_json(payload).encode("utf-8"))
+    pack_reports: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    # Live catalogs carry the same acquired inputs used to select their cache.
+    inputs: RuntimeInputs | None = field(default=None, compare=False, repr=False)
+    # Fixed catalogs pass their acquired resource owner to read-only consumers.
+    resource_reader: Callable[[str], tuple[dict, bytes] | None] | None = field(default=None, compare=False, repr=False)
 
 
 CACHE_STEM, _, CACHE_SUFFIX = CACHE_FILENAME.rpartition(".")
@@ -211,25 +195,15 @@ def _cached_active_pack_count(path: Path) -> int:
     return int(_read_meta(path).get("active_pack_count") or 0)
 
 
-def _expected_fingerprint(snapshot: Mapping[str, Any]) -> str:
+def _expected_fingerprint(snapshot: Mapping[str, Any], *, builder: str) -> str:
     return sha256_bytes(
         canonical_json(
             {
-                "builder": _builder_fingerprint(),
+                "builder": builder,
                 "snapshot": snapshot,
             }
         ).encode("utf-8")
     )
-
-
-def _cache_lock(settings: PackSettings):
-    """The lock a build takes. Readers never take it.
-
-    The operating system holds it and releases it when the holder exits, however
-    it exits, so a live builder is waited for and a dead one never blocks.
-    """
-
-    return lock(settings.cache_dir)
 
 
 def _required_pack_ids(pack: DiscoveredPack) -> frozenset[str]:
@@ -459,6 +433,7 @@ def _precedence(
 def _resolve_resources(
     packs: Sequence[tuple[DiscoveredPack, list[PackRecord]]],
     reports: Mapping[str, Any],
+    inputs: RuntimeInputs,
     diagnostics: list[dict[str, Any]],
     pack_order: Sequence[str] = (),
 ) -> list[_ResolvedResource]:
@@ -480,7 +455,7 @@ def _resolve_resources(
     for name, rows in sorted(candidates.items()):
         highest = _highest(sorted(rows), outranks)
         if len(highest) > 1 and len(
-            {sha256_file(rows[pack_id][0].root / rows[pack_id][1]) for pack_id in highest}
+            {inputs.packs[pack_id].files[rows[pack_id][1]].sha256 for pack_id in highest}
         ) == 1:
             highest = highest[:1]
         if len(highest) != 1:
@@ -490,7 +465,7 @@ def _resolve_resources(
         resolved.append(
             _ResolvedResource(
                 name,
-                (pack.root / relative).resolve(),
+                pack.root / relative,
                 mimetypes.guess_type(relative)[0] or "application/octet-stream",
                 pack.pack_id,
                 relative,
@@ -515,7 +490,7 @@ def _conflict(name: str, pack_ids: Sequence[str]) -> dict[str, Any]:
 
 
 def _resolve_runtime_pack_inputs(
-    settings: PackSettings,
+    inputs: RuntimeInputs,
 ) -> tuple[
     list[DiscoveredPack],
     list[tuple[DiscoveredPack, list[PackRecord]]],
@@ -524,13 +499,13 @@ def _resolve_runtime_pack_inputs(
     list[dict[str, Any]],
 ]:
     """Validate enabled packs and apply the runtime dependency-closure policy once."""
-    selected, discovery_issues = resolve_enabled_lenient(settings)
-    diagnostics: list[dict[str, Any]] = [issue.to_dict() for issue in discovery_issues]
+    selected = inputs.selected
+    diagnostics: list[dict[str, Any]] = [issue.to_dict() for issue in inputs.issues]
     valid_packs: list[tuple[DiscoveredPack, list[PackRecord]]] = []
     pack_reports: dict[str, dict[str, Any]] = {}
     pack_validations: dict[str, PackValidation] = {}
     for pack in selected:
-        report = validate_pack(pack.root)
+        report = validate_pack_input(inputs.packs[pack.pack_id])
         pack_reports[pack.pack_id] = report.to_dict()
         pack_validations[pack.pack_id] = report
         if report.valid:
@@ -797,24 +772,43 @@ def _phrase_rows(
     return [*explicit_rows, *generated_rows], profile
 
 
-def _create_database(
-    path: Path,
-    settings: PackSettings,
-    snapshot: Mapping[str, Any],
-    fingerprint: str,
-) -> None:
-    (
-        selected,
-        valid_packs,
-        pack_reports,
-        pack_validations,
-        diagnostics,
-    ) = _resolve_runtime_pack_inputs(settings)
-    pack_order = snapshot.get("pack_order") or ()
-    resolved_records = _resolve_records(valid_packs, diagnostics, pack_order)
-    resolved_records = _remove_broken_record_references(resolved_records, diagnostics)
-    resolved_resources = _resolve_resources(valid_packs, pack_validations, diagnostics, pack_order)
+@dataclass(frozen=True)
+class CatalogBuild:
+    """Resolved catalog values ready for persistence, with no source readers."""
+    snapshot: Mapping[str, Any]
+    fingerprint: str
+    builder: str
+    selected: tuple[DiscoveredPack, ...]
+    reports: Mapping[str, Any]
+    active_ids: frozenset[str]
+    records: tuple[tuple[DiscoveredPack, PackRecord], ...]
+    resources: tuple[_ResolvedResource, ...]
+    diagnostics: tuple[Mapping[str, Any], ...]
+    phrases: tuple[tuple, ...]
+    profiles: tuple[tuple[str, Mapping[str, Any]], ...]
 
+
+def _derive_catalog(inputs: RuntimeInputs, fingerprint: str, builder: str) -> CatalogBuild:
+    """Validate and resolve the acquired values before opening a database."""
+    selected, valid_packs, reports, validations, diagnostics = _resolve_runtime_pack_inputs(inputs)
+    order = inputs.snapshot.get("pack_order") or ()
+    records = _remove_broken_record_references(_resolve_records(valid_packs, diagnostics, order), diagnostics)
+    resources = _resolve_resources(valid_packs, validations, inputs, diagnostics, order)
+    phrases: list[tuple] = []
+    profiles: list[tuple[str, Mapping[str, Any]]] = []
+    for pack, record in records:
+        rows, profile = _phrase_rows(pack, record)
+        phrases.extend((*row, index) for index, row in enumerate(rows))
+        if profile is not None:
+            profiles.append((str(record.record["id"]), freeze(profile)))
+    return CatalogBuild(inputs.snapshot, fingerprint, builder, tuple(selected), freeze(reports),
+                        frozenset(pack.pack_id for pack, _ in valid_packs), tuple(records),
+                        tuple(resources), tuple(freeze(row) for row in diagnostics),
+                        tuple(phrases), tuple(profiles))
+
+
+def _create_database(path: Path, catalog: CatalogBuild) -> None:
+    """Persist a resolved catalog. Pack acquisition and validation are complete."""
     # This database is written once into a new file and read whole. Every query
     # the loader issues returns an entire table in a stated order, so the index
     # each one needs is the one that produces that order and carries the columns
@@ -879,21 +873,20 @@ def _create_database(
             );
             """
         )
-        active_ids = {pack.pack_id for pack, _ in valid_packs}
         meta = {
-            "builder_fingerprint": _builder_fingerprint(),
-            "source_fingerprint": str(snapshot.get("fingerprint") or ""),
-            "cache_fingerprint": fingerprint,
-            "snapshot_json": canonical_json(snapshot),
-            "diagnostics_json": canonical_json(diagnostics),
-            "active_pack_count": str(len(active_ids)),
+            "builder_fingerprint": catalog.builder,
+            "source_fingerprint": str(catalog.snapshot.get("fingerprint") or ""),
+            "cache_fingerprint": catalog.fingerprint,
+            "snapshot_json": canonical_json(catalog.snapshot),
+            "diagnostics_json": canonical_json(catalog.diagnostics),
+            "active_pack_count": str(len(catalog.active_ids)),
         }
         connection.executemany(
             "INSERT INTO meta(key, value) VALUES (?, ?)",
             sorted(meta.items()),
         )
-        for pack in selected:
-            report = pack_reports.get(pack.pack_id, {})
+        for pack in catalog.selected:
+            report = catalog.reports.get(pack.pack_id, {})
             connection.execute(
                 "INSERT INTO packs(pack_id, root, manifest_json, validation_json) "
                 "VALUES (?, ?, ?, ?)",
@@ -901,10 +894,10 @@ def _create_database(
                     pack.pack_id,
                     str(pack.root),
                     canonical_json(pack.manifest),
-                    canonical_json({**report, "active": pack.pack_id in active_ids}),
+                    canonical_json({**report, "active": pack.pack_id in catalog.active_ids}),
                 ),
             )
-        for resource in resolved_resources:
+        for resource in catalog.resources:
             connection.execute(
                 "INSERT INTO resources(name, absolute_path, media_type, source_pack, "
                 "relative_path) VALUES (?, ?, ?, ?, ?)",
@@ -916,7 +909,7 @@ def _create_database(
                     resource.relative_path,
                 ),
             )
-        for pack, record in resolved_records:
+        for pack, record in catalog.records:
             record_id = str(record.record["id"])
             connection.execute(
                 "INSERT INTO records(record_id, pack_id, kind, category, "
@@ -930,17 +923,14 @@ def _create_database(
                     canonical_json(record.record),
                 ),
             )
-            phrase_rows, profile = _phrase_rows(pack, record)
-            connection.executemany(
-                "INSERT INTO phrases(phrase, record_id, facet, weight, source, row_order) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                [(*row, index) for index, row in enumerate(phrase_rows)],
-            )
-            if profile is not None:
-                connection.execute(
-                    "INSERT INTO profiles(record_id, profile_json) VALUES (?, ?)",
-                    (record_id, canonical_json(profile)),
-                )
+        connection.executemany(
+            "INSERT INTO phrases(phrase, record_id, facet, weight, source, row_order) VALUES (?, ?, ?, ?, ?, ?)",
+            catalog.phrases,
+        )
+        connection.executemany(
+            "INSERT INTO profiles(record_id, profile_json) VALUES (?, ?)",
+            [(record_id, canonical_json(profile)) for record_id, profile in catalog.profiles],
+        )
         connection.commit()
         integrity = connection.execute("PRAGMA integrity_check").fetchone()
         if not integrity or integrity[0] != "ok":
@@ -950,14 +940,7 @@ def _create_database(
 
 
 def _publish(temporary: Path, output_path: Path) -> None:
-    """Put the built database at the name that states what it was built from.
-
-    That name did not exist when the build started, so this is a rename into
-    free space and no reader can be holding it. A forced rebuild is the one
-    caller that can find it occupied, and on Windows a rename onto an open file
-    is refused; that is reported as what it is rather than as a bare permission
-    error.
-    """
+    """Atomically replace a derived database, retaining the old file on failure."""
 
     try:
         os.replace(temporary, output_path)
@@ -969,47 +952,30 @@ def _publish(temporary: Path, output_path: Path) -> None:
 
 
 def _build(
-    resolved_settings: PackSettings,
-    snapshot: Mapping[str, Any],
+    inputs: RuntimeInputs,
     fingerprint: str,
     output_path: Path,
+    builder: str,
     *,
     force: bool = False,
 ) -> None:
-    """Build the cache for `fingerprint` unless another process just did.
+    """Build privately and atomically replace the cache for this exact input.
 
-    The lock is what keeps two builds of the same inputs from doing the work
-    twice, and the existence check inside it is what lets the second one find
-    the first one's result. Readers take no part in either.
-
-    A forced build is the one caller that finds the name occupied and must clear
-    it. That happens here, under the lock, so a second forced build does not
-    remove the file the first one is in the middle of replacing. Windows refuses
-    to remove a file another program holds open, and that refusal is reported as
-    what it is rather than as a bare permission error.
+    Concurrent builders may duplicate derivation, but readers see one complete
+    database. A failed replacement leaves the previous complete cache intact.
     """
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with _cache_lock(resolved_settings):
-        if output_path.is_file():
-            if not force:
-                return
-            try:
-                output_path.unlink()
-            except OSError as error:
-                raise PackError(
-                    f"{output_path} could not be rebuilt because another program holds it "
-                    "open. Close whatever is reading the catalog cache and run the refresh "
-                    "again."
-                ) from error
-        temporary = output_path.with_name(
-            f".{output_path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
-        )
-        try:
-            _create_database(temporary, resolved_settings, snapshot, fingerprint)
-            _publish(temporary, output_path)
-        finally:
-            temporary.unlink(missing_ok=True)
+    if output_path.is_file() and not force:
+        return
+    temporary = output_path.with_name(
+        f".{output_path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
+    )
+    try:
+        catalog = _derive_catalog(inputs, fingerprint, builder)
+        _create_database(temporary, catalog)
+        _publish(temporary, output_path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def refresh_cache(
@@ -1018,10 +984,17 @@ def refresh_cache(
     force: bool = False,
 ) -> dict[str, Any]:
     resolved_settings = settings or default_settings()
-    # Inventory the active inputs once. The same snapshot names the cache and
-    # goes into it, so the file a reader opens is the one these inputs produce.
-    snapshot = active_snapshot(resolved_settings)
-    fingerprint = _expected_fingerprint(snapshot)
+    builder = capture_builder_inputs(ROOT)
+    with schema_read_scope(source=builder):
+        return _refresh_inputs(resolved_settings, acquire_runtime_inputs(resolved_settings),
+                               builder=builder.fingerprint, force=force)
+
+
+def _refresh_inputs(resolved_settings: PackSettings, inputs: RuntimeInputs, *,
+                    builder: str, force: bool) -> dict[str, Any]:
+    """Select and construct a cache from this acquired input only."""
+    snapshot = inputs.snapshot
+    fingerprint = _expected_fingerprint(snapshot, builder=builder)
     output_path = cache_path(resolved_settings, fingerprint)
     result = {
         "ok": True,
@@ -1044,7 +1017,7 @@ def refresh_cache(
         result["active_pack_count"] = _cached_active_pack_count(output_path)
         _discard_superseded(resolved_settings, output_path)
         return result
-    _build(resolved_settings, snapshot, fingerprint, output_path, force=force)
+    _build(inputs, fingerprint, output_path, builder, force=force)
     result["active_pack_count"] = _cached_active_pack_count(output_path)
     # Which cache is current is settled on both paths, so the caches that are
     # not go on both. One a reader still holds survives the attempt and is
@@ -1057,9 +1030,12 @@ def refresh_cache(
 
 def cache_status(settings: PackSettings | None = None) -> dict[str, Any]:
     resolved_settings = settings or default_settings()
-    state = load_effective_state(resolved_settings)
-    snapshot = active_snapshot(resolved_settings)
-    expected = _expected_fingerprint(snapshot)
+    builder = capture_builder_inputs(ROOT)
+    with schema_read_scope(source=builder):
+        inputs = acquire_runtime_inputs(resolved_settings)
+    state = inputs.state
+    snapshot = inputs.snapshot
+    expected = _expected_fingerprint(snapshot, builder=builder.fingerprint)
     output_path = cache_path(resolved_settings, expected)
     # Freshness is whether the cache these inputs name is present. Nothing is
     # rebuilt and no lock is taken; the meta read only supplies what the cache
@@ -1122,24 +1098,28 @@ def refresh_runtime_catalog(
     The report and catalog always describe the same successful selection.
     """
     resolved_settings = settings or default_settings()
-    for final_attempt in (False, True):
-        report = refresh_cache(resolved_settings, force=force)
-        try:
-            connection = _connect_readonly(Path(report["cache_path"]))
-        except sqlite3.Error:
-            if final_attempt:
-                raise PackError(
-                    f"{report['cache_path']} went away while it was being opened, twice over. "
-                    "Something outside this runtime is removing the catalog cache."
-                ) from None
-            continue
-        return report, _read_runtime_catalog(connection, resolved_settings, quiet=quiet)
+    builder = capture_builder_inputs(ROOT)
+    with schema_read_scope(source=builder):
+        for final_attempt in (False, True):
+            inputs = acquire_runtime_inputs(resolved_settings)
+            report = _refresh_inputs(resolved_settings, inputs, builder=builder.fingerprint, force=force)
+            try:
+                connection = _connect_readonly(Path(report["cache_path"]))
+            except sqlite3.Error:
+                if final_attempt:
+                    raise PackError(
+                        f"{report['cache_path']} went away while it was being opened, twice over. "
+                        "Something outside this runtime is removing the catalog cache."
+                    ) from None
+                continue
+            return report, _read_runtime_catalog(connection, resolved_settings, inputs, quiet=quiet)
     raise PackError("the catalog cache could not be opened")  # pragma: no cover
 
 
 def _read_runtime_catalog(
     connection: sqlite3.Connection,
     resolved_settings: PackSettings,
+    inputs: RuntimeInputs,
     *,
     quiet: bool,
 ) -> RuntimePackCatalog:
@@ -1153,7 +1133,7 @@ def _read_runtime_catalog(
             RuntimePackEntry(
                 kind=str(kind),
                 category=str(category) if category is not None else None,
-                record=json.loads(record_json),
+                record=freeze(json.loads(record_json)),
                 source_pack=str(pack_id),
                 source_root=Path(str(pack_root)),
                 source_file=str(source_file),
@@ -1208,14 +1188,14 @@ def _read_runtime_catalog(
                 "FROM resources ORDER BY name",
             )
         }
-        pack_roots = {
-            str(pack_id): Path(str(root))
-            for pack_id, root, validation_json in _fetchall(
-                connection,
-                "SELECT pack_id, root, validation_json FROM packs ORDER BY pack_id",
-            )
-            if json.loads(validation_json).get("active") is True
-        }
+        pack_roots, pack_reports = {}, {}
+        for pack_id, root, validation_json in _fetchall(
+            connection, "SELECT pack_id, root, validation_json FROM packs ORDER BY pack_id"
+        ):
+            report = json.loads(validation_json)
+            pack_reports[str(pack_id)] = report
+            if report.get("active") is True:
+                pack_roots[str(pack_id)] = Path(str(root))
     finally:
         connection.close()
     assets_by_canonical_record_lists: dict[str, list[RuntimePackEntry]] = {
@@ -1254,11 +1234,13 @@ def _read_runtime_catalog(
         fingerprint=meta.get("cache_fingerprint", ""),
         active_pack_count=int(meta.get("active_pack_count") or 0),
         entries=entries,
-        phrases=phrases,
-        profiles=profiles,
-        resources=resources,
-        assets_by_canonical_record=assets_by_canonical_record,
-        diagnostics=diagnostics,
+        phrases=freeze(phrases),
+        profiles=freeze(profiles),
+        resources=freeze(resources),
+        assets_by_canonical_record=freeze(assets_by_canonical_record),
+        diagnostics=tuple(freeze(row) for row in diagnostics),
         warnings=warnings,
-        pack_roots=pack_roots,
+        pack_roots=freeze(pack_roots),
+        pack_reports=freeze(pack_reports),
+        inputs=inputs,
     )

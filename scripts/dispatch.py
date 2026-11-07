@@ -515,7 +515,7 @@ def acquire(run: RunJournal, transport: Any, *, answer_name: str = 'answer.json'
             "acquired": acquired, "failed": failed, "downloaded": downloaded}
 
 
-def upscale_result_package(run: RunJournal, index: int, output: Path) -> Path:
+def upscale_result_package(run: RunJournal, index: int, output: Path, *, loaded=None) -> Path:
     """The Upscale Package of one returned image, built once from the source and the declared operation."""
     path = run.path / f"upscale-package-{index}.json"
     if path.is_file():
@@ -523,9 +523,14 @@ def upscale_result_package(run: RunJournal, index: int, output: Path) -> Path:
     declared = json.loads((run.path / "package.json").read_text(encoding="utf-8"))
     source = run.document["upscale"]["source"]
     binding = None
+    target=None
     if run.document.get("production_run"):
         import production_workflow as workflow
-        _, prepared, _, _ = workflow.load_run(run.path.parent.parent, run.document["production_run"])
+        loaded=loaded or workflow.read_run(run.path.parent.parent, run.document["production_run"])
+        _, prepared, _, _ = loaded
+        if prepared['run']!=run.document['production_run']:
+            raise ValueError('upscale result input belongs to another registered run')
+        target=loaded.artifacts['execution-target.json']
         binding = {"run": run.document["production_run"], "input_sha256": prepared["input_sha256"]}
     output_carrier = run.path / "upscale.references" / (f"output-{index}" + output.suffix.lower())
     if not output_carrier.exists():
@@ -537,7 +542,7 @@ def upscale_result_package(run: RunJournal, index: int, output: Path) -> Path:
         source_stored_path=source, output_stored_path=output_carrier.relative_to(run.path).as_posix(),
         scale_factor=float(declared["scale_factor"]), settings=declared["settings"],
         guidance_prompt=declared["guidance_prompt"], audit_status=run.document["upscale"]["audit_status"],
-        audit_notes=[], production_binding=binding,
+        audit_notes=[], production_binding=binding,model_record=target['model'] if target is not None else None,
     )
     return run.write(path.name, package)
 
@@ -631,11 +636,15 @@ def dispatch_generation(args: argparse.Namespace, root: Path) -> int:
     if not same_json(stored, package):
         raise _differs("the package", "$")
     descriptor = prepared["runtime_snapshot"]
-    with runtime_snapshot.using(runtime_snapshot.path(root, descriptor), descriptor):
-        verified = verify(stored, package_root=directory, studio=root, reading_ledgers=[directory / "reads.jsonl"])
-        validation = request_renderer.check_final(
-            stored["request_validation"],
-            runtime_evidence.reader(root, snapshots=copy.deepcopy(stored["input_snapshots"])), rendered)
+    source=runtime_snapshot.CompileRuntime.from_fixed(
+        runtime_snapshot.acquire_runtime(runtime_snapshot.path(root,descriptor),descriptor),descriptor)
+    from build_generation_payload import resolve_execution_target
+    resolved=resolve_execution_target(target,source=source)
+    verified = verify(stored, package_root=directory, studio=root, reading_ledgers=[directory / "reads.jsonl"],
+                      target=resolved,input_source=source)
+    validation = request_renderer.check_final(
+        stored["request_validation"],
+        runtime_evidence.reader(root, snapshots=copy.deepcopy(stored["input_snapshots"]),source=source), rendered)
     write_preview_outputs(args, root, rendered, validation)
     print(render_summary(stored["render_contract"]))
     show_preview(sealed=sealed, rendered=rendered, negative=negative_line(verified, rendered, target["offering"]),
@@ -663,24 +672,30 @@ def dispatch_upscale(args: argparse.Namespace, root: Path) -> int:
         raise ProductionError("EXECUTION_NOT_APPLICABLE", "the studio's open work task has no prepared run for an upscale",
                               phase="preview", required_action="Prepare the upscale task with production_workflow.py prepare.")
     sealed = sealed_run(root, run, args.character, args.slot)
-    _, prepared, _, _, stored, rendered, _, _, _ = sealed
+    _, prepared, _, _, stored, rendered, _, target, _ = sealed
     if stored.get("artifact_type") != "upscale-request":
         raise ProductionError("INPUT_CONSISTENCY_ERROR", "the open task's run prepared a generation, not an upscale",
                               phase="preview", run=run, required_action="Preview the run's Generation Package instead.")
+    descriptor = prepared["runtime_snapshot"]
+    source=runtime_snapshot.CompileRuntime.from_fixed(
+        runtime_snapshot.acquire_runtime(runtime_snapshot.path(root,descriptor),descriptor),descriptor)
     declared = upscale_request(
         root, studio_file(root, args.source, option="--source", root_option="--studio"), args.model, args.scale,
         json_object(root, args.settings_file, option="--settings-file", root_option="--studio"), args.guidance,
         request_validation=json_object(root, args.request_validation_file, option="--request-validation-file",
                                        root_option="--studio"),
-        render_intent=json_object(root, args.render_intent, option="--render-intent", root_option="--studio"))
+        render_intent=json_object(root, args.render_intent, option="--render-intent", root_option="--studio"),
+        input_source=source)
     if not same_json(stored, declared):
         raise _differs("the upscale input", "$")
-    descriptor = prepared["runtime_snapshot"]
-    with runtime_snapshot.using(runtime_snapshot.path(root, descriptor), descriptor):
-        validate_upscale_input(root, stored)
-        validation = request_renderer.check_final(
-            stored["request_validation"],
-            runtime_evidence.reader(root, snapshots=copy.deepcopy(stored["input_snapshots"])), rendered)
+    from build_generation_payload import resolve_execution_target
+    resolved=resolve_execution_target(target,source=source)
+    if stored['model']!=resolved.model_id:
+        raise _differs('the upscale target','$.model')
+    validate_upscale_input(root, stored,input_source=source)
+    validation = request_renderer.check_final(
+        stored["request_validation"],
+        runtime_evidence.reader(root, snapshots=copy.deepcopy(stored["input_snapshots"]),source=source), rendered)
     write_preview_outputs(args, root, rendered, validation)
     print(render_summary(rendered["sealed"]["context"]["render_contract"]))
     show_preview(sealed=sealed, rendered=rendered, negative="none; an upscale takes no negative prompt", review=sealed[6]['review_requirements'],

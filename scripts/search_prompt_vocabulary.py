@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from state_protocol import unsupported_schema_keywords, validate_against_schema
+from state_protocol import read_schema, validate_against_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "schemas" / "prompt-vocabulary.schema.json"
@@ -85,16 +85,11 @@ def tokens(value: str) -> tuple[str, ...]:
 
 
 def load_schema() -> dict[str, Any]:
-    value = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise VocabularyError("prompt-vocabulary schema must be a JSON object")
-    unsupported = unsupported_schema_keywords(value)
-    if unsupported:
-        raise VocabularyError(
-            "prompt-vocabulary schema contains unsupported keywords: "
-            + ", ".join(unsupported)
-        )
-    return value
+    """Use the operation-owned, checked prompt-vocabulary schema."""
+    try:
+        return read_schema(SCHEMA_PATH)
+    except (OSError, ValueError) as exc:
+        raise VocabularyError(str(exc)) from exc
 
 
 def validate_vocabulary(value: Any, *, path: Path | None = None) -> dict[str, Any]:

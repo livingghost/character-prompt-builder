@@ -36,6 +36,37 @@ python scripts/run_checks.py
 ```
 
 In a source checkout, check the changed files with `git diff --check`.
+
+Read-boundary and concurrency changes also exercise
+`python -m unittest test_production_read_model test_execution_replay test_reference_read_model` from
+`scripts/`. These tests use product-owned synthetic data, concurrent SQLite
+writers, rollback and corruption cases. Preserve the guarantees at a new
+read boundary and before an external effect when reducing repeated I/O.
+Test actual retained state and conflicts instead of requiring every writer
+to acquire a particular global lock. A shared prepared test template is
+immutable; each test owns a copied Studio and restores its mutable runtime
+settings before use.
+
+Studio publication checks in `iterative_workflow_smoke_test.py` exercise an
+older supplied read model, overlapping processes, retried event receipts and
+events arriving during cleanup. `test_production_read_model.py` verifies that
+publication starts a fresh Production read boundary inside an older caller.
+`test_reference_read_model.py` preserves current selection, exact source bytes
+and completed adoption evidence while sharing one decoded model per build.
+Test-owned SQLite connections must close before their temporary directories
+are removed; the connection transaction context alone does not close them.
+
+`test_pack_read_model.py` checks input/build interleavings, source removal after
+acquisition, same-size/same-mtime edits, disabled-pack isolation, one acquisition
+per selected file and snapshot capture from the catalog's own input.
+`test_schema_read_model.py` checks immutable schema ownership, root isolation,
+lazy references, keyword coverage, diagnostic order and standalone validation.
+Run-view tests distinguish shared read-only state from editable exports and
+verify compiled artifacts against the bytes that publication checking acquired.
+Reference tests exercise multiple identity/continuity sources together, owned
+writes, transaction changes and fresh publication boundaries. Count operations
+in these cases independently of uninstrumented wall-time measurements.
+
 The full runner includes the subsystem suites below. Use their individual
 commands for focused diagnosis and reuse completed full-run results for those suites.
 

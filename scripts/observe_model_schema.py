@@ -94,11 +94,10 @@ def publish(args) -> dict:
         lock=pm.write_lock(staging)
         checked=pm.validate_pack(staging,require_lock=True,verify_lock=True)
         if not checked.valid:raise ValueError('observed pack failed validation: '+ '; '.join(x.message for x in checked.issues if x.severity=='error'))
-        with c.lock(destination.parent):
-            current={p.relative_to(pack).as_posix():c.digest(c.read(p)) for p in sorted(pack.rglob('*')) if p.is_file()}
-            if current!=original:raise ValueError('source pack changed while preparing the evidence')
-            if destination.exists():raise FileExistsError('pack destination already exists')
-            c.publish_directory(staging,destination);c.fsync_dir(destination.parent)
+        current={p.relative_to(pack).as_posix():c.digest(c.read(p)) for p in sorted(pack.rglob('*')) if p.is_file()}
+        if current!=original:raise ValueError('source pack changed while preparing the evidence')
+        if destination.exists():raise FileExistsError('pack destination already exists')
+        c.publish_directory(staging,destination);c.fsync_dir(destination.parent)
     return {'ok':True,'pack':str(destination),'release':args.release,'target':target,'evidence':result,
             'lock_sha256':c.content_id(lock),'activation_required':True,'external_effect':False}
 

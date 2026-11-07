@@ -3,6 +3,8 @@
 from __future__ import annotations
 import copy
 import io
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import tempfile
 import unittest
@@ -124,6 +126,26 @@ class ImageEditTests(unittest.TestCase):
         with patch.object(edit,'_render',side_effect=AssertionError('must not rerender')):
             second=edit.execute(self.root,self.run,'edit.json',grant)
         self.assertEqual(first,second)
+    def test_concurrent_retry_cannot_render_the_claim_twice(self):
+        grant=fixture.grant(self.root,self.run,self.intent())
+        entered,release=threading.Event(),threading.Event();render=edit._render;calls=[]
+        def paused(compiled):
+            calls.append(True);entered.set()
+            if not release.wait(20):raise RuntimeError('test did not release the renderer')
+            return render(compiled)
+        with patch.object(edit,'_render',side_effect=paused),ThreadPoolExecutor(max_workers=2) as workers:
+            first=workers.submit(edit.execute,self.root,self.run,'edit.json',grant)
+            try:
+                self.assertTrue(entered.wait(20),'the first execution never reached its renderer')
+                second=workers.submit(edit.execute,self.root,self.run,'edit.json',grant)
+                with self.assertRaisesRegex(ValueError,'no retained output'):
+                    second.result(timeout=20)
+            finally:
+                release.set()
+            result=first.result(timeout=20)
+        self.assertEqual(len(calls),1)
+        with patch.object(edit,'_render',side_effect=AssertionError('must recover the committed result')):
+            self.assertEqual(edit.execute(self.root,self.run,'edit.json',grant),result)
     def test_interrupted_publication_recovers_exact_object(self):
         grant=fixture.grant(self.root,self.run,self.intent())
         with patch.object(edit,'_publish',side_effect=OSError('test interruption')):

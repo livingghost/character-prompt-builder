@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import execution_contract as c
 from input_evidence import InputEvidence
@@ -11,6 +11,9 @@ import request_contract as rc
 import request_scope
 import request_validation
 import model_rendition
+
+if TYPE_CHECKING:
+    from production_store import CurrentAuthority
 
 PAYLOAD_FIELDS = {'package_sha256', 'seed', 'count', 'service', 'model_identifier',
                   'offering_sha256', 'service_sha256', 'request_sha256',
@@ -227,6 +230,7 @@ class EvidenceWitnesses:
 
 
 def check_authorization(root: Path, prepared: dict, request: dict, grant: dict, *,
+                        authority: CurrentAuthority,
                         recorded: list[tuple[str, bytes]] | None = None) -> tuple[dict, list[dict]]:
     """Check scope and the supplied review; leave semantic judgments with the actor.
 
@@ -235,6 +239,8 @@ def check_authorization(root: Path, prepared: dict, request: dict, grant: dict, 
     Returns the scope assessment and every evidence reading it used, with
     path, SHA-256, locator, purpose and the verified bytes under `raw`.
     """
+    if authority.task_id != prepared['task']['task_id']:
+        raise ValueError('current authority belongs to another work task')
     payload = request['payload']
     validate_payload(payload)
     decision = request.get('request_decision')
@@ -244,11 +250,11 @@ def check_authorization(root: Path, prepared: dict, request: dict, grant: dict, 
                                    actor=request['actor'], binding_ids=_binding_ids(rendered))
     principal = decision['principal_approval']
     if principal is not None:
-        if not isinstance(principal, dict) or principal.get('principal') != prepared['authority']['issuer']:
+        if not isinstance(principal, dict) or principal.get('principal') != authority.document['issuer']:
             raise ValueError('exact-request approval does not name the authority issuer')
         c.exact(principal, {'request_sha256', 'principal', 'evidence'}, 'exact request approval')
     import production_store
-    items = [(item['path'], item['raw']) for item in production_store.captured_authority_inputs(root, prepared['task']['task_id'])]
+    items = [(item['path'], item['raw']) for item in production_store.captured_authority_inputs(authority)]
     reader = EvidenceWitnesses(root, items + list(recorded or []), live=recorded is None, run=prepared.get('run'))
     request_scope.verify_sources(grant['request_scope'], principal, reader)
     scoped = request_scope.assess(

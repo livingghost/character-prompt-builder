@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import codecs
 import functools
+import fnmatch
 import hashlib
 import json
 import math
@@ -20,14 +21,16 @@ import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable, Mapping, Sequence
+from types import MappingProxyType
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from cli_invocation import python_argv, shown
-from execution_contract import LOCK_FILE, atomic_write_json, lock, sha256_file
+from execution_contract import LOCK_FILE, atomic, atomic_write_json, lock, sha256_file
 from package_metadata import calver_key
 from model_contract import recommended_parameter_issues, validate_model_record
 from resource_policy import KNOWN_RESOURCE_VALIDATORS, validate_known_resource
-from state_protocol import unsupported_schema_keywords, validate_against_schema
+from state_protocol import read_schema, schema_read_scope, validate_against_schema
+from owned_json import freeze, mutable
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_ROOT = ROOT / "schemas"
@@ -255,15 +258,11 @@ def initialize_pack(
 
 
 def _load_schema(path: Path) -> dict[str, Any]:
-    value = load_json(path)
-    if not isinstance(value, dict):
-        raise PackError(f"Schema must be a JSON object: {path}")
-    unsupported = unsupported_schema_keywords(value)
-    if unsupported:
-        raise PackError(
-            f"Schema contains unsupported validation keywords: {path}: {unsupported}"
-        )
-    return value
+    """Use the operation's checked schema documents for every pack member."""
+    try:
+        return read_schema(path)
+    except (OSError, ValueError) as exc:
+        raise PackError(f"Invalid schema {path}: {exc}") from exc
 
 
 def _schema_issues(value: Any, schema_path: Path, source_path: Path) -> list[PackIssue]:
@@ -303,7 +302,8 @@ def _safe_relative_pattern(pattern: str) -> bool:
     if re.match(r"^[A-Za-z]:", pattern):
         return False
     parts = PurePosixPath(pattern).parts
-    return bool(parts) and all(part not in {"", ".", ".."} for part in parts)
+    return bool(parts) and all(part not in {"", ".", ".."} and ("**" not in part or part == "**")
+                               for part in parts)
 
 
 def _safe_relative_file(value: str) -> bool:
@@ -331,48 +331,10 @@ def _relative_path(root: Path, path: Path) -> str:
 
 
 def _expand_globs(root: Path, patterns: Sequence[str]) -> tuple[list[Path], list[PackIssue]]:
-    files: dict[str, Path] = {}
-    issues: list[PackIssue] = []
-    for pattern in patterns:
-        if not _safe_relative_pattern(str(pattern)):
-            issues.append(
-                PackIssue(
-                    "error",
-                    "unsafe-glob",
-                    f"Content glob must be a safe POSIX-relative pattern: {pattern!r}",
-                    "pack.json",
-                )
-            )
-            continue
-        matched = False
-        for path in root.glob(str(pattern)):
-            matched = True
-            try:
-                relative = _relative_path(root, path)
-            except PackError as exc:
-                issues.append(PackIssue("error", "path-escape", str(exc), str(path)))
-                continue
-            if _is_link(path):
-                issues.append(
-                    PackIssue(
-                        "error",
-                        "symbolic-link",
-                        "Symbolic links and directory junctions are forbidden in packs.",
-                        relative,
-                    )
-                )
-            elif path.is_file():
-                files[relative] = path
-        if not matched:
-            issues.append(
-                PackIssue(
-                    "warning",
-                    "empty-glob",
-                    f"Content glob matched no files: {pattern}",
-                    "pack.json",
-                )
-            )
-    return [files[key] for key in sorted(files)], issues
+    """Acquire a directory inventory for an explicit current-source query."""
+    nodes: dict[str, str] = {}
+    _all_pack_files(root, nodes=nodes)
+    return _select_globs(root, nodes, patterns)
 
 
 def declared_record_ids(root: Path, manifest: Mapping[str, Any]) -> set[str]:
@@ -398,7 +360,7 @@ def declared_record_ids(root: Path, manifest: Mapping[str, Any]) -> set[str]:
     return found
 
 
-def _snapshot_issues(root: Path, offering: dict[str, Any], model_id: str) -> list[str]:
+def _snapshot_issues(inputs: PackInput, offering: dict[str, Any], model_id: str) -> list[str]:
     """What is wrong with the attributed parameter schema an offering of model record `model_id` points at.
 
     The file must stay in the pack and meet the one observed-schema contract
@@ -408,20 +370,21 @@ def _snapshot_issues(root: Path, offering: dict[str, Any], model_id: str) -> lis
     from model_contract import parameter_schema_issues, offering_expectation
 
     where = f"offering on {offering.get('service')!r}: schema_snapshot {str(offering.get('schema_snapshot'))!r}"
-    path = (root / str(offering.get("schema_snapshot"))).resolve()
-    if root.resolve() not in path.parents:
+    relative = str(offering.get("schema_snapshot"))
+    if not _safe_relative_file(relative):
         return [f"{where} leaves the pack"]
-    if not path.is_file():
+    relative = PurePosixPath(relative).as_posix()
+    if relative not in inputs.files:
         return [f"{where} is not in the pack"]
     try:
-        snapshot = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        snapshot = inputs.json(relative)
+    except PackError as exc:
         return [f"{where} did not load: {exc}"]
     expected, model_key = offering_expectation(model_id, offering)
     return [f"{where}: {issue}" for issue in parameter_schema_issues(snapshot, expected, model_key=model_key)]
 
 
-def _all_pack_files(root: Path) -> tuple[list[Path], list[PackIssue]]:
+def _all_pack_files(root: Path, *, nodes: dict[str, str] | None = None) -> tuple[list[Path], list[PackIssue]]:
     """Inventory every file the pack root itself holds.
 
     The walk is explicit rather than ``rglob`` so a redirecting entry is
@@ -440,6 +403,8 @@ def _all_pack_files(root: Path) -> tuple[list[Path], list[PackIssue]]:
                 # The process lock coordinates concurrent commands; it is never pack content.
                 continue
             if _is_link(path):
+                if nodes is not None:
+                    nodes[relative] = "link"
                 issues.append(
                     PackIssue(
                         "error",
@@ -449,14 +414,187 @@ def _all_pack_files(root: Path) -> tuple[list[Path], list[PackIssue]]:
                     )
                 )
             elif path.is_dir():
+                if nodes is not None:
+                    nodes[relative] = "directory"
                 walk(path)
             elif path.is_file():
+                if nodes is not None:
+                    nodes[relative] = "file"
                 files.append(path)
 
     walk(root)
     files.sort(key=lambda item: item.relative_to(root).as_posix())
     return files, issues
 
+
+@dataclass(frozen=True)
+class AcquiredFile:
+    """One file's exact digest and decoded text from the same byte stream.
+
+    Binary files need no retained payload for catalog construction. Copying one
+    into a production snapshot is a separate I/O boundary that verifies these
+    bytes again. Text needed by validation is retained and never reopened.
+    """
+    relative: str
+    size: int
+    sha256: str
+    text: str | None
+
+    @classmethod
+    def read(cls, path: Path, relative: str) -> AcquiredFile:
+        digest = hashlib.sha256()
+        size = 0
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="strict")
+        parts: list[str] | None = []
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+                size += len(chunk)
+                if parts is not None:
+                    try:
+                        parts.append(decoder.decode(chunk))
+                    except UnicodeDecodeError:
+                        parts = None
+        if parts is not None:
+            try:
+                parts.append(decoder.decode(b"", final=True))
+            except UnicodeDecodeError:
+                parts = None
+        return cls(relative, size, digest.hexdigest(), "".join(parts) if parts is not None else None)
+
+    def json(self, root: Path) -> Any:
+        path = root / self.relative
+        if self.text is None:
+            raise PackError(f"Invalid JSON in {path}: file is not UTF-8 text")
+        try:
+            return freeze(json.loads(self.text))
+        except json.JSONDecodeError as exc:
+            raise PackError(f"Invalid JSON in {path}: {exc}") from exc
+
+    def bytes_for_capture(self, read_binary: Callable[[str], bytes]) -> bytes:
+        """Return retained text or verify a binary at the snapshot write boundary."""
+        if self.text is not None:
+            return self.text.encode("utf-8")
+        raw = read_binary(self.relative)
+        if len(raw) != self.size or sha256_bytes(raw) != self.sha256:
+            raise PackError(f"Pack file changed after acquisition: {self.relative}")
+        return raw
+
+
+@dataclass(frozen=True)
+class PackInput:
+    """Own the inventory and contents used to validate and build one pack."""
+    root: Path
+    files: Mapping[str, AcquiredFile]
+    nodes: Mapping[str, str]
+    issues: tuple[PackIssue, ...]
+    exists: bool
+    commons: bool
+    _documents: dict[str, Any] = field(default_factory=dict, compare=False, repr=False)
+
+    @classmethod
+    def read(cls, root: Path, *, manifest: AcquiredFile | None = None,
+             manifest_value: Mapping[str, Any] | None = None) -> PackInput:
+        root = Path(root).resolve()
+        if not root.is_dir():
+            return cls(root, MappingProxyType({}), MappingProxyType({}), (), False, False)
+        nodes: dict[str, str] = {}
+        paths, issues = _all_pack_files(root, nodes=nodes)
+        files = {
+            path.relative_to(root).as_posix(): (
+                manifest if path.name == "pack.json" and path.parent == root and manifest is not None
+                else AcquiredFile.read(path, path.relative_to(root).as_posix())
+            ) for path in paths
+        }
+        # A manifest acquired by discovery remains part of this input even if
+        # its source disappears before the rest of the inventory is acquired.
+        if manifest is not None:
+            files.setdefault("pack.json", manifest)
+            nodes.setdefault("pack.json", "file")
+        expected = ROOT / "packs" / "commons"
+        commons = not expected.is_symlink() and root == expected.resolve()
+        documents = {"pack.json": freeze(manifest_value)} if manifest_value is not None else {}
+        return cls(root, MappingProxyType(dict(sorted(files.items()))), MappingProxyType(nodes),
+                   tuple(issues), True, commons, documents)
+
+    def json(self, relative: str) -> Any:
+        if relative not in self.files:
+            raise PackError(f"Missing JSON file: {self.root / relative}")
+        if relative not in self._documents:
+            self._documents[relative] = self.files[relative].json(self.root)
+        return self._documents[relative]
+
+    def parameter_document(self, relative: str) -> Any:
+        """Supply the model contract's document-reader value/error interface."""
+        if not _safe_relative_file(relative):
+            raise ValueError(f"Parameter schema path leaves the pack: {relative}")
+        try:
+            return self.json(PurePosixPath(relative).as_posix())
+        except PackError as exc:
+            raise ValueError(str(exc)) from exc
+
+    def inventory(self) -> list[dict[str, Any]]:
+        if not self.exists:
+            raise PackError(f"Pack root is not a directory: {self.root}")
+        if self.issues:
+            raise PackError(self.issues[0].message)
+        return [{"path": relative, "bytes": item.size, "sha256": item.sha256,
+                 "media_type": _media_type(Path(relative)), "role": _file_role(relative)}
+                for relative, item in self.files.items() if relative != "pack.lock.json"]
+
+    def snapshot(self, pack_id: str) -> dict[str, Any]:
+        if self.issues:
+            issue = self.issues[0]
+            raise PackError(f"{issue.message} ({pack_id}: {issue.path})")
+        manifest = self.files.get("pack.json")
+        lock_file = self.files.get("pack.lock.json")
+        return {"pack_id": pack_id, "root": str(self.root), "root_present": self.exists,
+                "directories": sorted(relative for relative, kind in self.nodes.items() if kind == "directory"),
+                "manifest_sha256": manifest.sha256 if manifest else None,
+                "lock_sha256": lock_file.sha256 if lock_file else None,
+                "files": [{"path": relative, "sha256": item.sha256}
+                          for relative, item in self.files.items()]}
+
+    def expand(self, patterns: Sequence[str]) -> tuple[list[Path], list[PackIssue]]:
+        """Expand the pack's declared POSIX globs against its acquired tree."""
+        return _select_globs(self.root, self.nodes, patterns)
+
+
+def _select_globs(root: Path, nodes: Mapping[str, str], patterns: Sequence[str]) -> tuple[list[Path], list[PackIssue]]:
+    """Match directory segments independently of the host Python glob version."""
+    files: set[str] = set()
+    issues: list[PackIssue] = []
+
+    def matches(parts: tuple[str, ...], pattern: tuple[str, ...], directory: bool) -> bool:
+        if not pattern:
+            return not parts
+        if pattern[0] == "**":
+            if len(pattern) == 1:
+                return directory
+            return matches(parts, pattern[1:], directory) or bool(parts) and matches(parts[1:], pattern, directory)
+        return bool(parts) and fnmatch.fnmatchcase(parts[0], pattern[0]) and matches(parts[1:], pattern[1:], directory)
+
+    for raw_pattern in patterns:
+        pattern = str(raw_pattern)
+        if not _safe_relative_pattern(pattern):
+            issues.append(PackIssue("error", "unsafe-glob", f"Content glob must be a safe POSIX-relative pattern: {pattern!r}", "pack.json"))
+            continue
+        trailing_slash = pattern.endswith("/")
+        parts = PurePosixPath(pattern).parts
+        found = matches((), parts, True)
+        for relative, kind in sorted(nodes.items()):
+            if trailing_slash and kind != "directory":
+                continue
+            if not matches(PurePosixPath(relative).parts, parts, kind == "directory"):
+                continue
+            found = True
+            if kind == "file":
+                files.add(relative)
+            elif kind == "link":
+                issues.append(PackIssue("error", "symbolic-link", "Symbolic links and directory junctions are forbidden in packs.", relative))
+        if not found:
+            issues.append(PackIssue("warning", "empty-glob", f"Content glob matched no files: {pattern}", "pack.json"))
+    return [root / relative for relative in sorted(files)], issues
 
 # A lock records one media type per file on every interpreter. The table of the
 # standard library differs between Python releases, so the types a pack commonly
@@ -490,29 +628,14 @@ def _file_role(relative: str) -> str:
 
 
 def inventory_rows(root: Path) -> list[dict[str, Any]]:
-    files, issues = _all_pack_files(root)
-    errors = [issue for issue in issues if issue.severity == "error"]
-    if errors:
-        raise PackError(errors[0].message)
-    rows: list[dict[str, Any]] = []
-    for path in files:
-        relative = path.relative_to(root).as_posix()
-        if relative == "pack.lock.json":
-            continue
-        rows.append(
-            {
-                "path": relative,
-                "bytes": path.stat().st_size,
-                "sha256": sha256_file(path),
-                "media_type": _media_type(path),
-                "role": _file_role(relative),
-            }
-        )
-    return rows
+    """Export one inventory computed from the acquired file streams."""
+    return PackInput.read(root).inventory()
 
 
 def build_lock_data(root: Path) -> dict[str, Any]:
-    validation = validate_pack(root, require_lock=False, verify_lock=False)
+    inputs = PackInput.read(root)
+    with schema_read_scope():
+        validation = validate_pack_input(inputs, require_lock=False, verify_lock=False)
     if not validation.valid or not validation.manifest:
         raise PackError(
             "Cannot build a lock for an invalid pack: "
@@ -522,7 +645,7 @@ def build_lock_data(root: Path) -> dict[str, Any]:
         raise PackError(
             "Cannot build a released pack lock without at least one matched record or resource."
         )
-    rows = inventory_rows(validation.root)
+    rows = inputs.inventory()
     return {
         "pack_id": validation.pack_id,
         "release": validation.release,
@@ -561,11 +684,12 @@ def write_lock(root: Path) -> dict[str, Any]:
     return data
 
 
-def _validate_lock(root: Path, manifest: Mapping[str, Any]) -> list[PackIssue]:
+def _validate_lock(inputs: PackInput, manifest: Mapping[str, Any]) -> list[PackIssue]:
+    root = inputs.root
     lock_path = root / "pack.lock.json"
     issues: list[PackIssue] = []
     try:
-        lock = load_json(lock_path)
+        lock = inputs.json("pack.lock.json")
     except PackError as exc:
         return [PackIssue("error", "invalid-lock-json", str(exc), "pack.lock.json")]
     issues.extend(_schema_issues(lock, PACK_LOCK_SCHEMA_PATH, lock_path))
@@ -590,7 +714,7 @@ def _validate_lock(root: Path, manifest: Mapping[str, Any]) -> list[PackIssue]:
             )
         )
     try:
-        actual_rows = inventory_rows(root)
+        actual_rows = inputs.inventory()
     except PackError as exc:
         issues.append(PackIssue("error", "lock-inventory", str(exc), "pack.lock.json"))
         return issues
@@ -667,7 +791,7 @@ def _validate_lock(root: Path, manifest: Mapping[str, Any]) -> list[PackIssue]:
 
 
 def _validate_asset_contract(
-    root: Path,
+    inputs: PackInput,
     record: Mapping[str, Any],
     *,
     record_id: str,
@@ -675,7 +799,8 @@ def _validate_asset_contract(
     resource_file_set: set[str],
     lock_rows_by_path: Mapping[str, Mapping[str, Any]] | None,
 ) -> list[PackIssue]:
-    """Cross-check one asset record, its resources, lock rows, and bundle manifest."""
+    """Cross-check one asset record against the acquired resource and lock values."""
+    root = inputs.root
     issues: list[PackIssue] = []
     raw_refs = record.get("resource_refs")
     resource_refs = {
@@ -762,7 +887,7 @@ def _validate_asset_contract(
             actual_path = root / relative
             if (
                 _media_type(actual_path) != expected_media_type
-                or sha256_file(actual_path) != expected_sha256
+                or inputs.files[relative].sha256 != expected_sha256
             ):
                 issues.append(
                     PackIssue(
@@ -794,7 +919,7 @@ def _validate_asset_contract(
     bundle_relative = bundle_refs[0]
     bundle_path = root / bundle_relative
     try:
-        bundle = load_json(bundle_path)
+        bundle = inputs.json(bundle_relative)
     except PackError as exc:
         issues.append(PackIssue("error", "asset-bundle-json", str(exc), bundle_relative))
         return issues
@@ -892,35 +1017,32 @@ def validate_pack(
     require_lock: bool = False,
     verify_lock: bool = True,
 ) -> PackValidation:
-    root = root.resolve()
+    """Acquire one pack at the public file boundary, then validate its values."""
+    with schema_read_scope():
+        return validate_pack_input(PackInput.read(root), require_lock=require_lock, verify_lock=verify_lock)
+
+
+def validate_pack_input(
+    inputs: PackInput,
+    *,
+    require_lock: bool = False,
+    verify_lock: bool = True,
+) -> PackValidation:
+    """Validate one acquired input without reopening any pack member."""
+    root = inputs.root
     report = PackValidation(root=root)
-    if not root.is_dir():
+    if not inputs.exists:
         report.issues.append(
             PackIssue("error", "missing-pack-root", "Pack root is not a directory.", str(root))
         )
         return report
 
-    files, tree_issues = _all_pack_files(root)
-    report.issues.extend(tree_issues)
-    for path in files:
-        decoder = codecs.getincrementaldecoder("utf-8")(errors="strict")
-        found: set[str] = set()
-        try:
-            with path.open("rb") as stream:
-                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                    decoded = decoder.decode(chunk)
-                    if "\u2014" in decoded:
-                        found.add("\u2014")
-                    if "\u2013" in decoded:
-                        found.add("\u2013")
-                decoded = decoder.decode(b"", final=True)
-                if "\u2014" in decoded:
-                    found.add("\u2014")
-                if "\u2013" in decoded:
-                    found.add("\u2013")
-        except UnicodeDecodeError:
+    files = [root / relative for relative in inputs.files]
+    report.issues.extend(inputs.issues)
+    for relative, acquired in inputs.files.items():
+        if acquired.text is None:
             continue
-        relative = path.relative_to(root).as_posix()
+        found = {character for character in ("\u2014", "\u2013") if character in acquired.text}
         for character, name, codepoint in (
             ("\u2014", "em dash", "U+2014"),
             ("\u2013", "en dash", "U+2013"),
@@ -935,13 +1057,13 @@ def validate_pack(
                     )
                 )
     manifest_path = root / "pack.json"
-    if manifest_path not in files and not manifest_path.is_file():
+    if "pack.json" not in inputs.files:
         report.issues.append(
             PackIssue("error", "missing-manifest", "Pack root must contain pack.json.", "pack.json")
         )
         return report
     try:
-        manifest = load_json(manifest_path)
+        manifest = inputs.json("pack.json")
     except PackError as exc:
         report.issues.append(PackIssue("error", "invalid-manifest-json", str(exc), "pack.json"))
         return report
@@ -992,8 +1114,8 @@ def validate_pack(
                 "pack.json",
             )
         )
-    record_files, record_glob_issues = _expand_globs(root, record_patterns)
-    resource_files, resource_glob_issues = _expand_globs(root, resource_patterns)
+    record_files, record_glob_issues = inputs.expand(record_patterns)
+    resource_files, resource_glob_issues = inputs.expand(resource_patterns)
     report.issues.extend(record_glob_issues)
     report.issues.extend(resource_glob_issues)
     # Every file below the root is declared, so a stray file cannot enter a lock.
@@ -1032,9 +1154,9 @@ def validate_pack(
     resource_file_set = set(report.resource_files)
     lock_path = root / "pack.lock.json"
     lock_rows_by_path: dict[str, Mapping[str, Any]] | None = None
-    if verify_lock and lock_path.is_file():
+    if verify_lock and "pack.lock.json" in inputs.files:
         try:
-            lock_value = load_json(lock_path)
+            lock_value = inputs.json("pack.lock.json")
         except PackError:
             lock_value = None
         if isinstance(lock_value, Mapping) and isinstance(lock_value.get("files"), list):
@@ -1075,7 +1197,7 @@ def validate_pack(
         if name not in KNOWN_RESOURCE_VALIDATORS:
             continue
         try:
-            resource_value = load_json(root / relative)
+            resource_value = inputs.json(relative)
         except PackError as exc:
             report.issues.append(
                 PackIssue(
@@ -1110,7 +1232,7 @@ def validate_pack(
             )
             continue
         try:
-            document = load_json(path)
+            document = inputs.json(relative)
         except PackError as exc:
             report.issues.append(PackIssue("error", "invalid-record-json", str(exc), relative))
             continue
@@ -1172,13 +1294,13 @@ def validate_pack(
                 for offering in record.get("offerings") or []:
                     if not isinstance(offering, dict) or not offering.get("schema_snapshot"):
                         continue
-                    for message in _snapshot_issues(root, offering, str(record.get("id"))):
+                    for message in _snapshot_issues(inputs, offering, str(record.get("id"))):
                         report.issues.append(
                             PackIssue("error", "observed-schema", message, relative)
                         )
                     # A recommendation the offering maps to a request key must be one
                     # the selected parameter schema accepts there.
-                    for message in recommended_parameter_issues(record, offering, root):
+                    for message in recommended_parameter_issues(record, offering, root, read_document=inputs.parameter_document):
                         report.issues.append(
                             PackIssue("error", "recommended-parameters", message, relative)
                         )
@@ -1217,7 +1339,7 @@ def validate_pack(
                     )
                 report.issues.extend(
                     _validate_asset_contract(
-                        root,
+                        inputs,
                         record,
                         record_id=record_id,
                         source_file=relative,
@@ -1273,9 +1395,9 @@ def validate_pack(
             record_category = (
                 payload_category if kind == "module" else category or payload_category
             )
-            report.records.append(PackRecord(kind, record_category, dict(record), relative))
+            report.records.append(PackRecord(kind, record_category, record, relative))
 
-    report.lock_present = lock_path.is_file()
+    report.lock_present = "pack.lock.json" in inputs.files
     if not report.records and not report.resource_files:
         if report.lock_present:
             report.issues.append(
@@ -1295,7 +1417,7 @@ def validate_pack(
                     "pack.json",
                 )
             )
-    commons_owned = is_commons_pack(root, manifest)
+    commons_owned = inputs.commons and manifest.get("pack_id") == COMMONS_PACK_ID
     if require_lock and not report.lock_present and not commons_owned:
         report.issues.append(
             PackIssue(
@@ -1306,7 +1428,7 @@ def validate_pack(
             )
         )
     elif report.lock_present and verify_lock:
-        report.issues.extend(_validate_lock(root, manifest))
+        report.issues.extend(_validate_lock(inputs, manifest))
     elif not report.lock_present and not commons_owned:
         report.issues.append(
             PackIssue(
@@ -1431,10 +1553,10 @@ def pack_cli_command(settings: PackSettings) -> str:
     return shown(python_argv(Path(__file__).with_name("pack_cli.py"), *pack_runtime_arguments(settings)))
 
 
-def _manifest_only(pack_root: Path) -> tuple[dict[str, Any] | None, list[PackIssue]]:
+def _manifest_only(pack_root: Path, *, acquired: AcquiredFile | None = None) -> tuple[dict[str, Any] | None, list[PackIssue]]:
     manifest_path = pack_root / "pack.json"
     try:
-        value = load_json(manifest_path)
+        value = acquired.json(pack_root) if acquired is not None else load_json(manifest_path)
     except PackError as exc:
         return None, [PackIssue("error", "manifest", str(exc), str(manifest_path))]
     if not isinstance(value, dict):
@@ -1488,13 +1610,22 @@ def _configured_pack_locations(
 
 def _discover_pack_locations(
     locations_by_path: Mapping[str, Path],
+    *, manifests: dict[Path, AcquiredFile] | None = None,
 ) -> tuple[dict[str, DiscoveredPack], list[PackIssue]]:
     discovered: dict[str, DiscoveredPack] = {}
     issues: list[PackIssue] = []
 
     claims: dict[str, list[tuple[Path, dict[str, Any], list[PackIssue]]]] = {}
     for pack_root in locations_by_path.values():
-        manifest, manifest_issues = _manifest_only(pack_root)
+        acquired = None
+        if manifests is not None:
+            try:
+                acquired = AcquiredFile.read(pack_root / "pack.json", "pack.json")
+            except FileNotFoundError:
+                issues.append(PackIssue("error", "manifest", f"Missing JSON file: {pack_root / 'pack.json'}", str(pack_root / "pack.json")))
+                continue
+            manifests[pack_root] = acquired
+        manifest, manifest_issues = _manifest_only(pack_root, acquired=acquired)
         issues.extend(manifest_issues)
         if manifest is None:
             continue
@@ -1529,19 +1660,33 @@ def discover_packs(
     return _discover_pack_locations(_configured_pack_locations(settings, state))
 
 
-def load_state(
-    path: Path,
-    *,
-    default_enabled_packs: Sequence[str] = (),
-) -> dict[str, Any]:
-    if not path.is_file():
-        return {
-            "pack_roots": [],
-            "enabled_packs": [str(value) for value in default_enabled_packs],
-            "disabled_packs": [],
-            "pack_order": [],
-        }
-    value = load_json(path)
+@dataclass(frozen=True)
+class StateInput:
+    """One state-file read owns both its value and whether it was absent."""
+    value: Mapping[str, Any]
+    present: bool
+
+    @classmethod
+    def read(cls, path: Path, *, default_enabled_packs: Sequence[str] = ()) -> StateInput:
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return cls(freeze({"pack_roots": [],
+                               "enabled_packs": [str(value) for value in default_enabled_packs],
+                               "disabled_packs": [], "pack_order": []}), False)
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise PackError(f"Invalid JSON in {path}: {exc}") from exc
+        return cls(freeze(_state_value(path, value)), True)
+
+
+def load_state(path: Path, *, default_enabled_packs: Sequence[str] = ()) -> dict[str, Any]:
+    """Export the acquired state as an editable management value."""
+    return mutable(StateInput.read(path, default_enabled_packs=default_enabled_packs).value)
+
+
+def _state_value(path: Path, value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise PackError(f"Pack state must be an object: {path}")
     schema_errors = _schema_issues(value, PACK_STATE_SCHEMA_PATH, path)
@@ -1583,11 +1728,9 @@ def load_effective_state(
 
     First use enables every discovered pack, or exactly the packs in `only`.
     """
-    state = load_state(
-        settings.state_file,
-        default_enabled_packs=settings.default_enabled_packs,
-    )
-    if not settings.state_file.is_file() and (settings.initialize_all_discovered or only is not None):
+    acquired = StateInput.read(settings.state_file, default_enabled_packs=settings.default_enabled_packs)
+    state = mutable(acquired.value)
+    if not acquired.present and (settings.initialize_all_discovered or only is not None):
         # A pack discovery cannot read is left out here and reported by every
         # command that loads the catalog, like any other unusable pack.
         discovered, _ = discover_packs(settings, state)
@@ -1603,7 +1746,7 @@ def load_effective_state(
     return state
 
 
-def save_state(path: Path, state: Mapping[str, Any]) -> None:
+def save_state(path: Path, state: Mapping[str, Any], *, replace: bool = True) -> None:
     enabled = sorted(set(str(value) for value in state.get("enabled_packs") or []))
     roots: list[str] = []
     seen: set[str] = set()
@@ -1626,7 +1769,8 @@ def save_state(path: Path, state: Mapping[str, Any]) -> None:
     schema_errors = _schema_issues(value, PACK_STATE_SCHEMA_PATH, path)
     if schema_errors:
         raise PackError(f"Pack state failed schema validation: {schema_errors[0].message}: {path}")
-    atomic_write_json(path, value)
+    raw = (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
+    atomic(path, raw, replace=replace)
 
 
 @_under_state_lock
@@ -1889,69 +2033,79 @@ def disable_pack(settings: PackSettings, pack_id: str, *, cascade: bool = False)
     return proposed
 
 
-def quick_pack_snapshot(pack: DiscoveredPack) -> dict[str, Any]:
-    """What a pack is, as the bytes it holds rather than as what is said of it.
+@dataclass(frozen=True)
+class RuntimeInputs:
+    """The state, discovery and exact selected contents acquired for one read."""
+    state: Mapping[str, Any]
+    discovered: Mapping[str, DiscoveredPack]
+    selected: tuple[DiscoveredPack, ...]
+    packs: Mapping[str, PackInput]
+    issues: tuple[PackIssue, ...]
+    snapshot: Mapping[str, Any]
 
-    A modification time is not content: a checkout, a copy or a restore moves it
-    while the bytes stay identical, and a write that lands on the same size
-    within the same clock tick leaves it unmoved while the bytes differ.
-    Deciding to rebuild from one therefore rebuilds when nothing changed and can
-    decline to rebuild when something did. A size is the same kind of proxy.
 
-    A lock is a claim about the files, not the files. Hashing only the lock
-    therefore cannot see a pack that drifted away from it, and the same bytes on
-    disk would then name one catalog through a warm cache and another through a
-    cold one, because a cold build validates the pack and drops it. Every file
-    is hashed whether or not a lock is present, so this snapshot is a function
-    of the pack's bytes and one disk state names exactly one catalog.
+def acquire_runtime_inputs(settings: PackSettings, *, strict: bool = False) -> RuntimeInputs:
+    """Acquire the runtime once; downstream stages consume these values.
+
+    Disabled packs contribute only their manifests to discovery. Selected pack
+    files are streamed once for their digests and retained text. The snapshot
+    hashes those same contents, including the manifest already read by discovery.
     """
-
-    manifest_path = pack.root / "pack.json"
-    lock_path = pack.root / "pack.lock.json"
-    files, issues = _all_pack_files(pack.root)
-    if issues:
-        raise PackError(f"{issues[0].message} ({pack.pack_id}: {issues[0].path})")
-    rows: list[dict[str, Any]] = [
-        {
-            "path": path.relative_to(pack.root).as_posix(),
-            "sha256": sha256_file(path),
+    with schema_read_scope():
+        acquired_state = StateInput.read(settings.state_file, default_enabled_packs=settings.default_enabled_packs)
+        state = mutable(acquired_state.value)
+        manifests: dict[Path, AcquiredFile] = {}
+        discovered, discovery_issues = _discover_pack_locations(
+            _configured_pack_locations(settings, state), manifests=manifests)
+        if not acquired_state.present and settings.initialize_all_discovered:
+            state["enabled_packs"] = sorted(set(state["enabled_packs"]) | set(discovered))
+        selected: list[DiscoveredPack] = []
+        issues = list(discovery_issues)
+        for pack_id in state["enabled_packs"]:
+            pack = discovered.get(pack_id)
+            if pack is None:
+                if strict:
+                    missing = sorted(set(state["enabled_packs"]) - set(discovered))
+                    raise PackError(f"Enabled packs are missing: {missing}")
+                issues.append(PackIssue("error", "enabled-pack-unavailable",
+                    f"Enabled pack is missing or has an invalid manifest: {pack_id}", pack_id=pack_id))
+            else:
+                selected.append(pack)
+        packs = {
+            pack.pack_id: PackInput.read(pack.root, manifest=manifests[pack.root], manifest_value=pack.manifest)
+            for pack in selected
         }
-        for path in files
-    ]
-    # No declared release. A release is a claim written in pack.json, and the
-    # hash of pack.json is already here, so changing the release changes this
-    # snapshot through the hash and never through the claim. Naming it as well
-    # would make a label an input to a decision that content already settles.
-    return {
-        "pack_id": pack.pack_id,
-        "root": str(pack.root),
-        "manifest_sha256": sha256_file(manifest_path),
-        "lock_sha256": sha256_file(lock_path) if lock_path.is_file() else None,
-        "files": rows,
-    }
+        if strict:
+            for pack in selected:
+                require_valid(validate_pack_input(packs[pack.pack_id]))
+            cycles = required_dependency_cycles({pack.pack_id: pack for pack in selected})
+            if cycles:
+                rendered = [" -> ".join((*cycle, cycle[0])) for cycle in cycles]
+                raise PackError("Required dependency cycles are forbidden: " + "; ".join(rendered))
+            for pack in selected:
+                for dependency in sorted(_required_pack_ids(pack.manifest)):
+                    if dependency not in packs:
+                        raise PackError(f"Enabled pack {pack.pack_id!r} requires enabled pack {dependency!r}.")
+        payload = {
+            "enabled_packs": list(state["enabled_packs"]),
+            "pack_order": list(state["pack_order"]),
+            "available_enabled_packs": [pack.pack_id for pack in selected],
+            "discovery_issues": [issue.to_dict() for issue in issues],
+            "packs": [packs[pack.pack_id].snapshot(pack.pack_id) for pack in selected],
+        }
+        payload["fingerprint"] = sha256_bytes(canonical_json(payload).encode("utf-8"))
+        return RuntimeInputs(freeze(state), MappingProxyType(discovered), tuple(selected),
+                             MappingProxyType(packs), tuple(issues), freeze(payload))
+
+
+def quick_pack_snapshot(pack: DiscoveredPack) -> dict[str, Any]:
+    """Read the exact contents of one pack and export their fingerprint input."""
+    return PackInput.read(pack.root).snapshot(pack.pack_id)
 
 
 def active_snapshot(settings: PackSettings, *, strict: bool = False) -> dict[str, Any]:
-    state = load_effective_state(settings)
-    if strict:
-        selected = resolve_enabled(settings, state)
-        issues: list[PackIssue] = []
-    else:
-        selected, issues = resolve_enabled_lenient(settings, state)
-    packs = [quick_pack_snapshot(pack) for pack in selected]
-    # No product version. What built a cache is settled by hashing the modules
-    # and schemas that build it, which _builder_fingerprint does, so naming the
-    # version as well would rebuild every cache on a version bump that changed
-    # nothing about building one.
-    payload = {
-        "enabled_packs": list(state.get("enabled_packs") or []),
-        "pack_order": list(state.get("pack_order") or []),
-        "available_enabled_packs": [pack.pack_id for pack in selected],
-        "discovery_issues": [issue.to_dict() for issue in issues],
-        "packs": packs,
-    }
-    payload["fingerprint"] = sha256_bytes(canonical_json(payload).encode("utf-8"))
-    return payload
+    """Export the content identity from the same owner used by cache construction."""
+    return mutable(acquire_runtime_inputs(settings, strict=strict).snapshot)
 
 
 def _safe_extract_zip(archive: Path, destination: Path) -> Path:
@@ -2309,7 +2463,6 @@ def _catalog_diagnostics(settings: PackSettings) -> list[dict[str, Any]]:
         return []
 
 
-@_under_state_lock
 def initialize_state_file(settings: PackSettings, *, only: Sequence[str] | None = None) -> bool:
     """Persist the first-use state when the state file is absent; say whether it was.
 
@@ -2323,5 +2476,14 @@ def initialize_state_file(settings: PackSettings, *, only: Sequence[str] | None 
                 "--only chooses the packs of a new state"
             )
         return False
-    save_state(settings.state_file, load_effective_state(settings, only=only))
+    try:
+        save_state(settings.state_file, load_effective_state(settings, only=only), replace=False)
+    except FileExistsError:
+        # Another initializer or explicit state writer owns the complete file.
+        if only is not None and set(load_state(settings.state_file)["enabled_packs"]) != set(only):
+            raise PackError(
+                f"{settings.state_file} already exists and enables other packs; "
+                "--only chooses the packs of a new state"
+            ) from None
+        return False
     return True

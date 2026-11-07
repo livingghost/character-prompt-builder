@@ -2,6 +2,7 @@
 """Read-only story projection, safe publication, sync and explicit artwork tests."""
 from __future__ import annotations
 from collections import Counter
+from contextlib import contextmanager
 import copy
 import errno
 import json
@@ -167,6 +168,31 @@ class ProjectionTests(unittest.TestCase):
         self.assertEqual(data,self.output.read_bytes());self.assertEqual(before,activity.read_events(self.root)[0])
         self.assertEqual(sum(row['event']=='story-timeline-refreshed' for row in before),1)
         self.assertNotIn('story-timeline-refreshed',(self.root/'state/events.jsonl').read_text(encoding='utf-8'))
+
+    def test_unchanged_refresh_reads_without_a_publication_lock(self):
+        self.assertTrue(story.refresh(self.root)['ok'])
+        before=self.output.read_bytes()
+        with patch.object(c,'lock',side_effect=AssertionError('unchanged projection acquired a writer lock')):
+            current=story.refresh(self.root)
+        self.assertTrue(current['ok']);self.assertFalse(current['written'])
+        self.assertEqual(self.output.read_bytes(),before)
+
+    def test_publication_rechecks_a_competing_completed_projection(self):
+        self.assertTrue(story.refresh(self.root)['ok'])
+        conf=self.config();conf['views'][0]['label']='Changed projection';self.save_config(conf)
+        original=c.lock;completed=[]
+        @contextmanager
+        def competing(owner):
+            with patch.object(c,'lock',original):
+                completed.append(story.refresh(self.root))
+            with original(owner):
+                yield
+        with patch.object(c,'lock',side_effect=competing):
+            current=story.refresh(self.root)
+        self.assertEqual(len(completed),1)
+        self.assertTrue(completed[0]['written'])
+        self.assertEqual(current,{**completed[0],'written':False})
+        self.assertEqual(c.sha256_file(self.output),completed[0]['html_sha256'])
 
     def test_external_base_change_requires_sync_and_updates_resolved_view(self):
         story.refresh(self.root);before=self.output.read_bytes()

@@ -41,11 +41,11 @@ def _redirect_source(task: dict, old: str | None, new: str) -> None:
                 source['path'] = new
 
 
-def _captured(directory: Path, prepared: dict, path: str) -> bytes:
-    matches = [d for d in prepared['dependencies'] if d['space'] in {'studio', 'task-source'} and d['path'] == path]
+def _captured(loaded, path: str) -> bytes:
+    matches = [d for d in loaded.prepared['dependencies'] if d['space'] in {'studio', 'task-source'} and d['path'] == path]
     if len(matches) != 1:
         raise ProductionError('EVIDENCE_SNAPSHOT_MISSING', 'The source run does not own this declared input.', phase='variation', file=path)
-    return c.object_read(directory, matches[0]['sha256'])
+    return loaded.evidence.read(matches[0]['sha256'])
 
 
 def _document(root: Path, field: str, value: dict) -> tuple[bytes, Any]:
@@ -111,12 +111,14 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     from state_protocol import validate_against_schema
 
     root = c._root(root)
-    directory, prepared, _, rows = workflow.load_run(root, run)
+    loaded = workflow.read_run(root, run)
+    directory, prepared, _, rows = loaded
     if prepared['task']['execution'] != 'dispatcher':
         raise ProductionError('VARIANT_NOT_APPLICABLE', 'Input derivation needs a compiled model request.', phase='variation')
-    runtime_warnings = runtime_snapshot.require_current(root, prepared['runtime_snapshot'], run=run)
+    runtime_inputs=runtime_snapshot.compilation_inputs(root,mode='variant' if changes_file is not None else 'repeat',
+        parent=prepared['runtime_snapshot'],target=loaded.artifacts['execution-target.json'],run=run)
     basis = _basis(rows, run, candidates)
-    plan = c.load(directory / 'execution-plan.json')
+    plan = loaded.artifacts['execution-plan.json']
     task = copy.deepcopy(prepared['task'])
     task.pop('execution_decisions', None)
     fields = plan['mutable_fields']
@@ -131,8 +133,8 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
                 required_action='Supply {"changes": {FIELD_ID: value}, "reason": text} as UTF-8 JSON.') from exc
         changes, reason = selected['changes'], selected['reason']
     generation = task.get('generation')
-    parameters = c.decode(_captured(directory,prepared,generation['parameters'])) if generation is not None else {}
-    spec = c.decode(_captured(directory,prepared,generation['production_spec'])) if generation is not None else {}
+    parameters = c.decode(_captured(loaded, generation['parameters'])) if generation is not None else {}
+    spec = c.decode(_captured(loaded, generation['production_spec'])) if generation is not None else {}
     original_model = copy.deepcopy(spec.get('target_model'))
     replacements: dict[str, bytes] = {}
     replaced: set[str] = set()
@@ -176,11 +178,11 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
             task[name] = copy.deepcopy(value)
             return before
         if field == 'prompt':
-            before = _captured(directory, prepared, task['delivery']['path']).decode('utf-8')
+            before = _captured(loaded, task['delivery']['path']).decode('utf-8')
             change_file(field, 'prompt', value.encode('utf-8'), before, value)
             return before
         if field == 'upscale-input':
-            before = c.decode(_captured(directory,prepared,task['delivery']['path']))
+            before = c.decode(_captured(loaded, task['delivery']['path']))
             raw, after = _document(root, field, value)
             if same_json(before, after):
                 raise no_op(field, 'The upscale declaration is unchanged.')
@@ -193,7 +195,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
                     if source['path'] == before['source']['path']:source['path'] = after['source']['path']
             return c.content_id(before)
         if field == 'negative':
-            before = _captured(directory, prepared, generation['negative']).decode('utf-8') if generation.get('negative') else ''
+            before = _captured(loaded, generation['negative']).decode('utf-8') if generation.get('negative') else ''
             change_file(field, 'negative', value.encode('utf-8'), before, value)
             return before
         if field.startswith('parameter:'):
@@ -229,7 +231,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
         if field in DOCUMENT_FIELDS:
             name = DOCUMENT_FIELDS[field]
             old = generation.get(name)
-            previous = c.decode(_captured(directory, prepared, old)) if old else None
+            previous = c.decode(_captured(loaded, old)) if old else None
             if value is None:
                 if old is None:
                     raise no_op(field, 'No input is selected for this field.')
@@ -296,7 +298,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     import shutil
     current_task = work_ledger.require_open(root) if prepare else None
     compiled = compiler.compile_task(root, task_path, persist=prepare, identity=identity,
-                                     runtime_snapshot=prepared['runtime_snapshot'], derived=derived)
+                                     runtime_inputs=runtime_inputs, derived=derived)
     if not compiled.report['publishable']:
         raise CompilationError(compiled.report)
     try:
@@ -314,7 +316,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
         if compiled.directory is not None and compiled.directory.exists():
             shutil.rmtree(compiled.directory)
     result['derivation'] = parent
-    result['runtime_warnings'] = runtime_warnings
+    result['runtime_warnings'] = list(compiled.report.get('runtime_warnings', ()))
     result['revalidated_checks' if prepare else 'required_checks']=sorted(checks)
     result.update(external_effect=False, authorization_inherited=False, candidate_required=False)
     return result
@@ -336,7 +338,8 @@ def retarget(root: Path, run: str, task_file: str, *, reason: str, prepare: bool
 
     root = c._root(root)
     c.text(reason, 'retarget reason')
-    directory, previous, _, _ = workflow.load_run(root, run)
+    loaded = workflow.read_run(root, run)
+    directory, previous, _, _ = loaded
     if previous['task']['execution'] != 'dispatcher':
         raise ProductionError('RETARGET_NOT_APPLICABLE', 'Retargeting starts from a compiled model request.', phase='retarget')
     task = c.decode(store.stable_bytes(root, task_file))
@@ -352,7 +355,7 @@ def retarget(root: Path, run: str, task_file: str, *, reason: str, prepare: bool
     if not compiled.report['publishable']:
         if prepare:raise CompilationError(compiled.report)
         return compiled.report
-    before = c.load(directory / 'execution-plan.json')
+    before = loaded.artifacts['execution-plan.json']
     new_plan=compiled.execution_plan
     old_target = {'model': before['model'], 'service': before['service'], 'route': previous['task']['route']}
     new_target = {'model': new_plan['model'], 'service': new_plan['service'], 'route': task['route']}

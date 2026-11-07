@@ -50,7 +50,7 @@ def source_bytes(root: Path, path: str, reader, saved: dict | None = None) -> by
     """Use the captured run object for authored content, independent of live edits."""
     if saved is not None:
         import production_workflow
-        directory, prepared, _, _ = production_workflow.load_run(root, saved['run'])
+        directory, prepared, _, _ = production_workflow.read_run(root, saved['run'])
         if prepared['input_sha256'] != saved['input_sha256']:
             raise ValueError('source run changed during authoring extraction')
         rows = [row for row in prepared['dependencies']

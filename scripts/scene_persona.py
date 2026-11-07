@@ -588,7 +588,7 @@ def material_runs(root: Path) -> dict[str, list[dict]]:
     used: dict[str, list[dict]] = {}
     for run in workflow.run_ids(root):
         try:
-            _, _, consumer, rows = workflow.load_run(root, run)
+            _, _, consumer, rows = workflow.read_run(root, run)
         except (ValueError, OSError, KeyError, TypeError):
             continue
         selected = any(row['event'] == 'selection' for row in rows)

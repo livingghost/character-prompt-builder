@@ -37,6 +37,33 @@ Additions, changes and deletions therefore affect freshness through actual bytes
 
 `refresh_runtime_catalog` selects and hydrates the same immutable cache once. A caller publishing a derived view receives that exact resolved catalog instead of rediscovering packs or constructing an inspection cache.
 
+`RuntimeInputs` owns the selected state, discovered manifests and each selected
+pack's `PackInput`. Acquisition hashes a file and retains its decoded text from
+the same byte stream. The input identity also includes directories because
+glob-match diagnostics depend on their presence. Validation uses that inventory and those documents;
+record and resource resolution never reopen the pack. `CatalogBuild` contains
+the resulting records, profiles, resources and diagnostics before persistence
+opens SQLite. A source edit during construction therefore cannot put the new
+source's records under the old source's fingerprint. The next request acquires
+the changed source and selects its corresponding cache.
+
+Builder identity includes every installed product Python module and the
+complete owned schema and data families. Acquisition hashes their current
+bytes directly, without keeping a separate import-analysis cache or descriptor.
+This conservative scope also includes modules reached through computed imports.
+The schema owner evaluates the same acquired document bytes that identity
+covers. Parsed documents and lazy reference edges belong to their read phase;
+a new boundary reacquires current bytes. The fingerprint is a content hash,
+not a version counter or a newly issued UUID.
+
+The catalog carries its acquired input and validation reports into browser
+rendering and Production snapshot capture. Browser record and resource views
+use those values, including retained thumbnail metadata, without validating
+the packs again.
+Capture writes retained text and checks a binary file against its acquired
+digest when copying it. Large binary payloads do not have to remain in memory
+merely to construct a searchable catalog.
+
 ## Rebuild triggers
 
 Managed operations rebuild immediately after success:
@@ -78,7 +105,14 @@ Each named resource resolves to the file of the highest-ranked active pack that 
 
 ## Atomic construction
 
-A writer holds the cache's operating-system lock while constructing one new fingerprint-named SQLite file. It commits the data, checks database integrity, closes the file and publishes it whole. Published caches are immutable, so an open reader does not block a subsequent generation. A cache removed between selection and opening is selected again from current inputs; readers close their handles explicitly.
+A writer constructs a private SQLite file from resolved catalog values without
+a cache-wide filesystem lock. It commits the data, checks database integrity,
+closes the file and publishes it whole under the content fingerprint.
+Concurrent writers may derive the same input independently; readers see a
+complete file. A different input uses a different filename, so an open reader
+does not block that publication. A failed forced replacement retains the
+previous complete file. A cache removed between selection and opening is
+selected again from current inputs; readers close their handles explicitly.
 
 ## Browser projection
 
@@ -100,4 +134,5 @@ python scripts/pack_cli.py cache-refresh --force
 
 `cache-status` compares source and cached fingerprints without rebuilding and reports the managed browser view's freshness and entry point. `cache-refresh` rebuilds only when stale and maintains the browser view from the resulting catalog. `--force` performs a complete cache reconstruction from the enabled state.
 
-Deleting the cache is safe, but normal users should prefer `cache-refresh --force` so locking and validation remain active.
+Deleting the cache is safe. `cache-refresh --force` performs the same complete
+validation and private-file publication without requiring manual deletion.

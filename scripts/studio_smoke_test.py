@@ -66,13 +66,14 @@ def cli(*argv: str) -> tuple[int, str, str]:
     return code, out.getvalue(), err.getvalue()
 
 
-def waits_for_the_studio_lock(root: Path, action) -> bool:
-    """True when the action waits while another thread holds the studio lock, then completes."""
+def completes_while_owner_is_locked(owner: Path, action) -> bool:
+    """An unrelated operation finishes before the mutable owner is released."""
     held, release = threading.Event(), threading.Event()
+    finished = threading.Event()
     failures: list[BaseException] = []
 
     def holder() -> None:
-        with execution_contract.lock(root):
+        with execution_contract.lock(owner):
             held.set()
             release.wait(60)
 
@@ -81,18 +82,21 @@ def waits_for_the_studio_lock(root: Path, action) -> bool:
             action()
         except BaseException as exc:  # noqa: BLE001 - reported through the check
             failures.append(exc)
+        finally:
+            finished.set()
 
     holding = threading.Thread(target=holder)
     holding.start()
-    held.wait(60)
+    ready = held.wait(10)
     writing = threading.Thread(target=writer)
-    writing.start()
-    writing.join(0.5)
-    blocked = writing.is_alive()
-    release.set()
-    holding.join(60)
-    writing.join(120)
-    return blocked and not failures and not writing.is_alive()
+    try:
+        writing.start()
+        completed = finished.wait(10)
+    finally:
+        release.set()
+        holding.join(10)
+        writing.join(10)
+    return ready and completed and not failures and not writing.is_alive()
 
 
 def failure(fn) -> str:
@@ -241,8 +245,11 @@ def package_attachments(tmp: Path, check) -> None:
     from test_production_adoption import AdoptionTests
     import production_workflow as workflow
     import production_store as store
-    case = AdoptionTests('test_separate_authorized_adoption_and_completion')
+    fixture_type = type('AttachmentAdoptionFixture', (AdoptionTests,), {})
+    case = fixture_type('test_separate_authorized_adoption_and_completion')
+    case.addCleanup(fixture_type.doClassCleanups)
     try:
+        fixture_type.setUpClass()
         case.setUp()
         origin_root, origin_row = case.root, case.row
         origin_home = studio.character_home(origin_root, 'robot')
@@ -311,7 +318,7 @@ def regressions(tmp: Path, source: Path, check) -> None:
     guide = (ROOT / "references" / "runtime" / "studio.md").read_text(encoding="utf-8")
     check("Studio Runtime writes --studio after the command everywhere", "studio.py --studio" not in guide)
 
-    # A record is replaced whole, under the one studio lock every writer takes.
+    # A character's record is replaced whole under that mutable owner's lock.
     crash = studio.init(tmp / "crash", "crash-studio", "Crash")
     crash_home = studio.add_character(crash, "C06", "")
     recorded(crash, "C06", "a.png")
@@ -328,19 +335,19 @@ def regressions(tmp: Path, source: Path, check) -> None:
           and validate_studio.validate(crash) == [],
           {"interrupted": interrupted, "errors": validate_studio.validate(crash)})
     locked = studio.init(tmp / "locked", "locked-studio", "Locked")
-    studio.add_character(locked, "C07", "")
+    locked_owner = studio.add_character(locked, "C07", "")
+    independent_owner = studio.add_character(locked, "C08", "")
     recorded(locked, "C07", "a.png")
     recorded(locked, "C07", "b.png")
-    writers = {
-        "init": (tmp / "locked-new", lambda: studio.init(tmp / "locked-new", "locked-new", "Locked new")),
-        "character add": (locked, lambda: studio.add_character(locked, "C08", "")),
-        "iterate": (locked, lambda: recorded(locked, "C07", "c.png")),
-        "accept": (locked, lambda: studio.accept(locked, "C07", "it-0001")),
-        "reject": (locked, lambda: studio.reject(locked, "C07", "it-0002", "too dark", actor="Synthetic test author")),
-        "gallery": (locked, lambda: studio.write_gallery(locked)),
+    actions = {
+        "independent character": lambda: recorded(locked, "C08", "c.png"),
+        "gallery projection": lambda: studio.write_gallery(locked),
     }
-    waited = {name: waits_for_the_studio_lock(root, action) for name, (root, action) in writers.items()}
-    check("every writer waits for the studio lock", all(waited.values()), waited)
+    completed = {name: completes_while_owner_is_locked(locked_owner, action) for name, action in actions.items()}
+    check("an unrelated character and gallery complete while another character owner is locked",
+          all(completed.values()) and len(studio.read_iteration_records(locked_owner)) == 2
+          and len(studio.read_iteration_records(independent_owner)) == 1
+          and len(studio.read_json(locked / 'gallery.json')['entries']) == 3, completed)
     swap = studio.init(tmp / "swap", "swap-studio", "Swap")
     swap_home = studio.add_character(swap, "C09", "")
     (source / "d.jpg").write_bytes(b"\xff\xd8JPEG-d")

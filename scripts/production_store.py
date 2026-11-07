@@ -7,15 +7,18 @@ record. JSONL/HTML views are projections, never another editable ledger.
 from __future__ import annotations
 import contextlib
 import contextvars
+from dataclasses import dataclass
 import os
 from pathlib import Path
 import sqlite3
+import time
 import uuid
 from typing import Any, Iterator
 
 import execution_contract as c
 from production_diagnostics import ProductionError
 from private_state import assert_public_path
+from owned_json import freeze, mutable
 
 _CONNECTIONS: contextvars.ContextVar[dict[str, sqlite3.Connection]] = contextvars.ContextVar('production_connections', default={})
 _DDL = '''
@@ -34,14 +37,79 @@ CREATE TABLE IF NOT EXISTS authority_states (
  task_id TEXT PRIMARY KEY, content_sha256 TEXT NOT NULL, event_sha256 TEXT NOT NULL
 );
 '''
+_REQUIRED_SCHEMA = {('table', 'runs'), ('table', 'events'), ('table', 'authority_states'),
+                    ('index', 'single_dispatch')}
 
 
 def database(root: Path) -> Path:
     return c.local(root, 'production/records.sqlite3', exists=False)
 
 
+def _enable_wal(connection: sqlite3.Connection) -> None:
+    """Let concurrent first writers finish SQLite's journal-mode transition.
+
+    SQLite may return BUSY immediately while another connection changes an
+    empty database's journal mode. Retry that configuration step only, before
+    any application transaction or event exists on this connection.
+    """
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            connection.execute('PRAGMA journal_mode=WAL').fetchone()
+            return
+        except sqlite3.OperationalError as exc:
+            code = getattr(exc, 'sqlite_errorcode', 0) & 0xff
+            remaining = deadline - time.monotonic()
+            if code not in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED} or remaining <= 0:
+                raise
+            time.sleep(min(0.01, remaining))
+
+
+def _schema_objects(connection: sqlite3.Connection) -> set[tuple[str, str]]:
+    return {(row['type'], row['name']) for row in connection.execute(
+        "SELECT type, name FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'")}
+
+
+def _require_schema(objects: set[tuple[str, str]]) -> None:
+    if not _REQUIRED_SCHEMA <= objects:
+        missing = ', '.join(name for kind, name in sorted(_REQUIRED_SCHEMA - objects))
+        raise sqlite3.DatabaseError('Production record database schema is incomplete: ' + missing)
+
+
+def _begin_transaction(connection: sqlite3.Connection) -> None:
+    """Publish a new schema once, independently of the first operation's fate."""
+    connection.execute('BEGIN IMMEDIATE')
+    objects = _schema_objects(connection)
+    if objects or connection.execute('PRAGMA schema_version').fetchone()[0] != 0:
+        _require_schema(objects)
+        return
+    # The writer transaction excludes another initializer until the complete
+    # schema is committed. User rollback must never remove these empty tables.
+    for statement in _DDL.split(';'):
+        if statement.strip():
+            connection.execute(statement)
+    connection.commit()
+    connection.execute('BEGIN IMMEDIATE')
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedHistory:
+    """Decoded events whose shape, chain and stored columns were checked together.
+
+    The read boundary owns these rows. Consumers retain this value internally
+    and copy rows when returning editable exports to a caller.
+    """
+    scope: str
+    rows: list[dict]
+
+    @property
+    def tail(self) -> str | None:
+        return self.rows[-1]['sha256'] if self.rows else None
+
+
 @contextlib.contextmanager
 def transaction(root: Path) -> Iterator[sqlite3.Connection]:
+    import runtime_snapshot
     root = root.resolve()
     key = str(root)
     existing = _CONNECTIONS.get().get(key)
@@ -54,35 +122,40 @@ def transaction(root: Path) -> Iterator[sqlite3.Connection]:
         except BaseException:
             existing.execute('ROLLBACK TO ' + savepoint)
             existing.execute('RELEASE ' + savepoint)
+            runtime_snapshot.invalidate_runs(root, source_boundary=True)
             raise
         return
-    with c.lock(root):
-        path = database(root)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(path, timeout=30, isolation_level=None)
-        connection.row_factory = sqlite3.Row
-        token = None
-        try:
-            connection.execute('PRAGMA foreign_keys=ON')
-            connection.execute('PRAGMA journal_mode=WAL')
-            connection.execute('PRAGMA synchronous=FULL')
-            connection.executescript(_DDL)
-            connection.execute('BEGIN IMMEDIATE')
-            token = _CONNECTIONS.set({**_CONNECTIONS.get(), key: connection})
-            yield connection
-            connection.commit()
-            from operation_context import current
-            if current():
-                current().event('formal_transaction_committed', database=str(path), phase='storage')
-        except BaseException:
-            connection.rollback()
-            from operation_context import current
-            if current():
-                current().event('formal_transaction_rolled_back', database=str(path), phase='storage')
-            raise
-        finally:
-            if token is not None: _CONNECTIONS.reset(token)
-            connection.close()
+    path = database(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path, timeout=30, isolation_level=None)
+    connection.row_factory = sqlite3.Row
+    token = None
+    try:
+        connection.execute('PRAGMA foreign_keys=ON')
+        _enable_wal(connection)
+        connection.execute('PRAGMA synchronous=FULL')
+        # SQLite owns writer serialization, including the expected tail and
+        # unique claim checks. An additional filesystem lock adds no guarantee.
+        _begin_transaction(connection)
+        token = _CONNECTIONS.set({**_CONNECTIONS.get(), key: connection})
+        runtime_snapshot.invalidate_runs(root, source_boundary=True)
+        yield connection
+        connection.commit()
+        from operation_context import current
+        if current():
+            current().event('formal_transaction_committed', database=str(path), phase='storage')
+    except BaseException:
+        connection.rollback()
+        from operation_context import current
+        if current():
+            current().event('formal_transaction_rolled_back', database=str(path), phase='storage')
+        raise
+    finally:
+        if token is not None:
+            runtime_snapshot.invalidate_runs(root, source_boundary=True)
+            _CONNECTIONS.reset(token)
+        runtime_snapshot.release_transaction(connection)
+        connection.close()
 
 
 @contextlib.contextmanager
@@ -96,6 +169,16 @@ def reader(root: Path) -> Iterator[sqlite3.Connection | None]:
     connection = sqlite3.connect(path.as_uri()+'?mode=ro', uri=True, timeout=30)
     connection.row_factory = sqlite3.Row
     try:
+        # All reads made through this handle see one WAL snapshot. This does
+        # not serialize readers or prevent another connection from writing.
+        connection.execute('BEGIN')
+        objects = _schema_objects(connection)
+        if not objects and connection.execute('PRAGMA schema_version').fetchone()[0] == 0:
+            # A first writer may have opened the file before publishing its
+            # schema. Only a wholly empty schema represents an empty store.
+            yield None
+            return
+        _require_schema(objects)
         yield connection
     finally:
         connection.close()
@@ -122,20 +205,27 @@ def validate_event_chain(rows: list[dict], scope: str) -> None:
         previous = row['sha256']
 
 
-def event_rows(root: Path, scope: str) -> list[dict]:
+def read_history(root: Path, scope: str) -> VerifiedHistory:
+    """Read and verify stored rows once, retaining their verified chain boundary."""
     with reader(root) as connection:
-        if connection is None: return []
+        if connection is None:
+            return VerifiedHistory(scope, [])
         entries = list(connection.execute('SELECT * FROM events WHERE scope=? ORDER BY sequence', (scope,)))
+    return _verified_history(scope, entries)
+
+
+def _verified_history(scope: str, entries: list[sqlite3.Row]) -> VerifiedHistory:
+    """Decode rows captured from one SQLite snapshot and check their stored chain."""
     result = []
     previous = None
     for entry in entries:
         try:
             row = c.decode(bytes(entry['body']))
-            if not isinstance(row, dict):
-                raise ValueError('Event body must be an object.')
+            c.exact(row, {'sequence', 'previous', 'input_sha256', 'event', 'data', 'created_at', 'sha256'}, 'formal event')
             content = dict(row)
             digest = content.pop('sha256', None)
-            consistent = (c.content_id(content) == digest and entry['sha256'] == digest
+            consistent = (type(row['sequence']) is int and isinstance(row['data'], dict)
+                and c.content_id(content) == digest and entry['sha256'] == digest
                 and row['previous'] == previous == entry['previous']
                 and row['sequence'] == len(result) + 1 == entry['sequence']
                 and row['event'] == entry['event']
@@ -149,17 +239,22 @@ def event_rows(root: Path, scope: str) -> list[dict]:
                                   phase='integrity', run=scope, event=entry['sequence'], expected=entry['sha256'])
         previous = digest
         result.append(row)
-    validate_event_chain(result, scope)
-    return result
+    return VerifiedHistory(scope, result)
+
+
+def event_rows(root: Path, scope: str) -> list[dict]:
+    """Return an editable event export from a freshly verified storage read."""
+    return read_history(root, scope).rows
 
 
 def append(root: Path, scope: str, input_sha256: str | None, event: str, data: dict,
            *, expected_previous: str | None = None, check_previous: bool = False) -> dict:
     with transaction(root) as connection:
-        rows = event_rows(root, scope)
+        history = read_history(root, scope)
+        rows = history.rows
         for row in reversed(rows):
             if row['event'] == event and row['data'] == data: return row
-        previous = rows[-1]['sha256'] if rows else None
+        previous = history.tail
         if check_previous and previous != expected_previous:
             raise ProductionError('EVENT_CONFLICT', 'Another operation committed first; reload the current state.', phase='storage', run=scope)
         row = {'sequence': len(rows)+1, 'previous': previous, 'input_sha256': input_sha256,
@@ -172,6 +267,8 @@ def append(root: Path, scope: str, input_sha256: str | None, event: str, data: d
             raise ProductionError('DISPATCH_ALREADY_CLAIMED' if 'claim' in event else 'EVENT_CONFLICT',
                 'The run already has this committed operation.', phase='storage', run=scope,
                 required_action='Use resume for the same execution, variant for changed input, or repeat for an intentional additional run.') from exc
+        import runtime_snapshot
+        runtime_snapshot.invalidate_runs(root)
         from operation_context import current
         operation = current()
         if operation:
@@ -193,6 +290,8 @@ def register_run(root: Path, run: str, prepared: dict, directory: Path) -> None:
         connection.execute('INSERT INTO runs VALUES (?,?,?,?,?,?,?,?)',
             (run,prepared['task']['task_id'],prepared['task']['production_id'],prepared['input_sha256'],prepared['envelope_sha256'],
              c.sha256_file(directory/'manifest.json'),directory.relative_to(root).as_posix(),c.now()))
+        import runtime_snapshot
+        runtime_snapshot.invalidate_runs(root)
 
 
 def latest_run(root: Path, task_id: str, *, production_id: str | None = None,
@@ -333,23 +432,64 @@ def verify_evidence(root: Path, snapshot: dict, *, run: str | None = None, event
     return data
 
 
-def authority(root: Path, task_id: str, *, required: bool = True) -> dict | None:
+@dataclass(frozen=True, slots=True)
+class CurrentAuthority:
+    """A checked grant event and the exact evidence bytes read with it.
+
+    The acquisition belongs to this current-authority check. Consumers pass
+    this value through their decision phase; a new writer or effect boundary
+    acquires current authority independently.
+    """
+
+    task_id: str
+    event: dict
+    evidence: tuple[dict, ...]
+
+    @property
+    def document(self) -> dict:
+        return self.event['data']['authority']
+
+
+def read_authority(root: Path, task_id: str, *, required: bool = True) -> CurrentAuthority | None:
+    """Read and verify one current grant state without changing run input."""
+    scope = 'authority:' + task_id
     with reader(root) as connection:
         state = connection.execute('SELECT * FROM authority_states WHERE task_id=?',(task_id,)).fetchone() if connection else None
+        entries = list(connection.execute('SELECT * FROM events WHERE scope=? ORDER BY sequence', (scope,))) if state else []
     if state is None:
         if not required: return None
         raise ProductionError('AUTHORIZATION_REQUIRED','The work task has no registered current authority.',phase='authorization',
                               required_action='Import an actual authority declaration with its evidence before execution.')
-    rows = event_rows(root,'authority:'+task_id)
+    rows = _verified_history(scope, entries).rows
     matches = [row for row in rows if row['sha256'] == state['event_sha256']]
     if len(matches) != 1 or matches[0] != rows[-1]:
         raise ProductionError('AUTHORITY_STATE_CORRUPT','Authority state is not the terminal committed event.',phase='integrity')
     data = matches[0]['data']
     if c.content_id(data['authority']) != state['content_sha256']:
         raise ProductionError('AUTHORITY_STATE_CORRUPT','Authority content digest does not match.',phase='integrity')
+    objects: dict[str, bytes] = {}
+    evidence = []
     for item in data['evidence']:
-        verify_evidence(root,item,event=state['event_sha256'],impact=AUTHORITY_EVIDENCE_IMPACT)
-    return {**data['authority']}
+        assert_public_path(item['path'])
+        key = c.sha(item['sha256'])
+        if key not in objects:
+            objects[key] = verify_evidence(root, item, event=state['event_sha256'],
+                                           impact=AUTHORITY_EVIDENCE_IMPACT)
+        raw = objects[key]
+        # Several locators or purposes may name the same content object. Its
+        # bytes were checked once, while every row still has to name its size.
+        if len(raw) != item['size']:
+            raise evidence_error('EVIDENCE_SNAPSHOT_CORRUPT', 'Stored evidence no longer matches its digest.',
+                file=str(c.local(root, 'production/objects/' + key, exists=False)), event=state['event_sha256'],
+                expected=key, actual=key, impact=AUTHORITY_EVIDENCE_IMPACT, source=item['path'])
+        evidence.append(freeze({**item, 'raw': raw}))
+    return CurrentAuthority(task_id, freeze(matches[0]), tuple(evidence))
+
+
+def authority(root: Path, task_id: str, *, required: bool = True) -> dict | None:
+    """Export an editable current grant document for an external caller."""
+    held = read_authority(root, task_id, required=required)
+    return mutable(held.document) if held is not None else None
 
 
 def authority_record(root: Path, task_id: str) -> dict | None:
@@ -390,16 +530,16 @@ def import_authority(root: Path, file: str, *, expected: str | None = None, init
                    {'authority':document,'evidence':evidence,'previous_state':prior['sha256'] if prior else None,'effective_at':c.now()})
         connection.execute('INSERT INTO authority_states VALUES (?,?,?) ON CONFLICT(task_id) DO UPDATE SET content_sha256=excluded.content_sha256,event_sha256=excluded.event_sha256',
                            (document['task_id'],c.content_id(document),row['sha256']))
+        import runtime_snapshot
+        runtime_snapshot.invalidate_runs(root)
         return row
 
 
-def captured_authority_inputs(root: Path, task_id: str) -> list[dict]:
-    """Every evidence snapshot of the current authority, with its verified bytes under `raw`.
+def captured_authority_inputs(authority: CurrentAuthority) -> tuple[dict, ...]:
+    """Return this checked authority's evidence, without another storage read.
 
     Keep each item by path and SHA-256: a source such as a work ledger grows,
-    so one path can hold several valid readings.
+    so one path can hold several valid readings. These immutable rows retain
+    the exact bytes verified with the owning grant event under ``raw``.
     """
-    record=authority_record(root,task_id)
-    if record is None:return []
-    return [{**item,'raw':verify_evidence(root,item,event=record['sha256'],impact=AUTHORITY_EVIDENCE_IMPACT)}
-            for item in record['data']['evidence']]
+    return authority.evidence

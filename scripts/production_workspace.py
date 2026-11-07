@@ -12,12 +12,12 @@ import production_evidence as media
 import production_workflow as workflow
 
 
-def _candidate(directory: Path, rows: list[dict], candidate: str) -> dict:
-    row = workflow.find(rows, 'candidate', candidate)
+def _candidate(loaded, candidate: str) -> dict:
+    row = workflow.find(loaded.rows, 'candidate', candidate)
     files = []
     for item in row['data']['files']:
-        raw = c.object_read(directory, item['sha256'])
-        files.append({'path': str(directory / 'objects' / item['sha256']),
+        raw = loaded.evidence.read(item['sha256'])
+        files.append({'path': str(loaded.directory / 'objects' / item['sha256']),
                       'sha256': item['sha256'], 'size': len(raw)})
     return {'id': candidate, 'files': files, 'media': row['data']['media']}
 
@@ -30,7 +30,7 @@ def _reading(prepared: dict) -> dict:
                            'active context, then apply them to this phase.'}
 
 
-def _external_media(directory: Path, binding: dict) -> list[dict]:
+def _external_media(loaded, binding: dict) -> list[dict]:
     external = binding['external_request']
     prepared = binding.get('prepared_reference_set')
     found = set()
@@ -46,20 +46,19 @@ def _external_media(directory: Path, binding: dict) -> list[dict]:
         if identity in found:
             continue
         found.add(identity)
-        raw = c.object_read(directory, key)
-        result.append({'path': str(directory / 'objects' / key), 'sha256': key,
+        raw = loaded.evidence.read(key)
+        result.append({'path': str(loaded.directory / 'objects' / key), 'sha256': key,
                        'request_fields': [field['field']], 'media': media.inspect(raw, 'image')})
     return result
 
 
-def _input(directory: Path, prepared: dict, consumer: dict) -> dict:
+def _input(loaded) -> dict:
     """Expose provider-facing text, parameters and media without assessment context."""
+    directory, prepared, consumer, _ = loaded
     execution = prepared['task']['execution']
-    plan = c.load(directory / 'execution-plan.json')
+    plan = loaded.artifacts['execution-plan.json']
     if execution == 'dispatcher':
-        import request_contract
-        rendered = c.load(directory / 'request-contract.json')
-        request_contract.validate_seal(rendered)
+        rendered = loaded.artifacts['request-contract.json']
         attachments = []
         for index, item in enumerate(rendered['media']):
             path = Path(item['path'])
@@ -82,7 +81,7 @@ def _input(directory: Path, prepared: dict, consumer: dict) -> dict:
     if external is not None:
         result = {'execution': execution, 'target': binding['model']['target'],
                   'request': external['request'], 'request_sha256': external['sha256'],
-                  'media': _external_media(directory, binding), 'outputs': external['count']}
+                  'media': _external_media(loaded, binding), 'outputs': external['count']}
         if external.get('model_identity') is not None:
             result['model_identity'] = external['model_identity']
         return result
@@ -90,8 +89,9 @@ def _input(directory: Path, prepared: dict, consumer: dict) -> dict:
             'media': [], 'request': plan.get('request')}
 
 
-def _sources(directory: Path, prepared: dict) -> list[dict]:
+def _sources(loaded) -> list[dict]:
     from production_compiler import dependency_space
+    directory, prepared = loaded.directory, loaded.prepared
     sources = []
     originals = {}
 
@@ -101,7 +101,7 @@ def _sources(directory: Path, prepared: dict) -> list[dict]:
             original = originals[digest]
             entry.update(size=original['size'], content_ref=original['id'])
         else:
-            raw = c.object_read(directory, digest)
+            raw = loaded.evidence.read(digest)
             entry['size'] = len(raw)
             try:
                 entry['text'] = raw.decode('utf-8')
@@ -133,24 +133,25 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
     if phase in {'input', 'decision'} and candidate is not None:
         raise ValueError('the input view is scoped to its prepared request')
     root = c._root(root)
-    directory, prepared, consumer, rows = workflow.load_run(root, run)
+    loaded = workflow.read_run(root, run)
+    directory, prepared, consumer, rows = loaded
     result = {'phase': phase, 'run': run}
     if candidate is not None:
-        result['candidate'] = _candidate(directory, rows, candidate)
+        result['candidate'] = _candidate(loaded, candidate)
     if phase == 'observe':
         result['instruction'] = ('Inspect the supplied candidate files. Describe what is visible or measurable, '
                                  'with locators and limits. Preserve this first observation before receiving '
                                  'the commission, expected interpretation or prior findings.')
         return result
     result.update(input_sha256=prepared['input_sha256'], reading=_reading(prepared),
-                  prepared_input=_input(directory, prepared, consumer))
+                  prepared_input=_input(loaded))
     if phase == 'input':
         result['instruction'] = ('Read the complete prepared request and inspect its supplied media. '
                                  'Describe the concrete result their combination calls for and how the '
                                  'supplied media contribute. Preserve this reconstruction before comparing '
                                  'it with the commission.')
         return result
-    result.update(basis=workflow.review_basis(root, run, candidate), sources=_sources(directory, prepared),
+    result.update(basis=workflow.review_basis(root, run, candidate), sources=_sources(loaded),
                   source_context={key: consumer[key] for key in
                                   ('world_views', 'moment_views', 'authoring_materials', 'semantic_edit')
                                   if key in consumer})
@@ -159,7 +160,7 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
         result['identity_instruction'] = result['basis']['identity_instruction']
     if phase == 'decision':
         import production_store
-        plan = c.load(directory / 'execution-plan.json')
+        plan = loaded.artifacts['execution-plan.json']
         result['authority'] = production_store.authority(root, prepared['task']['task_id'], required=False)
         result['operations'] = plan['operations']
         result['review_requirements'] = plan.get('review_requirements', [])

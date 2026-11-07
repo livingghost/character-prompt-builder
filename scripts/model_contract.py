@@ -13,7 +13,7 @@ import re
 import string
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 # Every key a model record may carry: the common record fields and the model
 # fields the pack record schema declares. The schema states the same set;
@@ -628,9 +628,9 @@ def parameter_schema_issues(
     declares at the offering's model request key must be the model identifier.
     """
 
-    from state_protocol import validate_against_schema
+    from state_protocol import read_schema, validate_against_schema
 
-    contract = json.loads(PARAMETER_SCHEMA_CONTRACT.read_text(encoding="utf-8"))
+    contract = read_schema(PARAMETER_SCHEMA_CONTRACT)
     issues = list(dict.fromkeys(validate_against_schema(snapshot, contract)))
     if issues:
         return issues
@@ -652,8 +652,13 @@ def offering_expectation(model_id: str, offering: Mapping[str, Any]) -> tuple[di
     return expected, request_key(offering, MODEL_ROLE)
 
 
-def offering_schema(offering: Mapping[str, Any], pack_root: Path | None, model_id: str) -> dict[str, Any] | None:
-    """The attributed parameter schema an offering names, read from its pack."""
+def offering_schema(offering: Mapping[str, Any], pack_root: Path | None, model_id: str,
+                    *, read_document: Callable[[str], Any] | None = None) -> dict[str, Any] | None:
+    """Resolve an offering's parameter schema through its input owner.
+
+    The public path adapter acquires a standalone file. Pack construction passes
+    the acquired document reader and performs no pack I/O here.
+    """
 
     relative = offering.get("schema_snapshot")
     if not relative:
@@ -662,10 +667,13 @@ def offering_schema(offering: Mapping[str, Any], pack_root: Path | None, model_i
         raise ValueError(
             "the pack holding the model record is unknown, so its parameter schema cannot be read"
         )
-    path = Path(pack_root) / str(relative)
-    if not path.is_file():
-        raise ValueError(f"parameter schema {relative!r} is not in the pack")
-    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    if read_document is not None:
+        snapshot = read_document(str(relative))
+    else:
+        path = Path(pack_root) / str(relative)
+        if not path.is_file():
+            raise ValueError(f"parameter schema {relative!r} is not in the pack")
+        snapshot = json.loads(path.read_text(encoding="utf-8"))
     expected, model_key = offering_expectation(model_id, offering)
     issues = parameter_schema_issues(snapshot, expected, model_key=model_key)
     if issues:
@@ -845,7 +853,8 @@ def property_schemas(schema: Mapping[str, Any], key_path: str) -> list[Mapping[s
 
 
 def recommended_parameter_issues(
-    record: Mapping[str, Any], offering: Mapping[str, Any], pack_root: Path | None
+    record: Mapping[str, Any], offering: Mapping[str, Any], pack_root: Path | None,
+    *, read_document: Callable[[str], Any] | None = None,
 ) -> list[str]:
     """What the offering's parameter contract refuses among the record's recommendations on this offering."""
 
@@ -853,7 +862,7 @@ def recommended_parameter_issues(
     if not keys:
         return []
     try:
-        found = offering_schema(offering, pack_root, str(record.get("id")))
+        found = offering_schema(offering, pack_root, str(record.get("id")), read_document=read_document)
     except ValueError as exc:
         return [str(exc)]
     if found is None:
@@ -876,6 +885,16 @@ def recommended_parameter_issues(
     return issues
 
 
+def validate_output_count(record: Mapping[str, Any], output_count: int | None) -> None:
+    """Check the model's output bound independently of a parameter schema."""
+    limit = record.get("max_outputs")
+    if output_count is not None:
+        if not _is_positive_integer(output_count):
+            raise ValueError("the output count must be a positive integer")
+        if _is_positive_integer(limit) and output_count > limit:
+            raise ValueError(f"an output count of {output_count} exceeds model max_outputs={limit}")
+
+
 def validate_generation_parameters(
     record: Mapping[str, Any],
     parameters: Mapping[str, Any],
@@ -896,12 +915,7 @@ def validate_generation_parameters(
     Returns the offering, or None when the record is exposed on no service here.
     """
 
-    limit = record.get("max_outputs")
-    if output_count is not None:
-        if not _is_positive_integer(output_count):
-            raise ValueError("the output count must be a positive integer")
-        if _is_positive_integer(limit) and output_count > limit:
-            raise ValueError(f"an output count of {output_count} exceeds model max_outputs={limit}")
+    validate_output_count(record, output_count)
     offering = select_offering(record, service)
     if offering is None:
         return None
@@ -918,6 +932,12 @@ def validate_request_instance(
     """Refuse a request the offering's attributed parameter schema refuses; an offering without one refuses nothing."""
 
     found = offering_schema(offering, pack_root, model_id)
+    validate_request_schema(offering, instance, found)
+
+
+def validate_request_schema(offering: Mapping[str, Any], instance: Mapping[str, Any],
+                            found: Mapping[str, Any] | None) -> None:
+    """Evaluate an acquired parameter contract without opening its source."""
     if found is None:
         return
     from model_schema_numeric import validate_against_schema

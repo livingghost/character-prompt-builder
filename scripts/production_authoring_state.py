@@ -168,9 +168,9 @@ def _problem(path: str, exc: BaseException) -> dict:
 def _run(root: Path, identifier: str, cache: dict | None) -> tuple:
     import production_workflow
     if cache is None:
-        return production_workflow.load_run(root, identifier)
+        return production_workflow.read_run(root, identifier)
     if identifier not in cache:
-        cache[identifier] = production_workflow.load_run(root, identifier)
+        cache[identifier] = production_workflow.read_run(root, identifier)
     return cache[identifier]
 
 

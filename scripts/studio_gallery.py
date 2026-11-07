@@ -28,10 +28,10 @@ def utc_day(value: str | None) -> str:
         return ''
 
 
-def build_index(root: Path) -> dict:
+def build_index(root: Path, *, read=None) -> dict:
     import studio
     import sheet_inventory
-    document = studio.manifest(root)
+    document = read.document if read else studio.manifest(root)
     entries, diagnostics = [], []
     for info in document.get('characters') or []:
         if not isinstance(info, dict):
@@ -42,7 +42,7 @@ def build_index(root: Path) -> dict:
             diagnostics.append({'character': character, 'message': 'character directory is missing'})
             continue
         try:
-            rows = studio.read_iterations(home)
+            rows = read.iterations(character) if read else studio.read_iterations(home)
         except (ValueError, OSError, KeyError, TypeError) as exc:
             diagnostics.append({'character': character, 'message': str(exc)})
             rows = []
@@ -84,7 +84,7 @@ def build_index(root: Path) -> dict:
         if not sidecar.is_file():
             continue
         try:
-            artwork = sheet_inventory.entries(sidecar)
+            artwork = sheet_inventory.entries(sidecar, state=read.sheet(character) if read else None)
         except (ValueError, OSError, KeyError, TypeError) as exc:
             diagnostics.append({'character': character, 'file': str(sidecar.relative_to(root)), 'message': str(exc)})
             continue

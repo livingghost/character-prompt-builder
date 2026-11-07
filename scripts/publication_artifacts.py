@@ -1,6 +1,7 @@
 """Producer-owned files and their immutable publication representation."""
 from __future__ import annotations
 
+import os
 from pathlib import Path, PurePosixPath
 
 import execution_contract as c
@@ -82,8 +83,11 @@ class ArtifactSet:
         if known is not None and known != row and not replace:
             self._invalid('A producer tried to replace another declared content.',
                           path=relative, expected=known, actual=row)
-        c.atomic(c.local(self.root, relative, exists=False), raw, replace=replace and known is not None)
+        self._write(c.local(self.root, relative, exists=False), raw, replace=replace and known is not None)
         return self.add_record(row, replace=replace)
+
+    def _write(self, path: Path, raw: bytes, *, replace: bool) -> None:
+        c.atomic(path, raw, replace=replace)
 
     def files(self) -> list[dict]:
         return [dict(self._files[name]) for name in sorted(self._files)]
@@ -158,3 +162,36 @@ class ArtifactSet:
         for name in sorted(self._files):
             self.copy_file(name, c.local(destination, name, exists=False))
         return destination
+
+
+class StagedArtifacts(ArtifactSet):
+    """A private artifact tree made durable at its publication boundary.
+
+    Writes materialize complete files without syncing disposable work to disk.
+    Before any part becomes public, flush_files persists the file contents.
+    Before the tree's exclusive rename, flush_directories persists its nested
+    directory entries from the leaves to the root. Publication then flushes
+    the destination parent. A check can discard its private tree directly.
+    """
+
+    def _write(self, path: Path, raw: bytes, *, replace: bool) -> None:
+        c.atomic(path, raw, replace=replace, durable=False)
+
+    def flush_files(self) -> None:
+        """Persist every declared file before publishing the tree or its links."""
+        for name in sorted(self._files):
+            path = c.local(self.root, name)
+            if not path.is_file():
+                self._invalid('A staged artifact is not a regular file.', path=name)
+            # Windows requires write access when flushing file buffers. The
+            # owner created these private files; opening them never truncates.
+            with path.open('r+b' if os.name == 'nt' else 'rb') as stream:
+                os.fsync(stream.fileno())
+
+    def flush_directories(self, *, controls=()) -> None:
+        directories = {'.'}
+        for name in (*self._files, *(self._relative(name) for name in controls)):
+            directories.update(parent.as_posix() for parent in PurePosixPath(name).parents)
+        for name in sorted(directories, key=lambda value: (-len(PurePosixPath(value).parts), value)):
+            directory = c._root(self.root) if name == '.' else c.local(self.root, name)
+            c.fsync_dir(directory)

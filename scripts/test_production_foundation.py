@@ -18,6 +18,39 @@ import production_fixtures
 
 
 class FoundationTests(unittest.TestCase):
+    def test_staged_artifacts_persist_files_then_nested_directories(self):
+        from publication_artifacts import StagedArtifacts
+        import stat
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'staged'
+            root.mkdir()
+            artifacts = StagedArtifacts(root)
+            synchronized = []
+            original = os.fsync
+
+            def record(descriptor):
+                synchronized.append('directory' if stat.S_ISDIR(os.fstat(descriptor).st_mode) else 'file')
+                original(descriptor)
+
+            with patch.object(c.os, 'fsync', side_effect=record):
+                artifacts.write('nested/first.bin', b'first exact contents')
+                artifacts.write('nested/second.bin', b'second exact contents')
+                self.assertEqual(synchronized, [])
+                artifacts.flush_files()
+                self.assertEqual(synchronized, ['file', 'file'])
+                flushed = []
+                flush = c.fsync_dir
+
+                def record_directory(path):
+                    flushed.append(path.relative_to(root).as_posix())
+                    flush(path)
+
+                with patch.object(c, 'fsync_dir', side_effect=record_directory):
+                    artifacts.flush_directories()
+            self.assertEqual(flushed, ['nested', '.'])
+            self.assertEqual(artifacts.read('nested/second.bin'), b'second exact contents')
+            artifacts.require_membership()
+
     def test_directory_publication_keeps_an_existing_empty_destination(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp); source = base/'staged'; target = base/'published'
@@ -237,6 +270,29 @@ class PublicationRecoveryTests(unittest.TestCase):
                 workflow.prepare(self.root, 'task.json')
         self.assertEqual(store.runs(self.root), [])
         return next((self.root/'production/runs').iterdir()).name
+
+    def test_directory_flush_failure_keeps_staging_unregistered_and_unpublished(self):
+        import production_workflow as workflow
+        from publication_artifacts import StagedArtifacts
+        failure = OSError('Synthetic staging directory flush interruption')
+        flush = StagedArtifacts.flush_directories
+
+        def fail_run_directory(owner, **options):
+            if owner.root.name.startswith('compile-'):
+                raise failure
+            return flush(owner, **options)
+
+        with patch.object(StagedArtifacts, 'flush_directories', autospec=True, side_effect=fail_run_directory):
+            with self.assertRaises(OSError):
+                workflow.prepare(self.root, 'task.json')
+        self.assertEqual(store.runs(self.root), [])
+        published = self.root / 'production/runs'
+        self.assertEqual(list(published.iterdir()) if published.exists() else [], [])
+        staged = list((self.root / 'production/staging').iterdir())
+        self.assertEqual(len(staged), 1)
+        self.assertTrue((staged[0] / 'failure.json').is_file())
+        self.assertTrue((staged[0] / 'manifest.json').is_file())
+        self.assertTrue((staged[0] / 'prepared.json').is_file())
 
     def test_durable_publication_is_discoverable_and_recovered_without_reauthorization(self):
         import production_compiler as compiler
@@ -474,14 +530,23 @@ class SchemaDocumentContextTests(unittest.TestCase):
             schema_path = root/'item.json'
             schema_path.write_text('{"type":"integer"}', encoding='utf-8')
             schema = {'type':'array','items':{'$ref':'item.json'}}
-            with patch.object(protocol,'SCHEMA_DIR',root), patch.object(protocol,'load_json',wraps=protocol.load_json) as read:
+            original_read = Path.read_bytes
+            reads = []
+            def read(path):
+                if path == schema_path:
+                    reads.append(path)
+                return original_read(path)
+            with patch.object(protocol,'SCHEMA_DIR',root), patch.object(Path,'read_bytes',read):
                 self.assertEqual(protocol.validate_against_schema([1]*50,schema),[])
-                self.assertEqual(read.call_count,1)
+                self.assertEqual(len(reads),1)
                 self.assertTrue(protocol.validate_against_schema([1,'wrong'],schema))
-                self.assertEqual(read.call_count,2)
-                schema_path.write_text('{"type":"string"}', encoding='utf-8')
+                self.assertEqual(len(reads),2)
+                metadata = schema_path.stat()
+                schema_path.write_text('{"type":"string" }', encoding='utf-8')
+                os.utime(schema_path,ns=(metadata.st_atime_ns,metadata.st_mtime_ns))
+                self.assertEqual(schema_path.stat().st_size,metadata.st_size)
                 self.assertEqual(protocol.validate_against_schema(['now-a-string'],schema),[])
-                self.assertEqual(read.call_count,3)
+                self.assertEqual(len(reads),3)
 
 class AggregateInputTests(unittest.TestCase):
     def setUp(self):
@@ -1092,7 +1157,7 @@ class StudioPathTests(unittest.TestCase):
         import execution_lifecycle as lifecycle
         calls=[]
         class Stop(Exception):pass
-        def assert_current(root,run,*,force=False):
+        def assert_current(root,run,*,force=False,previous_runtime=None):
             calls.append(('assert_current',force));raise Stop
         with tempfile.TemporaryDirectory() as temporary,\
                 patch.object(c,'recheck_roots',side_effect=lambda:calls.append('recheck_roots')),\

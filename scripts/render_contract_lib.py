@@ -273,23 +273,28 @@ def validate_profile(profile: Any) -> None:
 def selected_profile(record: Mapping, offering: Mapping | None) -> dict:
     """The offering owns its interface; a host-only record owns its host profile."""
     owner = offering if offering is not None else record
-    profile = owner.get('execution_profile')
+    profile = copy.deepcopy(owner.get('execution_profile'))
     if profile is None:
         raise ParameterErrors([problem('execution_profile', 'profile-missing',
             'execution profile is missing for this exact interface; author it before generation')])
     validate_profile(profile)
-    return copy.deepcopy(profile)
+    return profile
 
 
 def _execution_card(record: Mapping, offering: Mapping | None = None) -> dict:
     owner = offering if offering is not None else record
-    profile = owner.get('execution_profile')
+    profile = copy.deepcopy(owner.get('execution_profile'))
     if profile is not None:
         validate_profile(profile)
+    return _card_from_profile(record, offering, profile)
+
+
+def _card_from_profile(record: Mapping, offering: Mapping | None, profile: dict | None) -> dict:
+    """Transfer an independently owned, checked profile into its output card."""
     return {'model': record.get('id'), 'service': (offering or {}).get('service'),
             'model_identifier': (offering or {}).get('model_identifier', record.get('id')),
             'ready_for_parameter_resolution': profile is not None,
-            'execution_profile': copy.deepcopy(profile),
+            'execution_profile': profile,
             'recommended_parameters': copy.deepcopy(record.get('recommended_parameters') or {}),
             'recommended_positive_prompt': record.get('recommended_positive_prompt', ''),
             'recommended_negative_prompt': record.get('recommended_negative_prompt', ''),
@@ -379,6 +384,12 @@ def _checked(value: Any, schema: dict, key: str) -> None:
 
 def resolve_parameters(record: Mapping, profile: dict, mode: str, parameters: dict) -> tuple[dict, list[dict]]:
     validate_profile(profile)
+    return _parameters_from_profile(record, profile, mode, parameters)
+
+
+def _parameters_from_profile(record: Mapping, profile: dict, mode: str,
+                             parameters: dict) -> tuple[dict, list[dict]]:
+    """Resolve values against one checked profile without changing that input."""
     if mode not in profile['modes']:
         raise ParameterErrors([problem('execution_profile.modes', 'mode-not-exposed',
                                        'mode not exposed by this execution profile: ' + mode)])
@@ -454,11 +465,19 @@ def compile_contract(record: Mapping, offering: Mapping | None, intent: dict,
         raise ValueError('an upscaler without a text channel cannot receive a rendering prompt expression')
     profile = selected_profile(record, offering)
     mode = intent['execution_mode']
-    effective, decisions = resolve_parameters(record, profile, mode, parameters)
+    effective, decisions = _parameters_from_profile(record, profile, mode, parameters)
+    return _contract_from_inputs(record,offering,intent,parameters,profile,effective,decisions,
+                                 reference_count=reference_count)
+
+
+def _contract_from_inputs(record: Mapping, offering: Mapping | None, intent: dict, parameters: dict,
+                          profile: dict, effective: dict, decisions: list, *, reference_count: int) -> dict:
+    """Project one acquired rendering input into its public contract."""
+    mode = intent['execution_mode']
     from prompt_weighting import selected
     selected(effective, profile['modes'][mode]['prompt_syntax'])
     media_check(profile, mode, reference_count=reference_count, offering=offering)
-    card = _execution_card(record, offering)
+    card = _card_from_profile(record, offering, profile)
     return {'artifact_type': 'render-contract', 'intent': copy.deepcopy(intent), 'model_card': card,
             'profile_sha256': digest(card), 'authored_parameters': copy.deepcopy(parameters),
             'parameters': effective, 'parameter_decisions': decisions, 'reference_count': reference_count,

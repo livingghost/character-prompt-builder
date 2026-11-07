@@ -62,6 +62,51 @@ class SheetExecutionTests(unittest.TestCase):
             execution.resume(self.root, run)
         self.assertIsNone(c.load(self.sheet)['slots']['parts.detail']['current'])
 
+    def test_upscale_panel_capture_and_resume_keep_the_prepared_model(self):
+        import transport_synthetic
+        from catalog_retrieval import runtime
+
+        original = accepted(self.sheet, size=(32, 32))
+        crop = fills.crop(self.sheet, 'canon.primary', 'parts.detail', [0, 0, 16, 16])
+        source = (self.sheet.parent / crop['image']['path']).relative_to(self.root).as_posix()
+        path = fixture.upscale_task(self.root, source=source, scale=4)
+        task = c.load(self.root / path)
+        task['upscale']['derivation'] = {'sheet': self.sheet.relative_to(self.root).as_posix(),
+                                        'slot': 'parts.detail', 'artifact_id': crop['artifact_id']}
+        task['recording'].update(slot='parts.detail', sheet_panel=True, subject_map={'robot': 'robot'})
+        fixture.write(self.root / path, task)
+        run = workflow.prepare(self.root, path)['run']
+        approved = fixture.fill_decisions(self.root, run, 'upscale-approved.json')
+        send = transport_synthetic.send
+
+        def change_model_after_answer(*args, **kwargs):
+            answer = send(*args, **kwargs)
+            model_path = self.case['pack'] / 'records/models.json'
+            models = c.load(model_path)
+            selected = next(row for row in models['records'] if row['id'] == fixture.UPSCALE_MODEL_ID)
+            selected['label'] = 'Updated synthetic upscaler after the provider answered'
+            fixture.write(model_path, models)
+            fixture.packs.write_lock(self.case['pack'])
+            runtime.configure_pack_runtime(self.case['settings'])
+            return answer
+
+        with patch.object(transport_synthetic, 'send', side_effect=change_model_after_answer) as sent:
+            result = execution.execute(self.root, run, decisions_file=approved)
+        self.assertEqual(sent.call_count, 1)
+        self.assertTrue(result['execution_completed'], result)
+        self.assertEqual(result['runs'][0]['capture'], 'complete')
+        candidates = c.load(self.sheet)['slots']['parts.detail']['candidates']
+        outputs = [row for row in candidates if row['provenance']['kind'] == 'upscale']
+        self.assertEqual(len(outputs), 1)
+        final = outputs[0]
+        self.assertEqual(fills.verify_artifact(final, self.sheet.parent)['sources'], [crop])
+        self.assertEqual(fills.verify_artifact(crop, self.sheet.parent)['sources'], [original])
+        with patch.object(transport_synthetic, 'send', side_effect=AssertionError('recover the recorded answer')):
+            recovered = execution.resume(self.root, run)
+        self.assertTrue(recovered['execution_completed'], recovered)
+        self.assertEqual(c.load(self.sheet)['slots']['parts.detail']['candidates'], candidates)
+        self.assertIsNone(c.load(self.sheet)['slots']['parts.detail']['current'])
+
 
 if __name__ == '__main__':
     import stdio_utf8

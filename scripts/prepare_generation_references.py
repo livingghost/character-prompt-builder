@@ -22,7 +22,12 @@ import struct
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, TYPE_CHECKING
+
+import runtime_snapshot
+
+if TYPE_CHECKING:
+    from studio_reference import ReferenceReads
 
 from catalog_cli import (
     active_pack_artifact_sources,
@@ -399,6 +404,12 @@ def model_reference_media_types(model: str, *, required: bool) -> frozenset[str]
 class _ReferenceContext:
     active: bool = True
     source_archive: Path | None = None
+    reads: ReferenceReads | None = None
+
+    @classmethod
+    def live(cls) -> _ReferenceContext:
+        from studio_reference import reference_reads
+        return cls(reads=reference_reads())
 
     def path(self, source: Mapping[str, Any], field: str) -> Path:
         declared = _require_string(source.get('resolved_path'), field + '.resolved_path')
@@ -420,10 +431,8 @@ class _ReferenceContext:
         return path
 
 
-_LIVE_REFERENCES = _ReferenceContext()
-
-
-def _validate_pack_source(source: Mapping[str, Any], field: str, *, context: _ReferenceContext = _LIVE_REFERENCES) -> dict[str, Any]:
+def _validate_pack_source(source: Mapping[str, Any], field: str, *, context: _ReferenceContext | None = None) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
     _require_exact_fields(source, PACK_SOURCE_FIELDS, field)
     canonical: dict[str, Any] = {
         "kind": "pack-artifact",
@@ -478,7 +487,8 @@ def _prepare_supplied_source(source: Mapping[str, Any], field: str) -> dict[str,
     }
 
 
-def _validate_supplied_source(source: Mapping[str, Any], field: str, *, context: _ReferenceContext = _LIVE_REFERENCES) -> dict[str, Any]:
+def _validate_supplied_source(source: Mapping[str, Any], field: str, *, context: _ReferenceContext | None = None) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
     _require_exact_fields(source, SUPPLIED_SOURCE_FIELDS, field)
     if source.get("kind") != "supplied-file":
         raise ValueError(f"{field}.kind must be supplied-file")
@@ -501,7 +511,8 @@ def _validate_supplied_source(source: Mapping[str, Any], field: str, *, context:
     return canonical
 
 
-def _validate_source(source: Any, field: str, *, context: _ReferenceContext = _LIVE_REFERENCES) -> dict[str, Any]:
+def _validate_source(source: Any, field: str, *, context: _ReferenceContext | None = None) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
     if not isinstance(source, Mapping):
         raise ValueError(f"{field} must be an object")
     kind = source.get("kind")
@@ -511,7 +522,7 @@ def _validate_source(source: Any, field: str, *, context: _ReferenceContext = _L
         return _validate_supplied_source(source, field, context=context)
     if kind == "studio-artifact":
         from studio_reference import validate_source
-        validate_source(source, active=context.active, source_archive=context.source_archive)
+        validate_source(source, active=context.active, source_archive=context.source_archive, reads=context.reads)
         path = context.path(source, field)
         if sha256_file(path) != source['sha256'] or detect_image_media_type(path) != source['media_type']:
             raise ValueError(field + ' Studio source image bytes differ')
@@ -519,6 +530,7 @@ def _validate_source(source: Any, field: str, *, context: _ReferenceContext = _L
     raise ValueError(f"{field}.kind must name an explicit pack, supplied-file or Studio artifact")
 
 
+@runtime_snapshot.operation
 def validate_committed_source(source: Any, field: str = "source") -> dict[str, Any]:
     """Validate one fully committed source against its current authoritative bytes."""
 
@@ -531,8 +543,9 @@ def _validate_transport(
     field: str,
     *,
     package_root: Path | None,
-    context: _ReferenceContext = _LIVE_REFERENCES,
+    context: _ReferenceContext | None = None,
 ) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
     if not isinstance(transport, Mapping):
         raise ValueError(f"{field} must be an object")
     _require_exact_fields(transport, TRANSPORT_FIELDS, field)
@@ -723,17 +736,22 @@ def direct_reference_authority(role: str, subject_uses: list[dict[str, Any]]) ->
     return state_authority_for(list(dict.fromkeys(row['use'] for row in uses))) if uses else conservative_authority(role)
 
 
-def validate_studio_subject_uses(source: Mapping[str, Any], subject_uses: list[dict[str, Any]]) -> None:
+@runtime_snapshot.operation
+def validate_studio_subject_uses(source: Mapping[str, Any], subject_uses: list[dict[str, Any]], *,
+                               context: _ReferenceContext | None = None) -> None:
     """Keep identity assignments bound to the Studio's actual identity adoption."""
     if source.get('kind') != 'studio-artifact':
         return
+    context = context or _ReferenceContext.live()
     from studio_reference import identity_source
     for use in subject_uses:
         if use['use'] == 'identity':
-            identity_source(dict(source), root=Path(source['studio_root']), character_id=use['subject_id'])
+            identity_source(source, root=Path(source['studio_root']), character_id=use['subject_id'],
+                            reads=context.reads)
 
 
-def _validated_reference_use_plan(value: Any, *, context: _ReferenceContext = _LIVE_REFERENCES) -> dict[str, Any]:
+def _validated_reference_use_plan(value: Any, *, context: _ReferenceContext | None = None) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
     if not isinstance(value, dict) or value.get("artifact_type") != "reference-use-plan":
         raise ValueError("reference_use_plan must be a reference-use-plan artifact")
     report = validate_artifact(value)
@@ -868,6 +886,7 @@ def _validate_generic_state_boundary(reference: Mapping[str, Any],
         raise ValueError('a state-managed source cannot be downgraded to an unassigned generic reference')
 
 
+@runtime_snapshot.operation
 def validate_prepared_references(value: Any, *, model: str,
                                  reference_selection: dict[str, Any] | None = None,
                                  reference_use_plan: dict[str, Any] | None = None,
@@ -887,10 +906,10 @@ def _validate_prepared_references(
     reference_use_plan: dict[str, Any] | None = None,
     image_input_binding: dict[str, Any] | None = None,
     package_root: Path | None = None,
-    context: _ReferenceContext = _LIVE_REFERENCES,
+    context: _ReferenceContext | None = None,
 ) -> list[dict[str, Any]]:
     """Validate every prepared byte, authority, and optional state/plan scope."""
-
+    context = context or _ReferenceContext.live()
     if not isinstance(value, list):
         raise ValueError("selected_references must be a JSON array")
     edit_rows = None
@@ -1058,7 +1077,7 @@ def _validate_prepared_references(
             if normalized.get('subject_uses', []) != expected.get('subject_uses', []):
                 raise ValueError(f'{field}.subject_uses differs from the image input binding')
         if context.active:
-            validate_studio_subject_uses(source, normalized.get('subject_uses', []))
+            validate_studio_subject_uses(source, normalized.get('subject_uses', []), context=context)
         validated.append(normalized)
     if validated != value:
         raise ValueError("selected references are not in canonical prepared form")
@@ -1256,12 +1275,14 @@ def _validate_single_board(
     }
 
 
+@runtime_snapshot.operation
 def validate_prepared_reference_set(value: Any, *, model: str | None = None,
                                     package_root: Path | None = None) -> dict[str, Any]:
     """Validate source activity, target constraints and every delivered byte."""
     return _validate_prepared_reference_set(value, model=model, package_root=package_root)
 
 
+@runtime_snapshot.operation
 def validate_prepared_reference_content(value: Any, *, model: str | None = None,
                                         package_root: Path | None = None) -> dict[str, Any]:
     """Verify recorded bytes and relations without approving a new delivery."""
@@ -1277,10 +1298,10 @@ def _validate_prepared_reference_set(
     *,
     model: str | None = None,
     package_root: Path | None = None,
-    context: _ReferenceContext = _LIVE_REFERENCES,
+    context: _ReferenceContext | None = None,
 ) -> dict[str, Any]:
     """Validate the sole canonical reference-set artifact and every referenced byte."""
-
+    context = context or _ReferenceContext.live()
     if not isinstance(value, dict):
         raise ValueError("prepared reference input must be a JSON object")
     expected_fields = PREPARED_REFERENCE_SET_FIELDS
@@ -1494,6 +1515,7 @@ def _validate_prepared_reference_set(
     return normalized
 
 
+@runtime_snapshot.operation
 def finalize_prepared_reference_set(
     value: Mapping[str, Any],
     *,
@@ -1514,6 +1536,7 @@ def finalize_prepared_reference_set(
     )
 
 
+@runtime_snapshot.operation
 def resolve_prepared_reference_paths(value: Mapping[str, Any], *, package_root: Path,
                                     model: str | None = None) -> dict[str, Any]:
     """Bind portable carriers to their owning file before embedding the set.
@@ -1557,6 +1580,7 @@ def resolve_prepared_reference_paths(value: Mapping[str, Any], *, package_root: 
     return resolved(original)
 
 
+@runtime_snapshot.operation
 def build_prepared_reference_set(
     *,
     transport_mode: str,
@@ -1884,6 +1908,7 @@ def _apply_state_reference_scope(reference: dict[str, Any], selected: Mapping[st
                                      else copy.deepcopy(selected['subject_uses']))
 
 
+@runtime_snapshot.operation
 def resolve_studio_reference_choices(studio: Path, choices: Any) -> list[dict[str, Any]]:
     """Resolve authored Studio slots without replacing their current adoption evidence."""
     import execution_contract as execution
@@ -1899,6 +1924,7 @@ def resolve_studio_reference_choices(studio: Path, choices: Any) -> list[dict[st
     return selected
 
 
+@runtime_snapshot.operation
 def prepare_references(
     selections: Any,
     *,
@@ -1941,6 +1967,7 @@ def prepare_references(
     )
 
 
+@runtime_snapshot.operation
 def prepare_image_input_references(
     plan: Any,
     *,
@@ -2001,6 +2028,7 @@ def prepare_image_input_references(
         image_input_binding=binding, single_board=board)
 
 
+@runtime_snapshot.operation
 def prepare_reference_use_plan_rows(
     reference_use_plan: Any,
     *,
@@ -2068,6 +2096,7 @@ def prepare_reference_use_plan_rows(
     )
 
 
+@runtime_snapshot.operation
 def prepare_state_reference_selection(
     selection: Any,
     *,

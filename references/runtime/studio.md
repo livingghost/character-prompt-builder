@@ -211,6 +211,14 @@ python scripts/studio.py gallery --studio STUDIO
 
 A display failure does not roll back a committed image or decision. A warning and `work/activity/projections-pending.json` mark repair work; inspect saved results and run `sync`, never resubmit to fix a gallery. A broken historical image, request or run is visibly unavailable on its entry rather than hiding other images. Actual use of a selected source still requires its exact hashes and approval. `validate_studio.py` remains a whole-studio audit, distinct from a scoped production operation.
 
+One owner operation records its durable changes first and publishes the affected views at its outer completion boundary. Nested candidate registration, slot acceptance and sheet adoption therefore share one refresh; Production adoption publishes after its `adoption-result` is committed. Work notes, questions and task revisions update the activity timeline without rebuilding artwork or reference views. A deferred display failure remains attached to the successful operation receipt as a projection warning, and pending activity receipts remain repairable by `sync`. Each event emission creates independent dirty receipts, including a retry of an existing event. A publisher observes its receipts before reading the source records and acknowledges only that observed work after successful publication. Receipts that arrive during publication remain pending.
+
+For a read operation, `StudioRead` holds the parsed manifest, stored iteration rows, sheet state and the verified Production run values that its callers need. Reference checks, readiness and status receive that same read model explicitly. Reading destination syntax and reference indexes does not project unrelated historical runs. A continuity build shares the read model across its selected references and verification stages. A later public operation creates a new read model, so changed or withdrawn selections and damaged evidence are rechecked.
+
+Artwork publication begins by acquiring its publication boundary and reloading the read model. A model populated before that boundary cannot publish an older inventory or acknowledge newer receipts. Gallery and active-reference publication share this fresh model, and `status` uses the values built during its repair pass. The activity timeline has its own publication boundary. Both boundaries order publishers without holding the locks used to change canonical Studio records.
+
+Read-only reference checks do not acquire a Studio writer lock. Immutable activity/artwork publication uses exclusive filesystem publication and exact existing-content verification. Mutable canonical state is serialized by its owner: the manifest, one character's iteration/adoption/accepted-image updates, one sheet's selection compare-and-swap, and the task ledger's current pointer plus saved task. Generated-view publishers coordinate only their own output groups. Sheet evidence verification and view building occur outside the sheet selection lock. These scopes prevent lost updates without serializing unrelated readers or character mutations.
+
 The primary gallery in the Studio root is the auto-updated view. Its `gallery.assets/` directory contains the compact index, shared runtime and styles, and stable per-entry detail and search files. The generated ownership record identifies that directory as part of this view. A status or review change replaces the affected entry's generated files; it does not create successive unreachable page versions. Files whose content is unchanged keep their bytes and modification times, and an unchanged gallery keeps its original build timestamp. Source records are still checked to build the complete inventory. A changed inventory rewrites `gallery.json` and the compact index as needed.
 
 `gallery --out PATH` is an explicit additional snapshot with its own companion directory and links rebased to the Studio; it is not a second subscribed view. Updating the primary view leaves that snapshot's pages and data unchanged. For example, a synthetic Studio containing `subject/it-0001` and `subject/it-0002` displays two compact cards and two linked detail pages; changing the second entry's disposition updates its detail and the current inventory while the first detail is reused. Both entries and their original evidence remain available.
@@ -367,6 +375,13 @@ After the synthetic partial-review scenario of `examples/generation/build_exampl
 
 On a Production row, `studio.py reject --actor ACTUAL_DECISION_MAKER --reason REASON` records `not_selected` through the run's disposition.
 It follows the same rules as `production_workflow.py disposition` and writes no rejected flag of its own.
+This remains available after the run completes, once another iteration has
+replaced any current acceptance of that candidate. A never-accepted candidate
+needs no replacement. The gallery shows the recorded nonselection and status
+stops counting it as a waiting candidate. The original completion, work task,
+image and review remain recorded. The same image bytes in an independently
+imported iteration do not make a disposition or acceptance decision for either
+iteration.
 `studio.py accept` requires the candidate to be its run's current selection.
 Every hard criterion must have a supported pass or an explicit owner acceptance
 of its assessed nonpass; an unassessed hard criterion still needs review:

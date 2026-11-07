@@ -6,7 +6,9 @@ and credentials are execution readiness, not malformed input.
 """
 from __future__ import annotations
 import copy
+from collections.abc import Mapping
 from dataclasses import dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -17,11 +19,12 @@ from typing import Any
 
 import execution_contract as c
 import production_store as store
-from production_diagnostics import CompilationError, Diagnostic, ProductionError, from_exception
+from production_diagnostics import CompilationError, Diagnostic, ProductionError, compare_exact, from_exception
 from operation_context import current, stage
 from pack_manager import generate_uuid7
-from publication_artifacts import ArtifactSet
+from publication_artifacts import ArtifactSet, StagedArtifacts
 from cli_invocation import python_argv, shown
+from owned_json import freeze
 
 ROOT=Path(__file__).resolve().parents[1]
 GENERATION_FILES=('parameters','production_spec','plot','retrieval_record','creative_intent','negative',
@@ -62,8 +65,8 @@ def read_input(root: Path, path: str, *, pointer: str | None, phase: str = 'sour
 
 def validate_document(value: Any, schema_path: str, label: str) -> None:
     """Check a produced document against its published schema."""
-    from state_protocol import validate_against_schema
-    errors = validate_against_schema(value, c.load(ROOT / schema_path))
+    from state_protocol import read_schema, validate_against_schema
+    errors = validate_against_schema(value, read_schema(ROOT / schema_path))
     if errors:
         raise ValueError(label + ': ' + '; '.join(errors))
 
@@ -79,6 +82,7 @@ class Compilation:
     execution_plan: dict | None = None
     identity: str | None = None
     artifacts: ArtifactSet | None = None
+    runtime_read: Any = None
 
 
 def input_digest(prepared: dict, consumer: dict) -> str:
@@ -137,8 +141,8 @@ def inspect_task(root: Path, task_path: str) -> tuple[dict | None,list[dict],dic
     except ValueError as exc:
         return no_task(Diagnostic('INPUT_SCHEMA_INVALID','The task is not UTF-8 JSON.',phase='task-read',file=task_path,pointer='$',
                                   details={'cause':str(exc)}).as_dict())
-    from state_protocol import validate_against_schema
-    errors=validate_against_schema(task,c.load(ROOT/'schemas/authoring/production-task.schema.json'))
+    from state_protocol import read_schema, validate_against_schema
+    errors=validate_against_schema(task,read_schema(ROOT/'schemas/authoring/production-task.schema.json'))
     for message in errors:
         pointer=message.split(':',1)[0] if message.startswith('$') else '$'
         diagnostics.append(Diagnostic('INPUT_SCHEMA_INVALID',message,phase='task-schema',file=task_path,pointer=pointer).as_dict())
@@ -246,7 +250,8 @@ class InputChecks:
 
 
 def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[str, bytes],
-                         checks: InputChecks, *, runtime_ready: bool, directory: Path, artifacts: ArtifactSet) -> None:
+                         checks: InputChecks, *, runtime_ready: bool, directory: Path, artifacts: ArtifactSet,
+                         runtime_source=None,runtime_target=None,evidence=None) -> None:
     """Use existing domain validators before package assembly, without short-circuiting peers.
 
     A task schema error blocks only the checks that need the whole task. Every
@@ -275,7 +280,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         def decode_input(path=path, pointer=pointer):
             raw = captured[path]
             if pointer.startswith('$.generation.') and pointer.rsplit('.',1)[-1] in JSON_FILES:
-                return c.decode(raw)
+                return freeze(c.decode(raw))
             return raw
         # A source-read diagnostic already names unavailable bytes. Keep its state
         # without adding a duplicate error for every use of that input.
@@ -385,17 +390,14 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
     if not dispatcher: return
     import build_generation_payload as builder
     import render_contract_lib as render
-    from catalog_retrieval.runtime import load_pack_catalog
-    import service_profile, transport_contract
     def target(model_name, service):
-        model_id, record = builder.resolve_model_record(model_name)
-        offering = builder.select_offering(record, service)
-        if offering is None:
+        result=(builder.resolve_target(model_name,service,source=runtime_source) if runtime_target is None else
+                builder.resolve_execution_target(runtime_target,source=runtime_source))
+        if not result.matches(model_name) or result.offering is None or result.offering['service']!=service:
+            raise ValueError('the task target differs from its retained execution target; retarget explicitly')
+        if result.service is None:
             raise ProductionError('MODEL_PROFILE_MISSING','The declared target has no selected offering.',phase='runtime-resolution')
-        resource=load_pack_catalog().resources.get('service-profiles')
-        if resource is None: raise ProductionError('MODEL_PROFILE_MISSING','No service-profiles resource is selected.',phase='runtime-resolution')
-        profile=service_profile.load_service(offering['service'],resource.path)
-        return model_id,record,offering,profile,transport_contract.load(profile['transport'])
+        return result
     if selected is None:
         if task.get('route') != 'upscale' and upscale is None:
             return
@@ -404,16 +406,16 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         request=checks.check('upscale-document',lambda:c.decode(captured[delivery_path]),
                              requires=[prompt_key],file=delivery_path,pointer='$.delivery.path')
         if request is not None:
-            checks.check('upscale-source', lambda: production_binding.validate_upscale_input(root, request),
+            checks.check('upscale-source', lambda: production_binding.validate_upscale_input(root, request,input_source=runtime_source),
                          requires=['upscale-document'],file=delivery_path)
             resolved=checks.check('target-contract',lambda:target(request['model'],upscale['service']),
                                  requires=['runtime-resolution','upscale-document']+gate((upscale or {}).get('service')),
                                  file=delivery_path,pointer='$.model')
             if resolved is not None:
-                checks.check('upscale-model-controls',lambda:require_upscale_target(resolved[0],resolved[1],request),
+                checks.check('upscale-model-controls',lambda:require_upscale_target(resolved.model_id,resolved.model,request),
                              requires=['target-contract'],file=delivery_path)
                 def upscale_controls():
-                    _,model,offering,_,_=resolved
+                    model,offering=resolved.model,resolved.offering
                     scale=(offering.get('parameter_keys') or {}).get('scale')
                     if not scale:
                         raise ProductionError('MODEL_PROFILE_MISSING','The upscale offering declares no request key for the scale factor.',
@@ -426,99 +428,93 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                     render.dispatch_values(contract,seed=None,count=1)
                 checks.check('execution-controls',upscale_controls,requires=['target-contract'],file=delivery_path)
         return
+    from generation_inputs import GenerationInputs
     specpath=selected.get('production_spec')
-    from production_spec import require as require_spec
-    checks.check('specification',lambda:require_spec(doc('production_spec')),
-                 requires=[dependency('$.generation.production_spec')],file=specpath,
-                 guidance=specification_guidance(root, specpath))
-    from prompt_plot import validate_prompt_plot
-    def plot():
-        result=validate_prompt_plot(doc('plot'))
-        errors=result.get('errors',[])+result.get('approval_errors',[])
-        if errors or not result['approved']: raise ValueError('; '.join(errors) or 'plot approval is required')
-        return doc('plot')
-    checks.check('plot',plot,requires=[dependency('$.generation.plot')],file=selected.get('plot'))
-    from revision_contract import require_intent_revision
-    def creative():
-        value=doc('creative_intent')
-        if not isinstance(value,dict):raise ValueError('creative intent must be an object')
-        return require_intent_revision(value)
-    checks.check('creative-intent',creative,requires=[dependency('$.generation.creative_intent')],file=selected.get('creative_intent'))
-    resolved=checks.check('target-contract',lambda:target(doc('production_spec')['target_model'],selected['service']),
-        requires=['specification','runtime-resolution']+gate(selected.get('service')),file=specpath,pointer='$.target_model')
-    if selected.get('references'):
-        def preflight():
-            # Check the project environment before rasterizing references or composing a board.
-            from reference_runtime import preflight_dependencies, DependencyPreflightError
-            prepared=doc('references')
-            plan=prepared.get('reference_use_plan') if isinstance(prepared.get('reference_use_plan'),dict) else {}
-            try:
-                return preflight_dependencies({'transport_mode':prepared.get('transport_mode'),
-                    'reference_items':plan.get('reference_items') or prepared.get('selected_references') or []})
-            except DependencyPreflightError as exc:
-                raise ProductionError('DEPENDENCY_UNAVAILABLE',str(exc),phase='dependency-preflight',file=selected['references'],
-                    missing=exc.report.get('missing_packages') or [],incompatible=exc.report.get('incompatible_packages') or [],
-                    required_action='Complete the project environment with '+exc.report['check_command']+' --install, then check again.') from exc
-        checks.check('dependency-preflight',preflight,requires=[dependency('$.generation.references')],file=selected['references'])
-        def references():
-            prepared, _ = builder.materialize_cli_reference_bundle(doc('references'),
-                model=doc('production_spec')['target_model'], source_root=c.local(root,selected['references']).parent,
-                staging_root=directory, companion_name='package.' + c.content_id(doc('references'))[:24] + '.references',
-                artifacts=artifacts)
-            return prepared
-        checks.check('reference-preparation',references,
-                     requires=['target-contract','dependency-preflight',dependency('$.generation.references')],file=selected['references'])
-    checks.check('render-intent',lambda:render.validate_intent(doc('production_spec')['render_intent'],prompt=text('prompt')),
-        requires=['specification','delivery-content'],file=specpath,pointer='$.render_intent')
-    if resolved is None:
-        checks.check('execution-controls',lambda:None,requires=['target-contract'],file=selected.get('parameters'))
-    else:
-        _,model,offering,_,_=resolved
-        profile=checks.check('execution-profile',lambda:render.selected_profile(model,offering),requires=['target-contract'],
-                             file=specpath,pointer='$.target_model',code='MODEL_PROFILE_MISSING')
-        def controls():
-            mode=doc('production_spec')['render_intent']['execution_mode']
-            effective,decisions=render.resolve_parameters(model,profile,mode,doc('parameters'))
-            return effective,decisions
-        checks.check('execution-controls',controls,requires=['execution-profile','specification',dependency('$.generation.parameters')],
-                     file=selected.get('parameters'),pointer='$.generation.parameters')
-        def quantity():
-            contract={'model_card':{'execution_profile':profile},'intent':doc('production_spec')['render_intent']}
-            return render.dispatch_values(contract,seed=selected['seed'],count=selected['count'])
-        checks.check('execution-quantity',quantity,requires=['execution-profile','specification']+whole,file=task_path,pointer='$.generation.count')
-    if selected.get('request_validation'):
-        from request_validation import require
-        import runtime_evidence
-        checks.check('request-validation-evidence',lambda:require(doc('request_validation'),runtime_evidence.reader(root)),
-            requires=[dependency('$.generation.request_validation'),'runtime-resolution'],file=selected['request_validation'])
-    if selected.get('negative_provenance'):
-        checks.check('negative-provenance',lambda:builder.normalize_negative_provenance(doc('negative_provenance')),
-                     requires=[dependency('$.generation.negative_provenance')],file=selected['negative_provenance'])
-    def channels():
-        from prompt_weighting import selected as selected_weighting
-        effective,_=checks.values['execution-controls']
-        builder.prepare_text_transports(
-            model_id=resolved[0],model_record=resolved[1],prompt=text('prompt'),negative_prompt=text('negative'),
-            integrated_prompt=text('integrated_prompt'),native_negative=text('native_negative'),
-            negative_transport=selected.get('negative_transport','auto'),
-            critical_avoidance_integrated=selected.get('critical_avoidance_integrated',False),
-            weighting_syntax=selected_weighting(effective, profile['modes'][doc('production_spec')['render_intent']['execution_mode']]['prompt_syntax']))
-    requirements=['delivery-content','execution-controls']+[dependency('$.generation.'+f) for f in ['negative','integrated_prompt','native_negative'] if selected.get(f)]
-    checks.check('negative-transport',channels,requires=requirements,file=selected.get('negative') or task_path)
-    from model_prompt_input import resolve_prompt_input
-    tag_input = resolved is not None and resolve_prompt_input(resolved[1])['mode'] == 'tag-based'
-    def retrieval():
-        from prompt_retrieval import require_generation_retrieval
-        from prompt_weighting import selected as selected_weighting
-        syntax = selected_weighting(checks.values['execution-controls'][0],
-            profile['modes'][doc('production_spec')['render_intent']['execution_mode']]['prompt_syntax']) if tag_input else 'literal'
-        return require_generation_retrieval(doc('retrieval_record'), prompt=text('prompt'), plot=doc('plot'),
-            model_record=resolved[1], negative=text('negative') if tag_input else '', syntax=syntax)
-    checks.check('retrieval', retrieval,
-        requires=[dependency('$.generation.retrieval_record'), 'plot', 'delivery-content', 'target-contract',
-                  *(['execution-controls'] if tag_input else []),
-                  *([dependency('$.generation.negative')] if tag_input and selected.get('negative') else [])],
-        file=selected.get('retrieval_record'))
+    documents={name:checks.values.get(dependency('$.generation.'+name)) for name in JSON_FILES}
+    def input_text(field):
+        path=delivery_path if field=='prompt' else selected.get(field)
+        raw=captured.get(path,b'') if path else b''
+        try:return raw.decode('utf-8')
+        except UnicodeDecodeError:return raw
+    values={**documents,'model':(documents.get('production_spec') or {}).get('target_model') if isinstance(documents.get('production_spec'),dict) else None,
+        'prompt':input_text('prompt'),'negative_prompt':input_text('negative'),
+        'integrated_prompt':input_text('integrated_prompt'),'native_negative':input_text('native_negative'),
+        'brief':selected.get('brief',''),'service':selected.get('service'),
+        'negative_transport':selected.get('negative_transport','auto'),
+        'critical_avoidance_integrated':selected.get('critical_avoidance_integrated',False),
+        'prepared_reference_set':documents.get('references'),'route_reading':c.decode(captured[task['route_reading']]) if task.get('route_reading') in captured else None,
+        'seed':selected.get('seed'),'count':selected.get('count')}
+    def selected_target():
+        if runtime_target is None:
+            result=builder.resolve_target(values['model'],selected['service'],source=runtime_source)
+        else:
+            result=builder.resolve_execution_target(runtime_target,source=runtime_source)
+            if not result.matches(values['model']) or result.offering is None or result.offering['service']!=selected['service']:
+                raise ValueError('the task target differs from its retained execution target; retarget explicitly')
+        if result.offering is None or result.service is None:
+            raise ProductionError('MODEL_PROFILE_MISSING','The declared target has no selected offering or service.',phase='runtime-resolution')
+        return result
+    def preflight():
+        from reference_runtime import preflight_dependencies, DependencyPreflightError
+        prepared=documents['references']
+        plan=prepared.get('reference_use_plan') if isinstance(prepared.get('reference_use_plan'),dict) else {}
+        try:return preflight_dependencies({'transport_mode':prepared.get('transport_mode'),
+            'reference_items':plan.get('reference_items') or prepared.get('selected_references') or []})
+        except DependencyPreflightError as exc:
+            raise ProductionError('DEPENDENCY_UNAVAILABLE',str(exc),phase='dependency-preflight',file=selected['references'],
+                missing=exc.report.get('missing_packages') or [],incompatible=exc.report.get('incompatible_packages') or [],
+                required_action='Complete the project environment with '+exc.report['check_command']+' --install, then check again.') from exc
+    def references():
+        prepared,_=builder.materialize_cli_reference_bundle(documents['references'],model=values['model'],
+            source_root=c.local(root,selected['references']).parent,staging_root=directory,
+            companion_name='package.'+c.content_id(documents['references'])[:24]+'.references',artifacts=artifacts)
+        return prepared
+    def validation(selected_target):
+        if selected.get('references') is not None:
+            raise ProductionError('MODEL_PROFILE_MISSING','Reference delivery requires an explicitly authored request validation policy.',
+                                  phase='request-compilation',pointer='$.generation.request_validation')
+        from request_validation import acquire_offering
+        return acquire_offering(selected_target,evidence),freeze({})
+    required={
+        'specification':[dependency('$.generation.production_spec')],
+        'plot':[dependency('$.generation.plot')],
+        'creative-intent':[dependency('$.generation.creative_intent')],
+        'target-contract':['specification','runtime-resolution']+gate(selected.get('service')),
+        'dependency-preflight':[dependency('$.generation.references')],
+        'reference-preparation':['target-contract','dependency-preflight',dependency('$.generation.references')],
+        'render-intent':['specification','delivery-content'],
+        'execution-profile':['target-contract'],
+        'execution-controls':['execution-profile','specification',dependency('$.generation.parameters')],
+        'execution-quantity':['execution-profile','specification']+whole,
+        'request-validation-evidence':([dependency('$.generation.request_validation'),'runtime-resolution']
+            if selected.get('request_validation') else ['target-contract']),
+        'negative-provenance':[dependency('$.generation.negative_provenance')] if selected.get('negative_provenance') else [],
+        'negative-transport':['delivery-content','execution-controls']+[dependency('$.generation.'+field)
+            for field in ('negative','integrated_prompt','native_negative') if selected.get(field)],
+        'retrieval':[dependency('$.generation.retrieval_record'),'plot','delivery-content','target-contract']}
+    field_for={'specification':'production_spec','plot':'plot','creative-intent':'creative_intent',
+        'target-contract':'production_spec','dependency-preflight':'references','reference-preparation':'references',
+        'render-intent':'production_spec','execution-profile':'production_spec','execution-controls':'parameters',
+        'request-validation-evidence':'request_validation','negative-provenance':'negative_provenance',
+        'negative-transport':'negative','retrieval':'retrieval_record'}
+    def report(name,action):
+        field=field_for.get(name)
+        options={'requires':required[name],'file':selected.get(field) if field else task_path}
+        if name=='retrieval' and 'target-contract' in checks.values:
+            from model_prompt_input import resolve_prompt_input
+            if resolve_prompt_input(checks.values['target-contract'].model)['mode']=='tag-based':
+                options['requires']=[*options['requires'],'execution-controls',
+                    *([dependency('$.generation.negative')] if selected.get('negative') else [])]
+        if name=='specification':options['guidance']=specification_guidance(root,specpath)
+        if name=='execution-profile':options['code']='MODEL_PROFILE_MISSING'
+        if name=='execution-quantity':options['pointer']='$.generation.count'
+        elif name in {'target-contract','execution-profile'}:options['pointer']='$.target_model'
+        elif name=='render-intent':options['pointer']='$.render_intent'
+        elif name=='execution-controls':options['pointer']='$.generation.parameters'
+        return checks.check(name,action,**options)
+    resolved=GenerationInputs.acquire(values,resolve_target=selected_target,prepare_references=references,
+        preflight_references=preflight,evidence=evidence,check=report,validation_factory=validation)
+    if resolved is not None:checks.values['generation-inputs']=resolved
 
 
 def validate_recording(root: Path, task: dict, specification: dict, visual: dict | None = None) -> None:
@@ -538,113 +534,81 @@ def validate_recording(root: Path, task: dict, specification: dict, visual: dict
                                   phase='recording-validation',pointer='$.recording.subject_map',required_action='Map the single declared subject to the selected Studio character.')
 
 
+def _runtime_binding(root:Path,prepared:dict,*,runtime_inputs,directory:Path,persist:bool,
+                     target,package:dict,evidence_bytes=None):
+    import runtime_snapshot
+    descriptor,read=runtime_snapshot.capture_compilation(runtime_inputs.runtime,
+        directory/'runtime' if persist else None,
+        target={'model_id':target.model_id,'offering':target.offering},package=package,
+        reading_resources={name:row for name,row in prepared['reading_issuance'].get('resources',{}).items()
+                           if row.get('status')=='present'},evidence_bytes=evidence_bytes)
+    warnings=runtime_snapshot.require_retained(root,runtime_inputs,descriptor)
+    prepared['runtime_snapshot']=descriptor
+    return read,warnings
+
+
 def _generation(root: Path, task: dict, prepared: dict, consumer: dict, directory: Path, identity: str, blobs: dict, *,
-                inspected: InputChecks, captured: dict[str, bytes], artifacts: ArtifactSet) -> tuple[dict,dict,dict]:
+                inspected: InputChecks, captured: dict[str, bytes], artifacts: ArtifactSet,
+                runtime_inputs,evidence,persist:bool) -> tuple:
     import build_generation_payload as builder
     import request_renderer
-    import runtime_evidence
-    import service_profile
-    import transport_contract
-    from verify_generation_payload import verify
-    from catalog_retrieval.runtime import load_pack_catalog
     from route_reading import copy_issuance, ledger_candidates
-    import production_workflow as workflow
     selected=task['generation']
-    def raw(name: str) -> bytes:
-        # Every declared document was read once, when the task was inspected.
-        return captured[selected[name]] if selected.get(name) is not None else b''
-    def document(name: str) -> dict | None:
-        return c.decode(raw(name)) if selected.get(name) is not None else None
-    specification=document('production_spec')
-    model=specification['target_model']
-    model_id,model_record=builder.resolve_model_record(model)
-    offering=builder.select_offering(model_record,selected['service'])
-    if offering is None:
-        raise ProductionError('MODEL_PROFILE_MISSING','The declared target has no selected offering.',phase='runtime-resolution')
-    resource=load_pack_catalog().resources.get('service-profiles')
-    if resource is None:raise ProductionError('MODEL_PROFILE_MISSING','The runtime has no service-profiles resource.',phase='runtime-resolution')
-    service=service_profile.load_service(offering['service'],resource.path)
-    transport=transport_contract.load(service['transport'])
-    references=inspected.values['reference-preparation'] if selected.get('references') is not None else None
-    reference_set=references if references is not None else builder.empty_stateless_reference_set()
+    inputs=inspected.values['generation-inputs']
+    target=inputs.target
+    specification=inputs.values['production_spec']
+    reference_set=inputs.references
     if reference_set.get('image_input_binding') is not None and not consumer.get('image_input'):
         raise ValueError('scoped image references require the production task image_input plan')
     if consumer.get('image_input'):
         from image_input import require_prepared
-        require_prepared(consumer['image_input'], reference_set, model_id=model_id,
-                         target={'service': offering['service'], 'model_identifier': offering['model_identifier'],
-                                 'operation': transport.OPERATIONS['generation']})
+        require_prepared(consumer['image_input'],reference_set,model_id=target.model_id,
+            target={'service':target.offering['service'],'model_identifier':target.offering['model_identifier'],
+                    'operation':target.transport.OPERATIONS['generation']})
     if selected.get('visual_continuity'):
-        visual=document('visual_continuity')
+        visual=inputs.values['visual_continuity']
     else:
         from visual_continuity import from_decisions
         visual=from_decisions(selected['continuity'],production_spec=specification,prepared=reference_set,root=root,
             characters=task['recording']['subject_map'],sheet_panel=task['recording']['sheet_panel'],
             basis={'path':prepared['task_path'],'locator':'$.generation.continuity and $.recording'})
-    with stage('recording-validation'):
-        validate_recording(root,task,specification)
-        from visual_continuity import require
-        require(visual,production_spec=specification,prepared=reference_set,root=root,
-                recording_character=task['recording']['character'],recording_slot=task['recording']['slot'])
-    if selected.get('request_validation'):
-        validation=document('request_validation')
-    else:
-        if references is not None:
-            raise ProductionError('MODEL_PROFILE_MISSING','Reference delivery requires an explicitly authored request validation policy.',
-                                  phase='request-compilation',pointer='$.generation.request_validation')
-        from request_validation import from_offering
-        validation=from_offering(model_id,model_record,offering,service,transport,runtime_evidence.reader(root))
     issued=copy_issuance(prepared['route_reading'],directory/'reads.jsonl',ledgers=ledger_candidates(studio=root))
     artifacts.add('reads.jsonl',c.encoded(issued))
-    binding={'run':identity,'input_sha256':prepared['input_sha256'],'consumer':consumer}
     with stage('package-compilation'):
-        package=builder.build_payload(model=model,prompt=consumer['instructions'],negative_prompt=raw('negative').decode('utf-8'),
-            brief=selected.get('brief',''),creative_intent=document('creative_intent'),parameters=document('parameters'),
-            negative_transport=selected.get('negative_transport','auto'),
-            critical_avoidance_integrated=selected.get('critical_avoidance_integrated',False),
-            integrated_prompt=raw('integrated_prompt').decode('utf-8'),native_negative=raw('native_negative').decode('utf-8'),
-            negative_provenance=document('negative_provenance'),production_spec=specification,
-            state_lineage=document('state_lineage'),state_snapshot=document('state_snapshot'),state_graphs=document('state_graphs'),
-            prepared_reference_set=references,prepared_reference_root=directory,
-            plot=document('plot'),retrieval_record=document('retrieval_record'),visual_continuity=visual,visual_root=root,
-            request_validation=validation,input_root=root,route_reading=prepared['route_reading'],reading_ledgers=[directory/'reads.jsonl'],
-            service=selected['service'],production_root=root,production_context=binding)
-        # Record every concrete source that the full validators consumed. The
-        # task's visual basis is already a captured task source; authority is not
-        # a live creative dependency. Named pack content belongs to the runtime.
-        from input_evidence import InputEvidence
+        content=builder.acquire_generation(inputs,prepared_reference_root=directory,visual_root=root,
+            production_root=root,evidence=evidence,visual_continuity=visual,recording=task['recording'])
+        from sheet_artifacts import dependency
         known={(d['space'],d['path']):d for d in prepared['dependencies']}
-        for path,item in package['input_snapshots'].items():
-            data=InputEvidence._decode(item)
+        for path,raw in content.evidence.bytes.items():
             if not path.startswith('@') and path!=prepared['task_path']:
                 space=dependency_space(path)
-                from sheet_artifacts import dependency
-                known[(space,path)]=dependency(space,path,data)
-                blobs[item['sha256']]=data
+                known[(space,path)]=dependency(space,path,raw)
+                blobs[c.digest(raw)]=raw
         prepared['dependencies']=sorted(known.values(),key=lambda d:(d['space'],d['path']))
-        studio_sources = [copy.deepcopy(row['source']) for row in package['prepared_reference_set']['selected_references']
-                          if row['source']['kind'] == 'studio-artifact']
-        if studio_sources:
-            prepared['studio_reference_sources'] = studio_sources
-        prepared['input_sha256']=input_digest(prepared,consumer)
-        from production_binding import bind_consumer
-        package['production_binding']=bind_consumer({'run':identity,'input_sha256':prepared['input_sha256'],'consumer':consumer},consumer['instructions'])
-        digest=builder.generation_input_sha256(package)
-        package['generation_input_sha256']=digest;package['generation_contract']['generation_input_sha256']=digest
-        verified=verify(package,package_root=directory,studio=root,reading_ledgers=[directory/'reads.jsonl'])
+        studio_sources=[copy.deepcopy(row['source']) for row in reference_set['selected_references']
+                        if row['source']['kind']=='studio-artifact']
+        if studio_sources:prepared['studio_reference_sources']=studio_sources
     with stage('request-compilation'):
-        from dispatch import check_request
+        media=None
         if selected.get('mask_binding'):
             import scene_mask_planner
-            scene_mask_planner.stage_media(verified, inspected.values['scene-mask-binding'], offering, directory, artifacts=artifacts)
-        check_request(verified,model_record,offering,model_id,transport,selected['seed'],selected['count'])
-        rendered=request_renderer.generation(package,verified,model_record,offering,service,transport,
-            seed=selected['seed'],count=selected['count'],upload_sources=task.get('upload_sources', []),
-            upload_source_read=lambda path:captured[path])
-        request_renderer.check_final(validation,runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots'])),rendered)
-    return _execution_plan(root,task,prepared,package,rendered,directory,identity,model_id,model_record,offering,service,transport,
-                           seed=selected['seed'],count=selected['count'],
-                           fields=mutable_fields(package,rendered),artifacts=artifacts)
+            staged=copy.deepcopy(content.forwarding)
+            scene_mask_planner.stage_media(staged,inspected.values['scene-mask-binding'],target.offering,directory,artifacts=artifacts)
+            media=staged['host_forwarding']['technical_media']
+        rendered=request_renderer.generation_from_inputs(content,consumer,seed=selected['seed'],count=selected['count'],
+            resource_reader=runtime_inputs.runtime.read_resource,technical_media=media,
+            upload_sources=task.get('upload_sources',[]),upload_source_read=lambda path:captured[path])
+        prompt_check=_prompt_check(content.fields,rendered,target.model)
+    runtime_read,warnings=_runtime_binding(root,prepared,runtime_inputs=runtime_inputs,directory=directory,persist=persist,
+        target=target,package=content.runtime_inputs,evidence_bytes=content.evidence.bytes)
+    prepared['input_sha256']=input_digest(prepared,consumer)
+    from production_binding import bind_consumer
+    package=content.package(bind_consumer({'run':identity,'input_sha256':prepared['input_sha256'],'consumer':consumer},
+                                         consumer['instructions']))
+    package,rendered,plan=_execution_plan(root,task,prepared,package,rendered,directory,identity,target,
+        seed=selected['seed'],count=selected['count'],fields=mutable_fields(package,rendered),artifacts=artifacts,
+        prompt_check=prompt_check)
+    return package,rendered,plan,runtime_read,warnings
 
 
 def _external_effects(rendered: dict, count: int, transport) -> list[dict]:
@@ -696,12 +660,7 @@ def _external_reference_evidence(prepared: dict, consumer: dict, directory: Path
     prepared['input_sha256'] = input_digest(prepared, consumer)
 
 
-def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict,directory:Path,identity:str,
-                    model_id:str,model_record:dict,offering:dict,service:dict,transport,*,seed:int|None,count:int,
-                    fields:dict,artifacts:ArtifactSet)->tuple:
-    import production_workflow as workflow
-    from model_rendition import review_requirements
-    effects = _external_effects(rendered, count, transport)
+def _prompt_check(package:dict,rendered:dict,model_record:dict)->dict:
     from check_tag_prompt import require_request
     from prompt_weighting import from_contract
     prompt_check = require_request(rendered, model_record,
@@ -711,6 +670,15 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
     # This is the verified package's audit, not newly inferred guidance or text.
     # In particular a compound expression may preserve recommendations as advice.
     prompt_check['recommendations'] = package.get('generation_payload', {}).get('prompt_recommendations', {})
+    return prompt_check
+
+
+def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict,directory:Path,identity:str,
+                    target,*,seed:int|None,count:int,fields:dict,artifacts:ArtifactSet,prompt_check:dict)->tuple:
+    import production_workflow as workflow
+    from model_rendition import review_requirements
+    model_id,model_record,offering,service,transport=(target.model_id,target.model,target.offering,target.service,target.transport)
+    effects = _external_effects(rendered, count, transport)
     intent=workflow.submission_intent(package,rendered=rendered,seed=seed,count=count,offering=offering,service=service)
     direction={'operation':'direction','targets':workflow.plan.direction_targets(task),
                'payload':{'consumer_sha256':prepared['consumer_sha256'],'recipient':service['transport'],'method':'dispatcher'}}
@@ -724,7 +692,7 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
           'readiness':execution_readiness(prepared,operations=[direction,intent])}
     validate_document(plan,PLAN_SCHEMA,'execution plan')
     artifacts.write('execution-target.json',c.encoded({'model':model_record,'model_id':model_id,'offering':offering,'service':service,
-                                                      'transport_sha256':c.sha256_file(Path(transport.__file__))}))
+                                                      'transport_sha256':target.transport_sha256}))
     return package,rendered,plan
 
 
@@ -741,27 +709,17 @@ def require_upscale_target(model_id: str, model: dict, package: dict) -> None:
 
 
 def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,identity:str,blobs:dict,*,
-             captured:dict[str,bytes],artifacts:ArtifactSet)->tuple:
+             captured:dict[str,bytes],artifacts:ArtifactSet,inspected:InputChecks,runtime_inputs,persist:bool)->tuple:
     import dispatch, request_renderer, runtime_evidence
-    from production_binding import validate_upscale_input
     from input_evidence import InputEvidence
     from route_reading import copy_issuance,ledger_candidates
-    package=c.decode(consumer['instructions'].encode('utf-8'))
-    validate_upscale_input(root,package)
+    package=copy.deepcopy(inspected.values['upscale-document'])
     import sheet_artifacts
     source_artifact = sheet_artifacts.upscale_source(root, task, package)
     if source_artifact is not None:
         artifacts.write('sheet-derivation.json', c.encoded(source_artifact))
-    model_id,model=dispatch.resolve_model_record(package['model'])
-    require_upscale_target(model_id,model,package)
-    offering=dispatch.select_offering(model,task['upscale']['service'])
-    if offering is None:raise ProductionError('MODEL_PROFILE_MISSING','The upscaler has no selected service offering.',phase='runtime-resolution')
-    from catalog_retrieval.runtime import load_pack_catalog
-    import service_profile,transport_contract
-    resource=load_pack_catalog().resources.get('service-profiles')
-    if resource is None:raise ProductionError('MODEL_PROFILE_MISSING','The runtime has no service-profiles resource.',phase='runtime-resolution')
-    service=service_profile.load_service(offering['service'],resource.path)
-    transport=transport_contract.load(service['transport'])
+    target=inspected.values['target-contract']
+    model_id,model,offering,service,transport=(target.model_id,target.model,target.offering,target.service,target.transport)
     dispatch.require_guidance_key(offering,package['guidance_prompt'])
     settings=dispatch.mapped_settings(model,offering,package['settings'])
     path=package['source']['path']
@@ -785,24 +743,34 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
             dependencies[(space,name)]=dependency(space,name,data)
             blobs[item['sha256']]=data
     prepared['dependencies']=sorted(dependencies.values(),key=lambda item:(item['space'],item['path']))
-    prepared['input_sha256']=input_digest(prepared,consumer)
     with stage('recording-validation'):validate_recording(root,task,{})
     issued=copy_issuance(prepared['route_reading'],directory/'reads.jsonl',ledgers=ledger_candidates(studio=root))
     artifacts.add('reads.jsonl',c.encoded(issued))
     with stage('request-compilation'):
         rendered=request_renderer.upscale(package,model,offering,service,transport,carrier,settings,
-            root=root,upload_sources=task.get('upload_sources', []),upload_source_read=lambda path:captured[path])
-        dispatch.check_upscale(rendered,offering,model_id)
-        request_renderer.check_final(package['request_validation'],runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots'])),rendered)
+            root=root,upload_sources=task.get('upload_sources', []),upload_source_read=lambda path:captured[path],
+            input_source=runtime_inputs.runtime)
+        from model_contract import validate_request_schema
+        import request_contract
+        instance=copy.deepcopy(rendered['request'])
+        for path in request_renderer.envelope_fields(rendered):request_contract.remove(instance,path)
+        validate_request_schema(offering,instance,target.parameter_schema)
+        request_renderer.check_final(package['request_validation'],runtime_evidence.reader(root,
+            snapshots=copy.deepcopy(package['input_snapshots']),source=runtime_inputs.runtime),rendered)
+        prompt_check=_prompt_check(package,rendered,model)
+    runtime_read,warnings=_runtime_binding(root,prepared,runtime_inputs=runtime_inputs,directory=directory,persist=persist,
+        target=target,package=package)
+    prepared['input_sha256']=input_digest(prepared,consumer)
     task_schema=c.load(ROOT/'schemas/authoring/production-task.schema.json')
-    return _execution_plan(root,task,prepared,package,rendered,directory,identity,model_id,model,offering,service,transport,
-                           seed=None,count=1,artifacts=artifacts,fields={
+    package,rendered,plan=_execution_plan(root,task,prepared,package,rendered,directory,identity,target,
+                           seed=None,count=1,artifacts=artifacts,prompt_check=prompt_check,fields={
             'upscale-input':_field('An explicitly authored upscale input declaration; the target model stays fixed.',PATH_VALUE,
                 required=True,value_form='studio-file',document_type='upscale-request',
                 checks=['upscale-document','upscale-source','target-contract','upscale-model-controls','execution-controls',
                         'request-compilation','recording-validation']),
             'recording':_field('The complete output recording contract.',task_schema['properties']['recording'],
                 required=True,checks=['recording-validation'])})
+    return package,rendered,plan,runtime_read,warnings
 
 
 def execution_readiness(prepared: dict, *, operations: list[dict]) -> dict:
@@ -908,7 +876,7 @@ def _staging(root: Path, persist: bool) -> Path:
         directory=Path(tempfile.mkdtemp(prefix='cpb-check-')).resolve()
     operation=current()
     owner={'operation_id':operation.id if operation else str(__import__('uuid').uuid4()),'pid':os.getpid(),'created_at':c.now(),'phase':'compiling'}
-    c.atomic(directory/'owner.json',c.encoded(owner))
+    c.atomic(directory/'owner.json',c.encoded(owner),durable=persist)
     return directory
 
 
@@ -917,7 +885,7 @@ STAGES=['source-validation','package-compilation','request-compilation','executi
 
 
 def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: str | None=None,
-                 runtime_snapshot: dict | None=None, derived: dict[str, bytes] | None=None) -> Compilation:
+                 runtime_inputs=None, derived: dict[str, bytes] | None=None) -> Compilation:
     """Check and compile one task in one context, reading each declared input once.
 
     `derived` holds the inputs a derivation writes for this run, by file name.
@@ -934,12 +902,15 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
     active_phase='input-validation'
     directory=None
     artifacts=None
+    runtime_read=None
+    runtime_source=None
+    evidence=None
     try:
         import production_workflow as workflow
         with ExitStack() as context:
             if derived is not None:
                 directory=_staging(root,persist)
-                artifacts=ArtifactSet(directory)
+                artifacts=StagedArtifacts(directory)
                 for name,raw in derived.items():
                     artifacts.write('inputs/'+name,raw)
                 context.enter_context(c.staged_inputs(root,run_inputs(identity),directory/'inputs'))
@@ -953,53 +924,45 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
             checks.record('task-schema','failed' if any(d['phase']=='task-schema' for d in found) else 'passed')
             if directory is None:
                 directory=_staging(root,persist)
-                artifacts=ArtifactSet(directory)
+                artifacts=StagedArtifacts(directory)
             active_phase='runtime-resolution'
             runtime_ready=True
             if task.get('execution')=='dispatcher':
                 try:
                     with stage('runtime-resolution'):
-                        if runtime_snapshot is not None:
-                            fixed_runtime.require_current(root,runtime_snapshot)
-                            runtime_directory=fixed_runtime.path(root,runtime_snapshot)
-                        else:
-                            from catalog_retrieval import runtime
-                            from pack_manager import default_settings
-                            settings=runtime._PACK_SETTINGS or default_settings()
-                            if not settings.state_file.is_file():
-                                raise ProductionError('PACK_RUNTIME_REQUIRED','Pack state has not been initialized.',phase='runtime-resolution',
-                                    required_action='Run pack_cli.py ready with the selected runtime; check never changes pack selection.')
-                            catalog=runtime.load_pack_catalog()
-                            if not catalog.active_pack_count:
-                                raise ProductionError('PACK_NOT_ENABLED','No active pack satisfies the declared runtime.',phase='runtime-resolution')
-                            runtime_directory=directory/'runtime'
-                            runtime_snapshot=fixed_runtime.capture(catalog,settings,runtime_directory)
-                        # This run binds the parts it uses when compilation completes.
-                        runtime_snapshot=fixed_runtime.descriptor(runtime_snapshot)
-                        context.enter_context(fixed_runtime.using(runtime_directory,runtime_snapshot,binding=directory))
+                        if runtime_inputs is None:runtime_inputs=fixed_runtime.compilation_inputs(root)
+                        if not isinstance(runtime_inputs,fixed_runtime.CompileInputs):
+                            raise TypeError('compile a task from acquired runtime inputs')
+                        runtime_source=runtime_inputs.runtime
+                        context.enter_context(runtime_source.using())
+                        import runtime_evidence
+                        evidence=runtime_evidence.acquisition(root,source=runtime_source)
                 except (ValueError,OSError,KeyError,TypeError) as exc:
                     runtime_ready=False
                     diagnostics.append(from_exception(exc,phase='runtime-resolution',file=task_path))
             active_phase='input-checks'
             inspect_dependencies(root,task,task_path,captured,checks,runtime_ready=runtime_ready,directory=directory,
-                                 artifacts=artifacts)
+                                 artifacts=artifacts,runtime_source=runtime_source,
+                                 runtime_target=runtime_inputs.target if runtime_inputs is not None else None,evidence=evidence)
             if any(d.get('severity','error')=='error' for d in diagnostics):
                 raise CompilationError(report)
             active_phase='source-validation'
             with stage('source-validation'):
                 prepared,consumer,_,blobs=workflow.snapshot(root,task_path,captured=captured,checked=checks.values)
             checks.record('source-validation','passed')
-            prepared['runtime_snapshot']=runtime_snapshot
+            prepared['runtime_snapshot']=None
             prepared['input_sha256']=input_digest(prepared,consumer)
             package=rendered=None
             active_phase='package-compilation'
             if task['execution']=='dispatcher':
                 if task['route']=='upscale':
-                    package,rendered,execution_plan=_upscale(root,task,prepared,consumer,directory,identity,blobs,
-                                                           captured=captured,artifacts=artifacts)
+                    package,rendered,execution_plan,runtime_read,warnings=_upscale(root,task,prepared,consumer,directory,identity,blobs,
+                        captured=captured,artifacts=artifacts,inspected=checks,runtime_inputs=runtime_inputs,persist=persist)
                 else:
-                    package,rendered,execution_plan=_generation(root,task,prepared,consumer,directory,identity,blobs,
-                                                                inspected=checks,captured=captured,artifacts=artifacts)
+                    package,rendered,execution_plan,runtime_read,warnings=_generation(root,task,prepared,consumer,directory,identity,blobs,
+                        inspected=checks,captured=captured,artifacts=artifacts,runtime_inputs=runtime_inputs,
+                        evidence=evidence,persist=persist)
+                if warnings:report['runtime_warnings']=warnings
             else:
                 if task['execution'] == 'external':
                     _external_reference_evidence(prepared, consumer, directory, blobs, artifacts, run=identity)
@@ -1062,14 +1025,23 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                 checks.record(name,'passed' if package is not None or name=='execution-plan' else 'not-applicable')
             active_phase='publication-verification'
             artifacts.write('delivery.txt',consumer['instructions'].encode('utf-8'))
-            for raw in blobs.values():
-                digest=c.object_store(directory,raw)
-                artifacts.add('objects/'+digest,raw)
+            for digest,raw in blobs.items():
+                written=artifacts.write('objects/'+digest,raw)
+                if written['sha256']!=digest:
+                    raise ValueError('captured object bytes differ from their owned digest')
             prepared['run']=identity
             report.update(ok=True,publishable=True,readiness=execution_plan['readiness'],
                           request_preview=rendered['request'] if rendered else execution_plan.get('request'),execution_plan=execution_plan)
-            compiled=Compilation(report,directory,prepared,consumer,package,rendered,execution_plan,identity,artifacts)
-            write_compiled(compiled,media_root=directory)
+            compiled=Compilation(report,directory,prepared,consumer,package,rendered,execution_plan,identity,artifacts,
+                                 runtime_read)
+            # Checks consume the compiled values directly. Publication is the
+            # only writer of the final JSON documents and their carrier paths.
+            relocate_compiled_media(compiled,media_root=directory)
+            if not persist:
+                # A check exercises the same JSON encoding constraints without
+                # writing files that are immediately discarded with the stage.
+                for value in compiled_documents(compiled).values():
+                    c.encoded(value)
             return compiled
     except (ValueError,OSError,KeyError,TypeError) as exc:
         # A changed installation is not a defect of this task: the caller reports it as such.
@@ -1095,10 +1067,9 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
         return Compilation(report,directory=directory)
 
 
-def write_compiled(compiled:Compilation,*,media_root:Path)->None:
-    directory=compiled.directory;prepared=compiled.prepared
-    if compiled.artifacts is None:
-        raise ValueError('compiled artifacts must have a producer-owned set')
+def relocate_compiled_media(compiled:Compilation,*,media_root:Path)->None:
+    """Keep local carriers inside the stage without changing request semantics."""
+    directory=compiled.directory
     if compiled.rendered is not None:
         import request_contract as rc
         # Local carrier paths are not request semantics, but must resolve after
@@ -1107,16 +1078,30 @@ def write_compiled(compiled:Compilation,*,media_root:Path)->None:
             relative=Path(item['path']).relative_to(directory)
             item['path']=str(media_root/relative)
         rc.validate_seal(compiled.rendered)
-    prepared['compiled']={'package_sha256':c.content_id(compiled.package) if compiled.package is not None else None,
-                         'request_sha256':compiled.rendered['request_sha256'] if compiled.rendered else None,
-                         'plan_sha256':c.content_id(compiled.execution_plan)}
+
+
+def compiled_documents(compiled:Compilation)->dict:
+    """The output values shared by check previews and final publication."""
     pairs={'execution-plan.json':compiled.execution_plan}
     if compiled.package is not None:
         pairs.update({'package.json':compiled.package,'request-contract.json':compiled.rendered,
                       'request-preview.json':compiled.rendered['request']})
     elif compiled.execution_plan.get('request') is not None:
         pairs['request-preview.json'] = compiled.execution_plan['request']
-    for name,value in pairs.items():compiled.artifacts.write(name,c.encoded(value),replace=True)
+    return pairs
+
+
+def write_compiled(compiled:Compilation,*,media_root:Path)->None:
+    """Serialize each final document once and bind the exact published bytes."""
+    if compiled.artifacts is None:
+        raise ValueError('compiled artifacts must have a producer-owned set')
+    relocate_compiled_media(compiled,media_root=media_root)
+    pairs=compiled_documents(compiled)
+    records={name:compiled.artifacts.write(name,c.encoded(value)) for name,value in pairs.items()}
+    compiled.prepared['compiled']={
+        'package_sha256':records['package.json']['sha256'] if compiled.package is not None else None,
+        'request_sha256':compiled.rendered['request_sha256'] if compiled.rendered else None,
+        'plan_sha256':records['execution-plan.json']['sha256']}
 
 def check_task(root: Path, task_path: str) -> dict:
     """Compile without publishing; the report names no run because a check creates none."""
@@ -1141,20 +1126,44 @@ def write_manifest(directory: Path, artifacts: ArtifactSet) -> dict:
 
 def read_manifest(directory: Path, *, expected: str | None=None) -> dict:
     """Read the sealed ownership rows, optionally bound to their registration."""
+    return _read_publication_manifest(directory, expected=expected)[0]
+
+
+def _read_publication_manifest(directory: Path, *, expected: str | None = None) -> tuple[dict, str]:
     raw=c.read(c.local(directory,'manifest.json'))
-    if expected is not None and c.digest(raw)!=expected:
-        raise ProductionError('ARTIFACT_MANIFEST_CORRUPT','Publication manifest differs from the registered digest.',phase='integrity',file=str(directory/'manifest.json'),expected=expected,actual=c.digest(raw))
+    digest = c.digest(raw)
+    if expected is not None and digest!=expected:
+        raise ProductionError('ARTIFACT_MANIFEST_CORRUPT','Publication manifest differs from the registered digest.',phase='integrity',file=str(directory/'manifest.json'),expected=expected,actual=digest)
     manifest=c.decode(raw)
     c.exact(manifest,{'files','complete'},'publication manifest')
     if manifest['complete'] is not True:raise ProductionError('ARTIFACT_INCOMPLETE','Publication has not completed.',phase='integrity')
     if not isinstance(manifest['files'],list):
         raise ProductionError('ARTIFACT_MANIFEST_CORRUPT','Publication files must be an array.',phase='integrity')
     ArtifactSet(directory,manifest['files'])
-    return manifest
+    return manifest, digest
 
 
-def verify_publication(directory: Path, *, expected: str | None=None) -> dict:
-    manifest=read_manifest(directory,expected=expected)
+@dataclass(frozen=True)
+class PublicationRead:
+    """The verified manifest and decoded documents from one read boundary."""
+
+    manifest: dict
+    documents: Mapping[str, Any]
+    directory: Path
+    manifest_sha256: str
+
+
+def acquire_publication(directory: Path, *, expected: str | None = None,
+                        documents=()) -> PublicationRead:
+    """Acquire a publication and decode its requested JSON at the I/O boundary.
+
+    Every boundary reads its own current bytes. Large media is streamed;
+    requested documents are decoded from the bytes that were checked. The
+    returned values have no lazy readers or cross-boundary success state.
+    """
+    manifest, manifest_sha256 = _read_publication_manifest(directory, expected=expected)
+    requested = frozenset(documents)
+    acquired = {}
     for item in manifest['files']:
         path=c.local(directory,item['path'],exists=False)
         snapshot=item['path'].startswith('objects/')
@@ -1163,13 +1172,64 @@ def verify_publication(directory: Path, *, expected: str | None=None) -> dict:
                 raise store.evidence_error('EVIDENCE_SNAPSHOT_MISSING','A saved source snapshot of the run is missing.',file=str(path),
                                            expected=item['sha256'],run=directory.name,artifact=item['path'])
             raise ProductionError('ARTIFACT_MISSING','A published artifact is missing.',phase='integrity',file=str(path),expected=item['sha256'],run=directory.name)
-        actual=c.sha256_file(path)
-        if actual!=item['sha256'] or path.stat().st_size!=item['size']:
+        raw = None
+        if item['path'] in requested:
+            raw = c.read(path)
+            actual, size = c.digest(raw), len(raw)
+        else:
+            digest = hashlib.sha256()
+            size = 0
+            with path.open('rb') as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                    size += len(chunk)
+                    digest.update(chunk)
+            actual = digest.hexdigest()
+        if actual!=item['sha256'] or size!=item['size']:
             if snapshot:
                 raise store.evidence_error('EVIDENCE_SNAPSHOT_CORRUPT','A saved source snapshot of the run differs from its committed contents.',
                                            file=str(path),expected=item['sha256'],actual=actual,run=directory.name,artifact=item['path'])
             raise ProductionError('ARTIFACT_CORRUPT','A published artifact differs from its committed contents.',phase='integrity',file=str(path),expected=item['sha256'],actual=actual,run=directory.name)
-    return manifest
+        if raw is not None:
+            acquired[item['path']] = c.decode(raw)
+    return PublicationRead(freeze(manifest), freeze(acquired),
+                           Path(directory).absolute(), manifest_sha256)
+
+
+def verify_publication(directory: Path, *, expected: str | None=None) -> dict:
+    """Verify a publication when no caller needs decoded artifact contents."""
+    return acquire_publication(directory, expected=expected).manifest
+
+
+def validate_execution_artifact(prepared: dict, name: str, document: Any) -> None:
+    """Check a decoded dispatcher document against its prepared binding."""
+    if prepared['task']['execution'] != 'dispatcher':
+        return
+    expected = prepared['compiled']
+    if name == 'package.json':
+        compare_exact({'package_sha256': expected['package_sha256']},
+                      {'package_sha256': c.content_id(document)}, phase='integrity')
+    elif name == 'execution-plan.json':
+        compare_exact({'plan_sha256': expected['plan_sha256']},
+                      {'plan_sha256': c.content_id(document)}, phase='integrity')
+        compare_exact(document['request_sha256'], expected['request_sha256'], phase='integrity')
+    elif name == 'request-contract.json':
+        import request_contract
+        compare_exact({'request_sha256': expected['request_sha256']},
+                      {'request_sha256': document['request_sha256']}, phase='integrity')
+        request_contract.validate_seal(document)
+
+
+def validate_execution_documents(prepared: dict, documents: Mapping[str, Any]) -> None:
+    """Validate the complete execution binding before exposing a RunView."""
+    if prepared['task']['execution'] != 'dispatcher':
+        return
+    expected = prepared['compiled']
+    fields = ('package_sha256', 'request_sha256', 'plan_sha256')
+    compare_exact(expected, {key: expected.get(key) for key in fields}, phase='integrity')
+    for key in fields:
+        c.sha(expected[key])
+    for name in ('package.json', 'request-contract.json', 'execution-plan.json'):
+        validate_execution_artifact(prepared, name, documents[name])
 
 
 def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | None=None, current_task: dict | None=None) -> dict:
@@ -1206,11 +1266,12 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
             if prepared.get('runtime_snapshot') is not None:
                 import runtime_snapshot as fixed_runtime
                 if (directory/'runtime').exists():
-                    fixed_runtime.publish(root,directory/'runtime',prepared['runtime_snapshot'])
+                    fixed_runtime.publish(root,directory/'runtime',prepared['runtime_snapshot'],read=compiled.runtime_read)
                 fixed_runtime.require_current(root,prepared['runtime_snapshot'],run=run)
+            from studio_reference import ReferenceReads, validate_source
+            reference_reads = ReferenceReads()
             for source in prepared.get('studio_reference_sources', []):
-                from studio_reference import validate_source
-                validate_source(source)
+                validate_source(source, read=reference_reads.studio(Path(source['studio_root'])))
             write_compiled(compiled,media_root=target)
             prepared['envelope_sha256']=c.content_id(prepared)
             compiled.artifacts.write('prepared.json',c.encoded(prepared))
@@ -1220,19 +1281,20 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
             verify_publication(directory,expected=manifest_sha256)
             target.parent.mkdir(parents=True,exist_ok=True)
             if target.exists():raise ProductionError('OUTPUT_ALREADY_EXISTS','A run already occupies the publication destination.',phase='publication',file=str(target))
+            if isinstance(compiled.artifacts,StagedArtifacts):
+                compiled.artifacts.flush_files()
+                compiled.artifacts.flush_directories(controls=PUBLICATION_CONTROLS)
             c.publish_directory(directory,target);c.fsync_dir(target.parent)
-            if prepared['task'].get('authority') and store.authority(root,prepared['task']['task_id'],required=False) is None:
+            if prepared['task'].get('authority') and store.read_authority(root,prepared['task']['task_id'],required=False) is None:
                 store.import_authority(root,prepared['task']['authority'],initial=True)
             read_manifest(target,expected=manifest_sha256)
             ArtifactSet(target,manifest['files']).require_membership(controls=PUBLICATION_CONTROLS)
             store.register_run(root,run,prepared,target)
         warnings=[]
         try:
-            with c.lock(root):
-                active=work_ledger.require_open(root)
-                if active['task_id']==prepared['task']['task_id']:
-                    active['production_run']=run;work_ledger.write_current(root,active)
-                    work_ledger.append(root,{'at':c.now(),'task_id':active['task_id'],'event':'note','text':'prepared production run '+run})
+            recorded = work_ledger.record_prepared(root, prepared['task']['task_id'], run)
+            if recorded.get('projection_warning'):
+                warnings.append(recorded['projection_warning'])
         except (ValueError,OSError) as exc:
             warnings.append({'code':'WORK_PROJECTION_FAILED','message':str(exc),'formal_run_retained':True})
         operation=current()
@@ -1398,23 +1460,35 @@ def _publication_items(root: Path, operation_id: str | None, apply: bool) -> lis
     return rows
 
 
-def staging_cleanup(root: Path, *, operation_id: str | None = None, apply: bool = False) -> dict:
-    """Inspect or remove one dead operation's unreferenced staging, dispatch journals and publications.
-
-    Paths, ownership, live process state and formal references are listed again
-    while holding the same studio lock as publication, right before any removal.
-    A symlink is never traversed. A journal a claim names is never listed.
-    """
-    root = Path(root).absolute()
+def _staging_parent(root: Path) -> Path:
     try:
-        parent = c.local(root, 'production/staging', exists=False)
+        return c.local(root, 'production/staging', exists=False)
     except (OSError, ValueError) as exc:
         raise ProductionError('STAGING_CLEANUP_REFUSED', 'Staging is outside the owned studio tree or contains a symbolic link.',
                               phase='cleanup', file=str(root/'production/staging')) from exc
+
+
+def inspect_staging(root: Path) -> list[dict]:
+    """Inspect owned staging without auditing journals or published runs."""
+    root = Path(root).absolute()
+    return _staging_items(root, _staging_parent(root), None, False)
+
+
+def staging_cleanup(root: Path, *, operation_id: str | None = None, apply: bool = False) -> dict:
+    """Inspect or remove one dead operation's unreferenced staging, dispatch journals and publications.
+
+    The dry run only observes. Applying cleanup checks ownership, live process
+    state and formal references in the store transaction used by publication,
+    immediately before removal. A symlink is never traversed. A journal named
+    by a claim is never listed.
+    """
+    root = Path(root).absolute()
+    parent = _staging_parent(root)
     if apply and not operation_id:
         raise ProductionError('INPUT_CONSISTENCY_ERROR', 'Applying staging cleanup requires --operation.',
                               phase='cleanup', required_action='Inspect the dry run and select its exact owner operation ID.')
-    with c.lock(root):
+    from contextlib import nullcontext
+    with (store.transaction(root) if apply else nullcontext()):
         rows = _staging_items(root, parent, operation_id, apply)
         journals = _journal_items(root, operation_id, apply)
         publications = _publication_items(root, operation_id, apply)
@@ -1424,10 +1498,10 @@ def staging_cleanup(root: Path, *, operation_id: str | None = None, apply: bool 
 
 
 def prepare_task(root: Path, task_path: str, *, parent: dict | None=None, identity: str | None=None,
-                 runtime_snapshot: dict | None=None) -> dict:
+                 runtime_inputs=None) -> dict:
     import work_ledger
     current_task=work_ledger.require_open(root)
-    compiled=compile_task(root,task_path,persist=True,identity=identity,runtime_snapshot=runtime_snapshot)
+    compiled=compile_task(root,task_path,persist=True,identity=identity,runtime_inputs=runtime_inputs)
     return publish_compilation(root,compiled,parent=parent,current_task=current_task)
 
 
@@ -1436,10 +1510,11 @@ def inspect_publication(root: Path, run: str) -> tuple[Path, dict, dict]:
     import production_workflow as workflow
     run = workflow.run_identifier(run)
     directory = c.local(root, 'production/runs/' + run)
-    manifest = verify_publication(directory)
+    acquired = acquire_publication(directory, documents={'prepared.json', 'consumer.json'})
+    manifest = acquired.manifest
     ArtifactSet(directory, manifest['files']).require_membership(controls=PUBLICATION_CONTROLS)
-    prepared = c.load(c.local(directory, 'prepared.json'))
-    consumer = c.load(c.local(directory, 'consumer.json'))
+    prepared = acquired.documents['prepared.json']
+    consumer = acquired.documents['consumer.json']
     workflow.validate_run_content(run, prepared, consumer, [], lambda key: c.object_read(directory, key))
     descriptor = prepared.get('runtime_snapshot')
     if descriptor is not None:
@@ -1479,7 +1554,7 @@ def recover_publication(root: Path, run: str) -> dict:
     with store.transaction(root):
         existing = [row for row in store.runs(root) if row['run_id'] == run]
         if existing:
-            workflow.load_run(root, run)
+            workflow.read_run(root, run)
         else:
             directory, prepared, _ = inspect_publication(root, run)
             store.register_run(root, run, prepared, directory)

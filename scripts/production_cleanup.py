@@ -139,7 +139,7 @@ def perform(root: Path, run: str, journal, claim: dict, target: dict, transport:
     import production_execution as execution
     import production_workflow as workflow
     import transport_contract
-    directory, prepared, _, rows = workflow.load_run(root, run)
+    directory, prepared, _, rows = workflow.read_run(root, run)
     authorization = claim['data']['authorizations'][0]
     state = accounting.require_active(rows, prepared, run, authorization)
     rendered = c.load(journal.path / 'request-contract.json')
@@ -163,7 +163,7 @@ def perform(root: Path, run: str, journal, claim: dict, target: dict, transport:
     for upload in before['items']:
         if upload['state'] in {'deleted', 'failed'}:
             continue
-        directory, prepared, _, rows = workflow.load_run(root, run)
+        directory, prepared, _, rows = workflow.read_run(root, run)
         state = accounting.require_active(rows, prepared, run, authorization)
         boundary = next((item for item in state['steps']
                          if item['operation'] == 'delete' and item['upload_index'] == upload['upload_index']), None)
@@ -219,7 +219,7 @@ def perform(root: Path, run: str, journal, claim: dict, target: dict, transport:
         except (ValueError, OSError) as exc:
             detail = exc.evidence() if hasattr(exc, 'evidence') else {'reason': str(exc)}
             _observation(root, run, journal, claim, boundary['step'], 'outcome-unknown', detail)
-    directory, prepared, _, rows = workflow.load_run(root, run)
+    directory, prepared, _, rows = workflow.read_run(root, run)
     result['cleanup'] = inspect(directory, rendered, accounting.require_active(rows, prepared, run, authorization), transport)
     result['warnings'] = _warnings(result['cleanup'])
     return result

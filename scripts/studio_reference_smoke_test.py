@@ -35,6 +35,37 @@ class StudioSourceTests(unittest.TestCase):
         from prepare_generation_references import validate_committed_source
         self.assertEqual(validate_committed_source(self.source), self.source)
 
+    def test_live_reference_reads_do_not_take_writer_locks(self):
+        with patch.object(c, 'lock', side_effect=AssertionError('reference reads must not acquire writer locks')):
+            current = sr.current_source(self.root, 'robot', 'canon.primary')
+            proof = sr.validate_source(current)
+        self.assertEqual(current, self.source)
+        self.assertEqual(proof['acceptance']['artifact'], self.artifact)
+
+    def test_one_reference_phase_keeps_independent_studio_owners(self):
+        import runtime_snapshot
+        other = studio.init(self.base / 'other', 'another-source-owner', 'Another synthetic source')
+        studio.add_character(other, 'robot', 'general')
+        accepted(other / 'characters/robot/sheet/sheet-data.json')
+        reads = sr.ReferenceReads()
+        with runtime_snapshot.public_call():
+            first = sr.current_source(self.root, 'robot', 'canon.primary', read=reads.studio(self.root))
+            second = sr.current_source(other, 'robot', 'canon.primary', read=reads.studio(other))
+            self.assertEqual(sr.validate_source(first, reads=reads)['studio_id'], 'synthetic-source-owner')
+            self.assertEqual(sr.validate_source(second, reads=reads)['studio_id'], 'another-source-owner')
+            self.assertIsNot(reads.studio(self.root), reads.studio(other))
+        self.assertEqual(first['sha256'], second['sha256'])
+        self.assertNotEqual(first['proof_sha256'], second['proof_sha256'])
+
+    def test_status_repairs_a_missing_reference_view_once(self):
+        import adoption_workflow
+        view = self.sheet.parent / 'active-references.json'
+        view.unlink(missing_ok=True)
+        with patch.object(adoption_workflow, '_reference_index', wraps=adoption_workflow._reference_index) as index:
+            studio.status(self.root)
+        self.assertEqual(index.call_count, 1)
+        self.assertTrue(view.is_file())
+
     def test_recorded_paths_keep_the_origin_platform_without_a_live_lookup(self):
         self.assertEqual(str(sr._origin_root('C:\\Studio') / self.source['sheet']),
                          'C:\\Studio\\characters\\robot\\sheet\\sheet-data.json')

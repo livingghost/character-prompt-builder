@@ -1,8 +1,10 @@
 """Review/Studio ownership tests. All decisions describe synthetic fixture PNGs."""
 from __future__ import annotations
+from contextlib import closing
 import copy
 import json
 from pathlib import Path
+import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -366,6 +368,27 @@ class ReviewTests(ReviewCase):
         entry=c.load(self.root/'gallery.json')['entries'][0]
         self.assertEqual(entry['disposition'],'not_selected')
         self.assertEqual(entry['evaluation'],'unreviewed')
+
+    def test_selection_retry_releases_database_writer_before_view_publication(self):
+        self.record_review([('output', 'pass'), ('palette', 'pass')])
+        selected = self.select()
+        original = studio.write_gallery
+        observed = []
+
+        def independent_writer(root, *args, **kwargs):
+            # An unrelated SQLite writer must be admitted while a display builds.
+            # A second connection detects a retained transaction even in one process.
+            with closing(sqlite3.connect(store.database(root), timeout=0.1)) as connection, connection:
+                connection.execute('BEGIN IMMEDIATE')
+                observed.append(connection.in_transaction)
+            return original(root, *args, **kwargs)
+
+        with patch.object(studio, 'write_gallery', side_effect=independent_writer):
+            retried = workflow.select_value(self.root, self.run, selected['data']['selection'])
+        self.assertEqual(retried['sha256'], selected['sha256'])
+        self.assertEqual(observed, [True])
+        self.assertNotIn('projection_warning', retried)
+        self.assertEqual(sum(row['event'] == 'selection' for row in store.event_rows(self.root, self.run)), 1)
 
     def test_studio_projection_cannot_overwrite_official_state(self):
         rows=studio.read_iterations(self.home)
@@ -749,6 +772,106 @@ class StoredContentTests(ReviewCase):
         self.assertRefused(key, 'EVIDENCE_SNAPSHOT_MISSING')
 
 
+class CompletedDispositionTests(ReviewCase):
+    """Retained candidates can be retired without reopening completed production."""
+    count = 2
+
+    def completed(self, *, accept=False):
+        self.record_review([('output', 'pass'), ('palette', 'pass')])
+        selected = self.select()
+        if accept:
+            studio.accept(self.root, 'robot', self.iteration)
+        return selected, workflow.complete(self.root, self.run)
+
+    def test_completed_run_disposes_unselected_studio_candidate_once(self):
+        import work_ledger
+        _, done = self.completed(accept=True)
+        for step in work_ledger.read_current(self.root)['steps']:
+            work_ledger.step_done(self.root, step['n'])
+        finished = work_ledger.finish(self.root, self.run)
+        task_path = work_ledger.task_path(self.root, finished['task_id'])
+        other = self.candidates[1]
+        iteration = self.row(other)['iteration_id']
+        before = (self.home / 'iterations.jsonl').read_bytes()
+        task_before = task_path.read_bytes()
+        self.assertEqual(finished['work_state'], 'completed')
+        self.assertIsNone(work_ledger.read_current(self.root))
+        events_before = store.event_rows(self.root, self.run)
+        runs_before = store.runs(self.root)
+        self.assertIn('1 candidate waiting', studio.status(self.root))
+        reason = 'The other retained synthetic image is not selected.'
+        result = studio.reject(self.root, 'robot', iteration, reason, actor='Synthetic fixture selector')
+        repeated = studio.reject(self.root, 'robot', iteration, reason, actor='Synthetic fixture selector')
+        self.assertEqual(result['production_decision'], repeated['production_decision'])
+        self.assertEqual((result['status'], result['evaluation'], result['disposition']),
+                         ('candidate', 'unreviewed', 'not_selected'))
+        self.assertIn('0 candidates waiting', studio.status(self.root))
+        self.assertEqual((self.home / 'iterations.jsonl').read_bytes(), before)
+        self.assertEqual(task_path.read_bytes(), task_before)
+        self.assertIsNone(work_ledger.read_current(self.root))
+        loaded = workflow.load_run(self.root, self.run, force=True)
+        self.assertEqual(loaded.rows[:len(events_before)], events_before)
+        self.assertEqual([row['event'] for row in loaded.rows[len(events_before):]], ['disposition'])
+        self.assertEqual(store.runs(self.root), runs_before)
+        self.assertEqual(sum(row['event'] == 'disposition' for row in loaded.rows), 1)
+        entry = next(row for row in c.load(self.root / 'gallery.json')['entries']
+                     if (row.get('production') or {}).get('candidate') == other)
+        self.assertEqual(entry['disposition'], 'not_selected')
+        self.assertEqual(workflow.complete(self.root, self.run)['sha256'], done['sha256'])
+        self.assertEqual(work_ledger.finish(self.root, self.run), finished)
+        status = execution.status(self.root, self.run)['runs'][0]
+        self.assertEqual(status['task_disposition'], 'completed')
+        self.assertIsNone(status['next_action'])
+        self.assertEqual(validate_studio.validate(self.root), [])
+
+    def test_completed_selection_can_be_retired_without_changing_completion(self):
+        _, done = self.completed()
+        task_before = (self.root / 'work/current.json').read_bytes()
+        result = studio.reject(self.root, 'robot', self.iteration,
+                               'Retire this previously delivered synthetic candidate.',
+                               actor='Synthetic fixture selector')
+        self.assertEqual((result['evaluation'], result['disposition']), ('conforming', 'not_selected'))
+        loaded = workflow.load_run(self.root, self.run, force=True)
+        self.assertCode('SELECTION_WITHDRAWN', lambda: workflow.current_selection(loaded.prepared, loaded.rows))
+        self.assertEqual(workflow.verify_completion(self.root, self.run, loaded.prepared['task']['task_id']), done)
+        self.assertEqual(workflow.complete(self.root, self.run)['sha256'], done['sha256'])
+        pending = workflow.draft_disposition(self.root, self.run, self.candidate)
+        pending.update(disposition='pending', actor='Synthetic fixture selector', reason='Attempt to reopen candidate attention.')
+        with self.assertRaisesRegex(ValueError, 'run is complete'):
+            workflow.disposition_value(self.root, self.run, pending)
+        with self.assertRaisesRegex(ValueError, 'run is complete'):
+            self.record_review([('output', 'pass')])
+        status = execution.status(self.root, self.run)['runs'][0]
+        self.assertEqual(status['task_disposition'], 'completed')
+        self.assertFalse(status['selection_ready'])
+        self.assertIsNone(status['next_action'])
+        self.assertEqual([item['code'] for item in status['selection_diagnostics']], ['SELECTION_WITHDRAWN'])
+        self.assertIn('run is closed', status['selection_diagnostics'][0]['required_action'])
+        self.assertEqual((self.root / 'work/current.json').read_bytes(), task_before)
+        self.assertEqual(sum(row['event'] == 'completion' for row in store.event_rows(self.root, self.run)), 1)
+
+    def test_completed_candidate_must_be_superseded_before_disposition(self):
+        _, done = self.completed(accept=True)
+        self.assertCode('SELECTED_CANDIDATE', lambda: studio.reject(
+            self.root, 'robot', self.iteration, 'Attempt to discard the accepted image.',
+            actor='Synthetic fixture selector'))
+        original = self.row(self.candidate)
+        imported = studio.iterate(self.root, 'robot', original['slot'], self.root / original['result']['path'],
+                                  package=None, request=None, response=None,
+                                  note='Independent synthetic import of the same pixels.')
+        studio.accept(self.root, 'robot', imported['iteration_id'])
+        # Identical image bytes do not decide either iteration's disposition.
+        self.assertEqual(self.state()['disposition'], 'selected')
+        result = studio.reject(self.root, 'robot', self.iteration,
+                               'The separately imported iteration now owns the slot.',
+                               actor='Synthetic fixture selector')
+        self.assertEqual((result['status'], result['disposition']), ('superseded', 'not_selected'))
+        accepted = studio.acceptance_state(self.root, 'robot', original['slot'])
+        self.assertEqual(accepted['iteration_id'], imported['iteration_id'])
+        self.assertEqual(workflow.complete(self.root, self.run)['sha256'], done['sha256'])
+        self.assertEqual(validate_studio.validate(self.root), [])
+
+
 class GalleryIsolationTests(ReviewCase):
     """Two runs with two candidates each, projected into one Studio slot."""
     count = 2
@@ -763,12 +886,12 @@ class GalleryIsolationTests(ReviewCase):
         candidate = workflow.find(store.event_rows(self.root, self.run), 'candidate', self.candidate)
         path = workflow.run_dir(self.root, self.run) / 'objects' / candidate['data']['files'][0]['sha256']
         path.write_bytes(b'not the captured PNG')
-        original = workflow.load_run
+        original = workflow.read_run
         loads = []
         def counted(root, run):
             loads.append(run)
             return original(root, run)
-        with patch.object(workflow, 'load_run', side_effect=counted):
+        with patch.object(workflow, 'read_run', side_effect=counted):
             rows = studio.read_iterations(self.home)
         self.assertEqual(sorted(loads), sorted([self.run, self.second]))
         by_run = {}

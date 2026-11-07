@@ -1,32 +1,28 @@
-"""Content-owned execution runtime, distinct from the disposable search cache.
+"""Own exact pack inputs without turning serialization into an internal API.
 
-A snapshot keeps every resolved record in full and the complete textual files
-of each pack that contributed to the catalogue. Each file is stored once under
-`runtime/objects/<sha256>`; a snapshot directory maps every pack path to its
-object, so a later snapshot stores only the files that changed. Each named
-resource is pinned as the one file it resolved to. Selected media are captured
-by the Generation Package.
+Compilation consumes acquired source values directly. Publication preserves
+the complete resolved catalogue and textual pack edition used by existing
+repeat, variant and retarget operations. The used binding remains distinct
+from that complete archive and determines current-source comparisons.
 
-A prepared run records its binding: the model, service, guides, records and
-pack evidence it actually used, each with pack, path and SHA-256. Freshness
-checks hash those live files and compare the enabled packs.
-
-One public call verifies a fixed snapshot once and builds its catalogue once.
-The call is the current operation, else a `public_call()` block, else the
-outermost open production transaction. A forced read verifies again.
+Fixed values are not proof that current inputs or permissions are unchanged.
+Publication and current-source boundaries acquire the actual declared files;
+domain consumers receive those exact bytes explicitly.
 """
 from __future__ import annotations
 import contextlib
 import contextvars
 import copy
 import dataclasses
+import functools
 import os
-import threading
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 
 import execution_contract as c
 import production_store as store
+from owned_json import FrozenDict, freeze, mutable
 from production_diagnostics import Diagnostic, ProductionError
 
 TEXT_SUFFIXES = {'.json', '.md', '.txt', '.yaml', '.yml', '.csv'}
@@ -55,34 +51,280 @@ def descriptor(value: dict) -> dict:
     return {'sha256': value['sha256'], 'settings': copy.deepcopy(value['settings'])}
 
 
-def capture(catalog, settings, destination: Path) -> dict:
-    """Capture a validated resolved catalogue without changing pack selection.
+@dataclasses.dataclass(frozen=True)
+class FixedRuntimeRead:
+    """Exact bytes and immutable values acquired at one fixed-input boundary."""
 
-    A pack with `pack.lock.json` must match its lock. Commons and a pack still
-    being edited have no lock: their files are inventoried at capture, and every
-    captured file must match that inventory.
+    directory: Path
+    sha256: str
+    raw: bytes = dataclasses.field(repr=False)
+    payload: Mapping[str,Any]
+    file_bytes: Mapping[tuple[str,str],bytes] = dataclasses.field(repr=False)
+
+    @property
+    def pack_roots(self) -> Mapping[str,Path]:
+        return FrozenDict((row['pack_id'],self.directory/'packs'/row['pack_id']) for row in self.payload['packs'])
+
+    def read_pack(self, pack: str, relative: str) -> bytes:
+        """Read an already acquired member; a missing member has no live fallback."""
+        try:
+            return self.file_bytes[(pack,relative)]
+        except KeyError as exc:
+            raise _broken('PINNED_RESOURCE_MISSING','A required input is absent from the fixed runtime.',
+                          pack=pack,resource=relative) from exc
+
+    def read_named(self, locator: str) -> bytes:
+        pack,relative=_pack_locator(locator)
+        return self.read_pack(pack,relative)
+
+    def document(self, pack: str, relative: str):
+        return freeze(c.decode(self.read_pack(pack,relative)))
+
+    def model_space(self, model_id: str) -> str:
+        entries=[row for row in self.payload.get('entries',())
+                 if row['kind']=='model' and row['record'].get('id')==model_id]
+        if len(entries)!=1:
+            raise ValueError('selected model has no unique fixed source')
+        return '@pack/'+entries[0]['source_pack']
+
+    def read_resource(self, name: str):
+        """Return one named resource's provenance and verified bytes."""
+        from types import SimpleNamespace
+        from pack_cache import resource_warning
+        resources = self.payload.get('resources', {})
+        problem = resource_warning(SimpleNamespace(resources=resources,
+            diagnostics=self.payload.get('diagnostics', ()), warnings=()), name)
+        if problem:
+            raise ValueError(problem)
+        resource = resources.get(name)
+        if resource is None:
+            return None
+        key = (resource['pack_id'], resource['path'])
+        raw = self.read_pack(*key)
+        return {'source_pack': key[0], 'path': key[1], 'sha256': c.digest(raw)}, raw
+
+
+def _pack_locator(locator: str) -> tuple[str,str]:
+    if not isinstance(locator,str) or not locator.startswith('@pack/'):
+        raise ValueError('expected a qualified pack input')
+    pack,separator,relative=locator[len('@pack/'):].partition('/')
+    if not separator or not pack or not relative:
+        raise ValueError('pack input has no relative file')
+    return pack,relative
+
+
+def _owned_runtime(directory: Path, descriptor: dict, read: FixedRuntimeRead) -> FixedRuntimeRead:
+    if read.directory != Path(directory).resolve() or read.sha256 != descriptor['sha256']:
+        raise ValueError('fixed runtime read belongs to another snapshot')
+    return read
+
+
+@dataclasses.dataclass
+class CompileRuntime:
+    """Acquired inputs and the exact members a compilation actually consumes.
+
+    ``files`` and ``resources`` are the producer's dependency manifest, not a
+    successful-current-check cache. This object never authorizes publication
+    or an effect. A failed compilation discards it without publishing a runtime.
     """
-    from pack_manager import PackError,load_effective_state,discover_packs,inventory_rows,canonical_json,sha256_bytes
-    state=load_effective_state(settings)
-    discovered,_=discover_packs(settings,state)
+
+    catalog: Any
+    settings: Any
+    _read: Any = dataclasses.field(repr=False)
+    fixed: FixedRuntimeRead|None = None
+    files: dict[tuple[str,str],bytes] = dataclasses.field(default_factory=dict,repr=False)
+    resources: set[str] = dataclasses.field(default_factory=set)
+
+    @property
+    def pack_roots(self) -> Mapping[str,Path]:
+        return self.catalog.pack_roots
+
+    @classmethod
+    def from_catalog(cls,catalog,settings) -> CompileRuntime:
+        if catalog.inputs is None:
+            raise ProductionError('PACK_RUNTIME_REQUIRED','Compilation requires acquired pack inputs.',phase='runtime-resolution')
+        inputs=catalog.inputs
+        def read(pack,relative):
+            try:
+                acquired=inputs.packs[pack]
+                item=acquired.files[relative]
+            except KeyError as exc:
+                raise ProductionError('RECORD_NOT_FOUND','A required file is absent from the acquired pack.',
+                                      phase='runtime-resolution',pack=pack,resource=relative) from exc
+            return item.bytes_for_capture(lambda path:store.stable_bytes(acquired.root,path))
+        return cls(catalog,settings,read)
+
+    @classmethod
+    def from_fixed(cls,read:FixedRuntimeRead,descriptor:dict) -> CompileRuntime:
+        if read.sha256!=descriptor['sha256']:
+            raise ValueError('fixed compilation inputs belong to another runtime')
+        selected=catalogue(read.directory,read.payload,fingerprint=read.sha256,read=read)
+        return cls(selected,settings_from(descriptor['settings']),read.read_pack,fixed=read)
+
+    def read_pack(self,pack:str,relative:str) -> bytes:
+        key=(pack,relative)
+        if key not in self.files:
+            self.files[key]=self._read(pack,relative)
+        return self.files[key]
+
+    def read_named(self,locator:str) -> bytes:
+        return self.read_pack(*_pack_locator(locator))
+
+    def document(self,pack:str,relative:str):
+        return freeze(c.decode(self.read_pack(pack,relative)))
+
+    def model_space(self,model_id:str) -> str:
+        found=[entry for entry in self.catalog.entries
+               if entry.kind=='model' and entry.record.get('id')==model_id]
+        if len(found)!=1:
+            raise ValueError('selected model has no unique acquired provider')
+        return '@pack/'+found[0].source_pack
+
+    def read_resource(self,name:str):
+        from pack_cache import resource_warning
+        problem=resource_warning(self.catalog,name)
+        if problem:
+            raise ValueError(problem)
+        resource=self.catalog.resources.get(name)
+        if resource is None:
+            return None
+        self.resources.add(name)
+        raw=self.read_pack(resource.source_pack,resource.relative_path)
+        return {'source_pack':resource.source_pack,'path':resource.relative_path,'sha256':c.digest(raw)},raw
+
+    @contextlib.contextmanager
+    def using(self):
+        """Adapt standalone lookup APIs to these already acquired inputs."""
+        from catalog_retrieval import runtime
+        previous=(runtime._PACK_SETTINGS,runtime._PACK_CATALOG_CACHE)
+        runtime._PACK_SETTINGS=self.settings
+        runtime._PACK_CATALOG_CACHE=dataclasses.replace(self.catalog,
+            resources=_Lookups(self.catalog.resources,self.resources),resource_reader=self.read_resource)
+        try:
+            yield self
+        finally:
+            runtime._PACK_SETTINGS,runtime._PACK_CATALOG_CACHE=previous
+
+
+@dataclasses.dataclass(frozen=True)
+class CompileInputs:
+    """The source choice and retained target for one explicit compile operation."""
+
+    mode: str
+    runtime: CompileRuntime
+    target: Mapping[str,Any]|None = None
+    parent_descriptor: Mapping[str,Any]|None = None
+    parent_read: FixedRuntimeRead|None = None
+    diagnostics: tuple = ()
+
+
+def compilation_inputs(root:Path,*,mode:str='prepare',parent:dict|None=None,
+                       target:Mapping[str,Any]|None=None,run:str|None=None) -> CompileInputs:
+    """Acquire current preparation inputs, or a derivation's fixed parent edition."""
+    if mode not in {'prepare','repeat','variant','retarget'}:
+        raise ValueError('unknown compilation input operation')
+    if (parent is None)!=(mode in {'prepare','retarget'}):
+        raise ValueError('repeat and variant require their parent runtime')
+    if mode in {'repeat','variant'} and target is None:
+        raise ValueError('repeat and variant require their retained execution target')
+    parent_read=None
+    diagnostics=[]
+    if parent is not None:
+        parent_read=acquire_runtime(path(root,parent),parent)
+    if mode in {'repeat','variant'}:
+        diagnostics=_current_diagnostics(root,parent,parent_read,run)
+        _require_current_result(diagnostics,run)
+        runtime=CompileRuntime.from_fixed(parent_read,parent)
+    else:
+        from catalog_retrieval.runtime import selected_pack_settings
+        from pack_cache import load_runtime_catalog
+        settings=settings_from(parent['settings']) if parent is not None else selected_pack_settings()
+        if not settings.state_file.is_file():
+            raise ProductionError('PACK_RUNTIME_REQUIRED','Pack state has not been initialized.',phase='runtime-resolution',
+                                  required_action='Initialize the selected pack runtime before compiling.')
+        catalog=load_runtime_catalog(settings)
+        if not catalog.active_pack_count:
+            raise ProductionError('PACK_NOT_ENABLED','No active pack satisfies the declared runtime.',phase='runtime-resolution')
+        runtime=CompileRuntime.from_catalog(catalog,settings)
+    return CompileInputs(mode,runtime,freeze(target) if target is not None else None,
+                         freeze(parent) if parent is not None else None,parent_read,tuple(freeze(diagnostics)))
+
+
+def require_retained(root:Path,inputs:CompileInputs,descriptor:dict,*,run:str|None=None) -> list[dict]:
+    """A derivation keeps its target and exact parent runtime edition.
+
+    These values describe the already acquired inputs, not current permission
+    or a successful-check cache. Publication checks current sources again.
+    """
+    if inputs.parent_descriptor is None:
+        return []
+    old=inputs.parent_descriptor['binding'];new=descriptor['binding']
+    if (old['model'],old['service'])!=(new['model'],new['service']):
+        raise ProductionError('TARGET_CHANGE_REQUIRED','A variant retains its model and service; retarget to select another.',
+                              phase='variation',run=run)
+    if descriptor['sha256']!=inputs.parent_descriptor['sha256']:
+        raise ProductionError('REPEAT_INPUT_MISMATCH','A derivation changed its fixed runtime edition.',phase='variation',run=run)
+    return [mutable(row) for row in inputs.diagnostics]
+
+
+def capture_compilation(source:CompileRuntime,destination:Path|None,*,target:dict,package:dict,
+                        reading_resources:Mapping[str,Any],evidence_bytes:Mapping[str,bytes]|None=None) -> tuple[dict,FixedRuntimeRead|None]:
+    """Bind the compilation and retain the complete, existing runtime edition.
+
+    Live inputs are serialized only after semantic compilation. Derivations
+    use their parent's existing snapshot without copying or changing its hash.
+    A check computes the same descriptor but writes no disposable runtime tree.
+    """
+    supplied=evidence_bytes or {}
+    projection={**package,'input_snapshots':{**(package.get('input_snapshots') or {}),**supplied}}
+    for locator in projection['input_snapshots']:
+        if locator.startswith('@pack/'):
+            raw=source.read_named(locator)
+            if locator in supplied and supplied[locator]!=raw:
+                raise ProductionError('PACK_CONTENT_MISMATCH','Pack evidence differs from its acquired source bytes.',
+                                      phase='runtime-binding',file=locator)
+    if source.fixed is not None:
+        payload=source.fixed.payload
+        result={'sha256':source.fixed.sha256,'settings':settings_dict(source.settings)}
+        owned=source.fixed
+    else:
+        payload,files=_catalogue_inputs(source.catalog,retained=source.files)
+        result,owned=_write_runtime(payload,files,source.settings,destination)
+    result['binding']=bind(None,payload,source.resources,inputs={
+        'target':target,'package':projection,'reading_resources':reading_resources})
+    return result,owned
+
+
+def _catalogue_inputs(catalog,*,retained:Mapping|None=None) -> tuple[dict,dict]:
+    """Project the complete existing snapshot from the acquired catalogue.
+
+    Selection, manifests, inventories and text come from the same input owner
+    that selected the catalog. Binary payloads are verified against that owner
+    when copied. Capture never discovers a second pack state for the same catalog.
+    """
+    from pack_manager import PackError,canonical_json,sha256_bytes
+    inputs = catalog.inputs
+    if inputs is None:
+        raise ProductionError('PACK_RUNTIME_REQUIRED', 'Runtime capture requires an acquired live catalog.',
+                              phase='runtime-resolution')
+    state=inputs.state
     sources=[(r.source_pack,r.relative_path) for r in catalog.resources.values()]
     present={e.source_pack for e in catalog.entries}|{pack for pack,_ in sources}
-    selected=set(state['enabled_packs'])
-    if present-selected:
-        raise ProductionError('PACK_SELECTION_CHANGED','The resolved catalogue contains a pack no longer selected.',phase='runtime-resolution',expected=sorted(present),actual=sorted(selected))
     packs=[]
+    file_bytes={}
     for ident in sorted(present):
-        if ident not in discovered:
-            raise ProductionError('RECORD_NOT_FOUND','A selected runtime pack has no unique current root.',phase='runtime-resolution',pack=ident)
-        pack=discovered[ident];base=pack.root
-        locked=(base/'pack.lock.json').is_file()
+        if ident not in inputs.packs:
+            raise ProductionError('RECORD_NOT_FOUND','A catalog pack is absent from its acquired inputs.',phase='runtime-resolution',pack=ident)
+        acquired=inputs.packs[ident]
+        pack=inputs.discovered[ident];base=acquired.root
+        locked='pack.lock.json' in acquired.files
         try:
             if locked:
-                lock=c.load(base/'pack.lock.json');rows=lock['files'];content=lock['content_sha256']
+                lock=acquired.json('pack.lock.json');rows=lock['files'];content=lock['content_sha256']
             else:
-                rows=inventory_rows(base);content=sha256_bytes(canonical_json(rows).encode('utf-8'))
+                rows=acquired.inventory();content=sha256_bytes(canonical_json(rows).encode('utf-8'))
         except (PackError,KeyError,TypeError) as exc:
-            raise ProductionError('INPUT_CONSISTENCY_ERROR','The pack inventory cannot be read: '+str(exc),phase='runtime-resolution',pack=ident,file=str(base)) from exc
+            raise ProductionError('INPUT_CONSISTENCY_ERROR','The acquired pack inventory is invalid: '+str(exc),phase='runtime-resolution',pack=ident,file=str(base)) from exc
         listed={row['path']:row for row in rows}
         required={e.source_file for e in catalog.entries if e.source_pack==ident}
         required|={relative for pack,relative in sources if pack==ident}
@@ -93,7 +335,14 @@ def capture(catalog, settings, destination: Path) -> dict:
         if locked:required.add('pack.lock.json')
         files=[]
         for relative in sorted(required):
-            raw=store.stable_bytes(base,relative);digest=c.digest(raw)
+            try:
+                raw=((retained or {})[(ident,relative)] if (ident,relative) in (retained or {})
+                     else acquired.files[relative].bytes_for_capture(lambda path: store.stable_bytes(base, path)))
+            except (PackError,KeyError,OSError) as exc:
+                raise ProductionError('PACK_CONTENT_MISMATCH','A pack file no longer matches its acquired content: '+str(exc),
+                    phase='runtime-resolution',pack=ident,resource=relative,
+                    required_action='Finish the pack edit, then prepare again.') from exc
+            digest=c.digest(raw)
             if relative!='pack.lock.json':
                 expected=listed.get(relative)
                 if expected is None or expected['sha256']!=digest:
@@ -101,19 +350,44 @@ def capture(catalog, settings, destination: Path) -> dict:
                         'Captured bytes differ from the pack lock.' if locked else 'A pack file changed while the runtime was captured.',
                         phase='runtime-resolution',pack=ident,resource=relative,expected=expected['sha256'] if expected else None,actual=digest,
                         required_action='Rebuild the lock of a released pack, or finish the edit, then prepare again.')
-            c.atomic(destination/'packs'/ident/relative,raw)
+            file_bytes[(ident,relative)]=raw
             files.append({'path':relative,'sha256':digest,'size':len(raw)})
         packs.append({'pack_id':ident,'release':pack.release,'content_sha256':content,'files':files})
     entries=[{'kind':e.kind,'category':e.category,'record':e.record,'source_pack':e.source_pack,'source_file':e.source_file} for e in catalog.entries]
     # One resolved file per name: the pack that supplies it and its path there.
     resources={name:{'media_type':r.media_type,'pack_id':r.source_pack,'path':r.relative_path}
                for name,r in sorted(catalog.resources.items())}
-    payload={'selection':{'enabled_packs':state['enabled_packs']},
+    payload={'selection':{'enabled_packs':state['enabled_packs'],'pack_order':state['pack_order']},
              'packs':packs,'entries':entries,'phrases':catalog.phrases,'profiles':catalog.profiles,'resources':resources,
              'diagnostics':list(catalog.diagnostics)}
-    digest=c.content_id(payload)
-    c.atomic(destination/'snapshot.json',c.encoded(payload))
-    return {'sha256':digest,'settings':settings_dict(settings)}
+    return payload,file_bytes
+
+
+def _write_runtime(payload:dict,files:Mapping,settings,destination:Path|None) -> tuple[dict,FixedRuntimeRead|None]:
+    raw=c.encoded(payload)
+    digest=c.digest(raw)
+    owned=None
+    if destination is not None:
+        from publication_artifacts import StagedArtifacts
+        artifacts=StagedArtifacts(destination)
+        for (pack,relative),content in sorted(files.items()):
+            artifacts.write('packs/'+pack+'/'+relative,content)
+        artifacts.write('snapshot.json',raw)
+        owned=FixedRuntimeRead(Path(destination).resolve(),digest,raw,freeze(payload),freeze(files))
+    return {'sha256':digest,'settings':settings_dict(settings)},owned
+
+
+def capture_owned(catalog, settings, destination: Path) -> tuple[dict, FixedRuntimeRead]:
+    """Export the complete catalogue from its acquired inputs."""
+    payload,files=_catalogue_inputs(catalog)
+    result,owned=_write_runtime(payload,files,settings,destination)
+    assert owned is not None
+    return result,owned
+
+
+def capture(catalog, settings, destination: Path) -> dict:
+    """Export a complete catalogue and its editable descriptor, without a run."""
+    return capture_owned(catalog,settings,destination)[0]
 
 
 def path(root:Path, descriptor:dict) -> Path:
@@ -123,51 +397,126 @@ def path(root:Path, descriptor:dict) -> Path:
 # What a public call without an operation has verified, while `public_call()` is open.
 _PUBLIC_CALL: contextvars.ContextVar[dict|None] = contextvars.ContextVar('cpb_public_call', default=None)
 # What each open production transaction has verified, by connection.
-_TRANSACTIONS: dict[int,tuple[object,dict]] = {}
-# Threads in transactions on different studios share `_TRANSACTIONS`.
-_TRANSACTIONS_GUARD = threading.Lock()
+_TRANSACTIONS: contextvars.ContextVar[dict[int,tuple[object,dict]]] = contextvars.ContextVar(
+    'cpb_transaction_reads', default={})
 
 
 @contextlib.contextmanager
-def public_call() -> Iterator[None]:
+def public_call(*, fresh: bool = False) -> Iterator[None]:
     """Share verified content among the stages of one public call.
 
-    A block inside an open block or inside an operation adds no scope of its own.
+    Nested blocks share their caller unless ``fresh`` starts a new publication
+    read boundary. A new boundary ends reuse in its enclosing call as well;
+    leaving it must not restore an older successful read after a newer failure.
+    Active transaction readers also discard their earlier observations. A
+    projection owner starts publication after committing its transaction.
     """
-    if _PUBLIC_CALL.get() is not None:
+    if not fresh and _PUBLIC_CALL.get() is not None:
         yield
         return
+    enclosing = ([call_scope(), *(_transaction_scope(connection)
+                  for connection in store._CONNECTIONS.get().values())] if fresh else [])
+    for scope in enclosing:
+        if scope is not None:
+            scope.clear()
     token=_PUBLIC_CALL.set({})
-    try:yield
-    finally:_PUBLIC_CALL.reset(token)
+    try:
+        import protocol_contract
+        with protocol_contract.read_scope(fresh=fresh):
+            yield
+    finally:
+        for scope in enclosing:
+            if scope is not None:
+                scope.clear()
+        _PUBLIC_CALL.reset(token)
 
 
 def _transaction_scope(connection) -> dict:
-    with _TRANSACTIONS_GUARD:
-        held=_TRANSACTIONS.get(id(connection))
-        if held is None or held[0] is not connection:
-            open_now={id(item) for item in store._CONNECTIONS.get().values()}
-            for key in list(_TRANSACTIONS):
-                if key not in open_now:_TRANSACTIONS.pop(key,None)
-            held=_TRANSACTIONS[id(connection)]=(connection,{})
-        return held[1]
+    scopes = _TRANSACTIONS.get()
+    held = scopes.get(id(connection))
+    if held is None or held[0] is not connection:
+        open_now = {id(item) for item in store._CONNECTIONS.get().values()}
+        scopes = {key: item for key, item in scopes.items() if key in open_now}
+        held = (connection, {})
+        scopes[id(connection)] = held
+        _TRANSACTIONS.set(scopes)
+    return held[1]
+
+
+def release_transaction(connection) -> None:
+    """Dispose the completed connection's read state in its execution context."""
+    scopes = _TRANSACTIONS.get()
+    if id(connection) in scopes:
+        _TRANSACTIONS.set({key: value for key, value in scopes.items() if key != id(connection)})
+
+
+def operation(function):
+    """Give a public Python operation the same read boundary as a CLI call."""
+    @functools.wraps(function)
+    def call(*args, **kwargs):
+        with public_call():
+            return function(*args, **kwargs)
+    return call
+
+
+def invalidate_runs(root: Path, *, source_boundary: bool = False) -> None:
+    """Discard decoded run state after a write or a rolled-back write.
+
+    Event state belongs to the transaction or public read boundary that
+    observed it, never to a pathname. A transaction boundary also discards
+    verified publication proof. Current-source and authority checks acquire
+    their own inputs independently of these decoded values.
+    """
+    identity = str(Path(root).resolve())
+    invalidate_studio(root)
+    scopes = [call_scope()]
+    connection = store._CONNECTIONS.get().get(identity)
+    if connection is not None:
+        scopes.append(_transaction_scope(connection))
+    for scope in scopes:
+        if scope is not None:
+            for key in tuple(scope):
+                if isinstance(key, tuple) and key[:2] == ('verified-run', identity):
+                    del scope[key]
+                elif source_boundary and isinstance(key, tuple) and key[:2] == ('verified-publication',identity):
+                    del scope[key]
+
+
+def invalidate_studio(root: Path) -> None:
+    """End the current Studio read phase after an owned write or rollback.
+
+    Reference readers retain the phase identity with their decoded values. A
+    new marker makes even a resolver passed through nested calls reacquire its
+    Studio inputs before using them again. Nothing survives the public call or
+    the transaction whose scope holds this marker.
+
+    """
+    identity = str(Path(root).resolve())
+    # A run can reference another Studio, including while its own transaction
+    # remains open. Every active reference reader must observe an owned source
+    # write, not only readers in the changed Studio's transaction.
+    scopes = [call_scope(), *(_transaction_scope(connection)
+                             for connection in store._CONNECTIONS.get().values())]
+    for scope in scopes:
+        if scope is not None:
+            scope[('studio-read-phase', identity)] = object()
 
 
 def call_scope() -> dict|None:
     """What the current public call has verified, or None outside any call.
 
-    The call is the current operation, else the open `public_call()` block, else
-    the outermost open production transaction. It holds snapshot verifications,
-    catalogues and pack comparisons.
+    The call is the open `public_call()` block, else the current operation, else
+    the outermost open production transaction. Fixed-runtime input acquisition
+    uses explicit owners rather than entries in this run/Studio read scope.
     """
+    scope=_PUBLIC_CALL.get()
+    if scope is not None:return scope
     from operation_context import current
     operation=current()
     if operation is not None:
         scope=getattr(operation,'_verified_content',None)
         if scope is None:scope=operation._verified_content={}
         return scope
-    scope=_PUBLIC_CALL.get()
-    if scope is not None:return scope
     connections=store._CONNECTIONS.get()
     return _transaction_scope(next(iter(connections.values()))) if connections else None
 
@@ -195,55 +544,84 @@ def _broken(code:str,message:str,**details) -> ProductionError:
         actions=[_retarget_action(None,None)],**details)
 
 
-def _mark_verified(directory:Path,descriptor:dict) -> None:
-    scope=call_scope()
-    if scope is not None:scope[('runtime-files',str(directory.resolve()),descriptor['sha256'])]=True
+def _runtime_artifacts(directory: Path, payload: dict, raw: bytes, *, staged: bool = False):
+    from publication_artifacts import ArtifactSet, StagedArtifacts
+    rows = [{**item, 'path': 'packs/' + pack['pack_id'] + '/' + item['path']}
+            for pack in payload['packs'] for item in pack['files']]
+    artifacts = (StagedArtifacts if staged else ArtifactSet)(directory, rows)
+    artifacts.add('snapshot.json', raw)
+    return artifacts
 
 
-def _require_membership(directory: Path, payload: dict) -> None:
+def _require_membership(directory: Path, payload: dict, raw: bytes) -> None:
     """The snapshot owns its metadata and the exact declared pack files."""
-    from publication_artifacts import ArtifactSet
     try:
-        rows = [{**item, 'path': 'packs/' + pack['pack_id'] + '/' + item['path']}
-                for pack in payload['packs'] for item in pack['files']]
-        artifacts = ArtifactSet(directory, rows)
-        artifacts.add('snapshot.json', c.encoded(payload))
-        artifacts.require_membership()
+        _runtime_artifacts(directory, payload, raw).require_membership()
     except (OSError, ValueError, KeyError, TypeError) as exc:
         details = exc.diagnostic.as_dict() if isinstance(exc, ProductionError) else {'message': str(exc)}
         raise _broken('RUNTIME_SNAPSHOT_CORRUPT', 'Fixed runtime membership differs from its declared files.',
                       file=str(directory), cause=details) from exc
 
 
-def read(directory:Path, descriptor:dict, *, verify_files:bool=True, force_verify:bool=False) -> dict:
-    """The fixed runtime metadata, checked against its digest, with each pinned pack file checked.
+def _verify_fixed_file(directory: Path, pack: str, item: dict) -> bytes:
+    relative='packs/'+pack+'/'+item['path']
+    local=c.local(directory,relative,exists=False)
+    if not local.is_file():
+        raise _broken('PINNED_RESOURCE_MISSING','A fixed runtime resource is missing.',pack=pack,
+                      resource=relative,expected=item['sha256'],file=str(local))
+    raw=c.read(local)
+    actual,size=c.digest(raw),len(raw)
+    if actual!=item['sha256'] or size!=item['size']:
+        raise _broken('RUNTIME_SNAPSHOT_CORRUPT','A fixed runtime resource differs from its recorded contents.',
+                      pack=pack,resource=relative,expected=item['sha256'],file=str(local))
+    return raw
 
-    One public call checks the same snapshot bytes once. `force_verify` checks
-    the metadata and every file again, as the last check before an external effect.
+
+def acquire_runtime(directory:Path, descriptor:dict, *, force_verify:bool=False,
+                    previous:FixedRuntimeRead|None=None) -> FixedRuntimeRead:
+    """Acquire actual metadata, every declared file, and complete membership.
+
+    An explicitly passed owner may supply identical immutable metadata after
+    its actual bytes match. It never skips current file verification. There is
+    no ambient successful-read entry to restore after a failed acquisition.
+    ``force_verify`` marks callers' irreversible boundaries; every acquisition
+    already performs the same complete input check.
     """
+    directory=c._root(Path(directory))
+    if previous is not None:
+        previous=_owned_runtime(directory,descriptor,previous)
     try:
-        raw=c.read(c.local(directory,'snapshot.json'));payload=c.decode(raw)
+        raw=c.read(c.local(directory,'snapshot.json'))
+        if previous is not None and raw==previous.raw:
+            payload=previous.payload
+        else:
+            decoded=c.decode(raw)
+            actual=c.digest(raw)
+            if actual!=descriptor['sha256']:
+                actual=c.content_id(decoded)
+            if actual!=descriptor['sha256']:
+                raise _broken('RUNTIME_SNAPSHOT_CORRUPT','Fixed runtime metadata differs from its digest.',
+                              expected=descriptor['sha256'],actual=actual)
+            if not isinstance(decoded,dict):
+                raise ValueError('fixed runtime metadata must be an object')
+            payload=freeze(decoded)
     except (OSError,ValueError) as exc:
-        raise _broken('RUNTIME_SNAPSHOT_CORRUPT','Required fixed runtime metadata is missing or unreadable.',expected=descriptor['sha256'],file=str(directory)) from exc
-    scope=None if force_verify else call_scope()
-    place=(str(directory.resolve()),descriptor['sha256'])
-    held=c.digest(raw)
-    if scope is None or scope.get(('runtime-payload',*place))!=held:
-        if c.content_id(payload)!=descriptor['sha256']:
-            raise _broken('RUNTIME_SNAPSHOT_CORRUPT','Fixed runtime metadata differs from its digest.',expected=descriptor['sha256'],actual=c.content_id(payload))
-        recorded=call_scope()
-        if recorded is not None:recorded[('runtime-payload',*place)]=held
-    if verify_files and (scope is None or ('runtime-files',*place) not in scope):
-        files=[(pack['pack_id'],'packs/'+pack['pack_id']+'/'+item['path'],item) for pack in payload['packs'] for item in pack['files']]
-        for pack,relative,item in files:
-            local=c.local(directory,relative,exists=False)
-            if not local.is_file():
-                raise _broken('PINNED_RESOURCE_MISSING','A fixed runtime resource is missing.',pack=pack,resource=relative,expected=item['sha256'],file=str(local))
-            if c.sha256_file(local)!=item['sha256'] or local.stat().st_size!=item['size']:
-                raise _broken('RUNTIME_SNAPSHOT_CORRUPT','A fixed runtime resource differs from its recorded contents.',pack=pack,resource=relative,expected=item['sha256'],file=str(local))
-        _require_membership(directory, payload)
-        _mark_verified(directory,descriptor)
-    return payload
+        if isinstance(exc,ProductionError):
+            raise
+        raise _broken('RUNTIME_SNAPSHOT_CORRUPT','Required fixed runtime metadata is missing or unreadable.',
+                      expected=descriptor['sha256'],file=str(directory)) from exc
+    retained={}
+    for pack in payload['packs']:
+        ident=pack['pack_id']
+        for item in pack['files']:
+            retained[(ident,item['path'])]=_verify_fixed_file(directory,ident,item)
+    _require_membership(directory,payload,raw)
+    return FixedRuntimeRead(directory,descriptor['sha256'],raw,payload,freeze(retained))
+
+
+def read(directory:Path, descriptor:dict, *, force_verify:bool=False) -> dict:
+    """Export independent editable metadata from a verified fixed runtime."""
+    return mutable(acquire_runtime(directory,descriptor,force_verify=force_verify).payload)
 
 
 def _alias(source:Path,target:Path) -> None:
@@ -264,59 +642,97 @@ def _store_objects(root:Path,staged:Path,payload:dict) -> dict:
     the snapshot view keeps its own verified copy.
     """
     counts={'files':0,'stored':0,'reused':0}
+    changed_directories=set()
     for pack in payload['packs']:
         for item in pack['files']:
             counts['files']+=1
             view=c.local(staged,'packs/'+pack['pack_id']+'/'+item['path'])
             stored=c.local(root,'runtime/objects/'+c.sha(item['sha256']),exists=False)
+            raw=None
             if not stored.is_file():
-                raw=c.read(view)
+                if raw is None:raw=c.read(view)
                 if c.digest(raw)!=item['sha256'] or len(raw)!=item['size']:
                     raise _broken('RUNTIME_SNAPSHOT_CORRUPT','A captured runtime file changed before storage.',pack=pack['pack_id'],resource=item['path'],expected=item['sha256'],file=str(view))
-                stored.parent.mkdir(parents=True,exist_ok=True)
+                if not stored.parent.exists():
+                    parent=stored.parent
+                    while not parent.exists():
+                        changed_directories.add(parent.parent)
+                        parent=parent.parent
+                    stored.parent.mkdir(parents=True,exist_ok=True)
                 try:
                     os.link(view,stored)
                 except FileExistsError:
                     pass
                 except OSError:
-                    c.atomic(stored,raw,replace=True);counts['stored']+=1;continue
+                    try:
+                        c.atomic(stored,raw)
+                    except FileExistsError:
+                        pass
+                    else:
+                        counts['stored']+=1
+                        changed_directories.add(stored.parent)
+                        continue
                 else:
-                    counts['stored']+=1;continue
+                    counts['stored']+=1
+                    changed_directories.add(stored.parent)
+                    continue
             if c.sha256_file(stored)!=item['sha256'] or stored.stat().st_size!=item['size']:
                 raise _broken('RUNTIME_SNAPSHOT_CORRUPT','A stored runtime object differs from its content digest.',pack=pack['pack_id'],resource=item['path'],expected=item['sha256'],file=str(stored))
-            if c.sha256_file(view)!=item['sha256'] or view.stat().st_size!=item['size']:
+            if raw is None and (c.sha256_file(view)!=item['sha256'] or view.stat().st_size!=item['size']):
                 raise _broken('RUNTIME_SNAPSHOT_CORRUPT','A captured runtime file changed before storage.',pack=pack['pack_id'],resource=item['path'],expected=item['sha256'],file=str(view))
             counts['reused']+=1
             if not os.path.samefile(view,stored):_alias(stored,view)
+    for directory in sorted(changed_directories,key=lambda value:-len(value.parts)):
+        c.fsync_dir(directory)
     return counts
 
 
-def publish(root:Path, staged:Path, descriptor:dict) -> Path:
-    """Publish a captured snapshot, storing only file contents not already stored."""
+def publish(root:Path, staged:Path, descriptor:dict, *, read:FixedRuntimeRead|None=None) -> Path:
+    """Publish immutable content with an exclusive rename, without a Studio lock."""
     import shutil
     from operation_context import current
     target=path(root,descriptor)
-    with c.lock(root):
-        if target.exists():
-            # Both trees are independently owned. Validate the staged contents
-            # before disposing of a duplicate, including files that appeared
-            # after a previous read in this operation.
-            read(staged,descriptor,force_verify=True)
-            read(target,descriptor,force_verify=True)
-            shutil.rmtree(staged)
-            counts={'snapshot_reused':True}
-        else:
-            payload=read(staged,descriptor,verify_files=False)
-            _require_membership(staged, payload)
-            counts=_store_objects(root,staged,payload)
-            _require_membership(staged, payload)
-            target.parent.mkdir(parents=True,exist_ok=True)
+    if target.exists():
+        acquire_runtime(staged,descriptor,force_verify=True,previous=read)
+        acquire_runtime(target,descriptor,force_verify=True)
+        c.fsync_dir(target.parent)
+        shutil.rmtree(staged)
+        counts={'snapshot_reused':True}
+    else:
+        owned=acquire_runtime(staged,descriptor,previous=read)
+        payload=owned.payload
+        _require_membership(staged,payload,owned.raw)
+        artifacts=_runtime_artifacts(staged,payload,owned.raw,staged=True)
+        # Shared objects become visible outside the private stage. Their file
+        # contents must be durable before a hard link exposes them there.
+        artifacts.flush_files()
+        counts=_store_objects(root,staged,payload)
+        _require_membership(staged,payload,owned.raw)
+        artifacts.flush_directories()
+        created_parents=set()
+        parent=target.parent
+        while not parent.exists():
+            created_parents.add(parent.parent)
+            parent=parent.parent
+        target.parent.mkdir(parents=True,exist_ok=True)
+        for parent in sorted(created_parents,key=lambda value:-len(value.parts)):
+            c.fsync_dir(parent)
+        try:
             c.publish_directory(staged,target)
+        except ProductionError as exc:
+            if exc.diagnostic.code != 'OUTPUT_ALREADY_EXISTS':
+                raise
+            # A competing publisher may have installed the same content. Only
+            # its complete, independently checked tree can replace our stage.
+            acquire_runtime(staged,descriptor,force_verify=True,previous=owned)
+            acquire_runtime(target,descriptor,force_verify=True)
             c.fsync_dir(target.parent)
-            _require_membership(target, payload)
-            # Every view file was hashed as it was stored or matched to an object.
-            _mark_verified(target,descriptor)
+            shutil.rmtree(staged)
+            counts['snapshot_reused']=True
+        else:
             counts['snapshot_reused']=False
+            c.fsync_dir(target.parent)
+        _require_membership(target,payload,owned.raw)
     if current() is not None:
         current().event('runtime_snapshot_published',phase='artifact-publication',snapshot=descriptor['sha256'],**counts)
     return target
@@ -338,7 +754,7 @@ def _reading_resources(directory:Path) -> dict:
     return found
 
 
-def bind(directory:Path, payload:dict, looked_up:set[str]) -> dict:
+def bind(directory:Path, payload:dict, looked_up:set[str], *, inputs:dict|None=None) -> dict:
     """The fixed runtime parts one preparation actually used.
 
     `directory` is the compile directory: it holds the resolved target, the
@@ -355,8 +771,14 @@ def bind(directory:Path, payload:dict, looked_up:set[str]) -> dict:
     entries={}
     for entry in payload['entries']:
         if isinstance(entry['record'].get('id'),str):entries[entry['record']['id']]=entry
-    target=c.load(directory/'execution-target.json')
-    package=c.load(directory/'package.json') if (directory/'package.json').is_file() else {}
+    if inputs is None:
+        target=c.load(directory/'execution-target.json')
+        package=c.load(directory/'package.json') if (directory/'package.json').is_file() else {}
+        reading_resources=_reading_resources(directory)
+    else:
+        target=inputs['target']
+        package=inputs['package']
+        reading_resources=inputs['reading_resources']
     records={}
     def record(ident,role):
         entry=entries.get(ident)
@@ -369,7 +791,7 @@ def bind(directory:Path, payload:dict, looked_up:set[str]) -> dict:
     for element in retrieval.get('elements') or []:
         for ident in [*(element.get('adopted_records') or []),*(element.get('inspected_records') or [])]:
             record(ident,'retrieval')
-    roles={name:'guide' for name in _reading_resources(directory)}
+    roles={name:'guide' for name in reading_resources}
     roles['service-profiles']='service'
     for name in looked_up:roles.setdefault(name,'lookup')
     resources=[]
@@ -391,22 +813,29 @@ def dependencies(binding:dict) -> list[dict]:
     return [*binding['records'],*binding['resources'],*binding['evidence']]
 
 
-def _run_bindings(root:Path) -> list[tuple[str,dict]]:
-    """Registered runs and their bindings, read once per public call and run set."""
-    rows=store.runs(root)
-    key=('run-bindings',str(Path(root).resolve()),tuple(row['run_id'] for row in rows))
-    cache=call_scope()
-    if cache is None:cache={}
-    if key not in cache:
-        found=[]
-        for row in rows:
-            try:
-                prepared=c.load(c.local(root,row['directory']+'/prepared.json'))
-                found.append((row['run_id'],prepared['runtime_snapshot']['binding']))
-            except (OSError,ValueError,KeyError,TypeError):
+def _run_bindings(root:Path) -> tuple[tuple[str,dict], ...]:
+    """Acquire only the registered inputs needed for diagnostic affected-run lists.
+
+    Each diagnostic reads current registrations and their bound prepared
+    envelopes. Impact discovery neither replays their events nor inspects
+    their media. This projection cannot certify a decision or external effect,
+    and it retains no result across registration or rollback.
+    """
+    found=[]
+    for row in store.runs(root):
+        try:
+            prepared=c.load(c.local(root,row['directory']+'/prepared.json'))
+            if not isinstance(prepared,dict):
                 continue
-        cache[key]=found
-    return cache[key]
+            envelope=dict(prepared)
+            expected=envelope.pop('envelope_sha256',None)
+            if (expected!=row['envelope_sha256'] or c.content_id(envelope)!=expected
+                    or prepared.get('run')!=row['run_id'] or prepared.get('input_sha256')!=row['input_sha256']):
+                continue
+            found.append((row['run_id'],freeze(prepared['runtime_snapshot']['binding'])))
+        except (OSError,ValueError,KeyError,TypeError):
+            continue
+    return tuple(found)
 
 
 def _affects(binding:dict,match:tuple) -> bool:
@@ -416,6 +845,29 @@ def _affects(binding:dict,match:tuple) -> bool:
     if kind=='records':return any(row['id'] in match[1] for row in binding['records'])
     if kind=='resources':return any(row['name'] in match[1] for row in binding['resources'])
     return False
+
+
+def _selected_resources(discovered:dict,enabled:set[str],names:set[str],order:list,read_file) -> dict:
+    """Resolve only used names from acquired manifests and their candidate files."""
+    from pack_cache import _precedence,_highest
+    packs=[(pack,[]) for ident,pack in sorted(discovered.items()) if ident in enabled]
+    outranks=_precedence(packs,order)
+    found={}
+    for name in sorted(names):
+        candidates={pack.pack_id:pack.manifest['content']['resource_bindings'][name]
+                    for pack,_ in packs if name in (pack.manifest.get('content',{}).get('resource_bindings') or {})}
+        highest=_highest(sorted(candidates),outranks)
+        if len(highest)>1:
+            try:
+                digests={c.digest(read_file(ident,candidates[ident])) for ident in highest}
+            except (OSError,ValueError):
+                highest=[]
+            else:
+                if len(digests)==1:
+                    highest=highest[:1]
+        selected=None if len(highest)!=1 else (highest[0],candidates[highest[0]])
+        found[name]=(selected,candidates)
+    return found
 
 
 def _compare(root:Path,payload:dict,binding:dict,settings) -> list[dict]:
@@ -429,9 +881,21 @@ def _compare(root:Path,payload:dict,binding:dict,settings) -> list[dict]:
         return rows
     state=load_effective_state(settings);discovered,_=discover_packs(settings,state)
     enabled=set(state['enabled_packs'])-set(state.get('disabled_packs',[]))
+    current_files={}
+    def read_file(ident,relative):
+        key=(ident,relative)
+        if key not in current_files:
+            current_files[key]=store.stable_bytes(discovered[ident].root,relative)
+        return current_files[key]
     releases={pack['pack_id']:pack['release'] for pack in payload['packs']}
     bound=dependencies(binding)
     bound_packs=sorted({row['pack'] for row in bound})
+    previous_order=list(payload['selection'].get('pack_order',()))
+    current_order=list(state.get('pack_order',()))
+    if previous_order!=current_order:
+        issue('PACK_SELECTION_CHANGED','The explicit pack precedence differs from the prepared selection.',
+              match=('records',tuple(row['id'] for row in binding['records'])),
+              resource='pack_order',expected=previous_order,actual=current_order)
     for ident in bound_packs:
         if ident not in enabled:
             issue('PACK_NOT_ENABLED','The author no longer enables a pack this run uses.',match=('pack',ident),pack=ident,expected='enabled',actual='disabled');continue
@@ -445,29 +909,48 @@ def _compare(root:Path,payload:dict,binding:dict,settings) -> list[dict]:
             if row['pack']!=ident or row['path'] in checked:continue
             checked.add(row['path'])
             try:
-                source=c.local(live.root,row['path']);actual=c.sha256_file(source)
+                raw=read_file(ident,row['path']);actual=c.digest(raw)
             except (ValueError,OSError):
                 issue('RECORD_NOT_FOUND','A file this run uses is missing from its pack.',match=('file',ident,row['path']),
                       pack=ident,resource=row['path'],file=str(live.root/row['path']),expected=row['sha256'],actual=None);continue
             if actual==row['sha256']:continue
             wanted=[item['id'] for item in binding['records'] if (item['pack'],item['path'])==(ident,row['path'])]
             try:
-                document=c.load(source);present={item.get('id') for item in document.get('records',[]) if isinstance(item,dict)}
+                document=c.decode(raw);present={item.get('id') for item in document.get('records',[]) if isinstance(item,dict)}
             except (OSError,ValueError,AttributeError):
                 present=set(wanted)
             lost=[name for name in wanted if name not in present]
             if lost:
                 issue('RECORD_NOT_FOUND','A record this run uses is no longer in its pack file.',match=('records',tuple(lost)),
-                      pack=ident,resource=row['path'],record=lost,file=str(source),expected=lost,actual=None)
+                      pack=ident,resource=row['path'],record=lost,file=str(live.root/row['path']),expected=lost,actual=None)
             else:
                 issue('PACK_CONTENT_MISMATCH','Current source bytes differ from the fixed execution resource.',match=('file',ident,row['path']),
-                      pack=ident,resource=row['path'],file=str(source),expected=row['sha256'],actual=actual)
+                      pack=ident,resource=row['path'],file=str(live.root/row['path']),expected=row['sha256'],actual=actual)
     before=set(payload['selection']['enabled_packs'])
     for ident in sorted(before-enabled-set(bound_packs)):
         issue('PACK_SELECTION_CHANGED','A pack enabled at preparation is no longer enabled. This run uses nothing from it.',
               severity='warning',match=('pack',ident),pack=ident,expected='enabled',actual='disabled')
     used={row['id']:row['pack'] for row in binding['records']}
     named={row['name'] for row in binding['resources']}
+    resolved=_selected_resources(discovered,enabled,named,current_order,read_file)
+    for resource in binding['resources']:
+        name=resource['name']
+        if resource['pack'] not in enabled or resource['pack'] not in discovered:
+            continue
+        selected,candidates=resolved[name]
+        # Newly enabled bindings keep their established refusal below, even
+        # when the previous provider still wins. Resolve existing providers
+        # here to detect changes that enabling checks alone cannot observe.
+        if any(ident not in before for ident in candidates):
+            continue
+        expected=(resource['pack'],resource['path'])
+        if selected!=expected:
+            changed=([selected[0]] if selected is not None else
+                     sorted(set(candidates)-{resource['pack']}) or [resource['pack']])
+            issue('PACK_SELECTION_CHANGED','A used named resource resolves from a different source or is now ambiguous.',
+                  match=('resources',(name,)),pack=changed[0],resource=[name],
+                  expected={'pack':expected[0],'path':expected[1]},
+                  actual=None if selected is None else {'pack':selected[0],'path':selected[1]})
     for ident in sorted(enabled-before):
         live=discovered.get(ident)
         declared=set();bindings=set()
@@ -499,6 +982,11 @@ def _guidance(row:dict,*,root:Path,run:str|None,command:str) -> tuple[str,list[d
     if code=='PACK_NOT_ENABLED':
         return ('Enable the pack again to keep this run, or retarget from it to adopt the current selection.',
                 [{'operation':'enable-pack','command':f'{command} enable {pack}','effect':'Enable the pack this run uses.'},retarget])
+    if code=='PACK_SELECTION_CHANGED' and details.get('resource')=='pack_order':
+        return ('Restore the prepared pack order, or retarget to adopt the new precedence.',[restore,retarget])
+    if (code=='PACK_SELECTION_CHANGED' and isinstance(details.get('expected'),dict)
+            and details['expected'].get('pack')==pack):
+        return ('Restore the pack binding that supplied this resource, or retarget to adopt the current resource.',[restore,retarget])
     if code=='PACK_SELECTION_CHANGED' and (details.get('record') or details.get('resource')):
         return ('Disable the newly enabled pack to keep this run, or retarget from this run to adopt what it changes.',
                 [{'operation':'disable-pack','command':f'{command} disable {pack}','effect':'Leave out the pack that changes a record or named resource this run uses.'},retarget])
@@ -511,33 +999,19 @@ def _guidance(row:dict,*,root:Path,run:str|None,command:str) -> tuple[str,list[d
     return ('Restore the pinned content, or retarget from this run to adopt the edited pack content.',[restore,retarget])
 
 
-def current_diagnostics(root:Path,descriptor:dict,*,run:str|None=None,force:bool=False)->list[dict]:
-    """Compare a run's fixed runtime with the author's current packs and selection.
-
-    Only the live files the run is bound to are hashed. One public call reuses
-    a comparison while the descriptor, its binding and the pack state file
-    bytes are unchanged; `force` compares again, as the last check before an
-    external effect does. A live edit never changes the fixed runtime.
-    """
+def _current_diagnostics(root:Path,descriptor:dict,read:FixedRuntimeRead,run:str|None)->list[dict]:
+    """Compare current selected sources with the already acquired fixed input."""
     from pack_manager import pack_cli_command
     root=Path(root)
-    payload=read(path(root,descriptor),descriptor)
     settings=settings_from(descriptor['settings'])
-    try:state=c.digest(c.read(settings.state_file))
-    except (OSError,ValueError):state=None
-    key=('pack-comparison',str(root.resolve()),descriptor['sha256'],c.content_id(descriptor['binding']),state)
-    cache=call_scope()
-    if cache is None:cache={}
-    if force or key not in cache:
-        rows=_compare(root,payload,descriptor['binding'],settings)
-        if rows:
-            bindings=_run_bindings(root)
-            for row in rows:
-                row['affected_runs']=sorted(ident for ident,bound in bindings if row['match'] and _affects(bound,row['match']))
-        cache[key]=rows
+    rows=_compare(root,read.payload,descriptor['binding'],settings)
+    if rows:
+        bindings=_run_bindings(root)
+        for row in rows:
+            row['affected_runs']=sorted(ident for ident,bound in bindings if row['match'] and _affects(bound,row['match']))
     command=pack_cli_command(settings)
     result=[]
-    for row in cache[key]:
+    for row in rows:
         action,actions=_guidance(row,root=root,run=run,command=command)
         details=copy.deepcopy(row['details']);file=details.pop('file',None)
         affected=list(row['affected_runs'])
@@ -547,16 +1021,39 @@ def current_diagnostics(root:Path,descriptor:dict,*,run:str|None=None,force:bool
     return result
 
 
-def require_current(root:Path,descriptor:dict,*,run:str|None=None,force:bool=False)->list[dict]:
-    """Stop on a freshness error; return the warnings that leave this run usable."""
-    result=current_diagnostics(root,descriptor,run=run,force=force)
+def current_diagnostics(root:Path,descriptor:dict,*,run:str|None=None,force:bool=False)->list[dict]:
+    """Inspect current bound sources, acquiring their fixed comparison input once.
+
+    The caller's source-check boundary determines when a comparison is needed.
+    This boundary reads current pack files and selection on every invocation;
+    it does not keep a second successful-result cache beside that owner.
+    """
+    owned=acquire_runtime(path(root,descriptor),descriptor,force_verify=force)
+    return _current_diagnostics(root,descriptor,owned,run)
+
+
+def _require_current_result(result:list[dict],run:str|None) -> None:
     errors=[row for row in result if row['severity']=='error']
     if errors:
         first=errors[0]
         extra={key:value for key,value in first.items() if key not in {'code','severity','phase','file','pointer','message','required_action','blocked_checks','run'}}
         raise ProductionError(first['code'],first['message'],phase=first['phase'],file=first['file'],
                               required_action=first['required_action'],diagnostics=result,run=run,**extra)
+
+
+def require_current(root:Path,descriptor:dict,*,run:str|None=None,force:bool=False)->list[dict]:
+    """Stop on a freshness error; export the warnings that leave this run usable."""
+    result=current_diagnostics(root,descriptor,run=run,force=force)
+    _require_current_result(result,run)
     return result
+
+
+def require_current_read(root:Path,descriptor:dict,*,run:str|None=None,force:bool=False,
+                         previous:FixedRuntimeRead|None=None)->FixedRuntimeRead:
+    """Return the verified fixed input used by this current-source boundary."""
+    owned=acquire_runtime(path(root,descriptor),descriptor,force_verify=force,previous=previous)
+    _require_current_result(_current_diagnostics(root,descriptor,owned,run),run)
+    return owned
 
 
 class _Lookups(dict):
@@ -574,48 +1071,13 @@ class _Lookups(dict):
         return super().get(name,default)
 
 
-def _refuse(self,*args,**kwargs):
-    raise TypeError('fixed runtime content is read-only; change a copy of it')
-
-
-class _FixedRecord(dict):
-    """A mapping of a fixed runtime: readable and serializable, refusing every change.
-
-    `copy.deepcopy` gives an editable copy. `dict(value)` and `copy.copy` copy
-    only the top level; nested values stay read-only.
-    """
-    __setitem__=__delitem__=__ior__=clear=pop=popitem=setdefault=update=_refuse
-    def __copy__(self):return dict(self)
-    def __deepcopy__(self,memo):
-        result=memo[id(self)]={}
-        for key,value in self.items():result[key]=copy.deepcopy(value,memo)
-        return result
-    def __reduce__(self):return (dict,(dict(self),))
-
-
-class _FixedList(list):
-    """A list of a fixed runtime: readable and serializable, refusing every change."""
-    __setitem__=__delitem__=__iadd__=__imul__=append=extend=insert=pop=remove=clear=sort=reverse=_refuse
-    def __copy__(self):return list(self)
-    def __deepcopy__(self,memo):
-        result=memo[id(self)]=[]
-        result.extend(copy.deepcopy(value,memo) for value in self)
-        return result
-    def __reduce__(self):return (list,(list(self),))
-
-
-def _fixed(value):
-    if isinstance(value,dict):return _FixedRecord((key,_fixed(item)) for key,item in value.items())
-    if isinstance(value,list):return _FixedList(_fixed(item) for item in value)
-    return value
-
-
-def catalogue(directory:Path,payload:dict,*,looked_up:set[str]|None=None,fingerprint:str|None=None):
-    """The catalogue of one fixed snapshot, as read-only records shared by every lookup."""
+def catalogue(directory:Path,payload:dict,*,looked_up:set[str]|None=None,fingerprint:str|None=None,
+              read:FixedRuntimeRead|None=None):
+    """Adapt the complete fixed catalogue for explicit authoring and lookup APIs."""
     from pack_cache import RuntimePackCatalog,RuntimePackEntry,RuntimePackResource
-    entries=tuple(RuntimePackEntry(kind=e['kind'],category=e['category'],record=_fixed(e['record']),source_pack=e['source_pack'],
+    entries=tuple(RuntimePackEntry(kind=e['kind'],category=e['category'],record=freeze(e['record']),source_pack=e['source_pack'],
                    source_root=directory/'packs'/e['source_pack'],source_file=e['source_file']) for e in payload['entries'])
-    resources=_FixedRecord((name,RuntimePackResource(name=name,path=directory/'packs'/r['pack_id']/r['path'],media_type=r['media_type'],
+    resources=FrozenDict((name,RuntimePackResource(name=name,path=directory/'packs'/r['pack_id']/r['path'],media_type=r['media_type'],
                                                      source_pack=r['pack_id'],relative_path=r['path']))
                            for name,r in payload['resources'].items())
     if looked_up is not None:resources=_Lookups(resources,looked_up)
@@ -624,27 +1086,17 @@ def catalogue(directory:Path,payload:dict,*,looked_up:set[str]|None=None,fingerp
         if entry.kind=='asset':
             for ident in entry.record.get('canonical_record_ids',[]):
                 if ident in assets:assets[ident].append(entry)
-    return RuntimePackCatalog(fingerprint or c.content_id(payload),len(payload['packs']),entries,_fixed(payload['phrases']),_fixed(payload['profiles']),resources,
-                              _FixedRecord((k,tuple(v)) for k,v in assets.items()),tuple(_fixed(payload['diagnostics'])),
-                              pack_roots=_FixedRecord((pack['pack_id'],directory/'packs'/pack['pack_id']) for pack in payload['packs']))
-
-
-def _shared_catalogue(directory:Path,descriptor:dict,payload:dict,looked_up:set[str]|None):
-    """Build the catalogue of a verified snapshot once per public call; a binding block records its lookups."""
-    scope=call_scope()
-    key=('catalogue',str(directory.resolve()),descriptor['sha256'])
-    built=scope.get(key) if scope is not None else None
-    if built is None:
-        # `read` checked that the payload's content digest is the descriptor's.
-        built=catalogue(directory,payload,fingerprint=descriptor['sha256'])
-        if scope is not None:scope[key]=built
-    if looked_up is None:return built
-    return dataclasses.replace(built,resources=_Lookups(built.resources,looked_up))
+    fingerprint=fingerprint or c.content_id(payload)
+    return RuntimePackCatalog(fingerprint,len(payload['packs']),entries,freeze(payload.get('phrases',{})),freeze(payload.get('profiles',{})),resources,
+                              FrozenDict((k,tuple(v)) for k,v in assets.items()),tuple(freeze(payload.get('diagnostics',()))),
+                              pack_roots=FrozenDict((pack['pack_id'],directory/'packs'/pack['pack_id']) for pack in payload['packs']),
+                              resource_reader=read.read_resource if read is not None else None)
 
 
 @contextlib.contextmanager
-def using(directory:Path,descriptor:dict,*,binding:Path|None=None)->Iterator[dict]:
-    """Serve catalogue lookups from one fixed snapshot.
+def using(directory:Path,descriptor:dict,*,binding:Path|None=None,
+          read:FixedRuntimeRead|None=None,binding_inputs:dict|None=None)->Iterator[dict]:
+    """Explicitly adapt a fixed input for standalone catalogue lookup APIs.
 
     With `binding`, the compile directory of a preparation, the block's named
     resource lookups are recorded. When the block completes, the descriptor
@@ -652,12 +1104,16 @@ def using(directory:Path,descriptor:dict,*,binding:Path|None=None)->Iterator[dic
     preparation used.
     """
     from catalog_retrieval import runtime
-    payload=read(directory,descriptor)
+    if read is None:
+        read=acquire_runtime(directory,descriptor)
+    owned=_owned_runtime(directory,descriptor,read)
+    payload=owned.payload
     previous=(runtime._PACK_SETTINGS,runtime._PACK_CATALOG_CACHE)
     looked_up:set[str]|None=set() if binding is not None else None
     runtime._PACK_SETTINGS=settings_from(descriptor['settings'])
-    runtime._PACK_CATALOG_CACHE=_shared_catalogue(directory,descriptor,payload,looked_up)
+    runtime._PACK_CATALOG_CACHE=catalogue(directory,payload,looked_up=looked_up,
+                                        fingerprint=descriptor['sha256'],read=owned)
     try:yield payload
     finally:runtime._PACK_SETTINGS,runtime._PACK_CATALOG_CACHE=previous
     if binding is not None:
-        descriptor['binding']=bind(binding,payload,looked_up)
+        descriptor['binding']=bind(binding,payload,looked_up,inputs=binding_inputs)

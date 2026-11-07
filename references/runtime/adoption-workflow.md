@@ -94,6 +94,8 @@ Repeat `production_workflow.py adopt` with the same candidate, approval and
 authorization to finish that claim. The active-reference view refreshes from
 the committed result; `studio.py sync` can rebuild it after a display failure.
 
+The adoption owner carries one parsed Studio read model through source eligibility, the exact Production claim and sheet preparation. It records journal progress and canonical files before requesting a display update. The outer Production operation commits its result before the single shared refresh, so an intermediate sheet bind does not publish a reference that still lacks its Production result. `studio_activity` owns publication of `active-references.json`; the adoption journal and sheet sidecar remain authoritative. A failed refresh reports retained committed work and a repair action instead of undoing the adoption.
+
 `studio status` and `validate_studio.py` report stale sheet bindings and incomplete adoption. Accepting a new image through a plain `studio accept` while an older image is bound leaves status incomplete; resolve adoption before preparing the next run. Preparation and the package builder check each subject recorded under a Studio character. They refuse an incomplete adoption, and a package without the character's current adopted identity image among its prepared references. First-generation work, before any identity is adopted, is permitted.
 
 ## Register an image for mixed pack references

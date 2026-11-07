@@ -796,6 +796,13 @@ def stage(name: str, **facts: Any) -> Iterator[None]:
 
 
 def run_cli(function: Callable[[], int | None]) -> int:
+    """Run one command with a single verified-read boundary."""
+    import runtime_snapshot
+    with runtime_snapshot.public_call():
+        return _run_cli(function)
+
+
+def _run_cli(function: Callable[[], int | None]) -> int:
     if current() is not None:
         return int(function() or 0)
     operation = Operation(Path(sys.argv[0]).name, parent=_inherited_parent())
@@ -979,7 +986,7 @@ def _run_has_unresolved_external_effect(root: Path, run: str) -> bool:
     try:
         import production_workflow as workflow
         import execution_lifecycle as accounting
-        _, prepared, _, rows = workflow.load_run(root, run)
+        _, prepared, _, rows = workflow.read_run(root, run)
         claims = [row for row in rows if row['event'] in {'dispatch-claim', 'external-claim'}]
         if not claims:
             return False
@@ -1056,7 +1063,7 @@ def cleanup_logs(root: Path | None, *, before: str | None = None, operation_id: 
     """List or delete only closed, owned diagnostics of a Studio, or of the configuration directory when `root` is None.
 
     An operation killed before the `before` date whose process has ended is closed.
-    Selection is rechecked under a lock immediately before deletion.
+    Selection is rechecked immediately before deleting closed diagnostics.
     Formal evidence and directories with unexpected files are never cleanup targets.
     """
     import execution_contract as c
@@ -1083,17 +1090,19 @@ def cleanup_logs(root: Path | None, *, before: str | None = None, operation_id: 
             if datetime.fromisoformat(row['created_at'].replace('Z', '+00:00')).date() >= cutoff:
                 continue
         if apply and row['eligible']:
-            with c.lock(root if root is not None else base):
-                updated = _cleanup_assessment(root, folder, cutoff=cutoff)
-                if updated != row:
-                    row = {**updated, 'eligible': False, 'reason': 'changed-since-inspection'}
-                else:
-                    try:
-                        shutil.rmtree(folder)
-                        deleted.append(row['operation_id'])
-                    except OSError as exc:
-                        raise ProductionError('LOG_WRITE_FAILED', 'Owned diagnostics could not be removed.',
-                            phase='logs-cleanup', file=str(folder), actual=type(exc).__name__) from exc
+            updated = _cleanup_assessment(root, folder, cutoff=cutoff)
+            if updated != row:
+                row = {**updated, 'eligible': False, 'reason': 'changed-since-inspection'}
+            else:
+                try:
+                    shutil.rmtree(folder)
+                    deleted.append(row['operation_id'])
+                except FileNotFoundError:
+                    # Another cleanup may already have removed this closed operation.
+                    deleted.append(row['operation_id'])
+                except OSError as exc:
+                    raise ProductionError('LOG_WRITE_FAILED', 'Owned diagnostics could not be removed.',
+                        phase='logs-cleanup', file=str(folder), actual=type(exc).__name__) from exc
         rows.append(row)
     return {'ok': True, 'apply': bool(apply), 'selector': {'before': before, 'operation': operation_id},
             'candidates': [row for row in rows if row['eligible']],

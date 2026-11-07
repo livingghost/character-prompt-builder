@@ -142,8 +142,15 @@ def maintain_catalog(settings: PackSettings, runtime: RuntimePackCatalog) -> dic
             if output == source or output in source.parents or source in output.parents:
                 raise PackError("Browser catalog output overlaps an active source pack")
         generation = _generation(settings, runtime.fingerprint)
+        if _current(output, generation) is not None:
+            return {
+                **result, "ok": True, "fresh": True,
+                "pack_count": runtime.active_pack_count,
+                "record_count": len(runtime.entries),
+            }
         with lock(output.parent / ".locks" / result["context"]):
             try:
+                # Another writer may have completed this generation while we waited.
                 existing = _current(output, generation)
                 if existing is None:
                     views = catalog_html.load_runtime_views(runtime)

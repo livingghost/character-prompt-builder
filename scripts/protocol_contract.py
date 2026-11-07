@@ -10,14 +10,19 @@ the manifest does not list.
 """
 from __future__ import annotations
 import copy
+import contextlib
+import contextvars
 import datetime as dt
 import hashlib
 import json
 import math
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from functools import lru_cache
 import re
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from types import MappingProxyType
+from typing import Any, Callable, Iterable, Protocol, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 _ARRAY_INDEX = re.compile(r"^(?:0|[1-9][0-9]*)$")
 
@@ -305,104 +310,295 @@ def _member_digest(root: Path, label: str, relative: str) -> str:
     return _file_digest(path)
 
 
-def unlisted_files(value: dict[str, Any], root: Path = ROOT) -> list[str]:
+class SchemaSource(Protocol):
+    """Immutable acquired installation bytes supplied by a caller's read owner."""
+
+    root: Path
+    paths: frozenset[str]
+
+    def read_bytes(self, path: str | Path) -> bytes: ...
+
+
+def unlisted_files(value: dict[str, Any], root: Path = ROOT, *, source: SchemaSource | None = None) -> list[str]:
     """Files under protocols/ that no manifest entry names, the manifest itself aside."""
     listed = {relative for _, relative, _ in members(value)} | {MANIFEST_PATH}
-    present = {
-        path.relative_to(root).as_posix()
-        for path in (root / PROTOCOLS_DIR).rglob("*")
-        if path.is_file()
-    }
+    present = ({path for path in source.paths if path.startswith(PROTOCOLS_DIR + "/")}
+               if source is not None else {
+                   path.relative_to(root).as_posix()
+                   for path in (root / PROTOCOLS_DIR).rglob("*")
+                   if path.is_file()
+               })
     return sorted(present - listed)
 
 
-def verify_installation(value: dict[str, Any], root: Path = ROOT) -> None:
+def verify_installation(value: dict[str, Any], root: Path = ROOT, *, source: SchemaSource | None = None) -> None:
     """Every listed member holds its sealed bytes and nothing under protocols/ is unlisted."""
     for label, relative, expected in members(value):
-        if _member_digest(root, label, relative) != expected:
+        if source is None:
+            actual = _member_digest(root, label, relative)
+        else:
+            try:
+                actual = hashlib.sha256(source.read_bytes(relative)).hexdigest()
+            except FileNotFoundError as exc:
+                raise ValueError(f"{label} is missing: {relative}") from exc
+        if actual != expected:
             raise ValueError(f"{label} byte hash mismatch: {relative}")
-    stray = unlisted_files(value, root)
+    stray = unlisted_files(value, root, source=source)
     if stray:
         raise ValueError("file under protocols/ is not in the contract manifest: " + ", ".join(stray))
 
 
+def _freeze(value: Any) -> Any:
+    """Keep parsed contracts immutable, including nested schema values."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(item) for item in value)
+    return value
+
+
+def _mutable(value: Any) -> Any:
+    """Return independent JSON containers at the public mutable-data boundary."""
+    if isinstance(value, Mapping):
+        return {key: _mutable(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_mutable(item) for item in value]
+    return value
+
+
+@dataclass(frozen=True, eq=False)
+class SchemaDocument(Mapping[str, Any]):
+    """Own one immutable schema document, including all nested values.
+
+    Acquired schema bytes are checked before constructing this value. Inline
+    schemas are copied at the validation boundary so caller edits cannot change
+    a reference already resolved within that validation.
+    """
+
+    _content: Mapping[str, Any] = field(repr=False)
+
+    def __init__(self, value: Mapping[str, Any]):
+        if not isinstance(value, Mapping):
+            raise ValueError("schema root must be an object")
+        content = value._content if isinstance(value, SchemaDocument) else _freeze(value)
+        object.__setattr__(self, "_content", content)
+
+    def __getitem__(self, key: str) -> Any:
+        return self._content[key]
+
+    def __iter__(self):
+        return iter(self._content)
+
+    def __len__(self) -> int:
+        return len(self._content)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._content.get(key, default)
+
+
+class SchemaReferences:
+    """Resolve reference edges for one set of owned schema documents.
+
+    The supplied reader owns document acquisition. Resolution is lazy, so an
+    unvisited branch cannot introduce a new missing-reference error. A memo
+    entry retains its immutable document as well as the resolved fragment.
+    """
+
+    def __init__(self, read_document: Callable[[str], Mapping[str, Any]]):
+        self._read_document = read_document
+        self._documents: dict[str, SchemaDocument] = {}
+        self._fragments: dict[tuple[int, str], tuple[Mapping[str, Any], SchemaDocument]] = {}
+
+    def resolve_ref(self, ref: str, root_schema: Mapping[str, Any]) -> tuple[Mapping[str, Any], SchemaDocument]:
+        if ref.startswith("#"):
+            document = root_schema if isinstance(root_schema, SchemaDocument) else SchemaDocument(root_schema)
+            fragment = ref
+        else:
+            name, separator, suffix = ref.partition("#")
+            if name not in self._documents:
+                value = self._read_document(name)
+                self._documents[name] = value if isinstance(value, SchemaDocument) else SchemaDocument(value)
+            document = self._documents[name]
+            fragment = "#" + suffix if separator else "#"
+        key = (id(document), fragment)
+        if key not in self._fragments:
+            self._fragments[key] = (_json_pointer(document, fragment), document)
+        return self._fragments[key]
+
+
 @lru_cache(maxsize=16)
-def _checked_registry_bytes(raw: bytes) -> dict[str, Any]:
+def _checked_registry_bytes(raw: bytes) -> Mapping[str, Any]:
     value = _registry_shape(parse_json(raw.decode("utf-8")))
     content = {key: item for key, item in value.items() if key != "contract_set_sha256"}
     if sha256_json(content) != value["contract_set_sha256"]:
         raise ValueError("public contract manifest hash mismatch")
-    return value
+    return _freeze(value)
 
 
 @lru_cache(maxsize=16)
-def _checked_installation(raw: bytes) -> bool:
+def _checked_installation(raw: bytes, root: Path) -> bool:
     # The whole installation is verified once for each manifest the process
-    # reads. The manifest, the semantic contract, the validator and every schema
-    # in use are re-read on every use.
-    verify_installation(_checked_registry_bytes(raw))
+    # reads. Each public call rechecks the manifest, semantic rules, validator
+    # and the schemas it actually uses against their exact bytes.
+    verify_installation(_checked_registry_bytes(raw), root)
     return True
 
 
-def registry() -> dict[str, Any]:
-    # Cache parsing by exact bytes, never by a pathname or a timestamp. Re-read
-    # commitments on every use, so edits cannot reuse a stale validated cache.
-    raw = (ROOT / MANIFEST_PATH).read_bytes()
-    value = _checked_registry_bytes(raw)
-    _checked_installation(raw)
-    semantics = value["semantics"]
-    if _file_digest(ROOT / semantics["path"]) != semantics["sha256"]:
-        raise ValueError("semantic contract byte hash mismatch: " + semantics["path"])
-    validator = value["validator"]
-    if _file_digest(ROOT / validator["path"]) != validator["sha256"]:
-        raise ValueError("validator byte hash mismatch: " + validator["path"])
-    return copy.deepcopy(value)
-
-
 @lru_cache(maxsize=128)
-def _checked_schema_bytes(raw: bytes) -> dict[str, Any]:
+def _checked_schema_bytes(raw: bytes) -> SchemaDocument:
     value = parse_json(raw.decode("utf-8"))
     unsupported = unsupported_schema_keywords(value)
     if unsupported:
         raise ValueError("unsupported schema keywords: " + ", ".join(unsupported))
-    return value
+    if not isinstance(value, dict):
+        raise ValueError("schema root must be an object")
+    return SchemaDocument(value)
+
+
+@dataclass(frozen=True)
+class ContractSet:
+    """Verified public contracts owned by one read operation.
+
+    Parsed documents are immutable and shared by exact content. Schema files
+    are checked when first used by this operation; a later operation reads
+    their bytes again. Public dictionary APIs make independent mutable copies.
+    """
+
+    root: Path
+    manifest: Mapping[str, Any]
+    schema_hashes: Mapping[str, str]
+    schema_names: Mapping[str, str]
+    self_hash_fields: Mapping[str, str]
+    artifact_types: frozenset[str]
+    _schemas: dict[str, Mapping[str, Any]] = field(default_factory=dict, repr=False, compare=False)
+    _references: SchemaReferences = field(init=False, repr=False, compare=False)
+    _source: SchemaSource | None = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_references", SchemaReferences(self.schema_named))
+
+    @classmethod
+    def read(cls, root: Path, *, source: SchemaSource | None = None) -> ContractSet:
+        if source is not None and Path(source.root).absolute() != Path(root).absolute():
+            raise ValueError("acquired contract source belongs to another installation")
+        raw = source.read_bytes(MANIFEST_PATH) if source is not None else (root / MANIFEST_PATH).read_bytes()
+        value = _checked_registry_bytes(raw)
+        if source is not None:
+            verify_installation(value, root, source=source)
+        else:
+            _checked_installation(raw, root)
+            for section, label in (("semantics", "semantic contract"), ("validator", "validator")):
+                row = value[section]
+                if _file_digest(root / row["path"]) != row["sha256"]:
+                    raise ValueError(label + " byte hash mismatch: " + row["path"])
+        hashes = {row["schema"]: row["sha256"] for row in value["schemas"]}
+        names = {key.split("/", 1)[1]: key for key in hashes}
+        if len(names) != len(hashes):
+            raise ValueError("duplicate schema basenames")
+        fields = {kind: row["self_hash_field"] for kind, row in value["artifacts"].items() if row["self_hash_field"]}
+        return cls(root, value, MappingProxyType(hashes), MappingProxyType(names),
+                   MappingProxyType(fields), frozenset(value["artifacts"]), _source=source)
+
+    def schema_path(self, key: str) -> Path:
+        if key not in self.schema_hashes:
+            raise ValueError(f"unregistered public schema: {key}")
+        return self.root / schema_file(key)
+
+    def schema(self, key: str) -> Mapping[str, Any]:
+        if key not in self._schemas:
+            path = self.schema_path(key)
+            raw = self._source.read_bytes(path.relative_to(self.root)) if self._source is not None else path.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != self.schema_hashes[key]:
+                raise ValueError("public schema byte hash mismatch: " + key)
+            self._schemas[key] = _checked_schema_bytes(raw)
+        return self._schemas[key]
+
+    def schema_named(self, name: str) -> Mapping[str, Any]:
+        if not isinstance(name, str) or Path(name).name != name:
+            raise ValueError("schema references must name a registered schema file")
+        key = self.schema_names.get(name)
+        if key is None:
+            raise ValueError(f"schema name is not unique and registered: {name}")
+        return self.schema(key)
+
+    def schema_for(self, data: dict[str, Any]) -> Mapping[str, Any]:
+        kind = artifact_type(data)
+        entry = self.manifest["artifacts"].get(kind)
+        if entry is None:
+            raise ValueError(f"no public schema registered for artifact_type: {kind}")
+        return self.schema(entry["schema"])
+
+    def resolve_ref(self, ref: str, root_schema: Mapping[str, Any]) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+        return self._references.resolve_ref(ref, root_schema)
+
+
+_READ_SCOPE: contextvars.ContextVar[dict[tuple[Path, int | None], ContractSet] | None] = contextvars.ContextVar(
+    "public_contract_read_scope", default=None)
+_READ_SOURCE: contextvars.ContextVar[SchemaSource | None] = contextvars.ContextVar(
+    "public_contract_read_source", default=None)
+
+
+@contextlib.contextmanager
+def read_scope(*, fresh: bool = False, source: SchemaSource | None = None):
+    """Own verified contracts for one operation without a product dependency."""
+    if not fresh and _READ_SCOPE.get() is not None and (source is None or source is _READ_SOURCE.get()):
+        yield
+        return
+    enclosing = _READ_SCOPE.get() if fresh else None
+    if enclosing is not None:
+        enclosing.clear()
+    token = _READ_SCOPE.set({})
+    source_token = _READ_SOURCE.set(source)
+    try:
+        yield
+    finally:
+        if enclosing is not None:
+            enclosing.clear()
+        _READ_SOURCE.reset(source_token)
+        _READ_SCOPE.reset(token)
+
+
+def contract_set(*, root: Path | None = None, source: SchemaSource | None = None) -> ContractSet:
+    """Acquire this operation's contracts, or a fresh set outside a scope."""
+    root = ROOT if root is None else Path(root)
+    scope = _READ_SCOPE.get()
+    explicit = source is not None
+    source = source if explicit else _READ_SOURCE.get()
+    if source is not None and Path(source.root).absolute() != Path(root).absolute():
+        if explicit:
+            raise ValueError("acquired contract source belongs to another installation")
+        source = None
+    if scope is None:
+        return ContractSet.read(root, source=source)
+    key = (root, id(source) if source is not None else None)
+    if key not in scope:
+        scope[key] = ContractSet.read(root, source=source)
+    return scope[key]
+
+
+def registry() -> dict[str, Any]:
+    return _mutable(contract_set().manifest)
 
 
 def schema_path(key: str) -> Path:
-    if key not in {row["schema"] for row in registry()["schemas"]}:
-        raise ValueError(f"unregistered public schema: {key}")
-    return ROOT / schema_file(key)
+    return contract_set().schema_path(key)
 
 
 def schema_named(name: str) -> dict[str, Any]:
-    if not isinstance(name, str) or Path(name).name != name:
-        raise ValueError("schema references must name a registered schema file")
-    keys = [row["schema"] for row in registry()["schemas"] if row["schema"].split("/", 1)[1] == name]
-    if len(keys) != 1:
-        raise ValueError(f"schema name is not unique and registered: {name}")
-    path = schema_path(keys[0])
-    raw = path.read_bytes()
-    expected = next(row["sha256"] for row in registry()["schemas"] if row["schema"] == keys[0])
-    if hashlib.sha256(raw).hexdigest() != expected:
-        raise ValueError("public schema byte hash mismatch: " + keys[0])
-    return copy.deepcopy(_checked_schema_bytes(raw))
+    return _mutable(contract_set().schema_named(name))
 
 
 def schema_for(data: dict[str, Any]) -> dict[str, Any]:
-    kind = artifact_type(data)
-    entry = registry()["artifacts"].get(kind)
-    if entry is None:
-        raise ValueError(f"no public schema registered for artifact_type: {kind}")
-    return schema_named(entry["schema"].split("/", 1)[1])
+    return _mutable(contract_set().schema_for(data))
 
 
 def self_hash_fields() -> dict[str, str]:
     """The self-hash field of each registered artifact type that has one."""
-    return {kind: row["self_hash_field"] for kind, row in registry()["artifacts"].items() if row["self_hash_field"]}
+    return dict(contract_set().self_hash_fields)
 
 
 def artifact_types() -> frozenset[str]:
-    return frozenset(registry()["artifacts"])
+    return contract_set().artifact_types
 
 
 def __getattr__(name: str) -> Any:
@@ -416,26 +612,29 @@ def __getattr__(name: str) -> Any:
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def artifact_content_for_hash(data: dict[str, Any]) -> dict[str, Any]:
+def artifact_content_for_hash(data: dict[str, Any], *, contracts: ContractSet | None = None) -> dict[str, Any]:
     value = copy.deepcopy(data)
-    field = self_hash_fields().get(str(value.get("artifact_type") or ""))
+    field = (contracts or contract_set()).self_hash_fields.get(str(value.get("artifact_type") or ""))
     if field:
         value.pop(field, None)
     return value
 
 
 
-def artifact_hash(data: dict[str, Any]) -> str:
-    return sha256_json(artifact_content_for_hash(data))
+def artifact_hash(data: dict[str, Any], *, contracts: ContractSet | None = None) -> str:
+    contracts = contracts or contract_set()
+    field = contracts.self_hash_fields.get(str(data.get("artifact_type") or ""))
+    return sha256_json({key: value for key, value in data.items() if key != field})
 
 
 
-def finalize_artifact(data: dict[str, Any]) -> dict[str, Any]:
+def finalize_artifact(data: dict[str, Any], *, contracts: ContractSet | None = None) -> dict[str, Any]:
+    contracts = contracts or contract_set()
     result = copy.deepcopy(data)
     kind = artifact_type(result)
-    field = self_hash_fields().get(kind)
+    field = contracts.self_hash_fields.get(kind)
     if field:
-        result[field] = artifact_hash(result)
+        result[field] = artifact_hash(result, contracts=contracts)
     return result
 
 
@@ -465,7 +664,7 @@ def _type_matches(value: Any, expected: str) -> bool:
 
 def _json_pointer(root: Any, fragment: str) -> dict[str, Any]:
     if fragment in {"", "#"}:
-        if not isinstance(root, dict):
+        if not isinstance(root, Mapping):
             raise ValueError("schema root must be an object")
         return root
     pointer = fragment[1:] if fragment.startswith("#") else fragment
@@ -474,26 +673,18 @@ def _json_pointer(root: Any, fragment: str) -> dict[str, Any]:
     current = root
     for raw_token in pointer[1:].split("/"):
         token = raw_token.replace("~1", "/").replace("~0", "~")
-        if isinstance(current, dict) and token in current:
+        if isinstance(current, Mapping) and token in current:
             current = current[token]
             continue
-        if isinstance(current, list) and _ARRAY_INDEX.match(token) and int(token) < len(current):
+        if isinstance(current, (list, tuple)) and _ARRAY_INDEX.match(token) and int(token) < len(current):
             current = current[int(token)]
             continue
         raise ValueError(f"schema reference does not exist: {fragment}")
-    if not isinstance(current, dict):
+    if not isinstance(current, Mapping):
         raise ValueError(f"schema reference does not identify a schema object: {fragment}")
     return current
 
 
-
-
-def _resolve_ref(ref: str, root_schema: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    if ref.startswith("#"):
-        return _json_pointer(root_schema, ref), root_schema
-    name, separator, fragment = ref.partition("#")
-    referenced = schema_named(name)
-    return (_json_pointer(referenced, "#" + fragment) if separator else referenced), referenced
 
 
 SUPPORTED_SCHEMA_KEYWORDS = frozenset({
@@ -528,7 +719,7 @@ def unsupported_schema_keywords(schema: Any, path: str = "$") -> list[str]:
     references. References are resolved from the registered files; no network resources are fetched.
     """
     findings: list[str] = []
-    if not isinstance(schema, dict):
+    if not isinstance(schema, Mapping):
         return findings
     for key in schema:
         if key not in SUPPORTED_SCHEMA_KEYWORDS and key not in ANNOTATION_SCHEMA_KEYWORDS:
@@ -536,16 +727,16 @@ def unsupported_schema_keywords(schema: Any, path: str = "$") -> list[str]:
     for key in ("items", "additionalProperties", "propertyNames", "not", "if", "then", "else", "contains"):
         findings.extend(unsupported_schema_keywords(schema.get(key), f"{path}.{key}"))
     properties = schema.get("properties")
-    if isinstance(properties, dict):
+    if isinstance(properties, Mapping):
         for name, child in properties.items():
             findings.extend(unsupported_schema_keywords(child, f"{path}.properties.{name}"))
     definitions = schema.get("$defs")
-    if isinstance(definitions, dict):
+    if isinstance(definitions, Mapping):
         for name, child in definitions.items():
             findings.extend(unsupported_schema_keywords(child, f"{path}.$defs.{name}"))
     for key in ("allOf", "anyOf", "oneOf"):
         branches = schema.get(key)
-        if isinstance(branches, list):
+        if isinstance(branches, (list, tuple)):
             for index, child in enumerate(branches):
                 findings.extend(unsupported_schema_keywords(child, f"{path}.{key}[{index}]"))
     return findings
@@ -559,7 +750,7 @@ def _no_alternative(path: str, branch_errors: list[list[str]]) -> str:
     return f"{path}: value matches none of the {len(branch_errors)} alternatives{detail}"
 
 
-def _instance_key(value: Any) -> tuple:
+def _instance_key(value: Any, *, schema_value: bool = False) -> tuple:
     """JSON instance equality: 1 and 1.0 are one value, true and 1 are not."""
     if value is None:
         return ("null",)
@@ -569,61 +760,93 @@ def _instance_key(value: Any) -> tuple:
         return ("number", value)
     if isinstance(value, str):
         return ("string", value)
-    if isinstance(value, list):
-        return ("array", tuple(_instance_key(item) for item in value))
-    if isinstance(value, dict):
-        return ("object", frozenset((key, _instance_key(item)) for key, item in value.items()))
+    if (isinstance(value, list) or (schema_value and isinstance(value, tuple))):
+        return ("array", tuple(_instance_key(item, schema_value=schema_value) for item in value))
+    if (isinstance(value, dict) or (schema_value and isinstance(value, Mapping))):
+        return ("object", frozenset((key, _instance_key(item, schema_value=schema_value)) for key, item in value.items()))
     return ("non-json", type(value).__name__, repr(value))
 
 
-Resolver = Callable[[str, dict[str, Any]], tuple[dict[str, Any], dict[str, Any]]]
+Resolver = Callable[[str, Mapping[str, Any]], tuple[Mapping[str, Any], Mapping[str, Any]]]
+SchemaChecks = Mapping[str, Callable[[Any, str], list[str]]]
 
 
 def validate_against_schema(
     value: Any,
-    schema: dict[str, Any],
+    schema: Mapping[str, Any],
     path: str = "$",
-    _root_schema: dict[str, Any] | None = None,
+    _root_schema: Mapping[str, Any] | None = None,
     *,
-    resolver: Resolver = _resolve_ref,
+    resolver: Resolver | None = None,
+    semantic_checks: SchemaChecks | None = None,
 ) -> list[str]:
-    """Validate the subset of JSON Schema used by this package.
+    """Validate one value with the shared, product-independent evaluator.
 
-    `resolver(ref, root_schema)` returns the referenced schema and the document
-    it belongs to; the default reads registered schemas.
+    Schema inputs become owned immutable documents at this boundary. A supplied
+    resolver owns reference acquisition; otherwise registered public contracts
+    are read lazily if a visited reference requires them.
     """
+    root = schema if _root_schema is None else _root_schema
+    owned_root = root if isinstance(root, SchemaDocument) else SchemaDocument(root)
+    owned_schema = owned_root if schema is root else SchemaDocument(schema)
+    if resolver is None:
+        contracts: ContractSet | None = None
+
+        def read_document(name: str) -> Mapping[str, Any]:
+            nonlocal contracts
+            if contracts is None:
+                contracts = contract_set()
+            return contracts.schema_named(name)
+
+        resolver = SchemaReferences(read_document).resolve_ref
+    if semantic_checks is None:
+        semantic_checks = {"declared-structures.schema.json": validate_structure_map}
+    return _validate_schema(value, owned_schema, path, owned_root, resolver=resolver,
+                            semantic_checks=semantic_checks)
+
+
+def _validate_schema(
+    value: Any,
+    schema: Mapping[str, Any],
+    path: str,
+    _root_schema: Mapping[str, Any],
+    *,
+    resolver: Resolver,
+    semantic_checks: SchemaChecks,
+) -> list[str]:
+    """Evaluate one node in schema order against its owned root document."""
     root_schema = schema if _root_schema is None else _root_schema
     errors: list[str] = []
     if "$ref" in schema:
         resolved, resolved_root = resolver(str(schema["$ref"]), root_schema)
-        errors.extend(validate_against_schema(value, resolved, path, resolved_root, resolver=resolver))
+        errors.extend(_validate_schema(value, resolved, path, resolved_root, resolver=resolver, semantic_checks=semantic_checks))
         siblings = {key: item for key, item in schema.items() if key != "$ref"}
         if siblings:
-            errors.extend(validate_against_schema(value, siblings, path, root_schema, resolver=resolver))
+            errors.extend(_validate_schema(value, siblings, path, root_schema, resolver=resolver, semantic_checks=semantic_checks))
         return errors
 
     all_of = schema.get("allOf")
-    if isinstance(all_of, list):
+    if isinstance(all_of, (list, tuple)):
         for branch in all_of:
-            if isinstance(branch, dict):
-                errors.extend(validate_against_schema(value, branch, path, root_schema, resolver=resolver))
+            if isinstance(branch, Mapping):
+                errors.extend(_validate_schema(value, branch, path, root_schema, resolver=resolver, semantic_checks=semantic_checks))
 
     any_of = schema.get("anyOf")
-    if isinstance(any_of, list):
+    if isinstance(any_of, (list, tuple)):
         branch_errors = [
-            validate_against_schema(value, branch, path, root_schema, resolver=resolver)
+            _validate_schema(value, branch, path, root_schema, resolver=resolver, semantic_checks=semantic_checks)
             for branch in any_of
-            if isinstance(branch, dict)
+            if isinstance(branch, Mapping)
         ]
         if not branch_errors or not any(not item for item in branch_errors):
             errors.append(_no_alternative(path, branch_errors))
 
     one_of = schema.get("oneOf")
-    if isinstance(one_of, list):
+    if isinstance(one_of, (list, tuple)):
         branch_errors = [
-            validate_against_schema(value, branch, path, root_schema, resolver=resolver)
+            _validate_schema(value, branch, path, root_schema, resolver=resolver, semantic_checks=semantic_checks)
             for branch in one_of
-            if isinstance(branch, dict)
+            if isinstance(branch, Mapping)
         ]
         matching = sum(1 for item in branch_errors if not item)
         if matching == 0:
@@ -634,25 +857,25 @@ def validate_against_schema(
             )
 
     not_schema = schema.get("not")
-    if isinstance(not_schema, dict):
-        if not validate_against_schema(value, not_schema, path, root_schema, resolver=resolver):
+    if isinstance(not_schema, Mapping):
+        if not _validate_schema(value, not_schema, path, root_schema, resolver=resolver, semantic_checks=semantic_checks):
             errors.append(f"{path}: value satisfies a forbidden schema")
 
     condition = schema.get("if")
-    if isinstance(condition, dict):
-        branch = "then" if not validate_against_schema(value, condition, path, root_schema, resolver=resolver) else "else"
+    if isinstance(condition, Mapping):
+        branch = "then" if not _validate_schema(value, condition, path, root_schema, resolver=resolver, semantic_checks=semantic_checks) else "else"
         consequence = schema.get(branch)
-        if isinstance(consequence, dict):
-            errors.extend(validate_against_schema(value, consequence, path, root_schema, resolver=resolver))
+        if isinstance(consequence, Mapping):
+            errors.extend(_validate_schema(value, consequence, path, root_schema, resolver=resolver, semantic_checks=semantic_checks))
 
-    if "const" in schema and _instance_key(value) != _instance_key(schema["const"]):
-        errors.append(f"{path}: expected constant {schema['const']!r}")
-    if "enum" in schema and _instance_key(value) not in {_instance_key(item) for item in schema["enum"]}:
-        errors.append(f"{path}: value {value!r} is not in {schema['enum']!r}")
+    if "const" in schema and _instance_key(value) != _instance_key(schema["const"], schema_value=True):
+        errors.append(f"{path}: expected constant {_mutable(schema['const'])!r}")
+    if "enum" in schema and _instance_key(value) not in {_instance_key(item, schema_value=True) for item in schema["enum"]}:
+        errors.append(f"{path}: value {value!r} is not in {_mutable(schema['enum'])!r}")
 
     expected = schema.get("type")
     if expected is not None:
-        types = expected if isinstance(expected, list) else [expected]
+        types = list(expected) if isinstance(expected, (list, tuple)) else [expected]
         if not any(_type_matches(value, str(item)) for item in types):
             errors.append(f"{path}: expected type {types}, got {type(value).__name__}")
             return errors
@@ -701,8 +924,8 @@ def validate_against_schema(
         if "maxItems" in schema and len(value) > int(schema["maxItems"]):
             errors.append(f"{path}: array is longer than maxItems")
         contains = schema.get("contains")
-        if isinstance(contains, dict) and not any(
-            not validate_against_schema(item, contains, f"{path}[{index}]", root_schema, resolver=resolver)
+        if isinstance(contains, Mapping) and not any(
+            not _validate_schema(item, contains, f"{path}[{index}]", root_schema, resolver=resolver, semantic_checks=semantic_checks)
             for index, item in enumerate(value)
         ):
             errors.append(f"{path}: no item satisfies contains")
@@ -711,10 +934,10 @@ def validate_against_schema(
             if len(keys) != len(set(keys)):
                 errors.append(f"{path}: array items are not unique")
         item_schema = schema.get("items")
-        if isinstance(item_schema, dict):
+        if isinstance(item_schema, Mapping):
             for index, item in enumerate(value):
                 errors.extend(
-                    validate_against_schema(item, item_schema, f"{path}[{index}]", root_schema, resolver=resolver)
+                    _validate_schema(item, item_schema, f"{path}[{index}]", root_schema, resolver=resolver, semantic_checks=semantic_checks)
                 )
 
     if isinstance(value, dict):
@@ -727,40 +950,44 @@ def validate_against_schema(
             if name not in value:
                 errors.append(f"{path}: missing required property {name!r}")
         dependent = schema.get("dependentRequired")
-        if isinstance(dependent, dict):
+        if isinstance(dependent, Mapping):
             for name, needed in dependent.items():
-                if name in value and isinstance(needed, list):
+                if name in value and isinstance(needed, (list, tuple)):
                     for other in needed:
                         if other not in value:
                             errors.append(f"{path}: {name!r} requires {other!r}")
         properties = schema.get("properties", {})
-        if isinstance(properties, dict):
+        if isinstance(properties, Mapping):
             for name, child_schema in properties.items():
-                if name in value and isinstance(child_schema, dict):
+                if name in value and isinstance(child_schema, Mapping):
                     errors.extend(
-                        validate_against_schema(value[name], child_schema, f"{path}.{name}", root_schema, resolver=resolver)
+                        _validate_schema(value[name], child_schema, f"{path}.{name}", root_schema, resolver=resolver, semantic_checks=semantic_checks)
                     )
         property_names = schema.get("propertyNames")
-        if isinstance(property_names, dict):
+        if isinstance(property_names, Mapping):
             for name in value:
                 errors.extend(
-                    validate_against_schema(
-                        str(name), property_names, f"{path}.<property-name:{name}>", root_schema, resolver=resolver
+                    _validate_schema(
+                        str(name), property_names, f"{path}.<property-name:{name}>", root_schema,
+                        resolver=resolver, semantic_checks=semantic_checks
                     )
                 )
-        if isinstance(properties, dict):
+        if isinstance(properties, Mapping):
             extras = sorted(set(value) - set(properties))
             additional = schema.get("additionalProperties", True)
             if additional is False and extras:
                 errors.append(f"{path}: unexpected properties {extras}")
-            elif isinstance(additional, dict):
+            elif isinstance(additional, Mapping):
                 for name in extras:
                     errors.extend(
-                        validate_against_schema(value[name], additional, f"{path}.{name}", root_schema, resolver=resolver)
+                        _validate_schema(value[name], additional, f"{path}.{name}", root_schema, resolver=resolver, semantic_checks=semantic_checks)
                     )
 
-    if schema.get("$id") == "declared-structures.schema.json" and not errors:
-        errors.extend(validate_structure_map(value, path))
+    identity = schema.get("$id")
+    if not errors and isinstance(identity, str):
+        check = semantic_checks.get(identity)
+        if check is not None:
+            errors.extend(check(value, path))
     return errors
 
 
@@ -779,6 +1006,7 @@ def _state_invariants(
     data: dict[str, Any],
     *,
     allow_placeholder_hashes: bool = False,
+    contracts: ContractSet | None = None,
 ) -> list[str]:
     errors: list[str] = []
     kind = artifact_type(data)
@@ -1244,14 +1472,15 @@ def _state_invariants(
         for path in find_placeholder_hashes(data):
             errors.append(f"{path}: all-zero SHA-256 placeholders are not valid runtime hashes")
 
-    self_field = self_hash_fields().get(kind)
+    contracts = contracts or contract_set()
+    self_field = contracts.self_hash_fields.get(kind)
     if self_field:
         expected = data.get(self_field)
         if expected == ZERO_SHA256 and allow_placeholder_hashes:
             return errors
         if not is_concrete_sha256(expected):
             errors.append(f"{self_field} must be a concrete lowercase SHA-256")
-        elif artifact_hash(data) != expected:
+        elif artifact_hash(data, contracts=contracts) != expected:
             errors.append(f"{self_field} does not match canonical artifact content")
 
     return errors
@@ -1603,8 +1832,9 @@ def reference_subject_scope_errors(value: Any, *, subject_ids: set[str], allowed
     return errors
 
 
-def validate_cross_invariants(data: dict[str, Any], *, allow_placeholder_hashes: bool = False) -> list[str]:
-    errors = _state_invariants(data, allow_placeholder_hashes=allow_placeholder_hashes)
+def validate_cross_invariants(data: dict[str, Any], *, allow_placeholder_hashes: bool = False, contracts: ContractSet | None = None) -> list[str]:
+    contracts = contracts or contract_set()
+    errors = _state_invariants(data, allow_placeholder_hashes=allow_placeholder_hashes, contracts=contracts)
     errors.extend(_viewpoint_invariants(data, allow_placeholder_hashes=allow_placeholder_hashes))
     kind = artifact_type(data)
     if kind in MATERIAL_ARTIFACT_TYPES:
@@ -1641,7 +1871,7 @@ def validate_cross_invariants(data: dict[str, Any], *, allow_placeholder_hashes:
     return errors
 
 
-def validate_artifact(data: dict[str, Any], *, allow_placeholder_hashes: bool = False) -> dict[str, Any]:
+def validate_artifact(data: dict[str, Any], *, allow_placeholder_hashes: bool = False, contracts: ContractSet | None = None) -> dict[str, Any]:
     errors: list[str] = []
     digest = None
     try:
@@ -1649,11 +1879,12 @@ def validate_artifact(data: dict[str, Any], *, allow_placeholder_hashes: bool = 
             raise ValueError("public artifact must be an object")
         non_finite = find_non_finite_numbers(data)
         errors.extend(f"{path}: number must be finite" for path in non_finite)
-        errors.extend(validate_against_schema(data, schema_for(data)))
+        contracts = contracts or contract_set()
+        errors.extend(validate_against_schema(data, contracts.schema_for(data), resolver=contracts.resolve_ref))
         if not errors:
-            errors.extend(validate_cross_invariants(data, allow_placeholder_hashes=allow_placeholder_hashes))
+            errors.extend(validate_cross_invariants(data, allow_placeholder_hashes=allow_placeholder_hashes, contracts=contracts))
         if not non_finite:
-            digest = artifact_hash(data)
+            digest = artifact_hash(data, contracts=contracts)
     except (ValueError, TypeError, KeyError, AttributeError, OSError, RecursionError) as exc:
         errors.append(str(exc))
     return {"artifact_type": data.get("artifact_type") if isinstance(data, dict) else None,
@@ -1662,12 +1893,12 @@ def validate_artifact(data: dict[str, Any], *, allow_placeholder_hashes: bool = 
 
 def refs(value: Any) -> Iterable[str]:
     """Every `$ref` in a schema document, in document order."""
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         if "$ref" in value:
             yield str(value["$ref"])
         for item in value.values():
             yield from refs(item)
-    elif isinstance(value, list):
+    elif isinstance(value, (list, tuple)):
         for item in value:
             yield from refs(item)
 
@@ -1698,7 +1929,8 @@ def seal_registry(raw: str, root: Path = ROOT) -> str:
 
 def contract_descriptor(kind: str) -> dict[str, Any]:
     """What a receiver compares: the schema closure, the semantic rules and the validator."""
-    value = registry()
+    contracts = contract_set()
+    value = contracts.manifest
     if kind not in value["artifacts"]:
         raise ValueError("unknown public artifact")
     by_name = {row["schema"].split("/", 1)[1]: row["schema"] for row in value["schemas"]}
@@ -1708,10 +1940,10 @@ def contract_descriptor(kind: str) -> dict[str, Any]:
         key = pending.pop()
         if key in closure:
             continue
-        schema = schema_named(key.split("/", 1)[1])
-        closure[key] = _file_digest(schema_path(key))
+        schema = contracts.schema(key)
+        closure[key] = contracts.schema_hashes[key]
         for ref in refs(schema):
-            _resolve_ref(ref, schema)
+            contracts.resolve_ref(ref, schema)
             name = ref.split("#", 1)[0]
             if name:
                 pending.append(by_name[name])
@@ -1727,7 +1959,8 @@ def contract_descriptor(kind: str) -> dict[str, Any]:
 
 def check_installed() -> dict[str, Any]:
     """Verify the whole installation and every registered schema's references."""
-    value = registry()
+    contracts = contract_set()
+    value = contracts.manifest
     verify_installation(value)
     rows = value["schemas"]
     names = {row["schema"].split("/", 1)[1]: row["schema"] for row in rows}
@@ -1735,14 +1968,14 @@ def check_installed() -> dict[str, Any]:
         raise ValueError("duplicate schema basenames")
     errors: list[str] = []
     for row in rows:
-        schema = schema_named(row["schema"].split("/", 1)[1])
+        schema = contracts.schema(row["schema"])
         for ref in refs(schema):
             try:
-                _resolve_ref(ref, schema)
+                contracts.resolve_ref(ref, schema)
             except (ValueError, KeyError, OSError) as exc:
                 errors.append(f"{row['schema']}: {exc}")
     for kind, row in value["artifacts"].items():
-        schema = schema_for({"artifact_type": kind})
+        schema = contracts.schema_for({"artifact_type": kind})
         if schema.get("properties", {}).get("artifact_type", {}).get("const") != kind:
             errors.append(f"{kind}: registry and schema artifact type disagree")
         field = row["self_hash_field"]

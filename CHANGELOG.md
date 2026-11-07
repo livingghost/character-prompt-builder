@@ -1,5 +1,94 @@
 # Changelog
 
+## 2026.11.07.6
+
+- Compile from acquired catalog, model, profile and evidence values. Pass the
+  checked generation result directly to request construction and package
+  publication, preserving the complete selected runtime and derivation rules.
+- Acquire actual live inputs at command and external-effect boundaries, then
+  pass them with current authority through authorization, handoff and claim.
+  Keep the existing result readiness, diagnostics, audits and recovery actions.
+- Carry immutable fixed-runtime metadata through one execution. Each boundary
+  still reads the actual metadata and all declared members, sharing the decoded
+  metadata only when its bytes match exactly.
+- Reacquire published documents and event evidence at each new read boundary.
+  A failed nested fresh read cannot restore a parent scope's stale success.
+- Recover upscaled sheet candidates with their saved execution model, including
+  when the live model definition changes after the provider has returned an image.
+- Write final request, package and execution-plan documents once. Flush private
+  staging directories together before publication while preserving file-content
+  durability, exclusive publication and recovery of unregistered results.
+- Check current pack order and the providers of pinned resources alongside the
+  exact selected file contents before using a prepared runtime.
+
+## 2026.11.07.5
+
+- Acquire selected pack state and file contents once, then validate, resolve and
+  persist that same input. A concurrent edit cannot place newer records under
+  an older content hash. Runtime snapshots and browser catalogs consume those
+  acquired values; binary copies still verify their paths and exact contents.
+- Share immutable schema documents and resolved references through one
+  evaluator. Bind cache construction to its acquired validator inputs, including
+  the complete installed implementation and the sealed public contract.
+- Share an immutable Production run view with decoded compiled artifacts and
+  indexed event history. Keep editable exports explicit and current authority
+  separate from the original prepared input.
+- Share one Studio reference reader across source, identity and continuity
+  derivation within each stable read phase. Writes, rollback, new transactions
+  and publication boundaries acquire current state again.
+- Keep pack glob behavior consistent across supported Python versions, and
+  preserve explicit pack selections when their state file appears during a read.
+
+## 2026.11.07.4
+
+- Record an explicit nonselection for a retained Production candidate after
+  its run completes. Preserve the original completion and finished work task,
+  while Studio removes the rejected candidate from its pending queue.
+- Apply the same candidate, input, review and preceding-decision checks when
+  appending and replaying a disposition. Keep an image currently accepted by
+  Studio protected until the author accepts its replacement, and keep new
+  pending work, reviews, selections and execution closed after completion.
+
+## 2026.11.07.3
+
+- Begin each Studio display publication with fresh source reads and order
+  publishers of the same output. Keep concurrent and retried dirty receipts
+  pending until their own successful refresh, including recovery after a
+  display failure. Release the Production database writer before refreshing
+  displays on an idempotent selection retry.
+- Build reference indexes from stored adoption state and verify the selected
+  Production runs. Share decoded packages, accepted-reference proofs and
+  reference indexes across one continuity build and its verification stages.
+  A new operation checks current selections and evidence again.
+- Close test-owned SQLite connections after their transaction context exits,
+  preserving commit and rollback while allowing temporary files to be removed
+  without waiting for garbage collection.
+
+## 2026.11.07.2
+
+- Read and deserialize each Production revision through one owning boundary.
+  Reuse verified inputs and replay state within that boundary, invalidate event
+  views on writes and rollback, and recheck content in a new transaction or
+  before an external effect.
+- Replay lifecycle events once through indexed state and validate proposed
+  events against the same rules. Let SQLite own event and authority updates,
+  without an additional Studio file lock, and keep consistent authority reads
+  while another writer commits.
+- Share a parsed Studio view across gallery, reference readiness and status.
+  Rebuild only affected displays once after a compound mutation, retain dirty
+  receipts from concurrent updates, and preserve committed results on display
+  failure. Work notes refresh the activity view alone.
+- Remove locks from read-only inspection, immutable publication and atomic
+  cache replacement. Scope remaining mutable ledger and acceptance updates to
+  their owning directories. Independent mask refinements use their own thread's
+  random generator and owned arrays.
+- Share read-only schema contracts within validation while keeping the public
+  protocol validator independently deployable. Keep caller-editable exports
+  separate from the shared contract.
+- Exercise concurrent claims, initialization, cache publication and dirty
+  receipts, together with rollback and tampered evidence. Reuse an immutable
+  adoption fixture with a separate Studio for each test.
+
 ## 2026.11.07.1
 
 - Adopt an existing selected Production candidate under separate current

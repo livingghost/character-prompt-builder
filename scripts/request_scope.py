@@ -7,6 +7,7 @@ from typing import Any
 
 import execution_contract as c
 import request_contract as rc
+from owned_json import json_type
 
 MODES = {'target-schema', 'bounded-probe', 'observed-profile'}
 CASE_FIELDS = {'id', 'productions', 'targets', 'fixed', 'variations', 'review_criteria'}
@@ -182,7 +183,7 @@ def _case_blockers(case: dict, rendered: dict, production: Any, reasons: list[di
         elif item['kind'] != 'parameter':
             reasons.append({'code': 'nonparameter-variation', 'field': name})
         elif rule['kind'] == 'values':
-            accepted = any(type(value) is type(option) and value == option for option in rule['values'])
+            accepted = any(json_type(value) is json_type(option) and value == option for option in rule['values'])
         else:
             accepted = _within_range(value, rule)
         already_reported = any(reason.get('field') == name for reason in reasons)

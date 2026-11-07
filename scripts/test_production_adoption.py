@@ -24,32 +24,54 @@ from visual_continuity import file_ref
 
 
 class AdoptionTests(unittest.TestCase):
-    def setUp(self):
-        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        b=Path(self.temp.name)
-        self.enterContext(fixture.scratch_home(b/'home'))
+    @classmethod
+    def setUpClass(cls):
+        cls.temp=tempfile.TemporaryDirectory();cls.addClassCleanup(cls.temp.cleanup)
+        b=Path(cls.temp.name)
+        cls.enterClassContext(fixture.scratch_home(b/'home'))
         from catalog_retrieval import runtime
-        self.addCleanup(runtime.configure_pack_runtime,None)
-        case=f.create(b/'studio',b/'runtime');self.root=case['root'];self.task=case['task'];self.settings=case['settings']
-        self.task['recording'].update(slot='base.front',sheet_panel=True,subject_map={'robot':'robot'})
-        self.task['generation']['continuity']['robot']='undecided'
-        f.write(self.root/'task.json',self.task)
-        self.run=workflow.prepare(self.root,'task.json')['run']
-        output=execution.execute(self.root,self.run,decisions_file=decisions(self.root,self.run))
-        self.candidate=output['runs'][0]['candidates'][0]
-        self.row=studio.read_iterations(studio.character_home(self.root,'robot'))[0]
-        review=workflow.draft_review(self.root,self.run,self.candidate)
+        cls.addClassCleanup(runtime.configure_pack_runtime,None)
+        case=f.create(b/'studio',b/'runtime');cls.root=case['root'];cls.task=case['task'];cls.settings=case['settings']
+        cls.task['recording'].update(slot='base.front',sheet_panel=True,subject_map={'robot':'robot'})
+        cls.task['generation']['continuity']['robot']='undecided'
+        f.write(cls.root/'task.json',cls.task)
+        cls.prepared_run=workflow.prepare(cls.root,'task.json')['run']
+        output=execution.execute(cls.root,cls.prepared_run,decisions_file=decisions(cls.root,cls.prepared_run))
+        cls.candidate=output['runs'][0]['candidates'][0]
+        cls.row=studio.read_iterations(studio.character_home(cls.root,'robot'))[0]
+        review=workflow.draft_review(cls.root,cls.prepared_run,cls.candidate)
         review.update(reviewer='Synthetic test reviewer',observations=[{'evidence':'candidate','locator':{'kind':'whole'},
             'observation':'A real local synthetic PNG was captured.','interpretation':'Protocol fixture only.',
             'limitations':['No generative quality or user approval is asserted.']}],conclusion='Synthetic test decision.')
         for check in review['checks']:check.update(verdict='pass',observation_indices=[0],reason='Explicit synthetic fixture assessment.')
-        f.write(self.root/'review.json',review);workflow.review(self.root,self.run,'review.json')
-        f.write(self.root/'adoption-basis.txt','Explicit synthetic author decision to adopt this fixture identity. Not user consent.')
-        self.approval={'scope':'sheet','influence':'identity','character':'robot','iteration_id':self.row['iteration_id'],
-            'slot':self.row['slot'],'image_sha256':self.row['result']['sha256'],'by':fixture.ACTOR,'at':'2000-01-01T00:00:00Z',
+        f.write(cls.root/'review.json',review);workflow.review(cls.root,cls.prepared_run,'review.json')
+        f.write(cls.root/'adoption-basis.txt','Explicit synthetic author decision to adopt this fixture identity. Not user consent.')
+        cls.approval={'scope':'sheet','influence':'identity','character':'robot','iteration_id':cls.row['iteration_id'],
+            'slot':cls.row['slot'],'image_sha256':cls.row['result']['sha256'],'by':fixture.ACTOR,'at':'2000-01-01T00:00:00Z',
             'continuity_decision':{'character_id':'robot','continuity':'recurring',
-                'basis':file_ref(self.root,'adoption-basis.txt',locator='whole'),'by':fixture.ACTOR,'at':'2000-01-01T00:00:00Z'}}
-        f.write(self.root/'approval.json',self.approval)
+                'basis':file_ref(cls.root,'adoption-basis.txt',locator='whole'),'by':fixture.ACTOR,'at':'2000-01-01T00:00:00Z'}}
+        f.write(cls.root/'approval.json',cls.approval)
+
+        cls.runtime_state = cls.settings.state_file.read_bytes()
+
+    def setUp(self):
+        # Build and execute the synthetic protocol case once. Each test receives
+        # its own Studio/SQLite/files; immutable runtime packs stay at their
+        # sealed paths. Catalog promotion may change only this class's temporary
+        # state file, restored before the next sequential unittest case.
+        template = type(self)
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        base = Path(self.temp.name)
+        self.enterContext(fixture.scratch_home(base / 'home'))
+        from catalog_retrieval import runtime
+        self.addCleanup(runtime.configure_pack_runtime, None)
+        c.atomic(template.settings.state_file, template.runtime_state, replace=True)
+        runtime.configure_pack_runtime(template.settings)
+        self.root = f.copy_studio(template.root, base / 'studio')
+        self.run = template.prepared_run
+        self.task = copy.deepcopy(template.task)
+        self.row = copy.deepcopy(template.row)
+        self.approval = copy.deepcopy(template.approval)
 
     def select(self,**changes):
         choice=workflow.draft_selection(self.root,self.run,self.candidate)
@@ -163,6 +185,25 @@ class AdoptionTests(unittest.TestCase):
 
     def test_abandoned_adoption_checks_current_grant_after_authorization(self):
         self.assert_revocation_blocks_later_adoption('abandoned')
+
+    def test_revocation_between_claim_and_owner_start_keeps_only_the_claim(self):
+        self.select()
+        token = self.authorize_adoption()
+        owner = adoption_workflow.adopt
+        def revoke_before_owner(*args, **kwargs):
+            authority = store.authority(self.root, self.task['task_id'])
+            authority['grants'][0]['revoked_at'] = '2000-01-01T00:00:00Z'
+            self.import_authority(authority)
+            return owner(*args, **kwargs)
+        with patch.object(adoption_workflow, 'adopt', side_effect=revoke_before_owner):
+            with self.assertRaises(ProductionError) as caught:
+                self.adopt(token)
+        self.assertEqual(caught.exception.diagnostic.code, 'GRANT_REVOKED')
+        rows = store.event_rows(self.root, self.run)
+        claim = workflow.find(rows, 'adoption-claim')
+        self.assertFalse(any(row['event'] == 'operation-start' and row['data'].get('claim') == claim['sha256']
+                             for row in rows))
+        self.assertFalse((studio.character_home(self.root, 'robot') / 'adoptions').exists())
 
     def test_closed_adoption_recovers_the_same_claim_after_a_sheet_save_failure(self):
         before=self.close_selected('completed')
@@ -354,6 +395,39 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(workflow.verify_completion(self.root,self.run,self.task['task_id'])['event'],'completion')
         self.assertEqual(accounting.summary(self.root)['submissions'],1)
         self.assertIsNone(execution.status(self.root,self.run)['runs'][0]['next_action'])
+
+    def test_adoption_publishes_views_once_after_its_production_result(self):
+        import studio_activity as activity
+        self.select()
+        token = self.authorize_adoption()
+        refreshed = []
+        original = activity.refresh
+
+        def refresh(root, **kwargs):
+            records = store.event_rows(root, self.run)
+            self.assertTrue(any(row['event'] == 'adoption-result' for row in records))
+            refreshed.append(True)
+            return original(root, **kwargs)
+
+        with patch.object(activity, 'refresh', side_effect=refresh):
+            self.adopt(token)
+        self.assertEqual(len(refreshed), 1)
+        self.assertTrue(adoption_workflow.reference_index(self.root, 'robot')['ok'])
+
+    def test_status_and_current_reference_share_one_run_read_per_operation(self):
+        self.select()
+        self.adopt(self.authorize_adoption())
+        for action in (lambda: studio_reference.current_source(self.root, 'robot', 'base.front'),
+                       lambda: adoption_workflow.reference_index(self.root, 'robot'),
+                       lambda: studio.status(self.root)):
+            with self.subTest(action=action), patch.object(workflow, 'read_run', wraps=workflow.read_run) as load:
+                action()
+                self.assertEqual(load.call_count, 1)
+
+    def test_destination_validation_does_not_project_production(self):
+        with patch.object(workflow, 'read_run', side_effect=AssertionError('destination validation must only read stored rows')):
+            self.assertEqual(studio.validate_recording_target(self.root, 'robot', 'base.front'),
+                             studio.character_home(self.root, 'robot'))
 
     def test_low_level_adoption_needs_the_production_claim(self):
         self.select()

@@ -1,6 +1,7 @@
 """Validate exact schema sources, authorized probes and observed request tuples."""
 from __future__ import annotations
 import copy
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,7 @@ import execution_contract as c
 import request_contract as rc
 from input_evidence import InputEvidence
 from model_schema_numeric import validate_against_schema, unsupported_schema_keywords
+from owned_json import freeze, mutable
 
 MODES=frozenset({'target-schema','bounded-probe','observed-profile'})
 FIELDS={'mode','target','service_execution_sha256','offering_contract_sha256','transport_sha256',
@@ -162,6 +164,30 @@ def from_offering(model_id:str,model:dict,offering:dict,service:dict,transport,r
                         reader,expected_target=target,execution=execution)
 
 
+def acquire_offering(target,reader:InputEvidence):
+    """Resolve the default validation from the compilation's acquired target."""
+    from build_generation_payload import ResolvedTarget
+    if not isinstance(target,ResolvedTarget):raise TypeError('validation requires an acquired target')
+    offering=target.offering
+    if offering is None or target.service is None or target.transport is None:
+        raise ValueError('the target has no selected execution offering')
+    if 'reference_instruction_transport' in offering:
+        raise ValueError(f"the offering on {offering['service']!r} registers reference_instruction_transport; supply a request validation record with its execution policy")
+    relative=offering.get('schema_snapshot')
+    if not relative:raise ValueError(f"the offering on {offering['service']!r} names no parameter schema; supply a request validation record")
+    path=target.model_space+'/'+relative
+    # This is the same exact schema acquired by target resolution. Selection
+    # also records its source bytes in the package's evidence graph.
+    reader.json(reader.select(path))
+    operations=getattr(target.transport,'OPERATIONS',None)
+    if not isinstance(operations,dict):raise ValueError('the transport declares no OPERATIONS')
+    expected={'service':offering['service'],'model_identifier':offering['model_identifier'],
+              'operation':c.text(operations.get(target.model.get('operation_kind') or 'generation'),'transport operation')}
+    execution=rc.execution_hash_values(target.service,offering,target.transport_sha256,model=target.model,policy=None)
+    return ResolvedValidation.acquire_choices({'mode':'target-schema','contract':path,'evidence':path,'execution_policy':None},
+                                              reader,expected_target=expected,execution=execution)
+
+
 def reference_schema(ref:dict,reader:InputEvidence)->dict:
     value=reader.json(ref);reader=reader.at(ref)
     c.exact(value,{'artifact_type','target','source_target','acquisition','schema','response_pointer','relationship'},'reference schema')
@@ -233,7 +259,7 @@ def validate_trial_plan(contract:Any,expected:dict)->dict:
     _unknowns(contract['unknowns'])
     return contract
 
-def analyze(record:dict,reader:InputEvidence,*,rendered:dict|None=None,envelope_fields:list[list]|None=None)->dict:
+def _resolve(record:dict,reader:InputEvidence)->tuple[dict,dict]:
     validate_content(record);expected=record['target'];contract=reader.json(record['contract']);evidence=reader.json(record['evidence'])
     contract_reader=reader.at(record['contract']);evidence_reader=reader.at(record['evidence'])
     if record['execution_policy'] is not None:
@@ -255,8 +281,7 @@ def analyze(record:dict,reader:InputEvidence,*,rendered:dict|None=None,envelope_
             found=schema_contract(contract,evidence,contract_reader,expected,evidence_reader=evidence_reader)
         unknown+=[{'id':'schema-keyword:'+x,'scope':x,'statement':'This schema keyword is not enforced by the local checker.'}
                   for x in unsupported_schema_keywords(found['schema'])]
-        if rendered is not None:
-            check_schema(rendered['request'],found,envelope_fields=envelope_fields);checked.append('target-schema')
+        request_rule={'kind':'schema','contract':found}
     elif record['mode']=='bounded-probe':
         validate_trial_plan(contract,expected)
         if {**contract['basis'],'path':contract_reader.qualify(contract['basis']['path'])}!=record['evidence']:raise ValueError('probe evidence differs from its declared basis')
@@ -268,8 +293,7 @@ def analyze(record:dict,reader:InputEvidence,*,rendered:dict|None=None,envelope_
         if profile.get('target')!=expected or type(profile.get('output_count')) is not int or profile['output_count']!=planned:
             raise ValueError('the fixed trial request must target the declared model with the planned output count')
         if profile.get('execution')!={k:record[k] for k in ('service_execution_sha256','offering_contract_sha256','transport_sha256')}:raise ValueError('probe execution contract differs from its fixed request')
-        if rendered is not None and (rendered['sealed']!=profile or rendered['output_count']!=planned):
-            raise ValueError('probe request differs from the fixed trial request and its planned output count')
+        request_rule={'kind':'probe','sealed':profile,'outputs':planned}
         unknown=_merge_unknowns(contract['unknowns'],[{'id':'target-parameters-unobserved','scope':'request',
             'statement':'The model-specific acceptance of this exact trial request is not established.'}])
         checked.append('bounded-probe-one-output')
@@ -294,25 +318,85 @@ def analyze(record:dict,reader:InputEvidence,*,rendered:dict|None=None,envelope_
         if contract['execution']!=observed['request']['sealed']['execution']:raise ValueError('profile execution contract changed')
         execution={k:record[k] for k in ('service_execution_sha256','offering_contract_sha256','transport_sha256')}
         if contract['execution']!=execution:raise ValueError('observation does not cover the selected execution contract')
-        if rendered is not None and rendered['profile']!=contract['profile']:raise ValueError('fixed request values changed; explicitly prepare another probe or use a target schema')
+        request_rule={'kind':'observed','profile':contract['profile']}
         unknown=_merge_unknowns(contract['unmeasured'],[{'id':'new-content-unobserved','scope':'authored-content',
             'statement':'The fixed parameter tuple and input form succeeded before; changed content has not been tested by that observation.'}])
         checked.append('observed-fixed-tuple')
-    if rendered is not None:
-        rc.validate_seal(rendered)
-        if rendered['sealed']['target']!=expected:raise ValueError('built request target differs from validation')
-        execution={k:record[k] for k in ('service_execution_sha256','offering_contract_sha256','transport_sha256')}
-        if rendered['sealed']['execution']!=execution:raise ValueError('built request execution contract differs from validation')
-    return {'mode':record['mode'],'target':expected,'checked':checked,'unmeasured':_merge_unknowns(unknown)}
+    return {'mode':record['mode'],'target':expected,'checked':checked,'unmeasured':_merge_unknowns(unknown)},request_rule
+
+
+def _check_rendered(record:dict,result:dict,rule:dict,rendered:dict|None,envelope_fields)->dict:
+    report=mutable(result)
+    if rendered is None:return report
+    if rule['kind']=='schema':
+        check_schema(rendered['request'],rule['contract'],envelope_fields=envelope_fields)
+        report['checked'].append('target-schema')
+    elif rule['kind']=='probe':
+        if rendered['sealed']!=rule['sealed'] or rendered['output_count']!=rule['outputs']:
+            raise ValueError('probe request differs from the fixed trial request and its planned output count')
+    elif rendered['profile']!=rule['profile']:
+        raise ValueError('fixed request values changed; explicitly prepare another probe or use a target schema')
+    rc.validate_seal(rendered)
+    if rendered['sealed']['target']!=record['target']:raise ValueError('built request target differs from validation')
+    execution={k:record[k] for k in ('service_execution_sha256','offering_contract_sha256','transport_sha256')}
+    if rendered['sealed']['execution']!=execution:raise ValueError('built request execution contract differs from validation')
+    return report
+
+
+def analyze(record:dict,reader:InputEvidence,*,rendered:dict|None=None,envelope_fields:list[list]|None=None)->dict:
+    result,rule=_resolve(record,reader)
+    return _check_rendered(record,result,rule,rendered,envelope_fields)
+
+
+@dataclass(frozen=True,init=False)
+class ResolvedValidation:
+    """An acquired validation contract whose request check performs no I/O."""
+
+    record: dict
+    result: dict
+    request_rule: dict
+
+    def __init__(self,record:dict,reader:InputEvidence):
+        result,rule=_resolve(record,reader)
+        if result['unmeasured']!=record['unmeasured']:
+            raise ValueError('unmeasured statements were changed instead of derived from their evidence')
+        object.__setattr__(self,'record',freeze(record))
+        object.__setattr__(self,'result',freeze(result))
+        object.__setattr__(self,'request_rule',freeze(rule))
+
+    @classmethod
+    def acquire_choices(cls,choices:dict,reader:InputEvidence,*,expected_target:dict,execution:dict,
+                        rendered:dict|None=None,envelope_fields:list[list]|None=None):
+        """Derive a record and its request rule from one evidence acquisition."""
+        c.exact(choices,{'mode','contract','evidence','execution_policy'},'validation choices')
+        value={'mode':choices['mode'],'target':rc.target(expected_target),**execution,
+            'contract':reader.select(choices['contract']),'evidence':reader.select(choices['evidence']),
+            'execution_policy':reader.select(choices['execution_policy']) if choices['execution_policy'] is not None else None,'unmeasured':[]}
+        result,rule=_resolve(value,reader)
+        _check_rendered(value,result,rule,rendered,envelope_fields)
+        value['unmeasured']=result['unmeasured']
+        owner=object.__new__(cls)
+        for name,item in (('record',value),('result',result),('request_rule',rule)):
+            object.__setattr__(owner,name,freeze(item))
+        return owner
+
+    def check(self,*,expected_target:dict|None=None,execution:dict|None=None,rendered:dict|None=None,
+              envelope_fields:list[list]|None=None,known_schema:dict|None=None)->dict:
+        if expected_target is not None and self.record['target']!=expected_target:
+            raise ValueError('validation target differs from selected execution')
+        if execution is not None and any(self.record[k]!=v for k,v in execution.items()):
+            raise ValueError('validation was prepared for a different execution contract')
+        result=_check_rendered(self.record,self.result,self.request_rule,rendered,envelope_fields)
+        if known_schema is not None and rendered is not None:
+            check_schema(rendered['request'],known_schema,envelope_fields=envelope_fields)
+            result['checked'].append('current-known-target-constraints')
+        return result
 
 
 def build_record(choices:dict,reader:InputEvidence,*,expected_target:dict,execution:dict,rendered:dict|None=None,envelope_fields:list[list]|None=None)->dict:
-    c.exact(choices,{'mode','contract','evidence','execution_policy'},'validation choices')
-    value={'mode':choices['mode'],'target':rc.target(expected_target),**execution,
-        'contract':reader.select(choices['contract']),'evidence':reader.select(choices['evidence']),
-        'execution_policy':reader.select(choices['execution_policy']) if choices['execution_policy'] is not None else None,'unmeasured':[]}
-    result=analyze(value,reader,rendered=rendered,envelope_fields=envelope_fields)
-    value['unmeasured']=result['unmeasured'];return value
+    result=ResolvedValidation.acquire_choices(choices,reader,expected_target=expected_target,execution=execution,
+        rendered=rendered,envelope_fields=envelope_fields)
+    return mutable(result.record)
 
 
 def require(record:dict,reader:InputEvidence,*,expected_target:dict|None=None,execution:dict|None=None,
@@ -321,7 +405,8 @@ def require(record:dict,reader:InputEvidence,*,expected_target:dict|None=None,ex
     if expected_target is not None and record['target']!=expected_target:raise ValueError('validation target differs from selected execution')
     if execution is not None and any(record[k]!=v for k,v in execution.items()):raise ValueError('validation was prepared for a different execution contract')
     result=analyze(record,reader,rendered=rendered,envelope_fields=envelope_fields)
-    if result['unmeasured']!=record['unmeasured']:raise ValueError('unmeasured statements were changed instead of derived from their evidence')
+    if result['unmeasured']!=record['unmeasured']:
+        raise ValueError('unmeasured statements were changed instead of derived from their evidence')
     if known_schema is not None and rendered is not None:
         check_schema(rendered['request'],known_schema,envelope_fields=envelope_fields)
         result['checked'].append('current-known-target-constraints')

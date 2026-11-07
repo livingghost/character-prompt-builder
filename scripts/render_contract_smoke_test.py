@@ -34,6 +34,24 @@ class RenderContractTests(unittest.TestCase):
         broken=self.compile();broken['unexpected']=True
         self.assertTrue(validate_against_schema(broken,schema))
 
+    def test_compile_owns_one_checked_profile_and_imports_are_still_validated(self):
+        from unittest.mock import patch
+        with patch.object(r, 'validate_profile', wraps=r.validate_profile) as validate:
+            plan = self.compile()
+        validate.assert_called_once()
+        self.assertEqual(plan['parameters'], {'steps': 24, 'CFGScale': 5.5})
+        self.p['modes']['text-to-image']['controls']['steps']['schema']['minimum'] = 30
+        self.assertEqual(plan['model_card']['execution_profile']['modes']['text-to-image']
+                         ['controls']['steps']['schema']['minimum'], 1)
+        imported = copy.deepcopy(plan)
+        imported['model_card']['execution_profile']['modes']['text-to-image']['parameter_schema']['unsupported'] = True
+        imported['profile_sha256'] = r.digest(imported['model_card'])
+        with self.assertRaisesRegex(ValueError, 'unsupported schema constraints'):
+            r.verify_contract(imported, intent=self.intent, parameters=plan['parameters'],
+                              prompt=self.prompt, reference_count=0)
+        with self.assertRaisesRegex(ValueError, 'unsupported schema constraints'):
+            r.resolve_parameters(self.model, imported['model_card']['execution_profile'], 'text-to-image', {})
+
     def test_wire_preserves_explicit_number_representation(self):
         plan=self.compile({'CFGScale':4.0})
         wire={**plan['parameters'],'seed':3,'numberResults':1}

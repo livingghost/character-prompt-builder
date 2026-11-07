@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 from typing import Any
 import execution_contract as c
+from owned_json import mutable
 
 
 def studio_file(root: Path | None, value: str | Path, *, option: str, root_option: str = '--root',
@@ -135,13 +136,14 @@ def create(root: Path | None, run: str | None, prompt: str) -> dict[str,Any] | N
 
 
 def bind_consumer(context: dict, prompt: str) -> dict:
+    """Export an independent, editable package binding from a checked consumer."""
     c.exact(context,{'run','input_sha256','consumer'},'compiled production context')
     consumer=context['consumer']
     if consumer['instructions']!=prompt:raise ValueError('composition differs from the canonical prepared prompt')
     result={**context,'consumer_sha256':c.content_id(consumer),'composition_sha256':c.digest(prompt.encode('utf-8'))}
     result['sha256']=c.content_id(result)
     validate(result,prompt)
-    return result
+    return mutable(result)
 
 def validate(binding: Any, prompt: str) -> None:
     if binding is None: return
@@ -184,12 +186,24 @@ def validate_live(root: Path | None, run: str | None, package: dict[str,Any]) ->
         if root is not None or run is not None: raise ValueError('package is not bound to production')
         return
     if root is None or run is None: raise ValueError('a bound package needs its production root and run')
-    expected=create(root,run,package['composition_prompt'])
-    if binding!=expected: raise ValueError('package belongs to a different or stale production input')
+    from production_workflow import assert_current
+    _validate_live_from(assert_current(c._root(root),run),package)
+
+
+def _validate_live_from(loaded, package: dict[str,Any]) -> None:
+    """Compare a package with this command's acquired production input."""
+    if package['production_binding'] is None:
+        raise ValueError('package is not bound to production')
+    expected=bind_consumer({'run':loaded.prepared['run'],
+                           'input_sha256':loaded.prepared['input_sha256'],
+                           'consumer':loaded.consumer},package['composition_prompt'])
+    if package['production_binding']!=expected:
+        raise ValueError('package belongs to a different or stale production input')
 
 
 def upscale_request(root: Path, source: Path, model: str, scale: float,
-                    settings: dict, guidance: str | None, *, request_validation: dict, render_intent: dict) -> dict:
+                    settings: dict, guidance: str | None, *, request_validation: dict, render_intent: dict,
+                    input_source=None) -> dict:
     """Describe exact local inputs before the submit authorization is issued."""
     import math
     if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(scale) or scale <= 0:
@@ -215,13 +229,13 @@ def upscale_request(root: Path, source: Path, model: str, scale: float,
              'model': model, 'scale_factor': float(scale), 'settings': settings,
              'guidance_prompt': guidance, 'render_intent': render_intent}
     import input_contracts
-    reader, _ = input_contracts.capture_validation(request_validation, root=root)
+    reader, _ = input_contracts.capture_validation(request_validation, root=root,source=input_source)
     input_contracts.attach(value, request_validation, reader)
     c.encoded(value)  # Reject non-finite or unsupported JSON settings.
     return value
 
 
-def validate_upscale_input(root: Path, request: dict) -> None:
+def validate_upscale_input(root: Path, request: dict, *, input_source=None) -> None:
     """Verify one explicit upscale declaration and its actual source bytes."""
     c.exact(request, {'artifact_type', 'source', 'model', 'scale_factor', 'settings', 'guidance_prompt', 'render_intent',
                       'request_validation', 'request_validation_sha256', 'input_snapshots', 'input_snapshots_sha256'}, 'upscale request')
@@ -230,7 +244,8 @@ def validate_upscale_input(root: Path, request: dict) -> None:
     c.exact(request['source'], {'path', 'sha256'}, 'upscale source')
     expected = upscale_request(root, c.local(root, request['source']['path']), request['model'],
                                request['scale_factor'], request['settings'], request['guidance_prompt'],
-                               request_validation=request['request_validation'], render_intent=request['render_intent'])
+                               request_validation=request['request_validation'], render_intent=request['render_intent'],
+                               input_source=input_source)
     if request != expected:
         raise ValueError('upscale source differs from the prepared request')
 
@@ -239,7 +254,17 @@ def validate_upscale_live(root: Path, run: str, request: dict) -> None:
     """The prepared delivery and source snapshot authorize the exact input."""
     validate_upscale_input(root, request)
     from production_workflow import assert_current
-    _, prepared, consumer, _ = assert_current(root, run)
+    _validate_upscale_binding_from(assert_current(root,run),request)
+
+
+def _validate_upscale_live_from(root: Path, loaded, request: dict, *, input_source) -> None:
+    """Verify upscale evidence and its binding using the acquired fixed input."""
+    validate_upscale_input(root,request,input_source=input_source)
+    _validate_upscale_binding_from(loaded,request)
+
+
+def _validate_upscale_binding_from(loaded, request: dict) -> None:
+    prepared,consumer=loaded.prepared,loaded.consumer
     if prepared['task']['route'] != 'upscale' or prepared['task']['execution'] != 'dispatcher' or prepared['task']['artifact'] != 'image':
         raise ValueError('upscale needs an image task on the upscale dispatcher route')
     if c.decode(consumer['instructions'].encode('utf-8')) != request:

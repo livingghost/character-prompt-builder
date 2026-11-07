@@ -17,7 +17,9 @@ import tempfile
 from typing import Any
 
 import execution_contract as c
+import runtime_snapshot
 import production_workflow as workflow
+from owned_json import mutable
 from private_state import assert_public_path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,10 +83,10 @@ def _object_file(directory: Path, item: dict, files: dict[str, bytes], preview_c
 
 
 def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[dict, dict[str, bytes]]:
-    """Read pinned inputs and every candidate, not just the chosen result."""
+    """Export editable report data for pinned inputs and every candidate."""
     optional_count(preview_chars, "preview characters")
     root = studio_root(root)
-    directory, prepared, consumer, rows = workflow.load_run(root, run)
+    directory, prepared, consumer, rows = workflow.read_run(root, run)
     files: dict[str, bytes] = {}
     changes: list[dict] = []
     for dep in prepared['dependencies']:
@@ -160,7 +162,7 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
                          'This is a read-only snapshot; selecting or adopting uses the production workflow.',
                          'Previews display the saved bytes. Current studio changes are listed separately.',
                          'Preview format detection is not a media-quality assessment.']}
-    return report, files
+    return mutable(report), files
 
 
 def _json(value: Any) -> str:
@@ -256,15 +258,15 @@ def publish(root: Path, out: str, files: dict[str, bytes], *, prefix: str = 'rev
     return target
 
 
+@runtime_snapshot.operation
 def export(root: Path, run: str, out: str, *, preview_chars: int | None = None) -> dict:
     root = studio_root(root)
-    with c.lock(root):
-        report, files = build(root, run, preview_chars=preview_chars)
-        files['review.json'] = c.encoded(report)
-        files['index.html'] = render(report).encode('utf-8')
-        inventory = {k: {'sha256': c.digest(v), 'size': len(v)} for k, v in files.items()}
-        files['files.json'] = c.encoded(inventory)
-        target = publish(root, out, files)
+    report, files = build(root, run, preview_chars=preview_chars)
+    files['review.json'] = c.encoded(report)
+    files['index.html'] = render(report).encode('utf-8')
+    inventory = {k: {'sha256': c.digest(v), 'size': len(v)} for k, v in files.items()}
+    files['files.json'] = c.encoded(inventory)
+    target = publish(root, out, files)
     return {'ok': True, 'run': run, 'current': report['current'],
             'candidates': len(report['candidates']), 'output': str(target),
             'html': str(target / 'index.html'), 'mutates_canon': False}

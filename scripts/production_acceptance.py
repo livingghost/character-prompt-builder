@@ -12,6 +12,7 @@ from pathlib import Path
 
 import execution_contract as c
 import production_store as store
+import runtime_snapshot
 from production_diagnostics import ProductionError, compare_exact
 
 
@@ -24,7 +25,7 @@ def slot_state(root: Path, character: str, slot: str) -> dict | None:
 def _target(root: Path, run: str, candidate: str, *, loaded: tuple | None = None) -> tuple[dict, dict]:
     import production_workflow as workflow
     import studio
-    loaded = loaded or workflow.load_run(root, run)
+    loaded = loaded or workflow.read_run(root, run)
     _, prepared, _, rows = loaded
     chosen = workflow.find(rows, 'candidate', candidate)
     recording = prepared['task'].get('recording')
@@ -65,24 +66,25 @@ def validate_slot(root: Path, run: str, candidate: str, slot: dict, *, loaded: t
     return row
 
 
+@runtime_snapshot.operation
 def draft(root: Path, run: str, candidate: str, grant: str) -> dict:
     """Pin the existing candidate and prior slot state without supplying a judgment."""
     import production_workflow as workflow
-    loaded = workflow.load_run(root, run)
+    loaded = workflow.read_run(root, run)
     _, prepared, _, rows = loaded
     workflow.require_mutable(rows)
     workflow.require_open_task(rows, run)
     reviewed = workflow.latest_review(rows, candidate)
     target, _ = _target(root, run, candidate, loaded=loaded)
-    workflow.assert_authority_current(root, prepared)
-    matches = [item for item in prepared['authority']['grants'] if item['id'] == grant]
+    authority = workflow.current_authority(root, prepared).document
+    matches = [item for item in authority['grants'] if item['id'] == grant]
     if len(matches) != 1:
         raise ValueError('unknown grant id')
     return {'run': run, 'input_sha256': prepared['input_sha256'], 'candidate': candidate,
             'review': reviewed['sha256'], 'expected_slot': slot_state(root, target['character'], target['slot']),
             'grant': grant, 'reason': '',
             'stop_assessments': [{'id': item['id'], 'clear': False, 'evidence': ''}
-                                 for item in prepared['authority']['stop_conditions']],
+                                 for item in authority['stop_conditions']],
             'owner_acceptance': None}
 
 
@@ -100,21 +102,21 @@ def _expand(root: Path, run: str, decisions: dict, loaded: tuple) -> tuple[dict,
         raise ProductionError('SLOT_ACCEPTANCE_CONFLICT', 'The slot changed after this acceptance decision was drafted.',
             phase='acceptance', run=run, expected=decisions['expected_slot'], actual=current,
             required_action='Inspect the current slot and draft a new decision if this replacement is still intended.')
-    workflow.assert_authority_current(root, prepared)
-    grants = [item for item in prepared['authority']['grants'] if item['id'] == decisions['grant']]
+    authority = workflow.current_authority(root, prepared)
+    grants = [item for item in authority.document['grants'] if item['id'] == decisions['grant']]
     if len(grants) != 1:
         raise ProductionError('GRANT_REVOKED', 'The selected grant is not current.', phase='authorization', run=run)
     allowance = decisions['owner_acceptance']
     if allowance is not None:
         source = allowance['evidence']
         raw = store.stable_bytes(root, source['path'])
-        allowance = {**copy.deepcopy(allowance), 'principal': prepared['authority']['issuer'],
+        allowance = {**copy.deepcopy(allowance), 'principal': authority.document['issuer'],
                      'evidence': {**source, 'sha256': c.digest(raw)}}
     selection = {'input_sha256': prepared['input_sha256'], 'candidate': decisions['candidate'],
                  'review': decisions['review'], 'selector': grants[0]['actor'], 'reason': decisions['reason'],
                  'scope': 'studio-slot', 'adoption': None, 'slot': target,
                  'owner_acceptance': allowance, 'authorization': ''}
-    request = workflow.draft_authorization(root, run, decisions['grant'], workflow.selection_intent(selection))
+    request = workflow.draft_authorization_from(loaded, authority, decisions['grant'], workflow.selection_intent(selection))
     request['reason'] = decisions['reason']
     request['stop_assessments'] = copy.deepcopy(decisions['stop_assessments'])
     return selection, request
@@ -155,7 +157,7 @@ def verify_slot(root: Path, run: str, selection_receipt: dict, *, rows: list[dic
     """Verify a committed receipt; later ordinary supersession preserves past completion."""
     import production_workflow as workflow
     if rows is None:
-        rows = workflow.load_run(root, run)[3]
+        rows = workflow.read_run(root, run)[3]
     if selection_receipt['data']['selection']['scope'] != 'studio-slot':
         raise ValueError('slot receipt verification needs a studio-slot selection')
     expected = _receipt(root, run, selection_receipt, require_current=require_current)
@@ -169,66 +171,74 @@ def verify_slot(root: Path, run: str, selection_receipt: dict, *, rows: list[dic
     return results[0]
 
 
+@runtime_snapshot.operation
 def accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
+    """Accept and complete one committed selection, then rebuild its views once."""
+    import studio_activity as activity
+    with activity.operation(root) as projection:
+        result = _accept(root, run, decision_file=decision_file)
+    return activity.project_result(result, projection)
+
+
+def _accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
     """Select, accept and complete the original run, or recover its exact committed intent."""
     import production_workflow as workflow
     import studio
     import work_ledger
     from cli_invocation import python_argv, shown
-    with c.lock(root):
-        loaded = workflow.load_run(root, run)
-        directory, prepared, _, rows = loaded
-        selections = [row for row in rows if row['event'] == 'selection']
-        selected = selections[-1] if selections else None
-        if decision_file is not None:
-            raw = store.stable_bytes(root, decision_file)
-            prior = [row for row in selections if any(item['sha256'] == c.digest(raw)
-                     for item in row['data'].get('files', []))]
-            if prior:
-                if selected['sha256'] != prior[-1]['sha256']:
-                    raise ProductionError('SELECTION_REPLACED', 'A newer selection replaced this acceptance decision.',
-                                          phase='acceptance', run=run)
-                selected = prior[-1]
-            else:
-                with store.transaction(root):
-                    loaded = workflow.load_run(root, run)
-                    directory, prepared, _, rows = loaded
-                    workflow.require_mutable(rows)
-                    workflow.require_open_task(rows, run)
-                    selection, request = _expand(root, run, c.decode(raw), loaded)
-                    authorization = workflow.authorize_value(root, run, request, evidence_files=[decision_file],
-                                                             expected_source=(decision_file, c.digest(raw)))
-                    selection['authorization'] = authorization['sha256']
-                    item = {'path': decision_file, 'sha256': c.object_store(directory, raw), 'size': len(raw)}
-                    selected = workflow.select_value(root, run, selection, files=[item])
-        if selected is None or selected['data']['selection']['scope'] != 'studio-slot':
-            raise ProductionError('SLOT_SELECTION_REQUIRED', 'Accept needs an exact studio-slot selection.',
-                phase='acceptance', run=run,
-                required_action='Draft the actual choices with draft-acceptance and supply the completed file.')
-        directory, prepared, _, rows = workflow.load_run(root, run)
-        current, chosen, _ = workflow.current_selection(prepared, rows)
-        if current['sha256'] != selected['sha256']:
-            raise ProductionError('SELECTION_REPLACED', 'The acceptance decision is no longer the current selection.',
-                                  phase='acceptance', run=run)
-        completed = [row for row in rows if row['event'] == 'completion']
-        studio_result = {}
-        if completed:
-            result = verify_slot(root, run, selected, rows=rows)
-            done = workflow.verify_completion(root, run, prepared['task']['task_id'])
+    loaded = workflow.read_run(root, run)
+    directory, prepared, _, rows = loaded
+    selections = [row for row in rows if row['event'] == 'selection']
+    selected = selections[-1] if selections else None
+    if decision_file is not None:
+        raw = store.stable_bytes(root, decision_file)
+        prior = [row for row in selections if any(item['sha256'] == c.digest(raw)
+                 for item in row['data'].get('files', []))]
+        if prior:
+            if selected['sha256'] != prior[-1]['sha256']:
+                raise ProductionError('SELECTION_REPLACED', 'A newer selection replaced this acceptance decision.',
+                                      phase='acceptance', run=run)
+            selected = prior[-1]
         else:
-            workflow.require_open_task(rows, run)
-            target = chosen['slot']
-            studio_result = studio.accept(root, target['character'], target['iteration_id'],
-                                          production_selection=selected['sha256'])
-            data = _receipt(root, run, selected, require_current=True)
-            directory, prepared, _, rows = workflow.load_run(root, run)
-            result = workflow.append_record(directory, prepared, rows, 'slot-acceptance', data)
-            done = workflow.complete(root, run)
-        answer = {'ok': True, 'run': run, 'selection': selected['sha256'],
-                  'slot_acceptance': result['sha256'], 'completion': done['sha256'], 'slot': chosen['slot'],
-                  'task_id': prepared['task']['task_id'],
-                  'finish_command': shown(python_argv(work_ledger.SCRIPT, 'finish', '--studio', str(root.resolve()), '--run', run))}
-        warnings = [item['projection_warning'] for item in (selected, studio_result, done) if item.get('projection_warning')]
-        if warnings:
-            answer['projection_warnings'] = warnings
-        return answer
+            with store.transaction(root):
+                loaded = workflow.read_run(root, run)
+                directory, prepared, _, rows = loaded
+                workflow.require_mutable(rows)
+                workflow.require_open_task(rows, run)
+                selection, request = _expand(root, run, c.decode(raw), loaded)
+                authorization = workflow.authorize_value(root, run, request, evidence_files=[decision_file],
+                                                         expected_source=(decision_file, c.digest(raw)))
+                selection['authorization'] = authorization['sha256']
+                item = {'path': decision_file, 'sha256': c.object_store(directory, raw), 'size': len(raw)}
+                selected = workflow.select_value(root, run, selection, files=[item])
+    if selected is None or selected['data']['selection']['scope'] != 'studio-slot':
+        raise ProductionError('SLOT_SELECTION_REQUIRED', 'Accept needs an exact studio-slot selection.',
+            phase='acceptance', run=run,
+            required_action='Draft the actual choices with draft-acceptance and supply the completed file.')
+    directory, prepared, _, rows = workflow.read_run(root, run)
+    current, chosen, _ = workflow.current_selection(prepared, rows)
+    if current['sha256'] != selected['sha256']:
+        raise ProductionError('SELECTION_REPLACED', 'The acceptance decision is no longer the current selection.',
+                              phase='acceptance', run=run)
+    completed = [row for row in rows if row['event'] == 'completion']
+    studio_result = {}
+    if completed:
+        result = verify_slot(root, run, selected, rows=rows)
+        done = workflow.verify_completion(root, run, prepared['task']['task_id'])
+    else:
+        workflow.require_open_task(rows, run)
+        target = chosen['slot']
+        studio_result = studio.accept(root, target['character'], target['iteration_id'],
+                                      production_selection=selected['sha256'])
+        data = _receipt(root, run, selected, require_current=True)
+        directory, prepared, _, rows = workflow.read_run(root, run)
+        result = workflow.append_record(directory, prepared, rows, 'slot-acceptance', data)
+        done = workflow.complete(root, run)
+    answer = {'ok': True, 'run': run, 'selection': selected['sha256'],
+              'slot_acceptance': result['sha256'], 'completion': done['sha256'], 'slot': chosen['slot'],
+              'task_id': prepared['task']['task_id'],
+              'finish_command': shown(python_argv(work_ledger.SCRIPT, 'finish', '--studio', str(root.resolve()), '--run', run))}
+    warnings = [item['projection_warning'] for item in (selected, studio_result, done) if item.get('projection_warning')]
+    if warnings:
+        answer['projection_warnings'] = warnings
+    return answer

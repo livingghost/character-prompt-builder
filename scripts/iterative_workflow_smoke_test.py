@@ -6,7 +6,10 @@ No network, credentials, private pack or historical file layout is required.
 from __future__ import annotations
 
 import copy
+import contextvars
+from concurrent.futures import ThreadPoolExecutor
 import json
+import multiprocessing
 from pathlib import Path
 import shutil
 import tempfile
@@ -24,6 +27,42 @@ import studio_gallery
 import studio_activity as activity
 import work_ledger as work
 from sheet_artifacts_smoke_test import make_sheet, make_artifact, accepted, decision
+
+
+def _concurrent_gallery(root: str, source: str, role: str, notices, release) -> None:
+    """Two spawned processes overlap a view build and a canonical import."""
+    root = Path(root)
+    try:
+        if role == 'older':
+            original = studio_gallery.publish
+
+            def paused(root, index, out=None):
+                notices.send(('snapshot', len(index['entries'])))
+                if not release.wait(20):
+                    raise TimeoutError('Synthetic publication barrier timed out')
+                return original(root, index, out)
+
+            with patch.object(studio_gallery, 'publish', side_effect=paused):
+                studio.write_gallery(root)
+        else:
+            original = activity.event
+
+            def committed(root, kind, *args, **kwargs):
+                result = original(root, kind, *args, **kwargs)
+                if kind == 'iteration-recorded':
+                    notices.send(('source-committed', result['event_id']))
+                return result
+
+            with patch.object(activity, 'event', side_effect=committed):
+                studio.iterate(root, 'robot', 'base.front', Path(source), package=None,
+                    request=None, response=None, note='Synthetic concurrent import')
+        notices.send(('finished', True))
+    except BaseException:
+        import traceback
+        notices.send(('failure', traceback.format_exc()))
+        raise
+    finally:
+        notices.close()
 
 
 class EditingTests(unittest.TestCase):
@@ -127,6 +166,13 @@ class StudioIterationTests(unittest.TestCase):
         self.root = studio.init(Path(self.temp.name)/'studio', 'synthetic-work', 'Synthetic iterative workflow')
         studio.add_character(self.root, 'robot', '')
         self.sheet = make_sheet(self.root/'characters/robot/sheet')
+
+    def import_image(self, name: str) -> dict:
+        from PIL import Image
+        path = self.root.parent / (name + '.png')
+        Image.new('RGB', (8, 8), 'red').save(path)
+        return studio.iterate(self.root, 'robot', 'base.front', path, package=None,
+                              request=None, response=None, note='Synthetic ' + name)
 
     def test_continuous_author_history_pause_resume_stale_edit_and_local_gallery(self):
         task = work.begin(self.root, 'Develop a synthetic character', ['Establish design','Compare trials','Deliver'])
@@ -263,6 +309,232 @@ class StudioIterationTests(unittest.TestCase):
         self.assertTrue(activity.refresh(self.root)['ok'])
         self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
         self.assertEqual(len(c.load(self.root/'gallery.json')['entries']), 1)
+
+    def test_work_note_updates_only_activity(self):
+        work.begin(self.root, 'Synthetic isolated note', ['Document the decision'])
+        with (patch.object(studio, 'write_gallery') as gallery,
+              patch('adoption_workflow._reference_index') as references):
+            result = work.note(self.root, 'No artwork or adoption changed.')
+        gallery.assert_not_called()
+        references.assert_not_called()
+        self.assertNotIn('projection_warning', result)
+        self.assertIn('No artwork or adoption changed.', work.read_current(self.root)['notes'])
+        self.assertIn('work-note', (self.root/'work/activity/timeline.md').read_text(encoding='utf-8'))
+        self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
+
+    def test_outer_operation_reports_deferred_display_failure(self):
+        image = make_artifact(self.sheet)
+        with patch.object(studio, 'write_gallery', side_effect=OSError('synthetic deferred failure')) as gallery:
+            with activity.operation(self.root) as projection:
+                result = fills.register_candidates(self.sheet, [('canon.primary', image)])
+                activity.changed(self.sheet, 'synthetic-owner-finished', revision='complete')
+                gallery.assert_not_called()
+        self.assertEqual(gallery.call_count, 1)
+        self.assertFalse(projection['ok'])
+        self.assertFalse(result['projection']['ok'])
+        receipt = activity.project_result({'committed': True}, projection)
+        self.assertTrue(receipt['committed'])
+        self.assertTrue(receipt['projection_warning']['committed_state_retained'])
+        self.assertEqual(c.load(self.sheet)['slots']['canon.primary']['candidates'], [image])
+
+    def test_refresh_keeps_a_concurrent_writers_dirty_receipt(self):
+        original = studio.write_gallery
+
+        def concurrent_event(root, *args, **kwargs):
+            activity.event(root, 'synthetic-concurrent-change', 'gallery', revision='later', views={'gallery'})
+            return original(root, *args, **kwargs)
+
+        with patch.object(studio, 'write_gallery', side_effect=concurrent_event):
+            self.assertTrue(activity.refresh(self.root)['ok'])
+        self.assertTrue((self.root/'work/activity/projections-pending.json').exists())
+        self.assertTrue(activity.refresh(self.root)['ok'])
+        self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
+
+    def test_supplied_read_cannot_overwrite_new_gallery_or_reference_state(self):
+        first = self.import_image('first')
+        studio.accept(self.root, 'robot', first['iteration_id'])
+        old = studio.StudioRead(self.root)
+        old.iterations('robot'); old.sheet('robot'); old.reference_index('robot')
+        second = self.import_image('second')
+        studio.accept(self.root, 'robot', second['iteration_id'])
+        self.assertEqual(len(c.load(self.root/'gallery.json')['entries']), 2)
+        self.assertTrue(activity.refresh(self.root, read=old)['ok'])
+        self.assertEqual(len(c.load(self.root/'gallery.json')['entries']), 2)
+        self.assertEqual(len(old.iterations('robot')), 2)
+        bindings = c.load(self.sheet.parent/'active-references.json')['bindings']
+        self.assertEqual([row['iteration_id'] for row in bindings], [second['iteration_id']])
+        self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
+        self.assertIsNone(studio.gallery_stale(self.root))
+
+    def test_same_event_retry_during_build_keeps_its_own_repair_receipt(self):
+        kwargs = dict(revision='same-revision', views={'gallery'})
+        activity.event(self.root, 'synthetic-retry', 'gallery', **kwargs)
+        original = studio.write_gallery
+
+        def concurrent_retry(root, *args, **options):
+            result = original(root, *args, **options)
+            activity.event(root, 'synthetic-retry', 'gallery', **kwargs)
+            return result
+
+        with patch.object(studio, 'write_gallery', side_effect=concurrent_retry):
+            report = activity.refresh(self.root, views={'gallery'})
+        self.assertTrue(report['ok'])
+        self.assertTrue((self.root/'work/activity/projections-pending.json').exists())
+        self.assertEqual(len(list((self.root/'work/activity/dirty/gallery').glob('*'))), 1)
+        self.assertEqual(sum(row['event'] == 'synthetic-retry' for row in activity.read_events(self.root)[0]), 1)
+        self.assertTrue(activity.refresh(self.root, views={'gallery'})['ok'])
+        self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
+
+    def test_pending_marker_cleanup_cannot_erase_a_new_writer_notice(self):
+        pending = self.root/'work/activity/projections-pending.json'
+        original = Path.unlink
+        raced = False
+
+        def write_before_delete(path, *args, **kwargs):
+            nonlocal raced
+            if path == pending and not raced:
+                raced = True
+                activity.event(self.root, 'synthetic-late-write', 'gallery', revision='late', views={'gallery'})
+            return original(path, *args, **kwargs)
+
+        with patch.object(Path, 'unlink', new=write_before_delete):
+            self.assertTrue(activity.refresh(self.root, views={'activity-timeline'})['ok'])
+        self.assertTrue(raced)
+        self.assertTrue(pending.exists())
+        self.assertTrue(list((self.root/'work/activity/dirty/gallery').glob('*')))
+        self.assertTrue(activity.refresh(self.root)['ok'])
+        self.assertFalse(pending.exists())
+
+    def test_failed_explicit_view_stays_pending_when_another_view_succeeds(self):
+        self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
+        with patch.object(studio, 'write_gallery', side_effect=OSError('Synthetic explicit view failure')):
+            self.assertFalse(activity.refresh(self.root, views={'gallery'})['ok'])
+        self.assertTrue(activity.refresh(self.root, views={'activity-timeline'})['ok'])
+        self.assertTrue((self.root/'work/activity/projections-pending.json').exists())
+        self.assertTrue(list((self.root/'work/activity/dirty/gallery').glob('*')))
+        self.assertTrue(activity.refresh(self.root, views={'gallery'})['ok'])
+        self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
+
+    def test_refresh_does_not_acknowledge_an_unpublished_receipt_temporary(self):
+        temporary = self.root/'work/activity/dirty/gallery'/ (c.TEMPORARY_PREFIX + 'synthetic-writer')
+        temporary.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_bytes(b'Synthetic writer has not published this receipt yet')
+        self.assertTrue(activity.refresh(self.root, views={'gallery'})['ok'])
+        self.assertTrue(temporary.exists())
+
+    def test_copied_context_cannot_reuse_a_completed_publication_admission(self):
+        self.import_image('first')
+        old = studio.StudioRead(self.root)
+        old.iterations('robot')
+        with activity.publication(activity.artwork_owner(self.root)):
+            copied = contextvars.copy_context()
+        self.import_image('second')
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pool.submit(copied.run, studio.write_gallery, self.root, read=old).result(timeout=20)
+        self.assertEqual(len(c.load(self.root/'gallery.json')['entries']), 2)
+        self.import_image('third')
+        copied.run(studio.write_gallery, self.root, read=old)
+        self.assertEqual(len(c.load(self.root/'gallery.json')['entries']), 3)
+
+    def test_unconfigured_story_needs_no_publisher_and_keeps_a_new_source_notice(self):
+        import story_timeline
+        with patch.object(c, 'lock', wraps=c.lock) as locks:
+            self.assertTrue(activity.refresh(self.root, views={'story-timeline'})['ok'])
+        locks.assert_not_called()
+        activity.event(self.root, 'synthetic-old-story', 'timeline', revision='old', views={'story-timeline'})
+        original = story_timeline.configured
+
+        def source_arrives(root):
+            configured = original(root)
+            self.assertFalse(configured)
+            c.atomic_write_json(root/story_timeline.CONFIG, story_timeline.DEFAULT)
+            activity.event(root, 'synthetic-new-story', 'timeline', revision='new', views={'story-timeline'})
+            return configured
+
+        with (patch.object(story_timeline, 'configured', side_effect=source_arrives),
+              patch.object(c, 'lock', wraps=c.lock) as locks):
+            report = activity.refresh(self.root, views={'story-timeline'})
+        locks.assert_not_called()
+        self.assertTrue(report['ok'])
+        self.assertTrue((self.root/'work/activity/projections-pending.json').exists())
+        self.assertEqual(len(list((self.root/'work/activity/dirty/story-timeline').glob('*'))), 1)
+        self.assertTrue(original(self.root))
+        self.assertFalse((self.root/story_timeline.OUTPUT).exists())
+
+    def test_absent_studio_needs_no_publisher_and_keeps_a_new_manifest_notice(self):
+        root = self.root.parent/'activity-only'
+        root.mkdir()
+        views = {'gallery', 'active-references'}
+        activity.event(root, 'synthetic-old-studio', 'studio', revision='old', views=views)
+        original = Path.is_file
+        appeared = False
+
+        def manifest_arrives(path):
+            nonlocal appeared
+            present = original(path)
+            if path == root/studio.MANIFEST and not appeared:
+                appeared = True
+                self.assertFalse(present)
+                document = {**studio.manifest(self.root), 'studio_id': 'synthetic-new-studio', 'characters': []}
+                c.atomic_write_json(path, document)
+                activity.event(root, 'synthetic-new-studio', 'studio', revision='new', views=views)
+            return present
+
+        with (patch.object(Path, 'is_file', new=manifest_arrives),
+              patch.object(c, 'lock', wraps=c.lock) as locks):
+            report = activity.refresh(root, views=views)
+        locks.assert_not_called()
+        self.assertTrue(appeared)
+        self.assertTrue(report['ok'])
+        self.assertTrue((root/'work/activity/projections-pending.json').exists())
+        self.assertFalse((root/'gallery.json').exists())
+        for view in views:
+            self.assertEqual(len(list((root/'work/activity/dirty'/view).glob('*'))), 1)
+        self.assertTrue(activity.refresh(root, views=views)['ok'])
+        self.assertTrue((root/'gallery.json').exists())
+        self.assertFalse((root/'work/activity/projections-pending.json').exists())
+
+    def test_separate_process_refreshes_publish_latest_committed_artwork(self):
+        self.import_image('first')
+        context = multiprocessing.get_context('spawn')
+        release = context.Event()
+        old_read, old_write = context.Pipe(duplex=False)
+        new_read, new_write = context.Pipe(duplex=False)
+        old = context.Process(target=_concurrent_gallery,
+            args=(str(self.root), '', 'older', old_write, release))
+        new = context.Process(target=_concurrent_gallery,
+            args=(str(self.root), str(self.root.parent/'first.png'), 'newer', new_write, release))
+        started = []
+        try:
+            old.start(); started.append(old); old_write.close()
+            self.assertTrue(old_read.poll(20), 'Older publisher did not read its source')
+            self.assertEqual(old_read.recv(), ('snapshot', 1))
+            new.start(); started.append(new); new_write.close()
+            self.assertTrue(new_read.poll(20), 'Canonical writer did not commit during publication')
+            self.assertEqual(new_read.recv()[0], 'source-committed')
+            self.assertEqual(len(studio.read_iteration_records(self.sheet.parent.parent)), 2)
+            # The canonical update is allowed through; its newer display waits
+            # for the older publisher and then reads the committed source.
+            self.assertFalse(new_read.poll(0.1), 'A newer publisher bypassed the active display owner')
+            release.set()
+            for process, channel in ((old, old_read), (new, new_read)):
+                process.join(20)
+                self.assertFalse(process.is_alive(), 'Projection process did not finish')
+                self.assertTrue(channel.poll(1), 'Projection process returned no result')
+                self.assertEqual(channel.recv(), ('finished', True))
+                self.assertEqual(process.exitcode, 0)
+            self.assertEqual(len(c.load(self.root/'gallery.json')['entries']), 2)
+            self.assertIsNone(studio.gallery_stale(self.root))
+            self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
+        finally:
+            release.set()
+            for process in started:
+                if process.is_alive():
+                    process.terminate()
+                process.join(5)
+                process.close()
+            for channel in (old_read, old_write, new_read, new_write):
+                channel.close()
 
     def test_failed_activity_append_is_queued_then_idempotently_repaired(self):
         with patch.object(activity, 'event', side_effect=OSError('synthetic log failure')):

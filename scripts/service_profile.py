@@ -51,15 +51,20 @@ def resolve_path(explicit: str | None, *, state_file: str | None, cache_dir: str
 
 def load_service(service: str, path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
+    return select_service(service, data, label=path)
+
+
+def select_service(service: str, data: Any, *, label: Any = 'service-profiles') -> dict[str, Any]:
+    """Select one service from an acquired document without reading a path."""
     services = data.get("services") if isinstance(data, dict) else None
     if not isinstance(services, dict):
-        raise PackError(f"{path}: not a service-profiles record")
+        raise PackError(f"{label}: not a service-profiles record")
     record = services.get(service)
     if record is None:
-        raise PackError(f"{path}: no service {service!r}; it records {sorted(services)}")
+        raise PackError(f"{label}: no service {service!r}; it records {sorted(services)}")
     transport = record.get("transport") if isinstance(record, dict) else None
     if not isinstance(transport, str) or not NAME.fullmatch(transport):
-        raise PackError(f"{path}: the service {service!r} gives the transport {transport!r}; a transport is the "
+        raise PackError(f"{label}: the service {service!r} gives the transport {transport!r}; a transport is the "
                         "<name> of scripts/transport_<name>.py, in lowercase letters, digits and underscores")
     return record
 

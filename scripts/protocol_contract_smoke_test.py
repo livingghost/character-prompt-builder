@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 import protocol_contract as pc
 import protocol_exchange as exchange
@@ -22,6 +23,7 @@ import temporal_state as temporal
 import state_protocol as state
 import shot_request as shot
 import viewpoint_protocol as viewpoint
+import runtime_snapshot
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -79,6 +81,66 @@ class Contracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'invalid validator path'):pc._registry_shape(other)
         moved=copy.deepcopy(value);moved['templates'].append({'path':'templates/elsewhere.json','sha256':'a'*64})
         with self.assertRaisesRegex(ValueError,'invalid template path'):pc._registry_shape(moved)
+    def test_read_scope_shares_verified_contracts_without_exposing_mutable_cache(self):
+        root=self.root/'install';shutil.copytree(ROOT/'protocols',root/'protocols')
+        (root/'scripts').mkdir();shutil.copy2(ROOT/pc.VALIDATOR_PATH,root/pc.VALIDATOR_PATH)
+        manifest=root/pc.MANIFEST_PATH
+        manifest.write_text(pc.seal_registry(manifest.read_text(encoding='utf-8'),root),encoding='utf-8')
+        with mock.patch.object(pc,'ROOT',root):
+            pc.contract_set()  # The full installation check precedes the measured operation.
+            seen=[];read=Path.read_bytes
+            def observe(path):
+                seen.append(path);return read(path)
+            with mock.patch.object(Path,'read_bytes',observe),runtime_snapshot.public_call():
+                contracts=pc.contract_set();self.assertIs(contracts,pc.contract_set())
+                value=fixture('state-event')
+                self.assertTrue(pc.validate_artifact(value,contracts=contracts)['ok'])
+                self.assertTrue(pc.validate_artifact(value,contracts=contracts)['ok'])
+                exposed=pc.schema_named('state-event.schema.json')
+                exposed['properties']['artifact_type']['const']='changed'
+                exposed_registry=pc.registry();exposed_registry['artifacts'].clear()
+                self.assertEqual(contracts.schema_for(value)['properties']['artifact_type']['const'],'state-event')
+                with self.assertRaises(TypeError):contracts.schema_for(value)['properties']['artifact_type']['const']='changed'
+                self.assertTrue(pc.validate_artifact(value,contracts=contracts)['ok'])
+            self.assertEqual(len(seen),len(set(seen)),seen)
+            self.assertIn(manifest,seen)
+    def test_later_operation_detects_same_metadata_contract_changes(self):
+        root=self.root/'install';shutil.copytree(ROOT/'protocols',root/'protocols')
+        (root/'scripts').mkdir();shutil.copy2(ROOT/pc.VALIDATOR_PATH,root/pc.VALIDATOR_PATH)
+        manifest=root/pc.MANIFEST_PATH
+        manifest.write_text(pc.seal_registry(manifest.read_text(encoding='utf-8'),root),encoding='utf-8')
+        with mock.patch.object(pc,'ROOT',root):
+            for relative in (pc.SEMANTICS_PATH,pc.VALIDATOR_PATH,'protocols/shared-state/schemas/state-event.schema.json'):
+                with self.subTest(relative=relative):
+                    with runtime_snapshot.public_call():pc.contract_set().schema_named('state-event.schema.json')
+                    path=root/relative;raw=path.read_bytes();metadata=path.stat()
+                    path.write_bytes(bytes([raw[0]^1])+raw[1:]);os.utime(path,ns=(metadata.st_atime_ns,metadata.st_mtime_ns))
+                    try:
+                        with runtime_snapshot.public_call(),self.assertRaisesRegex(ValueError,'byte hash mismatch'):
+                            pc.contract_set().schema_named('state-event.schema.json')
+                    finally:
+                        path.write_bytes(raw);os.utime(path,ns=(metadata.st_atime_ns,metadata.st_mtime_ns))
+    def test_authoring_schema_read_scope_and_same_metadata_edit(self):
+        path=self.save('authoring.schema.json',{'type':'object','properties':{'value':{'const':1}},'required':['value']})
+        with runtime_snapshot.public_call():
+            schema=state.read_schema(path)
+            self.assertIs(schema,state.read_schema(path))
+            self.assertEqual(state.validate_against_schema({'value':1},schema),[])
+            self.assertTrue(state.validate_against_schema({'value':2},schema))
+            with self.assertRaises(TypeError):schema['properties']['value']['const']=2
+        raw=path.read_bytes();metadata=path.stat()
+        path.write_bytes(raw.replace(b'"const": 1',b'"const": 2'));os.utime(path,ns=(metadata.st_atime_ns,metadata.st_mtime_ns))
+        with runtime_snapshot.public_call():
+            self.assertEqual(state.validate_against_schema({'value':2},state.read_schema(path)),[])
+    def test_public_validator_runs_without_product_modules(self):
+        root=self.root/'standalone';shutil.copytree(ROOT/'protocols',root/'protocols')
+        (root/'scripts').mkdir();shutil.copy2(ROOT/pc.VALIDATOR_PATH,root/pc.VALIDATOR_PATH)
+        manifest=root/pc.MANIFEST_PATH
+        manifest.write_text(pc.seal_registry(manifest.read_text(encoding='utf-8'),root),encoding='utf-8')
+        script="import sys;sys.path.insert(0,sys.argv[1]);import protocol_contract as pc;print(pc.check_installed()['ok'])"
+        result=subprocess.run([sys.executable,'-I','-c',script,str(root/'scripts')],capture_output=True,text=True,encoding='utf-8')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(result.stdout.strip(),'True')
     def test_installation_refuses_changed_validator_bytes(self):
         root,value=self.installation();pc.verify_installation(value,root)
         with (root/pc.VALIDATOR_PATH).open('ab') as f:f.write(b'\n')
@@ -110,6 +172,20 @@ class Contracts(unittest.TestCase):
     def test_const_enum_and_unique_items_compare_json_values(self):
         self.assertTrue(pc.validate_against_schema(1,{'const':True}));self.assertTrue(pc.validate_against_schema(True,{'enum':[1]}))
         self.assertEqual(pc.validate_against_schema(1.0,{'const':1}),[]);self.assertTrue(pc.validate_against_schema([1,1.0],{'uniqueItems':True}))
+    def test_frozen_const_and_enum_preserve_nested_json_values_and_error_text(self):
+        constant=pc._freeze({'const':{'parts':[1,{'enabled':True}]}})
+        choices=pc._freeze({'enum':[[1,{'enabled':True}],{'parts':['x','y']}]})
+        for validate in (pc.validate_against_schema,state.validate_against_schema):
+            with self.subTest(validator=validate.__module__):
+                self.assertEqual(validate({'parts':[1.0,{'enabled':True}]},constant),[])
+                self.assertEqual(validate({'parts':[1,{'enabled':1}]},constant),
+                    ["$: expected constant {'parts': [1, {'enabled': True}]}"])
+                self.assertEqual(validate([1.0,{'enabled':True}],choices),[])
+                self.assertEqual(validate({'parts':['x','y']},choices),[])
+                self.assertEqual(validate('invalid',choices),
+                    ["$: value 'invalid' is not in [[1, {'enabled': True}], {'parts': ['x', 'y']}]"])
+                self.assertTrue(validate({'parts':(1,{'enabled':True})},constant))
+                self.assertTrue(validate((1,{'enabled':True}),choices))
     def test_material_invariants_live_in_the_validator(self):
         for name in ('scene_persona','source_material'):sys.modules.pop(name,None)
         for kind in sorted(pc.MATERIAL_ARTIFACT_TYPES):

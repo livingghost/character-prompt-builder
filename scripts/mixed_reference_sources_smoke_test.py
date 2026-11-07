@@ -7,6 +7,7 @@ test data and real adoption records; no provider or image model is invoked.
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 from pathlib import Path
 import tempfile
 import unittest
@@ -93,11 +94,10 @@ class MixedReferenceSourceTests(unittest.TestCase):
         self.addCleanup(catalog_cli.configure_pack_runtime, None)
 
         pack = _write_fixture_pack(self.work)
-        runtime = Path(self.case.temp.name) / 'runtime'
-        settings = pack_manager.PackSettings(
-            roots=((ROOT / 'packs/commons').resolve(),),
-            state_file=runtime / 'state.json', cache_dir=runtime / 'cache',
-            managed_root=runtime / 'managed', quarantine_root=runtime / 'managed/.quarantine')
+        # The adoption fixture owns its sealed runtime independently of this
+        # test's Studio copy. Use its settings instead of guessing that runtime
+        # lives inside the per-test temporary directory.
+        settings = replace(self.case.settings, roots=((ROOT / 'packs/commons').resolve(),))
         state = c.load(settings.state_file)
         state['enabled_packs'].remove(production_fixture.PACK_ID)
         state['pack_order'].remove(production_fixture.PACK_ID)

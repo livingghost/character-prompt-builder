@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
 import execution_contract as c
+import runtime_snapshot
 import request_contract as rc
 from input_evidence import InputEvidence
 
@@ -213,20 +214,20 @@ LIMITATIONS=[
 ]
 
 
+@runtime_snapshot.operation
 def capture(root:Path,run:str)->dict:
     """Read one existing run. The caller decides where local observation data is saved."""
     import production_workflow as w
-    with c.lock(root):
-        directory,prepared,consumer,rows=w.load_run(root,run)
-        claim=w.find(rows,'dispatch-claim');journal=_journal(directory,rows,claim)
-        keys={d['sha256'] for d in prepared['dependencies'] if d['space']!='skill'}
-        for row in rows:
-            for item in row['data'].get('files',[])+row['data'].get('evidence',[]):keys.add(item['sha256'])
-        source={'artifact_type':'model-observation-source','run':run,'prepared':prepared,'consumer':consumer,'records':rows,
-            'objects':{key:_object(c.object_read(directory,key)) for key in sorted(keys)},
-            'journal':{name:_object(raw) for name,raw in journal.items()}}
-        _derive(source)
-        return source
+    directory,prepared,consumer,rows=w.read_run(root,run)
+    claim=w.find(rows,'dispatch-claim');journal=_journal(directory,rows,claim)
+    keys={d['sha256'] for d in prepared['dependencies'] if d['space']!='skill'}
+    for row in rows:
+        for item in row['data'].get('files',[])+row['data'].get('evidence',[]):keys.add(item['sha256'])
+    source={'artifact_type':'model-observation-source','run':run,'prepared':prepared,'consumer':consumer,'records':rows,
+        'objects':{key:_object(c.object_read(directory,key)) for key in sorted(keys)},
+        'journal':{name:_object(raw) for name,raw in journal.items()}}
+    _derive(source)
+    return source
 
 
 def bundle(root:Path,run:str,*,relative_prefix:str,adoption:dict|None=None)->tuple[dict,dict]:

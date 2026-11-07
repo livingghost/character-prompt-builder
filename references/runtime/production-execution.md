@@ -558,7 +558,7 @@ The dry run lists three kinds of leftovers, each with eligibility and reasons:
 - `publications`: run directories published without a registration.
 
 `--apply --operation ID` removes only the eligible items whose owner operation is `ID` and has ended.
-It lists everything again under the studio lock right before removal.
+It checks ownership and formal references again in the publication store transaction right before removal. The dry run performs no writer transaction.
 A recoverable publication is never removed; its reason names `recover-publication`.
 A synthetic studio with nothing to clean prints:
 
@@ -1121,6 +1121,15 @@ below; the candidate keeps its actual evaluation.
 Disposition is a separate axis: `pending`, `not_selected`, or `selected`, from the candidate's latest decision event.
 A disposition file allows `pending` and `not_selected`; only `select` establishes `selected`.
 Not selecting a candidate says nothing about its quality.
+After completion, `not_selected` can retire an existing candidate that the
+Studio no longer holds as its accepted image. The run retains its original
+completion and owning task state. A later disposition of the delivered
+candidate withdraws its current selection for further adoption; completion
+verification still checks the selection and evidence recorded when the run
+completed. Repeating the same disposition returns its existing receipt.
+Returning a candidate to `pending`, recording another review or selection,
+and starting new production require an open run. Abandoned runs keep their
+existing closed decision policy.
 Each review event names the review it follows in `previous_review`, and submitting the latest review again records nothing.
 A synthetic candidate rejected on one failed criterion, with the other left unassessed (trimmed):
 

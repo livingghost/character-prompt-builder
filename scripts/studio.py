@@ -58,8 +58,10 @@ import execution_contract  # noqa: E402
 import work_ledger  # noqa: E402
 from private_state import assert_public_path, assert_public_tree
 # A record is replaced whole: a reader sees the old record or the new one, never a torn one.
-from studio_activity import timestamp as now
+from studio_activity import timestamp as now, mutation
+import runtime_snapshot
 from execution_contract import atomic_write_json as write_json, sha256_file  # noqa: E402
+from owned_json import freeze, mutable
 
 MANIFEST = "studio.json"
 STUDIO_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]+$")
@@ -120,9 +122,14 @@ def require_studio(start: Path) -> Path:
 
 
 @contextlib.contextmanager
-def recording_lock(root: Path) -> Iterator[None]:
-    """Hold the studio lock that every studio writer, the dispatcher and adoption share."""
-    with execution_contract.lock(root):
+def recording_lock(root: Path, *, character: str | None = None) -> Iterator[None]:
+    """Serialize only the manifest or one character's journal/file replacement.
+
+    Readers and generated displays do not acquire this lock. A character's
+    iterations, adoption journal and accepted image form one mutable owner.
+    """
+    owner = character_dir(root, character) if character is not None else root
+    with execution_contract.lock(owner):
         yield
 
 
@@ -164,8 +171,8 @@ def init(out: Path, studio_id: str, title: str, *, default_render_profile: str =
             "created_at": now(),
             "characters": [],
         })
-        import studio_activity as activity
-        activity.changed(out / MANIFEST, 'studio-created', revision=execution_contract.content_id(manifest(out)))
+    import studio_activity as activity
+    activity.changed(out / MANIFEST, 'studio-created', revision=execution_contract.content_id(manifest(out)))
     return out
 
 
@@ -235,13 +242,154 @@ def add_character(root: Path, character: str, profile: str) -> Path:
             # removed whole and the id stays free to add again.
             shutil.rmtree(home, ignore_errors=True)
             raise
-        write_gallery(root)
+    write_gallery(root)
     return home
 
 
 # Iterations: one record per generated image.
 
-def read_iterations(home: Path, *, project: bool = True) -> list[dict[str, Any]]:
+class StudioRead:
+    """One operation's deserialized Studio inputs and derived read models.
+
+    Callers pass this value explicitly. A mutation uses a new read model after
+    committing; this object never serves data across public operations.
+    """
+
+    def __init__(self, root: Path):
+        self.root = root.resolve()
+        self.reload()
+
+    def reload(self) -> None:
+        """Discard the previous read boundary before an owner publishes a view."""
+        self.document = {}
+        self.characters = []
+        self._raw: dict[str, list[dict]] = {}
+        self._adoption_rows: dict[str, list[dict]] = {}
+        self._iterations: dict[str, list[dict]] = {}
+        self._sheets: dict[str, dict] = {}
+        self._runs: dict[str, tuple | BaseException] = {}
+        self._references: dict[str, dict | BaseException] = {}
+        self._journals: dict[tuple[str, str], dict] = {}
+        self._packages: dict[tuple[str, str], tuple[Path, dict]] = {}
+        self._verified_packages: set[tuple[str, str]] = set()
+        self._current_references: dict[tuple[str, str], tuple[dict, dict]] = {}
+        self.artifacts: dict = {}
+        self.document = freeze(manifest(self.root))
+        self.characters = freeze([str(entry.get('id')) for entry in self.document.get('characters') or []
+                                  if isinstance(entry, dict)])
+
+    def require_root(self, root: Path) -> None:
+        if self.root != root.resolve():
+            raise ValueError('Studio read belongs to another root')
+
+    def home(self, character: str) -> Path:
+        home = character_dir(self.root, character)
+        if character not in self.characters or not home.is_dir():
+            raise ValueError(f"character {character!r} is not in this studio")
+        return home
+
+    def raw_iterations(self, character: str) -> list[dict]:
+        if character not in self._raw:
+            self._raw[character] = freeze(read_iteration_records(self.home(character)))
+        return self._raw[character]
+
+    def iterations(self, character: str) -> list[dict]:
+        if character not in self._iterations:
+            self._iterations[character] = freeze(project_iterations(
+                self.home(character), self.raw_iterations(character), read=self))
+        return self._iterations[character]
+
+    def adoption_rows(self, character: str) -> list[dict]:
+        """Read the stored adoption axis without projecting unrelated Production runs."""
+        if character not in self._adoption_rows:
+            rows = copy.deepcopy(self.raw_iterations(character))
+            for row in rows:
+                if row.get('production') is not None:
+                    adoption = row.get('adoption_status', 'none')
+                    row['status'] = adoption if adoption in {'accepted', 'superseded'} else 'candidate'
+            self._adoption_rows[character] = freeze(rows)
+        return self._adoption_rows[character]
+
+    def sheet(self, character: str) -> dict:
+        if character not in self._sheets:
+            from sheet_artifacts import _read
+            self._sheets[character] = freeze(_read(self.home(character) / 'sheet/sheet-data.json'))
+        return self._sheets[character]
+
+    def run(self, run: str):
+        if run not in self._runs:
+            from production_workflow import read_run
+            try:
+                self._runs[run] = read_run(self.root, run)
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                self._runs[run] = exc
+        result = self._runs[run]
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+    def journal(self, character: str, iteration: str) -> dict:
+        key = character, iteration
+        if key not in self._journals:
+            from adoption_workflow import _journal_path
+            self._journals[key] = freeze(read_json(_journal_path(self.home(character), iteration)))
+        return self._journals[key]
+
+    def _package(self, reference: dict, *, verify: bool = False) -> tuple[Path, dict]:
+        """Read exact package bytes once and retain their recorded-content validation.
+
+        Internal validators share this owned value without copying the complete
+        input graph. Verification belongs to this read boundary and package
+        directory, whose companion files are part of the proof.
+        """
+        key = reference['path'], reference['sha256']
+        if key not in self._packages:
+            from character_sheet import resolve_sheet_relative
+            path = resolve_sheet_relative(reference['path'], root=self.root, field='studio file')
+            raw = execution_contract.read(path)
+            if execution_contract.digest(raw) != reference['sha256']:
+                raise ValueError('studio file hash changed: ' + reference['path'])
+            self._packages[key] = path, freeze(execution_contract.decode(raw))
+        path, document = self._packages[key]
+        if verify and key not in self._verified_packages:
+            from verify_generation_payload import verify_content
+            verify_content(document, package_root=path.parent)
+            self._verified_packages.add(key)
+        return path, document
+
+    def package(self, reference: dict, *, verify: bool = False) -> tuple[Path, dict]:
+        """Return a caller-owned package without exposing the retained read model."""
+        path, document = self._package(reference, verify=verify)
+        return path, mutable(document)
+
+    def current_reference_view(self, character: str, slot: str) -> tuple[dict, dict]:
+        """Share the exact immutable acceptance and proof with domain readers."""
+        key = character, slot
+        if key not in self._current_references:
+            from studio_reference import _load_current
+            self._current_references[key] = freeze(_load_current(self.root, character, slot, read=self))
+        return self._current_references[key]
+
+    def current_reference(self, character: str, slot: str) -> tuple[dict, dict]:
+        """Export an independently editable source and proof for an API caller."""
+        source, proof = self.current_reference_view(character, slot)
+        return mutable(source), mutable(proof)
+
+    def reference_index(self, character: str) -> dict:
+        if character not in self._references:
+            from adoption_workflow import _reference_index
+            try:
+                self._references[character] = freeze(_reference_index(self.root, character, read=self))
+            except (ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
+                self._references[character] = exc
+        result = self._references[character]
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+
+def read_iteration_records(home: Path) -> list[dict[str, Any]]:
+    """Read the stored iteration journal without loading any Production runs."""
     path = home / "iterations.jsonl"
     if not path.is_file():
         return []
@@ -259,12 +407,16 @@ def read_iterations(home: Path, *, project: bool = True) -> list[dict[str, Any]]
             if not isinstance(value, dict):
                 raise ValueError(f"{path}: line {number} is not an object")
             rows.append(value)
-    if not project:
-        return rows
-    return project_iterations(home, rows)
+    return rows
 
 
-def project_iterations(home: Path, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def read_iterations(home: Path, *, project: bool = True) -> list[dict[str, Any]]:
+    """Read stored rows and, when requested, their Production display projection."""
+    rows = read_iteration_records(home)
+    return project_iterations(home, rows) if project else rows
+
+
+def project_iterations(home: Path, rows: list[dict[str, Any]], *, read: StudioRead | None = None) -> list[dict[str, Any]]:
     """Build the shared Studio view from stored adoption and formal Production decisions.
 
     A Production candidate keeps its status on the adoption axis. Its evaluation,
@@ -283,10 +435,10 @@ def project_iterations(home: Path, rows: list[dict[str, Any]]) -> list[dict[str,
         adoption = row.get("adoption_status", "none")
         row["status"] = adoption if adoption in {"accepted", "superseded"} else "candidate"
         try:
-            from production_workflow import candidate_state, load_run
+            from production_workflow import candidate_state, read_run
             if origin["run"] not in runs:
                 try:
-                    runs[origin["run"]] = load_run(root, origin["run"])
+                    runs[origin["run"]] = read.run(origin["run"]) if read else read_run(root, origin["run"])
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     runs[origin["run"]] = exc
             loaded = runs[origin["run"]]
@@ -325,6 +477,7 @@ def write_iterations(home: Path, rows: list[dict[str, Any]]) -> None:
         stored.append(item)
     raw = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in stored).encode("utf-8")
     execution_contract.atomic(home / "iterations.jsonl", raw, replace=True)
+    runtime_snapshot.invalidate_studio(home.parent.parent)
 
 
 def next_iteration_id(home: Path, rows: list[dict[str, Any]]) -> str:
@@ -440,7 +593,8 @@ def _check_inputs(files: dict[str, Path | None], package_companion: Path | None)
             raise ValueError(f"the package companion {companion} is not a directory")
 
 
-def validate_recording_target(root: Path, character: str, slot: str, *, writable: bool = False) -> Path:
+def validate_recording_target(root: Path, character: str, slot: str, *, writable: bool = False,
+                              read: StudioRead | None = None) -> Path:
     """Refuse local destination errors before a dispatcher uploads or sends.
 
     Writability is probed only on a send. A dry run reads the destination without
@@ -450,7 +604,7 @@ def validate_recording_target(root: Path, character: str, slot: str, *, writable
     root = root.resolve()
     if require_studio(root) != root:
         raise ValueError(f"{root} is not a studio root")
-    home = character_home(root, character)
+    home = read.home(character) if read else character_home(root, character)
     if not isinstance(slot, str) or not SLOT.fullmatch(slot):
         raise ValueError("slot must be lower-case letters, digits, dot, underscore or dash, such as base.front")
     directories = (root, root / "runs", root / "packages", home, home / "iterations", home / "accepted")
@@ -462,7 +616,12 @@ def validate_recording_target(root: Path, character: str, slot: str, *, writable
             raise ValueError(f"recording destination is not a regular file: {path}")
     if not (home / "iterations.jsonl").is_file():
         raise ValueError(f"character {character!r} has no iterations.jsonl")
-    read_iterations(home)
+    # Destination validation checks the stored journal's syntax. Production
+    # projection is a separate caller-owned concern and its result is not used here.
+    if read is not None:
+        read.raw_iterations(character)
+    else:
+        read_iteration_records(home)
     if writable:
         for directory in directories:
             # An actual create is more reliable than os.access with ACLs.
@@ -476,11 +635,12 @@ def validate_recording_target(root: Path, character: str, slot: str, *, writable
     return home
 
 
+@mutation
 def iterate(root: Path, character: str, slot: str, result: Path, *, package: Path | None, request: Path | None,
             response: Path | None, note: str | None, service: dict[str, Any] | None = None,
             package_companion: Path | None = None, layout: dict[str, Any] | None = None,
             answer: Path | None = None) -> dict[str, Any]:
-    with recording_lock(root):
+    with recording_lock(root, character=character):
         return _record_iteration(root, character, slot, result, package=package, request=request,
                                  response=response, note=note, service=service,
                                  package_companion=package_companion, layout=layout, answer=answer)
@@ -506,8 +666,8 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
     document = read_json(package) if package is not None else None
     binding = document.get("production_binding") if isinstance(document, dict) else None
     if binding is not None:
-        from production_workflow import load_run
-        _, prepared, _, events = load_run(root, binding["run"])
+        from production_workflow import read_run
+        _, prepared, _, events = read_run(root, binding["run"])
         if prepared["input_sha256"] != binding["input_sha256"]:
             raise ValueError("Studio package does not belong to the named Production input")
         digest = sha256_file(result)
@@ -591,7 +751,7 @@ def _find(rows: list[dict[str, Any]], iteration_id: str) -> dict[str, Any]:
 
 
 def _package_source_candidates(root: Path, row: dict[str, Any], package: dict[str, Any],
-                               recorded: list[str] | None = None) -> list[str] | None:
+                               recorded: list[str] | None = None, *, read: StudioRead | None = None) -> list[str] | None:
     """Check a local Production source without transferring the import's ownership.
 
     A package records input. Its binding neither selects an image nor grants a
@@ -608,8 +768,8 @@ def _package_source_candidates(root: Path, row: dict[str, Any], package: dict[st
         if recorded is not None:
             raise ValueError('package attachment lost its recorded local Production source')
         return None
-    from production_workflow import load_run
-    _, prepared, consumer, events = load_run(root, binding['run'])
+    from production_workflow import read_run
+    _, prepared, consumer, events = read.run(binding['run']) if read else read_run(root, binding['run'])
     if prepared['input_sha256'] != binding['input_sha256'] or execution_contract.content_id(consumer) != binding['consumer_sha256']:
         raise ValueError('attached package differs from its named Production input')
     candidates = sorted(event['sha256'] for event in events if event['event'] == 'candidate'
@@ -631,7 +791,7 @@ def _attachment_reference(root: Path, reference: Any, *, fields: set[str] | None
     return path
 
 
-def validate_package_attachment(root: Path, row: dict[str, Any]) -> dict[str, Any] | None:
+def validate_package_attachment(root: Path, row: dict[str, Any], *, read: StudioRead | None = None) -> dict[str, Any] | None:
     """Read retained attribution evidence; no attachment is needed for an initial package.
 
     This checks the historical package content and retained evidence, not live
@@ -690,9 +850,12 @@ def validate_package_attachment(root: Path, row: dict[str, Any]) -> dict[str, An
     if any(path.is_symlink() for path in base.rglob('*')) or {
             path.relative_to(base).as_posix() for path in base.rglob('*') if path.is_file()} != seen:
         raise ValueError('package attachment files differ from its retained manifest')
-    document = execution_contract.load(package_path)
-    from verify_generation_payload import verify_content
-    verify_content(document, package_root=base)
+    if read is None:
+        document = execution_contract.load(package_path)
+        from verify_generation_payload import verify_content
+        verify_content(document, package_root=base)
+    else:
+        _, document = read._package(row['package'], verify=True)
     if document['generation_input_sha256'] != receipt['package']['generation_input_sha256']:
         raise ValueError('package attachment generation input differs from its package')
     candidates = receipt['production_candidates']
@@ -703,10 +866,11 @@ def validate_package_attachment(root: Path, row: dict[str, Any]) -> dict[str, An
             execution_contract.sha(candidate)
         if candidates != sorted(set(candidates)):
             raise ValueError('package attachment production_candidates must be unique sorted identifiers')
-    _package_source_candidates(root, row, document, candidates)
+    _package_source_candidates(root, row, document, candidates, read=read)
     return receipt
 
 
+@mutation
 def attach_package(root: Path, character: str, iteration_id: str, *, package: Path,
                    evidence: Path, actor: str, reason: str,
                    package_companion: Path | None = None) -> dict[str, Any]:
@@ -716,7 +880,7 @@ def attach_package(root: Path, character: str, iteration_id: str, *, package: Pa
     from which retained evidence. It is not proof of generation or a new image
     decision. A complete publication survives a failed ledger save for retry.
     """
-    with recording_lock(root):
+    with recording_lock(root, character=character):
         root = require_studio(root).resolve()
         home = character_home(root, character)
         rows = read_iterations(home, project=False)
@@ -817,9 +981,10 @@ def attach_package(root: Path, character: str, iteration_id: str, *, package: Pa
         return result if projection.get('ok') else {**result, 'projection_warning': projection}
 
 
+@mutation
 def accept(root: Path, character: str, iteration_id: str, *, production_selection: str | None = None) -> dict[str, Any]:
     """Accept an explicitly chosen iteration, or recover one exact Production effect."""
-    with recording_lock(root):
+    with recording_lock(root, character=character):
         return _record_accept(root, character, iteration_id, production_selection=production_selection)
 
 
@@ -856,9 +1021,10 @@ def verify_accepted_file(root: Path, row: dict[str, Any]) -> None:
 
 
 def _record_accept(root: Path, character: str, iteration_id: str, *,
-                   production_selection: str | None = None) -> dict[str, Any]:
-    home = character_home(root, character)
-    rows = read_iterations(home)
+                   production_selection: str | None = None, read: StudioRead | None = None) -> dict[str, Any]:
+    read = read or StudioRead(root)
+    home = read.home(character)
+    rows = copy.deepcopy(read.iterations(character))
     row = _find(rows, iteration_id)
     if row.get("production_diagnostic"):
         raise ValueError("The Production candidate cannot be verified; repair its evidence before adoption")
@@ -868,7 +1034,7 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
         # candidate keeps its selection while the Studio holds it as accepted.
         import production_workflow as workflow
         origin = row["production"]
-        _, prepared, _, records = workflow.load_run(root, origin["run"])
+        _, prepared, _, records = read.run(origin['run'])
         selection = workflow.require_selected(prepared, records, origin["candidate"], run=origin["run"])
     if production_selection is not None:
         from production_diagnostics import ProductionError
@@ -946,8 +1112,9 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
     return row if projection.get('ok') else {**row, 'projection_warning': projection}
 
 
+@mutation
 def reject(root: Path, character: str, iteration_id: str, reason: str, *, actor: str) -> dict[str, Any]:
-    with recording_lock(root):
+    with recording_lock(root, character=character):
         return _record_reject(root, character, iteration_id, reason, actor=actor)
 
 
@@ -1112,10 +1279,10 @@ def sent_text(sent: Any, layout: Any) -> dict[str, Any]:
             "settings": settings, "media": media}
 
 
-def gallery_index(root: Path) -> dict[str, Any]:
+def gallery_index(root: Path, *, read: StudioRead | None = None) -> dict[str, Any]:
     """All recorded artwork, newest first, including local sheet candidates and history."""
     from studio_gallery import build_index
-    return build_index(root)
+    return build_index(root, read=read)
 
 
 def gallery_stale(root: Path) -> str | None:
@@ -1124,15 +1291,18 @@ def gallery_stale(root: Path) -> str | None:
     return stale(root)
 
 
-def write_gallery(root: Path, out: Path | None = None) -> tuple[Path, Path]:
+def write_gallery(root: Path, out: Path | None = None, *, read: StudioRead | None = None) -> tuple[Path, Path]:
     """Refresh the complete inventory and offline browser view from recorded artwork.
 
     The gallery owner publishes only changed generated bytes. An explicit output
     has an independent companion directory and rebased links to this Studio.
     """
     from studio_gallery import publish
-    with recording_lock(root):
-        return publish(root, gallery_index(root), out)
+    import studio_activity as activity
+    with activity.publication(activity.artwork_owner(root, out)) as admitted:
+        if admitted:
+            read = activity.publication_read(root, read)
+        return publish(root, gallery_index(root, read=read), out)
 
 
 # What a session reads first.
@@ -1162,17 +1332,19 @@ def _count(number: int, word: str) -> str:
     return f"{number} {word if number == 1 else word + 's'}"
 
 
+@runtime_snapshot.operation
 def status(root: Path) -> str:
     import studio_activity as activity
-    projection = activity.refresh(root)
-    document = manifest(root)
+    read = StudioRead(root)
+    projection = activity.refresh(root, read=read)
+    document = read.document
     lines = [f"studio {document.get('studio_id')}: {document.get('title')} ({root})", work_ledger.show(root)]
     if not projection.get('ok'):
         lines.append("display/log refresh pending; committed work retained: " + projection['message'])
     for entry in document.get("characters") or []:
         character = entry.get("id")
         home = root / "characters" / str(character)
-        rows = read_iterations(home) if home.is_dir() else []
+        rows = read.iterations(str(character)) if home.is_dir() else []
         accepted = {row["slot"]: row for row in rows if row.get("status") == "accepted"}
         # A Production candidate its run did not select is not waiting for a decision.
         candidates = [row for row in rows if row.get("status") == "candidate" and row.get("disposition") != "not_selected"]
@@ -1185,9 +1357,8 @@ def status(root: Path) -> str:
                          + (f", model {model}" if model else ""))
         for row in candidates[-5:]:
             lines.append(f"  candidate {row['iteration_id']} for {row.get('slot')}: {row.get('note') or 'no note'}")
-        from adoption_workflow import reference_index
         try:
-            reference_state = reference_index(root, str(character))
+            reference_state = read.reference_index(str(character))
             for item in reference_state["bindings"]:
                 state = REFERENCE_STATES.get(item["status"], item["status"])
                 step = item["next_action"]

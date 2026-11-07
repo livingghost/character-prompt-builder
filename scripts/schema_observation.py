@@ -82,7 +82,6 @@ def publish(root: Path, relative: str, files: dict[str, bytes]) -> dict:
     with tempfile.TemporaryDirectory(prefix='.schema-evidence-',dir=target.parent) as temp:
         staging=Path(temp)
         for name,raw in files.items():c.atomic(c.local(staging,name,exists=False),raw)
-        with c.lock(root):
-            if target.exists():raise FileExistsError('evidence destination already exists')
-            c.publish_directory(staging,target);c.fsync_dir(target.parent)
+        if target.exists():raise FileExistsError('evidence destination already exists')
+        c.publish_directory(staging,target);c.fsync_dir(target.parent)
     return {'path':relative+'/manifest.json','sha256':c.digest(files['manifest.json'])}

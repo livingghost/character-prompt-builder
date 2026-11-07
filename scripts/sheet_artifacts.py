@@ -19,6 +19,7 @@ from types import MethodType
 from typing import Any, Callable, Iterator, Mapping, Sequence
 
 import execution_contract as c
+from studio_activity import mutation
 
 KINDS = frozenset({'generation', 'upscale', 'crop', 'resize', 'composite', 'shared'})
 STORE = '.fills/artifacts'
@@ -138,9 +139,8 @@ def _safe_directory(root: Path, relative: str) -> Path:
 
 @contextmanager
 def sheet_lock(sidecar: Path) -> Iterator[None]:
-    import studio
-    root = studio.studio_root(sidecar.parent) or sidecar.parent
-    with c.lock(root):
+    """Protect the sheet sidecar's compare-and-swap, not the whole Studio."""
+    with c.lock(sidecar.parent):
         yield
 
 
@@ -177,12 +177,13 @@ def _descriptor(image: dict, provenance_sha256: str, kind: str) -> dict:
             'provenance': {'kind': kind, 'path': folder + '/provenance.json', 'sha256': provenance_sha256}}
 
 
-def _package_files(package: Path) -> dict[str, bytes]:
+def _package_files(package: Path, *, model_record: Mapping[str, Any] | None = None) -> dict[str, bytes]:
     from character_sheet import _validate_ready_package
     from build_generation_payload import validate_generation_package_carrier_paths
-    value = c.load(package)
+    raw = c.read(package)
+    value = c.decode(raw)
     _validate_ready_package(value, field='sheet artwork package')
-    result = {'package.json': c.read(package)}
+    result = {'package.json': raw}
     prepared = value.get('prepared_reference_set')
     if isinstance(prepared, dict):
         companion = validate_generation_package_carrier_paths(prepared, package_root=package.parent)
@@ -197,7 +198,7 @@ def _package_files(package: Path) -> dict[str, bytes]:
                     result[path.relative_to(package.parent).as_posix()] = c.read(path)
     if value.get('artifact_type') == 'upscale-package':
         from upscale_package import verify_upscale_package
-        verify_upscale_package(value, package_root=package.parent)
+        verify_upscale_package(value, package_root=package.parent, model_record=model_record)
         for key in ('source_image', 'output_image'):
             item = value[key]
             result[item['path']] = c.read(c.local(package.parent, item['path']))
@@ -206,7 +207,8 @@ def _package_files(package: Path) -> dict[str, bytes]:
 
 def publish(sheet_root: Path, image: Path | bytes, *, kind: str, recipe: dict,
             sources: Sequence[dict] = (), package: Path | None = None,
-            origin: dict | None = None, attachments: Mapping[str, bytes] | None = None) -> dict:
+            origin: dict | None = None, attachments: Mapping[str, bytes] | None = None,
+            model_record: Mapping[str, Any] | None = None) -> dict:
     """Freeze image, complete provenance and portable package in one immutable directory.
 
     Source artifacts must already be present in this sheet's store. Copying from
@@ -225,10 +227,11 @@ def publish(sheet_root: Path, image: Path | bytes, *, kind: str, recipe: dict,
         verify_artifact(source, sheet_root)
     files = dict(attachments or {})
     if package is not None:
-        overlap = set(files) & set(_package_files(package))
+        carried = _package_files(package, model_record=model_record)
+        overlap = set(files) & set(carried)
         if overlap:
             raise ValueError('package attachments collide: ' + ', '.join(sorted(overlap)))
-        files.update(_package_files(package))
+        files.update(carried)
     if kind in {'generation', 'upscale'} and package is None:
         raise ValueError('generated or upscaled artwork requires its committed package')
     if kind in {'crop', 'resize', 'composite', 'shared'} and not sources:
@@ -241,27 +244,32 @@ def publish(sheet_root: Path, image: Path | bytes, *, kind: str, recipe: dict,
     descriptor = _descriptor(metadata, c.digest(prov_raw), kind)
     parent = _safe_directory(sheet_root, STORE)
     destination = c.local(sheet_root, f'{STORE}/{descriptor["artifact_id"]}', exists=False)
-    with c.lock(sheet_root):
-        if destination.exists():
-            verify_artifact(descriptor, sheet_root)
-            return descriptor
-        staging = Path(tempfile.mkdtemp(prefix='.publish-', dir=parent))
+    if destination.exists():
+        verify_artifact(descriptor, sheet_root)
+        return descriptor
+    staging = Path(tempfile.mkdtemp(prefix='.publish-', dir=parent))
+    try:
+        c.atomic(staging / ('image' + metadata['suffix']), raw)
+        c.atomic(staging / 'provenance.json', prov_raw)
+        from studio_activity import timestamp
+        c.atomic(staging / 'publication.json', c.encoded({'artifact_id': descriptor['artifact_id'],
+                 'recorded_at': timestamp(), 'origin': copy.deepcopy(origin)}))
+        for name, contents in files.items():
+            path = c.local(staging, name, exists=False)
+            if name in {'provenance.json', 'image' + metadata['suffix']}:
+                raise ValueError('attachment collides with immutable artwork')
+            c.atomic(path, contents)
         try:
-            c.atomic(staging / ('image' + metadata['suffix']), raw)
-            c.atomic(staging / 'provenance.json', prov_raw)
-            from studio_activity import timestamp
-            c.atomic(staging / 'publication.json', c.encoded({'artifact_id': descriptor['artifact_id'],
-                     'recorded_at': timestamp(), 'origin': copy.deepcopy(origin)}))
-            for name, contents in files.items():
-                path = c.local(staging, name, exists=False)
-                if name in {'provenance.json', 'image' + metadata['suffix']}:
-                    raise ValueError('attachment collides with immutable artwork')
-                c.atomic(path, contents)
             c.publish_directory(staging, destination)
-            c.fsync_dir(parent)
-        finally:
-            if staging.exists():
-                shutil.rmtree(staging)
+        except ValueError as exc:
+            # A competing publication is usable only after exact verification.
+            if getattr(getattr(exc, 'diagnostic', None), 'code', None) != 'OUTPUT_ALREADY_EXISTS':
+                raise
+            verify_artifact(descriptor, sheet_root)
+        c.fsync_dir(parent)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
     verify_artifact(descriptor, sheet_root)
     return descriptor
 
@@ -336,33 +344,39 @@ def copy_artifact(artifact: dict, source_root: Path, target_root: Path) -> dict:
     if source_root.resolve() == target_root.resolve():
         return copy.deepcopy(artifact)
     parent = _safe_directory(target_root, STORE)
-    with c.lock(target_root):
-        if not target.exists():
-            staging = Path(tempfile.mkdtemp(prefix='.copy-', dir=parent))
+    if not target.exists():
+        staging = Path(tempfile.mkdtemp(prefix='.copy-', dir=parent))
+        try:
+            source_dir = c.local(source_root, folder)
+            for path in source_dir.rglob('*'):
+                if path.is_symlink():
+                    raise ValueError('immutable artwork contains a symbolic link')
+                if path.is_file():
+                    c.atomic(c.local(staging, path.relative_to(source_dir).as_posix(), exists=False), c.read(path))
             try:
-                source_dir = c.local(source_root, folder)
-                for path in source_dir.rglob('*'):
-                    if path.is_symlink():
-                        raise ValueError('immutable artwork contains a symbolic link')
-                    if path.is_file():
-                        c.atomic(c.local(staging, path.relative_to(source_dir).as_posix(), exists=False), c.read(path))
                 c.publish_directory(staging, target)
-                c.fsync_dir(parent)
-            finally:
-                if staging.exists(): shutil.rmtree(staging)
-        verify_artifact(artifact, target_root)
+            except ValueError as exc:
+                if getattr(getattr(exc, 'diagnostic', None), 'code', None) != 'OUTPUT_ALREADY_EXISTS':
+                    raise
+                verify_artifact(artifact, target_root)
+            c.fsync_dir(parent)
+        finally:
+            if staging.exists(): shutil.rmtree(staging)
+    verify_artifact(artifact, target_root)
     return copy.deepcopy(artifact)
 
 
+@mutation
 def register_candidates(sidecar: Path, values: Sequence[tuple[str, dict]]) -> dict:
     """Atomically add fully verified candidates to any number of slots."""
+    for slot_id, artifact in values:
+        if not isinstance(slot_id, str) or not __import__('re').fullmatch(r'[a-z0-9][a-z0-9._-]*', slot_id):
+            raise ValueError('invalid sheet slot ID')
+        verify_artifact(artifact, sidecar.parent)
     with sheet_lock(sidecar):
         state = _read(sidecar)
         original_sha = c.content_id(state)
         for slot_id, artifact in values:
-            if not isinstance(slot_id, str) or not __import__('re').fullmatch(r'[a-z0-9][a-z0-9._-]*', slot_id):
-                raise ValueError('invalid sheet slot ID')
-            verify_artifact(artifact, sidecar.parent)
             slot = state['slots'].setdefault(slot_id, empty_slot())
             current = current_artifact(slot)
             if current is not None and current['artifact_id'] == artifact['artifact_id']:
@@ -379,6 +393,7 @@ def register_candidates(sidecar: Path, values: Sequence[tuple[str, dict]]) -> di
                 'candidates': [{'slot': slot, 'artifact_id': value['artifact_id']} for slot, value in values]}
 
 
+@mutation
 def reject_candidate(sidecar: Path, slot_id: str, artifact_id: str, *, by: str, reason: str) -> dict:
     """Dismiss a recorded candidate with a stated reason; the artifact stays in the store."""
     with sheet_lock(sidecar):
@@ -400,26 +415,26 @@ def reject_candidate(sidecar: Path, slot_id: str, artifact_id: str, *, by: str, 
         return {'ok': True, 'rejected': artifact_id, 'projection': projection_status}
 
 
+@mutation
 def reoffer(sidecar: Path, slot_id: str, artifact_id: str) -> dict:
     """Re-present an exact historical artifact; this is not adoption or new provenance."""
-    with sheet_lock(sidecar):
-        state = _read(sidecar)
-        slot = state['slots'].get(slot_id)
-        if slot is None:
-            raise ValueError('unknown sheet slot')
-        current = current_artifact(slot)
-        if current is not None and current['artifact_id'] == artifact_id:
-            return {'ok': True, 'already_current': True, 'artifact_id': artifact_id}
-        source = next((entry['artifact'] for entry in reversed(slot['history'])
-                       if entry['artifact']['artifact_id'] == artifact_id), None)
-        if source is None:
-            raise ValueError('reoffer requires an exact historical artifact in this slot')
-        verify_artifact(source, sidecar.parent)
-        result = register_candidates(sidecar, [(slot_id, source)])
-        import studio_activity as activity
-        result['projection'] = activity.changed(sidecar, 'sheet-history-reoffered', revision=c.content_id(_read(sidecar)),
-            details={'slot': slot_id, 'artifact_id': artifact_id, 'adopted': False})
-        return {'ok': True, **result, 'adopted': False}
+    state = _read(sidecar)
+    slot = state['slots'].get(slot_id)
+    if slot is None:
+        raise ValueError('unknown sheet slot')
+    current = current_artifact(slot)
+    if current is not None and current['artifact_id'] == artifact_id:
+        return {'ok': True, 'already_current': True, 'artifact_id': artifact_id}
+    source = next((entry['artifact'] for entry in reversed(slot['history'])
+                   if entry['artifact']['artifact_id'] == artifact_id), None)
+    if source is None:
+        raise ValueError('reoffer requires an exact historical artifact in this slot')
+    verify_artifact(source, sidecar.parent)
+    result = register_candidates(sidecar, [(slot_id, source)])
+    import studio_activity as activity
+    result['projection'] = activity.changed(sidecar, 'sheet-history-reoffered', revision=c.content_id(_read(sidecar)),
+        details={'slot': slot_id, 'artifact_id': artifact_id, 'adopted': False})
+    return {'ok': True, **result, 'adopted': False}
 
 
 def draft_adoption(sidecar: Path, slot_id: str, artifact_id: str) -> dict:
@@ -455,7 +470,7 @@ def _validate_decision(decision: dict, sidecar: Path, evidence_root: Path) -> by
     return raw
 
 
-def _production_decision(provenance: dict, decision: dict, sidecar: Path) -> None:
+def _production_decision(provenance: dict, decision: dict, sidecar: Path, *, loaded=None) -> None:
     """A Production candidate is adopted only under its own recorded adopt claim."""
     origin = provenance.get('origin') or {}
     if origin.get('kind') != 'production':
@@ -466,58 +481,75 @@ def _production_decision(provenance: dict, decision: dict, sidecar: Path) -> Non
     basis = decision.get('basis')
     if not isinstance(basis, dict) or set(basis) != {'kind', 'claim', 'approval'} or basis['kind'] != 'production':
         raise ValueError('use production_workflow adopt for a Production sheet candidate')
-    _, _, _, rows = w.load_run(root, origin['run'])
+    loaded = loaded if loaded is not None else w.read_run(root, origin['run'])
+    if loaded[0].name != origin['run']:
+        raise ValueError('sheet adoption was given another Production run')
+    _, _, _, rows = loaded
     claim = w.find(rows, 'adoption-claim', basis['claim'])
     payload = claim['data']['intent']['payload']
     if payload['candidate'] != origin['candidate'] or payload['iteration'] != origin['iteration_id'] or payload['character'] != origin['character'] or payload['approval_sha256'] != c.content_id(basis['approval']):
         raise ValueError('sheet adoption claim differs from its Production candidate')
 
 
-def adopt(sidecar: Path, decision: dict, *, evidence_root: Path) -> dict:
-    """Compare-and-swap one selection; record exact approval and retain the prior one."""
+@mutation
+def adopt(sidecar: Path, decision: dict, *, evidence_root: Path, loaded=None) -> dict:
+    """Verify immutable evidence, then compare-and-swap one sheet selection."""
+    evidence = _validate_decision(decision, sidecar, evidence_root)
+    before = _read(sidecar)['slots'].get(decision['slot'])
+    if before is None:
+        raise ValueError('adoption names an unknown slot')
+    decision_sha = c.content_id(decision)
+    current = before['current']
+    if current is not None and current['approval']['decision_sha256'] == decision_sha:
+        return {'adopted': True, 'already_adopted': True, 'current': current}
+    artifact = next((item for item in before['candidates'] if item['artifact_id'] == decision['artifact_id']), None)
+    if artifact is None:
+        raise ValueError('adoption must choose a recorded candidate')
+    provenance = verify_artifact(artifact, sidecar.parent)
+    _production_decision(provenance, decision, sidecar, loaded=loaded)
+    folder = _safe_directory(sidecar.parent, f'{APPROVALS}/{decision_sha}')
+    for name, raw in [('decision.json', c.encoded(decision)), ('evidence', evidence)]:
+        target = c.local(folder, name, exists=False)
+        try:
+            c.atomic(target, raw)
+        except FileExistsError:
+            if c.read(target) != raw:
+                raise ValueError('immutable adoption evidence changed') from None
+    approval = {'decision_sha256': decision_sha,
+                'decision_path': f'{APPROVALS}/{decision_sha}/decision.json',
+                'evidence_path': f'{APPROVALS}/{decision_sha}/evidence',
+                'evidence_sha256': c.digest(evidence)}
+    accepted = {'artifact': copy.deepcopy(artifact), 'approval': approval}
+    # Only this mutable sidecar needs serialization. Evidence and image I/O,
+    # Production verification and display publication are outside its lock.
     with sheet_lock(sidecar):
-        evidence = _validate_decision(decision, sidecar, evidence_root)
         state = _read(sidecar)
         slot = state['slots'].get(decision['slot'])
         if slot is None:
             raise ValueError('adoption names an unknown slot')
         current = slot['current']
-        decision_sha = c.content_id(decision)
         if current is not None and current['approval']['decision_sha256'] == decision_sha:
             return {'adopted': True, 'already_adopted': True, 'current': current}
         current_id = current['artifact']['artifact_id'] if current else None
         if current_id != decision['expected_current']:
             raise ValueError('current artwork changed after the adoption decision was drafted')
-        artifact = next((item for item in slot['candidates'] if item['artifact_id'] == decision['artifact_id']), None)
-        if artifact is None:
-            raise ValueError('adoption must choose a recorded candidate')
-        provenance = verify_artifact(artifact, sidecar.parent)
-        _production_decision(provenance, decision, sidecar)
-        folder = _safe_directory(sidecar.parent, f'{APPROVALS}/{decision_sha}')
-        for name, raw in [('decision.json', c.encoded(decision)), ('evidence', evidence)]:
-            target = c.local(folder, name, exists=False)
-            if target.exists() and c.read(target) != raw:
-                raise ValueError('immutable adoption evidence changed')
-            if not target.exists(): c.atomic(target, raw)
-        approval = {'decision_sha256': decision_sha,
-                    'decision_path': f'{APPROVALS}/{decision_sha}/decision.json',
-                    'evidence_path': f'{APPROVALS}/{decision_sha}/evidence',
-                    'evidence_sha256': c.digest(evidence)}
-        accepted = {'artifact': copy.deepcopy(artifact), 'approval': approval}
+        if artifact not in slot['candidates']:
+            raise ValueError('adoption candidate changed during evidence verification')
         if current is not None:
             slot['history'].append(copy.deepcopy(current))
         slot['current'] = accepted
         slot['candidates'] = [item for item in slot['candidates'] if item['artifact_id'] != artifact['artifact_id']]
         _write(sidecar, state)
-        import studio_activity as activity
-        projection_status = activity.changed(sidecar, 'sheet-adopted', revision=c.content_id(state),
-            details={'slot': decision['slot'], 'artifact_id': artifact['artifact_id'],
-                     'superseded': current_id, 'decision_sha256': decision_sha})
-        return {'projection': projection_status, 'adopted': True, 'already_adopted': False, 'current': accepted}
+    import studio_activity as activity
+    projection_status = activity.changed(sidecar, 'sheet-adopted', revision=c.content_id(state),
+        details={'slot': decision['slot'], 'artifact_id': artifact['artifact_id'],
+                 'superseded': current_id, 'decision_sha256': decision_sha})
+    return {'projection': projection_status, 'adopted': True, 'already_adopted': False, 'current': accepted}
 
 
 def verify_acceptance(accepted: Any, sheet_root: Path, slot_id: str, *, cache: dict | None = None,
-                      read_source: SourceReader | None = None) -> None:
+                      read_source: SourceReader | None = None) -> dict:
+    """Verify the accepted artifact/evidence and return its parsed decision."""
     c.exact(accepted, {'artifact', 'approval'}, 'sheet acceptance')
     verify_artifact(accepted['artifact'], sheet_root, cache=cache, read_source=read_source)
     approval = accepted['approval']
@@ -528,9 +560,11 @@ def verify_acceptance(accepted: Any, sheet_root: Path, slot_id: str, *, cache: d
     _source_bytes(sheet_root, approval['evidence_path'], approval['evidence_sha256'], read_source=read_source)
     if decision.get('evidence', {}).get('sha256') != approval['evidence_sha256']:
         raise ValueError('sheet approval differs from the saved author evidence')
+    return decision
 
 
-def from_iteration(root: Path, character: str, row: dict) -> dict:
+@mutation(receipt=False)
+def from_iteration(root: Path, character: str, row: dict, *, read=None, run_view=None) -> dict:
     """The Studio iteration remains the Production candidate's owner."""
     import studio
     sheet = studio.character_home(root, character) / 'sheet'
@@ -553,8 +587,9 @@ def from_iteration(root: Path, character: str, row: dict) -> dict:
                 raise ValueError('Studio response/request evidence changed')
             attachments[key + '.json'] = raw
     sources = []
+    model_record = None
     recipe = {'model': value.get('upscaler_model') if kind == 'upscale' else value.get('model')}
-    attachment = studio.validate_package_attachment(root, row)
+    attachment = studio.validate_package_attachment(root, row, read=read)
     if attachment is not None:
         receipt = c.local(root, row['package_attachment']['path'])
         evidence = c.local(receipt.parent, attachment['evidence']['path'])
@@ -564,7 +599,12 @@ def from_iteration(root: Path, character: str, row: dict) -> dict:
         recipe['package_attachment'] = {'record': 'package-attachment.json', 'evidence': evidence_name}
     if kind == 'upscale' and row.get('production'):
         import production_workflow as workflow
-        run_dir, prepared, _, _ = workflow.load_run(root, row['production']['run'])
+        run = row['production']['run']
+        loaded = run_view if run_view is not None else (read.run(run) if read else workflow.read_run(root, run))
+        run_dir, prepared, _, _ = loaded
+        if prepared['run'] != run:
+            raise ValueError('sheet projection input belongs to another Production run')
+        model_record = loaded.artifacts['execution-target.json']['model']
         selector = prepared['task']['upscale'].get('derivation')
         if selector is not None:
             source_sheet = c.local(root, selector['sheet']).parent
@@ -578,7 +618,8 @@ def from_iteration(root: Path, character: str, row: dict) -> dict:
             sources = [source]
             recipe.update(source_slot=selector['slot'], scale_factor=value['scale_factor'])
     artifact = publish(sheet, image, kind=kind, recipe=recipe, sources=sources,
-                       package=package, origin=origin, attachments=attachments)
+                       package=package, origin=origin, attachments=attachments,
+                       model_record=model_record)
     register_candidates(sheet / 'sheet-data.json', [(row['slot'], artifact)])
     return artifact
 
@@ -592,6 +633,7 @@ def source_from_current(sidecar: Path, slot_id: str) -> dict:
     return artifact
 
 
+@mutation(receipt=False)
 def crop(sidecar: Path, source_slot: str, target_slot: str, rectangle: Sequence[int], *, scale: int = 1) -> dict:
     """Crop accepted bytes; optional local Lanczos scaling is named, never called neural upscale."""
     from PIL import Image
@@ -599,23 +641,23 @@ def crop(sidecar: Path, source_slot: str, target_slot: str, rectangle: Sequence[
         raise ValueError('crop must be integer x,y,width,height')
     if type(scale) is not int or not 1 <= scale <= 16:
         raise ValueError('local scale must be an integer from 1 to 16')
-    with sheet_lock(sidecar):
-        source = source_from_current(sidecar, source_slot)
-        x, y, width, height = rectangle
-        if x < 0 or y < 0 or min(width, height) < 1 or x + width > source['image']['width'] or y + height > source['image']['height']:
-            raise ValueError('crop rectangle is outside the accepted source image')
-        with Image.open(_file(sidecar.parent, source['image']['path'], source['image']['sha256'])) as original:
-            image = original.convert('RGBA').crop((x, y, x + width, y + height))
-        if scale != 1:
-            image = image.resize((width * scale, height * scale), Image.Resampling.LANCZOS)
-        output = io.BytesIO(); image.save(output, format='PNG')
-        artifact = publish(sidecar.parent, output.getvalue(), kind='crop', sources=[source],
-            recipe={'source_slot': source_slot, 'crop': {'x': x, 'y': y, 'width': width, 'height': height},
-                    'resize': {'algorithm': 'Pillow.LANCZOS', 'scale': scale}})
-        register_candidates(sidecar, [(target_slot, artifact)])
-        return artifact
+    source = source_from_current(sidecar, source_slot)
+    x, y, width, height = rectangle
+    if x < 0 or y < 0 or min(width, height) < 1 or x + width > source['image']['width'] or y + height > source['image']['height']:
+        raise ValueError('crop rectangle is outside the accepted source image')
+    with Image.open(_file(sidecar.parent, source['image']['path'], source['image']['sha256'])) as original:
+        image = original.convert('RGBA').crop((x, y, x + width, y + height))
+    if scale != 1:
+        image = image.resize((width * scale, height * scale), Image.Resampling.LANCZOS)
+    output = io.BytesIO(); image.save(output, format='PNG')
+    artifact = publish(sidecar.parent, output.getvalue(), kind='crop', sources=[source],
+        recipe={'source_slot': source_slot, 'crop': {'x': x, 'y': y, 'width': width, 'height': height},
+                'resize': {'algorithm': 'Pillow.LANCZOS', 'scale': scale}})
+    register_candidates(sidecar, [(target_slot, artifact)])
+    return artifact
 
 
+@mutation
 def share(source_sidecar: Path, source_slot: str, targets: Sequence[tuple[Path, str]]) -> dict:
     """Supply the same accepted pixels to other slots; each target still needs its own approval.
 
@@ -629,13 +671,12 @@ def share(source_sidecar: Path, source_slot: str, targets: Sequence[tuple[Path, 
     for sidecar, _ in targets: _read(sidecar)
     result = []
     for sidecar, slot_id in targets:
-        with sheet_lock(sidecar):
-            copy_artifact(source, source_sidecar.parent, sidecar.parent)
-            artifact = publish(sidecar.parent, _file(sidecar.parent, source['image']['path']), kind='shared', sources=[source],
-                recipe={'source_slot': source_slot, 'source_acceptance_sha256': c.content_id(acceptance)},
-                attachments={'source-acceptance.json': c.encoded(acceptance)})
-            register_candidates(sidecar, [(slot_id, artifact)])
-            result.append({'sheet': str(sidecar), 'slot': slot_id, 'artifact': artifact})
+        copy_artifact(source, source_sidecar.parent, sidecar.parent)
+        artifact = publish(sidecar.parent, _file(sidecar.parent, source['image']['path']), kind='shared', sources=[source],
+            recipe={'source_slot': source_slot, 'source_acceptance_sha256': c.content_id(acceptance)},
+            attachments={'source-acceptance.json': c.encoded(acceptance)})
+        register_candidates(sidecar, [(slot_id, artifact)])
+        result.append({'sheet': str(sidecar), 'slot': slot_id, 'artifact': artifact})
     return {'shared_image_sha256': source['image']['sha256'], 'targets': result, 'adopted': False}
 
 

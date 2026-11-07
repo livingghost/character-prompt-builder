@@ -20,7 +20,7 @@ import re
 import shutil
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 from urllib.parse import quote
@@ -28,17 +28,17 @@ from urllib.parse import quote
 from pack_manager import (
     DiscoveredPack,
     PackError,
+    PackInput,
+    PackIssue,
     PackRecord,
     PackSettings,
     PackValidation,
     load_state,
     resolve_enabled,
-    validate_pack,
+    validate_pack_input,
 )
 from pack_cache import RuntimePackCatalog, load_runtime_catalog
-
-
-_CATALOG_THUMBNAIL_CACHE: dict[tuple[str, str], dict[str, ResourceView]] = {}
+from state_protocol import schema_read_scope
 
 
 @dataclass(frozen=True)
@@ -48,6 +48,10 @@ class InspectedPack:
     root: Path
     manifest: dict[str, Any]
     validation: PackValidation
+    inputs: PackInput
+    _thumbnails: dict[str, dict[str, ResourceView]] = field(
+        default_factory=dict, init=False, compare=False, repr=False,
+    )
 
     @property
     def pack_id(self) -> str:
@@ -316,7 +320,9 @@ def _preview_resources(resources: Sequence[ResourceView]) -> list[ResourceView]:
 
 
 def _load_validated_pack(root: Path, *, require_lock: bool) -> InspectedPack:
-    report = validate_pack(root, require_lock=require_lock)
+    with schema_read_scope():
+        inputs = PackInput.read(root)
+        report = validate_pack_input(inputs, require_lock=require_lock)
     if not report.valid:
         errors = [issue.message for issue in report.issues if issue.severity == "error"]
         raise PackError(
@@ -324,7 +330,7 @@ def _load_validated_pack(root: Path, *, require_lock: bool) -> InspectedPack:
         )
     if report.manifest is None:
         raise PackError(f"Validated pack has no manifest: {root.resolve()}")
-    return InspectedPack(report.root, dict(report.manifest), report)
+    return InspectedPack(report.root, dict(report.manifest), report, inputs)
 
 
 def load_pack_directories(
@@ -426,17 +432,46 @@ def _active_pack_views(
 
 
 def load_runtime_views(runtime: RuntimePackCatalog) -> list[InspectedPack]:
-    """Project one resolved snapshot without rediscovery or another cache build.
+    """Project acquired runtime values without discovery, validation, or file reads.
 
-    Validation supplies the declared resource boundary needed by the exporter.
-    Only active roots are inspected; records retain the runtime's replacement,
-    precedence and dependency decisions.
+    Persisted validation reports supply warnings and resource bindings. The
+    acquired tree supplies declared resource paths, and resolved runtime records
+    retain the catalog's replacement, precedence, and dependency decisions.
     """
-    inspected = _deduplicate_packs([
-        _load_validated_pack(root, require_lock=False)
-        for _, root in sorted(runtime.pack_roots.items())
-    ])
-    return _resolved_pack_views(inspected, runtime)
+    inputs = runtime.inputs
+    if inputs is None:
+        raise PackError("Runtime catalog views require acquired live pack inputs.")
+    records: dict[str, list[PackRecord]] = {pack_id: [] for pack_id in runtime.pack_roots}
+    seen: set[str] = set()
+    for entry in runtime.entries:
+        record_id = str(entry.record.get("id") or "")
+        if not record_id:
+            raise PackError("Resolved runtime catalog contains a record without an ID.")
+        if record_id in seen:
+            raise PackError(f"Resolved runtime catalog contains duplicate active record ID: {record_id}")
+        seen.add(record_id)
+        if entry.source_pack not in records:
+            raise PackError(f"Resolved runtime record names an inactive pack: {entry.source_pack}/{record_id}")
+        records[entry.source_pack].append(PackRecord(entry.kind, entry.category, entry.record, entry.source_file))
+    output: list[InspectedPack] = []
+    for pack_id, root in sorted(runtime.pack_roots.items()):
+        acquired = inputs.packs.get(pack_id)
+        report = runtime.pack_reports.get(pack_id)
+        if acquired is None or acquired.root != root or report is None or report.get("active") is not True:
+            raise PackError(f"Resolved runtime pack has no matching acquired validation: {pack_id}")
+        manifest = acquired.json("pack.json")
+        resources, _ = acquired.expand(manifest["content"].get("resource_globs") or [])
+        validation = PackValidation(
+            root=root,
+            manifest=manifest,
+            records=records[pack_id],
+            resource_files=[path.relative_to(root).as_posix() for path in resources],
+            resource_bindings=dict(report["resource_bindings"]),
+            issues=[PackIssue(**row) for row in (*report["errors"], *report["warnings"])],
+            lock_present=report["lock_present"],
+        )
+        output.append(InspectedPack(root, dict(manifest), validation, acquired))
+    return output
 
 
 def _resolved_pack_views(
@@ -496,7 +531,7 @@ def _resolved_pack_views(
             lock_present=validation.lock_present,
         )
         output.append(
-            InspectedPack(pack.root, pack.manifest, active_validation)
+            InspectedPack(pack.root, pack.manifest, active_validation, pack.inputs)
         )
     return output
 
@@ -678,9 +713,20 @@ def _copy_resource(
     )
     if destination not in copied:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(resource.absolute_path, destination, follow_symlinks=False)
+        # Text is already owned. Binary copying is a separate boundary that
+        # requires a contained file with the exact acquired bytes.
+        raw = _resource_bytes(asset.pack, resource.relative_path)
+        destination.write_bytes(raw)
         copied.add(destination)
     return destination
+
+
+def _resource_bytes(pack: InspectedPack, relative: str) -> bytes:
+    """Use retained text or verify a binary at the display/copy boundary."""
+    from production_store import stable_bytes
+    return pack.inputs.files[relative].bytes_for_capture(
+        lambda path: stable_bytes(pack.root, path),
+    )
 
 
 def _resource_href(
@@ -1057,14 +1103,13 @@ def _catalog_thumbnail_resources(pack: InspectedPack) -> dict[str, ResourceView]
     binding = str(pack.validation.resource_bindings.get("catalog-thumbnails") or "")
     if not binding:
         return {}
-    cache_key = (str(pack.root), binding)
-    cached = _CATALOG_THUMBNAIL_CACHE.get(cache_key)
+    cached = pack._thumbnails.get(binding)
     if cached is not None:
         return cached
-    manifest_path = _safe_resource_path(pack, binding)
+    manifest_path = pack.root / binding
     try:
-        document = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        document = pack.inputs.json(binding)
+    except PackError as exc:
         raise PackError(f"Invalid catalog thumbnail manifest: {manifest_path}: {exc}") from exc
     if not isinstance(document, Mapping) or document.get("format") != "character-prompt-builder-catalog-thumbnails":
         raise PackError(f"Unexpected catalog thumbnail manifest format: {manifest_path}")
@@ -1079,7 +1124,7 @@ def _catalog_thumbnail_resources(pack: InspectedPack) -> dict[str, ResourceView]
         media_type = str(raw.get("media_type") or mimetypes.guess_type(relative)[0] or "application/octet-stream")
         expected_sha = str(raw.get("sha256") or "")
         absolute = _safe_resource_path(pack, relative)
-        if expected_sha and hashlib.sha256(absolute.read_bytes()).hexdigest() != expected_sha:
+        if expected_sha and hashlib.sha256(_resource_bytes(pack, relative)).hexdigest() != expected_sha:
             raise PackError(f"Catalog thumbnail hash mismatch for {asset_id}: {relative}")
         if not media_type.startswith("image/"):
             raise PackError(f"Catalog thumbnail is not an image for {asset_id}: {relative}")
@@ -1090,7 +1135,7 @@ def _catalog_thumbnail_resources(pack: InspectedPack) -> dict[str, ResourceView]
             roles=("catalog-thumbnail",),
             primary=False,
         )
-    _CATALOG_THUMBNAIL_CACHE[cache_key] = output
+    pack._thumbnails[binding] = output
     return output
 
 
@@ -2146,6 +2191,10 @@ def write_catalog_directory(
 ) -> dict[str, Any]:
     """Write a direct-open landing page, search page, galleries, and record pages."""
 
+    # Decoded source documents belong to the supplied inputs. Live preview
+    # media checks belong to this output phase and must run again for a later
+    # output even when the caller retains its inspected pack values.
+    packs = [replace(pack) for pack in packs]
     requested_output = output_directory.expanduser()
     if requested_output.is_symlink():
         raise PackError(f"Inspection output must not be a symbolic link: {requested_output}")

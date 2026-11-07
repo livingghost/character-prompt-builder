@@ -11,6 +11,7 @@ checklist to an agent's ordinary task.
 - [One editable source across a task](#one-editable-source-across-a-task)
 - [Changes and dependencies](#changes-and-dependencies)
 - [Context for judgment](#context-for-judgment)
+- [Storage and read boundaries](#storage-and-read-boundaries)
 - [Interruption and external effects](#interruption-and-external-effects)
 - [Instructions and knowledge](#instructions-and-knowledge)
 - [Evaluation](#evaluation)
@@ -105,6 +106,108 @@ perform a review, grant permission or require the agent to re-enter established
 facts. Do not make the agent reconstruct these relationships by inspecting a
 set of internal JSON files. Do not omit necessary knowledge solely to produce
 a smaller response.
+
+## Storage and read boundaries
+
+Give persistence I/O an explicit owner. A consumer receives decoded values for
+its operation, rather than rediscovering files whenever it needs the same
+fact. Keep these boundaries visible in the API:
+
+| Data | Read owner | Consumers |
+| --- | --- | --- |
+| Pack state, discovery and selected file contents | `pack_manager.RuntimeInputs` and `PackInput` | Validation, record/resource resolution, catalog persistence and Production snapshot capture use the same acquired input |
+| Installed builder sources and schema documents | `builder_inputs.BuilderInputs`, `state_protocol.SchemaDocuments` and `protocol_contract.ContractSet` | One pure evaluator consumes immutable documents and lazy reference resolution bound to their exact contents |
+| Registered run and immutable publication | `production_read_model.RunReader` | A shared `RunView` owns prepared inputs, consumer data, manifest-verified bytes, the compiled documents its consumers use and event history |
+| Acquired compilation inputs and fixed runtime files | `runtime_snapshot.CompileRuntime` and `FixedRuntimeRead` | Compilation consumes owned catalog and file values; publication preserves the complete selected runtime; a route receipt reads its named resources without reconstructing the catalog |
+| Current route documents and prepared live sources | `live_source_read.LiveSourceRead` | One current-input boundary acquires the declared files and passes the same bytes to route receipts and dependency comparisons |
+| Lifecycle transitions and event lookups | `execution_lifecycle.ReplayState` and `EventHistory` | One ordered replay publishes read-only indexes and applies the same rules to a proposed append |
+| Current authority | `production_store.CurrentAuthority` | Permission checks consume the checked grant document, owning event and evidence bytes without changing prepared input |
+| Studio manifest, iterations, sidecars and run states | `studio.StudioRead` and `studio_reference.ReferenceReads` | Source, identity, continuity, gallery, readiness and status share a read model per canonical Studio root and read phase |
+| Rebuildable Studio displays | `studio_activity.operation` | One refresh of the affected views after the owning mutation |
+
+A public read checks the observed content. An outer production transaction starts a
+new read boundary and rechecks stored content before deciding a write. Nested
+reads share decoded data within that boundary. An own write or rollback
+invalidates the retained event history and dependent Studio reads. Existing
+read values remain observations of their original inputs. Internal consumers
+share deeply read-only values; an editing boundary explicitly exports an
+independent graph with `load_run`, `RunView.snapshot` or `owned_json.mutable`.
+Pass an existing owned value to later consumers before adding another cache.
+Each new transaction or forced acquisition reads and verifies every declared
+publication file and decodes the documents its domain consumers need. Decoded
+documents and event evidence belong to that read phase. They are not carried
+over from an earlier transaction after comparing hashes. A nested fresh read
+discards the enclosing scope's retained values before starting and before
+returning, including when acquisition fails. Persistent
+caches require their own consistency contract and maintenance cost; a new
+representation alone is not a reason to add one.
+A forced check rereads both publication and event evidence.
+The external-effect boundary still forces the current source, authority and
+runtime checks before committing its one durable start.
+
+`production_workflow.read_current` acquires actual live sources, fixed runtime
+inputs and reference proofs. Authorization, handoff and claim helpers receive
+these values and the transaction's current authority explicitly. They do not
+look up a retained successful freshness check. A subsequent current-input
+acquisition checks the actual files again. Result projection preserves the
+same readiness checks, complete audit and next actions as explicit status.
+Result capture and sheet publication use the recorded execution target. A
+later model-definition edit affects readiness for new work, not recovery of
+an image already returned under the prepared target.
+
+One execution may pass its immutable fixed-runtime metadata as an explicit
+prior value. Acquisition still reads `snapshot.json` and every declared member,
+checks exact membership and current sources, and acquires current authority.
+It shares the decoded metadata only after the actual JSON bytes match exactly.
+The newly acquired owner contains newly read member bytes. No run publication,
+event state, authority or successful check crosses a transaction through this
+value. An independent command starts without a prior runtime observation.
+
+Content hashes identify acquired bytes. A read-phase token only ends reuse
+inside the current operation or transaction; it is not persisted or numbered.
+Do not introduce a version counter or a generated identifier to stand in for
+content equality. Keep current grant state distinct from published creative
+input, and use the existing event digest to identify a committed predecessor.
+
+Pack acquisition hashes each selected file while retaining the text that
+validation needs. All-file validation, parsed records, resource conflicts and
+catalog fingerprints use those same values. Database persistence receives a
+resolved `CatalogBuild` and never discovers or reads pack files. Production
+snapshot capture reuses acquired text and verifies large binary content when
+copying it. A new catalog boundary reads current contents even if file sizes
+and timestamps did not change. Disabled packs contribute only their manifests
+to discovery.
+
+An imported event export has no verified-store provenance. Check its shape,
+sequence, previous digest and content hash before replaying it. A replay
+advances indexes once per event; it does not revalidate every earlier prefix
+for each later event. Keep transition rules in that replay owner so append and
+recovery use the same policy.
+
+Use exclusive atomic publication for immutable files and directories. A
+concurrent publisher of identical content can reuse the verified result;
+different content at the same destination is a conflict. SQLite owns writer
+serialization for its existing event and authority records, including unique
+claims and expected predecessor checks. Do not add a filesystem lock around a
+SQLite transaction. Keep rendering and network work outside that transaction.
+
+Compile final output values before writing their published representation.
+`publication_artifacts.StagedArtifacts` materializes complete private files
+and flushes their contents before any file or hard link becomes public. It
+flushes nested directory entries together before the exclusive rename.
+Publication flushes the destination parent before registering the run. A
+failed flush preserves the unregistered stage. Checks consume the same
+compiled values and encoding constraints without syncing disposable stage
+contents or writing final documents that would be immediately discarded.
+
+Retain owner-scoped exclusion where several existing mutable files form one
+read-modify-write operation, such as a character's acceptance journal or the
+open work task. State which files the owner protects, and keep unrelated
+characters, read-only inspection and immutable publication outside that scope.
+A display refresh owns derived files, not permission or the authoritative
+record. Nested mutations mark affected views; the outer operation publishes
+them once, retains concurrent dirty receipts and reports a repair warning if
+publication fails after the formal effect committed.
 
 ## Interruption and external effects
 

@@ -14,6 +14,7 @@ import operation_context as _operation_context
 
 import argparse
 import copy
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -24,6 +25,7 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
 from publication_artifacts import ArtifactSet
+from owned_json import freeze, mutable
 
 from catalog_cli import configure_pack_runtime
 from model_contract import (
@@ -67,6 +69,108 @@ MEDIA_SUFFIXES = {
     "image/svg+xml": ".svg",
 }
 _RECOVERY_STAGING_ATTRIBUTE = "_cpb_generation_package_recovery_staging"
+
+
+@dataclass(frozen=True,init=False)
+class ResolvedTarget:
+    """The exact selected target and its acquired parameter contract."""
+
+    model_id: str
+    model: dict
+    offering: dict | None
+    service: dict | None
+    transport: Any
+    parameter_schema: dict | None
+    model_space: str | None
+    transport_sha256: str | None
+
+    def __init__(self):
+        raise TypeError('resolve a target from acquired runtime inputs')
+
+    def matches(self, name: str) -> bool:
+        from prepare_generation_references import normalize_model_name
+        names=[self.model_id,str(self.model.get('label') or ''),*(self.model.get('aliases') or [])]
+        wanted=normalize_model_name(name)
+        return bool(wanted) and wanted in {normalize_model_name(value) for value in names if value}
+
+
+def _source_models(source):
+    if hasattr(source,'catalog'):
+        return [(entry.record,entry.source_pack) for entry in source.catalog.entries if entry.kind=='model']
+    return [(entry['record'],entry['source_pack']) for entry in source.payload['entries'] if entry['kind']=='model']
+
+
+def _resolved_target(model_id,record,offering,source,*,execution_inputs=None)->ResolvedTarget:
+    from model_contract import offering_schema
+    service_record,transport,transport_sha=execution_inputs or (None,None,None)
+    space=source.model_space(model_id);pack=space[len('@pack/'):]
+    root=source.pack_roots[pack]
+    schema=(offering_schema(offering,root,model_id,read_document=lambda relative:source.document(pack,relative))
+            if offering is not None else None)
+    result=object.__new__(ResolvedTarget)
+    for name,value in (('model_id',model_id),('model',freeze(record)),('offering',freeze(offering)),
+                       ('service',freeze(service_record)),('transport',transport),
+                       ('parameter_schema',freeze(schema)),('model_space',space),('transport_sha256',transport_sha)):
+        object.__setattr__(result,name,value)
+    return result
+
+
+def _selected_model(model:str,source)->tuple[str,dict]:
+    from prepare_generation_references import normalize_model_name
+    if not isinstance(model,str) or not model.strip():raise ValueError('model must be a non-empty string')
+    model=model.strip()
+    candidates=_source_models(source)
+    exact=[record for record,_ in candidates if record.get('id')==model]
+    wanted=normalize_model_name(model)
+    matches=exact or [record for record,_ in candidates if wanted and wanted in {
+        normalize_model_name(value) for value in [record.get('id'),record.get('label'),*(record.get('aliases') or [])] if value}]
+    if len(matches)!=1:
+        if matches:raise ValueError('ambiguous model name '+repr(model)+'; use one canonical model ID: '+', '.join(sorted(row['id'] for row in matches)))
+        raise ValueError('unknown model '+repr(model)+'; use a model record from an enabled pack')
+    record=matches[0]
+    return record['id'],record
+
+
+def _execution_inputs(offering,source):
+    if offering is None:return None
+    import execution_contract as execution
+    import service_profile,transport_contract
+    selected=source.read_resource('service-profiles')
+    if selected is None:raise ValueError('The runtime has no service-profiles resource.')
+    origin,raw=selected
+    service_record=service_profile.select_service(offering['service'],execution.decode(raw),label=origin['path'])
+    transport=transport_contract.load(service_record['transport'])
+    return service_record,transport,execution.digest(execution.read(Path(transport.__file__)))
+
+
+def resolve_package_target(model:str,service:str|None,*,source)->ResolvedTarget:
+    """Acquire model guidance and its schema without requiring a dispatcher."""
+    model_id,record=_selected_model(model,source)
+    return _resolved_target(model_id,record,select_offering(record,service),source)
+
+
+def resolve_target(model:str,service:str|None,*,source)->ResolvedTarget:
+    """Acquire a model, service and transport from the same runtime input."""
+    model_id,record=_selected_model(model,source)
+    offering=select_offering(record,service)
+    return _resolved_target(model_id,record,offering,source,execution_inputs=_execution_inputs(offering,source))
+
+
+def resolve_execution_target(value:dict,*,source)->ResolvedTarget:
+    """Reacquire a published target from its exact fixed execution inputs."""
+    import execution_contract as execution
+    execution.exact(value,{'model','model_id','offering','service','transport_sha256'},'execution target')
+    records=[record for record,_ in _source_models(source) if record.get('id')==value['model_id']]
+    if len(records)!=1 or records[0]!=value['model']:
+        raise ValueError('published model differs from its acquired execution source')
+    offering=select_offering(records[0],value['offering']['service'])
+    if offering!=value['offering']:
+        raise ValueError('published offering differs from its acquired model')
+    resolved=_resolved_target(value['model_id'],records[0],offering,source,
+                              execution_inputs=_execution_inputs(offering,source))
+    if resolved.service!=value['service'] or resolved.transport_sha256!=value['transport_sha256']:
+        raise ValueError('published service or transport differs from its acquired execution inputs')
+    return resolved
 
 
 def sha256_text(value: str) -> str:
@@ -471,6 +575,45 @@ def transport_instruction(mode: str) -> str:
     return instructions[mode]
 
 
+@dataclass(frozen=True,init=False)
+class GenerationContent:
+    """One semantic result supplies both the package export and the request."""
+
+    fields: dict
+    target: ResolvedTarget
+    evidence: Any
+    validation: Any
+    forwarding: dict
+
+    def __init__(self):
+        raise TypeError('generation content is produced by domain acquisition')
+
+    @classmethod
+    def _from_acquisition(cls,fields,target,evidence,validation,forwarding):
+        result=object.__new__(cls)
+        for name,value in (('fields',freeze(fields)),('target',target),('evidence',evidence),
+                           ('validation',validation),('forwarding',freeze(forwarding))):
+            object.__setattr__(result,name,value)
+        return result
+
+    @property
+    def runtime_inputs(self):
+        return {'retrieval_record':self.fields['retrieval_record'],
+                'prepared_reference_set':self.fields['prepared_reference_set'],'input_snapshots':self.evidence.bytes}
+
+    def package(self,production_binding:dict)->dict:
+        from production_binding import validate
+        validate(production_binding,self.fields['composition_prompt'])
+        result=mutable(self.fields)
+        result['production_binding']=mutable(production_binding)
+        import input_contracts
+        input_contracts.attach(result,self.validation.record,self.evidence)
+        digest=generation_input_sha256(result)
+        result['generation_input_sha256']=digest
+        result['generation_contract']['generation_input_sha256']=digest
+        return result
+
+
 def build_payload(
     *,
     model: str,
@@ -504,10 +647,79 @@ def build_payload(
     production_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from route_reading import require_route_reading, GENERATION_ROUTES
-    if route_reading is None:
-        raise ValueError("generation requires a route reading")
-    require_route_reading(route_reading, ledgers=reading_ledgers, studio=production_root,
-                          package_root=prepared_reference_root, routes=GENERATION_ROUTES)
+    if route_reading is None:raise ValueError('generation requires a route reading')
+    import runtime_evidence
+    from generation_inputs import GenerationInputs
+    values={
+        'model':model,
+        'prompt':prompt,
+        'negative_prompt':negative_prompt,
+        'brief':brief,
+        'creative_intent':creative_intent,
+        'parameters':parameters,
+        'negative_transport':negative_transport,
+        'critical_avoidance_integrated':critical_avoidance_integrated,
+        'integrated_prompt':integrated_prompt,
+        'native_negative':native_negative,
+        'negative_provenance':negative_provenance,
+        'production_spec':production_spec,
+        'state_lineage':state_lineage,
+        'state_snapshot':state_snapshot,
+        'state_graphs':state_graphs,
+        'prepared_reference_set':prepared_reference_set,
+        'plot':plot,
+        'retrieval_record':retrieval_record,
+        'request_validation':request_validation,
+        'route_reading':route_reading,
+        'service':service,
+    }
+    from catalog_retrieval.runtime import load_pack_catalog,selected_pack_settings
+    from runtime_snapshot import CompileRuntime
+    runtime_source=CompileRuntime.from_catalog(load_pack_catalog(),selected_pack_settings())
+    with runtime_source.using():
+        require_route_reading(route_reading,ledgers=reading_ledgers,studio=production_root,
+                             package_root=prepared_reference_root,routes=GENERATION_ROUTES,
+                             resource_reader=runtime_source.read_resource)
+        reader=runtime_evidence.acquisition(input_root or production_root or visual_root or prepared_reference_root,
+                                            source=runtime_source)
+        inputs=GenerationInputs.acquire(values,resolve_target=lambda:resolve_package_target(model,service,source=runtime_source),
+            prepare_references=lambda:validate_prepared_reference_set(prepared_reference_set,model=model,package_root=prepared_reference_root),
+            evidence=reader)
+        content=acquire_generation(inputs,prepared_reference_root=prepared_reference_root,visual_root=visual_root,
+            production_root=production_root,evidence=reader,visual_continuity=visual_continuity)
+    from production_binding import create as create_production_binding, bind_consumer
+    binding=(bind_consumer(production_context,prompt) if production_context is not None else
+             create_production_binding(production_root if production_run is not None else None,production_run,prompt))
+    return content.package(binding)
+
+
+def acquire_generation(inputs,*,prepared_reference_root:Path|None,visual_root:Path|None,
+                       production_root:Path|None,evidence,visual_continuity:dict,recording:dict|None=None):
+    """Finish domain acquisition, then produce immutable generation meaning."""
+    from generation_inputs import GenerationInputs
+    if not isinstance(inputs,GenerationInputs):raise TypeError('generation requires acquired semantic inputs')
+    values=inputs.values
+    model=values.get('model')
+    prompt=values.get('prompt')
+    negative_prompt=values.get('negative_prompt')
+    brief=values.get('brief')
+    creative_intent=values.get('creative_intent')
+    parameters=values.get('parameters')
+    negative_transport=values.get('negative_transport')
+    critical_avoidance_integrated=values.get('critical_avoidance_integrated')
+    integrated_prompt=values.get('integrated_prompt')
+    native_negative=values.get('native_negative')
+    negative_provenance=values.get('negative_provenance')
+    production_spec=values.get('production_spec')
+    state_lineage=values.get('state_lineage')
+    state_snapshot=values.get('state_snapshot')
+    state_graphs=values.get('state_graphs')
+    prepared_reference_set=values.get('prepared_reference_set')
+    plot=values.get('plot')
+    retrieval_record=values.get('retrieval_record')
+    request_validation=values.get('request_validation')
+    route_reading=values.get('route_reading')
+    service=values.get('service')
     reading_hash = sha256_json(route_reading)
     input_values = {
         "creative_intent": creative_intent,
@@ -533,42 +745,21 @@ def build_payload(
         raise ValueError("integrated and native negative prompts must be strings")
     composition_prompt = prompt
     composition_negative = negative_prompt
-    provenance = normalize_negative_provenance(negative_provenance)
+    provenance = inputs.values["negative_provenance"]
     if not isinstance(parameters, dict):
         raise ValueError("parameters must be an object")
     parameters = dict(parameters)
     if negative_transport not in TRANSPORT_MODES:
         raise ValueError(f"unknown negative transport mode: {negative_transport}")
 
-    model_id = model
-    model_record: dict[str, Any] | None = None
-    try:
-        model_id, model_record = resolve_model_record(model)
-    except ValueError:
-        if negative_transport == "auto":
-            raise
+    target=inputs.target
+    model_id,model_record=target.model_id,target.model
+    if model_record.get('operation_kind')=='upscale':
+        raise ValueError(f'model record {model_id!r} is an upscaler; use build_upscale_package.py')
     from prompt_weighting import selected as selected_weighting
-    weighting_syntax = 'literal'
-    if model_record is not None:
-        if model_record.get('operation_kind') == 'upscale':
-            raise ValueError(f'model record {model_id!r} is an upscaler; use build_upscale_package.py')
-        if not isinstance(production_spec, dict) or not isinstance(production_spec.get('render_intent'), dict):
-            raise ValueError('production specification must include its declared render_intent')
-        mode = production_spec['render_intent'].get('execution_mode')
-        if not isinstance(mode, str) or not mode:
-            raise ValueError('render_intent must name an execution_mode')
-        from render_contract_lib import selected_profile, resolve_parameters
-        current_offering = select_offering(model_record, service)
-        current_profile = selected_profile(model_record, current_offering)
-        effective_parameters, _ = resolve_parameters(model_record, current_profile, mode, parameters)
-        weighting_syntax = selected_weighting(effective_parameters, current_profile['modes'][mode]['prompt_syntax'])
-    text_payload = prepare_text_transports(
-        model_id=model_id, model_record=model_record, prompt=prompt,
-        negative_prompt=negative_prompt, integrated_prompt=integrated_prompt,
-        native_negative=native_negative, negative_transport=negative_transport,
-        critical_avoidance_integrated=critical_avoidance_integrated,
-        weighting_syntax=weighting_syntax,
-    )
+    weighting_syntax=selected_weighting(inputs.effective_parameters,
+        inputs.profile['modes'][production_spec['render_intent']['execution_mode']]['prompt_syntax'])
+    text_payload=inputs.text
     prompt = text_payload["prompt"]
     negative_prompt = text_payload["negative_prompt"]
     integrated_prompt = text_payload["integrated_prompt"]
@@ -581,8 +772,7 @@ def build_payload(
     prompt_hash = sha256_text(prompt)
     negative_hash = sha256_text(negative_prompt)
     native_hash = sha256_text(native_negative)
-    from production_spec import require as require_production_spec, require_lineage
-    require_production_spec(production_spec)
+    from production_spec import require_lineage
     production_spec = dict(production_spec)
     if production_spec.get("target_model") != model:
         raise ValueError("package model differs from production specification target_model")
@@ -591,13 +781,7 @@ def build_payload(
     from state_protocol import artifact_hash, finalize_artifact, validate_artifact, validate_subject_state_graphs
     if state_lineage is not None and not isinstance(state_lineage, dict):
         raise ValueError("state lineage must be an object")
-    reference_set = validate_prepared_reference_set(
-        prepared_reference_set
-        if prepared_reference_set is not None
-        else empty_stateless_reference_set(),
-        model=model,
-        package_root=prepared_reference_root,
-    )
+    reference_set = inputs.references
     validate_generation_package_carrier_paths(
         reference_set,
         package_root=prepared_reference_root,
@@ -656,44 +840,23 @@ def build_payload(
     # record's own limits, and against the service's observed parameter schema
     # when the record's offering points at one. Nothing has been uploaded yet,
     # so media stand in as placeholders and only their number is judged.
-    from render_contract_lib import compile_contract
-    if model_record is None:
-        raise ValueError("generation requires a registered exact model with an execution profile")
-    selected_execution_offering = select_offering(model_record, service)
-    render_contract = compile_contract(model_record, selected_execution_offering,
-        production_spec["render_intent"], parameters, prompt=composition_prompt,
+    from render_contract_lib import _contract_from_inputs
+    render_contract = _contract_from_inputs(model_record,target.offering,production_spec['render_intent'],
+        inputs.values['parameters'],inputs.profile,inputs.effective_parameters,inputs.parameter_decisions,
         reference_count=delivered_reference_count(reference_set))
     parameters = render_contract["parameters"]
     service_summary: dict[str, Any] | None = None
     offering = None
-    if model_record is not None:
-        references = reference_set.get("selected_references") or []
-        # The render contract has already resolved every applicable package control.
-        offering = select_offering(model_record, service)
-        media_counts: dict[str, int] | None = None
-        if offering is not None:
-            media_counts = generation_media_counts(
-                offering, delivered_reference_count(reference_set),
-                media_role=render_contract["model_card"]["execution_profile"]["modes"][production_spec["render_intent"]["execution_mode"]]["media"]
-            )
-        offering = validate_generation_parameters(
-            model_record,
-            parameters,
-            service=service,
-            pack_root=model_pack_root(model_id),
-            prompt=selected_prompt,
-            negative_prompt=selected_negative if mode in {"separate-field", "native-subset"} else None,
-            media_counts=media_counts,
-        )
-        if offering is not None:
-            service_summary = {
-                "id": offering["service"],
-                "model_identifier": offering["model_identifier"],
-                "observed_at": offering["observed_at"],
-                "schema_snapshot": offering.get("schema_snapshot"),
-            }
-    elif service:
-        raise ValueError(f"model {model!r} has no record here, so a request through {service!r} cannot be checked")
+    offering=target.offering
+    if offering is not None:
+        from model_contract import request_instance,validate_request_schema
+        media_counts=generation_media_counts(offering,delivered_reference_count(reference_set),
+            media_role=inputs.profile['modes'][production_spec['render_intent']['execution_mode']]['media'])
+        instance=request_instance(offering,parameters,prompt=selected_prompt,
+            negative_prompt=selected_negative if mode in {'separate-field','native-subset'} else None,media_counts=media_counts)
+        validate_request_schema(offering,instance,target.parameter_schema)
+        service_summary={'id':offering['service'],'model_identifier':offering['model_identifier'],
+                         'observed_at':offering['observed_at'],'schema_snapshot':offering.get('schema_snapshot')}
     lineage_mode = state_lineage.get("mode")
     if lineage_mode == "state-aware":
         if reference_selection is None:
@@ -727,28 +890,11 @@ def build_payload(
     else:
         raise ValueError(f"unsupported state lineage mode: {lineage_mode!r}")
 
-    from prompt_plot import validate_prompt_plot
-
-    if not isinstance(plot, dict):
-        raise ValueError("generation requires the approved plot the picture was drawn from")
-    plot_report = validate_prompt_plot(plot)
-    if not plot_report["ok"]:
-        raise ValueError("invalid plot: " + "; ".join(plot_report["errors"]))
-    if not plot_report["approved"]:
-        raise ValueError(
-            "generation follows approval: "
-            + ("; ".join(plot_report["approval_errors"]) or "the plot carries no approved block")
-        )
-    from prompt_retrieval import require_generation_retrieval
-    require_generation_retrieval(retrieval_record, prompt=composition_prompt, plot=plot,
-        model_record=model_record, negative=composition_negative, syntax=weighting_syntax)
     retrieval_hash = sha256_json(retrieval_record)
     plot_hash = sha256_json(plot)
 
     if not isinstance(creative_intent, dict):
         raise ValueError("creative intent must be an object")
-    from revision_contract import require_intent_revision
-    require_intent_revision(creative_intent)
     creative_intent = dict(creative_intent)
     creative_intent["production_spec_sha256"] = production_spec_hash
     creative_intent["state_lineage_sha256"] = lineage_hash
@@ -765,7 +911,9 @@ def build_payload(
     from visual_continuity import require as require_visual
     require_visual(visual_continuity, production_spec=production_spec,
                    prepared=reference_set,
-                   root=visual_root or production_root or prepared_reference_root)
+                   root=visual_root or production_root or prepared_reference_root,
+                   recording_character=(recording or {}).get('character'),recording_slot=(recording or {}).get('slot'),
+                   basis_reader=evidence)
     visual_hash = sha256_json(visual_continuity)
     result = {
         "status": "ready",
@@ -787,7 +935,6 @@ def build_payload(
         "state_graphs_sha256": state_graphs_hash,
         "prepared_reference_set": reference_set,
         "prepared_reference_set_sha256": prepared_reference_set_hash,
-        "generation_input_sha256": "",
         "generation_payload": {
             "prompt": prompt,
             "negative_prompt": negative_prompt,
@@ -826,37 +973,32 @@ def build_payload(
             "state_lineage_sha256": lineage_hash,
             "state_graphs_sha256": state_graphs_hash,
             "prepared_reference_set_sha256": prepared_reference_set_hash,
-            "generation_input_sha256": "",
-            "negative_transport_instruction": selected_instruction,
+                "negative_transport_instruction": selected_instruction,
         },
     }
-    from production_binding import create as create_production_binding
-    result["visual_continuity"] = visual_continuity
-    result["visual_continuity_sha256"] = visual_hash
-    result["generation_contract"]["visual_continuity_sha256"] = visual_hash
-    result["route_reading"] = route_reading
-    result["route_reading_sha256"] = reading_hash
-    result["generation_contract"]["route_reading_sha256"] = reading_hash
-    from production_binding import bind_consumer
-    result["production_binding"] = (bind_consumer(production_context, composition_prompt) if production_context is not None
-        else create_production_binding(production_root if production_run is not None else None, production_run, composition_prompt))
-    if request_validation is None:
+    result['visual_continuity']=visual_continuity
+    result['visual_continuity_sha256']=visual_hash
+    result['generation_contract']['visual_continuity_sha256']=visual_hash
+    result['route_reading']=route_reading
+    result['route_reading_sha256']=reading_hash
+    result['generation_contract']['route_reading_sha256']=reading_hash
+    if inputs.validation is None:
         raise ValueError('generation requires an explicit request validation record')
-    import input_contracts
-    reader, _ = input_contracts.capture_validation(request_validation, root=input_root or production_root or visual_root or prepared_reference_root)
-    reader.basis(visual_continuity['basis'])
-    input_contracts.attach(result, request_validation, reader)
-    from request_renderer import prepare_forwarding
-    selected_key = {'separate-field':'separate','native-subset':'native_subset','integrated-critical':'integrated','retained-only':'integrated'}[mode]
-    result_forward = prepare_forwarding(result, {'selected_transport': {'mode':mode, 'rendition':transports[selected_key]},
-        'host_forwarding': {}}, root=input_root or production_root or visual_root or prepared_reference_root,
-        model_id=model_id, model=model_record, offering=offering)
-    reader.snapshots.update(result_forward['input_snapshots'])
-    input_contracts.attach(result, request_validation, reader)
-    generation_input_hash = generation_input_sha256(result)
-    result["generation_input_sha256"] = generation_input_hash
-    result["generation_contract"]["generation_input_sha256"] = generation_input_hash
-    return result
+    result['request_validation']=inputs.validation.record
+    # The evidence graph is complete before pure forwarding composition begins.
+    owned=evidence.finish()
+    from prepare_generation_references import host_reference_transports
+    selected_key={'separate-field':'separate','native-subset':'native_subset','integrated-critical':'integrated','retained-only':'integrated'}[mode]
+    selected_transport={'mode':mode,'channel':selected_channels[mode],'instruction':selected_instruction,
+                        'rendition':transports[selected_key]}
+    original=selected_transport['rendition']['text' if mode in {'integrated-critical','retained-only'} else 'prompt']
+    forwarding={'model':model,'parameters':parameters,'selected_transport':selected_transport,
+                'effective_prompt':original,'effective_prompt_sha256':sha256_text(original),
+                'selected_references':host_reference_transports(reference_set,package_root=prepared_reference_root)}
+    from request_renderer import forwarding_from_inputs
+    execution=forwarding_from_inputs(result,{'selected_transport':selected_transport,'host_forwarding':forwarding},
+        model=model_record,offering=offering,policy=inputs.policy,evidence=owned)
+    return GenerationContent._from_acquisition(result,target,owned,inputs.validation,execution)
 
 
 def _resolve_reference_carrier(stored_path: Any, *, source_root: Path) -> Path:

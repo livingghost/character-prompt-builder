@@ -90,6 +90,60 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(action['argv'][-2:], ['--out', action['draft']])
         self.assertEqual(whole['current_task']['task_id'],report['task_id'])
 
+    def test_execute_keeps_current_readiness_and_complete_maintenance_findings(self):
+        import production_compiler
+        with patch.object(production_compiler, 'inspect_staging', wraps=production_compiler.inspect_staging) as stages, \
+             patch.object(execution, 'unclaimed_journals', wraps=execution.unclaimed_journals) as journals, \
+             patch.object(production_compiler, 'unregistered_publications', wraps=production_compiler.unregistered_publications) as publications, \
+             patch.object(workflow, 'freshness_diagnostics', wraps=workflow.freshness_diagnostics) as freshness:
+            result = self.send()
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual(result['runs'][0]['readiness'], 'ready')
+        self.assertEqual(result['runs'][0]['freshness_diagnostics'], [])
+        self.assertTrue(freshness.called)
+        for field in ('current_task', 'staging', 'staging_details', 'unclaimed_journals', 'unregistered_publications'):
+            self.assertIn(field, result)
+        stages.assert_called_once()
+        journals.assert_called_once()
+        publications.assert_called_once()
+
+    def test_status_accounting_uses_the_already_acquired_run(self):
+        self.send()
+        expected = accounting.summary(self.root, run=self.run, isolate=True)
+        with patch.object(accounting, 'all_states', side_effect=AssertionError('Status already acquired the run history')):
+            result = status(self.root, self.run)
+        self.assertEqual(result['execution_records'], expected)
+        self.assertEqual(result['runs'][0]['readiness'], 'ready')
+
+    def test_status_keeps_first_cleanup_failure_and_each_audit_diagnostic(self):
+        import production_compiler
+        with patch.object(production_compiler, 'inspect_staging', return_value=[{'name': 'synthetic-stage'}]) as stages, \
+             patch.object(execution, 'unclaimed_journals', side_effect=PermissionError('Synthetic journal enumeration failure')) as journals, \
+             patch.object(production_compiler, 'unregistered_publications', side_effect=OSError('Synthetic publication enumeration failure')) as publications:
+            result = status(self.root, self.run)
+        self.assertEqual(result['staging'], [])
+        first = result['staging_details'][0]['diagnostics'][0]
+        journal = result['unclaimed_journals'][0]['diagnostics'][0]
+        publication = result['unregistered_publications'][0]['diagnostics'][0]
+        self.assertEqual(first, journal)
+        self.assertEqual((first['phase'], first['message']), ('cleanup', 'Synthetic journal enumeration failure'))
+        self.assertEqual((publication['phase'], publication['message']), ('publication', 'Synthetic publication enumeration failure'))
+        self.assertTrue(first['required_action'])
+        self.assertTrue(publication['required_action'])
+        stages.assert_called_once()
+        journals.assert_called_once()
+        publications.assert_called_once()
+
+    def test_unreadable_journal_keeps_durable_execution_accounting(self):
+        sent = self.send()
+        journal = self.root / sent['runs'][0]['journal']
+        (journal / 'request-contract.json').write_text('{incomplete', encoding='utf-8')
+        result = status(self.root, self.run)
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['runs'][0]['integrity'], 'blocked')
+        self.assertTrue(result['execution_records']['complete'])
+        self.assertEqual(result['execution_records'], sent['execution_records'])
+
     def test_unreadable_current_task_is_reported_not_raised(self):
         (self.root/'work'/'current.json').write_text('{not json',encoding='utf-8')
         report=status(self.root)
@@ -100,7 +154,7 @@ class ResumeTests(unittest.TestCase):
     def test_unreadable_authority_blocks_readiness_and_status_is_not_ok(self):
         from production_diagnostics import ProductionError
         refusal=ProductionError('AUTHORITY_STATE_CORRUPT','Synthetic damaged authority state.',phase='integrity')
-        with patch.object(store,'authority',side_effect=refusal):
+        with patch.object(store,'read_authority',side_effect=refusal):
             report=status(self.root,self.run)
         self.assertFalse(report['ok'])
         self.assertEqual(report['runs'][0]['readiness'],'blocked')

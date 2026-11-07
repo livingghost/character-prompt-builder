@@ -317,8 +317,8 @@ def fsync_dir(path: Path) -> None:
             os.close(descriptor)
 
 
-def _create(path: Path, raw: bytes) -> None:
-    """Create `path` only when it is absent, write `raw` and flush it to disk.
+def _create(path: Path, raw: bytes, *, durable: bool = True) -> None:
+    """Create `path` only when absent and write the complete `raw` contents.
 
     The file gets the ordinary creation mode. A failed write removes it again.
     """
@@ -328,7 +328,8 @@ def _create(path: Path, raw: bytes) -> None:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(raw)
             stream.flush()
-            os.fsync(stream.fileno())
+            if durable:
+                os.fsync(stream.fileno())
     except BaseException:
         path.unlink(missing_ok=True)
         raise
@@ -344,14 +345,16 @@ def _no_hard_links(error: OSError) -> bool:
     return error.errno in _NO_LINKS_ERRNOS
 
 
-def atomic(path: Path, raw: bytes, *, replace: bool = False) -> None:
+def atomic(path: Path, raw: bytes, *, replace: bool = False, durable: bool = True) -> None:
     """Write `raw` to `path` whole: replace it, or create it only when it is absent.
 
-    The bytes reach the disk under a temporary name first. A replacement is a
+    Durable writes reach disk under a temporary name first. A replacement is a
     rename and a new name is a hard link, so a reader sees the old file or the
     whole new one. Without hard links, Windows renames the temporary file, which
     refuses an existing name. Elsewhere a rename would replace, so the new name
-    is created exclusively and written in place.
+    is created exclusively and written in place. A private staging owner can
+    defer durability until publication. It must flush file contents and then
+    directory entries before publishing any part of that private tree.
     """
     assert_public_path(path)
     if path.is_symlink():
@@ -359,11 +362,11 @@ def atomic(path: Path, raw: bytes, *, replace: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.parent / (TEMPORARY_PREFIX + os.urandom(8).hex())
     try:
-        _create(temp, raw)
+        _create(temp, raw, durable=durable)
         if replace:
             os.replace(temp, path)
         else:
-            # Exclusive publication. The caller holds the studio lock.
+            # Exclusive publication is decided by the filesystem operation.
             try:
                 os.link(temp, path)
             except OSError as error:
@@ -372,8 +375,9 @@ def atomic(path: Path, raw: bytes, *, replace: bool = False) -> None:
                 if os.name == "nt":
                     os.rename(temp, path)
                 else:
-                    _create(path, raw)
-        fsync_dir(path.parent)
+                    _create(path, raw, durable=durable)
+        if durable:
+            fsync_dir(path.parent)
         from operation_context import current
         if current() is not None:
             current().artifact(path.absolute(), content_sha256=digest(raw), size=len(raw))
@@ -475,7 +479,11 @@ if hasattr(os, 'register_at_fork'):
 
 @contextlib.contextmanager
 def lock(root: Path) -> Iterator[None]:
-    """Hold one studio lock across nested calls, threads and processes."""
+    """Protect one mutable owner directory across nested calls and processes.
+
+    Read-only consumers and immutable publication do not use this primitive.
+    The caller chooses the smallest directory that owns its RMW state.
+    """
     root = root.absolute()
     root.mkdir(parents=True, exist_ok=True)
     key = str(root.resolve())
@@ -542,7 +550,11 @@ def object_store(run: Path, raw: bytes) -> str:
         if read(path) != raw:
             raise ValueError("content-addressed object is corrupt")
     else:
-        atomic(path, raw)
+        try:
+            atomic(path, raw)
+        except FileExistsError:
+            if read(path) != raw:
+                raise ValueError("content-addressed object is corrupt")
     return key
 
 

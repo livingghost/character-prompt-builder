@@ -181,69 +181,72 @@ def _same_file(path: Path, raw: bytes) -> None:
         if c.read(path) != raw:
             raise ValueError('an immutable batch output already contains different bytes: ' + str(path))
     else:
-        c.atomic(path, raw)
+        try:
+            c.atomic(path, raw)
+        except FileExistsError:
+            if c.read(path) != raw:
+                raise ValueError('an immutable batch output already contains different bytes: ' + str(path))
 
 
 def initialize(root: Path, plan_path: str, state_path: str | None = None) -> dict:
     """Own a dated attempt, freeze its inputs, and reserve every result before sending."""
     import studio_activity as activity
     from pack_manager import generate_uuid7
-    with c.lock(root):
-        plan, manifest = read_plan(root, plan_path)
-        original_sha = c.sha256_file(_relative(root, plan_path))
-        if state_path is not None:
-            target = _relative(root, state_path, exists=False)
-            if target.exists():
-                state = load(root, state_path)
-                if state['plan'] != plan_path or state['plan_sha256'] != original_sha:
-                    raise ValueError('BATCH_PLAN_CONFLICT: this journal belongs to another plan or snapshot')
-                if state['source_manifest_sha256'] != c.sha256_file(_relative(root, plan['manifest'])):
-                    raise ValueError('BATCH_PLAN_CONFLICT: the renderer manifest changed')
-                for panel in plan['panels']:
-                    if state['panels'][panel['request_id']]['task_sha256'] != c.sha256_file(_relative(root, panel['task'])):
-                        raise ValueError('BATCH_PLAN_CONFLICT: a batch task changed; create a new attempt')
-                _register(root, state)
-                return state
-        identifier, created = generate_uuid7(), activity.timestamp()
-        home_path = plan['results'].rstrip('/') + '/' + created[:10] + '/' + created[11:26].replace(':', '').replace('.', '') + 'Z-' + identifier
-        home = _relative(root, home_path, exists=False)
-        if home.exists():
-            raise ValueError('batch attempt directory already exists')
-        home.mkdir(parents=True)
-        state_path = state_path or home_path + '/batch.json'
+    plan, manifest = read_plan(root, plan_path)
+    original_sha = c.sha256_file(_relative(root, plan_path))
+    if state_path is not None:
         target = _relative(root, state_path, exists=False)
-        frozen = copy.deepcopy(plan)
-        frozen['manifest'] = home_path + '/inputs/manifest.json'
-        _same_file(_relative(root, frozen['manifest'], exists=False), c.encoded(manifest))
-        panels = {}
-        for panel in frozen['panels']:
-            key = panel['request_id']; source_task = panel['task']
-            slug = ''.join(ch if ch.isascii() and (ch.isalnum() or ch in '._-') else '-' for ch in key)[:64].strip('.') or 'panel'
-            slug += '-' + c.digest(key.encode())[:10]
-            folder = home_path + '/panels/' + slug
-            task_raw = c.read(_relative(root, source_task))
-            panel['task'] = folder + '/inputs/task.json'
-            _same_file(_relative(root, panel['task'], exists=False), task_raw)
-            outputs = folder + '/results'
-            owner = {'batch_id': identifier, 'request_id': key, 'state': state_path}
-            _same_file(_relative(root, outputs + '/owner.json', exists=False), c.encoded(owner))
-            panels[key] = {'source_task': source_task, 'task_sha256': c.digest(task_raw),
-                           'inputs': folder + '/inputs', 'results': outputs, 'owner': owner,
-                           'run': None, 'compiled_task': None, 'selected_references': None,
-                           'status': 'unprepared', 'artifact': None, 'diagnostic': None}
-        snapshot_path = home_path + '/inputs/plan.json'
-        _same_file(_relative(root, snapshot_path, exists=False), c.encoded(frozen))
-        state = {'artifact_type': 'sheet-fill-batch', 'batch_id': identifier,
-                 'created_at': created, 'updated_at': created, 'state': state_path, 'home': home_path,
-                 'plan': plan_path, 'plan_sha256': original_sha,
-                 'source_manifest_sha256': c.sha256_file(_relative(root, plan['manifest'])),
-                 'snapshot': snapshot_path, 'snapshot_sha256': c.sha256_file(_relative(root, snapshot_path)),
-                 'manifest_sha256': c.sha256_file(_relative(root, frozen['manifest'])), 'panels': panels}
-        c.atomic(target, c.encoded(state))
-        _register(root, state)
-        activity.changed(target, 'batch-created', revision=c.content_id(state),
-                         details={'batch_id': identifier, 'plan': plan_path, 'home': home_path, 'panels': len(panels)})
-        return state
+        if target.exists():
+            state = load(root, state_path)
+            if state['plan'] != plan_path or state['plan_sha256'] != original_sha:
+                raise ValueError('BATCH_PLAN_CONFLICT: this journal belongs to another plan or snapshot')
+            if state['source_manifest_sha256'] != c.sha256_file(_relative(root, plan['manifest'])):
+                raise ValueError('BATCH_PLAN_CONFLICT: the renderer manifest changed')
+            for panel in plan['panels']:
+                if state['panels'][panel['request_id']]['task_sha256'] != c.sha256_file(_relative(root, panel['task'])):
+                    raise ValueError('BATCH_PLAN_CONFLICT: a batch task changed; create a new attempt')
+            _register(root, state)
+            return state
+    identifier, created = generate_uuid7(), activity.timestamp()
+    home_path = plan['results'].rstrip('/') + '/' + created[:10] + '/' + created[11:26].replace(':', '').replace('.', '') + 'Z-' + identifier
+    home = _relative(root, home_path, exists=False)
+    if home.exists():
+        raise ValueError('batch attempt directory already exists')
+    home.mkdir(parents=True)
+    state_path = state_path or home_path + '/batch.json'
+    target = _relative(root, state_path, exists=False)
+    frozen = copy.deepcopy(plan)
+    frozen['manifest'] = home_path + '/inputs/manifest.json'
+    _same_file(_relative(root, frozen['manifest'], exists=False), c.encoded(manifest))
+    panels = {}
+    for panel in frozen['panels']:
+        key = panel['request_id']; source_task = panel['task']
+        slug = ''.join(ch if ch.isascii() and (ch.isalnum() or ch in '._-') else '-' for ch in key)[:64].strip('.') or 'panel'
+        slug += '-' + c.digest(key.encode())[:10]
+        folder = home_path + '/panels/' + slug
+        task_raw = c.read(_relative(root, source_task))
+        panel['task'] = folder + '/inputs/task.json'
+        _same_file(_relative(root, panel['task'], exists=False), task_raw)
+        outputs = folder + '/results'
+        owner = {'batch_id': identifier, 'request_id': key, 'state': state_path}
+        _same_file(_relative(root, outputs + '/owner.json', exists=False), c.encoded(owner))
+        panels[key] = {'source_task': source_task, 'task_sha256': c.digest(task_raw),
+                       'inputs': folder + '/inputs', 'results': outputs, 'owner': owner,
+                       'run': None, 'compiled_task': None, 'selected_references': None,
+                       'status': 'unprepared', 'artifact': None, 'diagnostic': None}
+    snapshot_path = home_path + '/inputs/plan.json'
+    _same_file(_relative(root, snapshot_path, exists=False), c.encoded(frozen))
+    state = {'artifact_type': 'sheet-fill-batch', 'batch_id': identifier,
+             'created_at': created, 'updated_at': created, 'state': state_path, 'home': home_path,
+             'plan': plan_path, 'plan_sha256': original_sha,
+             'source_manifest_sha256': c.sha256_file(_relative(root, plan['manifest'])),
+             'snapshot': snapshot_path, 'snapshot_sha256': c.sha256_file(_relative(root, snapshot_path)),
+             'manifest_sha256': c.sha256_file(_relative(root, frozen['manifest'])), 'panels': panels}
+    c.atomic(target, c.encoded(state))
+    _register(root, state)
+    activity.changed(target, 'batch-created', revision=c.content_id(state),
+                     details={'batch_id': identifier, 'plan': plan_path, 'home': home_path, 'panels': len(panels)})
+    return state
 
 
 def _register(root: Path, state: dict) -> None:
@@ -337,7 +340,7 @@ def _output_preflight(root: Path, entry: dict, *, before_send: bool) -> Path:
 def _export(root: Path, plan: dict, manifest: dict, panel: dict, entry: dict) -> dict | None:
     import production_workflow as workflow
     import studio
-    _, prepared, _, _ = workflow.load_run(root, entry['run'])
+    _, prepared, _, _ = workflow.read_run(root, entry['run'])
     character = prepared['task']['recording']['character']
     home = studio.character_home(root, character)
     rows = [row for row in studio.read_iterations(home)
@@ -376,8 +379,8 @@ def _export(root: Path, plan: dict, manifest: dict, panel: dict, entry: dict) ->
     # The marker is the last output, never a claim that incomplete copies are complete.
     _same_file(folder / (stem + '.artifact.json'), c.encoded(marker))
     # This pointer is a rebuildable convenience, never the owner of an image.
-    with c.lock(root):
-        latest_path = _relative(root, plan['results'].rstrip('/') + '/latest.json', exists=False)
+    latest_path = _relative(root, plan['results'].rstrip('/') + '/latest.json', exists=False)
+    with c.lock(latest_path.parent):
         latest = c.load(latest_path) if latest_path.exists() else {'artifact_type': 'sheet-fill-latest', 'panels': {}}
         old = latest['panels'].get(panel['request_id'])
         from studio_activity import chronological
@@ -426,7 +429,7 @@ def advance(root: Path, state_path: str, *, grant: str | None = None,
                     workflow.prepare(root, task_path, identity=entry['run'])
                     entry['status'] = 'prepared'; _save(root, state_path, state)
                 else:
-                    _, prepared, _, _ = workflow.load_run(root, entry['run'])
+                    _, prepared, _, _ = workflow.read_run(root, entry['run'])
                     if prepared['task_path'] != entry['compiled_task']:
                         raise ValueError('the reserved run belongs to another panel task')
                 run = entry['run']

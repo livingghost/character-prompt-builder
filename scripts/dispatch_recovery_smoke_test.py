@@ -138,7 +138,7 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.no_effect();self.assertEqual(self.rows(),[])
 
     def test_claim_failure_precedes_irreversible_request(self):
-        with patch.object(workflow,'claim_dispatch',side_effect=OSError('Synthetic claim transaction failure')),self.assertRaises(OSError):self.call()
+        with patch.object(workflow,'_claim_dispatch_from',side_effect=OSError('Synthetic claim transaction failure')),self.assertRaises(OSError):self.call()
         self.no_effect();self.assertEqual(self.rows(),[])
         # The journal written for the failed claim is listed, never as eligible while its owner process runs.
         listed=execution.status(self.root)['unclaimed_journals']

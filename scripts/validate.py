@@ -410,15 +410,15 @@ def check_model_record_keys(root, errors) -> None:
 
     import model_contract as _model_contract
 
-    schema = json.loads((root / "schemas/pack-record-file.schema.json").read_text(encoding="utf-8"))
-    from state_protocol import _resolve_ref
+    from state_protocol import schema_documents
 
-    documents = {}
+    documents = schema_documents()
+    schema = documents.read(root / "schemas/pack-record-file.schema.json")
 
     def property_names(part, document):
         names = set(part.get("properties") or {})
         if "$ref" in part:
-            referenced, owner = _resolve_ref(part["$ref"], document, documents)
+            referenced, owner = documents.resolve_ref(part["$ref"], document)
             names.update(property_names(referenced, owner))
         for branch in part.get("allOf", []):
             names.update(property_names(branch, document))

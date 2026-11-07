@@ -154,8 +154,7 @@ def install_preferences(value: Any) -> dict:
     validate_preferences(value)
     path = preferences_path()
     raw = c.encoded(value)
-    with c.lock(path.parent):
-        c.atomic(path, raw, replace=True)
+    c.atomic(path, raw, replace=True)
     return {'path': str(path), 'sha256': c.digest(raw), 'entries': len(value['entries'])}
 
 

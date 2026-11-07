@@ -20,6 +20,7 @@ from typing import Any
 
 import artifact_review as review
 import execution_contract as c
+import runtime_snapshot
 import production_workflow as workflow
 
 
@@ -130,7 +131,7 @@ def build(root: Path, study_path: str) -> tuple[dict, list[dict], dict[str, byte
             for source in report['sources']:
                 f = source['file']
                 files[f['download']] = output_files[f['download']]
-            _, prepared, _, _ = workflow.load_run(root, trial['run'])
+            _, prepared, _, _ = workflow.read_run(root, trial['run'])
             deps = {(d['space'], d['path']): d['sha256'] for d in prepared['dependencies']}
             for source in inputs[case['id']]:
                 if deps.get(('studio', source['path'])) != source['sha256']:
@@ -225,37 +226,37 @@ def _page(title: str, body: str) -> bytes:
             + html.escape(title) + '</h1>' + body + '</body></html>\n').encode('utf-8')
 
 
+@runtime_snapshot.operation
 def export(root: Path, study_path: str, out: str, *, blind: bool = False) -> dict:
     root = review.studio_root(root)
-    with c.lock(root):
-        result, cards, files = build(root, study_path)
-        key_path = None
-        if blind:
-            secrets.SystemRandom().shuffle(cards)
-            exported, key, body = {}, [], []
-            for index, card in enumerate(cards, 1):
-                label = f'Sample {index}'
-                key.append({'label': label, 'trial': card['trial'], 'condition': card['condition'], 'case': card['case']})
-                body.append('<section><h2>' + label + '</h2><pre>' + html.escape(json.dumps(card['criteria'], ensure_ascii=False, indent=2)) + '</pre>')
-                for number, item in enumerate(card['files'], 1):
-                    raw = files[item['download']]
-                    suffix, kind = review.attachment(raw)
-                    path = f'files/sample-{index}-{number}{suffix}'
-                    exported[path] = raw
-                    safe = {**item, 'path': label, 'sha256': '', 'download': path}
-                    body.append(review._file_view(safe))
-                body.append('</section>')
-            body.insert(0, '<p>Presentation labels conceal condition names. The media itself or its metadata may still reveal a condition. This is not a claim of complete experimental blinding.</p>')
-            exported['index.html'] = _page('Artifact assessment', '\n'.join(body))
-            key_path = c.local(root, 'evaluation-keys/' + secrets.token_hex(16) + '.json', exists=False)
-            c.atomic(key_path, c.encoded({'study_sha256': result['study_sha256'], 'presentation': out, 'key': key}))
-            target = review.publish(root, out, exported, prefix='evaluations')
-        else:
-            files['evidence.json'] = c.encoded(result)
-            files['study.json'] = c.read(c.local(root, study_path))
-            body = '<p>These counts summarize recorded evidence, not artistic quality.</p><pre>' + html.escape(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False)) + '</pre>'
-            files['index.html'] = _page('Evaluation evidence', body)
-            target = review.publish(root, out, files, prefix='evaluations')
+    result, cards, files = build(root, study_path)
+    key_path = None
+    if blind:
+        secrets.SystemRandom().shuffle(cards)
+        exported, key, body = {}, [], []
+        for index, card in enumerate(cards, 1):
+            label = f'Sample {index}'
+            key.append({'label': label, 'trial': card['trial'], 'condition': card['condition'], 'case': card['case']})
+            body.append('<section><h2>' + label + '</h2><pre>' + html.escape(json.dumps(card['criteria'], ensure_ascii=False, indent=2)) + '</pre>')
+            for number, item in enumerate(card['files'], 1):
+                raw = files[item['download']]
+                suffix, kind = review.attachment(raw)
+                path = f'files/sample-{index}-{number}{suffix}'
+                exported[path] = raw
+                safe = {**item, 'path': label, 'sha256': '', 'download': path}
+                body.append(review._file_view(safe))
+            body.append('</section>')
+        body.insert(0, '<p>Presentation labels conceal condition names. The media itself or its metadata may still reveal a condition. This is not a claim of complete experimental blinding.</p>')
+        exported['index.html'] = _page('Artifact assessment', '\n'.join(body))
+        key_path = c.local(root, 'evaluation-keys/' + secrets.token_hex(16) + '.json', exists=False)
+        c.atomic(key_path, c.encoded({'study_sha256': result['study_sha256'], 'presentation': out, 'key': key}))
+        target = review.publish(root, out, exported, prefix='evaluations')
+    else:
+        files['evidence.json'] = c.encoded(result)
+        files['study.json'] = c.read(c.local(root, study_path))
+        body = '<p>These counts summarize recorded evidence, not artistic quality.</p><pre>' + html.escape(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False)) + '</pre>'
+        files['index.html'] = _page('Evaluation evidence', body)
+        target = review.publish(root, out, files, prefix='evaluations')
     return {'ok': True, 'output': str(target), 'trials': len(result['trials']),
             'blind': blind, 'operator_key': str(key_path) if key_path else None,
             'models_called': 0, 'mutates_canon': False}

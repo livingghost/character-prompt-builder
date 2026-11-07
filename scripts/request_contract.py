@@ -42,6 +42,14 @@ def execution_projection(value: dict, kind: str) -> dict:
 
 def execution_hashes(service: dict, offering: dict, transport_file: Path, *,
                      model: dict | None = None, policy: dict | None = None) -> dict:
+    return execution_hash_values(service, offering, c.digest(c.read(transport_file)),
+                                 model=model, policy=policy)
+
+
+def execution_hash_values(service: dict, offering: dict, transport_sha256: str, *,
+                          model: dict | None = None, policy: dict | None = None) -> dict:
+    """Bind the execution contract to an already acquired transport source."""
+    c.sha(transport_sha256)
     service_sha256 = c.content_id(execution_projection(service, 'service'))
     contract = {
         'offering': execution_projection(offering, 'offering'),
@@ -51,7 +59,7 @@ def execution_hashes(service: dict, offering: dict, transport_file: Path, *,
     return {
         'service_execution_sha256': service_sha256,
         'offering_contract_sha256': c.content_id(contract),
-        'transport_sha256': c.digest(c.read(transport_file)),
+        'transport_sha256': transport_sha256,
     }
 
 

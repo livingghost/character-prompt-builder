@@ -110,7 +110,7 @@ Logs stay local and are never uploaded automatically.
 
 `logs-cleanup` is a dry run until `--apply` is given.
 It assesses only directories that hold the five owned files with matching operation metadata.
-`--apply` checks each listed operation again under the studio lock, then removes the eligible ones.
+`--apply` checks each listed operation again immediately before removing it. Only ended, owned operations are eligible; concurrent cleanup can safely find that an eligible directory has already been removed.
 These stay protected, each with its reason:
 
 - the running operation (`active-operation`);

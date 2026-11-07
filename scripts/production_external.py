@@ -62,7 +62,7 @@ def _settle(root: Path, run: str, receipt: dict) -> dict:
     if errors:
         raise ValueError('external result receipt: ' + '; '.join(errors))
     with store.transaction(root):
-        directory, prepared, consumer, rows = workflow.load_run(root, run)
+        directory, prepared, consumer, rows = workflow.read_run(root, run)
         claim = workflow.find(rows, 'external-claim', receipt['claim'])
         authorization = claim['data']['authorizations'][0]
         approved = workflow.find(rows, 'authorization', authorization)['data']['request']
@@ -136,7 +136,7 @@ def receive_external(root: Path, run: str, *, response_file: str,
     if cost_pointer is not None:
         _pointer(cost_pointer, 'response cost pointer')
 
-    directory, prepared, _, rows = workflow.load_run(root, run)
+    directory, prepared, _, rows = workflow.read_run(root, run)
     if prepared['task']['execution'] != 'external':
         raise ProductionError('INPUT_CONSISTENCY_ERROR', 'This run does not delegate execution to an external host.',
                               phase='result-capture', run=run)
@@ -168,7 +168,7 @@ def receive_external(root: Path, run: str, *, response_file: str,
     cost = None if cost_pointer is None else _selected(document, cost_pointer, 'response cost pointer')
     if cost is not None:
         lifecycle.validate_cost(cost)
-    _, _, _, rows = workflow.load_run(root, run)
+    _, _, _, rows = workflow.read_run(root, run)
     acquired = [row for row in rows if row['event'] == 'candidate']
     receipt = {'claim': claim['sha256'], 'actor': actor, 'outputs': len(acquired),
                'cost': cost, 'final': final, 'reason': reason,

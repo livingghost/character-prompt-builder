@@ -1338,7 +1338,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         import production_workflow as workflow
         archive = self.base / 'review-objects'
         c.object_store(archive, (self.root / 'scene.png').read_bytes())
-        evidence = workflow._review_reference_evidence(archive, 'fixture', {'image_input': binding}, {})
+        evidence = workflow._review_reference_evidence(archive, 'fixture', {'image_input': binding}, {},
+            artifacts={}, read_object=lambda key: c.object_read(archive, key))
         scope = json.loads(evidence[0]['relation'].split(': ', 1)[1])
         self.assertEqual(scope['subject_id'], 'C01')
         self.assertEqual(scope['subject_uses'], [])

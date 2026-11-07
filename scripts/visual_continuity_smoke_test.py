@@ -88,7 +88,7 @@ class DecisionTests(unittest.TestCase):
     def test_recurring_selects_the_accepted_identity_and_work_character(self):
         binding={'slot':'base.front','iteration_id':'I1','influence':'identity','image_path':'accepted.png','image_sha256':'a'*64}
         self.prepared['selected_references']=[{'source':{'sha256':'a'*64}}]
-        with mock.patch('adoption_workflow.reference_index',return_value={'ok':True,'errors':[],'bindings':[binding]}),                 mock.patch.object(v,'build_record',side_effect=lambda choices,**_:choices):
+        with mock.patch('studio.StudioRead.reference_index',return_value={'ok':True,'errors':[],'bindings':[binding]}),                 mock.patch.object(v,'build_record',side_effect=lambda choices,**_:choices):
             record=self.decide({'subject-a':'recurring'},characters={'subject-a':'C01'},work_ids={'subject-a':'CHR-1'})
         self.assertEqual(record['subjects']['subject-a']['character_id'],'CHR-1')
         self.assertEqual(record['subjects']['subject-a']['identity_refs'],[{'slot':'base.front','iteration_id':'I1'}])

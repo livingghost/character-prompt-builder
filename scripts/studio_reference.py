@@ -12,15 +12,61 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import json
 import re
-from typing import Any, Mapping
+from typing import Any, Mapping, TYPE_CHECKING
 
 import execution_contract as c
+import runtime_snapshot
+from owned_json import mutable
+
+if TYPE_CHECKING:
+    from studio import StudioRead
 
 SOURCE_FIELDS = frozenset({'kind', 'studio_root', 'studio_id', 'character', 'sheet', 'slot',
     'artifact_id', 'acceptance_sha256', 'proof_sha256', 'resolved_path', 'media_type', 'sha256'})
 PROOF_FIELDS = frozenset({'artifact_type', 'studio_root', 'studio_id', 'character', 'sheet', 'slot',
     'acceptance', 'adoption', 'identity'})
 ID = re.compile(r'^[a-z0-9][a-z0-9._-]*$')
+
+
+class ReferenceReads:
+    """Own current Studio inputs for one stable reference read phase.
+
+    A resolver can cover several Studios. Each root belongs to its current
+    public or transaction scope, and an owned mutation ends its phase. Source,
+    identity and continuity checks receive the same decoded StudioRead instead
+    of independently reopening the same records.
+    """
+
+    def __init__(self) -> None:
+        self._studios: dict[str, tuple[object | None, StudioRead]] = {}
+
+    def studio(self, root: Path) -> StudioRead:
+        import studio
+        root = studio.require_studio(root).resolve()
+        identity = str(root)
+        scope = runtime_snapshot.check_scope(root)
+        phase = None
+        if scope is not None:
+            key = ('studio-read-phase', identity)
+            if key not in scope:
+                scope[key] = object()
+            phase = scope[key]
+        held = self._studios.get(identity)
+        if held is None or held[0] is not phase:
+            held = phase, studio.StudioRead(root)
+            self._studios[identity] = held
+        return held[1]
+
+
+def reference_reads() -> ReferenceReads:
+    """Acquire the reference owner at a public API's current read boundary."""
+    scope = runtime_snapshot.call_scope()
+    if scope is None:
+        return ReferenceReads()
+    key = ('studio-reference-reads',)
+    if key not in scope:
+        scope[key] = ReferenceReads()
+    return scope[key]
 
 
 def _origin_root(value: str) -> PurePosixPath | PureWindowsPath:
@@ -68,10 +114,9 @@ def _source(proof: dict) -> dict:
             'media_type': image['media_type'], 'sha256': image['sha256']}
 
 
-def _decision(accepted: dict, sheet_root: Path, owner_sheet: str, slot: str) -> dict:
+def _decision(accepted: dict, sheet_root: Path, owner_sheet: str, slot: str, *, cache=None) -> dict:
     import sheet_artifacts as fills
-    fills.verify_acceptance(accepted, sheet_root, slot)
-    value = c.load(fills._file(sheet_root, accepted['approval']['decision_path']))
+    value = fills.verify_acceptance(accepted, sheet_root, slot, cache=cache)
     c.exact(value, {'artifact_type', 'sheet', 'slot', 'artifact_id', 'expected_current', 'by', 'at', 'reason', 'evidence', 'basis'}, 'recorded adoption decision')
     if value['artifact_type'] != 'sheet-adoption-decision' or value['sheet'] != owner_sheet:
         raise ValueError('recorded adoption belongs to another sheet')
@@ -88,32 +133,43 @@ def _decision(accepted: dict, sheet_root: Path, owner_sheet: str, slot: str) -> 
     return value
 
 
-def _read_current(root: Path, character: str, slot: str) -> tuple[dict, dict]:
+def _read_current(root: Path, character: str, slot: str, *, read=None) -> tuple[dict, dict]:
     import studio
-    import sheet_artifacts as fills
-    import adoption_workflow as adoption
     root = studio.require_studio(root)
     if str(root.resolve()) != str(root) or any(p.is_symlink() for p in [root, *root.parents]):
         raise ValueError('Studio reference root must be canonical and must not traverse a symlink')
-    home = studio.character_dir(root, character)
-    studio.validate_recording_target(root, character, slot, writable=False)
+    read = read or reference_reads().studio(root)
+    read.require_root(root)
+    return read.current_reference_view(character, slot)
+
+
+def _load_current(root: Path, character: str, slot: str, *, read) -> tuple[dict, dict]:
+    import studio
+    import sheet_artifacts as fills
+    import adoption_workflow as adoption
+    home = read.home(character)
+    studio.validate_recording_target(root, character, slot, writable=False, read=read)
     sheet = c.local(root, (home / 'sheet/sheet-data.json').relative_to(root).as_posix())
-    current = fills._read(sheet)['slots'].get(slot, {}).get('current')
+    current = read.sheet(character)['slots'].get(slot, {}).get('current')
     if current is None:
         raise ValueError(f'{character}/{slot}: no current accepted artwork; candidates and history are not canon')
-    decision = _decision(current, sheet.parent, str(sheet), slot)
+    decision = _decision(current, sheet.parent, str(sheet), slot, cache=read.artifacts)
     proof = {'artifact_type': 'studio-reference-proof', 'studio_root': str(root),
-             'studio_id': c.load(c.local(root, 'studio.json'))['studio_id'],
+             'studio_id': read.document['studio_id'],
              'character': character, 'sheet': sheet.relative_to(root).as_posix(), 'slot': slot,
              'acceptance': copy.deepcopy(current), 'adoption': None, 'identity': None}
-    provenance = fills.verify_artifact(current['artifact'], sheet.parent)
+    provenance = fills.verify_artifact(current['artifact'], sheet.parent, cache=read.artifacts)
     origin = provenance.get('origin') or {}
     iteration = origin.get('iteration_id')
     if iteration is not None:
         if origin.get('character') != character:
             raise ValueError('accepted artwork was recorded for another Studio character')
-        row = studio._find(studio.read_iterations(home), iteration)
-        journal = c.load(adoption._journal_path(home, iteration))
+        # A current reference concerns this exact adoption, not every historical
+        # Production run stored beside it. The run below verifies its own origin.
+        row = copy.deepcopy(studio._find(read.raw_iterations(character), iteration))
+        if row.get('production') is not None:
+            row['status'] = row.get('adoption_status', 'none')
+        journal = read.journal(character, iteration)
         if (row['status'] != 'accepted' or row['slot'] != slot or
                 row['result']['sha256'] != current['artifact']['image']['sha256'] or
                 journal.get('status') not in {'sheet-bound', 'catalog-registered'} or journal.get('next_action') is not None):
@@ -137,11 +193,12 @@ def _read_current(root: Path, character: str, slot: str) -> tuple[dict, dict]:
                 raise ValueError('current sheet decision differs from its original approval evidence')
             # A catalog promotion keeps the original sheet decision and adds a
             # separate approval and claim for registering that same reference.
-            fills._production_decision(provenance, decision, sheet)
-            adoption.require_production_claim(root, character, row, initial, decision['basis']['claim'])
-            adoption.require_production_claim(root, character, row, approval, journal.get('production_claim'))
+            loaded = read.run(origin['run'])
+            fills._production_decision(provenance, decision, sheet, loaded=loaded)
+            adoption.require_production_claim(root, character, row, initial, decision['basis']['claim'], read=read)
+            adoption.require_production_claim(root, character, row, approval, journal.get('production_claim'), read=read)
             import production_workflow as workflow
-            _, _, _, records = workflow.load_run(root, origin['run'])
+            _, _, _, records = loaded
             workflow._studio_adoption_result(
                 {'character': character, 'iteration_id': iteration, 'scope': approval['scope']},
                 current['artifact']['image']['sha256'], records, journal, row)
@@ -150,22 +207,24 @@ def _read_current(root: Path, character: str, slot: str) -> tuple[dict, dict]:
         proof['adoption'] = {'iteration_id': iteration, 'approval': copy.deepcopy(approval)}
         if approval['influence'] == 'identity':
             from visual_continuity import adoption_subject
-            subject = adoption_subject(root, character, row, approval)
+            subject = adoption_subject(root, character, row, approval, read=read)
             proof['identity'] = {key: copy.deepcopy(subject[key]) for key in ('character_id', 'continuity')}
     return _source(proof), proof
 
 
-def current_source(root: Path, character: str, slot: str) -> dict:
+@runtime_snapshot.operation
+def current_source(root: Path, character: str, slot: str, *, read=None) -> dict:
     """Resolve a current selection; read all IDs and hashes from authoritative records."""
     import studio
     root = studio.require_studio(root).absolute()
-    with c.lock(root):
-        source, _ = _read_current(root, character, slot)
-        _owner(source)
-        return source
+    source, _ = _read_current(root, character, slot, read=read)
+    _owner(source)
+    return mutable(source)
 
 
-def validate_source(source: Any, *, active: bool = True, source_archive: Path | None = None) -> dict:
+@runtime_snapshot.operation
+def validate_source(source: Any, *, active: bool = True, source_archive: Path | None = None,
+                    read=None, reads: ReferenceReads | None = None) -> dict:
     """Live current-selection validation or recorded byte evidence, never a fallback between them."""
     if not isinstance(source, Mapping):
         raise ValueError('Studio reference source must be an object')
@@ -173,10 +232,10 @@ def validate_source(source: Any, *, active: bool = True, source_archive: Path | 
     if active:
         import studio
         root = studio.require_studio(Path(source['studio_root']))
-        with c.lock(root):
-            expected, proof = _read_current(root, source['character'], source['slot'])
-            if expected != source:
-                raise ValueError('Studio reference no longer matches the exact current artifact and adoption')
+        read = read or (reads or reference_reads()).studio(root)
+        expected, proof = _read_current(root, source['character'], source['slot'], read=read)
+        if expected != source:
+            raise ValueError('Studio reference no longer matches the exact current artifact and adoption')
         return proof
     if source_archive is None:
         raise ValueError('recorded Studio reference requires its package proof archive')
@@ -209,15 +268,17 @@ def _artifact_files(artifact: dict, root: Path, result: dict[str, bytes], seen: 
         _artifact_files(parent, root, result, seen)
 
 
-def archive_source(source: dict, companion: Path) -> list[dict]:
+@runtime_snapshot.operation
+def archive_source(source: dict, companion: Path, *, read=None) -> list[dict]:
     """Copy exact approval and transitive artwork evidence into one portable companion."""
     import sheet_artifacts as fills
     import studio
     from publication_artifacts import ArtifactSet
     artifacts = ArtifactSet(companion)
     root = studio.require_studio(Path(source['studio_root']))
-    with c.lock(root):
-        proof = validate_source(source)
+    with runtime_snapshot.public_call():
+        read = read or reference_reads().studio(root)
+        proof = validate_source(source, read=read)
         sheet_root = Path(source['studio_root']) / PurePosixPath(source['sheet']).parent
         files: dict[str, bytes] = {}
         accepted = proof['acceptance']
@@ -247,10 +308,11 @@ def archive_source(source: dict, companion: Path) -> list[dict]:
         return artifacts.files()
 
 
-def identity_source(source: dict, *, root: Path, character_id: str | None) -> dict:
+def identity_source(source: dict, *, root: Path, character_id: str | None, read=None,
+                    reads: ReferenceReads | None = None) -> dict:
     if source['studio_root'] != str(root.absolute()):
         raise ValueError('Studio reference belongs to another Studio')
-    proof = validate_source(source)
+    proof = validate_source(source, read=read, reads=reads)
     identity = proof['identity']
     if not isinstance(identity, dict):
         raise ValueError('this accepted artwork has no explicit Studio identity adoption')
@@ -259,6 +321,7 @@ def identity_source(source: dict, *, root: Path, character_id: str | None) -> di
     return proof
 
 
+@runtime_snapshot.operation
 def build_binding(root: Path, character: str, slot: str, *, scope: dict, identity: dict,
                   era: dict | None = None, appearance: dict | None = None, snapshot: dict | None = None) -> dict:
     """Combine an authored scope with actual accepted image and supplied state contracts."""
@@ -288,9 +351,10 @@ def build_binding(root: Path, character: str, slot: str, *, scope: dict, identit
                  'appearance_variant_sha256': artifact_hash(appearance) if appearance else None}
         if any(snapshot.get(k) != v for k, v in pairs.items()):
             raise ValueError('state snapshot does not bind the supplied state contracts')
-    source = current_source(root, character, slot)
+    read = reference_reads().studio(root)
+    source = current_source(root, character, slot, read=read)
     if 'identity' in scope['intended_influence']:
-        identity_source(source, root=root, character_id=identity['character_id'])
+        identity_source(source, root=root, character_id=identity['character_id'], read=read)
     result = finalize_artifact({'artifact_type': 'state-aware-reference-binding', **copy.deepcopy(scope),
         'character_id': identity['character_id'], 'source': source,
         'identity_contract_sha256': identity_hash, 'era_contract_sha256': artifact_hash(era) if era else None,

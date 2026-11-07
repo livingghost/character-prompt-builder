@@ -34,7 +34,7 @@ An export is an immutable snapshot rather than a live dashboard; use a distinct 
 - an installed-skill destination;
 - an existing export destination.
 
-Build and publish use a studio lock and a staged directory, and every production receipt stays as it was.
+Build reads a verified run snapshot. Publication stages the complete export and uses an exclusive atomic directory rename; every production receipt stays as it was.
 
 A review is a record rather than an authorization. Continue selection, repair or adoption through the existing production authority operations, with the exact inputs and operation scope; a choice shown on a report is information rather than new permission.
 

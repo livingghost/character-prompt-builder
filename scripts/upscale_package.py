@@ -8,12 +8,11 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-from PIL import Image
-
 from execution_contract import sha256_file
 from model_contract import validate_model_record
 from prepare_generation_references import resolve_model_record
 from state_protocol import artifact_hash, finalize_artifact, sha256_json, validate_artifact
+from owned_json import json_type
 
 IMAGE_MEDIA_TYPES = {
     ".png": "image/png",
@@ -26,6 +25,15 @@ SETTING_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 def canonical_record_sha256(record: Mapping[str, Any]) -> str:
     return sha256_json(dict(record))
+
+
+def _selected_model(model: str, record: Mapping[str,Any]|None) -> tuple[str,Mapping[str,Any]]:
+    """A supplied execution record must name the exact declared target."""
+    if record is None:
+        return resolve_model_record(model)
+    if not isinstance(record,Mapping) or record.get('id')!=model:
+        raise ValueError('upscale model differs from its supplied execution target')
+    return model,record
 
 
 def package_id_for(
@@ -67,6 +75,7 @@ def _image_metadata(path: Path, *, stored_path: str) -> dict[str, Any]:
     if media_type is None:
         guessed, _encoding = mimetypes.guess_type(resolved.name)
         raise ValueError(f"unsupported image media type {guessed!r}: {resolved}")
+    from PIL import Image
     with Image.open(resolved) as image:
         width, height = image.size
         image.verify()
@@ -100,14 +109,14 @@ def _resolve_stored_path(stored: str, *, package_root: Path) -> Path:
 def _setting_allowed(value: Any, allowed: list[Any]) -> bool:
     for item in allowed:
         if isinstance(value, bool) or isinstance(item, bool):
-            if type(value) is type(item) and value == item:
+            if json_type(value) is json_type(item) and value == item:
                 return True
             continue
         if isinstance(value, (int, float)) and isinstance(item, (int, float)):
             if float(value) == float(item):
                 return True
             continue
-        if type(value) is type(item) and value == item:
+        if json_type(value) is json_type(item) and value == item:
             return True
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return any(
@@ -186,8 +195,9 @@ def build_upscale_package(
     audit_status: str,
     audit_notes: list[str],
     production_binding: Mapping[str, Any] | None = None,
+    model_record: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    model_id, record = resolve_model_record(model)
+    model_id, record = _selected_model(model,model_record)
     semantic_errors = validate_model_record(record)
     if semantic_errors:
         raise ValueError("; ".join(semantic_errors))
@@ -286,10 +296,11 @@ def build_upscale_package(
         raise ValueError("source_stored_path does not identify source_image")
     if output_carrier != output_image.resolve(strict=True):
         raise ValueError("output_stored_path does not identify output_image")
-    return verify_upscale_package(result, package_root=package_root)
+    return verify_upscale_package(result, package_root=package_root,model_record=record)
 
 
-def verify_upscale_package(value: Any, *, package_root: Path) -> dict[str, Any]:
+def verify_upscale_package(value: Any, *, package_root: Path,
+                           model_record: Mapping[str,Any]|None=None) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("upscale package must be an object")
     report = validate_artifact(value)
@@ -297,7 +308,7 @@ def verify_upscale_package(value: Any, *, package_root: Path) -> dict[str, Any]:
         raise ValueError("invalid upscale package: " + "; ".join(report.get("errors", [])))
     if artifact_hash(value) != value.get("upscale_package_sha256"):
         raise ValueError("upscale_package_sha256 mismatch")
-    model_id, record = resolve_model_record(str(value.get("upscaler_model") or ""))
+    model_id, record = _selected_model(str(value.get("upscaler_model") or ""),model_record)
     semantic_errors = validate_model_record(record)
     if semantic_errors:
         raise ValueError("; ".join(semantic_errors))

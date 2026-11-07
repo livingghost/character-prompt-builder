@@ -1,15 +1,20 @@
 """Capture the byte witnesses read while constructing a local input contract."""
 from __future__ import annotations
 import base64
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Callable
 import execution_contract as c
+from owned_json import freeze
 from private_state import assert_public_path
 
 class InputEvidence:
     """A content verifier uses stored bytes; an execution verifier checks current bytes."""
-    def __init__(self,root:Path|None,*,snapshots:dict|None=None,live:bool=True,named_roots:dict[str,Path]|None=None,space:str=""):
+    def __init__(self,root:Path|None,*,snapshots:dict|None=None,live:bool=True,named_roots:dict[str,Path]|None=None,space:str="",
+                 read_source:Callable[[str],bytes]|None=None):
         self.named_roots=named_roots or {};self.space=space
+        self.read_source=read_source
         self.root=root;self.live=live;self.snapshots={} if snapshots is None else snapshots
         self.read_paths=set();self.locators={}
         for path,item in self.snapshots.items():
@@ -37,11 +42,15 @@ class InputEvidence:
             if len(parts)<3:raise ValueError('pack input has no relative path')
             space='/'.join(parts[:2])
         elif path.startswith('@skill/'):space='@skill'
-        result=InputEvidence(self.root,snapshots=self.snapshots,live=self.live,named_roots=self.named_roots,space=space)
+        result=InputEvidence(self.root,snapshots=self.snapshots,live=self.live,named_roots=self.named_roots,space=space,
+                             read_source=self.read_source)
         result.read_paths=self.read_paths;result.locators=self.locators
         return result
     def _live(self,path:str)->bytes:
         """Read current bytes as one stable file, so a file being written is never taken as complete."""
+        path=self.qualify(path)
+        if path.startswith('@pack/') and self.read_source is not None:
+            return self.read_source(path)
         from production_store import stable_read
         selected=self.resolve(path)
         if selected.is_symlink() or not selected.is_file():raise ValueError(f'not a regular file: {selected.name}')
@@ -72,3 +81,170 @@ class InputEvidence:
         raw=self.read({k:ref[k] for k in ('path','sha256')})
         self.locators.setdefault(self.qualify(ref['path']),ref['locator'])
         return raw
+
+
+@dataclass(frozen=True)
+class _EvidenceFile:
+    raw: bytes
+    sha256: str
+    decoded: tuple = ()
+
+
+class EvidenceAcquisition(InputEvidence):
+    """Acquire one operation's exact inputs before producing immutable evidence.
+
+    This builder owns bytes and their decoded values. A path is acquired once
+    in this boundary. Its finished result has no filesystem reader. Failure
+    poisons the acquisition so a partial input graph cannot be published.
+    """
+
+    def __init__(self,root:Path|None,*,named_roots:dict[str,Path]|None=None,
+                 read_source:Callable[[str],bytes]|None=None):
+        self.root=root;self.named_roots=named_roots or {};self.space=''
+        self.read_source=read_source
+        self._owner=self;self._files={};self._failure=None;self._closed=False
+        self.read_paths=set();self.locators={}
+
+    def at(self,parent:dict)->'EvidenceAcquisition':
+        path=self.qualify(parent['path'])
+        space='/'.join(path.split('/')[:2]) if path.startswith('@pack/') else '@skill' if path.startswith('@skill/') else ''
+        result=object.__new__(type(self));result.__dict__.update(self.__dict__);result.space=space
+        return result
+
+    def _acquire(self,path:str)->_EvidenceFile:
+        owner=self._owner
+        if owner._failure is not None:
+            raise ValueError('input acquisition already failed') from owner._failure
+        if owner._closed:
+            raise ValueError('input acquisition is complete; consume its immutable evidence')
+        if path not in owner._files:
+            raw=self._live(path)
+            owner._files[path]=_EvidenceFile(raw,c.digest(raw))
+        return owner._files[path]
+
+    def read(self,ref:Any)->bytes:
+        try:
+            c.exact(ref,{'path','sha256'},'input file reference');c.sha(ref['sha256'])
+            path=self.qualify(ref['path']);item=self._acquire(path)
+            if item.sha256!=ref['sha256']:
+                raise ValueError('input reference bytes differ: '+path)
+            self.read_paths.add(path)
+            return item.raw
+        except (ValueError,OSError,KeyError,TypeError) as exc:
+            self._owner._failure=exc
+            raise
+
+    def basis(self,ref:dict)->bytes:
+        try:
+            return super().basis(ref)
+        except (ValueError,OSError,KeyError,TypeError) as exc:
+            self._owner._failure=exc
+            raise
+
+    def json(self,ref:dict)->Any:
+        try:
+            raw=self.read(ref);path=self.qualify(ref['path']);item=self._owner._files[path]
+            if not item.decoded:
+                item=_EvidenceFile(raw,item.sha256,(freeze(c.decode(raw)),))
+                self._owner._files[path]=item
+            return item.decoded[0]
+        except (ValueError,OSError,KeyError,TypeError) as exc:
+            self._owner._failure=exc
+            raise
+
+    def select(self,path:str)->dict:
+        try:
+            path=self.qualify(path);item=self._acquire(path);self.read_paths.add(path)
+            return {'path':path,'sha256':item.sha256}
+        except (ValueError,OSError,KeyError,TypeError) as exc:
+            self._owner._failure=exc
+            raise
+
+    @property
+    def bytes(self):
+        return MappingProxyType({path:item.raw for path,item in self._owner._files.items()})
+
+    @property
+    def snapshots(self):
+        """Export the exchange representation only at an artifact boundary."""
+        return _snapshots(self._owner._files)
+
+    def finish(self)->'EvidenceInputs':
+        return EvidenceInputs(self)
+
+
+def _snapshots(files)->dict:
+    return {path:{'sha256':item.sha256,'size':len(item.raw),
+                  'base64':base64.b64encode(item.raw).decode('ascii')}
+            for path,item in files.items()}
+
+
+@dataclass(frozen=True,init=False)
+class EvidenceInputs:
+    """Immutable exact evidence; every read resolves in the acquired graph."""
+
+    _files: Any
+    space: str
+    root: Path|None
+    named_roots: Any
+    read_paths: frozenset
+    locators: Any
+
+    qualify=InputEvidence.qualify
+
+    def __init__(self,acquisition:EvidenceAcquisition):
+        if not isinstance(acquisition,EvidenceAcquisition):
+            raise TypeError('evidence requires a completed input acquisition')
+        owner=acquisition._owner
+        if owner._failure is not None:
+            raise ValueError('failed input acquisition cannot produce evidence') from owner._failure
+        if owner._closed:
+            raise ValueError('input acquisition was already consumed')
+        object.__setattr__(self,'_files',MappingProxyType(dict(owner._files)))
+        object.__setattr__(self,'space',acquisition.space)
+        object.__setattr__(self,'root',acquisition.root)
+        object.__setattr__(self,'named_roots',MappingProxyType(dict(acquisition.named_roots)))
+        object.__setattr__(self,'read_paths',frozenset(acquisition.read_paths))
+        object.__setattr__(self,'locators',MappingProxyType(dict(acquisition.locators)))
+        owner._closed=True
+
+    def at(self,parent:dict)->'EvidenceInputs':
+        path=self.qualify(parent['path'])
+        space='/'.join(path.split('/')[:2]) if path.startswith('@pack/') else '@skill' if path.startswith('@skill/') else ''
+        result=object.__new__(type(self))
+        for name in ('_files','root','named_roots','read_paths','locators'):
+            object.__setattr__(result,name,getattr(self,name))
+        object.__setattr__(result,'space',space)
+        return result
+
+    def read(self,ref:Any)->bytes:
+        c.exact(ref,{'path','sha256'},'input file reference');c.sha(ref['sha256'])
+        path=self.qualify(ref['path'])
+        if path not in self._files:
+            raise ValueError('recorded input snapshot is missing: '+path)
+        item=self._files[path]
+        if item.sha256!=ref['sha256']:
+            raise ValueError('input reference bytes differ: '+path)
+        return item.raw
+
+    def json(self,ref:dict)->Any:
+        raw=self.read(ref);item=self._files[self.qualify(ref['path'])]
+        return item.decoded[0] if item.decoded else freeze(c.decode(raw))
+
+    def select(self,path:str)->dict:
+        path=self.qualify(path)
+        if path not in self._files:
+            raise ValueError('recorded input snapshot is missing: '+path)
+        return {'path':path,'sha256':self._files[path].sha256}
+
+    def basis(self,ref:dict)->bytes:
+        c.exact(ref,{'path','sha256','locator'},'source basis');c.text(ref['locator'],'source locator')
+        return self.read({key:ref[key] for key in ('path','sha256')})
+
+    @property
+    def bytes(self):
+        return MappingProxyType({path:item.raw for path,item in self._files.items()})
+
+    @property
+    def snapshots(self):
+        return _snapshots(self._files)

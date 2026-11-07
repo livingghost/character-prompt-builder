@@ -61,6 +61,8 @@ A released UUID and CalVer pair is immutable. Any content change requires a new 
 
 `record_globs` select JSON files below `records/`. `resource_globs` select non-record content such as SVGs, evidence bundles, thumbnails, lookup data, and pack-specific supporting documents. A resource glob may not select any file below `records/`, `pack.json`, or `pack.lock.json`. `resource_bindings` maps stable lowercase logical names to exact files selected by `resource_globs`.
 
+Globs use case-sensitive POSIX path segments on every supported platform. `*`, `?` and bracket character classes match within one segment. A complete `**` segment matches zero or more directories; use `**/*` to select files recursively. A final `**` or `/` selects directories and contributes no files by itself. `**` cannot be embedded in another segment.
+
 Globs and binding targets use forward-slash relative paths. They may not escape the pack root. At least one record or resource glob must be declared. Every binding target must exist and be covered by a resource glob. Every file below the pack root is the manifest, the lock, a top-level README, NOTICE or LICENSE, or a file a declared glob matches; any other file is a validation error, so a stray file cannot enter a lock. A mutable unlocked development pack may have no matched record or resource content and receives a warning. A released or locked pack with neither a matched record nor a matched resource is invalid.
 
 ### Dependencies

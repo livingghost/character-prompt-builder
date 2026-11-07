@@ -295,12 +295,15 @@ def _verify(
     snapshot_inputs: bool = False,
     studio: Path | None = None,
     reading_ledgers: list[Path] | None = None,
+    target=None,
+    input_source=None,
 ) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("generation package must be an object")
     _require_exact_fields(data, GENERATION_PACKAGE_FIELDS, "generation package")
     import input_contracts
-    input_reader, validation_report = input_contracts.verify_fields(data, root=studio or package_root, live=live and not snapshot_inputs)
+    input_reader, validation_report = input_contracts.verify_fields(data, root=studio or package_root,
+        live=live and not snapshot_inputs,source=input_source)
     input_reader.basis(data['visual_continuity']['basis'])
     for field in ('request_validation_sha256','input_snapshots_sha256'):
         if data['generation_contract'].get(field) != data[field]:
@@ -430,9 +433,13 @@ def _verify(
     offering = None
     if live:
         try:
-            from build_generation_payload import resolve_model_record
-    
-            model_id, model_record = resolve_model_record(model)
+            from build_generation_payload import resolve_model_record,ResolvedTarget
+            if target is not None:
+                if not isinstance(target,ResolvedTarget):raise TypeError('verification requires an acquired execution target')
+                if not target.matches(model):raise ValueError('package model differs from its acquired execution target')
+                model_id,model_record=target.model_id,target.model
+            else:
+                model_id, model_record = resolve_model_record(model)
         except ValueError as exc:
             raise ValueError('live generation verification needs the registered exact model') from exc
         if model_record is not None:
@@ -451,18 +458,24 @@ def _verify(
             if declared is not None and not isinstance(declared, dict):
                 raise ValueError("generation_payload.service must be an object or null")
             selected = select_offering(model_record, (declared or {}).get("id"))
-            offering = validate_generation_parameters(
-                model_record,
-                parameters,
-                service=(declared or {}).get("id"),
-                pack_root=model_pack_root(model_id),
-                prompt=selected_prompt,
-                negative_prompt=selected_negative if mode in {"separate-field", "native-subset"} else None,
-                media_counts=None if selected is None else generation_media_counts(
+            media_counts=None if selected is None else generation_media_counts(
                     selected, delivered_reference_count(reference_set),
                     media_role=data["render_contract"]["model_card"]["execution_profile"]["modes"][data["render_contract"]["intent"]["execution_mode"]]["media"]
-                ),
-            )
+                )
+            if target is not None:
+                from model_contract import request_instance,validate_request_schema
+                if selected!=target.offering:raise ValueError('package offering differs from its acquired execution target')
+                offering=target.offering
+                if offering is not None:
+                    instance=request_instance(offering,parameters,prompt=selected_prompt,
+                        negative_prompt=selected_negative if mode in {'separate-field','native-subset'} else None,
+                        media_counts=media_counts)
+                    validate_request_schema(offering,instance,target.parameter_schema)
+            else:
+                offering = validate_generation_parameters(
+                    model_record,parameters,service=(declared or {}).get('id'),pack_root=model_pack_root(model_id),
+                    prompt=selected_prompt,negative_prompt=selected_negative if mode in {'separate-field','native-subset'} else None,
+                    media_counts=media_counts)
             expected = None if offering is None else {
                 "id": offering["service"],
                 "model_identifier": offering["model_identifier"],
@@ -728,7 +741,8 @@ def _verify(
     }
     from request_renderer import prepare_forwarding
     rendered_input = prepare_forwarding(data, {'selected_transport':selected_transport,'host_forwarding':host_forwarding},
-        root=studio or package_root, model_id=model_id, model=model_record, offering=offering, live_inputs=not snapshot_inputs)
+        root=studio or package_root, model_id=model_id, model=model_record, offering=offering, live_inputs=not snapshot_inputs,
+        input_source=input_source)
     if rendered_input['input_snapshots'] != data['input_snapshots']:
         raise ValueError('execution policy evidence is not completely captured in the generation input')
     host_forwarding = rendered_input['host_forwarding']
@@ -763,10 +777,15 @@ def _verify(
 
 
 def verify(data: dict[str, Any], *, package_root: Path | None = None,
-           studio: Path | None = None, reading_ledgers: list[Path] | None = None, snapshot_inputs: bool = False) -> dict[str, Any]:
+           studio: Path | None = None, reading_ledgers: list[Path] | None = None, snapshot_inputs: bool = False,
+           target=None,input_source=None) -> dict[str, Any]:
     """Verify a current execution input using active sources and reading evidence."""
-    return _verify(data, package_root=package_root, live=True, studio=studio, snapshot_inputs=snapshot_inputs,
-                   reading_ledgers=reading_ledgers)
+    from contextlib import nullcontext
+    if target is not None and (input_source is None or not hasattr(input_source,'using')):
+        raise TypeError('an acquired target requires its explicit runtime source')
+    with (input_source.using() if input_source is not None else nullcontext()):
+        return _verify(data, package_root=package_root, live=True, studio=studio, snapshot_inputs=snapshot_inputs,
+                       reading_ledgers=reading_ledgers,target=target,input_source=input_source)
 
 
 def verify_content(data: dict[str, Any], *, package_root: Path | None = None) -> dict[str, Any]:

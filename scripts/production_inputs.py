@@ -50,7 +50,7 @@ def _source_run(root: Path, selected: str | None) -> dict | None:
     if selected is None:
         return None
     import production_workflow as workflow
-    _, prepared, _, _ = workflow.load_run(root, selected)
+    _, prepared, _, _ = workflow.read_run(root, selected)
     from production_execution import status
     current = status(root, selected)['runs'][0]
     if current['integrity'] != 'intact':
@@ -93,7 +93,7 @@ def _identity_view(root: Path, task: dict, reader: InputEvidence, *, saved: dict
     directory = None
     if saved is not None:
         import production_workflow
-        directory, prepared, _, _ = production_workflow.load_run(root, saved['run'])
+        directory, prepared, _, _ = production_workflow.read_run(root, saved['run'])
         stored = {item['path']: item['sha256'] for item in prepared['dependencies']
                   if item['space'] in authoring.AUTHORING_SPACES}
         stored.update({item['path']: item['sha256']
@@ -274,14 +274,13 @@ def _publish(root: Path, out_dir: str, files: dict[str, bytes], *,
     try:
         for name, raw in files.items():
             c.atomic(c.local(stage, name, exists=False), raw)
-        with c.lock(root):
-            _destination(root, out_dir)
-            for path in sorted(reader.read_paths):
-                ref = {'path': path, 'sha256': reader.snapshots[path]['sha256']}
-                reader.read(ref)
-            if before_publish is not None:
-                before_publish()
-            c.publish_directory(stage, target)
+        _destination(root, out_dir)
+        for path in sorted(reader.read_paths):
+            ref = {'path': path, 'sha256': reader.snapshots[path]['sha256']}
+            reader.read(ref)
+        if before_publish is not None:
+            before_publish()
+        c.publish_directory(stage, target)
     finally:
         if stage.exists():
             shutil.rmtree(stage)
@@ -389,7 +388,7 @@ def _saved_delivery(root: Path, saved: dict, task: dict) -> bytes | None:
     if task['delivery'] != saved['task']['delivery']:
         return None
     import production_workflow as workflow
-    directory, prepared, _, _ = workflow.load_run(root, saved['run'])
+    directory, prepared, _, _ = workflow.read_run(root, saved['run'])
     if prepared['input_sha256'] != saved['input_sha256']:
         raise ValueError('source run input changed during input construction')
     path = task['delivery']['path']
@@ -405,7 +404,7 @@ def _retained_sources(root: Path, saved: dict | None, task: dict, reader: InputE
     if saved is None:
         return
     import production_workflow as workflow
-    _, prepared, _, _ = workflow.load_run(root, saved['run'])
+    _, prepared, _, _ = workflow.read_run(root, saved['run'])
     paths = {row['path'] for row in task.get('sources', [])}
     for key in ('image_input', 'semantic_edit'):
         if task.get(key):

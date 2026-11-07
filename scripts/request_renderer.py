@@ -9,9 +9,28 @@ import runtime_evidence
 from execution_policy import load_policy
 
 
-def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,model:dict|None,offering:dict|None,live_inputs:bool=True)->dict:
-    record=package['request_validation'];reader=runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots']),live=live_inputs)
+def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,model:dict|None,offering:dict|None,
+                       live_inputs:bool=True,input_source=None)->dict:
+    record=package['request_validation'];reader=runtime_evidence.reader(root,snapshots=copy.deepcopy(package['input_snapshots']),live=live_inputs,source=input_source)
     expected=record['target'];policy,local=load_policy(record,reader,expected,dialect=(model or {}).get('prompt_dialect'))
+    result=_forwarding(package,verified,model=model,offering=offering,policy=policy,local=local)
+    return {**result,'input_snapshots':reader.snapshots}
+
+
+def forwarding_from_inputs(package:dict,verified:dict,*,model:dict,offering:dict|None,policy:dict,evidence)->dict:
+    """Compose forwarding from acquired immutable evidence without I/O."""
+    from input_evidence import EvidenceInputs
+    if not isinstance(evidence,EvidenceInputs):raise TypeError('forwarding requires acquired immutable evidence')
+    reference=package['request_validation']['execution_policy']
+    local=evidence.at(reference) if reference is not None else evidence
+    return _forwarding(package,verified,model=model,offering=offering,policy=policy,local=local)
+
+
+def _forwarding(package:dict,verified:dict,*,model:dict|None,offering:dict|None,policy:dict,local)->dict:
+    expected=package['request_validation']['target']
+    dialect=(model or {}).get('prompt_dialect')
+    if policy and dialect is not None and policy['text_dialect']!=dialect:
+        raise ValueError('execution policy text dialect differs from the selected model record')
     if offering is not None:
         if expected['service']!=offering['service'] or expected['model_identifier']!=offering['model_identifier']:
             raise ValueError('validation target differs from the selected offering')
@@ -38,7 +57,7 @@ def prepare_forwarding(package:dict,verified:dict,*,root:Path|None,model_id:str,
         native_reference_controls=result['native_reference_controls'],
         reference_media_role=package['render_contract']['model_card']['execution_profile']['modes'][package['render_contract']['intent']['execution_mode']]['media'])
     return {'host_forwarding':forwarding,'bindings':rows,'review_requirements':result['review_requirements'],
-        'execution_policy':policy,'input_snapshots':reader.snapshots}
+        'execution_policy':policy}
 
 
 def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,transport,*,seed:int|None,count:int,
@@ -49,6 +68,70 @@ def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,
     rendering.verify_contract(contract, intent=contract['intent'], parameters=contract['parameters'],
         prompt=package['composition_prompt'], record=model, offering=offering, reference_count=contract['reference_count'])
     rendering.dispatch_values(package['render_contract'], seed=seed, count=count)
+    execution=rc.execution_hashes(service,offering,Path(transport.__file__),model=model,policy=verified['execution_policy'])
+    return _generation_request(package,verified,model,offering,service,transport,
+        consumer=(package.get('production_binding') or {}).get('consumer',{}),execution=execution,
+        seed=seed,count=count,upload_sources=upload_sources,upload_source_read=upload_source_read)
+
+
+def generation_from_inputs(content,consumer:dict,*,seed:int|None,count:int,resource_reader,
+                           technical_media:list|None=None,upload_sources:list|None=None,upload_source_read=None)->dict:
+    """Build a request from acquired meaning, with explicit media acquisition.
+
+    Imported packages use ``generation`` and its independent contract validator.
+    This path owns the model-specific execution checks that were formerly run
+    after exporting and importing the compiler's own package.
+    """
+    from build_generation_payload import GenerationContent
+    if not isinstance(content,GenerationContent):raise TypeError('request compilation requires acquired generation content')
+    target=content.target
+    if target.offering is None or target.service is None or target.transport is None:
+        raise ValueError('request compilation requires an acquired execution offering')
+    fields=content.fields
+    reading=fields['route_reading']
+    if fields['state_lineage']['mode']=='state-aware' and reading['route']!='state-series' and 'state-series' not in reading['features']:
+        raise ValueError('state-aware generation requires the state-series reading')
+    from route_reading import require_model_applications
+    require_model_applications(reading,dialect=target.model.get('prompt_dialect'),resource_reader=resource_reader)
+    verified=copy.deepcopy(content.forwarding)
+    forwarding=verified['host_forwarding']
+    selected=forwarding['selected_transport'];rendition=selected['rendition']
+    prompt=rendition['text' if selected['mode'] in {'integrated-critical','retained-only'} else 'prompt']
+    negative=rendition.get('negative','')
+    from prompt_weighting import selected as selected_weighting,from_contract,require_pair
+    syntax=selected_weighting(fields['generation_payload']['parameters'],from_contract(fields['render_contract']))
+    require_pair(prompt,negative,syntax)
+    from model_prompt_input import resolve_prompt_input
+    if resolve_prompt_input(target.model)['mode']=='tag-based':
+        from prompt_vocabulary_selection import require_final_selection
+        require_final_selection(fields['retrieval_record'].get('vocabulary'),prompt=prompt,negative=negative,
+                                model_record=target.model,syntax=syntax)
+    if technical_media is not None:forwarding['technical_media']=copy.deepcopy(technical_media)
+    from model_contract import generation_media_counts,request_instance,validate_request_schema,validate_output_count
+    validate_output_count(target.model,count)
+    parameters={**forwarding['parameters'],**target.transport.added_parameters(target.offering,seed,count)}
+    counts=generation_media_counts(target.offering,len(forwarding['selected_references']),
+                                  media_role=forwarding['reference_media_role'])
+    for item in forwarding.get('technical_media',[]):counts[item['role']]=counts.get(item['role'],0)+1
+    instance=request_instance(target.offering,parameters,prompt=forwarding['effective_prompt'],
+        negative_prompt=negative if selected['mode'] in {'separate-field','native-subset'} else None,media_counts=counts)
+    validate_request_schema(target.offering,instance,target.parameter_schema)
+    execution=rc.execution_hash_values(target.service,target.offering,target.transport_sha256,
+                                       model=target.model,policy=verified['execution_policy'])
+    rendered=_generation_request(fields,verified,target.model,target.offering,target.service,target.transport,
+        consumer=consumer,execution=execution,seed=seed,count=count,upload_sources=upload_sources,
+        upload_source_read=upload_source_read)
+    content.validation.check(expected_target=rendered['sealed']['target'],execution=rendered['sealed']['execution'],
+                             rendered=rendered,envelope_fields=envelope_fields(rendered))
+    return rendered
+
+
+def _generation_request(package:dict,verified:dict,model:dict,offering:dict,service:dict,transport,*,
+                        consumer:dict,execution:dict,seed:int|None,count:int,
+                        upload_sources:list|None,upload_source_read)->dict:
+    if not hasattr(transport,'compile_request'):raise ValueError('transport must compile the complete request with a declared field layout')
+    import render_contract_lib as rendering
+    contract=package['render_contract']
     verified=copy.deepcopy(verified)
     intent=package['render_contract']['intent']
     profile=package['render_contract']['model_card']['execution_profile']
@@ -69,9 +152,7 @@ def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,
     media=rc.bind_upload_sources(media, [] if upload_sources is None else upload_sources, transport.UPLOAD_SOURCE,
         read=upload_source_read)
     expected=package['request_validation']['target']
-    execution=rc.execution_hashes(service,offering,Path(transport.__file__),model=model,policy=verified['execution_policy'])
     value=package['visual_continuity'];context={'subjects':value['subjects'],'purpose':value['purpose'],'output_kind':'image'}
-    consumer = (package.get('production_binding') or {}).get('consumer', {})
     inputs = consumer.get('image_input')
     if inputs is not None:
         import image_input
@@ -86,8 +167,8 @@ def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,
 
 
 def upscale(declaration:dict,model:dict,offering:dict,service:dict,transport,source:Path,settings:dict,*,root:Path,
-            upload_sources:list|None=None,upload_source_read=None)->dict:
-    reader=runtime_evidence.reader(root,snapshots=copy.deepcopy(declaration['input_snapshots']))
+            upload_sources:list|None=None,upload_source_read=None,input_source=None)->dict:
+    reader=runtime_evidence.reader(root,snapshots=copy.deepcopy(declaration['input_snapshots']),source=input_source)
     policy,_=load_policy(declaration['request_validation'],reader,declaration['request_validation']['target'])
     import render_contract_lib as rendering
     intent = declaration['render_intent']

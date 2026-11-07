@@ -447,25 +447,57 @@ def _failure(root: Path, output: Path, exc: Exception) -> dict:
     return result
 
 
+def _current_publication(output: Path, projection_id: str) -> dict | None:
+    """Read a complete matching publication without acquiring a writer lock."""
+    status = output.with_suffix('.status.json')
+    try:
+        old = c.load(status) if status.exists() else {}
+    except (ValueError, OSError):
+        old = {}
+    if (old.get('status') == 'current' and old.get('projection_id') == projection_id
+            and output.is_file() and c.sha256_file(output) == old.get('html_sha256')):
+        return {**old, 'written': False}
+    return None
+
+
+def _publish_failure(root: Path, output: Path, exc: Exception) -> dict:
+    """Update recovery files while the caller holds the publication owner lock."""
+    try:
+        return _failure(root, output, exc)
+    except (ValueError, OSError) as publication_error:
+        # The owner records a durable pending marker when publication is unavailable.
+        return {'ok': False, 'status': 'publication-failed', 'code': 'STORY_TIMELINE_UPDATE_FAILED',
+                'message': str(exc), 'publication_error': str(publication_error),
+                'output': output.relative_to(root).as_posix()}
+
+
 def refresh(root: Path, *, out: Path | None = None, config_path: str = CONFIG,
             selection: dict | None = None) -> dict:
     root = root.resolve(strict=True)
     output = _publication_target(root, out)
-    with c.lock(root):
+    owner = output.parent / ('.' + output.stem + '.publication')
+    try:
+        model, inputs = build_model(root, output, config_path=config_path, selection=selection)
+        current = _current_publication(output, model['projection_id'])
+        inputs.recheck()
+        if current is not None:
+            return current
+        generated = _now()
+        raw = render_html(model, generated).encode('utf-8')
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        with c.lock(owner):
+            _publication_target(root, output)
+            return _publish_failure(root, output, exc)
+
+    with c.lock(owner):
+        # A competing writer may have completed this projection while we built
+        # or waited. Recheck ownership, its receipt and the observed inputs.
+        _publication_target(root, output)
         try:
-            model, inputs = build_model(root, output, config_path=config_path, selection=selection)
-            generated = _now()
-            old_path = output.with_suffix('.status.json')
-            try:
-                old = c.load(old_path) if old_path.exists() else {}
-            except (ValueError, OSError):
-                old = {}
+            current = _current_publication(output, model['projection_id'])
             inputs.recheck()
-            if (old.get('status') == 'current' and old.get('projection_id') == model['projection_id']
-                    and output.is_file() and c.sha256_file(output) == old.get('html_sha256')):
-                return {**old, 'written': False}
-            raw = render_html(model, generated).encode('utf-8')
-            inputs.recheck()
+            if current is not None:
+                return current
             # One atomic document contains its data and all resolved states.
             c.atomic(output, raw, replace=True)
             result = {'artifact_type': 'story-timeline-publication', 'ok': True, 'status': 'current', 'ledger_ok': model['ok'], 'written': True,
@@ -473,20 +505,13 @@ def refresh(root: Path, *, out: Path | None = None, config_path: str = CONFIG,
                 'generated_at': generated, 'html_sha256': c.digest(raw), 'inputs': model['inputs'],
                 'events': len(model['events']), 'views': len(model['views']),
                 'diagnostics': dict(Counter(row['severity'] for row in model['diagnostics']))}
-            c.atomic_write_json(old_path, result)
+            c.atomic_write_json(output.with_suffix('.status.json'), result)
             from studio_activity import event
             event(root, 'story-timeline-refreshed', result['output'], revision=model['projection_id'],
                   details={'projection_id': model['projection_id'], 'ledger_ok': model['ok'], 'diagnostics': result['diagnostics']})
             return result
         except (ValueError, OSError, KeyError, TypeError) as exc:
-            try:
-                return _failure(root, output, exc)
-            except (ValueError, OSError) as publication_error:
-                # An inaccessible destination cannot be rewritten; the owner records
-                # a durable pending marker and tells the operator to retry sync.
-                return {'ok': False, 'status': 'publication-failed', 'code': 'STORY_TIMELINE_UPDATE_FAILED',
-                        'message': str(exc), 'publication_error': str(publication_error),
-                        'output': output.relative_to(root).as_posix()}
+            return _publish_failure(root, output, exc)
 
 
 def notify_state_write(path: Path) -> None:

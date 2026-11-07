@@ -98,8 +98,7 @@ def _write_release_lock(path: Path) -> dict[str, Any]:
 
 def _mutate_enabled_state(args: argparse.Namespace, operation) -> dict[str, Any]:
     settings = _settings(args)
-    with state_lock(settings):
-        state = operation(settings)
+    state = operation(settings)
     try:
         views = _refresh_views(settings)
     except Exception as exc:
@@ -171,11 +170,11 @@ def ready(
     created = initialize_state_file(settings, only=only)
     for pack_id in sorted(without):
         disable_pack(settings, pack_id)
-    state = load_effective_state(settings)
+    catalog = load_runtime_catalog(settings, quiet=True)
+    state = catalog.inputs.state
     enabled = set(state["enabled_packs"])
     disabled = set(state["disabled_packs"])
-    discovered, _ = discover_packs(settings, state)
-    catalog = load_runtime_catalog(settings, quiet=True)
+    discovered = catalog.inputs.discovered
     problems = pack_warnings(catalog.diagnostics, settings)
     visual_catalog = maintain_catalog(settings, catalog)
     command = pack_cli_command(settings)

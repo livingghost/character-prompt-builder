@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from cli_invocation import python_argv, shown
-from studio_activity import timestamp as now
+from studio_activity import timestamp as now, mutation
 
 SCRIPT = Path(__file__).resolve()
 WORK_DIR = "work"
@@ -107,7 +107,7 @@ def append(root: Path, entry: dict[str, Any]) -> None:
         stream.flush(); os.fsync(stream.fileno())
     import studio_activity as activity
     activity.changed(path, 'work-' + entry['event'], subject=entry['task_id'], revision=entry['event_id'],
-                     details={**entry, 'formal_ledger': 'work/ledger.jsonl'})
+                     details={**entry, 'formal_ledger': 'work/ledger.jsonl'}, views={'activity-timeline'})
 
 
 def read_ledger(root: Path) -> list[dict[str, Any]]:
@@ -145,9 +145,10 @@ def new_task_id(root: Path) -> str:
     return generate_uuid7()
 
 
+@mutation
 def begin(root: Path, goal: str, steps: list[str]) -> dict[str, Any]:
     from execution_contract import lock
-    with lock(root):
+    with lock(work_dir(root)):
         return _begin_locked(root, goal, steps)
 
 
@@ -181,9 +182,31 @@ def require_open(root: Path) -> dict[str, Any]:
     return task
 
 
+@mutation
+def record_prepared(root: Path, task_id: str, run: str) -> dict:
+    """Attach a published run to its still-current task under the ledger owner.
+
+    Production publication is already durable. A changed task is reported to
+    that caller instead of overwriting another task's current pointer.
+    """
+    from execution_contract import lock
+    with lock(work_dir(root)):
+        task = require_open(root)
+        if task['task_id'] != task_id:
+            raise ValueError('the open work task changed during Production preparation')
+        if task.get('production_run') == run:
+            return task
+        task['production_run'] = run
+        write_current(root, task)
+        append(root, {'at': now(), 'task_id': task_id, 'event': 'note',
+                      'text': 'Prepared Production run ' + run, 'production_run': run})
+        return task
+
+
+@mutation
 def step_done(root: Path, number: int, note: str | None = None) -> dict[str, Any]:
     from execution_contract import lock
-    with lock(root):
+    with lock(work_dir(root)):
         return _step_done_locked(root, number, note)
 
 
@@ -204,9 +227,10 @@ def _step_done_locked(root: Path, number: int, note: str | None = None) -> dict[
     return task
 
 
+@mutation
 def note(root: Path, text: str) -> dict[str, Any]:
     from execution_contract import lock
-    with lock(root):
+    with lock(work_dir(root)):
         return _note_locked(root, text)
 
 
@@ -220,9 +244,10 @@ def _note_locked(root: Path, text: str) -> dict[str, Any]:
     return task
 
 
+@mutation
 def block(root: Path, question: str) -> dict[str, Any]:
     from execution_contract import lock
-    with lock(root):
+    with lock(work_dir(root)):
         return _block_locked(root, question)
 
 
@@ -240,11 +265,12 @@ def _block_locked(root: Path, question: str) -> dict[str, Any]:
     return task
 
 
+@mutation
 def respond(root: Path, question_id: str, answer: str, *, actor: str,
             evidence: str | None = None, candidates: list[str] | None = None) -> dict:
     """Record an actual answer, without inferring approval or changing artwork."""
     import execution_contract as c
-    with c.lock(root):
+    with c.lock(work_dir(root)):
         task = require_open(root)
         question = next((q for q in task['questions'] if q['question_id'] == question_id), None)
         if question is None:
@@ -266,10 +292,11 @@ def respond(root: Path, question_id: str, answer: str, *, actor: str,
         return task
 
 
+@mutation
 def reopen(root: Path, from_step: int, *, reason: str, actor: str) -> dict:
     """Reopen this and later steps as a new work revision, retaining the old plan and runs."""
     import execution_contract as c
-    with c.lock(root):
+    with c.lock(work_dir(root)):
         task = require_open(root)
         c.text(reason, 'reopen reason'); c.text(actor, 'reopening actor')
         if type(from_step) is not int or from_step not in {s['n'] for s in task['steps']}:
@@ -296,9 +323,10 @@ def reopen(root: Path, from_step: int, *, reason: str, actor: str) -> dict:
         return task
 
 
+@mutation
 def suspend(root: Path, *, reason: str) -> dict:
     import execution_contract as c
-    with c.lock(root):
+    with c.lock(work_dir(root)):
         task = require_open(root)
         c.text(reason, 'suspension reason')
         task.update(work_state='suspended', suspended_at=now(), suspension_reason=reason.strip())
@@ -308,9 +336,10 @@ def suspend(root: Path, *, reason: str) -> dict:
         return task
 
 
+@mutation
 def resume_task(root: Path, task_id: str) -> dict:
     import execution_contract as c
-    with c.lock(root):
+    with c.lock(work_dir(root)):
         current = read_current(root)
         if current is not None:
             if current['task_id'] == task_id: return current
@@ -335,6 +364,7 @@ def suspended_tasks(root: Path) -> list[dict]:
     return sorted(rows, key=lambda row: row['suspended_at'], reverse=True)
 
 
+@mutation
 def finish(root: Path, run: str) -> dict[str, Any]:
     """Close the run's owning task, preserving any unrelated active task.
 
@@ -343,7 +373,7 @@ def finish(root: Path, run: str) -> dict[str, Any]:
     another task's completion and progress flags never substitute for it.
     """
     from execution_contract import lock
-    with lock(root):
+    with lock(work_dir(root)):
         return _finish_verified(root, run)
 
 
@@ -356,9 +386,9 @@ def _clear_finished_pointer(root: Path, task_id: str) -> None:
 
 
 def _finish_verified(root: Path, run: str) -> dict[str, Any]:
-    from production_workflow import load_run, verify_completion
+    from production_workflow import read_run, verify_completion
     from execution_contract import load
-    task_id = load_run(root, run)[1]['task']['task_id']
+    task_id = read_run(root, run)[1]['task']['task_id']
     task = load(task_path(root, task_id))
     if task.get('task_id') != task_id:
         raise ValueError('the saved task differs from the run owner')
@@ -395,9 +425,10 @@ def _finish_verified(root: Path, run: str) -> dict[str, Any]:
     return task
 
 
+@mutation
 def abandon(root: Path, reason: str, *, actor: str | None = None) -> dict[str, Any]:
     from execution_contract import lock
-    with lock(root):
+    with lock(work_dir(root)):
         return _abandon_locked(root, reason, actor)
 
 

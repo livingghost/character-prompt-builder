@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable
+from owned_json import json_type
 
 # Process exit statuses. A diagnostic code selects one through EXIT_CODES.
 EXIT_OK = 0
@@ -185,9 +186,9 @@ def compare_exact(expected: Any, actual: Any, *, pointer: str = '$', phase: str 
     def mismatch(message: str, left=expected, right=actual, at=pointer):
         details = {} if intent is None else {'intent': intent}
         raise ProductionError('AUTHORIZATION_MISMATCH', message, phase=phase, pointer=at,
-            expected=left, actual=right, expected_type=type(left).__name__, actual_type=type(right).__name__,
+            expected=left, actual=right, expected_type=json_type(left).__name__, actual_type=json_type(right).__name__,
             required_action='Obtain authorization for the complete prepared operation.', **details)
-    if type(expected) is not type(actual):
+    if json_type(expected) is not json_type(actual):
         mismatch('Operation value types differ.')
     if isinstance(expected, dict):
         for key in sorted(set(expected) | set(actual)):

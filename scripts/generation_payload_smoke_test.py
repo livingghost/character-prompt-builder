@@ -2883,7 +2883,9 @@ def run() -> dict[str, Any]:
                                  "max_negative_prompt_chars": 1}
             selected_text = "A seated character. No text or logos."
             with mock.patch.object(generation_builder, "resolve_model_record",
-                                   return_value=(INTEGRATED_MODEL_ID, integrated_record)):
+                                   return_value=(INTEGRATED_MODEL_ID, integrated_record)), \
+                    mock.patch.object(generation_builder, "_selected_model",
+                                      return_value=(INTEGRATED_MODEL_ID, integrated_record)):
                 limited_package = _package(empty_stateless_reference_set(), model=INTEGRATED_MODEL_ID,
                                            integrated_prompt=selected_text)
                 limited_verified = verify(limited_package)
@@ -2903,7 +2905,9 @@ def run() -> dict[str, Any]:
             _, native_record = generation_builder.resolve_model_record(NATIVE_MODEL_ID)
             native_record = {**native_record, "max_negative_prompt_chars": 4}
             with mock.patch.object(generation_builder, "resolve_model_record",
-                                   return_value=(NATIVE_MODEL_ID, native_record)):
+                                   return_value=(NATIVE_MODEL_ID, native_record)), \
+                    mock.patch.object(generation_builder, "_selected_model",
+                                      return_value=(NATIVE_MODEL_ID, native_record)):
                 limited_native = _package(empty_stateless_reference_set(), model=NATIVE_MODEL_ID,
                                           integrated_prompt="", native_negative="text")
                 checked(

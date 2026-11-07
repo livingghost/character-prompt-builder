@@ -186,7 +186,7 @@ class OfferingSchemaTests(unittest.TestCase):
         """What each reader of the stored file says: pack validation, request building and request validation."""
         import model_contract,pack_manager
         self.reader=InputEvidence(self.root,named_roots={'@pack/p':self.pack})
-        found=[pack_manager._snapshot_issues(self.pack,self.offering,'synthetic-model')]
+        found=[pack_manager._snapshot_issues(pack_manager.PackInput.read(self.pack),self.offering,'synthetic-model')]
         for read in (lambda:model_contract.offering_schema(self.offering,self.pack,'synthetic-model'),self.derive):
             try:read();found.append([])
             except ValueError as exc:found.append([str(exc)])

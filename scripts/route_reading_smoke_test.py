@@ -11,11 +11,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 import execution_contract as c
 import route_reading as r
+from pack_cache import RuntimePackCatalog, RuntimePackEntry, RuntimePackResource
 
 
 PARAGRAPH = 'The operator preserves the selected source and records the explicit decision before performing the requested operation.'
@@ -58,7 +59,6 @@ class ReadingTests(unittest.TestCase):
             self.assertIn((self.root/name).read_bytes().decode('utf-8'),out)
         self.assertTrue(out.rstrip().endswith(issued['reading_key']))
     def test_only_a_failed_resource_blocks_a_reading(self):
-        from types import SimpleNamespace
         self.manifest['features']['prompt-dialect'] = {'reads': [], 'source_roles': []}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         other = {'severity': 'error', 'code': 'record-conflict', 'message': 'another pack'}
@@ -66,7 +66,10 @@ class ReadingTests(unittest.TestCase):
                   'pack_ids': ['pack-b'], 'message': 'packs disagree'}
         line = 'warning: pack pack-b is invalid (lock-extra-files: files not in pack.lock.json)'
         def catalog(*diagnostics):
-            return SimpleNamespace(diagnostics=diagnostics, warnings=(line,), resources={}, pack_roots={}, entries=())
+            return RuntimePackCatalog(fingerprint='synthetic-empty', active_pack_count=0,
+                                      entries=(), phrases={}, profiles={}, resources={},
+                                      assets_by_canonical_record={}, diagnostics=diagnostics,
+                                      warnings=(line,))
         with patch('catalog_retrieval.runtime.load_pack_catalog', return_value=catalog(other)):
             manifest, _ = r.capture('generation', ['prompt-dialect'], root=self.root)
         self.assertEqual(manifest['resources'], {'prompt-writing-guide': {'status': 'unavailable'},
@@ -384,12 +387,13 @@ class ReadingTests(unittest.TestCase):
         (pack/'resources/dialects.json').write_text(json.dumps(dialects), encoding='utf-8')
         self.manifest['features']['prompt-dialect']={'reads':[],'source_roles':[]}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
-        named=lambda relative:SimpleNamespace(path=str(pack/relative),source_pack='synthetic-pack',relative_path=relative)
-        catalog=SimpleNamespace(diagnostics=(),warnings=(),
-                                resources={'prompt-writing-guide':named('resources/guide.json'),
-                                           'prompt-dialects':named('resources/dialects.json')},
-                                pack_roots={'synthetic-pack':pack},
-                                entries=(SimpleNamespace(source_pack='synthetic-pack',source_root=pack),))
+        named=lambda name,relative:RuntimePackResource(name=name,path=pack/relative,media_type='application/json',
+                                                       source_pack='synthetic-pack',relative_path=relative)
+        catalog=RuntimePackCatalog(fingerprint='synthetic-family',active_pack_count=1,
+                                   entries=(),phrases={},profiles={},assets_by_canonical_record={},diagnostics=(),
+                                   resources={'prompt-writing-guide':named('prompt-writing-guide','resources/guide.json'),
+                                              'prompt-dialects':named('prompt-dialects','resources/dialects.json')},
+                                   pack_roots={'synthetic-pack':pack})
         return patch('catalog_retrieval.runtime.load_pack_catalog',return_value=catalog),guide
     def family_record(self,dialect,section):
         stream=io.StringIO()
@@ -489,11 +493,12 @@ class ReadingTests(unittest.TestCase):
     def test_an_unknown_model_names_the_models_and_the_prompt_families(self):
         import prepare_generation_references
         catalog,self.guide=self.family_catalog()
-        models=[SimpleNamespace(kind='model',record={'id':name},source_pack='synthetic-pack',source_root=self.root/'pack')
+        models=[RuntimePackEntry(kind='model',category=None,record={'id':name},source_pack='synthetic-pack',
+                                 source_root=self.root/'pack',source_file='models/synthetic.json')
                 for name in ('synthetic-model-b','synthetic-model-a')]
         refused=ValueError("unknown model 'family-a'; use a model record from an enabled pack")
         with catalog as loader,patch.object(prepare_generation_references,'resolve_model_record',side_effect=refused):
-            loader.return_value.entries=tuple(models)
+            loader.return_value=replace(loader.return_value,entries=tuple(models))
             with self.assertRaises(ValueError) as caught:
                 r.read_command(*self.read_args('generation','--model','family-a'))
         self.assertEqual(str(caught.exception),"unknown model 'family-a'; use a model record from an enabled pack; "

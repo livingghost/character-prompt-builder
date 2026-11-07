@@ -319,7 +319,7 @@ class BrowserCatalogTests(unittest.TestCase):
         import pack_cache
         from pack_manager import atomic_write_json
         from validate_catalog_site import run as validate_site
-        with mock.patch.object(pack_cache, "active_snapshot", wraps=pack_cache.active_snapshot) as snapshots:
+        with mock.patch.object(pack_cache, "acquire_runtime_inputs", wraps=pack_cache.acquire_runtime_inputs) as snapshots:
             code, text = self.call("ready")
         self.assertEqual(code, 0, text)
         self.assertIn(f"catalog: {self.output / 'index.html'}", text)
@@ -349,11 +349,29 @@ class BrowserCatalogTests(unittest.TestCase):
         self.assertEqual(updated["runtime_projection"], self.manifest()["runtime_projection"])
         self.assertTrue(validate_site(self.output)["ok"])
 
+    def test_current_browser_view_is_reused_without_a_writer_lock(self) -> None:
+        import browser_catalog
+        from pack_cache import load_runtime_catalog
+        runtime = load_runtime_catalog(self.settings, quiet=True)
+        first = browser_catalog.maintain_catalog(self.settings, runtime)
+        self.assertTrue(first["ok"], first)
+        self.assertTrue(first["rebuilt"])
+        files = self.manifest()["generated_files"]
+        before = {name: ((self.output / name).read_bytes(), (self.output / name).stat().st_mtime_ns)
+                  for name in files}
+        with mock.patch.object(browser_catalog, "lock", side_effect=AssertionError("current view acquired a writer lock")):
+            current = browser_catalog.maintain_catalog(self.settings, runtime)
+        self.assertTrue(current["ok"], current)
+        self.assertTrue(current["fresh"])
+        self.assertFalse(current["rebuilt"])
+        self.assertEqual(before, {name: ((self.output / name).read_bytes(), (self.output / name).stat().st_mtime_ns)
+                                  for name in files})
+
     def test_activation_and_invalid_source_replace_previous_active_records(self) -> None:
         import pack_cache
         second_id = self.second_pack()
         self.call("ready")
-        with mock.patch.object(pack_cache, "active_snapshot", wraps=pack_cache.active_snapshot) as snapshots:
+        with mock.patch.object(pack_cache, "acquire_runtime_inputs", wraps=pack_cache.acquire_runtime_inputs) as snapshots:
             code, text = self.call("enable", second_id)
         self.assertEqual(code, 0, text)
         self.assertEqual(snapshots.call_count, 1)

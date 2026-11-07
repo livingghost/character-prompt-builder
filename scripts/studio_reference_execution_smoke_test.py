@@ -17,6 +17,7 @@ import transport_synthetic as transport
 from test_production_execution import decisions
 from sheet_artifacts_smoke_test import make_artifact, decision
 import sheet_artifacts as fills
+import runtime_snapshot
 
 
 class StudioExecutionTests(unittest.TestCase):
@@ -57,6 +58,20 @@ class StudioExecutionTests(unittest.TestCase):
         with patch.object(transport,'send',side_effect=AssertionError('No send after identity withdrawal')):
             with self.assertRaises(ValueError):execution.execute(self.root,self.run,decisions_file=approved)
         self.assertFalse(any(row['event']=='external-step' for row in store.event_rows(self.root,self.run)))
+
+    def test_owned_reference_replacement_discards_same_call_freshness_success(self):
+        extra = make_artifact(self.sheet, marker='explicit-replacement')
+        fills.register_candidates(self.sheet, [(self.case.row['slot'], extra)])
+        # An ordinary current check may reuse its result only until an owner
+        # changes an input. The later check here is not a forced effect check.
+        with runtime_snapshot.public_call(), store.transaction(self.root):
+            workflow.assert_current(self.root, self.run)
+            fills.adopt(self.sheet, decision(self.sheet, self.case.row['slot'], extra),
+                        evidence_root=self.sheet.parent)
+            from production_diagnostics import ProductionError
+            with self.assertRaises(ProductionError) as caught:
+                workflow.assert_current(self.root, self.run)
+            self.assertIn(caught.exception.diagnostic.code, {'SOURCE_CHANGED', 'STUDIO_REFERENCE_CHANGED'})
 
     def test_identity_change_during_upload_stops_the_send_boundary(self):
         approved=decisions(self.root,self.run); original=transport.upload_media

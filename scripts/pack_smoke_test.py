@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise pack identity, locking, lifecycle, and automatic cache invalidation."""
+"""Exercise pack identity, concurrent publication, lifecycle, and cache invalidation."""
 from __future__ import annotations
 
 import io
@@ -14,7 +14,7 @@ import time
 import tempfile
 import warnings
 import zipfile
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import closing, redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -332,9 +332,13 @@ def hold():
     while not (signal / "release").exists():
         time.sleep(0.02)
 """
-_HOLD_CACHE_LOCK = _CHILD_PRELUDE + """
-with pack_cache._cache_lock(settings):
+_BUILD_PAUSED_BEFORE_PUBLISH = _CHILD_PRELUDE + """
+publish = pack_cache._publish
+def paused_publish(temporary, output):
     hold()
+    publish(temporary, output)
+pack_cache._publish = paused_publish
+pack_cache.refresh_cache(settings, force=True)
 """
 _REBUILD_CACHE = _CHILD_PRELUDE + """
 pack_cache.refresh_cache(settings, force=True)
@@ -396,37 +400,46 @@ def _concurrency_checks(root: Path) -> tuple[int, list[str]]:
     save_state(state_file, {"pack_roots": [], "enabled_packs": []})
     paths = (state_file, runtime / "cache", runtime / "managed")
 
-    # A build waits for a live holder of the cache lock and leaves it running.
-    signal = runtime / "live-holder"
+    # A private build cannot block another complete publication or its reader.
+    signal = runtime / "concurrent-builders"
     signal.mkdir(parents=True)
-    holder = _spawn(_HOLD_CACHE_LOCK, *paths, signal)
-    builder: subprocess.Popen[str] | None = None
-    waited = False
-    if _wait_for(signal / "held", holder):
-        builder = _spawn(_REBUILD_CACHE, *paths, signal)
-        time.sleep(1.5)
-        waited = builder.poll() is None and holder.poll() is None
+    first = _spawn(_BUILD_PAUSED_BEFORE_PUBLISH, *paths, signal)
+    second: subprocess.Popen[str] | None = None
+    held = _wait_for(signal / "held", first)
+    codes = []
+    if held:
+        second = _spawn(_REBUILD_CACHE, *paths, signal)
+        codes = _finish(second)
+        if codes == [0]:
+            files = list(paths[1].glob("*.sqlite3"))
+            try:
+                with closing(pack_cache_module._connect_readonly(files[0])) as connection:
+                    complete = connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+            except (IndexError, OSError, pack_cache_module.sqlite3.Error):
+                complete = False
+        else:
+            complete = False
+    else:
+        complete = False
     (signal / "release").write_text("go", encoding="utf-8")
-    codes = _finish(holder, *([builder] if builder else []))
-    if not waited or codes != [0, 0]:
-        errors.append(
-            "a cache build did not wait for a live lock holder, or interrupted it: "
-            f"waited={waited} exit codes={codes}"
-        )
+    codes += _finish(first)
+    if not held or not complete or codes != [0, 0]:
+        errors.append(f"concurrent cache publication did not yield a complete reader: held={held} complete={complete} exit codes={codes}")
     else:
         checks += 1
 
-    # A holder that dies releases the lock, so the next build proceeds.
-    signal = runtime / "dead-holder"
+    # A failed private builder leaves the previous complete database available.
+    signal = runtime / "interrupted-builder"
     signal.mkdir(parents=True)
-    holder = _spawn(_HOLD_CACHE_LOCK, *paths, signal)
-    held = _wait_for(signal / "held", holder)
-    holder.kill()
-    _finish(holder)
-    builder = _spawn(_REBUILD_CACHE, *paths, signal)
-    codes = _finish(builder)
-    if not held or codes != [0]:
-        errors.append(f"a cache lock outlived its dead holder: held={held} exit codes={codes}")
+    before = {path: path.read_bytes() for path in paths[1].glob("*.sqlite3")}
+    builder = _spawn(_BUILD_PAUSED_BEFORE_PUBLISH, *paths, signal)
+    held = _wait_for(signal / "held", builder)
+    builder.kill(); _finish(builder)
+    retained = bool(before) and all(path.read_bytes() == raw for path, raw in before.items())
+    next_builder = _spawn(_REBUILD_CACHE, *paths, signal)
+    codes = _finish(next_builder)
+    if not held or not retained or codes != [0]:
+        errors.append(f"an interrupted cache build affected the published database: held={held} retained={retained} exit codes={codes}")
     else:
         checks += 1
 
@@ -793,10 +806,10 @@ def _personal_pack_sections(base: Path) -> tuple[int, list[str]]:
     # A new state can name exactly the packs it enables. The others are left
     # out, and nothing but their pack.json is read.
     opened: list[Path] = []
-    unrecorded_validate = pack_cache_module.validate_pack
-    unrecorded_snapshot = pack_manager_module.quick_pack_snapshot
-    with patch.object(pack_cache_module, "validate_pack", lambda path, **options: (opened.append(Path(path).resolve()), unrecorded_validate(path, **options))[1]), \
-            patch.object(pack_manager_module, "quick_pack_snapshot", lambda pack: (opened.append(pack.root.resolve()), unrecorded_snapshot(pack))[1]):
+    unrecorded_validate = pack_cache_module.validate_pack_input
+    unrecorded_snapshot = pack_manager_module.PackInput.read
+    with patch.object(pack_cache_module, "validate_pack_input", lambda inputs, **options: (opened.append(inputs.root), unrecorded_validate(inputs, **options))[1]), \
+            patch.object(pack_manager_module.PackInput, "read", lambda path, **options: (opened.append(Path(path).resolve()), unrecorded_snapshot(path, **options))[1]):
         lines, code, _ = _run_ready([*selectors, "ready", "--only", kept_id])
     heavy_root = (skill_packs / "heavy-shelf").resolve()
     enabled = json.loads(state_file.read_text(encoding="utf-8"))["enabled_packs"]
@@ -843,7 +856,8 @@ def _personal_pack_sections(base: Path) -> tuple[int, list[str]]:
         checks += 1
     save_state(state_file, {**load_effective_state(settings), "enabled_packs": [kept_id, heavy_id]})
     opened.clear()
-    with patch.object(pack_manager_module, "validate_pack", lambda path, **options: (opened.append(Path(path).resolve()), unrecorded_validate(path, **options))[1]):
+    unrecorded_management_validate = pack_manager_module.validate_pack
+    with patch.object(pack_manager_module, "validate_pack", lambda path, **options: (opened.append(Path(path).resolve()), unrecorded_management_validate(path, **options))[1]):
         code, stdout, _ = _run_pack_cli([*selectors, "enable", str(beside["pack_id"])])
     if code != 0 or heavy_root in opened:
         errors.append(f"enabling one pack validated every enabled pack: {code} {stdout[-300:]}")
@@ -2597,19 +2611,10 @@ def run() -> dict[str, Any]:
             else:
                 checks += 1
 
-            locked_while_reading: list[bool] = []
-            unpatched_lock = pack_cache_module._cache_lock
-
-            def _recording_lock(lock_settings):
-                locked_while_reading.append(True)
-                return unpatched_lock(lock_settings)
-
-            with patch.object(pack_cache_module, "_cache_lock", _recording_lock):
+            # An unchanged cache can be consumed without rebuilding it.
+            with patch.object(pack_cache_module, "_create_database", side_effect=AssertionError("current cache rebuilt during read")):
                 load_runtime_catalog(settings)
-            if any(locked_while_reading):
-                errors.append("reading the catalog took the build lock")
-            else:
-                checks += 1
+            checks += 1
 
             # The hazard itself: hold the current cache open, change the inputs,
             # and rebuild. The build publishes a name nothing holds, so the reader

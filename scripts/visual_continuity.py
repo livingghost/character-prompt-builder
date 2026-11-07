@@ -3,8 +3,12 @@
 from __future__ import annotations
 import copy
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import execution_contract as c
+import runtime_snapshot
+
+if TYPE_CHECKING:
+    from studio import StudioRead
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTINUITIES = {'recurring', 'one-off', 'undecided'}
@@ -85,15 +89,21 @@ def validate_content(value: Any, production_spec: dict) -> None:
                              'they become recurring once the author accepts one.')
 
 
-def declared_sheet_slots(root: Path, character: str) -> set[str]:
+def _studio_read(root: Path, read: StudioRead | None) -> StudioRead:
+    from studio_reference import reference_reads
+    read = read or reference_reads().studio(root)
+    read.require_root(root)
+    return read
+
+
+def declared_sheet_slots(root: Path, character: str, *, read: StudioRead | None = None) -> set[str]:
     import studio
-    from character_sheet import validate_sidecar
     from character_sheet_render.profiles import select_profile_path, load_profile
     from character_sheet_render.resolution import resolve_state_panels
     home = studio.character_dir(root, character)
     path = c.local(root, (home / 'sheet/sheet-data.json').relative_to(root).as_posix())
-    sheet = c.load(path)
-    validate_sidecar(sheet)
+    read = _studio_read(root, read)
+    sheet = read.sheet(character)
     profile_path, _ = select_profile_path(sheet, None, sheet_dir=path.parent)
     profile = load_profile(profile_path)
     profile, _ = resolve_state_panels(profile, sheet)
@@ -115,42 +125,47 @@ def _decision(root: Path, value: Any, *, character_id: str | None = None) -> dic
     return value
 
 
-def adoption_subject(root: Path, character: str, row: dict, approval: dict) -> dict:
+@runtime_snapshot.operation
+def adoption_subject(root: Path, character: str, row: dict, approval: dict, *,
+                     read: StudioRead | None = None) -> dict:
     """Read the original single-subject candidate and an explicit later decision."""
-    import adoption_workflow as adoption
-    from verify_generation_payload import verify_content
     if not row.get('package'):
         raise ValueError('identity adoption needs recorded single-subject provenance')
-    path = adoption.safe_file(root, row['package']['path'], row['package']['sha256'])
-    package = c.load(path)
+    read = _studio_read(root, read)
+    path, package = read._package(row['package'])
     if package.get('artifact_type') == 'upscale-package':
         # An upscale has a separately validated source Generation Package.
         source = package.get('source_generation_package')
         if not isinstance(source, dict):
             raise ValueError('identity adoption needs the source generation provenance')
-        path = check_file(root, source)
-        package = c.load(path)
-    verify_content(package, package_root=path.parent)
+        c.exact(source, {'path', 'sha256'}, 'source reference')
+        c.sha(source['sha256'])
+        path, package = read._package(source, verify=True)
+    else:
+        path, package = read._package(row['package'], verify=True)
     visual = package['visual_continuity']
     if len(visual['subjects']) != 1:
         raise ValueError('identity adoption requires a single-subject candidate')
-    subject = next(iter(visual['subjects'].values()))
+    subject = copy.deepcopy(next(iter(visual['subjects'].values())))
     if subject['studio_character'] not in {None, character}:
         raise ValueError('candidate was recorded for another studio character')
     decision = approval.get('continuity_decision')
     if decision is not None:
         chosen = _decision(root, decision, character_id=subject['character_id'])
         return {**subject, 'character_id': chosen['character_id'], 'continuity': chosen['continuity'],
-                'decision_basis': chosen['basis']}
+                'decision_basis': copy.deepcopy(chosen['basis'])}
     if subject['continuity'] == 'undecided' or subject['character_id'] is None:
         raise ValueError('identity adoption needs an explicit author continuity decision for this candidate')
-    return {**subject, 'decision_basis': visual['basis']}
+    return {**subject, 'decision_basis': copy.deepcopy(visual['basis'])}
 
 
-def accepted_identity(root: Path, character: str, selector: dict, *, character_id: str | None) -> dict:
+@runtime_snapshot.operation
+def accepted_identity(root: Path, character: str, selector: dict, *, character_id: str | None,
+                      read: StudioRead | None = None) -> dict:
     import studio
     import adoption_workflow as adoption
-    index = adoption.reference_index(root, character)
+    read = _studio_read(root, read)
+    index = read.reference_index(character)
     if not index['ok']:
         raise ValueError('incomplete reference workflow: ' + '; '.join(index['errors']))
     matches = [item for item in index['bindings']
@@ -162,14 +177,14 @@ def accepted_identity(root: Path, character: str, selector: dict, *, character_i
     path = adoption._journal_path(home, selector['iteration_id'])
     if not path.is_file():
         raise ValueError(character + ': an explicit identity approval record is required')
-    journal = c.load(path)
+    journal = read.journal(character, selector['iteration_id'])
     if journal.get('status') not in {'sheet-bound', 'catalog-registered'} or journal.get('next_action') is not None:
         raise ValueError(character + ': identity adoption is incomplete')
-    row = studio._find(studio.read_iterations(home), selector['iteration_id'])
+    row = studio._find(read.adoption_rows(character), selector['iteration_id'])
     approval = adoption.validate_approval(journal.get('approval'), character, row)
     if row['status'] != 'accepted' or approval['influence'] != 'identity':
         raise ValueError(character + ': the selected receipt does not grant current identity influence')
-    adopted = adoption_subject(root, character, row, approval)
+    adopted = adoption_subject(root, character, row, approval, read=read)
     if character_id is not None and adopted['character_id'] != character_id:
         raise ValueError(character + ': the adopted image belongs to another work character')
     if binding['image_sha256'] != row['result']['sha256']:
@@ -217,7 +232,8 @@ def _identity_scope(prepared: dict, number: int, ident: str) -> dict:
 
 def studio_identity_binding(ref: dict, source: dict, *, root: Path | None,
                             character: str, character_id: str | None,
-                            source_archive: Path | None = None, live: bool = True) -> dict:
+                            source_archive: Path | None = None, live: bool = True,
+                            read: StudioRead | None = None) -> dict:
     from studio_reference import validate_source
     if source.get('kind') != 'studio-artifact' or source['character'] != character:
         raise ValueError('identity selector is not the prepared Studio character')
@@ -228,7 +244,7 @@ def studio_identity_binding(ref: dict, source: dict, *, root: Path | None,
         raise ValueError('Studio identity source hash mismatch')
     if live and (root is None or str(root.absolute()) != source['studio_root']):
         raise ValueError('Studio reference belongs to another Studio')
-    proof = validate_source(source, active=live, source_archive=source_archive)
+    proof = validate_source(source, active=live, source_archive=source_archive, read=read)
     if not isinstance(proof['identity'], dict) or proof['identity']['character_id'] != character_id:
         raise ValueError('Studio identity approval does not identify this work character')
     return proof
@@ -248,8 +264,10 @@ def verify_studio_bindings(value: dict, prepared: dict, *, package_root: Path) -
                                     character_id=subject['character_id'], source_archive=archive, live=False)
 
 
+@runtime_snapshot.operation
 def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | None,
-            recording_character: str | None = None, recording_slot: str | None = None, basis_reader=None) -> dict:
+            recording_character: str | None = None, recording_slot: str | None = None, basis_reader=None,
+            read: StudioRead | None = None) -> dict:
     validate_content(value, production_spec)
     if root is None:
         raise ValueError('visual continuity requires an explicit source or studio root')
@@ -259,10 +277,12 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
     else:
         basis_reader.basis(value['basis'])
     subjects = value['subjects']
+    if recording_character is not None or any(subject['studio_character'] is not None for subject in subjects.values()):
+        read = _studio_read(root, read)
     if recording_slot is not None:
         if recording_character is None:
             raise ValueError('a recording slot requires its character selector')
-        if recording_slot in declared_sheet_slots(root, recording_character):
+        if recording_slot in declared_sheet_slots(root, recording_character, read=read):
             if value['purpose'] != 'sheet-panel' or len(subjects) != 1:
                 raise ValueError('the recording slot requires a single-subject sheet-panel input')
         if value['purpose'] == 'sheet-panel':
@@ -276,13 +296,11 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
         if subject['continuity'] == 'recurring' or value['purpose'] == 'sheet-panel':
             if character is None:
                 raise ValueError(ident + ': select the studio record for this subject')
-        direct = [row for row in prepared['selected_references'] if (row.get('source') or {}).get('kind') == 'studio-artifact' and row['source']['character'] == character]
         if character is not None:
             import studio
-            studio.validate_recording_target(root, character, recording_slot or 'candidate', writable=False)
-            import adoption_workflow as adoption
+            studio.validate_recording_target(root, character, recording_slot or 'candidate', writable=False, read=read)
             index = ({'ok': True, 'bindings': []} if any(ref.get('kind') == 'studio-artifact' for ref in subject['identity_refs'])
-                     else adoption.reference_index(root, character))
+                     else read.reference_index(character))
             if not index['ok']:
                 raise ValueError(ident + ': reference workflow is incomplete: ' + '; '.join(index['errors']))
             current = [x for x in index['bindings'] if x['influence'] == 'identity' and x['image_path']]
@@ -292,11 +310,11 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
             if ref.get('kind') == 'studio-artifact':
                 selected = _identity_scope(prepared, ref['reference_number'], ident)
                 proof = studio_identity_binding(ref, selected['source'], root=root,
-                    character=character, character_id=subject['character_id'])
+                    character=character, character_id=subject['character_id'], read=read)
                 accepted = {'image_sha256': selected['source']['sha256'],
                     'adopted_subject': proof['identity'], 'approval_sha256': selected['source']['acceptance_sha256']}
             else:
-                accepted = accepted_identity(root, character, ref, character_id=subject['character_id'])
+                accepted = accepted_identity(root, character, ref, character_id=subject['character_id'], read=read)
             if accepted['image_sha256'] != ref['source_sha256']:
                 raise ValueError(ident + ': selected identity source hash mismatch')
             row = _identity_scope(prepared, ref['reference_number'], ident)
@@ -313,7 +331,9 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
     return {'subjects': len(subjects), 'identity_bindings': evidence}
 
 
-def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: Path) -> dict:
+@runtime_snapshot.operation
+def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: Path,
+                 read: StudioRead | None = None) -> dict:
     """Resolve only explicitly selected records; preserve all authored decisions."""
     c.exact(choices, {'purpose', 'basis', 'subjects'}, 'visual choices')
     c.exact(choices['basis'], {'path', 'locator'}, 'visual basis choice')
@@ -321,6 +341,8 @@ def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: 
     result['basis'] = file_ref(root, choices['basis']['path'], locator=choices['basis']['locator'])
     for ident, subject in result['subjects'].items():
         c.exact(subject, {'continuity', 'character_id', 'studio_character', 'identity_refs'}, 'visual subject choice')
+        if subject['studio_character'] is not None:
+            read = _studio_read(root, read)
         refs = []
         for selected in subject['identity_refs']:
             if selected.get('kind') == 'studio-artifact':
@@ -335,7 +357,8 @@ def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: 
                 sha = prepared['selected_references'][matches[0] - 1]['source']['sha256']
             else:
                 c.exact(selected, {'slot', 'iteration_id'}, 'identity choice')
-                image = accepted_identity(root, subject['studio_character'], selected, character_id=subject['character_id'])
+                image = accepted_identity(root, subject['studio_character'], selected,
+                                          character_id=subject['character_id'], read=read)
                 matches = [i for i, row in enumerate(prepared['selected_references'], 1)
                            if row['source']['sha256'] == image['image_sha256']
                            and 'identity' in _reference_scope(prepared, i, ident)[1]]
@@ -344,20 +367,21 @@ def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: 
                 sha = image['image_sha256']
             refs.append({**selected, 'source_sha256': sha, 'reference_number': matches[0]})
         subject['identity_refs'] = refs
-    require(result, production_spec=production_spec, prepared=prepared, root=root)
+    require(result, production_spec=production_spec, prepared=prepared, root=root, read=read)
     return result
 
 
+@runtime_snapshot.operation
 def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared: dict, root: Path,
                    characters: dict[str, str] | None = None, work_ids: dict[str, str] | None = None,
-                   sheet_panel: bool = False, basis: dict | None = None) -> dict:
+                   sheet_panel: bool = False, basis: dict | None = None,
+                   read: StudioRead | None = None) -> dict:
     """Build the record from the author's stated decisions and the studio's accepted identity.
 
     The decisions are written under the studio's work/continuity/ as the basis. A
     subject bound to a studio character selects that character's current
     accepted identity images, which the prepared references must carry.
     """
-    import adoption_workflow as adoption
     characters = dict(characters or {})
     work_ids = dict(work_ids or {})
     ids = [item.get('id') for item in production_spec.get('subjects') or [] if isinstance(item, dict)]
@@ -368,6 +392,8 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
     subjects = {}
     for ident in ids:
         character = characters.get(ident)
+        if character is not None:
+            read = _studio_read(root, read)
         continuity = decisions[ident]
         if continuity == 'recurring' and character is None:
             raise ValueError(ident + ': name the studio character of a recurring subject')
@@ -378,7 +404,7 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
         if direct:
             refs = [{key: row['source'][key] for key in ('kind', 'slot', 'artifact_id', 'proof_sha256')} for row in direct]
         elif character is not None:
-            index = adoption.reference_index(root, character)
+            index = read.reference_index(character)
             if not index['ok']:
                 raise ValueError(ident + ': reference workflow is incomplete: ' + '; '.join(index['errors']))
             attached = {entry['source']['sha256'] for entry in prepared['selected_references']}
@@ -389,9 +415,9 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
             character_id = work_ids.get(ident)
             if character_id is None and direct:
                 from studio_reference import identity_source
-                character_id = identity_source(direct[0]['source'], root=root, character_id=None)['identity']['character_id']
+                character_id = identity_source(direct[0]['source'], root=root, character_id=None, read=read)['identity']['character_id']
             elif character_id is None and refs:
-                character_id = accepted_identity(root, character, refs[0], character_id=None)['adopted_subject']['character_id']
+                character_id = accepted_identity(root, character, refs[0], character_id=None, read=read)['adopted_subject']['character_id']
             character_id = character_id or character
         subjects[ident] = {'continuity': continuity, 'character_id': character_id,
                            'studio_character': character, 'identity_refs': refs}
@@ -399,7 +425,7 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
     if basis is not None:
         c.exact(basis, {'path','locator'}, 'continuity decision source')
         return build_record({'purpose':purpose,'basis':basis,'subjects':subjects},
-                            production_spec=production_spec,prepared=prepared,root=root)
+                            production_spec=production_spec,prepared=prepared,root=root,read=read)
     raw = c.encoded({'purpose': purpose, 'subjects': {ident: {key: subject[key] for key in ('continuity', 'studio_character')}
                                                      for ident, subject in subjects.items()}})
     path = 'work/continuity/' + c.digest(raw)[:16] + '.json'
@@ -410,4 +436,4 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
         if c.read(target) != raw:
             raise ValueError('continuity record changed: ' + path)
     return build_record({'purpose': purpose, 'basis': {'path': path, 'locator': 'whole'}, 'subjects': subjects},
-                        production_spec=production_spec, prepared=prepared, root=root)
+                        production_spec=production_spec, prepared=prepared, root=root, read=read)

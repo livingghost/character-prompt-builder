@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from state_protocol import unsupported_schema_keywords, validate_against_schema
+from state_protocol import read_schema, validate_against_schema
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,16 +23,11 @@ def _normalize_identity(value: str) -> str:
 
 
 def load_schema() -> dict[str, Any]:
-    value = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise PromptWritingGuideError("prompt-writing-guide schema must be a JSON object")
-    unsupported = unsupported_schema_keywords(value)
-    if unsupported:
-        raise PromptWritingGuideError(
-            "prompt-writing-guide schema contains unsupported keywords: "
-            + ", ".join(unsupported)
-        )
-    return value
+    """Use the operation-owned, checked prompt-writing-guide schema."""
+    try:
+        return read_schema(SCHEMA_PATH)
+    except (OSError, ValueError) as exc:
+        raise PromptWritingGuideError(str(exc)) from exc
 
 
 def validate_prompt_writing_guide(

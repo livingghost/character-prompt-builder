@@ -89,6 +89,25 @@ class RefinementTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'dimensions'):self.fit()
     def test_repeat_same_runtime_same_pixels(self):
         a,_,_=self.fit();b,_,_=self.fit();self.assertEqual(a.tobytes(),b.tobytes())
+    def test_concurrent_fits_keep_each_threads_seed_and_owned_arrays(self):
+        import concurrent.futures
+        import threading
+        from unittest.mock import patch
+        import cv2
+        seeds = [11, 37, 73, 101]
+        expected = [self.fit(seed=seed)[0].tobytes() for seed in seeds]
+        barrier = threading.Barrier(len(seeds))
+        original = cv2.setRNGSeed
+        def seed_then_overlap(seed):
+            original(seed)
+            barrier.wait(timeout=10)
+        def fit(seed):
+            return r.fit_region(self.source.copy(), self.proposal.copy(), self.protect.copy(),
+                                **{**self.opts, 'seed': seed})[0].tobytes()
+        with patch.object(cv2, 'setRNGSeed', side_effect=seed_then_overlap):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(seeds)) as pool:
+                actual = list(pool.map(fit, seeds))
+        self.assertEqual(actual, expected)
     def test_no_input_image_modification(self):
         before=self.source.tobytes();self.fit();self.assertEqual(before,self.source.tobytes())
     def test_pipeline_build_and_bind(self):

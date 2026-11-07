@@ -21,8 +21,13 @@ from test_production_execution import decisions
 
 def adopted_case(test, *, work_id: str = 'C01'):
     import test_production_adoption as tests
-    case = tests.AdoptionTests('test_separate_authorized_adoption_and_completion')
+    # This factory owns its template lifetime independently of unittest's class
+    # runner (and of other fixture instances in the same process).
+    fixture_type = type('ReferenceAdoptionFixture', (tests.AdoptionTests,), {})
+    case = fixture_type('test_separate_authorized_adoption_and_completion')
+    case.addCleanup(fixture_type.doClassCleanups)
     test.addCleanup(case.doCleanups)
+    fixture_type.setUpClass()
     case.setUp()
     case.approval['continuity_decision']['character_id'] = work_id
     fixture.write(case.root / 'approval.json', case.approval)

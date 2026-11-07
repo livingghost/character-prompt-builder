@@ -119,7 +119,7 @@ class BoundaryTests(unittest.TestCase):
         snapshot = runtime_snapshot.read(directory, descriptor)
         pack = snapshot['packs'][0]
         pinned = directory / 'packs' / pack['pack_id'] / pack['files'][0]['path']
-        original_claim = workflow.claim_dispatch
+        original_claim = workflow._claim_dispatch_from
         operation = operations.Operation('synthetic-integrity-boundary')
         token = operations._CURRENT.set(operation)
         def corrupt_after_claim(*args, **kwargs):
@@ -130,7 +130,7 @@ class BoundaryTests(unittest.TestCase):
             # Prime the per-operation cache, then change a resource after the
             # run claim. The actual irreversible boundary must hash again.
             runtime_snapshot.read(directory, descriptor)
-            with patch.object(workflow, 'claim_dispatch', side_effect=corrupt_after_claim), \
+            with patch.object(workflow, '_claim_dispatch_from', side_effect=corrupt_after_claim), \
                  patch.object(transport_synthetic, 'send') as send:
                 with self.assertRaises(ProductionError) as caught:
                     execution.execute(self.root, self.run, decisions_file=decision_file)
@@ -146,8 +146,8 @@ class BoundaryTests(unittest.TestCase):
         import operation_context as operations
         import runtime_snapshot
         decision_file = decisions(self.root, self.run)
-        original_read = runtime_snapshot.read
-        original_current = runtime_snapshot.require_current
+        original_read = runtime_snapshot.acquire_runtime
+        original_current = runtime_snapshot.require_current_read
         forced = []
         comparisons = {'full': 0, 'forced': 0}
         def observe(*args, **kwargs):
@@ -160,15 +160,15 @@ class BoundaryTests(unittest.TestCase):
             return original_current(*args, **kwargs)
         token = operations._CURRENT.set(None)
         try:
-            with patch.object(runtime_snapshot, 'read', side_effect=observe), \
-                 patch.object(runtime_snapshot, 'require_current', side_effect=compare), \
+            with patch.object(runtime_snapshot, 'acquire_runtime', side_effect=observe), \
+                 patch.object(runtime_snapshot, 'require_current_read', side_effect=compare), \
                  patch.object(transport_synthetic, 'send', wraps=transport_synthetic.send) as send:
                 result = execution.execute(self.root, self.run, decisions_file=decision_file)
             self.assertTrue(result['execution_completed'])
             self.assertEqual(len(forced), 1)
             self.assertEqual(send.call_count, 1)
-            # Preflight, the authorization transaction, the transaction right
-            # before the send, and the status the call returns.
+            # The claim transaction and returned status each inspect current
+            # inputs; the external step performs its own forced acquisition.
             self.assertLessEqual(comparisons['full'], 4)
             self.assertEqual(comparisons['forced'], 1)
         finally:
@@ -176,24 +176,72 @@ class BoundaryTests(unittest.TestCase):
 
     def test_draft_execution_checks_live_sources_once(self):
         import runtime_snapshot
-        original_current = runtime_snapshot.require_current
+        original_current = runtime_snapshot.require_current_read
         full = []
         def compare(*args, **kwargs):
             full.append(kwargs.get('force', False))
             return original_current(*args, **kwargs)
-        with patch.object(runtime_snapshot, 'require_current', side_effect=compare):
+        with patch.object(runtime_snapshot, 'require_current_read', side_effect=compare):
             drafted = execution.draft_execution(self.root, self.run, 'fixture-grant')
         self.assertEqual(len(drafted['decisions']), len(self.data[6]['operations']))
         self.assertEqual(full, [False])
 
+    def test_nested_rollback_rechecks_sources_left_changed_by_the_interrupted_writer(self):
+        import runtime_snapshot
+        with runtime_snapshot.public_call(), store.transaction(self.root):
+            workflow.assert_current(self.root, self.run)
+            with self.assertRaisesRegex(RuntimeError, 'synthetic interrupted writer'):
+                with store.transaction(self.root):
+                    loaded = workflow.read_run(self.root, self.run)
+                    (self.root / 'prompt.txt').write_text('Changed source survives a database rollback.\n', encoding='utf-8')
+                    workflow.append_record(loaded.directory, loaded.prepared, loaded.rows, 'abandoned',
+                        {'actor': 'Synthetic author', 'reason': 'Synthetic transaction that will roll back.'})
+                    self.assertEqual(workflow.read_run(self.root, self.run).rows[-1]['event'], 'abandoned')
+                    raise RuntimeError('synthetic interrupted writer')
+            self.assertEqual(workflow.read_run(self.root, self.run).rows, [])
+            with self.assertRaises(ProductionError) as caught:
+                workflow.assert_current(self.root, self.run)
+            self.assertEqual(caught.exception.diagnostic.code, 'SOURCE_CHANGED')
+
+    def source_changed_after_preflight(self, *, preauthorized: bool) -> None:
+        import verify_generation_payload
+        decision_file = decisions(self.root, self.run)
+        if preauthorized:
+            execution.authorize_decisions(self.root, self.run, decision_file, self.data[1], self.data[6])
+        before = store.event_rows(self.root, self.run)
+        journals = set((self.root / 'runs').iterdir())
+        original_verify = verify_generation_payload.verify
+
+        def edit_after_verification(*args, **kwargs):
+            result = original_verify(*args, **kwargs)
+            (self.root / 'prompt.txt').write_text('A source edited after preflight verification.\n', encoding='utf-8')
+            return result
+
+        with patch.object(verify_generation_payload, 'verify', side_effect=edit_after_verification), \
+             patch.object(transport_synthetic, 'send') as send:
+            with self.assertRaises(ProductionError) as caught:
+                execution.execute(self.root, self.run, decisions_file=None if preauthorized else decision_file)
+        self.assertEqual((caught.exception.diagnostic.code, caught.exception.diagnostic.file), ('SOURCE_CHANGED', 'prompt.txt'))
+        send.assert_not_called()
+        self.assertEqual(store.event_rows(self.root, self.run), before)
+        self.assertEqual(set((self.root / 'runs').iterdir()), journals)
+        self.assertFalse(any(row['event'] in {'handoff', 'dispatch-claim', 'external-step'}
+                             for row in store.event_rows(self.root, self.run)))
+
+    def test_source_edited_during_preflight_is_refused_before_authorizing(self):
+        self.source_changed_after_preflight(preauthorized=False)
+
+    def test_source_edited_during_preflight_is_refused_with_existing_authorizations(self):
+        self.source_changed_after_preflight(preauthorized=True)
+
     def test_pinned_source_edited_after_claim_blocks_the_send(self):
         decision_file = decisions(self.root, self.run)
-        original_claim = workflow.claim_dispatch
+        original_claim = workflow._claim_dispatch_from
         def edit_after_claim(*args, **kwargs):
             claim = original_claim(*args, **kwargs)
             (self.root / 'prompt.txt').write_text('A prompt edited after the claim.\n', encoding='utf-8')
             return claim
-        with patch.object(workflow, 'claim_dispatch', side_effect=edit_after_claim), \
+        with patch.object(workflow, '_claim_dispatch_from', side_effect=edit_after_claim), \
              patch.object(transport_synthetic, 'send') as send:
             with self.assertRaises(ProductionError) as caught:
                 execution.execute(self.root, self.run, decisions_file=decision_file)
@@ -257,12 +305,12 @@ class BoundaryTests(unittest.TestCase):
         decision_file = decisions(self.root, self.run)
         directory = workflow.run_dir(self.root, self.run)
         dependency = next(item for item in self.data[1]['dependencies'] if item['space'] == 'studio')
-        original_claim = workflow.claim_dispatch
+        original_claim = workflow._claim_dispatch_from
         def corrupt_after_claim(*args, **kwargs):
             claim = original_claim(*args, **kwargs)
             (directory / 'objects' / dependency['sha256']).write_bytes(b'corrupt stored source snapshot')
             return claim
-        with patch.object(workflow, 'claim_dispatch', side_effect=corrupt_after_claim), \
+        with patch.object(workflow, '_claim_dispatch_from', side_effect=corrupt_after_claim), \
              patch.object(transport_synthetic, 'send') as send:
             with self.assertRaises(ProductionError) as caught:
                 execution.execute(self.root, self.run, decisions_file=decision_file)
@@ -278,14 +326,14 @@ class BoundaryTests(unittest.TestCase):
         directory = runtime_snapshot.path(self.root, descriptor)
         pack = runtime_snapshot.read(directory, descriptor)['packs'][0]
         pinned = directory / 'packs' / pack['pack_id'] / pack['files'][0]['path']
-        original_claim = workflow.claim_dispatch
+        original_claim = workflow._claim_dispatch_from
         def corrupt_after_claim(*args, **kwargs):
             claim = original_claim(*args, **kwargs)
             pinned.write_bytes(pinned.read_bytes() + b'\ncorrupt')
             return claim
         token = operations._CURRENT.set(None)
         try:
-            with patch.object(workflow, 'claim_dispatch', side_effect=corrupt_after_claim), \
+            with patch.object(workflow, '_claim_dispatch_from', side_effect=corrupt_after_claim), \
                  patch.object(transport_synthetic, 'send') as send:
                 with self.assertRaises(ProductionError) as caught:
                     execution.execute(self.root, self.run, decisions_file=decision_file)

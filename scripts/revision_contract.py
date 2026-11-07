@@ -12,6 +12,7 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any, Sequence
+from owned_json import json_type
 
 
 def digest(value: Any) -> str:
@@ -25,7 +26,7 @@ def _escape(key: str) -> str:
 
 def changed_paths(before: Any, after: Any, prefix: str = "") -> list[str]:
     """Objects differ recursively; arrays are atomic so reordering is visible."""
-    if type(before) is not type(after):
+    if json_type(before) is not json_type(after):
         return [prefix]
     if isinstance(before, dict):
         result: list[str] = []

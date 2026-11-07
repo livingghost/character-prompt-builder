@@ -9,15 +9,15 @@ import production_store as store
 from production_diagnostics import ProductionError, compare_exact
 
 
-def context(root: Path, run: str, *, fresh: bool = True) -> tuple:
+def context(root: Path, run: str, *, fresh: bool = True):
     import production_workflow as workflow
-    loaded = workflow.assert_current(root, run) if fresh else workflow.load_run(root, run)
+    loaded = workflow.assert_current(root, run) if fresh else workflow.read_run(root, run)
     directory, prepared, consumer, rows = loaded
-    plan = c.load(directory / 'execution-plan.json')
+    plan = loaded.artifacts['execution-plan.json']
     if prepared['task']['execution'] not in {'dispatcher', 'external'} or not plan['operations']:
         raise ProductionError('EXECUTION_NOT_APPLICABLE', 'This operation needs a prepared model request.',
                               phase='execution', run=run)
-    return directory, prepared, consumer, rows, plan
+    return loaded
 
 
 def _request_choices(request: dict) -> dict:
@@ -31,10 +31,13 @@ def _request_choices(request: dict) -> dict:
 def draft(root: Path, run: str, grant: str) -> dict:
     """Keep operation identity and authored answers, without copied request payloads."""
     import production_workflow as workflow
-    _, prepared, _, _, plan = context(root, run)
+    loaded = context(root, run)
+    prepared = loaded.prepared
+    plan = loaded.artifacts['execution-plan.json']
+    authority = workflow.current_authority(root, prepared)
     decisions = []
     for intent in plan['operations']:
-        request = workflow.draft_authorization(root, run, grant, intent)
+        request = workflow.draft_authorization_from(loaded, authority, grant, intent)
         choice = {key: copy.deepcopy(request[key]) for key in ('operation', 'grant', 'reason', 'stop_assessments')}
         if 'request_decision' in request:
             choice['request_decision'] = _request_choices(request)
@@ -68,9 +71,11 @@ def _request_decision(root: Path, request: dict, choice: dict, authority: dict) 
     return result
 
 
-def expand(root: Path, run: str, choices: dict, prepared: dict, plan: dict) -> list[dict]:
+def expand(root: Path, run: str, choices: dict, loaded, authority) -> list[dict]:
     """Materialize separate authorizations without interpreting or approving their answers."""
     import production_workflow as workflow
+    prepared = loaded.prepared
+    plan = loaded.artifacts['execution-plan.json']
     workflow.schema_check(choices, 'execution-decisions')
     compare_exact({'run': run, 'input_sha256': prepared['input_sha256'], 'request_sha256': plan['request_sha256']},
                   {key: choices[key] for key in ('run', 'input_sha256', 'request_sha256')})
@@ -80,7 +85,7 @@ def expand(root: Path, run: str, choices: dict, prepared: dict, plan: dict) -> l
                               phase='authorization', run=run, pointer='$.decisions')
     result = []
     for intent, choice in zip(plan['operations'], selected):
-        request = workflow.draft_authorization(root, run, choice['grant'], intent)
+        request = workflow.draft_authorization_from(loaded, authority, choice['grant'], intent)
         expected = {'operation', 'grant', 'reason', 'stop_assessments'}
         if 'request_decision' in request:
             expected.add('request_decision')
@@ -88,7 +93,7 @@ def expand(root: Path, run: str, choices: dict, prepared: dict, plan: dict) -> l
         request['reason'] = choice['reason']
         request['stop_assessments'] = copy.deepcopy(choice['stop_assessments'])
         if 'request_decision' in request:
-            request['request_decision'] = _request_decision(root, request, choice['request_decision'], prepared['authority'])
+            request['request_decision'] = _request_decision(root, request, choice['request_decision'], authority.document)
         result.append(request)
     return result
 
@@ -97,8 +102,22 @@ def authorize(root: Path, run: str, path: str, prepared: dict, plan: dict) -> No
     import production_workflow as workflow
     raw = store.stable_bytes(root, path)
     with store.transaction(root):
-        workflow.assert_authority_current(root, prepared)
-        requests = expand(root, run, c.decode(raw), prepared, plan)
-        for request in requests:
-            workflow.authorize_value(root, run, request, evidence_files=[path],
-                                     expected_source=(path, c.digest(raw)))
+        loaded = context(root, run)
+        compare_exact(prepared['input_sha256'], loaded.prepared['input_sha256'], phase='authorization')
+        compare_exact(plan, loaded.artifacts['execution-plan.json'], phase='authorization')
+        authority = workflow.current_authority(root, loaded.prepared)
+        _authorize_from(root,loaded,authority,path,plan,raw=raw)
+
+
+def _authorize_from(root: Path, loaded, authority, path: str, plan: dict, *, raw: bytes | None = None) -> None:
+    """Authorize from the command's current run, grant and exact decision bytes."""
+    import production_workflow as workflow
+    if raw is None:
+        raw=store.stable_bytes(root,path)
+    run=loaded.prepared['run']
+    compare_exact(plan,loaded.artifacts['execution-plan.json'],phase='authorization')
+    requests=expand(root,run,c.decode(raw),loaded,authority)
+    for request in requests:
+        workflow._authorize_value_from(root,loaded,authority,request,evidence_files=[path],
+                                       expected_source=(path,c.digest(raw)))
+        loaded=workflow.read_run(root,run)

@@ -74,7 +74,7 @@ def _dispositions(sidecar: Path, rows: list[dict]) -> None:
             run = origin['run']
             if run not in cache:
                 try:
-                    cache[run] = workflow.load_run(root, run)
+                    cache[run] = workflow.read_run(root, run)
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     cache[run] = exc
             if isinstance(cache[run], Exception):

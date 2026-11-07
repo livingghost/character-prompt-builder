@@ -379,6 +379,61 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         self.assertTrue(result['execution_completed'])
         self.assertEqual(self.recorded()['reported_cost'],{'USD':'0.4'})
 
+    def test_changed_archived_member_after_upload_blocks_send_and_preserves_its_receipt(self):
+        import runtime_snapshot
+        descriptor=workflow.read_run(self.root,self.run).prepared['runtime_snapshot']
+        directory=runtime_snapshot.path(self.root,descriptor)
+        snapshot=c.load(directory/'snapshot.json')
+        bound={(row['pack'],row['path']) for row in runtime_snapshot.dependencies(descriptor['binding'])}
+        unused=sorted((pack['pack_id'],item['path']) for pack in snapshot['packs'] for item in pack['files']
+                      if item['path'].startswith('records/') and item['path'].endswith('.json')
+                      and (pack['pack_id'],item['path']) not in bound)
+        self.assertTrue(unused,'The complete runtime must retain unselected catalogue records.')
+        pack,relative=unused[0]
+        member=directory/'packs'/pack/relative
+        original=member.read_bytes()
+        upload=self.uploader()
+
+        def upload_then_change_archive(*args,**kwargs):
+            result=upload(*args,**kwargs)
+            # The preflight and upload boundary already acquired the original
+            # metadata. Identical metadata must not hide a changed member.
+            member.write_bytes(original+b'\n')
+            return result
+
+        with patch.object(transport_synthetic,'upload_media',side_effect=upload_then_change_archive), \
+                patch.object(transport_synthetic,'send',side_effect=AssertionError('Corrupt runtime must not send')):
+            with self.assertRaises(ProductionError) as caught:
+                execution.execute(self.root,self.run,decisions_file=self.decision)
+        self.assertEqual(caught.exception.diagnostic.code,'RUNTIME_SNAPSHOT_CORRUPT')
+        rows=store.event_rows(self.root,self.run)
+        claim=workflow.find(rows,'dispatch-claim')
+        journal=self.root/claim['data']['journal']
+        receipt_path=journal/'upload-001.json'
+        receipt_bytes=receipt_path.read_bytes()
+        receipt=c.decode(receipt_bytes)
+        self.assertTrue(receipt['response']['synthetic'])
+        self.assertEqual(receipt['provider_id'],receipt['response']['media_id'])
+        self.assertEqual(receipt['usage'],{'currency':'USD','amount':'0.1','final':True})
+        steps=[row['data']['step'] for row in rows if row['event']=='external-step']
+        self.assertEqual(steps,['upload:0'])
+        effects=[row['data'] for row in rows if row['event']=='external-effect-result']
+        self.assertEqual(len(effects),1)
+        self.assertEqual(effects[0]['step'],'upload:0')
+        self.assertEqual(effects[0]['evidence'][0]['sha256'],c.digest(receipt_bytes))
+        self.assertFalse((journal/'answer.json').exists())
+        recorded=self.recorded()
+        self.assertEqual(recorded['reported_cost'],{'USD':'0.1'})
+        self.assertEqual((recorded['submissions'],recorded['captured_outputs']),(0,0))
+
+        with patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('Do not repeat the completed upload')), \
+                patch.object(transport_synthetic,'send',side_effect=AssertionError('Do not send with the corrupt archive')):
+            with self.assertRaises(ProductionError) as resumed:
+                execution.resume(self.root,self.run)
+        self.assertEqual(resumed.exception.diagnostic.code,'RUNTIME_SNAPSHOT_CORRUPT')
+        self.assertEqual(receipt_path.read_bytes(),receipt_bytes)
+        self.assertEqual(self.recorded(),recorded)
+
     def test_refused_upload_is_recorded_and_requires_new_approval(self):
         import transport_contract
         refusal=transport_contract.Refused('Synthetic refusal of the upload',{'errors':[{'code':'synthetic-upload-refused'}]})

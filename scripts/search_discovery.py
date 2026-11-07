@@ -18,11 +18,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from state_protocol import unsupported_schema_keywords, validate_against_schema
+from state_protocol import read_schema, validate_against_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_QUERY_SCHEMA_PATH = ROOT / "schemas" / "catalog-query.schema.json"
-_CATALOG_QUERY_SCHEMA: dict[str, Any] | None = None
 
 STOPWORDS = {
     "a", "an", "the", "and", "or", "of", "with", "in", "on", "at", "to",
@@ -1225,19 +1224,7 @@ class CatalogQueryInput:
 
 def catalog_query_from_mapping(data: Mapping[str, Any]) -> CatalogQueryInput:
     """Parse one structured query without translating the source brief."""
-    global _CATALOG_QUERY_SCHEMA
-    if _CATALOG_QUERY_SCHEMA is None:
-        raw_schema = json.loads(CATALOG_QUERY_SCHEMA_PATH.read_text(encoding="utf-8"))
-        if not isinstance(raw_schema, dict):
-            raise ValueError("catalog query schema must be an object")
-        unsupported = unsupported_schema_keywords(raw_schema)
-        if unsupported:
-            raise ValueError(
-                f"{CATALOG_QUERY_SCHEMA_PATH.name} uses schema keywords this validator "
-                "does not implement: " + ", ".join(unsupported)
-            )
-        _CATALOG_QUERY_SCHEMA = raw_schema
-    schema_errors = validate_against_schema(dict(data), _CATALOG_QUERY_SCHEMA)
+    schema_errors = validate_against_schema(dict(data), read_schema(CATALOG_QUERY_SCHEMA_PATH))
     if schema_errors:
         raise ValueError(
             "catalog query schema validation failed: " + "; ".join(schema_errors)

@@ -6,14 +6,17 @@ import argparse
 import ast
 import json
 from pathlib import Path
-from typing import Any
-from execution_contract import load, local, read, digest, content_id
+from typing import Any, Callable
+from execution_contract import load, local, read, digest, content_id, decode
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = 'config/execution-routes.json'
 
 
-def resolve(route: str, features: list[str] | None = None, *, root: Path = ROOT) -> dict[str, Any]:
-    manifest = load(local(root, MANIFEST))
+def resolve(route: str, features: list[str] | None = None, *, root: Path = ROOT,
+            read_source:Callable[[str],bytes]|None=None) -> dict[str, Any]:
+    read_source=read_source or (lambda path:read(local(root,path)))
+    raw=read_source(MANIFEST)
+    manifest=decode(raw)
     if route not in manifest['routes']:
         raise ValueError(f'unknown route: {route}')
     entry = manifest['routes'][route]
@@ -33,8 +36,8 @@ def resolve(route: str, features: list[str] | None = None, *, root: Path = ROOT)
         roles.difference_update({'persona', 'authorial-intent'})
     paths = list(dict.fromkeys(paths))
     return {'route':route,'features':selected,'source_roles':sorted(roles),
-            'reads':[{'path':p,'sha256':digest(read(local(root,p)))} for p in paths],
-            'stages':entry['stages'],'manifest_sha256':digest(read(local(root,MANIFEST)))}
+            'reads':[{'path':p,'sha256':digest(read_source(p))} for p in paths],
+            'stages':entry['stages'],'manifest_sha256':digest(raw)}
 
 
 def unnamed(manifest: dict[str, Any], skill: str) -> list[str]:

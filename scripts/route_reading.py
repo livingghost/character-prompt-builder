@@ -10,7 +10,7 @@ import os
 import secrets
 import sys
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, Callable, TextIO
 
 import execution_contract as c
 import execution_routes
@@ -171,41 +171,59 @@ def bound_dialect(value: dict) -> Any:
     return json.loads(found.pop()) if found else None
 
 
-def _capture_resources(manifest: dict, bodies: list, dialect: Any) -> None:
+def _live_resource_reader():
+    """Acquire the live catalogue at the route API's input boundary."""
+    from catalog_retrieval.runtime import load_pack_catalog
+    from pack_cache import resource_warning
+    catalog = load_pack_catalog()
+    if catalog.resource_reader is not None:
+        return catalog.resource_reader
+    def read_named(name):
+        problem = resource_warning(catalog, name)
+        if problem:
+            raise ValueError(problem)
+        resource = catalog.resources.get(name)
+        if resource is None:
+            return None
+        if resource.source_pack not in catalog.pack_roots:
+            raise ValueError(f'named resource {name} comes from a pack without an active root: {resource.source_pack}')
+        base=Path(catalog.pack_roots[resource.source_pack])
+        if catalog.inputs is not None:
+            from production_store import stable_bytes
+            acquired=catalog.inputs.packs[resource.source_pack].files[resource.relative_path]
+            raw=acquired.bytes_for_capture(lambda relative:stable_bytes(base,relative))
+        else:
+            raw=c.read(c.local(base,resource.relative_path))
+        return {'source_pack':resource.source_pack,'path':resource.relative_path,'sha256':c.digest(raw)},raw
+    return read_named
+
+
+def _capture_resources(manifest: dict, bodies: list, dialect: Any, resource_reader) -> None:
     manifest['resources'] = {}
     if 'prompt-dialect' not in manifest['features']:
         if dialect is not None:
             raise ValueError('a model or prompt family selects writing guide sections; add --feature prompt-dialect')
         return
-    from catalog_retrieval.runtime import load_pack_catalog
-    from pack_cache import resource_warning
-    catalog = load_pack_catalog()
-    # A named resource that failed is not an absent resource: refuse with
-    # the one line that names the pack and its fix. Other packs' problems do not block a reading.
-    for name in ('prompt-writing-guide', 'prompt-dialects'):
-        problem = resource_warning(catalog, name)
-        if problem:
-            raise ValueError(problem)
-    for name in ('prompt-writing-guide', 'prompt-dialects'):
-        resource = catalog.resources.get(name)
+    selected={name:resource_reader(name) for name in ('prompt-writing-guide','prompt-dialects')}
+    for name,resource in selected.items():
         if resource is None:
-            manifest['resources'][name] = {'status': 'unavailable'}
+            manifest['resources'][name]={'status':'unavailable'}
             continue
-        if resource.source_pack not in catalog.pack_roots:
-            raise ValueError(f'named resource {name} comes from a pack without an active root: {resource.source_pack}')
-        raw = c.read(c.local(Path(catalog.pack_roots[resource.source_pack]), resource.relative_path))
-        meta = {'status': 'present', 'source_pack': resource.source_pack, 'path': resource.relative_path,
-                'sha256': c.digest(raw)}
+        origin,raw=resource
+        meta={'status':'present',**origin}
+        value=c.decode(raw)
         if name == 'prompt-dialects' and dialect is not None:
             from pack_manager import PackError
-            from prompt_dialect import find_dialect
+            from prompt_dialect import validate_dialects
             try:
-                find_dialect(dialect, Path(resource.path))
+                validate_dialects(value)
+                carried={str(item['id']) for item in value['dialects']}
+                if dialect not in carried:
+                    raise PackError(f"unknown dialect {dialect!r}; the prompt-dialects resource carries: "+', '.join(sorted(carried)))
             except PackError as exc:
                 raise ValueError(str(exc)) from None
         meta['dialect'] = dialect
-        raw = _family(name, c.decode(raw), dialect)
-        c.decode(raw)
+        raw = _family(name, value, dialect)
         manifest['resources'][name] = meta
         # The delivered bytes carry their own digest; the manifest binds the source file.
         bodies.append(({'kind': 'resource', 'resource': name, **meta, 'sha256': c.digest(raw)}, raw))
@@ -266,6 +284,22 @@ def _require_resource_applications(record: dict, bodies: list, dialect: str | No
         # Model-facing validation supplies the declared dialect and checks it.
         if dialect is not _NO_MODEL and section.get('dialects') and dialect not in section['dialects']:
             raise ValueError('guide section does not apply to the selected model dialect')
+
+
+def require_model_applications(record:dict,*,dialect:str|None,resource_reader) -> None:
+    """Check model-family applications against the already acquired resources.
+
+    The route input boundary separately checks document bytes and issuance.
+    This domain check keeps resource origin/hash, delivered family, active
+    dialect and guide-rule applicability tied to that same acquired input.
+    """
+    _validate_resources(record)
+    manifest={'features':record['features']}
+    bodies=[]
+    _capture_resources(manifest,bodies,bound_dialect(record),resource_reader)
+    if manifest['resources']!=record['resources']:
+        raise ValueError('reading resources differ from the acquired sources; read again')
+    _require_resource_applications(record,bodies,dialect)
 
 
 def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
@@ -343,33 +377,37 @@ def _validate_manifest(value: dict[str, Any]) -> None:
 
 
 def capture(route: str, features: list[str] | None = None, *, root: Path = ROOT,
-            dialect: str | None = None) -> tuple[dict, list[tuple[dict, bytes]]]:
-    resolved = execution_routes.resolve(route, features, root=root)
+            dialect: str | None = None,resource_reader=None,
+            read_source:Callable[[str],bytes]|None=None) -> tuple[dict, list[tuple[dict, bytes]]]:
+    resolved = execution_routes.resolve(route, features, root=root,read_source=read_source)
     bodies = []
     for entry in resolved['reads']:
-        raw = c.read(c.local(root, entry['path']))
+        raw = read_source(entry['path']) if read_source is not None else c.read(c.local(root,entry['path']))
         raw.decode('utf-8')
         if c.digest(raw) != entry['sha256']:
             raise ValueError('document changed while reading: ' + entry['path'])
         bodies.append(({'kind': 'document', **entry}, raw))
     manifest = {'route': resolved['route'], 'features': resolved['features'], 'documents': resolved['reads']}
-    _capture_resources(manifest, bodies, dialect)
+    if resource_reader is None and 'prompt-dialect' in resolved['features']:
+        resource_reader=_live_resource_reader()
+    _capture_resources(manifest,bodies,dialect,resource_reader)
     return manifest, bodies
 
 
 def _issue(manifest: dict, ledger: Path, *, key: str | None = None, at: str | None = None, cwd: str | None = None) -> dict:
-    """Append under the caller's lock. Fixed values support synthetic fixtures."""
+    """Serialize only the ledger read and append. Fixed values support fixtures."""
     key = _hex(key or secrets.token_hex(16), 32, 'reading key')
     row = {**manifest, 'at': at or datetime.datetime.now(datetime.timezone.utc).isoformat(),
            'cwd': cwd if cwd is not None else str(Path.cwd()), 'key_sha256': c.digest(key.encode('ascii'))}
-    existing = ledger_rows(ledger)
-    for old in existing:
-        if old['key_sha256'] == row['key_sha256'] and any(old[k] != row[k] for k in manifest):
-            raise ValueError('reading key already belongs to different documents or route')
-    if row in existing:
+    with c.lock(ledger.parent):
+        existing = ledger_rows(ledger)
+        for old in existing:
+            if old['key_sha256'] == row['key_sha256'] and any(old[k] != row[k] for k in manifest):
+                raise ValueError('reading key already belongs to different documents or route')
+        if row in existing:
+            return {'reading_key': key, 'row': row}
+        c.atomic(ledger, b''.join(c.encoded(x) for x in existing) + c.encoded(row), replace=ledger.exists())
         return {'reading_key': key, 'row': row}
-    c.atomic(ledger, b''.join(c.encoded(x) for x in existing) + c.encoded(row), replace=ledger.exists())
-    return {'reading_key': key, 'row': row}
 
 
 def issue(route: str, features: list[str] | None = None, *, root: Path = ROOT,
@@ -385,11 +423,10 @@ def issue(route: str, features: list[str] | None = None, *, root: Path = ROOT,
         stream.write(raw.decode('utf-8'))
         stream.write('\n')
     stream.flush()
-    with c.lock(target.parent):
-        current, _ = capture(route, features, root=root, dialect=dialect)
-        if manifest != current:
-            raise ValueError('reading sources changed; read the current documents')
-        issued = _issue(manifest, target, key=key, at=at, cwd=cwd)
+    current, _ = capture(route, features, root=root, dialect=dialect)
+    if manifest != current:
+        raise ValueError('reading sources changed; read the current documents')
+    issued = _issue(manifest, target, key=key, at=at, cwd=cwd)
     stream.write('reading-key: ' + route + ' ' + issued['reading_key'] + '\n')
     stream.flush()
     return issued
@@ -438,7 +475,8 @@ def validate_record_content(record: Any) -> None:
 def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path] | None = None,
                           studio: Path | None = None, package_root: Path | None = None,
                           routes: set[str] | None = None, features: list[str] | None = None,
-                          dialect: Any = _NO_MODEL) -> dict:
+                          dialect: Any = _NO_MODEL,resource_reader=None,
+                          read_source:Callable[[str],bytes]|None=None) -> dict:
     """Verify the issued full-text read and each application the author declares.
 
     The author decides which documents apply to the task; a document read but
@@ -448,10 +486,11 @@ def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path]
     if routes is not None and record['route'] not in routes:
         raise ValueError('reading route must be one of: ' + ', '.join(sorted(routes)))
     if features is not None:
-        expected_features = execution_routes.resolve(record['route'], features, root=root)['features']
+        expected_features = execution_routes.resolve(record['route'], features,root=root,read_source=read_source)['features']
         if expected_features != record['features']:
             raise ValueError('reading features do not match the execution features')
-    current, bodies = capture(record['route'], record['features'], root=root, dialect=bound_dialect(record))
+    current,bodies=capture(record['route'],record['features'],root=root,dialect=bound_dialect(record),
+                           resource_reader=resource_reader,read_source=read_source)
     for field in current:
         if record[field] != current[field]:
             raise ValueError('reading ' + field + ' differs from the current sources; read again')
@@ -553,103 +592,107 @@ def _position(snapshot: dict, offset: int) -> tuple[int, int]:
     return len(snapshot['bodies']), 0
 
 
+def _publish_page(path: Path, value: dict) -> None:
+    """Commit a content-addressed page once, accepting an identical publisher."""
+    raw = c.encoded(value)
+    try:
+        c.atomic(path, raw)
+    except FileExistsError:
+        if c.read(path) != raw:
+            raise ValueError('reading page collision')
+
+
 def read_page(*, route: str | None = None, features: list[str] | None = None,
               cursor: str | None = None, replay: bool = False, page_bytes: int = DEFAULT_PAGE_BYTES,
               root: Path = ROOT, studio: Path | None = None, ledger: Path | None = None,
               stream: TextIO | None = None, runtime: dict | None = None,
               dialect: str | None = None) -> dict:
-    """Deliver an immutable page, then record its exact byte range under a lock."""
+    """Deliver immutable pages; serialize only the final issuance ledger append."""
     if isinstance(page_bytes, bool) or not isinstance(page_bytes, int) or page_bytes < 4:
         raise ValueError('page-bytes must be an integer of at least four')
     stream = sys.stdout if stream is None else stream
     ledger = ledger if ledger is not None else ledger_candidates(studio=studio)[0]
     authoring_studio = studio or _studio(ledger.parent)
-    with c.lock(ledger.parent):
-        if cursor is None:
-            if route is None:
-                raise ValueError('a route is required to start reading')
-            manifest, bodies = capture(route, features, root=root, dialect=dialect)
-            import production_authoring_state
-            task_id = production_authoring_state.active_task_id(authoring_studio)
-            snapshot = {'manifest': manifest, 'root': str(root.absolute()), 'runtime': runtime,
-                        'task_id': task_id,
-                        'nonce': secrets.token_hex(16), 'bodies': [dict(meta, size=len(raw)) for meta, raw in bodies]}
-            sid = c.content_id(snapshot)
-            production_authoring_state.remember_reading(authoring_studio, ledger, sid, snapshot, page_bytes)
-            folder = c.local(ledger.parent, 'reading-snapshots/' + sid, exists=False)
-            folder.mkdir(parents=True)
-            c.atomic(folder / 'snapshot.json', c.encoded(snapshot))
-            for _, raw in bodies:
-                c.object_store(folder, raw)
-            start = 0
+    if cursor is None:
+        if route is None:
+            raise ValueError('a route is required to start reading')
+        manifest, bodies = capture(route, features, root=root, dialect=dialect)
+        import production_authoring_state
+        task_id = production_authoring_state.active_task_id(authoring_studio)
+        snapshot = {'manifest': manifest, 'root': str(root.absolute()), 'runtime': runtime,
+                    'task_id': task_id,
+                    'nonce': secrets.token_hex(16), 'bodies': [dict(meta, size=len(raw)) for meta, raw in bodies]}
+        sid = c.content_id(snapshot)
+        production_authoring_state.remember_reading(authoring_studio, ledger, sid, snapshot, page_bytes)
+        folder = c.local(ledger.parent, 'reading-snapshots/' + sid, exists=False)
+        folder.mkdir(parents=True)
+        c.atomic(folder / 'snapshot.json', c.encoded(snapshot))
+        for _, raw in bodies:
+            c.object_store(folder, raw)
+        start = 0
+    else:
+        if route is not None or features or dialect is not None:
+            raise ValueError('a cursor fixes its route, features and prompt family')
+        folder, snapshot, page = _cursor(ledger, cursor)
+        sid = c.content_id(snapshot)
+        if str(root.absolute()) != snapshot['root']:
+            raise ValueError('reading cursor belongs to a different skill root')
+        _restore_runtime(snapshot['runtime'])
+        start = page['start'] if replay else page['end']
+    total = sum(x['size'] for x in snapshot['bodies'])
+    if cursor is not None and start == total and not replay:
+        raise ValueError('reading is complete; replay the final page to receive a new key')
+    index, offset = _position(snapshot, start)
+    budget = page_bytes
+    end = start
+    ranges = []
+    pending = {'snapshot': sid, 'start': start, 'end': start, 'ranges': []}
+    pending_id = c.content_id(pending)
+    pending_path = folder / 'pages' / (pending_id + '.json')
+    _publish_page(pending_path, pending)
+    stream.write('reading-start: ' + sid + ':' + pending_id + '\n')
+    stream.flush()
+    while index < len(snapshot['bodies']) and budget:
+        meta = snapshot['bodies'][index]
+        raw = c.object_read(folder, meta['sha256'])
+        stop = min(len(raw), offset + budget)
+        while stop > offset and stop < len(raw) and raw[stop] & 0xC0 == 0x80:
+            stop -= 1
+        if stop == offset and offset < len(raw):
+            break
+        segment = raw[offset:stop]
+        header = {'snapshot': sid, 'kind': meta['kind'], 'path': meta['path'],
+                  'sha256': meta['sha256'], 'start': offset, 'end': stop, 'total': len(raw)}
+        stream.write('--- ' + json.dumps(header, ensure_ascii=False) + ' ---\n')
+        stream.write(segment.decode('utf-8')); stream.write('\n')
+        ranges.append(header)
+        end += len(segment); budget -= len(segment)
+        if stop == len(raw):
+            index += 1; offset = 0
         else:
-            if route is not None or features or dialect is not None:
-                raise ValueError('a cursor fixes its route, features and prompt family')
-            folder, snapshot, page = _cursor(ledger, cursor)
-            sid = c.content_id(snapshot)
-            if str(root.absolute()) != snapshot['root']:
-                raise ValueError('reading cursor belongs to a different skill root')
-            _restore_runtime(snapshot['runtime'])
-            start = page['start'] if replay else page['end']
-        total = sum(x['size'] for x in snapshot['bodies'])
-        if cursor is not None and start == total and not replay:
-            raise ValueError('reading is complete; replay the final page to receive a new key')
-        index, offset = _position(snapshot, start)
-        budget = page_bytes
-        end = start
-        ranges = []
-        pending = {'snapshot': sid, 'start': start, 'end': start, 'ranges': []}
-        pending_id = c.content_id(pending)
-        pending_path = folder / 'pages' / (pending_id + '.json')
-        if not pending_path.exists():
-            c.atomic(pending_path, c.encoded(pending))
-        stream.write('reading-start: ' + sid + ':' + pending_id + '\n')
-        stream.flush()
-        while index < len(snapshot['bodies']) and budget:
-            meta = snapshot['bodies'][index]
-            raw = c.object_read(folder, meta['sha256'])
-            stop = min(len(raw), offset + budget)
-            while stop > offset and stop < len(raw) and raw[stop] & 0xC0 == 0x80:
-                stop -= 1
-            if stop == offset and offset < len(raw):
-                break
-            segment = raw[offset:stop]
-            header = {'snapshot': sid, 'kind': meta['kind'], 'path': meta['path'],
-                      'sha256': meta['sha256'], 'start': offset, 'end': stop, 'total': len(raw)}
-            stream.write('--- ' + json.dumps(header, ensure_ascii=False) + ' ---\n')
-            stream.write(segment.decode('utf-8')); stream.write('\n')
-            ranges.append(header)
-            end += len(segment); budget -= len(segment)
-            if stop == len(raw):
-                index += 1; offset = 0
-            else:
-                offset = stop
-        stream.flush()
-        page = {'snapshot': sid, 'start': start, 'end': end, 'ranges': ranges}
-        page_id = c.content_id(page)
-        page_path = folder / 'pages' / (page_id + '.json')
-        if page_path.exists():
-            if c.load(page_path) != page:
-                raise ValueError('reading page collision')
-        else:
-            c.atomic(page_path, c.encoded(page))
-        result = {'snapshot': sid, 'cursor': sid + ':' + page_id, 'delivered': ranges,
-                  'remaining_bytes': total - end}
-        if end == total:
-            # Completion depends on a contiguous cover of committed deliveries.
-            covered = sorted((p['start'], p['end']) for p in (c.load(x) for x in (folder / 'pages').glob('*.json')))
-            reach = 0
-            for low, high in covered:
-                if low > reach:
-                    raise ValueError('undelivered range in reading snapshot')
-                reach = max(reach, high)
-            if reach != total:
-                raise ValueError('reading snapshot is incomplete')
-            current, _ = capture(snapshot['manifest']['route'], snapshot['manifest']['features'], root=root,
-                                 dialect=bound_dialect(snapshot['manifest']))
-            if current != snapshot['manifest']:
-                raise ValueError('sources changed during reading; start a new read')
-            result['issued'] = _issue(current, ledger)
+            offset = stop
+    stream.flush()
+    page = {'snapshot': sid, 'start': start, 'end': end, 'ranges': ranges}
+    page_id = c.content_id(page)
+    page_path = folder / 'pages' / (page_id + '.json')
+    _publish_page(page_path, page)
+    result = {'snapshot': sid, 'cursor': sid + ':' + page_id, 'delivered': ranges,
+              'remaining_bytes': total - end}
+    if end == total:
+        # Completion depends on a contiguous cover of committed deliveries.
+        covered = sorted((p['start'], p['end']) for p in (c.load(x) for x in (folder / 'pages').glob('*.json')))
+        reach = 0
+        for low, high in covered:
+            if low > reach:
+                raise ValueError('undelivered range in reading snapshot')
+            reach = max(reach, high)
+        if reach != total:
+            raise ValueError('reading snapshot is incomplete')
+        current, _ = capture(snapshot['manifest']['route'], snapshot['manifest']['features'], root=root,
+                             dialect=bound_dialect(snapshot['manifest']))
+        if current != snapshot['manifest']:
+            raise ValueError('sources changed during reading; start a new read')
+        result['issued'] = _issue(current, ledger)
     stream.write('reading-cursor: ' + result['cursor'] + '\n')
     if 'issued' in result:
         stream.write('reading-key: ' + snapshot['manifest']['route'] + ' ' + result['issued']['reading_key'] + '\n')
