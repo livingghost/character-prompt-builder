@@ -47,18 +47,27 @@ a permission or an exclusion. Open choices can have several successful answers.
 
 ## Whole-image art direction
 
-Use rendering and design knowledge for the selected depiction. Direction,
-relationship, hierarchy, shape rhythm, negative space, color-light organization,
-material response and finish can matter together; select them through their
-role in the image rather than completing an axis inventory. Open expressive
-questions use [Discovery](sparse-discovery.md). The resulting choice remains
-with Production direction.
+Develop the intended encounter and its visual language together under
+[Production direction](production-direction.md#form-a-prompt-from-an-idea).
+Situation, emotional register, hierarchy, shape rhythm, space, mark behavior,
+color-light organization and material response can inform one another while
+the idea is open. Compare their expressive consequences as complete pictures,
+then carry the chosen relationships into the depiction. A different scene in
+the same habitual mood and treatment is not a considered change in those
+choices. Resolve what this image needs without treating variation itself as a
+goal. An adopted direction or explicit style remains fixed at its actual scope.
+Use [Discovery](sparse-discovery.md) for a question that can expand or resolve
+the choice and [visual treatment](render-contract.md#choose-the-visual-treatment)
+for its rendering realization. These resources contribute to the same decision.
 
-When finish is open, consider the studio's `default_render_profile` in the
-selected construction. A new studio takes `profile-clear-2d-illustration`, a
-polished 2D character-illustration finish; inspect that complete record before
-using it. A default cannot settle the artifact's presentation or override its
-purpose. Treat rendering knowledge as four distinct layers:
+A Studio's explicit `default_render_profile` is a project preference at its
+declared scope. Inspect the complete record when considering it for the current
+direction, and preserve a treatment the project has actually fixed. A null
+value leaves the profile unselected; it does not ask for a replacement from
+pack defaults. Author the open treatment through the same art-direction work.
+A preset or preference does not independently decide the picture's content,
+emotional register or visual hierarchy. Treat rendering knowledge as four
+distinct layers:
 
 1. A universal aesthetic core is optional, zero or one. It provides domain-neutral appeal, hierarchy, viewer relationship, shape rhythm, tactility, color-light taste, and finish. It may sharpen an already chosen direction, but never supplies anatomy or chooses the concept.
 2. A concrete style family is optional, zero or one. It is an indivisible drawing grammar binding line hierarchy, form abstraction, value and shadow design, highlight placement, color behavior, surface grouping, background treatment, detail hierarchy, and domain-specific realization. Select one only when it closely fits the direction. Use its linked render profile as the medium envelope and scoped negative boundary, not as a second positive grammar. If no family fits, proceed with a render profile directly.
@@ -97,6 +106,11 @@ activity, state or design as connected meaning. An exclusion defines its
 actual boundary; it does not automatically select the opposite or diminish
 the remaining requested quality. Preserve modifier scope and intended degree.
 A direct exclusion is sufficient when that boundary fully defines the change.
+
+Select distance, crop and visible information through
+[framing from the intended effect](production-direction.md#choose-framing-from-the-intended-effect).
+A style, identity or material source contributes its assigned properties;
+incidental camera choices and anti-crop terms do not become scene requirements.
 
 Use the same production knowledge from either starting point. For
 [an image source](production-direction.md#form-a-prompt-from-an-image), identify
@@ -225,10 +239,12 @@ checklist of features to insert.
 
 ## Representation grammar
 
-Develop image-level grammar for the selected construction, independently of
-its medium label. Work on the unresolved choices that affect its intended
-effect or a required property. An adopted treatment or sufficient existing
-depiction can already settle them. The available construction knowledge covers:
+Develop image-level grammar with the construction it helps express. A medium
+label alone leaves its visual behavior unresolved: the same medium can support
+different form, edge, tonal, spatial and emotional relationships. Work on the
+choices that affect this picture, including where a visual treatment changes
+the conception itself. Preserve an adopted treatment or sufficient existing
+depiction at its actual scope. The available construction knowledge covers:
 
 - large, medium, and fine-form hierarchy;
 - boundary types and lost-edge behavior;
@@ -549,7 +565,7 @@ the first two purposes; keep the author's other obligations with their owners.
 Resolve a missing present-scene premise through the scene description. Consider:
 
 1. central hygiene and integrity bundles for structures actually implied by the subject, pose, and framing;
-2. drift terms from the selected render profile;
+2. drift terms that apply to the selected render profile's assigned finish;
 3. terms from corrections activated by a concrete risk;
 4. explicit user exclusions.
 

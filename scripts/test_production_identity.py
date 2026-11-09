@@ -6,7 +6,10 @@ isolated local model pack; no provider is contacted or visual verdict invented.
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -294,6 +297,30 @@ class PreparedIdentityCarrierTests(unittest.TestCase):
         self.assertEqual(production_identity.reference_id(left), production_identity.reference_id(moved))
 
 
+class AuthoringTargetScopeTests(unittest.TestCase):
+    def test_current_scope_names_the_single_selected_target(self):
+        from production_authoring_state import _scope
+        with tempfile.TemporaryDirectory(prefix='cpb-target-scope-') as temporary:
+            root = Path(temporary)
+            (root / 'model.json').write_bytes(c.encoded({'id': 'synthetic-acquired-model'}))
+            cases = [
+                ('authored', {'kind': 'catalog', 'model': 'model:synthetic', 'service': 'service:synthetic'},
+                 'model:synthetic', 'service:synthetic'),
+                ('authored', {'kind': 'acquired', 'model_file': 'model.json', 'service': None},
+                 'synthetic-acquired-model', None),
+                ('external', {'kind': 'external', 'model': {'requested': 'Synthetic external target',
+                    'target': {'model_identifier': 'synthetic-wire-model', 'service': 'synthetic-host',
+                               'operation': 'image-generation'}}}, 'synthetic-wire-model', 'synthetic-host'),
+                ('authored', None, None, None),
+            ]
+            for execution, target, model, service in cases:
+                with self.subTest(target=target):
+                    task = {'route': 'prompt-only' if execution == 'authored' else 'generation',
+                            'features': [], 'execution': execution}
+                    scope = _scope(task, root=root, choices={'target': target})
+                    self.assertEqual((scope['model'], scope['service']), (model, service))
+
+
 class IdentityAuthoringTests(unittest.TestCase):
     setUp = input_fixtures.InputToolsTests.setUp
     save_choices = input_fixtures.InputToolsTests.save_choices
@@ -331,6 +358,18 @@ class IdentityAuthoringTests(unittest.TestCase):
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
         return production_inputs.build_inputs(self.root, None, result['choices_file'], destination)
 
+    def compile_identity(self, result, choices):
+        (self.root / result['choices_file']).write_bytes(c.encoded(choices))
+        return production_inputs.compile_choices(self.root, result['choices_file']).report
+
+    def recovery(self, diagnostic):
+        action = diagnostic['next_action']
+        self.assertEqual(diagnostic['next_actions'], [action])
+        result = subprocess.run(action['argv'], cwd=self.root, capture_output=True,
+                                text=True, encoding='utf-8', check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
     def test_common_draft_exposes_original_values_and_build_preserves_source_owner(self):
         result, choices = self.draft_identity()
         self.assertNotIn('canon', choices['authoring']['sources'])
@@ -346,11 +385,62 @@ class IdentityAuthoringTests(unittest.TestCase):
 
     def test_changed_original_requires_current_judgment_before_reusing_draft(self):
         result, choices = self.draft_identity()
-        (self.root / 'canon.json').write_bytes(c.encoded({'identity': {'new_condition': 'The split now closes at rest.'}}))
-        built = self.build_identity(result, choices)
-        self.assertFalse(built['ok'])
-        self.assertEqual(built['unresolved'][0]['code'], 'current-judgment-required')
+        changed = c.encoded({'identity': {'new_condition': 'The split now closes at rest.'}})
+        (self.root / 'canon.json').write_bytes(changed)
+        report = self.compile_identity(result, choices)
+        self.assertFalse(report['ok'])
+        diagnostic = report['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'IDENTITY_SOURCE_CHANGED')
+        self.assertEqual(diagnostic['file'], 'canon.json')
+        self.assertEqual(diagnostic['expected_sha256'], c.digest(self.raw))
+        self.assertEqual(diagnostic['actual_sha256'], c.digest(changed))
+        self.assertEqual(diagnostic['next_action']['command'], 'draft-inputs')
+        restored = self.recovery(diagnostic)
+        self.assertEqual(restored['identity_coverage']['sources'][0]['sha256'], c.digest(changed))
+        self.assertEqual(c.load(self.root / result['choices_file']), choices)
+        self.assertNotEqual(restored['choices_file'], result['choices_file'])
         self.assertFalse((self.root / 'identity-built').exists())
+
+    def test_unregistered_copy_identifies_registration_and_inspects_owned_work(self):
+        result, choices = self.draft_identity()
+        shutil.copytree(self.root / 'identity-draft', self.root / 'copied-draft')
+        copied = {**result, 'choices_file': 'copied-draft/choices.json'}
+        context_path = self.root / 'copied-draft/context.json'
+        context = c.load(context_path)
+        context['derived_from']['source_run'] = {'run': 'untrusted-origin', 'input_sha256': 'f' * 64}
+        context_path.write_bytes(c.encoded(context))
+        report = self.compile_identity(copied, choices)
+        diagnostic = report['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'AUTHORING_DRAFT_UNREGISTERED')
+        self.assertEqual(diagnostic['file'], 'copied-draft/context.json')
+        self.assertEqual(diagnostic['next_action']['command'], 'inspect-inputs')
+        self.assertNotIn('untrusted-origin', diagnostic['next_action']['argv'])
+        inspected = self.recovery(diagnostic)
+        self.assertEqual(inspected['task_id'], self.task['task_id'])
+        self.assertIn('identity-draft', [row['directory'] for row in inspected['inputs']])
+
+    def test_missing_context_names_its_file_and_returns_executable_redraft(self):
+        result, choices = self.draft_identity()
+        (self.root / result['context_file']).unlink()
+        report = self.compile_identity(result, choices)
+        diagnostic = report['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'AUTHORING_CONTEXT_MISSING')
+        self.assertEqual(diagnostic['file'], result['context_file'])
+        self.assertEqual(diagnostic['next_action']['command'], 'draft-inputs')
+        restored = self.recovery(diagnostic)
+        self.assertTrue((self.root / restored['context_file']).is_file())
+        self.assertEqual(c.load(self.root / result['choices_file']), choices)
+
+    def test_unavailable_identity_source_names_source_inspection(self):
+        result, choices = self.draft_identity()
+        (self.root / 'canon.json').unlink()
+        report = self.compile_identity(result, choices)
+        diagnostic = report['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'IDENTITY_SOURCE_UNAVAILABLE')
+        self.assertEqual(diagnostic['file'], 'canon.json')
+        self.assertEqual(diagnostic['next_action']['command'], 'inspect-inputs')
+        inspected = self.recovery(diagnostic)
+        self.assertFalse(next(row for row in inspected['sources'] if row['id'] == 'canon')['present'])
 
     def test_editable_copy_cannot_redefine_original_identity(self):
         result, choices = self.draft_identity()
@@ -375,7 +465,7 @@ class IdentityAuthoringTests(unittest.TestCase):
         choices['authoring']['source_files']['canon.json'] = c.digest(changed)
         built = self.build_identity(result, choices)
         self.assertFalse(built['ok'])
-        self.assertEqual(built['unresolved'][0]['code'], 'current-judgment-required')
+        self.assertEqual(built['unresolved'][0]['code'], 'IDENTITY_SOURCE_CHANGED')
         self.assertFalse((self.root / 'identity-built').exists())
 
     def test_removing_derived_context_evidence_cannot_bypass_registered_originals(self):
@@ -385,9 +475,18 @@ class IdentityAuthoringTests(unittest.TestCase):
         context.pop('identity_coverage')
         context_path.write_bytes(c.encoded(context))
         choices['authoring']['source_files'].pop('canon.json')
-        built = self.build_identity(result, choices)
-        self.assertFalse(built['ok'])
-        self.assertIn('context changed', built['unresolved'][0]['message'])
+        report = self.compile_identity(result, choices)
+        self.assertFalse(report['ok'])
+        diagnostic = report['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'AUTHORING_CONTEXT_MISMATCH')
+        self.assertEqual(diagnostic['file'], result['context_file'])
+        self.assertEqual(diagnostic['next_action']['command'], 'draft-inputs')
+        state = production_inputs.inspect_inputs(self.root)
+        current = next(row for row in state['inputs'] if row['current'])
+        self.assertEqual(current['diagnostics'][0]['code'], diagnostic['code'])
+        self.assertEqual(current['next_actions'], diagnostic['next_actions'])
+        restored = self.recovery(diagnostic)
+        self.assertIn('identity_coverage', c.load(self.root / restored['context_file']))
         self.assertFalse((self.root / 'identity-built').exists())
 
     def test_editing_graph_owner_requires_its_existing_authority_workflow(self):

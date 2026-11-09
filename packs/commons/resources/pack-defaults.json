@@ -1,5 +1,5 @@
 {
-  "default_render_profile": "profile-clear-2d-illustration",
+  "default_render_profile": null,
   "default_creative_latitude": "directed",
   "default_interaction_mode": "balanced",
   "art_direction_definition": {
@@ -42,6 +42,7 @@
   },
   "notes": [
     "The default pack supplies a compact starting vocabulary; the agent remains responsible for semantic interpretation and art direction.",
+    "A null default_render_profile leaves rendering unselected; available profiles supply knowledge for an authored choice.",
     "Scene-conditioned presentation may change while permanent identity traits remain stable.",
     "Preset IDs are inspection handles, not required user vocabulary."
   ]

@@ -30,6 +30,88 @@ class RetargetTests(unittest.TestCase):
         return variation.retarget(self.root,self.run,kwargs.pop('task','retarget/task.json'),
                                   reason='Explicit synthetic comparison of targets.',**kwargs)
 
+    def editable_target(self):
+        import production_inputs
+        result = production_inputs.draft_inputs(self.root, None, 'editor', from_run=self.run,
+                                               model=f.ALTERNATE_MODEL_ID, service='synthetic')
+        return result, c.load(self.root / result['choices_file'])
+
+    def reassess(self, choices):
+        import request_validation
+        import runtime_evidence
+        f.alternate_task(self.root)
+        choices['reading']['reading_key'] = c.load(self.root / 'retarget/reading.json')['reading_key']
+        choices['validation'] = request_validation.draft_choices(
+            c.load(self.root / 'retarget/validation.json'), runtime_evidence.reader(self.root))
+        choices['authoring']['documents']['parameters']['steps'] = 22
+        f.write(self.root / 'editor/choices.json', choices)
+
+    def test_reopened_target_retains_authored_work_and_exposes_current_guidance(self):
+        result, choices = self.editable_target()
+        parent = workflow.read_run(self.root, self.run)
+        self.assertEqual(choices['target'], {'kind': 'catalog', 'model': f.ALTERNATE_MODEL_ID, 'service': 'synthetic'})
+        for field in ('criteria', 'direction', 'sources'):
+            self.assertEqual(choices['authoring']['task'][field], parent.prepared['task'][field])
+        self.assertEqual((self.root / choices['authoring']['delivery']['file']).read_text(encoding='utf-8'), f.PROMPT)
+        original = parent.artifacts['package.json']['request_validation']
+        self.assertEqual(choices['validation']['execution_policy'], original['execution_policy']['path'])
+        self.assertEqual(choices['validation']['contract'], original['contract']['path'])
+        self.assertEqual(choices['reading']['reading_key'], parent.prepared['route_reading']['reading_key'])
+        gap = next(item for item in result['unresolved'] if item['code'] == 'TARGET_GUIDANCE_REQUIRED')
+        self.assertEqual(gap['next_action']['args']['model'], f.ALTERNATE_MODEL_ID)
+        self.assertEqual(result['target_knowledge']['model'], f.ALTERNATE_MODEL_ID)
+        self.assertEqual(store.event_rows(self.root, self.run), [])
+
+    def test_editable_retarget_uses_current_evidence_and_preserves_parent_lineage(self):
+        _, choices = self.editable_target()
+        self.reassess(choices)
+        child = variation.retarget(self.root, self.run, choices='editor/choices.json',
+                                   reason='The synthetic author selected the alternate interface.', prepare=True)
+        self.assertEqual(child['request_preview']['model'], 'synthetic:alternate')
+        self.assertEqual(child['request_preview']['steps'], 22)
+        loaded = workflow.read_run(self.root, child['run'])
+        self.assertEqual(loaded.prepared['parent']['run'], self.run)
+        self.assertEqual(loaded.prepared['parent']['kind'], 'retarget')
+        self.assertEqual(loaded.prepared['task']['criteria'], self.case['task']['criteria'])
+        self.assertEqual(loaded.artifacts['package.json']['production_spec']['target_model'], f.ALTERNATE_MODEL_ID)
+        self.assertEqual(loaded.artifacts['package.json']['request_validation']['target']['model_identifier'], 'synthetic:alternate')
+        self.assertEqual(store.event_rows(self.root, self.run), [])
+
+    def test_applicable_reopened_evidence_and_reading_produce_the_same_validation(self):
+        import production_inputs
+        parent = workflow.read_run(self.root, self.run)
+        result = production_inputs.draft_inputs(self.root, None, 'unchanged', from_run=self.run)
+        self.assertEqual(result['unresolved'], [])
+        child = workflow.prepare(self.root, choices=result['choices_file'])
+        actual = workflow.read_run(self.root, child['run'])
+        self.assertEqual(actual.artifacts['package.json']['request_validation'], parent.artifacts['package.json']['request_validation'])
+        self.assertEqual(actual.prepared['route_reading'], parent.prepared['route_reading'])
+        self.assertEqual({key: value for key, value in child['request_preview'].items() if key != 'request_id'},
+                         {key: value for key, value in self.parent['request_preview'].items() if key != 'request_id'})
+
+    def test_restoration_reads_captured_validation_evidence(self):
+        import production_inputs
+        parent = workflow.read_run(self.root, self.run)
+        validation = parent.artifacts['package.json']['request_validation']
+        (self.root / validation['contract']['path']).unlink()
+        (self.root / 'validation.json').unlink()
+        result = production_inputs.draft_inputs(self.root, None, 'restored', from_run=self.run)
+        self.assertEqual(result['choices']['validation']['contract'], validation['contract']['path'])
+        self.assertEqual(result['choices']['validation']['execution_policy'], validation['execution_policy']['path'])
+        self.assertEqual(result['choices']['authoring']['task']['criteria'], self.case['task']['criteria'])
+
+    def test_selected_policy_reports_its_scope_when_the_target_changes(self):
+        import production_inputs
+        _, choices = self.editable_target()
+        f.alternate_task(self.root)
+        choices['reading']['reading_key'] = c.load(self.root / 'retarget/reading.json')['reading_key']
+        f.write(self.root / 'editor/choices.json', choices)
+        report = production_inputs.compile_choices(self.root, 'editor/choices.json').report
+        problem = next(item for item in report['diagnostics'] if item['code'] == 'VALIDATION_POLICY_REQUIRED')
+        self.assertEqual(problem['file'], choices['validation']['execution_policy'])
+        self.assertIn('execution policy', problem['required_action'])
+        self.assertEqual(len(store.runs(self.root)), 1)
+
     def test_target_change_needs_no_candidate_and_uses_new_profile(self):
         f.alternate_task(self.root)
         child=self.target(prepare=True)
@@ -157,6 +239,74 @@ class RetargetTests(unittest.TestCase):
         directory,prepared,_,rows=workflow.load_run(root,child['run'])
         self.assertEqual(prepared['parent']['kind'],'retarget');self.assertEqual(prepared['parent']['run'],parent['run']);self.assertEqual(rows,[])
         self.assertEqual(c.load(directory/'package.json')['artifact_type'],'upscale-request')
+
+
+class ReferenceRetargetTests(unittest.TestCase):
+    def test_reference_mode_switch_and_plain_prompt_retry_keep_authored_work(self):
+        import production_inputs
+        with tempfile.TemporaryDirectory(prefix='cpb-reference-retarget-') as temporary:
+            base = Path(temporary)
+            case = f.create(base / 'studio', base / 'runtime', with_alternate=True)
+            root = case['root']
+            scenario = f.reference_retarget_case(case)
+            parent = scenario['parent']
+            before = workflow.read_run(root, parent['run'])
+            original_package = Path(parent['package']).read_bytes()
+            authority = store.authority_record(root, before.prepared['task']['task_id'])
+            inherited = scenario['inherited_choices']
+            self.assertEqual(inherited['validation'], {'mode': 'target-schema', 'contract': None, 'evidence': None,
+                'execution_policy': before.artifacts['package.json']['request_validation']['execution_policy']['path']})
+            self.assertEqual(inherited['authoring']['task']['criteria'], before.prepared['task']['criteria'])
+            self.assertEqual((root / inherited['authoring']['delivery']['file']).read_text(encoding='utf-8'), f.REFERENCE_RETRY_PROMPT)
+
+            checked = production_inputs.compile_choices(root, scenario['choices_file']).report
+            self.assertTrue(checked['publishable'], checked['diagnostics'])
+            self.assertEqual(len(store.runs(root)), 1)
+            child = variation.retarget(root, parent['run'], choices=scenario['choices_file'],
+                reason='Compare explicitly selected synthetic reference operations.', prepare=True)
+            after = workflow.read_run(root, child['run'])
+            self.assertEqual(child['request_preview']['prompt'], f.REFERENCE_RETRY_PROMPT)
+            self.assertEqual(child['request_preview']['steps'], 22)
+            self.assertNotIn('seed', child['request_preview'])
+            self.assertEqual(child['request_preview']['inputs']['references'], parent['request_preview']['inputs']['references'])
+            for field in ('criteria', 'direction', 'task_id', 'production_id', 'authority'):
+                self.assertEqual(after.prepared['task'][field], before.prepared['task'][field], field)
+            for old, new in zip(before.prepared['task']['sources'], after.prepared['task']['sources'], strict=True):
+                self.assertEqual({key: value for key, value in old.items() if key != 'path'},
+                                 {key: value for key, value in new.items() if key != 'path'})
+                self.assertEqual((root / old['path']).read_bytes(), (root / new['path']).read_bytes())
+            self.assertEqual(after.prepared['identity_coverage'], before.prepared['identity_coverage'])
+            self.assertEqual(after.prepared['parent']['run'], parent['run'])
+            self.assertEqual(after.prepared['parent']['kind'], 'retarget')
+            self.assertEqual(store.authority_record(root, before.prepared['task']['task_id']), authority)
+
+            old_validation = before.artifacts['package.json']['request_validation']
+            new_validation = after.artifacts['package.json']['request_validation']
+            self.assertNotEqual(new_validation['contract'], old_validation['contract'])
+            self.assertEqual(new_validation['target']['model_identifier'], 'synthetic:alternate')
+            self.assertNotEqual(new_validation['offering_contract_sha256'], old_validation['offering_contract_sha256'])
+            self.assertFalse(any(row['scope'] == '$.x-constraints[0]' for row in old_validation['unmeasured']))
+            self.assertTrue(any(row['scope'] == '$.x-constraints[0]' for row in new_validation['unmeasured']))
+            self.assertEqual(after.artifacts['package.json']['render_contract']['intent'], {
+                'artifact_type': 'render-intent', 'execution_mode': 'instruction-edit'})
+
+            # Reopen the new target, then edit only the ordinary prompt file.
+            # The selected reference scope and independent review basis persist.
+            draft = production_inputs.draft_inputs(root, None, 'reference-prompt-retry', from_run=child['run'])
+            prompt = 'The blue robot carries a small yellow toolbox through an open doorway.'
+            f.write(root / draft['choices']['authoring']['delivery']['file'], prompt)
+            revised = workflow.prepare(root, choices=draft['choices_file'])
+            revised_view = workflow.read_run(root, revised['run'])
+            self.assertEqual(revised['request_preview']['prompt'], prompt)
+            self.assertEqual(revised_view.prepared['task']['criteria'], before.prepared['task']['criteria'])
+            self.assertEqual(revised_view.prepared['identity_coverage'], before.prepared['identity_coverage'])
+            self.assertEqual(revised_view.artifacts['package.json']['request_validation'], new_validation)
+            self.assertEqual(Path(parent['package']).read_bytes(), original_package)
+            self.assertEqual(workflow.read_run(root, parent['run']).prepared, before.prepared)
+            self.assertEqual(len(store.runs(root)), 3)
+            for run in (parent['run'], child['run'], revised['run']):
+                self.assertEqual(store.event_rows(root, run), [])
+
 
 if __name__ == '__main__':
     import stdio_utf8

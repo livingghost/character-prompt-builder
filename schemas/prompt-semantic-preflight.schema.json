@@ -14,13 +14,7 @@
     },
     "camera": {
       "type": "object",
-      "required": [
-        "angle",
-        "shot_scale",
-        "distance",
-        "pitch",
-        "subject_frame_occupancy"
-      ],
+      "description": "Only the author's selected camera facts and bounds. An empty object declares none; occupancy bounds require an explicit subject_frame_occupancy value.",
       "properties": {
         "angle": {
           "type": "string"

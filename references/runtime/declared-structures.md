@@ -56,7 +56,14 @@ Identity, morphology, production, asset-render and state graph checks all use th
 
 State annotations describe current conditions separately. Occlusion changes what to render while what exists stays as declared. Translate local geometry to locally scoped prompt wording. A format or schema check proves the record's shape and leaves prose and generated pixels unproven.
 
-An identity supplies explicit `reference_views` when building a reusable reference bundle. Each keyed view declares `view`, `framing`, `coverage_tokens` and a complete camera contract, chosen against actual coverage needs; the planner adds none, including head, bust and paired-limb views. Missing view declarations block that branch with an actionable error while a prompt-only draft proceeds.
+An identity supplies explicit `reference_views` when building a reusable
+reference bundle. Each keyed view declares `view`, `framing`, `coverage_tokens`
+and the camera constraints selected for its actual coverage needs. When the
+view must be reproduced precisely, record enough measured geometry and
+relationships for that purpose under [Camera framing](../camera-framing-contract.md).
+Unrelated camera fields remain absent. The planner adds no views, including
+head, bust and paired-limb views. Missing view declarations block that branch
+with an actionable error while a prompt-only draft proceeds.
 
 Individual measurements may use `structure_measurements`; head and limb ratios are optional there. A lineage records its authored cross-structure constraints in `structure_coherence_rule`. Morphology starters contain an explicitly replaceable carrier specimen, a starting point rather than an approved default or a mandatory organ inventory.
 

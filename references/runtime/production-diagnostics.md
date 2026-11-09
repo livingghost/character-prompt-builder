@@ -165,6 +165,25 @@ A drift diagnostic adds `affected_runs` and `actions`.
 | `ADOPTION_RESULT_MISSING` | The run records no completed adoption of the cited Studio iteration. |
 | `ADOPTION_RECORD_CORRUPT` | The canonical adoption record is malformed or differs from its artifact. |
 
+**Editable source and target**
+
+| Code | Reports |
+|---|---|
+| `AUTHORING_DRAFT_UNREGISTERED` | The directory has no registered work-task owner. Inspect saved inputs to locate the actual draft. |
+| `AUTHORING_DRAFT_REGISTRATION_INVALID` | The registration itself cannot establish the source context. Inspect the named registration. |
+| `AUTHORING_CONTEXT_MISSING` | A registered draft lacks its source context. The returned action uses trusted registration to reopen it. |
+| `AUTHORING_CONTEXT_MISMATCH` | Source context bytes differ from the registered publication. Reopen the registered source in the offered unused directory. |
+| `IDENTITY_SOURCE_CHANGED` | A selected identity source differs from the original draft witness. Inspect the owning source and reassess its current application. |
+| `IDENTITY_SOURCE_UNAVAILABLE` | A selected identity source cannot be read. The action names the source inspection needed before reconstruction. |
+| `TARGET_GUIDANCE_REQUIRED` | The selected reading does not cover the current target or source editions. Complete the returned reading action and select its issued key. |
+| `VALIDATION_EVIDENCE_REQUIRED` | The offering supplies no default schema and current request evidence has not been selected. |
+| `VALIDATION_POLICY_REQUIRED` | The retained policy does not cover the selected target, dialect or reference contract. Select applicable authored evidence at the named field. |
+
+Source-context errors retain `code`, `file`, `pointer`, hashes when measured and
+`next_action` / `next_actions`. Execute the supplied `argv` to inspect or reopen
+the actual registered source. Recovery keeps existing editor files and does not
+select a new source, grant permission or certify artistic judgment.
+
 **Variation**
 
 | Code | Reports |
@@ -178,7 +197,7 @@ A drift diagnostic adds `affected_runs` and `actions`.
 | `CANDIDATE_NOT_FOUND` | A `--candidate` names no candidate of the source run. |
 | `VARIANT_NOT_APPLICABLE` | The source run has no compiled model request. |
 | `REPEAT_INPUT_MISMATCH` | A repeated preparation did not keep the fixed input identity. |
-| `RETARGET_NOT_APPLICABLE` | The source run or the new task has no compiled model request. |
+| `RETARGET_NOT_APPLICABLE` | The source run or the new input has no exact prepared dispatcher or external image request. |
 | `RETARGET_NO_OP` | Neither the target nor the pack runtime changed. |
 | `RETARGET_SCOPE_MISMATCH` | The new task changes the work task or the production series. |
 

@@ -724,12 +724,13 @@ def check_pack_defaults(root: Path, records: Sequence[Record], errors: list[str]
 def _check_one_pack_defaults(label: str, defaults: dict[str, Any], records: Sequence[Record], errors: list[str]) -> None:
     for message in validate_known_resource("pack-defaults", defaults):
         errors.append(f"{label}: {message}")
-    profile_id = str(defaults.get("default_render_profile") or "")
-    profile = next((r.record for r in records if r.kind == "profile" and r.record.get("id") == profile_id), None)
-    if not profile:
-        errors.append(f"{label}: default render profile is missing: {profile_id}")
-    elif profile.get("curation_status") != "curated":
-        errors.append(f"{label}: default render profile must be curated: {profile_id}")
+    profile_id = defaults.get("default_render_profile")
+    if isinstance(profile_id, str) and profile_id.strip():
+        profile = next((r.record for r in records if r.kind == "profile" and r.record.get("id") == profile_id), None)
+        if not profile:
+            errors.append(f"{label}: default render profile is missing: {profile_id}")
+        elif profile.get("curation_status") != "curated":
+            errors.append(f"{label}: default render profile must be curated: {profile_id}")
     if defaults.get("default_aesthetic_core") not in (None, ""):
         errors.append(f"{label}: must not force an aesthetic core; art direction is authoritative")
     if defaults.get("default_style_family") not in (None, ""):

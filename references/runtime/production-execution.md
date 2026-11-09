@@ -12,6 +12,7 @@ specialist knowledge; this index alone is not their contract.
 | Author or revise | [Production authoring](production-authoring.md) and [Production direction](production-direction.md) |
 | Save and deliver authored text | [Authored storage](production-authored-storage.md) |
 | Prepare a model request | [Production preparation](production-preparation.md) |
+| Change a model target or adopt the current runtime | [Production authoring](production-authoring.md#select-and-change-the-target) and [Input variations](production-variation.md) |
 | Author an external image request | [Image input](production-image-inputs.md) and [External request inputs](production-external-inputs.md) |
 | Compile a dispatcher image request | [Generation Package](generation-package.md) |
 | Execute a prepared request | [Prepared request execution](production-request-execution.md), [Production permissions](production-permissions.md), and the selected [dispatcher](production-dispatch.md) or [external host](production-external-execution.md) contract |
@@ -23,6 +24,15 @@ specialist knowledge; this index alone is not their contract.
 A saved revision, prepared request, actual external result, evaluation and
 adoption each record the action that occurred. The requested result determines
 completion. Discussion without a saved artifact needs no Production run.
+
+Editable model work selects its target once in `choices.target`. The input owner
+derives the model and offering declarations used by validation, specifications,
+references and the exact request. Reopening with `draft-inputs --task` or
+`--from-run` can select `--model` and `--service`; `retarget --choices` binds an
+edited target change to the parent run. Preserve valid authored content,
+choices and applicable evidence while resolving the changed dependencies.
+The authoring contract explains when existing reading still applies and how
+cause-specific diagnostics return executable recovery actions.
 
 ## Maintenance checks
 

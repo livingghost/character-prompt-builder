@@ -9,6 +9,7 @@ changed behavior. Ordinary production follows its runtime procedures.
 
 - [Required checks](#required-checks)
 - [Documentation checks](#documentation-checks)
+- [Creative-direction evaluation](#creative-direction-evaluation)
 - [Release identity checks](#release-identity-checks)
 - [Public protocol conformance](#public-protocol-conformance)
 - [Production execution checks](#production-execution-checks)
@@ -112,6 +113,73 @@ Run `python scripts/readme_smoke_test.py` after changing user-facing examples. I
 After changing README.md, run the same README smoke suite and keep the executable
 example blocks byte-identical unless the commands changed. The full runner
 includes this suite.
+
+## Creative-direction evaluation
+
+Use [Agent workflow design](agent-workflow-design.md#evaluation) when changing
+how the Skill selects or reviews a depiction. Automated validation checks
+declared geometry and source contracts; it cannot establish that the picture
+serves the commission. Exercise the updated Skill with independent agents that
+receive only the Skill, a raw realistic request and the environment needed to use it.
+Do not tell them which weakness is being investigated, which picture is expected,
+or that they must demonstrate diversity. Retain the exact input and first response
+before supplying feedback; keep incomplete attempts and failures as results.
+
+Separate purpose-directed tasks from open creation. For claims about an initial
+proposal from sparse input, supply only an ordinary topic or the user's actual
+short request. Do not add a desired expression, hand action, mood, medium,
+palette, spatial scale, focal relationship, camera or crop to make the expected
+answer easier to reach. Even without shot terminology, those additions can steer
+the picture. Choose the request set before observing answers, give each
+first-proposal task a fresh context, and retain every result, including repeated
+or unsuitable choices.
+Do not treat purpose-directed success as evidence against a default in open
+creation, or label an agent's own scene detail as user-supplied intent.
+
+Also cover different stated purposes, a declared author style, a requested
+whole-design view and a local edit with scene and framing already fixed. First
+assess what each proposal actually develops and whether it retains the
+commissioned content, subject roles and stated use. An incidental occurrence
+of the requested character does not preserve a character commission. Assess
+each first proposal as an entire picture: emotional register, visual language,
+palette and light, mark and surface treatment, distance/crop, useful visible
+information and scoped exclusions together. Compare recurring combinations of
+these choices across the sample as well as their fit to each request. Preserve
+declared style, adopted scenes and local edits; a coherent series can properly
+repeat choices. A close view, whole figure, environmental view or repeated frame
+can all be appropriate. Distinguish justified repetition from an unchosen
+default. Do not use novelty quotas, mandatory or random rotation, prohibited
+media or lists of prompt words as artistic acceptance tests.
+Check instruction and template defaults separately so successful prose does
+not hide a conflicting authoring surface. Use new contexts after corrections.
+When the workflow includes a conception study, retain its actual preselection
+descriptions, consulted source material and separate assessment. Distinguish
+the alternatives constructed, the grounds of selection and their rendition in
+the final proposal. A retrospective list of rejected ideas cannot establish
+that comparison took place; different technique names cannot establish that
+the alternatives tested a consequential visual choice.
+Also exercise complete subject prompts with rendering left to the model.
+Preparation and prompt/model retries must preserve those actual inputs without
+requiring a medium, invented selection reason or fictitious finish span.
+Verify preservation of explicit rendering constraints separately from that
+unselected state.
+
+Report the Skill revision, model, setup, exact requests, first responses,
+observed fit and limitations of this sample separately from structural test
+results. A model-unspecified proposal tests portable authoring only. A claim
+about target-specific wording also needs that exact target's input evidence
+and actual vocabulary work where required. Neither a rendering preset nor a
+dictionary hit establishes learned effect. A prompt proposal is no evidence of generated-image quality or a
+guarantee across all agents and briefs. State recurring art direction plainly,
+including mood, expression patterns, visual language, palette/light, mark/surface
+and framing.
+Different subject names or scenes, a few suitable counterexamples or answers
+prompted toward a target picture do not establish the absence of a habitual
+art direction. Observed recurrence alone does not identify its cause; limit
+causal claims to what comparable evidence supports, and cross-model claims to
+the models actually exercised.
+Keep run-specific transcripts outside runtime resources and future evaluation
+contexts.
 
 ## Release identity checks
 

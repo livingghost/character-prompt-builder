@@ -401,7 +401,12 @@ Use the HTML only when a person needs to inspect or correct the JSON. The editor
 
 ## Non-anatomical reference coverage
 
-A declared-structures identity authors its own `reference_views`, including complete cameras and coverage tokens. The planner leaves head, bust, expression and hand views out of this route. Choose views against actual identity landmarks rather than the historical character-shaped baseline. See [Declared Structures Runtime](declared-structures.md).
+A declared-structures identity authors its own `reference_views`, including
+selected camera constraints and coverage tokens. Exact repeated views need the
+geometry that makes their required coverage reproducible; unselected camera
+fields remain absent. The planner leaves head, bust, expression and hand views
+out of this route. Choose views against actual identity landmarks rather than
+the historical character-shaped baseline. See [Declared Structures Runtime](declared-structures.md).
 
 ## Operational sequence from the skill entrypoint
 

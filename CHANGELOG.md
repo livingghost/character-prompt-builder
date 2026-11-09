@@ -1,5 +1,68 @@
 # Changelog
 
+## 2026.11.09.3
+
+- Preserve the declared model and service when compiling complete dispatcher
+  choices that have no separate authoring section.
+- Author framing when its spatial relationships or effect belong to the
+  proposed depiction, and otherwise let the model compose the specified
+  content. Evaluate selected framing, visible information and exclusions
+  together. Preserve purposeful full-figure and selective views without a
+  default shot or a rotation rule.
+- Develop open design choices within the commissioned content, subject roles
+  and stated use. Character and form design can be the work; no added event,
+  theme or invented use is required. Keep habitual choices from surviving
+  beneath changed labels. Leave new Studio and factory-pack rendering preferences unselected
+  while preserving explicitly authored choices and reusable knowledge.
+- Make open conception a bounded inquiry, candidate construction and separate
+  assessment before selection. Consult available craft knowledge while choices
+  remain open; conversation-only work uses internal working notes and retains
+  a single requested deliverable. Full style-family consultation includes its
+  declared base rendering profile without adopting that dependency implicitly.
+- Consult exact selected-model evidence while choosing model-dependent means.
+  Keep artistic intent, lexical knowledge and observed visual effects distinct;
+  model-unspecified proposals do not establish target-specific effectiveness.
+- Leave generic camera authoring unselected. Validate supplied geometry,
+  nested measurements and explicit occupancy bounds without inventing distance,
+  frame coverage or a required number of stability constraints.
+- Keep the execution mode usable without an additional rendering declaration.
+  Let a complete subject prompt leave rendering to the model without invented
+  medium, presentation, reason or finish text. Authored custom declarations
+  record selected constraints; retain exact named-preset envelopes, regional
+  overrides, source requirements and prompt/media transport bindings.
+- Honor declared instruction-edit transport operations and leave optional
+  dispatch seeds absent when unselected. Verify that selected dispatch values
+  reach the request unchanged. Exercise reference-preserving target changes
+  across different operation kinds and evidence, followed by prompt revision,
+  through the common editable workflow without model-specific branches.
+- Keep intentional crop separate from missing anatomy in negative selection
+  and rendition review. Apply a profile's finish and a dialect's appearance
+  ordering without importing incidental full-figure framing.
+- Define maintenance checks for independent first proposals from different
+  briefs, including meaningful whole-design coverage and preserved framing
+  during local edits. Evaluate topic-only creation separately from requests
+  that already direct the picture's focus; retain repeated first answers and
+  assess treatment, mood and scene construction as well as camera choice.
+  Keep artistic assessment distinct from structural tests.
+
+## 2026.11.09.2
+
+- Select the actual model and service once in editable production choices.
+  Reopen tasks and saved runs with that selection, inspect the current model
+  knowledge, and derive specification, reference and request bindings together.
+- Retain meaningful authored work, selected evidence and applicable reading when
+  changing a target. Separate validation policy and evidence selections from
+  request-specific results, rebuilding those results under the current contract.
+- Retarget dispatcher and external image requests directly from editable choices,
+  including changes to an external wire operation, while recording source-run
+  lineage and checking the actual scope of existing authority.
+- Diagnose unregistered drafts, damaged source contexts and changed or unavailable
+  identity evidence separately. Return executable inspection or recovery actions
+  based on registered provenance while preserving the existing editing files.
+- Record clean-state maintenance as redesign at the affected owners, with no
+  compatibility guarantee and no deliberate obstruction of applicable existing
+  work. Validate current behavior and preservation, not incompatibility itself.
+
 ## 2026.11.09.1
 
 - Develop image-derived and newly imagined depictions through their defining

@@ -130,8 +130,9 @@ ambiguous performance remains available when the image intent selects it.
 Check that the selected view makes the important cue readable and that the
 acting, contacts and other subjects form one coherent depiction.
 
-Resolve `render_intent` for the final image, including medium, dimensionality,
-linework, shading, surface and detail. Preserve required physique and finish
+Record the final image's operation and any additional rendering declaration
+in `render_intent`; rendering may remain with the model without inventing
+axes or a finish span. Preserve required physique and finish
 across model changes. Framing follows the scene's information needs, including
 natural crop when appropriate.
 

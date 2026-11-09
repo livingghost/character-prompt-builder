@@ -2,29 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "camera-framing-contract.schema.json",
   "title": "Camera Framing Contract",
+  "description": "Author only the camera constraints selected for this depiction. Omitted fields impose no constraint; an empty object declares no camera constraints.",
   "type": "object",
-  "required": [
-    "shot_type",
-    "shot_scale",
-    "distance_class",
-    "subject_relative_distance",
-    "camera_height",
-    "pitch_degrees",
-    "yaw_degrees",
-    "roll_degrees",
-    "lens_or_perspective",
-    "lens_equivalent_mm",
-    "projection_behavior",
-    "frame_occupancy",
-    "framing_and_crop",
-    "coverage_landmarks",
-    "nearest_form",
-    "perspective_scale_change",
-    "required_visible_elements",
-    "allowed_offscreen_elements",
-    "focal_sequence",
-    "stability_invariants"
-  ],
   "properties": {
     "shot_type": {
       "type": "string",
@@ -359,7 +338,7 @@
         "type": "string",
         "minLength": 1
       },
-      "minItems": 3,
+      "minItems": 1,
       "uniqueItems": true
     },
     "reference_landmark_position": {

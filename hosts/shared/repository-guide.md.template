@@ -57,7 +57,7 @@ again.
 ## Choose rendering and inspect model controls
 
 Image work includes feature `render-contract` for `references/runtime/render-contract.md` in that read.
-Use `python scripts/render_contract.py presets` when choosing a finish, then record who chose the intent and why.
+Use `python scripts/render_contract.py presets` when choosing an authored rendering treatment, then record who chose it and why. The operation alone is sufficient when rendering remains with the model.
 The selected-model route read supplies the complete guidance card, including input contracts, use-case advice and author preferences.
 `python scripts/render_contract.py model --model MODEL_ID` serves independent model inspection; production uses the card delivered with its selected route.
 An external target absent from the catalog uses acquired provider evidence and the ordinary external execution branch.
@@ -67,7 +67,7 @@ Interpret source records into a depiction that the model can resolve from its ac
 Develop what is present, what happens and how its parts relate. Use constraints to refine that intended construction.
 Keep internal identifiers, source paths and production commentary in their owning records.
 Apply scoped model use-case guidance and current author selection preferences.
-The editable `render_intent` binds the chosen prompt span. A selected Production Specification can own it; an ordinary delivery can own it directly. External tasks retain it as an applied source.
+The editable `render_intent` records the operation and binds any authored rendering declaration to its prompt span. A selected Production Specification can own it; an ordinary delivery can own it directly. External tasks retain a selected declaration as an applied source.
 Preparation shows the complete request. Dispatcher packages seal resolved controls; external bindings pin the authored request and evidence.
 
 ## Continue the requested operation in its Studio
@@ -123,6 +123,10 @@ authority, claims the operation, performs its handoff and records returned media
 submission, media and actual next command. `variant` prepares changed input;
 `repeat` prepares another run of the same input. Offering-attributed parameter
 contracts constrain the request before anything is sent.
+For another model or service, reopen with `draft-inputs --from-run --model --service`
+and follow [Change the target](references/runtime/production-variation.md#change-the-target-explicitly).
+The current target and evidence selectors own regeneration of request validation;
+carry meaningful content and references through that same editable workflow.
 
 The offering's service ID selects its Studio authentication configuration. [Studio authentication](references/runtime/studio-authentication.md)
 owns one entry per service in the Studio's private `credentials.json`:
@@ -189,10 +193,60 @@ criteria for agent judgment, derived inputs, phase context and task continuity.
 
 This repository owns its runtime, documentation, schemas, examples and tests.
 Data exchange follows explicit public artifact contracts.
-Design the owning components from first principles, as if the current design had been present from the beginning.
-Replace superseded implementation paths instead of layering corrective exceptions over them.
-Do not add backward-compatibility implementations or tests whose sole purpose is to verify incompatibility with superseded behavior.
-Update producers, validators, templates and fixtures together when that contract changes.
+
+Apply a clean-state design: treat the new specification as if it had been present
+from the beginning. Reconsider the affected responsibilities, structure and
+implementation from first principles, and replace superseded paths at their
+owners instead of layering corrective exceptions over them.
+
+Do not preserve or guarantee compatibility with previous APIs, data formats,
+configuration or behavior. Do not retain or introduce compatibility layers,
+aliases, old-version branches or fallback paths for superseded contracts. Do not
+add tests whose sole purpose is to verify incompatibility with superseded behavior.
+
+Compatibility is not a maintenance requirement, and deliberate incompatibility
+is not a goal. Do not add rejection, deletion, reset or obstruction merely to
+prevent existing work from carrying forward. Preserve content, choices and
+evidence that remain meaningful under the current design; reassess their actual
+applicability when the selected inputs or target change. Do not invalidate
+otherwise applicable work solely because it originated before the change.
+
+Preserve necessary requirements, authored knowledge and the material needed for
+judgment under [Writing for a reader](#writing-for-a-reader). Update producers,
+validators, templates and fixtures together when their contract changes.
+
+Creative defaults follow
+[Production direction](references/runtime/production-direction.md#form-a-prompt-from-an-idea).
+Ground the first proposed picture as a whole in the intended effect and actual
+source authority: emotional register, visual language, palette and light, mark
+and surface treatment, framing and visible detail. Derive exclusions and review
+criteria from those choices. Agent convenience and easy completeness checks do
+not justify requiring a whole figure, intact frame margins or any other fixed
+composition. Keep deliberate crop distinct from damaged anatomy, and preserve
+meaningful full-figure uses as well as selective views. Respect the author's
+declared style, adopted scenes and local edits when correcting an unchosen
+default. Correct habitual choices at their decision owners and contributing
+defaults; do not substitute another favorite mood, medium or shot, impose novelty
+quotas or random rotation, or prohibit media or prompt words.
+Generic authoring templates leave unchosen art direction unresolved. Scripts
+validate authored constraints without choosing the picture. Assess changed
+guidance with independent first proposals for different realistic briefs under
+[creative-direction evaluation](references/maintenance/testing.md#creative-direction-evaluation).
+Evaluate open creation from topics or actual sparse requests; adding focal
+content or stylistic cues to elicit a target picture invalidates that claim.
+Retain exact requests, first answers and failures. Compare art direction across
+the sample, not only camera choices: different subject names or scenes do not
+establish that a habitual mood, visual language, palette or surface has changed.
+First assess whether each proposal still develops the commissioned content,
+subject roles and stated use. A character becoming incidental to another
+subject is not improvement through variety. Open detail does not authorize an
+invented commission. Exact selected-model evidence constrains proposed means;
+portable wording and dictionary membership do not demonstrate a visual effect.
+Rendering choices may remain with the image model. A complete prompt need not
+name a medium or finish; authoring and preparation must not fabricate either
+to populate metadata. Preserve applicable explicit choices through retries.
+Report repeated choices as well as suitable variation, within the observed
+conditions and models and the causal evidence available.
 
 - Keep implementation details local to their owning product and generate derived files from their declared sources.
 - Use explicit identifiers, evidence and declared constraints for mechanical checks; the responsible author evaluates meaning and acceptance.

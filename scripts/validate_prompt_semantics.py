@@ -21,7 +21,7 @@ TEMPLATE_PATH = ROOT / "templates/prompt-semantic-preflight.json"
 # What to write in each field the check reads. `[]` is a list item, `*` a key the author names.
 FIELDS = {
     "subject_id": "optional label for the plan; not checked",
-    "camera": "an object with angle, shot_scale, distance, pitch and subject_frame_occupancy;"
+    "camera": "an object containing only selected camera facts and bounds; {} declares none;"
               " --template prints a plan to start from",
     "camera.angle": "authored angle text such as eye-level, high, low or worms-eye",
     "camera.shot_scale": "text such as close-up, medium or wide",
@@ -30,7 +30,7 @@ FIELDS = {
     "camera.pitch": "text such as level, upward or downward",
     "camera.subject_frame_occupancy": "a number from 0 to 1, the share of the frame the subject fills, such as 0.5",
     "camera.subject_frame_occupancy_bounds": "optional object with minimum and maximum from 0 to 1;"
-                                            " include only explicitly chosen occupancy limits",
+                                            " include only explicitly chosen occupancy limits and supply subject_frame_occupancy",
     "camera.subject_frame_occupancy_bounds.minimum": "a number from 0 to 1, the lowest allowed subject_frame_occupancy",
     "camera.subject_frame_occupancy_bounds.maximum": "a number from 0 to 1, the highest allowed subject_frame_occupancy",
     "camera.establishing_context": "optional true or false: the frame sets out the surrounding place",
@@ -220,11 +220,14 @@ def validate_plan(plan: dict[str, Any]) -> dict[str, Any]:
     bounds = camera.get("subject_frame_occupancy_bounds")
     if bounds is not None:
         minimum, maximum = bounds["minimum"], bounds["maximum"]
-        occupancy = camera["subject_frame_occupancy"]
         if minimum > maximum:
             errors.append("camera.subject_frame_occupancy_bounds: minimum exceeds maximum")
-        elif not minimum <= occupancy <= maximum:
-            errors.append(f"camera.subject_frame_occupancy: {occupancy} is outside declared bounds [{minimum}, {maximum}]")
+        if "subject_frame_occupancy" not in camera:
+            errors.append("camera.subject_frame_occupancy: an explicit value is required when occupancy bounds are declared")
+        elif minimum <= maximum:
+            occupancy = camera["subject_frame_occupancy"]
+            if not minimum <= occupancy <= maximum:
+                errors.append(f"camera.subject_frame_occupancy: {occupancy} is outside declared bounds [{minimum}, {maximum}]")
 
     return {
         "ok": not errors,

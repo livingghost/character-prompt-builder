@@ -489,7 +489,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
             raise ProductionError('MODEL_PROFILE_MISSING','Reference delivery requires an explicitly authored request validation policy.',
                                   phase='request-compilation',pointer='$.generation.request_validation')
         from request_validation import acquire_offering
-        return acquire_offering(selected_target,evidence),freeze({})
+        return acquire_offering(selected_target,evidence)
     required={
         'specification':[dependency('$.generation.production_spec')] if specpath else [],
         'plot':[dependency('$.generation.plot')] if selected.get('plot') else [],

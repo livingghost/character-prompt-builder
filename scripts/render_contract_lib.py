@@ -15,6 +15,8 @@ from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 AXES = ('medium', 'dimensionality', 'linework', 'shading', 'surface', 'detail')
+INTENT_FIELDS = {'artifact_type', 'execution_mode'}
+RENDERING_FIELDS = {'preset', 'axes', 'presentation', 'selection', 'prompt_expression', 'regional_overrides'}
 STATUSES = {'required', 'optional', 'not-applicable', 'backend-managed'}
 BINDINGS = {'package', 'dispatch-seed', 'dispatch-count'}
 MODES = {'text-to-image', 'image-to-image', 'reference-guided', 'instruction-edit', 'upscale'}
@@ -65,6 +67,13 @@ def presets() -> dict[str, dict]:
     return found
 
 
+def operation_intent(mode: str) -> dict:
+    """Select an image operation without adding authored rendering constraints."""
+    value = {'artifact_type': 'render-intent', 'execution_mode': mode}
+    validate_intent(value)
+    return value
+
+
 def make_intent(preset: str, *, mode: str, chosen_by: str, reason: str,
                 presentation: str, prompt_expression: str) -> dict:
     if preset not in presets():
@@ -78,16 +87,20 @@ def make_intent(preset: str, *, mode: str, chosen_by: str, reason: str,
 
 
 def validate_intent(value: Any, *, for_generation: bool = True, prompt: str | None = None) -> None:
-    exact(value, {'artifact_type', 'preset', 'axes', 'presentation', 'selection',
-                  'execution_mode', 'prompt_expression', 'regional_overrides'}, 'render intent')
-    if value['artifact_type'] != 'render-intent' or value['execution_mode'] not in MODES:
+    has_rendering = isinstance(value, dict) and bool(RENDERING_FIELDS & set(value))
+    exact(value, INTENT_FIELDS | (RENDERING_FIELDS if has_rendering else set()), 'render intent')
+    if (value['artifact_type'] != 'render-intent' or not isinstance(value['execution_mode'], str)
+            or value['execution_mode'] not in MODES):
         raise ValueError('render intent: invalid artifact type or execution mode')
+    if not has_rendering:
+        return
     if value['preset'] is not None:
         if value['preset'] not in presets():
             raise ValueError('unknown render preset: ' + str(value['preset']))
         if value['axes'] != presets()[value['preset']]['axes']:
             raise ValueError('preset axes differ; use a custom intent with preset=null for a distinct whole-image finish')
-    exact(value['axes'], set(AXES), 'render axes')
+    if not isinstance(value['axes'], dict) or set(value['axes']) - set(AXES):
+        raise ValueError('render axes must be an object naming only known render axes')
     for key, item in value['axes'].items():
         text(item, 'render axis ' + key)
     text(value['presentation'], 'presentation')
@@ -484,7 +497,7 @@ def compile_contract(record: Mapping, offering: Mapping | None, intent: dict,
                      parameters: dict, *, prompt: str, reference_count: int) -> dict:
     preserve_without_text = intent.get('execution_mode') == 'upscale' and not prompt
     validate_intent(intent, for_generation=not preserve_without_text, prompt=prompt)
-    if preserve_without_text and intent['prompt_expression']:
+    if preserve_without_text and intent.get('prompt_expression'):
         raise ValueError('an upscaler without a text channel cannot receive a rendering prompt expression')
     profile = selected_profile(record, offering)
     mode = intent['execution_mode']
@@ -504,7 +517,7 @@ def _contract_from_inputs(record: Mapping, offering: Mapping | None, intent: dic
     return {'artifact_type': 'render-contract', 'intent': copy.deepcopy(intent), 'model_card': card,
             'profile_sha256': digest(card), 'authored_parameters': copy.deepcopy(parameters),
             'parameters': effective, 'parameter_decisions': decisions, 'reference_count': reference_count,
-            'prompt_expression': intent['prompt_expression']}
+            'prompt_expression': intent.get('prompt_expression', '')}
 
 
 def verify_contract(value: Any, *, intent: dict, parameters: dict, prompt: str,
@@ -532,7 +545,7 @@ def verify_contract(value: Any, *, intent: dict, parameters: dict, prompt: str,
 
 
 def dispatch_values(contract: dict, *, seed: int | None, count: int) -> tuple[int | None, int]:
-    """Resolve transport controls without silently using a provider's seed policy."""
+    """Validate selected dispatch controls, keeping an optional seed absent."""
     profile = contract['model_card']['execution_profile']
     rules = profile['modes'][contract['intent']['execution_mode']]['controls']
     problems = []
@@ -549,6 +562,8 @@ def dispatch_values(contract: dict, *, seed: int | None, count: int) -> tuple[in
                                         key + ': unavailable count accepts only one operation, not an invented batch'))
             continue
         if value is None:
+            if binding == 'dispatch-seed' and rule['status'] == 'optional':
+                continue
             problems.append(problem(key, 'value-required', key + ': choose an explicit seed with --seed before preview or submission'))
             continue
         try:
@@ -585,9 +600,9 @@ def check_wire(contract: dict, request: dict, layout: dict | None = None, *,
             raise ValueError('wire request omitted required control: ' + key)
         if present:
             _schema(value, rule['schema'], key)
-        if present and rule['binding'] != 'package':
+        if rule['binding'] != 'package' and rule['status'] in {'required', 'optional'}:
             chosen_dispatch = seed if rule['binding'] == 'dispatch-seed' else count
-            if encoded(value) != encoded(chosen_dispatch):
+            if present != (chosen_dispatch is not None) or (present and encoded(value) != encoded(chosen_dispatch)):
                 raise ValueError('wire dispatch value differs from the explicit choice: ' + key)
         if rule['binding'] == 'package':
             expected, chosen = _get(contract['parameters'], key)
@@ -599,12 +614,16 @@ def check_wire(contract: dict, request: dict, layout: dict | None = None, *,
 
 
 def summary(contract: dict) -> str:
-    axes = contract['intent']['axes']
+    axes = contract['intent'].get('axes', {})
     lines = ['Render contract', '  model: ' + str(contract['model_card']['model']),
              '  service: ' + str(contract['model_card']['service']),
              '  mode: ' + contract['intent']['execution_mode']]
-    lines += ['  ' + key + ': ' + axes[key] for key in AXES]
-    lines.append('  choice: ' + contract['intent']['selection']['chosen_by'] + ' - ' + contract['intent']['selection']['reason'])
+    lines += ['  ' + key + ': ' + axes[key] for key in AXES if key in axes]
+    if 'selection' in contract['intent']:
+        selection = contract['intent']['selection']
+        lines.append('  choice: ' + selection['chosen_by'] + ' - ' + selection['reason'])
+    else:
+        lines.append('  additional rendering declaration: none')
     for row in contract['parameter_decisions']:
         lines.append('  ' + row['key'] + ': ' + (json.dumps(row['value']) if row['status'] in {'explicit', 'model-recommendation'} else row['status']) + ' [' + row['status'] + ']')
     return '\n'.join(lines)

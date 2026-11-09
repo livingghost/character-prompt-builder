@@ -23,6 +23,21 @@ support both ways of authoring. Preserve the assigned appearance when working
 from an image; choose a concrete visual proposal when working from a brief.
 Use meaningful concepts and the distinctions the intended result needs.
 
+For consequential authoring choices in an open brief, carry out the
+[conception study](production-direction.md#form-a-prompt-from-an-idea) before
+selecting the final proposal. Use [discovery](sparse-discovery.md#conceive-the-open-picture)
+while relevant design choices remain open. Retain what the request asks to
+develop, its subject roles and any stated use. Understanding a topic does not
+settle those choices; adding a scene or theme is not required. Consult an exact
+selected model's evidence while choosing model-dependent means. Keep the actual
+candidate descriptions and separate assessment in bounded working notes; this
+conversation-only work needs no Studio or production artifact registration.
+Present only the requested deliverable. Already directed pictures and bounded
+edits retain their scope and do not start a new study.
+An input that leaves appropriate rendition choices to the model can be
+complete. Omit unselected medium or finish clauses; do not manufacture them or
+relabel the subject prompt as a rendering instruction to complete bookkeeping.
+
 Use [Composition](prompt-composition.md) for the construction knowledge a
 complex question needs. Its specialist resources contribute anatomy, spatial,
 performance, material or layout knowledge to the same depiction. They are not
@@ -31,9 +46,10 @@ remain ordinary language in the prompt; a technical requirement retains its
 needed precision. The agent's selected means remain open to judgment against
 the commission.
 
-Resolve the rendering axes under [Rendering choices and execution controls](render-contract.md)
-at the scope needed for this work, recording user selection or the agent's
-reason. Finish and presentation do not change subject identity. Read a named
+Use [Rendering choices and execution controls](render-contract.md) for the
+operation and any authored rendering declaration. Unselected rendering needs
+no invented axes, reason or finish span. Finish and presentation do not change
+subject identity. Read a named
 model's complete guidance card before target-specific wording, including its
 explicit input mode, supported forms, vocabulary scope and evidence. Obtain the
 applicable guidance through [the writing guide resolver](prompt-writing-guide.md#resolve-the-active-guide).

@@ -1,32 +1,138 @@
 # Rendering choices and execution controls
 
-Resolve the intended finish and the exact interface before composing a final image prompt.
-A rendering choice never changes identity, age, proportions, wardrobe, story, or authority.
+Carry the requested depiction and any selected rendering constraints into the
+actual model input, and resolve the exact interface for the request.
+Preserve applicable identity, age, proportions, wardrobe and story; a rendering
+choice supplies no authority to revise them.
 The agent decides meaning; the tools validate explicit choices and preserve their provenance.
 
-## Choose the finish
+## Choose the visual treatment
 
-`python scripts/render_contract.py presets` lists reusable starting points.
-Choose a preset or author a custom intent with `preset: null`.
-Keep six axes independent: medium, dimensionality, linework, shading, surface, and detail.
-The presentation field records the construction chosen under
-[Production direction](production-direction.md#choose-the-expression), such as
-a portrait, diagram, panel sequence or product view. A rendering preset or
-studio default supplies finish within that choice; it does not choose the
-presentation or require a single continuous scene.
-A vector-like appearance does not promise a vector file. Output encoding belongs to the interface controls.
+Use [Production direction](production-direction.md#form-a-prompt-from-an-idea)
+to develop the commissioned content and its visual realization together.
+Choose which properties need control for this work and leave other choices to
+the image model. A complete prompt may specify the subject and requested
+content without naming a medium or prescribing a finish. That is a completed
+direction, not an unfinished taxonomy. Actual prompt and assigned-source
+requirements remain authoritative when no separate rendering declaration is
+selected.
 
-Record who chose the direction (`user` or `agent`) and why.
+When selecting a treatment, compare what different choices make the viewer
+experience in the proposed picture. Form abstraction, mark rhythm, edges, value
+structure, color, light and surface behavior can change its force, pace, spatial
+relationships and emotional reading. Let that knowledge inform the conception
+as it develops. A fixed medium, adopted treatment or bounded edit retains its
+actual scope.
+
+When an exact target is selected, read its [model guidance](#read-the-models-guidance)
+while considering model-dependent means. Its checkpoint, active adaptations,
+input workflow and available reference or control paths constrain realization.
+An input grammar does not establish a model's range of styles. A rendering
+preset describes an authored intent, not a capability promised by every model.
+Consult [model evidence](model-evidence.md#keep-kinds-of-evidence-apart) for what
+the available basis actually establishes. With no target, develop a portable
+proposal without claiming that its treatment has been demonstrated.
+
+For an authored treatment, choose the behavior that makes the interpretation particular. Naming a
+medium leaves decisions about forms, marks, tonal relationships and surfaces
+open. Explain a treatment's contribution through what it does in this image;
+generic warmth, polish or readability alone cannot distinguish it from other
+plausible treatments. Resolve the visual behavior needed for the intended
+effect without turning every available technique into a prompt clause.
+
+When choosing additional rendering constraints, read `python scripts/render_contract.py presets` and
+use [discovery](sparse-discovery.md#conceive-the-open-picture) before committing
+to it. The presets expose construction envelopes, not a closed set of art
+directions or evidence that a treatment fits. Inspect relevant full knowledge
+for the concrete alternatives in the conception study, reusing complete
+material already delivered in the current context. Use a fitting preset or
+author a custom intent with `preset: null`. A custom intent records only the
+selected constraints among medium, dimensionality, linework, shading, surface
+and detail. Omit an axis when this intent adds no constraint on it; do not fill
+the field with an invented process, substrate or texture. Every supplied value
+must express an actual choice. An empty `axes` object is valid when no extra
+constraints from this taxonomy are selected. Absence neither selects a default
+nor removes a user requirement or an adopted source property.
+
+Carry selected visual constraints into the actual text or assigned media.
+Assess the requested depiction and the contributions that were selected;
+completion does not require prescribing every aspect the model can resolve.
+Preserve explicit choices and source requirements at their actual scopes.
+The six fields document selected treatment; none supplies an execution control.
+The `presentation` field records the resulting construction, such as a portrait,
+diagram, panel sequence or product view.
+A vector-like appearance does not promise a vector file; output encoding
+belongs to the interface controls.
+
+Selecting a named preset adopts its complete axis envelope, which must match
+the preset exactly. The `intent --preset` command creates that full selection.
+Use a custom declaration with `preset: null` when selecting only part of a
+preset's knowledge or authoring other constraints. No omitted custom axis is
+filled from a preset.
+
+Apply a selected profile or recipe at its assigned scope. A selection for its
+rendering treatment carries the relevant medium and visual behavior. Its
+sample camera, crop, pose, emotional register, palette, visibility, margins and
+coverage exclusions transfer only when the direction also selects those
+contributions. A source can supply a coherent complete presentation; preserve
+its related choices when that is the assigned use. Keep the actual adopted
+contributions in the existing direction and render intent.
+
+An authored rendering declaration records who chose it (`user` or `agent`) and why.
 Ask about a material ambiguity; otherwise choose deliberately within the user's open creative space.
-The base axes describe the shared treatment. Regional overrides assign
+The base axes record selected constraints on the shared treatment. Regional overrides assign
 different treatment to a named subject, part, layer or area, with its reason
 and visible expression. A scope may overlap another or sit within one subject;
 it need not form a separate panel. Resolve which treatment governs each
 affected property and how the scopes meet. Author a custom intent when a
 selected combination is the treatment itself.
+Each regional override names a nonempty subset of the same known axes. It can
+select a local constraint even when the corresponding base axis is absent.
 The agent may choose a mixed treatment within delegated creative space.
 An explicit fixed medium or protected source region remains authoritative.
 The registry is a discovery aid, not a closed list of media.
+
+## Select the operation and optional rendering declaration
+
+`execution_mode` owns the operation used to resolve the interface's controls
+and media transport. It is required for generation independently of style.
+This complete declaration adds no rendering constraint:
+
+```json
+{"artifact_type":"render-intent","execution_mode":"text-to-image"}
+```
+
+Create it directly, or use:
+
+```bash
+python scripts/render_contract.py intent --mode text-to-image --out render-intent.json
+```
+
+`templates/render-intent.template.json` supplies that operation-only form.
+Choose the actual operation when preparing an image request. No model selection
+or operation record is required merely to write conversation-only prompt text.
+Neither this form nor an unselected axis clears a requirement in the prompt,
+an adopted image or an assigned source. The exact prompt and source bindings
+retain those requirements.
+
+An optional authored rendering declaration adds `preset`, `axes`,
+`presentation`, `selection`, `prompt_expression` and `regional_overrides`
+together. This synthetic custom example selects linework without a medium:
+
+```json
+{
+  "artifact_type": "render-intent",
+  "execution_mode": "text-to-image",
+  "preset": null,
+  "axes": {"linework": "continuous dark contours"},
+  "presentation": "single illustration",
+  "selection": {"chosen_by": "user", "reason": "The fixture author selected the contour treatment."},
+  "prompt_expression": "Use continuous dark contours.",
+  "regional_overrides": []
+}
+```
+
+Selecting a named preset constructs its complete declaration:
 
 ```bash
 python scripts/render_contract.py intent --preset flat-graphic --mode text-to-image \
@@ -35,7 +141,7 @@ python scripts/render_contract.py intent --preset flat-graphic --mode text-to-im
 python scripts/render_contract.py validate-intent render-intent.json --draft
 ```
 
-The draft leaves the prompt wording to the author. Resolve the selected model's
+The selected-preset draft leaves its prompt wording to the author. Resolve the selected model's
 input workflow below, then fill `prompt_expression` with the exact authored span
 that describes the visible finish. A tag-based rendition searches its vocabulary;
 a descriptive rendition can use sufficient supplied knowledge directly.
@@ -45,8 +151,10 @@ Preset names, choice reasons and provenance stay in the intent record.
 The generation builder also checks that it actually appears in the authored prompt.
 This proves inclusion, not semantic correctness or model effectiveness; the agent reviews those separately.
 
-`templates/render-intent.template.json` provides the custom form.
-A template with unresolved axes is not a valid generation input.
+An operation-only declaration needs no presentation, selection reason or finish
+span. When a rendering declaration is selected, complete its actual prompt
+expression before generation and preserve every supplied constraint. Keep the
+declared text-free upscale behavior below.
 `schemas/render-intent.schema.json` owns the public structure.
 Dispatcher intent is owned by the editable generation choices or their selected Production Specification. A direct task can supply `generation.render_intent`; the authoring selector `{ "document": "delivery" }` binds the actual editable text. External image work retains the same intent as an applied task source.
 The chosen source's identity and current-state authority remain separate from rendering.
@@ -69,8 +177,16 @@ They expose recommended positive and negative text, merge mode, parameter recomm
 size choices, prompt slot order, evidence basis, limitations, and every mode's controls.
 The card also exposes the exact `prompt_input` declaration, its owning
 `prompt_dialect` where applicable, and `requires_vocabulary_search`.
-Read this output before preparing model-specific wording or values.
-A model change means a new card, prompt review, parameter resolution, and authorization scope review.
+Read this output while choosing model-dependent means and before preparing
+model-specific wording or values. Check a consequential style or technique
+against its actual scoped guidance and observations; dictionary membership
+alone proves neither training membership nor the requested effect. A supported
+input field also does not establish expressive success.
+A model change means a new card, prompt review, parameter resolution, and
+authorization scope review. Retain the applicable visual intent while
+reassessing how the new target can realize it. Use evidenced wording and
+supported adaptations or references where appropriate; do not assume a medium
+name will transfer the appearance or silently substitute the subject or target.
 Never swap the selected provider or model for another image tool merely because it is available.
 
 Recommendations live in the model's existing `recommended_parameters`,
@@ -258,6 +374,9 @@ The Generation Package builder compiles this contract from the selected renderin
 Its commitment includes the chosen intent, complete model card, recommendations, and resolved controls.
 Verification recomputes the decisions and checks the active interface against the pinned card.
 Preparation compiles the real request with the task's seed and count and checks the wire values again.
+An optional seed remains omitted when unselected; a selected seed must reach the
+request unchanged. A required seed needs an explicit value, and a backend-managed
+seed remains absent.
 Transport adapters do not fill absent sampling, rendering, or output parameters behind this check.
 Request-schema, reference, studio, cost and authority checks apply as well.
 
@@ -265,7 +384,7 @@ The dispatcher preview prints the rendering choice before the complete request.
 Read the final positive and negative transport and all applied values from that preview.
 Review how the finish contributes to the whole depiction, with its required
 identity detail and scoped exclusions, before approving the exact request.
-A prompt-only answer uses the same deliberate finish choice and model guidance when a target is named,
+A prompt-only answer preserves any selected rendering constraints and uses model guidance when a target is named,
 but does not need a submission authorization or an invented model when none was requested.
 
 ## External image work
@@ -273,14 +392,18 @@ but does not need a submission authorization or an invented model when none was 
 An external task uses the exact host's acquired contract when no catalog profile exists.
 Record the missing definition and requested identifier through [Image Generation](image-generation.md#choose-execution).
 Existing-image changes also follow [Semantic instruction editing](semantic-instruction-edit.md) to bind their source and reference scopes.
-Resolve the visible finish and supported request fields before composition. Preserve the source finish when an edit leaves it fixed.
-Keep the final intent in an applied task source with role `render-intent` and validate it with:
+Resolve supported request fields and any selected rendering constraints.
+Preserve the source finish when an edit leaves it fixed. An external image
+request needs no separate render-intent source when none is selected. Keep a
+selected declaration in an applied task source with role `render-intent` and
+validate it with:
 
 ```bash
 python scripts/render_contract.py validate-intent STUDIO/inputs/render-intent.json
 ```
 
-The author checks that its `prompt_expression` appears in the final instruction with the intended scope.
+For an authored rendering declaration, check that its `prompt_expression`
+appears in the final instruction with the intended scope.
 Retain that file and the exact request as applied task sources. Semantic edit preparation also checks its acquired request schema when present.
 It does not compile an execution profile or a dispatcher render contract for an absent model.
 Only evidence-backed controls enter the request; unavailable controls remain absent.
@@ -288,9 +411,14 @@ Only evidence-backed controls enter the request; unavailable controls remain abs
 ## Preserve an image during enlargement
 
 An upscale request also carries `render_intent`, with `execution_mode: upscale`.
-Choose the source finish deliberately, preserving its declared treatment unless a change is authorized.
-An interface without a text channel uses an empty `prompt_expression`; it does not receive invented prompt fields.
-A guided upscaler includes the retrieved expression in its explicit guidance prompt.
+An operation-only declaration is sufficient when no additional rendering
+constraint is selected; the source and its applicable treatment remain bound.
+Preserve the declared source treatment unless a change is authorized. An
+interface without a text channel receives no invented prompt fields. If an
+authored rendering declaration is selected for that operation, its
+`prompt_expression` stays empty. A guided upscaler includes any selected
+rendering expression in its actual guidance prompt; guidance alone does not
+require a rendering declaration.
 The offering maps the neutral `scale` setting to its actual request field in `parameter_keys`.
 The upscaler's execution profile declares that field and every other setting, including unavailable seed and count controls.
 Pass the intent file with `--render-intent` to `production_binding.py`, and to `dispatch.py --upscale` for its preview.

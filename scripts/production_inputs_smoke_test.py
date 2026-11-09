@@ -264,8 +264,8 @@ class InputToolsTests(unittest.TestCase):
 
     def test_build_rechecks_choices_bytes_before_publication(self):
         original = adapters.build_validation
-        def altered(*args):
-            result = original(*args)
+        def altered(*args, **kwargs):
+            result = original(*args, **kwargs)
             (self.root / 'choices.json').write_text('{}', encoding='utf-8')
             return result
         with patch.object(adapters, 'build_validation', side_effect=altered):
@@ -327,7 +327,7 @@ class InputToolsTests(unittest.TestCase):
     def test_edit_file_contains_choices_and_context_is_separate(self):
         draft = tool.draft_inputs(self.root, 'task.json', 'draft')
         document = c.load(self.root / draft['choices_file'])
-        self.assertEqual(set(document), {'reading', 'visual', 'validation', 'task_changes', 'external', 'authoring'})
+        self.assertEqual(set(document), {'target', 'reading', 'visual', 'validation', 'task_changes', 'external', 'authoring'})
         self.assertEqual(c.load(self.root / draft['context_file'])['task_content'], self.task)
         (self.root / draft['choices_file']).write_bytes(c.encoded(self.choices))
         self.assertTrue(tool.build_inputs(self.root, 'task.json', draft['choices_file'], 'built')['ok'])
@@ -348,8 +348,8 @@ class InputToolsTests(unittest.TestCase):
         self.assertEqual((draft['choices']['visual'], draft['choices']['validation']), (None, None))
         fields = [x['field'] for x in draft['unresolved']]
         self.assertIn('reading.reading_key', fields)
-        self.assertTrue({'authoring.generation.model', 'authoring.generation.render_intent',
-                         'authoring.generation.service'} <= set(fields))
+        self.assertTrue({'target.model', 'authoring.generation.render_intent', 'target.service'} <= set(fields))
+        self.assertIsNone(draft['choices']['authoring']['generation'].get('render_intent'))
         self.assertNotIn('validation', fields)
         self.assertEqual(tool.inspect_inputs(self.root, 'task.json')['required_choices'], ['reading'])
         self.assertEqual(adapters.build_visual(None, task, InputEvidence(self.root), self.root), (None, {}))
@@ -439,6 +439,7 @@ class InputToolsTests(unittest.TestCase):
         self.assertFalse(built['execution_ready'])
 
     def external_choice(self, *, with_reference=False):
+        import production_external_inputs
         import production_fixtures
         from reading_fixtures import fixture_reading
         run = self.prepared_source()
@@ -465,7 +466,10 @@ class InputToolsTests(unittest.TestCase):
                                  ledger=self.ledger, execution='external')
         choices['reading'] = {'reading_key': record['reading_key']}
         choices['task_changes'] = {'route': 'generation', 'features': ['unlisted-interface']}
-        choices['external'] = {'image_input': plan_path}
+        choices['external'] = production_external_inputs.draft(plan, request, root=self.root)
+        model = choices['external']['image_input'].pop('model')
+        choices['target'] = {'kind': 'external', 'model': {key: value for key, value in model.items()
+            if key not in {'catalog_status', 'catalog_model'}}}
         (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
         return run, draft, plan_path, plan
 
@@ -505,18 +509,26 @@ class InputToolsTests(unittest.TestCase):
 
     def test_external_builder_checks_existing_evidence_hashes(self):
         run, draft, plan_path, plan = self.external_choice()
-        plan['model']['evidence']['sha256'] = 'f' * 64
-        (self.root / plan_path).write_bytes(c.encoded(plan))
-        with self.assertRaisesRegex(ValueError, 'evidence changed'):
-            tool.build_inputs(self.root, None, draft['choices_file'], 'external-built', from_run=run)
+        choices = c.load(self.root / draft['choices_file'])
+        choices['target']['model']['evidence']['sha256'] = 'f' * 64
+        (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
+        built = tool.build_inputs(self.root, None, draft['choices_file'], 'external-built', from_run=run)
+        self.assertFalse(built['ok'])
+        self.assertEqual(built['unresolved'][0]['code'], 'target-evidence-required')
+        self.assertIn('evidence changed', built['unresolved'][0]['message'])
         self.assertFalse((self.root / 'external-built').exists())
 
     def test_external_tag_input_keeps_required_dictionary_evidence(self):
         from model_prompt_input_fixtures import prompt_input
+        from reading_fixtures import fixture_reading
         run, draft, plan_path, plan = self.external_choice()
-        plan['model']['prompt_input'] = prompt_input('tag-based', vocabularies=('synthetic-tags',))
-        plan['model']['prompt_dialect'] = 'synthetic-tags'
-        (self.root / plan_path).write_bytes(c.encoded(plan))
+        choices = c.load(self.root / draft['choices_file'])
+        choices['target']['model']['prompt_input'] = prompt_input('tag-based', vocabularies=('synthetic-tags',))
+        choices['target']['model']['prompt_dialect'] = 'anima'
+        record = fixture_reading(route='generation', features=['unlisted-interface'], studio=self.root,
+                                 ledger=self.ledger, execution='external', dialect='anima')
+        choices['reading'] = {'reading_key': record['reading_key']}
+        (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
         with self.assertRaisesRegex(ValueError, 'vocabulary_record'):
             tool.build_inputs(self.root, None, draft['choices_file'], 'external-built', from_run=run)
         self.assertFalse((self.root / 'external-built').exists())

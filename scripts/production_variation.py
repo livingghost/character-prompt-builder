@@ -30,7 +30,7 @@ TASK_FIELDS = {
     'upload-sources': 'upload_sources'}
 # A target is chosen by retargeting with a reassessed task, never by a field map.
 TARGET_KEYS = {'model', 'service', 'offering', 'target', 'target-model'}
-RETARGET = 'python scripts/production_workflow.py retarget --root {root} --from {run} --task TASK_FILE --reason REASON --prepare'
+RETARGET = 'python scripts/production_workflow.py retarget --root {root} --from {run} --choices CHOICES_FILE --reason REASON --prepare'
 
 
 def _redirect_source(task: dict, old: str | None, new: str) -> None:
@@ -331,14 +331,14 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     return result
 
 
-def retarget(root: Path, run: str, task_file: str, *, reason: str, prepare: bool = False) -> dict:
-    """Recompile a dispatcher task against a reassessed target or the current runtime.
+def retarget(root: Path, run: str, task_file: str | None = None, *, choices: str | None = None,
+             reason: str, prepare: bool = False) -> dict:
+    """Compile a reassessed image target from its task or editable choices.
 
-    Generation and upscale are both target-bearing dispatcher operations. The
-    shared compiler is the authority for resolving the new model/service and
-    all target-dependent contracts. The same target is accepted when the
-    current pack runtime differs from the parent's fixed runtime. The parent
-    contributes lineage only.
+    One compiler resolves the current model, offering and dependent evidence.
+    Meaningful authored inputs and applicable grants keep their existing scope;
+    lineage names the previous exact request without pretending a new request
+    has already been executed or reviewed.
     """
     import production_workflow as workflow
     import production_compiler as compiler
@@ -347,48 +347,76 @@ def retarget(root: Path, run: str, task_file: str, *, reason: str, prepare: bool
 
     root = c._root(root)
     c.text(reason, 'retarget reason')
+    if (task_file is None) == (choices is None):
+        raise ValueError('retarget selects exactly one task or editable choices file')
     loaded = workflow.read_run(root, run)
-    directory, previous, _, _ = loaded
-    if previous['task']['execution'] != 'dispatcher':
-        raise ProductionError('RETARGET_NOT_APPLICABLE', 'Retargeting starts from a compiled model request.', phase='retarget')
-    task = c.decode(store.stable_bytes(root, task_file))
-    workflow.validate_task(task)
-    if task['execution'] != 'dispatcher':
-        raise ProductionError('RETARGET_NOT_APPLICABLE', 'The reassessed task must declare a model request.', phase='retarget')
+    previous = loaded.prepared
+    before = loaded.artifacts['execution-plan.json']
+    if previous['task']['execution'] not in {'dispatcher', 'external'} or not before.get('request_sha256'):
+        raise ProductionError('RETARGET_NOT_APPLICABLE', 'Retargeting starts from an exact prepared image request.', phase='retarget')
+    if choices is None:
+        task = c.decode(store.stable_bytes(root, task_file))
+        workflow.validate_task(task)
+    else:
+        from production_inputs import authoring_view
+        task = authoring_view(root, choices)['task']
+    if task['execution'] not in {'dispatcher', 'external'}:
+        raise ProductionError('RETARGET_NOT_APPLICABLE', 'The reassessed task must declare an image request.', phase='retarget')
     for field in ('task_id', 'production_id'):
         if task[field] != previous['task'][field]:
             raise ProductionError('RETARGET_SCOPE_MISMATCH', 'Retargeting retains the work task and production series.',
                 phase='retarget', pointer='$.' + field, expected=previous['task'][field], actual=task[field])
-    current_task=work_ledger.require_open(root) if prepare else None
-    compiled=compiler.compile_task(root,task_file,persist=prepare)
+    current_task = work_ledger.require_open(root) if prepare else None
+    if choices is None:
+        compiled = compiler.compile_task(root, task_file, persist=prepare)
+    else:
+        from production_inputs import compile_choices
+        compiled = compile_choices(root, choices, persist=prepare)
     if not compiled.report['publishable']:
-        if prepare:raise CompilationError(compiled.report)
+        if prepare:
+            raise CompilationError(compiled.report)
         return compiled.report
-    before = loaded.artifacts['execution-plan.json']
-    new_plan=compiled.execution_plan
-    old_target = {'model': before['model'], 'service': before['service'], 'route': previous['task']['route']}
-    new_target = {'model': new_plan['model'], 'service': new_plan['service'], 'route': task['route']}
+    task = compiled.prepared['task']
+    new_plan = compiled.execution_plan
+    if not new_plan.get('request_sha256'):
+        if compiled.directory is not None:
+            shutil.rmtree(compiled.directory, ignore_errors=True)
+        raise ProductionError('RETARGET_NOT_APPLICABLE', 'The selected target needs its exact prepared image request.', phase='retarget')
+    def target_identity(task, plan, consumer, package):
+        actual = ((consumer.get('image_input') or {}).get('model') or {}).get('target')
+        if task['execution'] == 'dispatcher':
+            actual = (package or {}).get('request_validation', {}).get('target')
+        return {'model': plan['model'], 'service': plan['service'], 'route': task['route'],
+                'execution': task['execution'], 'operation': (actual or {}).get('operation')}
+    old_target = target_identity(previous['task'], before, loaded.consumer, loaded.artifacts.get('package.json'))
+    new_target = target_identity(task, new_plan, compiled.consumer, compiled.package)
     changes = []
     if not same_json(old_target, new_target):
         changes.append({'field': 'target', 'before': old_target, 'after': new_target})
-    old_runtime = previous['runtime_snapshot']['sha256']
-    new_runtime = compiled.prepared['runtime_snapshot']['sha256']
+    old_runtime = (previous.get('runtime_snapshot') or {}).get('sha256')
+    new_runtime = (compiled.prepared.get('runtime_snapshot') or {}).get('sha256')
     if old_runtime != new_runtime:
         changes.append({'field': 'runtime', 'before': old_runtime, 'after': new_runtime})
     if not changes:
-        if compiled.directory is not None:shutil.rmtree(compiled.directory,ignore_errors=True)
+        if compiled.directory is not None:
+            shutil.rmtree(compiled.directory, ignore_errors=True)
         raise ProductionError('RETARGET_NO_OP', 'Neither the target nor the pack runtime has changed.', phase='retarget',
             required_action='Use variant for same-target input changes, repeat for another run, or resume for recovery.')
     parent = {'run': run, 'input_sha256': previous['input_sha256'], 'request_sha256': before['request_sha256'],
               'kind': 'retarget', 'reason': reason, 'changes': changes, 'basis': []}
     if prepare:
-        result=compiler.publish_compilation(root,compiled,parent=parent,current_task=current_task)
+        result = compiler.publish_compilation(root, compiled, parent=parent, current_task=current_task)
     else:
-        result=compiled.report
-        if compiled.directory is not None:shutil.rmtree(compiled.directory,ignore_errors=True)
-    checks=['execution-profile','request-validation','recording','request','source-applicability']
-    if task['route']=='generation':checks += ['target-guidance','retrieval','render-intent','reference-transport']
-    elif task['route']=='upscale':checks += ['upscale-source','scale-factor','render-intent','transport']
+        result = compiled.report
+        if compiled.directory is not None:
+            shutil.rmtree(compiled.directory, ignore_errors=True)
+    checks = ['request-validation', 'recording', 'request', 'source-applicability']
+    if task['execution'] == 'dispatcher':
+        checks += ['execution-profile']
+    if task['route'] == 'generation':
+        checks += ['target-guidance', 'retrieval', 'render-intent', 'reference-transport']
+    elif task['route'] == 'upscale':
+        checks += ['upscale-source', 'scale-factor', 'render-intent', 'transport']
     result.update(derivation=parent, external_effect=False, authorization_inherited=False,
                   candidate_required=False, required_checks=sorted(set(checks)))
     return result
@@ -412,7 +440,9 @@ def add_arguments(subparsers) -> None:
             parser.add_argument('--candidate', action='append', default=[], metavar='CANDIDATE_ID',
                                 help='A captured candidate of the source run that this change answers; repeat for each.')
         elif name == 'retarget':
-            parser.add_argument('--task', required=True, help='Complete reassessed task with the new model, service, guidance and validation inputs.')
+            selected = parser.add_mutually_exclusive_group(required=True)
+            selected.add_argument('--task', help='Complete reassessed task with current target and evidence.')
+            selected.add_argument('--choices', help='Editable choices.json owning the current target and authored inputs.')
             parser.add_argument('--reason', required=True, help='Authored reason for changing the target or adopting the current runtime.')
             from pack_runtime_cli import add_pack_runtime_arguments
             add_pack_runtime_arguments(parser)
@@ -420,6 +450,6 @@ def add_arguments(subparsers) -> None:
 
 def command(args, parser):
     if args.command == 'retarget':
-        return retarget(args.root, args.source_run, args.task, reason=args.reason, prepare=args.prepare)
+        return retarget(args.root, args.source_run, args.task, choices=args.choices, reason=args.reason, prepare=args.prepare)
     return derive(args.root, args.source_run, changes_file=getattr(args, 'changes_file', None), prepare=args.prepare,
                   candidates=getattr(args, 'candidate', []))

@@ -272,7 +272,7 @@ def _plan(value: Any, *, mode: str, model: str, zero_reason: dict | None,
 def _authored_rows(choices: dict) -> list[dict]:
     """Follow the native source owners' compiled order without duplicating scopes."""
     native = choices['image_input']
-    if native is not None and set(native) != {'model'}:
+    if native is not None and 'references' in native:
         return list(native['references'])
     result = list((choices['reference_use_plan'] or {}).get('items', []))
     result += [row for row in (choices['reference_selection'] or {}).get('selected_references', [])

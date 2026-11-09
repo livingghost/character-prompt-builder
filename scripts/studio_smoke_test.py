@@ -25,7 +25,7 @@ import validate_studio  # noqa: E402
 import work_ledger  # noqa: E402
 from build_generation_payload import validate_generation_package_carrier_paths  # noqa: E402
 
-EXPECTED_CHECKS = 95
+EXPECTED_CHECKS = 100
 
 
 def gallery_details(root: Path) -> str:
@@ -106,6 +106,50 @@ def failure(fn) -> str:
     except Exception as exc:  # noqa: BLE001 - the message is what is checked
         return f"{type(exc).__name__}: {exc}"
     return ""
+
+
+def render_preferences(tmp: Path, source: Path, check) -> None:
+    """Keep unselected treatment and authored project preferences distinct."""
+    open_root = tmp / "open-rendering"
+    code, _, error = cli("init", "--out", str(open_root), "--studio-id", "open-rendering", "--title", "Open rendering")
+    open_manifest = studio.manifest(open_root)
+    check("CLI initialization leaves rendering unselected",
+          code == 0 and open_manifest["default_render_profile"] is None
+          and open_manifest["default_style_family"] is None and validate_studio.validate(open_root) == [], error)
+
+    selected = tmp / "selected-rendering"
+    profile = "profile-clear-2d-illustration"
+    family = "style-family-clear-portrait"
+    code, _, error = cli("init", "--out", str(selected), "--studio-id", "selected-rendering", "--title", "Selected rendering",
+                         "--default-render-profile", profile, "--default-style-family", family)
+    check("CLI initialization preserves selected project rendering preferences",
+          code == 0 and studio.manifest(selected)["default_render_profile"] == profile
+          and studio.manifest(selected)["default_style_family"] == family
+          and validate_studio.validate(selected) == [], error)
+
+    home = studio.add_character(selected, "R01", "")
+    candidate = studio.iterate(selected, "R01", "base.front", source / "a.png",
+                               package=None, request=None, response=None, note="Authored project treatment")
+    accepted = studio.accept(selected, "R01", candidate["iteration_id"])
+    recorded_paths = [selected / studio.MANIFEST, home / "iterations.jsonl", home / "accepted" / "base.front.png"]
+    before = {path: path.read_bytes() for path in recorded_paths}
+    status_code, _, status_error = cli("status", "--studio", str(selected))
+    validation_errors = validate_studio.validate(selected)
+    check("reading and validation preserve project preferences and adopted work",
+          status_code == 0 and not validation_errors and accepted["status"] == "accepted"
+          and all(path.read_bytes() == data for path, data in before.items()),
+          {"status_error": status_error, "validation_errors": validation_errors})
+
+    invalid = dict(open_manifest, default_render_profile=[])
+    studio.write_json(open_root / studio.MANIFEST, invalid)
+    validation_errors = validate_studio.validate(open_root)
+    invalid_target = tmp / "invalid-rendering"
+    check("an invalid rendering preference is diagnosed without creating a project",
+          refused(lambda: studio.init(invalid_target, "invalid-rendering", "Invalid rendering", default_render_profile=" "),
+                  "nonempty profile id or null")
+          and not invalid_target.exists()
+          and any("default_render_profile must be a nonempty profile id or null" in item for item in validation_errors),
+          validation_errors)
 
 
 def package_attachments(tmp: Path, check) -> None:
@@ -502,6 +546,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         root = studio.init(Path(tmp) / "studio", "smoke-studio", "Smoke studio")
         check("init writes the manifest and every directory", all((root / name).is_dir() for name in studio.DIRECTORIES) and (root / studio.MANIFEST).is_file())
+        check("API initialization leaves rendering unselected", studio.manifest(root)["default_render_profile"] is None
+              and studio.manifest(root)["default_style_family"] is None)
         check("init refuses a non-empty directory", refused(lambda: studio.init(root, "again", "Again"), "not empty"))
         check("a fresh studio validates", validate_studio.validate(root) == [], validate_studio.validate(root))
         check("the studio is found from a directory inside it", studio.studio_root(root / "packages") == root)
@@ -779,6 +825,7 @@ def main() -> int:
         check("an iteration that kept no companion cannot resolve the carriers its package names", unresolved)
 
         regressions(Path(tmp), source, check)
+        render_preferences(Path(tmp), source, check)
         package_attachments(Path(tmp), check)
 
     passed = sum(1 for row in results if row["passed"])

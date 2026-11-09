@@ -5,10 +5,9 @@ import copy
 from pathlib import Path
 
 import execution_contract as c
-import request_contract
 import request_validation
 import visual_continuity
-from execution_policy import load_policy
+from owned_json import mutable
 
 
 def inventory(root: Path, task: dict) -> dict:
@@ -50,8 +49,7 @@ def validation_required(task: dict) -> bool:
     Image preparation resolves observed schema evidence and requires a selected
     reference contract when images accompany the authored instructions.
     """
-    return (task.get('execution') == 'dispatcher' and task.get('route') == 'upscale'
-            and not task.get('_authoring_validation_retained'))
+    return task.get('execution') == 'dispatcher' and task.get('route') == 'upscale'
 
 
 
@@ -73,58 +71,14 @@ def build_visual(choices: dict | None, task: dict, reader, root: Path) -> tuple[
                     'prepared_reference_set': prepared_ref}
 
 
-def build_validation(choices: dict | None, task: dict, reader, root: Path) -> tuple[dict | None, dict]:
+def build_validation(choices: dict | None, task: dict, reader, root: Path, *, target=None) -> tuple[dict | None, dict]:
+    """Compile selected evidence for the target resolved by production authoring."""
     if choices is None:
         if validation_required(task):
             raise ValueError('this dispatcher production needs its request validation choice')
         return None, {}
-    c.exact(choices, {'mode', 'model', 'target', 'service_profiles', 'contract', 'evidence',
-                      'execution_policy'}, 'validation input choices')
-    target = request_contract.target(choices['target'])
-    from prepare_generation_references import resolve_model_record
-    from model_contract import select_offering
-    model_id, model = resolve_model_record(choices['model'])
-    if model_id != choices['model']:
-        raise ValueError('select the canonical model ID displayed by the runtime catalog')
-    offering = select_offering(model, target['service'] if model.get('offerings') else None)
-    if offering is None:
-        if target['model_identifier'] != model_id:
-            raise ValueError('host target differs from the selected canonical model')
-        import request_renderer as transport
-    elif offering['model_identifier'] != target['model_identifier']:
-        raise ValueError('model identifier differs from the selected offering')
-    if choices['service_profiles'] is None:
-        from catalog_retrieval.runtime import load_pack_catalog
-        catalog = load_pack_catalog()
-        resource = catalog.resources.get('service-profiles')
-        if resource is None:
-            raise ValueError('select a service-profiles source or enable a pack that binds one')
-        name = '@pack/' + resource.source_pack
-        if name not in reader.named_roots:
-            raise ValueError('service pack has no active source root')
-        service_ref = reader.select(name + '/' + resource.relative_path)
-    else:
-        service_ref = reader.select(choices['service_profiles'])
-    services = reader.json(service_ref).get('services')
-    if not isinstance(services, dict) or target['service'] not in services:
-        raise ValueError('service-profiles has no exact selected service')
-    service = services[target['service']]
-    if target['operation'] not in service.get('operations', {}):
-        raise ValueError('the selected service does not declare this operation')
-    if offering is not None:
-        import transport_contract
-        transport = transport_contract.load(service.get('transport'))
-    selected = {key: choices[key] for key in ('mode', 'contract', 'evidence', 'execution_policy')}
-    policy_ref = reader.select(choices['execution_policy']) if choices['execution_policy'] is not None else None
-    policy, local = load_policy({'execution_policy': policy_ref}, reader, target, dialect=model.get('prompt_dialect'))
-    reference = policy.get('reference_instruction_transport')
-    if reference is not None:
-        contract = local.json(reference['contract'])
-        local.at(reference['contract']).basis(contract['basis'])
-    execution = request_contract.execution_hashes(service, offering or {}, Path(transport.__file__), model=model, policy=policy)
-    record = request_validation.build_record(selected, reader, expected_target=target, execution=execution)
-    return record, {'model': model_id, 'dialect': model.get('prompt_dialect'),
-                    'service_profiles': service_ref}
+    validation, _ = request_validation.acquire_target_choices(choices, target, reader)
+    return mutable(validation.record), {'model': target.model_id, 'dialect': target.model.get('prompt_dialect')}
 
 
 def cross_check(visual: dict, validation: dict) -> None:
@@ -133,10 +87,11 @@ def cross_check(visual: dict, validation: dict) -> None:
 
 
 def build_external(selection: dict, task: dict, reader, root: Path, out_dir: str,
-                   delivery: bytes) -> tuple[dict[str, bytes], dict]:
+                   delivery: bytes, *, derived_files: dict[str, bytes] | None = None) -> tuple[dict[str, bytes], dict]:
     """Delegate native request construction to its common editable input owner."""
     import production_external_inputs
-    return production_external_inputs.build(selection, task, reader, root, out_dir, delivery)
+    return production_external_inputs.build(selection, task, reader, root, out_dir, delivery,
+                                            derived_files=derived_files)
 
 
 def next_actions(inputs: dict, task: dict, root: Path, *, runtime_arguments: dict | None = None) -> list[dict]:
@@ -196,12 +151,10 @@ def visual_template(task: dict) -> dict | None:
 def validation_template(task: dict) -> dict | None:
     if task.get('execution') != 'dispatcher':
         return None
-    return {'mode': None, 'model': None,
-            'target': {'service': None, 'model_identifier': None, 'operation': None},
-            'service_profiles': None, 'contract': None, 'evidence': None, 'execution_policy': None}
+    return {'mode': 'target-schema', 'contract': None, 'evidence': None, 'execution_policy': None}
 
 
-OPTIONAL_FIELDS = {'visual': set(), 'validation': {'service_profiles', 'execution_policy'}}
+OPTIONAL_FIELDS = {'visual': set(), 'validation': {'contract', 'evidence', 'execution_policy'}}
 
 
 def unresolved_choices(choices: dict) -> list[dict]:
@@ -217,14 +170,14 @@ def unresolved_choices(choices: dict) -> list[dict]:
                 continue
             if key in value and value[key] is None:
                 output.append({'field': field + '.' + key, 'code': 'selection-required'})
+        if field == 'validation':
+            for key in ('contract', 'evidence'):
+                if value.get(key) is None and (value.get('mode') != 'target-schema'
+                        or value.get('evidence' if key == 'contract' else 'contract') is not None):
+                    output.append({'field': field + '.' + key, 'code': 'source-selection-required'})
         basis = value.get('basis')
         if isinstance(basis, dict):
             for key in ('path', 'locator'):
                 if not basis.get(key):
                     output.append({'field': field + '.basis.' + key, 'code': 'source-selection-required'})
-        target = value.get('target')
-        if isinstance(target, dict):
-            for key in ('service', 'model_identifier', 'operation'):
-                if not target.get(key):
-                    output.append({'field': field + '.target.' + key, 'code': 'target-selection-required'})
     return output

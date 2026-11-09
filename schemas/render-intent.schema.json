@@ -1,17 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "render-intent.schema.json",
-  "title": "Explicit image finish and operation",
+  "title": "Image operation and optional authored rendering",
   "type": "object",
   "required": [
     "artifact_type",
-    "preset",
-    "axes",
-    "presentation",
-    "selection",
-    "execution_mode",
-    "prompt_expression",
-    "regional_overrides"
+    "execution_mode"
   ],
   "properties": {
     "artifact_type": {
@@ -25,14 +19,7 @@
     },
     "axes": {
       "type": "object",
-      "required": [
-        "medium",
-        "dimensionality",
-        "linework",
-        "shading",
-        "surface",
-        "detail"
-      ],
+      "required": [],
       "properties": {
         "medium": {
           "type": "string",
@@ -59,7 +46,8 @@
           "minLength": 1
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Selected rendering constraints. A custom intent may omit any axis; omission adds no constraint and selects no default."
     },
     "presentation": {
       "type": "string",
@@ -157,5 +145,77 @@
       }
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "if": {
+    "properties": {
+      "preset": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "preset"
+    ]
+  },
+  "then": {
+    "properties": {
+      "axes": {
+        "required": [
+          "medium",
+          "dimensionality",
+          "linework",
+          "shading",
+          "surface",
+          "detail"
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "anyOf": [
+          {
+            "required": [
+              "preset"
+            ]
+          },
+          {
+            "required": [
+              "axes"
+            ]
+          },
+          {
+            "required": [
+              "presentation"
+            ]
+          },
+          {
+            "required": [
+              "selection"
+            ]
+          },
+          {
+            "required": [
+              "prompt_expression"
+            ]
+          },
+          {
+            "required": [
+              "regional_overrides"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "required": [
+          "preset",
+          "axes",
+          "presentation",
+          "selection",
+          "prompt_expression",
+          "regional_overrides"
+        ]
+      }
+    }
+  ]
 }

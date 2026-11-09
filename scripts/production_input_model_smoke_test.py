@@ -25,28 +25,23 @@ class ModelInputTests(unittest.TestCase):
         self.write('prepared-references.json', self.package['prepared_reference_set'])
         validation = self.package['request_validation']
         self.target = validation['target']
-        from catalog_retrieval.runtime import load_pack_catalog
-        service_source = load_pack_catalog().resources['service-profiles'].path
-        service = c.load(Path(service_source))['services'][self.target['service']]
-        self.write('services.json', {'services': {self.target['service']: service}})
         visual = copy.deepcopy(self.package['visual_continuity'])
         visual['basis'].pop('sha256')
         visual.update(production_spec='production-spec.json', prepared_reference_set='prepared-references.json')
-        self.choices = {'reading': {'reading_key': reading['reading_key']},
-                        'visual': visual,
-                        'validation': {'mode': validation['mode'], 'model': self.package['model'],
-                            'target': self.target, 'service_profiles': 'services.json',
-                            'contract': validation['contract']['path'], 'evidence': validation['evidence']['path'],
-                            'execution_policy': validation['execution_policy']['path']},
-                        'task_changes': {}, 'external': None}
-        self.write('choices.json', self.choices)
+        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        self.choice_path = drafted['choices_file']
+        self.choices = drafted['choices']
+        self.choices.update(reading={'reading_key': reading['reading_key']}, visual=visual,
+            validation={'mode': validation['mode'], 'contract': validation['contract']['path'],
+                'evidence': validation['evidence']['path'], 'execution_policy': validation['execution_policy']['path']})
+        self.write(self.choice_path, self.choices)
 
     def write(self, path, value):
         (self.root / path).write_bytes(c.encoded(value))
 
     def build(self):
-        self.write('choices.json', self.choices)
-        return inputs.build_inputs(self.root, 'task.json', 'choices.json', 'built')
+        self.write(self.choice_path, self.choices)
+        return inputs.build_inputs(self.root, None, self.choice_path, 'built')
 
     def test_visual_and_validation_are_built_from_selected_evidence(self):
         result = self.build()
@@ -93,8 +88,11 @@ class ModelInputTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.build()
 
-    def test_validation_target_change_is_rejected(self):
-        self.choices['validation']['target'] = dict(self.target, model_identifier='another-synthetic-model')
+    def test_validation_evidence_must_cover_the_selected_target(self):
+        path = self.choices['validation']['contract']
+        contract = c.load(self.root / path)
+        contract['target'] = dict(self.target, model_identifier='another-synthetic-model')
+        self.write(path, contract)
         with self.assertRaises(ValueError):
             self.build()
         self.assertFalse((self.root / 'built').exists())
@@ -124,7 +122,7 @@ class ModelInputTests(unittest.TestCase):
                                     managed_root=self.base / 'managed')
         context = {'state-file': str(settings.state_file), 'cache-dir': str(settings.cache_dir),
                    'managed-root': str(settings.managed_root), 'pack-root': []}
-        result = inputs.build_inputs(self.root, 'task.json', 'choices.json', 'built', runtime_arguments=context)
+        result = inputs.build_inputs(self.root, None, self.choice_path, 'built', runtime_arguments=context)
         self.assertEqual([item['operation'] for item in result['next_actions']], ['prepare', 'draft-execution', 'execute'])
         action = result['next_actions'][0]
         self.assertEqual(action['args']['root'], str(self.root))
@@ -141,7 +139,10 @@ class ModelInputTests(unittest.TestCase):
         self.choices['visual'] = None
         self.choices['validation'] = None
         result = self.build()
-        self.assertEqual(sorted(result['inputs']), ['input-snapshots', 'production-task', 'route-reading'])
+        self.assertNotIn('request-validation', result['inputs'])
+        task = c.load(self.root / result['inputs']['production-task']['path'])
+        self.assertNotIn('request_validation', task['generation'])
+        self.assertEqual((self.root / task['delivery']['path']).read_text(encoding='utf-8'), self.package['composition_prompt'])
         action = result['next_actions'][0]
         self.assertEqual(action['operation'], 'prepare')
         self.assertEqual(action['requires'], ['Complete the declared delivery, source and authority files.'])
@@ -188,13 +189,17 @@ class ObservedPackInputTests(unittest.TestCase):
         selected = inspected['record']['offerings'][0]
         self.selector = '@pack/' + inspected['source_pack'] + '/' + selected['schema_snapshot']
         self.target = {'service': selected['service'], 'model_identifier': selected['model_identifier'], 'operation': 'generate'}
-        reading = c.load(self.root / self.case['task']['route_reading'])
+        from reading_fixtures import fixture_reading
+        reading = fixture_reading(route='generation', studio=self.root, ledger=self.root/'work/reads.jsonl',
+                                  model=cases.MODEL_ID, service='synthetic', execution='dispatcher')
+        cases.write(self.root / self.case['task']['route_reading'], reading)
         policy = c.load(self.root / 'validation.json')['execution_policy']['path']
-        self.choices = {'reading': {'reading_key': reading['reading_key']},
-                        'visual': None, 'task_changes': {}, 'external': None,
-                        'validation': {'mode': 'target-schema', 'model': cases.MODEL_ID, 'target': self.target,
-                            'service_profiles': None, 'contract': self.selector, 'evidence': self.selector,
-                            'execution_policy': policy}}
+        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        self.choice_path = drafted['choices_file']
+        self.choices = drafted['choices']
+        self.choices.update(reading={'reading_key': reading['reading_key']}, visual=None,
+            validation={'mode': 'target-schema', 'contract': self.selector, 'evidence': self.selector,
+                        'execution_policy': policy})
         self.original_task = (self.root / 'task.json').read_bytes()
 
     def cli(self, destination='built'):
@@ -202,9 +207,9 @@ class ObservedPackInputTests(unittest.TestCase):
         import subprocess
         import sys
         from pack_runtime_cli import PackRuntimeContext
-        (self.root / 'choices.json').write_bytes(c.encoded(self.choices))
+        (self.root / self.choice_path).write_bytes(c.encoded(self.choices))
         command = [sys.executable, '-B', str(Path(__file__).with_name('production_workflow.py')),
-            'build-inputs', '--root', str(self.root), '--task', 'task.json', '--choices', 'choices.json',
+            'build-inputs', '--root', str(self.root), '--choices', self.choice_path,
             '--out-dir', destination]
         command += PackRuntimeContext(self.case['settings'], (self.case['pack'],)).command_arguments()
         process = subprocess.run(command, cwd=Path(__file__).resolve().parents[1],

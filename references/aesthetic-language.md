@@ -62,7 +62,10 @@ A core may guide:
 
 A core does **not** define fur, skin, hair, feathers, scales, paws, muzzles, human facial anatomy, robot panels, optics, locomotion, or any other domain implementation. Canonical cores use `domains: ["shared"]` and remain valid across materially different subject types.
 
-The selected art direction remains authoritative. Use zero or one core only when its full production knowledge strengthens the chosen direction. A core is never a mandatory style label and several cores are not averaged together.
+Inspect applicable cores while developing an open direction. Adopt zero or one
+when its full production knowledge serves the chosen picture within the brief's
+authority. A core is never a mandatory style label and several cores are not
+averaged together.
 
 ### 2. Concrete style family
 
@@ -74,30 +77,18 @@ enabled style-family records
 
 A concrete style family is the bridge between a broad rendering medium and subject realization. It stores one indivisible finish language: outer-to-inner line hierarchy, form abstraction, hard and soft value behavior, highlight placement, color logic, surface grouping, background treatment, detail hierarchy, and a realization overlay for every supported subject domain.
 
-Select zero or one family after the art direction is chosen. The family is the primary positive drawing grammar. Its `base_render_profile_id` identifies the compatible medium envelope and scoped negative boundary. Do not concatenate the complete family grammar with the complete render-profile grammar.
+Read a candidate family's complete grammar and linked profile while developing
+the direction. Adopt zero or one family as its primary positive drawing grammar
+when their expressive consequences serve the picture. Its
+`base_render_profile_id` identifies the compatible medium envelope and scoped
+negative boundary. Do not concatenate the complete family grammar with the
+complete render-profile grammar.
 
-The current curated families are:
-
-- bold flat expressive cartoon
-- fantasy line-and-wash character sheet
-- graphic cinematic cel illustration
-- matte character-design illustration
-- neon screenprint character poster
-- distressed editorial campaign cel
-- polished soft-cel character portrait
-- sculpted rounded luminous soft cel
-- clean rounded flat cel
-- ornate arcane splash illustration
-- clean expressive casual webcomic
-- regal blue nocturne character key visual
-- luminous festival waterscape soft cel
-- commercial athletic action cel
-- smoldering nocturne painterly portrait
-- electric workstation cutout soft cel
-- graphic accent cutout action cel
-- quiet seasonal veranda soft cel
-- gilded cyan-sigil gothic cel
-- hard-specular gloss cel
+Discover available families through the resolved catalog, which identifies
+their owning packs, applicability and curation tier. A vocabulary family supplies
+wording; a curated family supplies its authored construction knowledge. Names
+from an optional pack do not establish that it is active, and the available
+families are not a closed list of possible visual treatments.
 
 Aesthetic-touch modules may refine one local decision only when the selected family's `touch_policy` remains satisfied. The evidence method is defined in the [Reference-Derived Style-Family Evidence Contract](maintenance/presets.md#reference-derived-style-family-evidence-contract); concrete family notes belong to `cpb-resource:reference-derived-style-families`. When image references are supported, `style_reference_guidance` assigns the reference to line, form, shadow, color, surface, and finish language while the brief retains authority over identity and scene.
 
@@ -176,21 +167,29 @@ An atomic touch is not a miniature aesthetic core. It solves one construction or
 
 ## Runtime combination
 
-The intended order is:
+Develop and select the art direction using the relevant knowledge, then apply
+each chosen contribution at its actual scope:
 
-```text
-user brief
-→ image intent
-→ complete art direction
-→ optional universal aesthetic core
-→ optional concrete style family
-→ matching domain realization and family overlay
-→ linked or directly selected render profile
-→ relevant atomic modules and corrections
-→ final prompt
-```
+1. Establish the brief, adopted source choices and open artistic decisions.
+2. Read the active knowledge's scope and complete relevant records before
+   settling those open decisions. Use
+   [Discovery](runtime/sparse-discovery.md#conceive-the-open-picture) for the
+   conversation-only path as well as saved work; reuse current complete material.
+3. Develop and assess candidate pictures under
+   [Production direction](runtime/production-direction.md#form-a-prompt-from-an-idea).
+   Construction knowledge can change their content, treatment and expressive
+   relationships. The author chooses the picture; search rank supplies no choice.
+4. Apply the selected core, family, domain realization and overlay, profile,
+   modules or corrections only where their knowledge is useful. Consultation
+   does not require adopting a preset. Preserve the relationships within a
+   chosen grammar and the brief's fixed properties.
+5. Carry the resulting depiction into the final prompt and resolve remaining
+   construction or wording questions as needed.
 
-The art direction is complete before retrieval. Retrieval contributes production knowledge; it does not choose the image's purpose.
+Knowledge consultation is part of conception, not a finish lookup after an
+otherwise complete direction. An understood subject can still leave treatment
+open. A specified treatment, adopted picture or local edit remains bounded by
+its actual authority rather than being reopened for exploration.
 
 The `inspire` command returns these families separately:
 

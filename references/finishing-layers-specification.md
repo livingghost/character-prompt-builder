@@ -2,9 +2,15 @@
 
 ## 1. Purpose
 
-A correct subject leaves a character prompt unfinished. The same subject reads completely differently as a cel illustration, an 85mm photograph, a matte clay render, or a collectible figure shot. This reference defines the finishing layers that turn a correct subject into a complete image, and the observation contract for reading them from evidence.
+A subject can generate different pictures through its visual construction.
+This reference supplies knowledge for choosing that construction while an
+image is conceived, and for resolving or observing its treatment. These layers
+are not a cosmetic pass after the subject and scene have already determined
+the picture. Use them within the conception study and selected direction.
 
-Load this document when a delivered prompt keeps producing the right subject in the wrong finish, or when the request names or implies any of these:
+Load this document when an open visual treatment needs construction knowledge,
+when a delivered prompt keeps producing the right subject in the wrong finish,
+or when the request names or implies any of these:
 
 - a rendering medium
 - a photographic look
@@ -26,12 +32,13 @@ and lettering can be complete without a physical camera or lighting setup.
 
 ## 3. Composition order
 
-Choose presentation and component relationships through
-[Production direction](runtime/production-direction.md) before refining their
-finish. Within each treatment, resolve medium, relevant optics and light,
-material response and finishing detail together. A selected style family or
-profile contributes within that scope. Preserve both local coherence and the
-chosen relationship between different treatments.
+Develop presentation, component relationships and visual treatment together
+through [Production direction](runtime/production-direction.md). A particular
+optical relationship, light behavior or material construction can originate an
+idea as well as realize it. Compare actual candidate pictures before selecting
+the direction, then resolve the relevant layers coherently. A selected family
+or profile contributes within its assigned scope. Preserve both local coherence
+and the chosen relationship between different treatments.
 
 Investigate unresolved construction or wording questions under
 [Prompt-only Core](runtime/prompt-only-core.md#knowledge-and-sources). A brief,

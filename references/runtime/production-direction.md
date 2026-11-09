@@ -7,8 +7,8 @@ Read the applicable design, persona and authorial intent together. A trait,
 emotion or format label alone does not determine its expression. Characters,
 a story clock and a physical camera are optional.
 
-Build the work from its intended content: what exists, what happens, and how
-its parts and participants relate. Use adopted properties as the subject's
+Develop intended content and visual construction together: what exists, what
+happens, how its parts relate, and how the picture presents them. Use adopted properties as the subject's
 definition and make open creative choices within delegated authority. Carry
 the chosen realization into the artifact. A recommendation identifies the
 selected course and the substantive reason it serves the commission; a prompt
@@ -23,6 +23,7 @@ in the existing task `direction`; a conversation-only draft needs no task file.
 ## Contents
 
 - [Choose the expression](#choose-the-expression)
+- [Choose framing from the intended effect](#choose-framing-from-the-intended-effect)
 - [Record the production direction](#record-the-production-direction)
 - [Preserve accepted variation at its declared scope](#preserve-accepted-variation-at-its-declared-scope)
 - [An image of an action is not the action](#an-image-of-an-action-is-not-the-action)
@@ -36,6 +37,12 @@ presets, performance knowledge and interface guides contribute to it when a
 question needs their knowledge; they do not each start another design process.
 A conversation-only answer needs no planning form. Record consequential choices
 in the existing production records when the work has saved artifacts.
+
+When the commission supplies only a topic, use
+[Form a prompt from an idea](#form-a-prompt-from-an-idea) to develop its open
+choices. Retain the requested content, subject roles and kind of work. The
+agent chooses an intended effect within that commission; an unstated use
+remains unselected.
 
 Read the request and supplied material in their actual roles. A brief says what
 the work must provide. An adopted design supplies the properties covered by
@@ -136,7 +143,7 @@ commission. Rich ornament, quiet space, precise workmanship or expressive
 exaggeration may carry the effect. There is no universal preference for simple
 images, prominent faces, wide framing or a low detail count. Use
 [representation grammar](prompt-composition.md#representation-grammar) and
-[render intent](render-contract.md#choose-the-finish) for the selected marks,
+[render intent](render-contract.md#choose-the-visual-treatment) for the selected marks,
 materials and treatment. A medium label alone does not settle the composition.
 
 For multiple regions or treatments, give each a role in the whole. Decide how
@@ -165,6 +172,52 @@ Apply [interface rendition](prompt-writing-guide.md) to that authored meaning.
 The master prompt can be the final portable text; it does not require a second
 artifact or a preliminary attribute list. Exact parser grammar may change
 syntax, never the situation or meaning it is meant to communicate.
+
+### Choose framing from the intended effect
+
+Determine whether the prompt needs to select a view. Requested or adopted
+framing remains fixed. Author a view when its spatial relationships or
+expressive effect are part of the proposed depiction; otherwise the model may
+compose the specified content. A complete first proposal need not name
+distance, crop, placement, scale or margins.
+
+For a view the prompt establishes, decide what the viewer should experience
+or understand and choose framing that makes that experience work. Resolve its
+spatial choices together with the depicted activity or design. When selecting
+an open view, consider a materially different realization if it would change
+the effect, then select one for its contribution to this commission. Carry
+that chosen view into the first proposal; the user need not reject a stock
+frame before receiving a directed picture. Explain the determining reason
+briefly when presenting the direction. A fixed or already sufficient view
+needs no invented alternatives or additional approval.
+
+No shot scale, centering, body coverage or margin is universally preferred.
+Showing every design feature can aid an inspection but can dilute an encounter,
+gesture, material detail or relationship to a place. Keep the information the
+author needs separate from what the audience must see in this image. Complete
+identity remains applicable through a partial view; unseen feet, garments or
+appendages are not thereby absent or defective. A declared whole-figure design
+view still requires its intended coverage. Choose both expansive and selective
+views by their effects, without treating either as an exception that needs
+permission.
+
+Write visibility constraints after selecting the depiction. Require coverage
+only where the commission, adopted framing or intended effect needs it. Apply
+the same scope to negative text and review criteria. Terms such as `cropped`,
+`out of frame` and `cropped feet` can counter an intentional composition; they
+are not universal quality negatives. A crop, occlusion and broken construction
+are different conditions. Assess the connections and design the selected view
+implies, and keep only exclusions relevant to that view or an evidenced failure.
+Do not expose the whole body merely to make completeness easy to check.
+
+Revisit open framing when the purpose or scene changes. Retain a fixed view for
+an authorized local edit, an adopted sequence grammar or another applicable
+requirement. An earlier agent-selected frame remains a reusable candidate, not
+a new user constraint. Repeated framing can serve a coherent series; variation
+can serve distinct moments. Neither repetition, random rotation, a diversity
+quota nor always choosing the opposite of the previous frame establishes good
+direction. Judge each first proposal by its actual brief and retain successful
+choices where their reasons still apply.
 
 ### Form a prompt from an image
 
@@ -208,6 +261,138 @@ into a claim that the feature needs a separate instruction.
 
 ### Form a prompt from an idea
 
+Establish what the request asks to develop, the roles of its subjects and any
+stated use. A sparse character brief still asks for a depiction of that
+character. Develop what makes the character particular in the image through
+the choices relevant to the request; character or form design can itself be
+the creative question. A scene, object, explanation or other commission
+retains its own requested content and roles. Supplied and adopted material
+continues to govern at its assigned scope. Missing detail gives room to develop
+that work; an unstated use does not become an invented commission.
+
+Choose the consequential question within this scope. A narrative event, an
+emotional premise or a graphic metaphor is one possible means, not a required
+starting point. The proposed result needs a particular visual construction;
+it need not make a separate thematic statement. The assistant's courteous
+interaction with its user supplies no emotional or moral register for the work.
+
+Determine which choices the prompt needs to settle and which can remain with
+the image model. A complete prompt can specify the requested content without
+selecting a medium, rendering style or incidental arrangement. Do not invent
+those choices to complete a taxonomy or add a finish sentence to satisfy a
+form. Preserve explicit and applicable adopted requirements; leaving other
+properties open does not remove them. Assess whether the actual input is
+sufficient for the requested work, rather than how many choices it fixes.
+
+For consequential choices that require authoring, complete the following work
+before selecting the result.
+Keep its short working material in the authoring context; saved work uses the
+existing direction records as described below. An already directed picture or
+bounded local edit needs no competing concept exercise. A fixed style, format
+or adopted property remains fixed while other choices are explored.
+
+Carry an exact selected model and a user-selected or adopted style into this
+study as constraints. Consult [rendering guidance](render-contract.md#read-the-models-guidance)
+and [model evidence](model-evidence.md#keep-kinds-of-evidence-apart) while choosing
+model-dependent means. With no selected model, keep their proposed realization
+provisional; artistic intent supplies no evidence of effect.
+
+1. **Investigate the subject and the open choice.** Identify the knowledge
+   needed to develop the commissioned content and resolve the consequential
+   choice. Distinguish supplied facts, understood subject knowledge and authored
+   invention. Consult relevant production knowledge before settling that choice.
+   Use complete supplied material and already inspected records where they
+   answer that question; use [Discovery](sparse-discovery.md) to expose further
+   constructions and inspect useful candidates in full. Seek knowledge whose
+   consequences could change the realization within its scope. A query for a
+   preferred scene or finish cannot establish that other possibilities were
+   explored. Preserve actual findings and their limits; an empty result
+   or an unsuitable record need not be adopted. Familiarity sufficient to
+   describe a plausible result is not evidence that this creative question has
+   been explored. Conclude the inquiry when the relevant possibilities and
+   their consequences support a choice; do not search every visual attribute.
+2. **Write a candidate and a credible counterproposal.** Before choosing or
+   composing a recommendation, write actual descriptions of proposed results
+   for the same commissioned work. Give each enough executable visual content
+   to assess its relevant choices without the author's explanation. The
+   counterproposal must test a consequential difference in the question under
+   study. Its consequences for the requested work determine whether a change
+   is material: clothing, object or form design can carry the commission, while
+   a changed label alone supplies no construction. Do not require a different
+   kind of depiction merely to manufacture contrast. When selecting a visual
+   treatment is part of the authoring question, the actual alternatives must
+   test that consequential choice in how the content is realized. A changed
+   situation alone leaves that choice open when the same unexamined treatment
+   persists. This does not require choosing a treatment that the request and
+   proposal leave to the model. Make the visible differences
+   concrete rather than substituting technique names.
+   Retain shared choices that are fixed or whose contribution has been
+   established. A consequential shared assumption without that basis remains
+   open. Use the smallest set that tests the real choice; one candidate per
+   style axis, different media or exhaustive descriptions of incidental detail
+   are not required. Keep the actual descriptions available for the next step; do not
+   reconstruct rejected options after selection as evidence of exploration.
+3. **Assess the descriptions in a separate pass.** Supply the original brief,
+   applicable subject and source material, and the actual candidate descriptions
+   without the writer's preferred option, ranking, selection rationale or
+   advocacy. Use neutral labels and an order unrelated to that preference.
+   Use a fresh independent context when the host supports one. Ask
+   it first to identify what each described result actually develops and
+   whether it retains the requested content, subject roles and use. For a
+   character commission, assess what the proposed construction contributes to
+   that character's depiction. Merely including the named subject does not
+   establish that it remains the work being developed. A change of commission
+   cannot win the comparison through advantages for a different task.
+   Then compare the concrete gains and losses on the question under study,
+   using the choices the descriptions actually establish. Do not complete an
+   attractive idea on its author's behalf. Identify the visible differences
+   the alternatives test and consequential assumptions they share without a
+   basis in the brief or selected material. A compatible treatment alone does
+   not establish an advantage. Evaluate the contribution at the requested
+   scope without a universal framing or visibility preference. If a
+   consequential choice under study remains untested, return it for another
+   construction before selecting as though it had been assessed. Do the same
+   when candidates merely dress one formula differently; this is not a demand
+   to change every shared property. Recommend a selection or identify what
+   prevents one. Without a separate context, perform the same assessment
+   against the retained brief,
+   material and descriptions in a distinct pass, and retain its limited
+   independence in the working notes. Record the assessment actually obtained;
+   a claimed review or invented result supplies no decision boundary.
+4. **Select, then formulate the proposal and its reason.** Choose from the
+   assessed constructions for the contribution the comparison establishes.
+   Resolve a remaining question only when it can change that selection or a
+   fixed requirement. A material revision to a candidate returns its changed
+   construction to assessment; routine prompt wording preserves the selected
+   meaning. Carry the resulting visual relationships into the final prompt and
+   then write the requested short rationale from the determining contribution.
+   Do not invent a user purpose that makes a familiar treatment necessary.
+   Stop once the choice and its consequential construction are resolved.
+
+This work needs no image generation, new public form, user approval or extra
+user-facing deliverable. Return the requested proposal. The working descriptions
+and assessment establish what was compared; they do not prove artistic quality
+or an audience response. Repeated grammar can serve an adopted series, explicit
+preference or actual commission. No novelty quota, shot or medium rotation,
+required emotional opposite, or prohibition on a useful treatment applies.
+
+Develop content and visual construction together at the resolution this
+commission needs. Make the choices that give the requested subject or design
+its particular effect. Form itself can carry that work; a material process or
+visual rhythm can inform its conception. A medium's name alone does not
+resolve the treatment. Select consequential qualities rather than completing
+an axis inventory or appending a reusable finish paragraph. Carry their actual
+visual behavior into the prompt. Use
+[visual treatment](render-contract.md#choose-the-visual-treatment)
+for its construction and recording, within this same direction process.
+
+Keep the requested subjects and their roles intact when developing the whole
+construction. A setting can have substantial expressive force in a character
+depiction while serving the character being developed. A place, object or
+relationship can itself carry the work when the commission assigns it that
+role. Resolve the construction and visibility needed for the requested result;
+clarity for inspection alone does not establish what should matter most.
+
 Give the intended experience a concrete visual proposal. An idea such as
 "an inviting workshop" leaves useful choices: an open workbench prepared for
 a visitor, people sharing tools, or a warmly occupied room seen from its
@@ -216,7 +401,8 @@ picture. Listing every familiar sign of invitation would mix different
 solutions. A detailed brief may already select the construction and leave
 only its rendition to be authored.
 
-Use production knowledge to connect the desired effect to suitable means.
+Use production knowledge during inquiry and candidate construction to connect
+possible effects to suitable means.
 An informal self-portrait relates the subject to the camera; an interrupted
 activity relates attention to unfinished work; a cutaway reveals concealed
 structure; transmitted light can make colored glass luminous; broad flat
@@ -241,13 +427,15 @@ unusual anatomy, an exact inscription or a particular hand-object action can
 carry the whole commission. Keep that precision even when other parts remain
 open.
 
-Search by the effect or construction still needed, as well as by a known term.
+Search by the effect or construction still open, as well as by a known term.
 Knowledge can supply a useful concept the author did not yet know to name.
-Choose from its meaning, scope and alternatives, then express the selected
-picture in the target's language. A concept's familiar associations help
-construction; they do not override an explicit design. No image source,
-catalog match, intermediate caption or separate planning form is required
-when the idea and available knowledge already support the depiction.
+Read its meaning, scope and alternatives before closing the choice, then
+express the selected picture in the target's language. A concept's familiar
+associations help construction; they do not override an explicit design.
+No particular image source or catalog match is required. Use adequate subject
+and craft knowledge when the inspected records do not fit, retaining the
+actual inquiry, candidate descriptions and assessment in ordinary working
+notes rather than manufacturing a lookup or a new planning form.
 
 ### Worked depictions
 
@@ -413,9 +601,25 @@ to the renderer.
 Record a consequential branch as `material`, with the considered options,
 tradeoffs, selection and reason; the reader requires at least two options with
 tradeoffs. A fixed instruction or routine choice may have one option (`fixed`
-or `routine`). Leave `decisions` empty when no choice needs a record. The agent
-chooses the expression; the script checks references, scope and complete
-relationships. These records do not introduce an approval step.
+or `routine`). In saved work, record the open-conception choice above as a
+material decision using the actual candidate descriptions and assessment.
+Leave `decisions` empty when no choice needs a record. The agent chooses the
+expression; the script checks references, scope and complete relationships.
+These records do not introduce an approval step.
+
+Before selection, retain candidate descriptions and the assessment in ordinary
+working notes. The completed decision contract requires a real `selected`
+option and a nonempty `reason`; do not insert a provisional winner merely to
+make an unfinished comparison validate. Once settled, put each candidate's
+expression and executable description in the existing `options[].expression`
+and `options[].realization.instructions`, and the assessed gains and losses in
+`tradeoffs`. Supply its actual method, nullable capability source and known
+limitations under `realization`. Preserve the original brief and applicable
+source material as the assessment basis, and keep any limitation of assessment
+independence in `direction.limitations`. A separate assessment receives the
+descriptions and necessary construction limits, not the writer's selection,
+reason or persuasive tradeoffs. No new decision fields or source authority are
+created by this working process.
 
 Each decision names its question, source basis, options, selected option,
 reason, criterion IDs, predecessor decisions in `depends_on`, and any

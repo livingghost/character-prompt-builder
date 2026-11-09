@@ -4,13 +4,29 @@ Use the `craft-consultation` route feature to include these rules in the selecte
 
 ## Explore within the current task
 
-Use `production_workflow.py consult-presets --help` when a craft question arises during direction, composition, comparison, or repair.
-The agent chooses the question, fitting knowledge, scope, and application.
+Consult relevant craft knowledge while developing an open artistic direction,
+as well as for construction, comparison or repair. Follow
+[Discovery](sparse-discovery.md#conceive-the-open-picture) before settling open
+presentation and treatment choices. The agent chooses the question, fitting
+knowledge, scope, and application.
 Existing approvals establish the status of those assets; execution and identity adoption use their own authority.
 
 `inspect-inputs` exposes `craft_lookup` and the concrete consultation operation for the task.
 Its image and video paths also show the active catalog scope.
-`catalog_cli.py consult` provides the same layered search without a production task.
+For saved work, `production_workflow.py consult-presets --help` exposes the
+task-bound operation. Conversation-only work uses the same search and full
+inspection without a production task:
+
+```bash
+python scripts/catalog_cli.py consult "<canonical open craft question>" --focus all
+python scripts/catalog_cli.py consult --inspect RECORD_ID
+```
+
+Replace `RECORD_ID` with a returned candidate ID. Use actual user anchors and
+the open question in the query. Inspect relevant
+candidate knowledge before choosing its contribution, rather than querying a
+settled medium only to confirm it. Reuse complete current material already read.
+No Studio, decision file or application operation is needed for this path.
 
 The consultation reports discovered packs, enabled packs, searchable counts, the pack each named resource comes from, and resolution diagnostics.
 Confirm the intended pack is active before interpreting results.
@@ -27,6 +43,11 @@ Select a focus for each question:
 | repair | Corrections for an observed problem |
 | identity | Archetypes within the declared subject requirements |
 | all | All of these layers, kept separate |
+
+`finish` does not include atomic technique modules. Use `detail` for their
+rendering, material, lighting or other local relationships, or `all` while the
+useful knowledge layer is open. Focus selection organizes retrieval; it does
+not assign a treatment or require an application from each layer.
 
 Use `--questions` for several explicit questions in one catalog request.
 Each item carries `request_id`, `canonical_query`, and `focus`.
@@ -82,9 +103,10 @@ Its output is authoring evidence, not a generated candidate or an adopted identi
 
 The retrieval record captures questions actually investigated and their use.
 The application source identifies craft adaptation, including combinations of several records.
-Settle the recorded investigations for final wording under Prompt-only Core;
-source-sufficient work needs no invented lookup. Inspect actual assets before
-transferring their visual authority.
+Settle the recorded investigations for final wording under Prompt-only Core.
+Complete supplied or already inspected knowledge can resolve the current
+decision without another lookup; knowing the subject alone does not resolve an
+open treatment. Inspect actual assets before transferring their visual authority.
 
 ## Review and return to the packs
 

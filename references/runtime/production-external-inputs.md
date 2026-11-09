@@ -9,7 +9,8 @@ Author the exact request for the selected host or provider. Keep its complete ta
 
 ## Edit the request and media choices
 
-For external image work, a draft restores `external.image_input`, the native
+For external image work, a draft selects its actual target at `choices.target`
+and restores `external.image_input`, the native
 `external.request` object or array, and the recorded `external.media_slots`.
 The request holds independent provider controls. Each reference owns its
 intended uses and actual `transport.value` with evidence; add, remove or
@@ -21,15 +22,17 @@ omit its field position. Ambiguous mappings remain an explicit choice.
 An existing plan can also be selected as
 `external: {"image_input": "inputs/selected-plan.json"}`. The builder
 materializes the prompt from the single delivery source and the target, count
-and media values from the plan's acquired field mappings. It writes the exact
+and media values from the plan's acquired field mappings. Its saved target is
+retained unless `choices.target` selects another one. It writes the exact
 request and image-input plan, measures evidence hashes, validates the input
 and shows its substantive changes. A supplied hash remains a commitment to
 the selected evidence. Input assembly invents no uploaded value, grant or
 satisfied judgment. The media-slot record and repeated request values are
 derived context rather than additional editing locations.
 When the source plan binds a canonical prepared set, edit its ordered source
-choices in `external.reference_delivery.choices`; its `target_model` retains
-the canonical preparation target. The image-input rows then retain only each
+choices in `external.reference_delivery.choices`. Catalog selections derive the
+canonical preparation target from `choices.target`. An unregistered external
+interface can retain its independent preparation model at `target.reference_model`. The image-input rows then retain only each
 reference ID and its actual transport evidence. The builder derives the full
 reference scope and source bindings from the canonical choices.
 
@@ -44,8 +47,11 @@ The [synthetic input assembly example](../../examples/input-assembly/README.md) 
 
 ## Exact target and provider schema
 
-`model` records the requested name, catalog status, canonical record when
-present, selected target and saved lookup evidence. A missing catalog record
+The derived public image-input `model` records the requested name, catalog status, canonical record when
+present, selected target and saved lookup evidence. In editable choices,
+`target.kind` selects catalog, acquired authored definition or external interface;
+external model evidence retains its requested name, exact target and input contract.
+Catalog status and repeated model identities are derived. A missing catalog record
 is recorded explicitly and can proceed as an external trial. It is not a
 catalog capability or a proven rendering result. `target.operation` comes
 from the selected interface's wire contract, not the render execution mode.

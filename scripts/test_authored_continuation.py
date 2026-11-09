@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import ctypes
+import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -105,6 +108,82 @@ class AuthoredContinuationTests(unittest.TestCase):
         work_ledger.step_done(self.root, 1)
         work_ledger.finish(self.root, saved['run'])
         self.assertIsNone(authoring.current_task(self.root))
+
+
+class RegisteredRuntimeContinuationTests(unittest.TestCase):
+    """A draft's registered runtime owns its current target and reading guidance."""
+
+    def setUp(self):
+        from catalog_retrieval import runtime
+        import production_case_fixtures as cases
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        base = Path(self.temp.name)
+        self.enterContext(fixtures.scratch_home(base / 'home'))
+        self.enterContext(runtime.using_pack_runtime(None))
+        self.case = cases.create(base / 'studio', base / 'runtime', with_alternate=True)
+        self.root = self.case['root']
+        self.task_path = cases.alternate_task(self.root)
+        settings = self.case['settings']
+        self.runtime_arguments = {'state-file': str(settings.state_file),
+            'cache-dir': str(settings.cache_dir), 'managed-root': str(settings.managed_root),
+            'pack-root': [str(self.case['pack'])]}
+        self.model = cases.ALTERNATE_MODEL_ID
+
+    def draft(self, directory='edit', *, source_run=None):
+        result = inputs.draft_inputs(self.root, self.task_path if source_run is None else None,
+            directory, from_run=source_run, runtime_arguments=self.runtime_arguments)
+        self.assertEqual(result['unresolved'], [], result)
+        return result['choices_file']
+
+    def test_fresh_default_status_resolves_the_prepared_drafts_registered_model(self):
+        choices_path = self.draft()
+        saved = workflow.prepare(self.root, choices=choices_path)
+        original = (self.root / choices_path).read_bytes()
+        command = [sys.executable, str(Path(workflow.__file__)), 'status', '--root', str(self.root),
+                   '--run', saved['run']]
+        completed = subprocess.run(command, cwd=self.root, env=dict(os.environ),
+            capture_output=True, text=True, encoding='utf-8', check=False, timeout=45)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        status = json.loads(completed.stdout)
+        current = status['current_task']
+        draft = next(row for row in current['authoring']['inputs'] if row.get('choices') == choices_path)
+        self.assertEqual(draft['route_scope']['model'], self.model)
+        self.assertEqual(draft['unresolved'], [])
+        self.assertEqual(draft['prepared_run'], saved['run'])
+        self.assertFalse(current['authoring']['pending'])
+        self.assertEqual(current['focus'], 'execution')
+        self.assertEqual((self.root / choices_path).read_bytes(), original)
+        self.assertEqual(workflow.read_run(self.root, saved['run']).rows, [])
+
+    def test_reopened_choices_use_current_registered_guidance_and_restore_the_callers_runtime(self):
+        from catalog_retrieval import runtime
+        import pack_manager
+        saved = workflow.prepare(self.root, self.task_path)
+        choices_path = self.draft('reopened', source_run=saved['run'])
+        original = (self.root / choices_path).read_bytes()
+        ledger = self.root / 'work/reads.jsonl'
+        prior_readings = ledger.read_bytes()
+        models_path = self.case['pack'] / 'records/models.json'
+        models = c.load(models_path)
+        next(row for row in models['records'] if row['id'] == self.model)['label'] = 'Current synthetic alternate guidance'
+        c.atomic(models_path, c.encoded(models), replace=True)
+        pack_manager.write_lock(self.case['pack'])
+        runtime.configure_pack_runtime(None)
+        ambient = runtime.selected_pack_settings()
+        report = inputs.inspect_inputs(self.root)
+        draft = next(row for row in report['inputs'] if row.get('choices') == choices_path)
+        self.assertNotIn('target-evidence-required', [row['code'] for row in draft['unresolved']])
+        reading = next(row for row in draft['unresolved'] if row['code'] == 'TARGET_GUIDANCE_REQUIRED')
+        action = reading['next_action']
+        self.assertEqual(action['args']['model'], self.model)
+        for key, value in self.runtime_arguments.items():
+            self.assertEqual(action['args'][key], value)
+        self.assertEqual(runtime.selected_pack_settings(), ambient)
+        self.assertNotIn(self.model, [entry.record.get('id') for entry in runtime.load_pack_catalog().entries])
+        self.assertEqual((self.root / choices_path).read_bytes(), original)
+        self.assertEqual(ledger.read_bytes(), prior_readings)
+        self.assertTrue(report['pending'])
 
 
 if __name__ == '__main__':

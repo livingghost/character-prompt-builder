@@ -14,6 +14,7 @@ from owned_json import freeze, mutable
 MODES=frozenset({'target-schema','bounded-probe','observed-profile'})
 FIELDS={'mode','target','service_execution_sha256','offering_contract_sha256','transport_sha256',
         'execution_policy','contract','evidence','unmeasured'}
+CHOICE_FIELDS=frozenset({'mode','contract','evidence','execution_policy'})
 
 
 def _ref(ref:Any)->None:
@@ -39,6 +40,42 @@ def validate_content(record:Any)->dict:
     for key in ('contract','evidence'):_ref(record[key])
     if record['execution_policy'] is not None:_ref(record['execution_policy'])
     _unknowns(record['unmeasured']);return record
+
+
+def draft_choices(record:dict,reader:InputEvidence,*,target=None)->dict:
+    """Recover source selections from verified evidence, without its derived result.
+
+    A catalog offering owns its parameter schema. Its selector is resolved
+    again for the current target instead of retaining an earlier offering's
+    path. An acquired schema, probe, observed profile or execution policy is
+    an authored selection: keep that source and require it to cover the
+    selected target when the new request is compiled.
+    """
+    require(record,reader)
+    from execution_policy import load_policy
+    policy,local=load_policy(record,reader,record['target'])
+    reference=policy.get('reference_instruction_transport')
+    if reference is not None:
+        contract=local.json(reference['contract'])
+        local.at(reference['contract']).basis(contract['basis'])
+    selected={key:reader.qualify(record[key]['path']) if record[key] is not None else None
+              for key in ('contract','evidence','execution_policy')}
+    from model_contract import PARAMETER_SCHEMA_KINDS
+    contract=reader.json(record['contract'])
+    offering=target.offering if target is not None else None
+    owned_path=(target.model_space+'/'+offering['schema_snapshot']
+                if offering is not None and target.model_space and offering.get('schema_snapshot') else None)
+    operation=(getattr(target.transport,'OPERATIONS',{}).get(target.model.get('operation_kind') or 'generation')
+               if target is not None and target.transport is not None else None)
+    owns_target=(offering is not None and record['target']['service']==offering['service']
+                 and record['target']['model_identifier']==offering['model_identifier']
+                 and record['target']['operation']==operation)
+    if (owns_target and record['mode']=='target-schema' and record['contract']==record['evidence']
+            and record['contract']['path'].startswith('@pack/')
+            and reader.qualify(record['contract']['path'])==owned_path
+            and isinstance(contract,dict) and contract.get('artifact_type') in PARAMETER_SCHEMA_KINDS):
+        selected.update(contract=None,evidence=None)
+    return {'mode':record['mode'],**selected}
 
 
 def pointer(value:Any,path:str)->Any:
@@ -164,28 +201,82 @@ def from_offering(model_id:str,model:dict,offering:dict,service:dict,transport,r
                         reader,expected_target=target,execution=execution)
 
 
-def acquire_offering(target,reader:InputEvidence):
-    """Resolve the default validation from the compilation's acquired target."""
+def acquire_target_choices(choices:dict,target,reader:InputEvidence):
+    """Compile authored validation selections for one acquired execution target.
+
+    The target owns its model, service, transport and default parameter schema.
+    Explicit evidence and execution policies keep their authored scope; a
+    target change never relabels those sources or invents replacement policy.
+    """
     from build_generation_payload import ResolvedTarget
     if not isinstance(target,ResolvedTarget):raise TypeError('validation requires an acquired target')
+    c.exact(choices,CHOICE_FIELDS,'validation input choices')
+    if choices['mode'] not in MODES:raise ValueError('select a request validation mode')
     offering=target.offering
     if offering is None or target.service is None or target.transport is None:
         raise ValueError('the target has no selected execution offering')
-    if 'reference_instruction_transport' in offering:
-        raise ValueError(f"the offering on {offering['service']!r} registers reference_instruction_transport; supply a request validation record with its execution policy")
-    relative=offering.get('schema_snapshot')
-    if not relative:raise ValueError(f"the offering on {offering['service']!r} names no parameter schema; supply a request validation record")
-    path=target.model_space+'/'+relative
-    # This is the same exact schema acquired by target resolution. Selection
-    # also records its source bytes in the package's evidence graph.
-    reader.json(reader.select(path))
     operations=getattr(target.transport,'OPERATIONS',None)
     if not isinstance(operations,dict):raise ValueError('the transport declares no OPERATIONS')
     expected={'service':offering['service'],'model_identifier':offering['model_identifier'],
               'operation':c.text(operations.get(target.model.get('operation_kind') or 'generation'),'transport operation')}
-    execution=rc.execution_hash_values(target.service,offering,target.transport_sha256,model=target.model,policy=None)
-    return ResolvedValidation.acquire_choices({'mode':'target-schema','contract':path,'evidence':path,'execution_policy':None},
-                                              reader,expected_target=expected,execution=execution)
+    if expected['operation'] not in target.service.get('operations',{}):
+        raise ValueError('the selected service does not declare this operation')
+    selected=copy.deepcopy(choices)
+    contract,evidence=selected['contract'],selected['evidence']
+    if contract is None and evidence is None and choices['mode']=='target-schema':
+        relative=offering.get('schema_snapshot')
+        if not relative:
+            from production_diagnostics import ProductionError
+            raise ProductionError('VALIDATION_EVIDENCE_REQUIRED',
+                'The selected offering has no parameter schema. Select evidence for this target.',
+                phase='request-validation-evidence',pointer='$.validation',
+                target=expected,required_action='Select a current target schema, a bounded probe, or an adopted observed profile in validation.')
+        path=target.model_space+'/'+relative
+        snapshot=reader.json(reader.select(path))
+        from model_contract import parameter_schema_issues,offering_expectation
+        expectation,model_key=offering_expectation(target.model_id,offering)
+        issues=parameter_schema_issues(snapshot,expectation,model_key=model_key)
+        if issues:raise ValueError('parameter schema '+path+' does not record this offering: '+'; '.join(issues))
+        selected.update(contract=path,evidence=path)
+    else:
+        for field in ('contract','evidence'):
+            c.text(selected[field],'validation '+field+' source selector')
+    policy_ref=reader.select(selected['execution_policy']) if selected['execution_policy'] is not None else None
+    if policy_ref is not None:
+        policy_source=reader.json(policy_ref)
+        if not isinstance(policy_source,dict):raise ValueError('execution policy must be an object')
+        dialect=target.model.get('prompt_dialect')
+        if (policy_source.get('target')!=expected
+                or dialect is not None and policy_source.get('text_dialect')!=dialect):
+            from production_diagnostics import ProductionError
+            raise ProductionError('VALIDATION_POLICY_REQUIRED',
+                'The selected execution policy does not cover the current target and dialect.',
+                phase='request-validation-evidence',file=policy_ref['path'],pointer='$.validation.execution_policy',
+                expected=expected,actual=policy_source.get('target'),
+                required_action='Read the current model and reference guidance, then select an authored execution policy for this target. Retain the earlier policy at its original source.')
+    from execution_policy import load_policy
+    policy,local=load_policy({'execution_policy':policy_ref},reader,expected,
+                            dialect=target.model.get('prompt_dialect'))
+    reference=policy.get('reference_instruction_transport')
+    registered=offering.get('reference_instruction_transport')
+    if registered is not None and registered!=reference:
+        from production_diagnostics import ProductionError
+        raise ProductionError('VALIDATION_POLICY_REQUIRED',
+            'The selected offering requires its registered reference instruction policy.',
+            phase='request-validation-evidence',pointer='$.validation.execution_policy',
+            required_action='Select an authored execution policy that implements the selected offering reference contract.')
+    if reference is not None:
+        reference_contract=local.json(reference['contract'])
+        local.at(reference['contract']).basis(reference_contract['basis'])
+    execution=rc.execution_hash_values(target.service,offering,target.transport_sha256,model=target.model,policy=policy)
+    validation=ResolvedValidation.acquire_choices(selected,reader,expected_target=expected,execution=execution)
+    return validation,freeze(policy)
+
+
+def acquire_offering(target,reader:InputEvidence):
+    """Resolve the default validation from the compilation's acquired target."""
+    return acquire_target_choices({'mode':'target-schema','contract':None,'evidence':None,'execution_policy':None},
+                                  target,reader)
 
 
 def reference_schema(ref:dict,reader:InputEvidence)->dict:

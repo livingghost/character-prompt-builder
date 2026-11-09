@@ -20,6 +20,7 @@ sys.dont_write_bytecode = True
 import style_family_audit
 from audit_preset_quality import (
     Record,
+    _check_one_pack_defaults,
     check_aesthetic_core,
     check_atomic,
     check_archetype,
@@ -564,6 +565,56 @@ def _style_family_record(record_id: str, nearest_family: str) -> dict[str, Any]:
     }
 
 
+def check_render_defaults(check: Any) -> None:
+    """Validate unselected and selected rendering preferences at each owner."""
+    from resource_policy import validate_pack_defaults
+    from validate import _pack_defaults_findings
+
+    defaults = json.loads((DEFAULT_PACK / "resources" / "pack-defaults.json").read_text(encoding="utf-8"))
+    profiles = json.loads((DEFAULT_PACK / "records" / "render-profiles.json").read_text(encoding="utf-8"))["records"]
+    realizations = json.loads((DEFAULT_PACK / "records" / "domain-realizations.json").read_text(encoding="utf-8"))["records"]
+
+    def findings(value: dict[str, Any], available_profiles: list[dict[str, Any]]) -> dict[str, list[str]]:
+        records = [Record("profile", "", row, "synthetic:render-defaults") for row in available_profiles]
+        records.extend(Record("domain-realization", "", row, "synthetic:render-defaults") for row in realizations)
+        quality: list[str] = []
+        _check_one_pack_defaults("synthetic rendering preferences", value, records, quality)
+        return {"runtime": validate_pack_defaults(value), "quality": quality,
+                "release": _pack_defaults_findings(value, available_profiles)}
+
+    original = copy.deepcopy((defaults, profiles, realizations))
+    unselected = findings(defaults, profiles)
+    check(defaults["default_render_profile"] is None and not any(unselected.values()),
+          f"factory pack defaults must leave rendering unselected across validation owners: {unselected}")
+
+    selected = copy.deepcopy(defaults)
+    selected["default_render_profile"] = profiles[0]["id"]
+    selected_before = copy.deepcopy(selected)
+    selected_findings = findings(selected, profiles)
+    check(not any(selected_findings.values()) and selected == selected_before
+          and (defaults, profiles, realizations) == original,
+          f"an authored profile must remain selected and preserve its available knowledge: {selected_findings}")
+
+    unavailable = copy.deepcopy(selected)
+    unavailable["default_render_profile"] = "synthetic-unavailable-profile"
+    unavailable_findings = findings(unavailable, profiles)
+    check(bool(unavailable_findings["quality"]) and bool(unavailable_findings["release"]),
+          f"an authored missing profile must be diagnosed instead of substituted: {unavailable_findings}")
+
+    vocabulary_profiles = copy.deepcopy(profiles)
+    vocabulary_profiles[0]["curation_status"] = "vocabulary"
+    vocabulary_findings = findings(selected, vocabulary_profiles)
+    check(any("must be curated" in item for item in vocabulary_findings["quality"])
+          and any("not curated production knowledge" in item for item in vocabulary_findings["release"]),
+          f"a selected default must retain its curated-knowledge requirement: {vocabulary_findings}")
+
+    invalid_findings = [findings(dict(defaults, default_render_profile=value), profiles)
+                        for value in ("", " ", [], {}, 1, True)]
+    check(all(all(any("default_render_profile must be a nonempty profile id or null" in item for item in errors)
+                      for errors in result.values()) for result in invalid_findings),
+          f"invalid supplied rendering preferences must retain type and value validation: {invalid_findings}")
+
+
 def run() -> dict[str, Any]:
     failures: list[str] = []
     passed = 0
@@ -574,6 +625,8 @@ def run() -> dict[str, Any]:
             passed += 1
         else:
             failures.append(message)
+
+    check_render_defaults(check)
 
     def exercise_structure_handler(
         label: str,

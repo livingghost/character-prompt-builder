@@ -431,7 +431,7 @@ class LifecycleTests(unittest.TestCase):
             brief='Synthetic specification for local compiler diagnostics.', subject='subject-1', kind='robot',
             render_intent=intent('Keep the sparse field.'))
         first, second = copy.deepcopy(valid), copy.deepcopy(valid)
-        first['camera'] = {}
+        first['camera'] = {'pitch_degrees': 100}
         first['subjects'][0]['performance'] = {}
         second.pop('scene')
         second['constraints'] = []
@@ -463,7 +463,7 @@ class LifecycleTests(unittest.TestCase):
                 self.assertIn(str((self.root / path).resolve()), action['argv'])
                 self.assertEqual(action['argv'][-1], '--require-content')
         camera = next(row for row in report['diagnostics'] if row['file'] == 'first-spec.json'
-                      and row['pointer'] == '$.camera' and row['code'] == 'INPUT_SCHEMA_INVALID')
+                      and row['pointer'] == '$.camera.pitch_degrees' and row['code'] == 'INPUT_SCHEMA_INVALID')
         self.assertTrue(camera['guidance']['document_path'].endswith('#camera-framing-contract'))
         standalone = subprocess.run(camera['guidance']['validation']['argv'], cwd=self.root,
                                     capture_output=True, text=True, encoding='utf-8')

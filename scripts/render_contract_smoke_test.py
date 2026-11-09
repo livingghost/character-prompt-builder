@@ -30,9 +30,50 @@ class RenderContractTests(unittest.TestCase):
     def test_public_contract_schema_matches_compiled_plan(self):
         from state_protocol import validate_against_schema
         schema=json.loads((r.ROOT/'schemas/render-contract.schema.json').read_text(encoding='utf-8'))
-        self.assertEqual(validate_against_schema(self.compile(),schema),[])
+        intent_schema=json.loads((r.ROOT/'schemas/render-intent.schema.json').read_text(encoding='utf-8'))
+        for preset,axes in [('flat-graphic',self.intent['axes']),
+                            (None,{'dimensionality':'flat-shapes'}),(None,{})]:
+            with self.subTest(preset=preset,axes=axes):
+                self.intent.update(preset=preset,axes=copy.deepcopy(axes))
+                self.assertEqual(validate_against_schema(self.intent,intent_schema),[])
+                self.assertEqual(validate_against_schema(self.compile(),schema),[])
         broken=self.compile();broken['unexpected']=True
         self.assertTrue(validate_against_schema(broken,schema))
+        self.intent=r.operation_intent('text-to-image')
+        self.assertEqual(validate_against_schema(self.intent,intent_schema),[])
+        self.assertEqual(validate_against_schema(self.compile(),schema),[])
+
+    def test_operation_only_keeps_prompt_and_controls_without_rendering_metadata(self):
+        self.prompt='An anthropomorphic fox postal worker.'
+        self.intent=r.operation_intent('text-to-image')
+        original=copy.deepcopy(self.intent)
+        plan=self.compile({'CFGScale':4})
+        self.assertEqual(plan['intent'],original)
+        self.assertEqual(self.intent,original)
+        self.assertEqual(plan['prompt_expression'],'')
+        self.assertEqual(plan['parameters'],{'steps':24,'CFGScale':4})
+        r.verify_contract(plan,intent=original,parameters=plan['parameters'],prompt=self.prompt,
+                          record=self.model,reference_count=0)
+        self.assertNotIn('  choice:',r.summary(plan))
+        self.assertIn('additional rendering declaration: none',r.summary(plan))
+
+    def test_selected_rendering_declaration_remains_complete(self):
+        from state_protocol import validate_against_schema
+        schema=json.loads((r.ROOT/'schemas/render-intent.schema.json').read_text(encoding='utf-8'))
+        for field in r.RENDERING_FIELDS:
+            with self.subTest(field=field):
+                partial={**r.operation_intent('text-to-image'),field:self.intent[field]}
+                with self.assertRaisesRegex(ValueError,'expected exactly'):
+                    r.validate_intent(partial)
+                self.assertTrue(validate_against_schema(partial,schema))
+
+    def test_cli_creates_a_complete_operation_without_a_style_selection(self):
+        import subprocess
+        import sys
+        result=subprocess.run([sys.executable,str(r.ROOT/'scripts/render_contract.py'),
+                               'intent','--mode','text-to-image'],capture_output=True,text=True,encoding='utf-8')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(json.loads(result.stdout),r.operation_intent('text-to-image'))
 
     def test_compile_owns_one_checked_profile_and_imports_are_still_validated(self):
         from unittest.mock import patch
@@ -98,15 +139,49 @@ class RenderContractTests(unittest.TestCase):
         self.intent['execution_mode']='unknown'
         with self.assertRaises(ValueError):self.compile()
 
-    def test_missing_finish_axis_blocks(self):
+    def test_named_preset_requires_its_complete_axis_envelope(self):
+        from state_protocol import validate_against_schema
         del self.intent['axes']['shading']
-        with self.assertRaises(ValueError):self.compile()
+        with self.assertRaisesRegex(ValueError,'preset axes differ'):self.compile()
+        schema=json.loads((r.ROOT/'schemas/render-intent.schema.json').read_text(encoding='utf-8'))
+        self.assertTrue(validate_against_schema(self.intent,schema))
+
+    def test_custom_constraints_survive_compile_and_verification_without_defaults(self):
+        original_parameters=self.compile()['parameters']
+        self.intent['preset']=None
+        self.intent['selection']={'chosen_by':'user','reason':'The fixture author chose these constraints.'}
+        for axes in ({},{'dimensionality':'flat-shapes','linework':'continuous dark contours'}):
+            with self.subTest(axes=axes):
+                self.intent['axes']=copy.deepcopy(axes)
+                original=copy.deepcopy(self.intent)
+                plan=json.loads(r.encoded(self.compile()))
+                self.assertEqual(self.intent,original)
+                self.assertEqual(plan['intent'],original)
+                self.assertEqual(plan['parameters'],original_parameters)
+                self.assertEqual(plan['prompt_expression'],self.prompt)
+                r.verify_contract(plan,intent=original,parameters=plan['parameters'],
+                                  prompt=self.prompt,record=self.model,reference_count=0)
+                for key in set(r.AXES)-set(axes):
+                    self.assertNotIn('  '+key+':',r.summary(plan))
+
+    def test_custom_constraints_validate_present_keys_and_values(self):
+        self.intent['preset']=None
+        for axes in (None,[],{'unknown':'value'},{'surface':''},
+                     {'surface':'unspecified'},{'surface':None}):
+            with self.subTest(axes=axes):
+                self.intent['axes']=axes
+                for generation in (False,True):
+                    with self.assertRaises(ValueError):
+                        r.validate_intent(self.intent,for_generation=generation,prompt=self.prompt)
 
     def test_missing_selection_reason_blocks(self):
         self.intent['selection']['reason']=''
         with self.assertRaises(ValueError):self.compile()
 
     def test_finish_phrase_must_reach_prompt(self):
+        self.intent.update(preset=None,axes={})
+        self.intent['prompt_expression']=''
+        with self.assertRaisesRegex(ValueError,'render prompt expression'):self.compile()
         self.intent['prompt_expression']='unwritten finish'
         with self.assertRaisesRegex(ValueError,'absent'):self.compile()
 
@@ -126,6 +201,37 @@ class RenderContractTests(unittest.TestCase):
                 incomplete=self.prompt.replace(region['prompt_expression'],'',1)
                 with self.assertRaises(ValueError):
                     r.compile_contract(self.model,None,self.intent,{},prompt=incomplete,reference_count=0)
+
+    def test_custom_base_preserves_a_local_constraint_and_its_exact_expression(self):
+        expression='Give the telescope crisp doubled outlines.'
+        self.intent.update(preset=None,axes={})
+        region={'region':'telescope','axes':{'linework':'crisp doubled outlines'},
+                'reason':'The fixture author selected the telescope contour.',
+                'prompt_expression':expression}
+        self.intent['regional_overrides']=[region]
+        self.prompt+=' '+expression
+        plan=self.compile()
+        self.assertEqual(plan['intent']['axes'],{})
+        self.assertEqual(plan['intent']['regional_overrides'],[region])
+        with self.assertRaisesRegex(ValueError,'regional render expression is absent'):
+            r.compile_contract(self.model,None,self.intent,{},
+                               prompt=self.intent['prompt_expression'],reference_count=0)
+        region['axes']={}
+        with self.assertRaisesRegex(ValueError,'regional override must name known render axes'):
+            self.compile()
+
+    def test_upscale_retains_source_requirement_without_a_rendering_declaration(self):
+        self.p['modes']['upscale']=copy.deepcopy(self.p['modes']['image-to-image'])
+        self.p['modes']['upscale']['media']='input-image'
+        self.intent=r.operation_intent('upscale')
+        self.prompt=''
+        plan=self.compile(reference_count=1)
+        self.assertEqual(plan['intent'],self.intent)
+        self.assertEqual(plan['prompt_expression'],'')
+        self.prompt='Reduce compression artifacts.'
+        self.assertEqual(self.compile(reference_count=1)['intent'],self.intent)
+        with self.assertRaisesRegex(ValueError,'requires source/reference media'):
+            self.compile()
 
     def test_range_is_not_a_value(self):
         self.model['recommended_parameters']['guidance']=[4,6]
@@ -148,10 +254,23 @@ class RenderContractTests(unittest.TestCase):
         plan=self.compile()
         with self.assertRaisesRegex(ValueError,'backend-managed'):r.dispatch_values(plan,seed=3,count=1)
 
-    def test_seed_is_explicit_for_exposed_seed(self):
+    def test_required_seed_is_explicit(self):
         plan=self.compile()
         with self.assertRaisesRegex(ValueError,'explicit seed'):r.dispatch_values(plan,seed=None,count=1)
         self.assertEqual(r.dispatch_values(plan,seed=12,count=1),(12,1))
+
+    def test_optional_seed_stays_absent_unless_selected(self):
+        self.p['modes']['text-to-image']['controls']['seed']['status']='optional'
+        plan=self.compile();wire={**plan['parameters'],'numberResults':1}
+        self.assertEqual(r.dispatch_values(plan,seed=None,count=1),(None,1))
+        decisions=r.check_wire(plan,wire,seed=None,count=1)
+        self.assertFalse(next(row for row in decisions if row['key']=='seed')['sent'])
+        with self.assertRaisesRegex(ValueError,'differs'):
+            r.check_wire(plan,{**wire,'seed':12},seed=None,count=1)
+        self.assertEqual(r.dispatch_values(plan,seed=12,count=1),(12,1))
+        r.check_wire(plan,{**wire,'seed':12},seed=12,count=1)
+        with self.assertRaisesRegex(ValueError,'differs'):
+            r.check_wire(plan,wire,seed=12,count=1)
 
     def test_boolean_not_accepted_as_integer(self):
         with self.assertRaises(ValueError):self.compile({'steps':True})

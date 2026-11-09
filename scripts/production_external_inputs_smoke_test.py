@@ -282,6 +282,7 @@ class ExternalInputTests(unittest.TestCase):
 
     def test_common_builder_publishes_changed_board_before_actual_upload_selection(self):
         import production_inputs
+        import production_target
         prepared = self.prepared_fixture('single-board')
         draft = production_inputs.draft_inputs(self.root, 'task.json', 'draft')
         path = draft['choices_file']
@@ -302,8 +303,8 @@ class ExternalInputTests(unittest.TestCase):
         self.assertEqual(c.sha256_file(self.root / carrier['path']), carrier['sha256'])
         write(self.root, 'copied-old-upload.json', (self.root / 'upload-evidence.json').read_bytes())
         for change in ('value-only', 'file-only', 'file-and-value', 'copied-evidence'):
-            altered = copy.deepcopy(external)
-            transport = altered['image_input']['references'][0]['transport']
+            altered = copy.deepcopy(choice)
+            transport = altered['external']['image_input']['references'][0]['transport']
             if change != 'value-only':
                 transport['uploaded_file'] = carrier['path']
             if change != 'file-only':
@@ -311,8 +312,12 @@ class ExternalInputTests(unittest.TestCase):
             if change == 'copied-evidence':
                 transport['evidence']['path'] = 'copied-old-upload.json'
             with self.subTest(retained_upload=change):
-                _, refused = authored.build(altered, {}, InputEvidence(self.root), self.root,
-                    'refused-upload', PROMPT.encode())
+                reader = InputEvidence(self.root)
+                projected = production_target.project(altered, altered['authoring']['task'],
+                    self.root, reader, 'refused-upload')
+                self.assertEqual(projected['unresolved'], [])
+                _, refused = authored.build(projected['choices']['external'], projected['task'], reader, self.root,
+                    'refused-upload', PROMPT.encode(), derived_files=projected['files'])
                 self.assertEqual(refused['state'], 'reference-upload-required')
                 self.assertTrue(refused['unresolved'])
         write(self.root, 'new-board-upload.json', {'synthetic': True,

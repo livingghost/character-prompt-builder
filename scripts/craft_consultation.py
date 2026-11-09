@@ -103,7 +103,7 @@ def open_records(entries, identifiers: list[str]) -> list[dict]:
         raw = c.read(c.local(entry.source_root, entry.source_file))
         dependencies = []
         fields = ('base_scene_id', 'render_profile_id') if entry.kind == 'recipe' else (
-            ('render_profile_id',) if entry.kind == 'style-family' else ())
+            ('base_render_profile_id',) if entry.kind == 'style-family' else ())
         for field in fields:
             value = entry.record.get(field)
             if value is not None:

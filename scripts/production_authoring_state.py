@@ -1,6 +1,7 @@
 """Discover an open task's saved input choices and reading progress without rebuilding them."""
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -86,24 +87,103 @@ def remember_inputs(root: Path, task: dict, kind: str, out_dir: str, *,
     _remember(root, task['task_id'], kind, out_dir, details)
 
 
-def require_input_context(root: Path, task_id: str, out_dir: str, raw: bytes, *, required: bool = True) -> None:
-    """Check a draft's derived source evidence against its existing publication pointer."""
-    try:
-        directory = _directory(root, task_id)
-    except ValueError:
-        # Production task IDs need not be work-ledger UUIDs. An optional check
-        # has no registered draft owner in that case; identity work requires one.
-        if not required:
-            return
-        raise
-    path = directory / ('draft-inputs-' + c.content_id(out_dir) + '.json')
+def _input_registration(root: Path, task_id: str, out_dir: str) -> dict | None:
+    path = _directory(root, task_id) / ('draft-inputs-' + c.content_id(out_dir) + '.json')
     if not path.is_file():
+        return None
+    value = c.load(path)
+    c.exact(value, {'artifact_type', 'task_id', 'kind', 'created_at', 'operation_id', 'details'},
+            'authoring pointer')
+    if (value['artifact_type'] != 'production-authoring-pointer' or value['task_id'] != task_id
+            or value['kind'] != 'draft-inputs' or value['details']['directory'] != out_dir):
+        raise ValueError('draft registration does not identify this task and input directory')
+    c.sha(value['details']['context_sha256'])
+    return value
+
+
+def _input_recovery(root: Path, task_id: str, out_dir: str, code: str,
+                    registration: dict | None) -> dict:
+    """Derive a recovery command only from the owning registration, never the failed context."""
+    inspect = _action(root, 'inspect-inputs',
+        reason='Locate the registered authoring source and continue its owning work task.')
+    if registration is None or active_task_id(root) != task_id:
+        return inspect
+    details = registration['details']
+    source = _source_arguments(details, initial_task=details.get('initial_task'))
+    if not source:
+        return inspect
+    if code == 'IDENTITY_SOURCE_UNAVAILABLE' or (
+            code == 'IDENTITY_SOURCE_CHANGED' and details.get('source_run')):
+        selected = ['--task', details['source_task']] if details.get('source_task') else (
+            ['--from-run', details['source_run']] if details.get('source_run') else [])
+        return _action(root, 'inspect-inputs', *selected,
+            reason='Inspect the owning evidence and resolve its current source before drafting its application again.')
+    folder = Path(out_dir)
+    stem = (folder.name or 'draft') + '-current'
+    destination = folder if not c.local(root, out_dir, exists=False).exists() else folder.parent / stem
+    number = 2
+    while c.local(root, destination.as_posix(), exists=False).exists():
+        destination = folder.parent / (stem + '-' + str(number))
+        number += 1
+    if details.get('source_task') or details.get('source_run'):
+        source += ['--task-id', task_id]
+    return _action(root, 'draft-inputs', *source, '--out-dir', destination.as_posix(),
+        *_arguments(details.get('runtime_arguments') or {}),
+        reason='Create a registered draft from its owning source, then reassess the application and criteria; existing choices remain available.')
+
+
+def input_context_error(root: Path, task_id: str, out_dir: str, *, code: str,
+                        message: str, file: str | None = None,
+                        pointer: str | None = 'authoring.task.sources',
+                        phase: str = 'authoring-context', registration: dict | None = None,
+                        **details: Any):
+    """Report the failed evidence boundary with an executable source-owned recovery."""
+    from production_diagnostics import ProductionError
+    try:
+        registration = registration or _input_registration(root, task_id, out_dir)
+        action = _input_recovery(root, task_id, out_dir, code, registration)
+    except READ_ERRORS:
+        action = _action(root, 'inspect-inputs',
+            reason='Inspect the work task and repair its registered authoring source before continuing.')
+    return ProductionError(code, message, phase=phase,
+        file=file or (Path(out_dir) / 'context.json').as_posix(), pointer=pointer,
+        required_action=action['reason'], task_id=task_id, draft_directory=out_dir,
+        next_action=action, next_actions=[action], **details)
+
+
+def require_input_context(root: Path, task_id: str, out_dir: str, raw: bytes, *,
+                          required: bool = True) -> dict | None:
+    """Check the registered location and exact context independently of identity judgment."""
+    try:
+        _directory(root, task_id)
+    except ValueError as exc:
         if not required:
-            return
-        raise ValueError('identity authoring needs the registered draft source context')
-    pointer = c.load(path)
-    if pointer['details'].get('context_sha256') != c.digest(raw):
-        raise ValueError('identity draft source context changed; draft current sources again')
+            return None
+        raise input_context_error(root, task_id, out_dir, code='AUTHORING_DRAFT_UNREGISTERED',
+            message='The draft has no registered work-task owner.', pointer='$', cause=str(exc)) from exc
+    try:
+        registration = _input_registration(root, task_id, out_dir)
+    except READ_ERRORS as exc:
+        path = _directory(root, task_id) / ('draft-inputs-' + c.content_id(out_dir) + '.json')
+        raise input_context_error(root, task_id, out_dir, code='AUTHORING_DRAFT_REGISTRATION_INVALID',
+            message='The saved draft registration cannot establish its source context.',
+            file=path.relative_to(root).as_posix(), pointer='$', cause=str(exc)) from exc
+    if registration is None:
+        if not required:
+            return None
+        raise input_context_error(root, task_id, out_dir, code='AUTHORING_DRAFT_UNREGISTERED',
+            message='This input directory is not a registered draft of the work task.', pointer='$')
+    if not raw:
+        raise input_context_error(root, task_id, out_dir, code='AUTHORING_CONTEXT_MISSING',
+            message='The registered draft source context is missing or empty.',
+            pointer='$', registration=registration)
+    expected = registration['details']['context_sha256']
+    actual = c.digest(raw)
+    if expected != actual:
+        raise input_context_error(root, task_id, out_dir, code='AUTHORING_CONTEXT_MISMATCH',
+            message='The draft source context differs from its registered publication.',
+            pointer='$', registration=registration, expected_sha256=expected, actual_sha256=actual)
+    return registration
 
 
 def remember_reading(root: Path | None, ledger: Path, snapshot_id: str, snapshot: dict,
@@ -150,27 +230,46 @@ def _runtime_basis(values: dict | None) -> dict | None:
     return result
 
 
+def _input_runtime(values: dict | None):
+    """Inspect current choices within their producer's selected live runtime."""
+    if not values:
+        return nullcontext()
+    from catalog_retrieval.runtime import using_pack_runtime
+    from pack_manager import default_settings
+    settings = default_settings(state_file=Path(values['state-file']), cache_dir=Path(values['cache-dir']),
+        managed_root=Path(values['managed-root']), extra_roots=[Path(path) for path in values.get('pack-root', [])])
+    return using_pack_runtime(settings)
+
+
 def _scope(task: dict, *, root: Path, choices: dict | None = None) -> dict:
     import execution_routes
     operation = 'author' if task.get('execution') == 'authored' else 'prepare'
     resolved = execution_routes.resolve(task['route'], task['features'], operation=operation,
                                         execution=task['execution'])
-    authored = (choices or {}).get('authoring') or {}
-    target = (authored.get('generation') or authored.get('upscale') or task.get('generation')
-              or task.get('upscale') or (task.get('authored') or {}).get('target') or {})
-    model = target.get('model')
-    specification = (authored.get('documents') or {}).get('production_spec')
-    if model is None and isinstance(specification, dict):
-        model = specification.get('target_model')
-    if model is None and target.get('model_file'):
-        model = c.load(c.local(root, target['model_file'])).get('id')
-    if model is None and target.get('production_spec'):
-        path = c.local(root, target['production_spec'], exists=False)
-        if path.is_file():
-            model = c.load(path).get('target_model')
+    if choices is not None:
+        target = choices.get('target') or {}
+        kind = target.get('kind')
+        model, service = None, target.get('service')
+        if kind == 'catalog':
+            model = target.get('model')
+        elif kind == 'acquired' and target.get('model_file'):
+            model = c.load(c.local(root, target['model_file'])).get('id')
+        elif kind == 'external':
+            external = (target.get('model') or {}).get('target') or {}
+            model, service = external.get('model_identifier'), external.get('service')
+    else:
+        target = (task.get('generation') or task.get('upscale')
+                  or (task.get('authored') or {}).get('target') or {})
+        model, service = target.get('model'), target.get('service')
+        if model is None and target.get('model_file'):
+            model = c.load(c.local(root, target['model_file'])).get('id')
+        if model is None and target.get('production_spec'):
+            path = c.local(root, target['production_spec'], exists=False)
+            if path.is_file():
+                model = c.load(path).get('target_model')
     return {'route': resolved['route'], 'operation': operation, 'execution': task['execution'],
             'features': resolved['features'],
-            'documents': resolved['reads'], 'model': model, 'service': target.get('service')}
+            'documents': resolved['reads'], 'model': model, 'service': service}
 
 
 def _source_arguments(details: dict, *, initial_task: dict | None = None) -> list[str]:
@@ -277,10 +376,24 @@ def _authored_input(root: Path, row: dict, *, read_run=None) -> dict:
     directory, result = _input_location(root, row)
     choices = directory / 'choices.json' if row['kind'] == 'draft-inputs' else (
         c.local(root, details['choices'], exists=False) if details['choices'] else None)
-    context_path = (choices.parent / 'context.json' if choices is not None
-                    and not details['source_task'] and not details['source_run']
-                    else directory / 'context.json')
-    context = c.load(context_path) if context_path.is_file() else None
+    context_path = (choices.parent if choices is not None else directory) / 'context.json'
+    try:
+        raw = c.read(context_path) if context_path.is_file() else b''
+        require_input_context(root, row['task_id'], context_path.parent.relative_to(root).as_posix(),
+                              raw, required=row['kind'] == 'draft-inputs')
+        context = c.decode(raw) if raw else None
+    except READ_ERRORS as exc:
+        from production_diagnostics import from_exception
+        diagnostic = from_exception(exc, phase='authoring-context',
+                                    file=context_path.relative_to(root).as_posix())
+        result.update(state='choices' if choices is not None and choices.is_file() else 'unpublished',
+            source_available=False, source_diagnostic=diagnostic['message'],
+            unresolved=[{**diagnostic, 'field': 'context'}], diagnostics=[diagnostic],
+            next_actions=diagnostic.get('next_actions', [_action(root, 'inspect-inputs',
+                reason='Resolve the current draft source context before continuing authoring.')]))
+        if choices is not None:
+            result['choices'] = choices.relative_to(root).as_posix()
+        return result
     if context is not None:
         result['context'] = context_path.relative_to(root).as_posix()
     result['source_available'] = True
@@ -315,8 +428,10 @@ def _authored_input(root: Path, row: dict, *, read_run=None) -> dict:
         result['next_actions'] = [{'command': 'edit-choices', 'path': str(choices),
                                   'reason': 'Continue the editable source files and unresolved choices.'}]
         try:
-            view = production_inputs.authoring_view(root, result['choices'],
-                task_path=details['source_task'], from_run=details['source_run'], read_run=read_run)
+            with _input_runtime(details['runtime_arguments']):
+                view = production_inputs.authoring_view(root, result['choices'],
+                    task_path=details['source_task'], from_run=details['source_run'], read_run=read_run,
+                    runtime_arguments=details['runtime_arguments'])
             selected = view['resolved_choices']
             chosen = view['task']
             result['unresolved'] = view['unresolved']
@@ -324,8 +439,13 @@ def _authored_input(root: Path, row: dict, *, read_run=None) -> dict:
             if chosen is not None:
                 result['route_scope'] = _scope(chosen, root=root, choices=selected)
         except READ_ERRORS as exc:
-            result['unresolved'] = [{'field': 'choices', 'code': 'authored-input-unreadable',
-                                    'path': result['choices'], 'message': str(exc)}]
+            from production_diagnostics import from_exception
+            diagnostic = from_exception(exc, phase='authoring', file=result['choices'],
+                                        code='authored-input-unreadable')
+            result['unresolved'] = [{**diagnostic, 'field': 'choices', 'path': result['choices']}]
+            result['diagnostics'] = [diagnostic]
+            if diagnostic.get('next_actions'):
+                result['next_actions'] = diagnostic['next_actions']
             return result
         result['assembly_basis'] = {'task': task_basis,
             'choices': view['choices_ref'],

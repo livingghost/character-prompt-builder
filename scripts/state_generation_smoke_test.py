@@ -3300,9 +3300,6 @@ def run() -> dict[str, Any]:
             policy="core-coverage",
             out_dir=bundle_dir,
         )
-        camera_required = set(
-            load_json(ROOT / "protocols" / "shared-state" / "schemas" / "camera-framing-contract.schema.json")["required"]
-        )
         render_specs_by_file: dict[str, dict[str, Any]] = {}
         child_reports: list[bool] = []
         for row in plan["assets"]:
@@ -3310,8 +3307,7 @@ def run() -> dict[str, Any]:
             render_specs_by_file[row["render_spec_file"]] = child
             child_reports.append(
                 validate_artifact(child).get("ok")
-                and camera_required <= set(child["camera"])
-                and set(child["camera"]) <= set(load_json(ROOT / "protocols" / "shared-state" / "schemas" / "camera-framing-contract.schema.json")["properties"])
+                and child["camera"] == graph["identity_contract"]["reference_views"][row["purpose"]]["camera"]
                 and row["render_spec_sha256"] == artifact_hash(child)
             )
         bundle_graph_report = validate_reference_bundle_graph(
@@ -3338,7 +3334,7 @@ def run() -> dict[str, Any]:
             render_specs_by_file=wrong_identity_children,
         )
         check(
-            "reference bundle validates complete child cameras, links, and one identity hash",
+            "reference bundle preserves authored child cameras and validates links and one identity hash",
             validate_artifact(plan).get("ok")
             and bool(child_reports)
             and all(child_reports)

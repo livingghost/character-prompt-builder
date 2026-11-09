@@ -23,7 +23,7 @@ import uuid
 import zlib
 import execution_contract as c
 
-OPERATIONS={'generation':'generate','upscale':'upscale'}
+OPERATIONS={'generation':'generate','instruction-edit':'generate','upscale':'upscale'}
 RESULT_HOSTS=frozenset()
 UPLOAD_SOURCE='bytes'
 CREDENTIAL_FREE=True

@@ -4,6 +4,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "target",
     "reading",
     "visual",
     "validation",
@@ -11,6 +12,214 @@
     "external"
   ],
   "properties": {
+    "target": {
+      "description": "The single authored target selection. Compilers derive model identities, offering bindings and specification targets from it. Null retains portable authored output.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "model",
+            "service"
+          ],
+          "properties": {
+            "kind": {
+              "const": "catalog"
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "service": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "operation": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "execution_mode": {
+              "type": "string"
+            },
+            "parameters": {
+              "type": "object"
+            },
+            "syntax": {
+              "type": "string"
+            },
+            "vocabulary_record": {
+              "type": "string",
+              "minLength": 1
+            },
+            "assessment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "use_cases",
+                "mode",
+                "reference_count"
+              ],
+              "properties": {
+                "use_cases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "mode": {
+                  "type": "string"
+                },
+                "reference_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "operation": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "model_file",
+            "service"
+          ],
+          "properties": {
+            "kind": {
+              "const": "acquired"
+            },
+            "model_file": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "service": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "execution_mode": {
+              "type": "string"
+            },
+            "parameters": {
+              "type": "object"
+            },
+            "syntax": {
+              "type": "string"
+            },
+            "vocabulary_record": {
+              "type": "string",
+              "minLength": 1
+            },
+            "assessment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "use_cases",
+                "mode",
+                "reference_count"
+              ],
+              "properties": {
+                "use_cases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "mode": {
+                  "type": "string"
+                },
+                "reference_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "operation": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "model"
+          ],
+          "properties": {
+            "kind": {
+              "const": "external"
+            },
+            "model": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Acquired external identity, evidence, prompt input contract and optional dialect; catalog status is derived."
+            },
+            "reference_model": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "assessment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "use_cases",
+                "mode",
+                "reference_count"
+              ],
+              "properties": {
+                "use_cases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "mode": {
+                  "type": "string"
+                },
+                "reference_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "operation": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     "reading": {
       "anyOf": [
         {
@@ -40,9 +249,51 @@
       ]
     },
     "validation": {
-      "type": [
-        "object",
-        "null"
+      "description": "Authored validation mode and source selections. Target identifiers, hashes and validation results are derived during compilation. A null target-schema contract/evidence selects the current offering schema.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "contract",
+            "evidence",
+            "execution_policy"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "target-schema",
+                "bounded-probe",
+                "observed-profile"
+              ]
+            },
+            "contract": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "evidence": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "execution_policy": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            }
+          }
+        }
       ]
     },
     "task_changes": {
@@ -151,25 +402,29 @@
             },
             "state_graphs": {
               "description": "Selected concrete graph array or lineage and artifact path selection."
+            },
+            "negative_provenance": {
+              "description": "Authored negative provenance selection."
+            },
+            "state_lineage": {
+              "description": "Authored state lineage selection."
+            },
+            "state_snapshot": {
+              "description": "Authored state snapshot selection."
+            },
+            "visual_continuity": {
+              "description": "Authored visual continuity selection."
+            },
+            "mask_binding": {
+              "description": "Authored mask binding selection."
             }
-          }
+          },
+          "additionalProperties": false
         },
         "generation": {
           "type": "object",
-          "description": "Target selection, rendering intent, quantity, and subject continuity. A selected Production Specification can own model and rendering instead.",
+          "description": "Rendering intent, quantity, seed and subject continuity. choices.target owns the model and offering.",
           "properties": {
-            "model": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "service": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "count": {
               "type": "integer",
               "minimum": 1
@@ -196,8 +451,24 @@
                 "null"
               ],
               "description": "Chosen render intent. prompt_expression may select the complete editable delivery with {document: delivery}."
+            },
+            "negative_transport": {
+              "enum": [
+                "auto",
+                "separate-field",
+                "integrated-critical",
+                "native-subset",
+                "retained-only"
+              ]
+            },
+            "critical_avoidance_integrated": {
+              "type": "boolean"
+            },
+            "brief": {
+              "type": "string"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "references": {
           "type": [

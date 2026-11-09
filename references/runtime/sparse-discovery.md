@@ -9,6 +9,7 @@ choice and user interaction.
 ## Contents
 
 - [Activation](#activation)
+- [Conceive the open picture](#conceive-the-open-picture)
 - [Anchor extraction](#anchor-extraction)
 - [Translation boundary](#translation-boundary)
 - [Read the discovery result](#read-the-discovery-result)
@@ -33,18 +34,73 @@ search or inspire -> retrieve a known craft need
 inspect -> read one selected canonical record in full
 ```
 
-Record names and IDs are not required for `recommend`, `search`, or `inspire`; selected IDs are post-selection internal identifiers for inspection and adoption. Treat an unknown ID as an error rather than guessing or silently substituting another record. Apply this authority order:
-
-```text
-explicit user anchors
--> meaning of the whole brief
--> image intent
--> selected art direction
--> inspected production knowledge
--> the studio defaults
-```
+Record names and IDs are not required for `recommend`, `search`, or `inspire`;
+returned IDs locate candidates for inspection before adoption. Treat an unknown
+ID as an error rather than guessing or substituting another record. Explicit
+user anchors, the whole brief and applicable adopted choices govern the work.
+Develop image intent and art direction within that authority, informed by
+inspected production knowledge. Studio defaults supply preferences only at
+their declared scope; they do not settle an open artistic choice automatically.
 
 Recommendation output is not an adopted record. It cannot override anchors, turn lexical score into artistic judgment, promote suggestions into identity, require catalog terms, force needless clarification, or erase unmatched wording.
+
+## Conceive the open picture
+
+A sparse request leaves choices within the commissioned work open. Use
+[idea conception](production-direction.md#form-a-prompt-from-an-idea) to identify
+the consequential design question and assess possible realizations. Retain
+what is being developed, the subjects' roles and any stated use in the inquiry;
+a character brief does not become a general theme merely because it is short.
+Consult relevant production knowledge while that question is open. Knowing
+the subject or activity does not settle its design or visual treatment.
+A directed picture or bounded edit retains its fixed choices; investigate only
+what remains open or needs construction knowledge.
+
+After the entry runtime check, use the existing discovery operations without
+creating a Studio or planning files. When authoring a visual treatment is part
+of the question, read the rendering envelopes and discover applicable knowledge
+in the active catalog. Other open rendition choices can remain with the model;
+they need no invented technique or lookup to make the prompt complete.
+
+```bash
+python scripts/render_contract.py presets
+python scripts/catalog_cli.py recommend "<canonical user anchors and open question>"
+```
+
+Replace the query placeholder with the actual brief or scoped design question.
+Keep invented use, atmosphere, scene and medium out of its fixed anchors.
+Read the returned scope, inventory and candidate functions, not just the first
+matching label. For a focused question, layered consultation is available:
+
+```bash
+python scripts/catalog_cli.py consult "<open visual construction question>" --focus all
+python scripts/catalog_cli.py consult --inspect RECORD_ID
+```
+
+Replace `RECORD_ID` with an ID returned by discovery; `--inspect` accepts several.
+Use the focus that fits the question; `all` exposes the layers separately when
+the contribution is not yet known. `finish` searches families, profiles, cores
+and domain realizations; atomic rendering, lighting and other technique modules
+are in `detail`. `catalog_cli.py inspect RECORD_ID` also reads a full record;
+consultation inspection additionally opens a family's declared profile or a
+recipe's declared scene and profile. Read the complete knowledge whose
+construction or expressive relationship will inform a candidate before choosing
+it. A compact search result or medium name alone does not supply that knowledge.
+
+Reuse complete current material already delivered in the context. Select the
+operations needed for the actual decision; do not repeat a search per axis,
+manufacture an irrelevant question or require adopting a record. Inspect a
+candidate for what it can contribute to the picture, including consequences
+that could change the emerging idea. Its sample arrangement is not a commission.
+The production direction owns the ensuing alternatives and artistic judgment.
+
+Understand the actual coverage. A narrow enabled catalog, a vocabulary entry
+and an empty query are different kinds of evidence. None requires the nearest
+profile to become the treatment. The rendering envelopes and inspected records
+are starting knowledge, not an exhaustive menu; author a custom treatment when
+it serves the direction and the needed construction is understood. Investigate
+a further source when a consequential technique remains unresolved. Once the
+direction is selected, retrieve its remaining construction or wording needs.
 
 ## Anchor extraction
 
@@ -218,6 +274,10 @@ python scripts/catalog_cli.py search \
 ```
 
 Layered focused retrieval is also available:
+
+The next examples start from already selected bedside and worker-portrait
+directions. Their attention, warmth and camera choices are local query content,
+not starting defaults for a topic-only brief.
 
 ```bash
 python scripts/catalog_cli.py inspire \

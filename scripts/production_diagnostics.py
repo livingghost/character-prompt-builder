@@ -39,6 +39,7 @@ PHASE_DOCUMENTS = {
     'task-contract': 'references/runtime/production-workflow.md#authoring-and-handoff',
     'source-read': 'references/runtime/production-execution.md#prepare-one-complete-input',
     'source-validation': 'references/runtime/production-execution.md#prepare-one-complete-input',
+    'authoring-context': 'references/runtime/production-authoring.md#resume-input-authoring',
     'delivery-content': 'references/runtime/production-execution.md#assemble-authored-choices',
     'route-reading': 'references/runtime/production-execution.md#apply-the-completed-reading',
     'world-views': 'references/runtime/world-realization.md#local-realization-plan-and-cli',

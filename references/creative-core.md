@@ -93,6 +93,40 @@ all contribute to every artifact.
 
 ## Compare complete constructions
 
+For consequential authoring choices in an open request, use
+[idea conception](runtime/production-direction.md#form-a-prompt-from-an-idea)
+to investigate a consequential open choice within the commissioned content,
+write actual candidate constructions, assess them separately, and select before
+composing the user-facing rationale. Retain the requested subjects, their roles
+and any stated use. Consult subject and craft knowledge while the conception
+is open. Familiarity with a topic does not establish that the relevant creative
+choice has been explored. Character or form design can itself be that choice;
+a separate event or thematic proposition is not required.
+Settle what the prompt needs to determine for this work. Other rendition
+choices can remain with the image model; a complete proposal needs no explicit
+medium or inventory of stylistic properties. Selected source constraints still
+apply at their own scopes.
+
+A complete candidate describes the proposed result with enough executable
+visual content to assess the choices that matter for this work. Completeness
+depends on the actual question, not a fixed set of artistic components. Write
+a credible counterproposal that tests a consequential difference on that
+question while fulfilling the same commission. A design change is substantive
+when its consequences matter for the requested result. Naming a different
+version or supplying a less developed alternative made to lose offers no useful
+comparison. Keep both actual descriptions before selection.
+
+The separate assessment receives the original brief, applicable subject and
+source material, and candidate descriptions without the writer's preference
+or advocacy. Follow the owner's independent-context procedure where supported.
+First assess what each construction actually develops and whether the requested
+content and subject roles remain intact. Then compare its gains and losses on
+the open question, including the treatment where that choice remains open.
+An unstated use remains unselected; do not invent one to favor a construction.
+Use the resulting choice to write the requested prompt and its reason. Keep
+the working material inside authoring; it requires no extra user deliverable,
+approval or image generation.
+
 Consider a brief about a small maintenance machine sheltering a plant in rain.
 An intimate scene can focus on contact between the sheltering casing and the
 leaf. A short sequence can establish the weather, reveal the protective action
@@ -103,8 +137,11 @@ Each construction serves a different emphasis and has different costs. A
 sequence spends area on context and continuity; a single scene concentrates
 detail but must carry its relationships in one view; a poster simplifies
 incidental action to strengthen recognition at a glance. The author's use and
-fixed requirements decide which tradeoff is useful. There is no required count
-of candidates or universal preference for the most elaborate construction.
+fixed requirements decide which tradeoff is useful. For an open conception,
+develop the smallest set of real candidates that tests the consequential choice.
+This is not a candidate for every axis, a different-medium quota or a preference
+for the most elaborate construction. An explicit style, directed picture or
+bounded local edit retains its actual scope.
 
 ## Meaning before vocabulary
 

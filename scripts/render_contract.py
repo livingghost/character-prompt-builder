@@ -67,13 +67,13 @@ def main(argv=None) -> int:
     parser = _operation_context.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('presets', help='List orthogonal finish choices; no model or subject is selected')
-    make = sub.add_parser('intent', help='Create a consciously selected rendering intent')
-    make.add_argument('--preset', required=True)
+    make = sub.add_parser('intent', help='Select an image operation and optional complete rendering preset')
+    make.add_argument('--preset', help='Adopt this preset\'s complete rendering envelope')
     make.add_argument('--mode', required=True, choices=sorted(r.MODES))
-    make.add_argument('--chosen-by', required=True, choices=['user','agent'])
-    make.add_argument('--reason', required=True)
-    make.add_argument('--presentation', required=True)
-    make.add_argument('--prompt-expression', default='', help='Exact authored prompt span; required before generation')
+    make.add_argument('--chosen-by', choices=['user','agent'])
+    make.add_argument('--reason')
+    make.add_argument('--presentation')
+    make.add_argument('--prompt-expression', help='Exact span for a selected rendering declaration; complete before generation')
     make.add_argument('--out')
     check = sub.add_parser('validate-intent');check.add_argument('file')
     check.add_argument('--draft', action='store_true')
@@ -111,11 +111,17 @@ def main(argv=None) -> int:
     configured = False
     try:
         if args.command == 'presets':
-            result = {'presets':list(r.presets().values()),'custom':'Set preset=null and explicitly author all axes.'}
+            result = {'presets':list(r.presets().values()),
+                      'custom':'Set preset=null and record only selected axes; an empty axes object adds no constraints.'}
         elif args.command == 'intent':
-            result = r.make_intent(args.preset, mode=args.mode, chosen_by=args.chosen_by,
-                                  reason=args.reason, presentation=args.presentation,
-                                  prompt_expression=args.prompt_expression)
+            if args.preset is None:
+                if any(value is not None for value in (args.chosen_by, args.reason, args.presentation, args.prompt_expression)):
+                    raise ValueError('rendering selection options require --preset; author custom rendering in an intent document')
+                result = r.operation_intent(args.mode)
+            else:
+                result = r.make_intent(args.preset, mode=args.mode, chosen_by=args.chosen_by,
+                                      reason=args.reason, presentation=args.presentation,
+                                      prompt_expression=args.prompt_expression or '')
         elif args.command == 'validate-intent':
             r.validate_intent(load(args.file), for_generation=not args.draft);result={'ok':True}
         elif args.command == 'validate-profile':

@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import tempfile
 from typing import Any
+from contextlib import contextmanager
 
 import execution_contract as c
 import execution_routes
@@ -19,6 +20,8 @@ from input_evidence import InputEvidence
 import route_reading
 import production_input_adapters as adapters
 import production_authoring as authoring
+import production_target
+from production_diagnostics import ProductionError, from_exception
 
 ROOT = Path(__file__).resolve().parents[1]
 COMMANDS = frozenset({'inspect-inputs', 'draft-inputs', 'build-inputs'})
@@ -176,7 +179,7 @@ def draft_choices(task: dict) -> dict:
     applications = {'reading_key': None}
     # A null visual or validation choice builds no record here: the Generation
     # Package builder takes continuity decisions and derives request validation.
-    return {'reading': applications, 'visual': None,
+    return {'target': None, 'reading': applications, 'visual': None,
             'validation': adapters.validation_template(task) if adapters.validation_required(task) else None,
             'task_changes': {},
             'external': ({'image_input': task['image_input']}
@@ -210,26 +213,135 @@ def _missing(choices: dict) -> list[dict]:
     return unresolved
 
 
-def _retained_validation(choices: dict) -> dict | None:
-    return ((choices.get('authoring') or {}).get('upscale') or {}).get('request_validation')
-
-
-def _validation_task(task: dict, choices: dict) -> dict:
-    result = copy.deepcopy(task)
-    if _retained_validation(choices) is not None:
-        result['_authoring_validation_retained'] = True
-    return result
-
-
 def _unresolved(choices: dict, task: dict) -> list[dict]:
     unresolved = _missing(choices)
-    if choices['validation'] is None and adapters.validation_required(_validation_task(task, choices)):
+    unresolved.extend(production_target.unresolved(choices['target'], task))
+    if choices['validation'] is None and adapters.validation_required(task):
         unresolved.append({'field': 'validation', 'code': 'selection-required'})
     unresolved.extend(authoring.unresolved(choices.get('authoring'), task))
     if choices['external'] is not None:
         import production_external_inputs
         unresolved.extend(production_external_inputs.unresolved(choices['external']))
     return unresolved
+
+
+def _select_target(choices: dict, *, model: str | None, service: str | None) -> None:
+    """Apply explicit target flags without changing the retained artistic choices."""
+    if model is None and service is None:
+        return
+    selected = copy.deepcopy(choices.get('target'))
+    if model is not None:
+        previous = selected or {}
+        actual = (previous.get('model') or {}).get('target', {}) if previous.get('kind') == 'external' else previous
+        selected = {'kind': 'catalog', 'model': model, 'service': actual.get('service'),
+                    **{key: copy.deepcopy(previous[key]) for key in
+                       production_target.AUTHORED_FIELDS | production_target.COMMON_FIELDS if key in previous}}
+        if actual.get('operation') is not None:
+            selected['operation'] = actual['operation']
+    if selected is None:
+        selected = {'kind': 'catalog', 'model': None, 'service': None}
+    if service is not None:
+        if selected['kind'] == 'external':
+            selected.setdefault('model', {}).setdefault('target', {})['service'] = service
+        else:
+            selected['service'] = service
+    choices['target'] = selected
+
+
+def _validation_choices(root: Path, task: dict, reader: InputEvidence, saved: dict | None) -> dict | None:
+    """Recover applicable authored evidence from its exact source, not a success result."""
+    if task.get('execution') != 'dispatcher':
+        return None
+    import base64
+    import build_generation_payload as payload
+    import request_validation
+    import runtime_evidence
+    record = None
+    evidence = runtime_evidence.reader(root, snapshots=reader.snapshots) if saved is None else None
+    source = None
+    if saved is not None:
+        import production_workflow
+        import runtime_snapshot
+        loaded = production_workflow.read_run(root, saved['run'])
+        package = loaded.artifacts.get('package.json') or {}
+        record = package.get('request_validation')
+        snapshots = copy.deepcopy(package.get('input_snapshots') or {})
+        for item in loaded.prepared['dependencies']:
+            if item['space'] not in authoring.AUTHORING_SPACES:
+                continue
+            raw = loaded.evidence.read(item['sha256'])
+            snapshots[item['path']] = {'sha256': item['sha256'], 'size': len(raw),
+                                       'base64': base64.b64encode(raw).decode('ascii')}
+        evidence = InputEvidence(None, snapshots=snapshots, live=False)
+        descriptor = loaded.prepared['runtime_snapshot']
+        fixed = runtime_snapshot.acquire_runtime(runtime_snapshot.path(root, descriptor), descriptor)
+        source = runtime_snapshot.CompileRuntime.from_fixed(fixed, descriptor)
+    generation = task.get('generation') or {}
+    if task['route'] == 'upscale':
+        declaration = c.decode(authoring.source_bytes(root, task['delivery']['path'], reader, saved))
+        record = record or declaration.get('request_validation')
+        model, service = declaration.get('model'), (task.get('upscale') or {}).get('service')
+    else:
+        if record is None and generation.get('request_validation'):
+            record = c.decode(authoring.source_bytes(root, generation['request_validation'], reader, saved))
+        model, service = generation.get('model'), generation.get('service')
+        if model is None and generation.get('production_spec'):
+            specification = c.decode(authoring.source_bytes(root, generation['production_spec'], reader, saved))
+            model = specification.get('target_model')
+    if record is None:
+        return adapters.validation_template(task) if adapters.validation_required(task) else None
+    if source is None:
+        from catalog_retrieval.runtime import load_pack_catalog, selected_pack_settings
+        from runtime_snapshot import CompileRuntime
+        source = CompileRuntime.from_catalog(load_pack_catalog(), selected_pack_settings())
+    original = payload.resolve_target(model, service, source=source)
+    return request_validation.draft_choices(record, evidence, target=original)
+
+
+def _reading_action(root: Path, task: dict, choices: dict, runtime_arguments: dict | None = None) -> dict:
+    """Offer the real route reader; inspecting a target never fabricates delivery."""
+    from cli_invocation import python_argv, shown
+    operation = 'author' if task['execution'] == 'authored' else 'prepare'
+    args = {'root': str(root), 'operation': operation, 'execution': task['execution'],
+            'feature': task['features'], **(runtime_arguments or {})}
+    selected = choices.get('target') or {}
+    if selected.get('kind') in {'catalog', 'acquired'}:
+        field = 'model' if selected['kind'] == 'catalog' else 'model_file'
+        if selected.get(field):
+            args[field.replace('_', '-')] = selected[field]
+        if selected.get('service'):
+            args['service'] = selected['service']
+    elif selected.get('kind') == 'external' and (selected.get('model') or {}).get('prompt_dialect'):
+        args['dialect'] = selected['model']['prompt_dialect']
+    argv = python_argv(ROOT / 'scripts/execution_routes.py', 'read', task['route'])
+    for name, value in args.items():
+        for item in value if isinstance(value, list) else [value]:
+            argv.extend(('--' + name, str(item)))
+    return {'operation': 'read', 'script': 'scripts/execution_routes.py', 'args': args,
+            'positional': [task['route']], 'argv': argv, 'shown': shown(argv),
+            'external_effect': False}
+
+
+def _guidance_gap(root: Path, task: dict, choices: dict, projected: dict,
+                  runtime_arguments: dict | None = None) -> list[dict]:
+    if not (choices.get('reading') or {}).get('reading_key') or projected['unresolved']:
+        return []
+    target = projected.get('resolved_target')
+    if target is None:
+        return []
+    try:
+        record = _reading(choices['reading'], root=root, task=task)
+        model = target.model if choices['target']['kind'] != 'external' else None
+        route_reading.require_route_reading(record, studio=root, routes={task['route']},
+            features=task['features'], execution=task['execution'],
+            dialect=target.model.get('prompt_dialect'), model_record=model,
+            service=(target.offering or {}).get('service'))
+    except (ValueError, OSError) as exc:
+        action = _reading_action(root, task, choices, runtime_arguments)
+        return [{'field': 'reading.reading_key', 'code': 'TARGET_GUIDANCE_REQUIRED',
+                 'message': str(exc), 'required_action': 'Read the applicable current guidance and select its issued reading key.',
+                 'next_action': action, 'next_actions': [action]}]
+    return []
 
 
 def _reading(choices: dict, *, root: Path, task: dict) -> dict:
@@ -259,15 +371,27 @@ def _publish(root: Path, out_dir: str, files: dict[str, bytes], *,
         for name, raw in files.items():
             c.atomic(c.local(stage, name, exists=False), raw)
         _destination(root, out_dir)
-        for path in sorted(reader.read_paths):
-            ref = {'path': path, 'sha256': reader.snapshots[path]['sha256']}
-            reader.read(ref)
-        if before_publish is not None:
-            before_publish()
+        with c.staged_inputs(root, out_dir, stage):
+            for path in sorted(reader.read_paths):
+                ref = {'path': path, 'sha256': reader.snapshots[path]['sha256']}
+                reader.read(ref)
+            if before_publish is not None:
+                before_publish()
         c.publish_directory(stage, target)
     finally:
         if stage.exists():
             shutil.rmtree(stage)
+
+
+@contextmanager
+def _staged_files(root: Path, out_dir: str, files: dict[str, bytes]):
+    """Expose generated target evidence only for the dependent local builders."""
+    with tempfile.TemporaryDirectory(prefix='production-target-inputs-') as temporary:
+        stage = Path(temporary)
+        for name, raw in files.items():
+            c.atomic(c.local(stage, name, exists=False), raw)
+        with c.staged_inputs(root, out_dir, stage):
+            yield
 
 
 def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: str | None = None,
@@ -285,10 +409,10 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         import production_authored
         unfinished = production_authored.draft_source(root, from_run)
         if unfinished is not None:
-            if any(value is not None for value in (route, artifact, execution, features, model, service)):
-                raise ValueError('restore the saved draft before changing its route or target')
+            if any(value is not None for value in (route, artifact, execution, features)):
+                raise ValueError('restore the saved draft before changing its route')
             return _restore_draft(root, from_run, out_dir, unfinished,
-                task_id=task_id, runtime_arguments=runtime_arguments)
+                task_id=task_id, runtime_arguments=runtime_arguments, model=model, service=service)
     if initial:
         if route is None:
             raise ValueError('select --route for initial production authoring')
@@ -296,7 +420,7 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                               task_id=task_id, features=features)
         task_ref, saved = {'initial': True, 'task_id': task['task_id']}, None
     else:
-        if any(value is not None for value in (route, artifact, execution, features, model, service)):
+        if any(value is not None for value in (route, artifact, execution, features)):
             raise ValueError('initial task flags cannot replace a selected task or run')
         task, _, task_ref, saved = _task(root, task_path, reader, from_run=from_run)
     choices = draft_choices(task)
@@ -305,17 +429,8 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         task = copy.deepcopy(task)
         task['task_id'] = task_id
         choices['authoring']['task']['task_id'] = task_id
-    if initial and model is not None:
-        if task['execution']=='authored':
-            choices['authoring']['task'].setdefault('authored',{})['target']={'model':model}
-        else:
-            choices['authoring']['generation']['model']=model
-    if initial and service is not None:
-        if task['execution']!='dispatcher':
-            raise ValueError('--service selects an image execution target')
-        choices['authoring']['generation']['service']=service
-    if _retained_validation(choices) is not None:
-        choices['validation'] = None
+    if not initial:
+        choices['validation'] = _validation_choices(root, task, reader, saved)
     if initial and task.get('execution') == 'external':
         import production_external_inputs
         choices['external'] = production_external_inputs.template()
@@ -329,6 +444,8 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         choices['external'] = production_external_inputs.draft(plan, request,
             prepared=prepared, root=root,
             package_root=c.local(root, prepared_path, exists=False).parent if prepared_path else None)
+    choices['target'] = production_target.extract(copy.deepcopy(task), choices['authoring'], choices['external'])
+    _select_target(choices, model=model, service=service)
     previous = saved['route_reading'] if saved is not None else None
     if previous is None and not initial and saved is None:
         path = task.get('route_reading')
@@ -353,8 +470,14 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     import production_reference_inputs
     production_reference_inputs.identify_choices(choices)
     identity = _identity_view(root, task, reader, saved=saved)
+    projected = production_target.project(choices, _chosen_task(task, choices), root, reader, out_dir)
+    gaps = _unresolved(choices, task) + _identity_gaps(identity)
+    gaps.extend(item for item in projected['unresolved'] if item not in gaps)
+    gaps.extend(_guidance_gap(root, task, choices, projected, runtime_arguments))
+    actions = [_reading_action(root, task, choices, runtime_arguments)] if any(
+        item['field'].startswith('reading') for item in gaps) else []
     result = {'state': 'draft', 'choices': choices,
-              'unresolved': _unresolved(choices, task) + _identity_gaps(identity),
+              'unresolved': gaps, 'target_knowledge': projected['knowledge'], 'next_actions': actions,
               **({'identity_coverage': identity} if identity is not None else {}),
               'derived_from': {'task': task_ref, 'source_run': saved},
               'external_effect': False}
@@ -376,7 +499,8 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
 
 
 def _restore_draft(root: Path, run: str, out_dir: str, saved_source: dict, *,
-                   task_id: str | None, runtime_arguments: dict | None) -> dict:
+                   task_id: str | None, runtime_arguments: dict | None,
+                   model: str | None = None, service: str | None = None) -> dict:
     """Reopen the captured editor files, preserving JSON selectors and unfinished choices."""
     import production_authoring_state
     choices=copy.deepcopy(saved_source['choices'])
@@ -402,19 +526,31 @@ def _restore_draft(root: Path, run: str, out_dir: str, saved_source: dict, *,
             restore(item,'file')
     for item in authored.get('sources',{}).values():
         restore(item,'file')
-    target=(authored['task'].get('authored') or {}).get('target') or {}
+    target=choices.get('target') or {}
     restore(target,'model_file')
     restore(target,'vocabulary_record')
     negative=(authored['task'].get('authored') or {}).get('negative')
     if negative is not None:
         restore(negative,'path')
+    _select_target(choices, model=model, service=service)
     saved=_source_run(root,run)
     reference={'run':run,'input_sha256':saved['input_sha256']}
-    unresolved=copy.deepcopy(saved_source['unresolved'])
+    unresolved=_unresolved(choices,task)
+    unresolved.extend(item for item in copy.deepcopy(saved_source['unresolved'])
+                      if item['field'] not in {gap['field'] for gap in unresolved}
+                      and not item['field'].startswith(('target', 'reading')))
     for item in unresolved:
         if item.get('file') in locations:
             item['file']=locations[item['file']]
+    with _staged_files(root, out_dir, files):
+        projected = production_target.project(choices, _chosen_task(task, choices), root,
+                                              InputEvidence(root, named_roots={'@skill': ROOT}), out_dir)
+        unresolved.extend(item for item in projected['unresolved'] if item not in unresolved)
+        unresolved.extend(_guidance_gap(root, task, choices, projected, runtime_arguments))
+    actions = [_reading_action(root, task, choices, runtime_arguments)] if any(
+        item['field'].startswith('reading') for item in unresolved) else []
     result={'state':'draft','choices':choices,'unresolved':unresolved,
+        'target_knowledge':projected['knowledge'],'next_actions':actions,
         'derived_from':{'task':reference,'source_run':saved},'external_effect':False}
     context={key:value for key,value in result.items() if key!='choices'}
     context['task_content']=task
@@ -504,55 +640,69 @@ def _retained_identity_sources(root: Path, task: dict, choices_path: str, reader
     folder = Path(choices_path).parent.as_posix()
     path = (Path(folder) / 'context.json').as_posix()
     import production_authoring_state
-    try:
-        current_identity = any(source.get('identity') for source in task.get('sources', []))
-        if not c.local(root, path, exists=False).is_file():
-            production_authoring_state.require_input_context(root, task['task_id'], folder, b'', required=current_identity)
-            return
-        raw = reader.read(reader.select(path))
-        value = c.decode(raw)
-        prior = (value.get('identity_coverage') or {}).get('sources', [])
-        production_authoring_state.require_input_context(root, task['task_id'], folder, raw,
-                                                         required=bool(prior) or current_identity)
-        selected = {source['path'] for source in task.get('sources', [])}
-        selected.update(item for item in (task.get('generation') or {}).values() if isinstance(item, str))
-        from production_reference_inputs import _authored_rows
-        reference_choices = (choices.get('authoring') or {}).get('references')
-        external = choices.get('external') or {}
-        for refs in (reference_choices, (external.get('reference_delivery') or {}).get('choices')):
-            if refs is not None:
-                for reference in _authored_rows(refs):
-                    original = reference.get('source') or {}
-                    if original.get('resolved_path'):
-                        selected.add(original['resolved_path'])
-                    if reference.get('file'):
-                        selected.add(reference['file'])
-        external_input = external.get('image_input')
-        if isinstance(external_input, dict):
-            selected.update(row['file'] for row in external_input.get('references', []) if row.get('file'))
-        for source in prior:
-            candidates = {source['path']}
-            original = (source.get('authority') or {}).get('source') or {}
-            if original.get('resolved_path'):
-                candidates.add(original['resolved_path'])
-            for selected_path in candidates & selected:
+    current_identity = any(source.get('identity') for source in task.get('sources', []))
+    if not c.local(root, path, exists=False).is_file():
+        production_authoring_state.require_input_context(root, task['task_id'], folder, b'', required=current_identity)
+        return
+    raw = reader.read(reader.select(path))
+    registration = production_authoring_state.require_input_context(root, task['task_id'], folder, raw,
+                                                                     required=current_identity)
+    value = c.decode(raw)
+    prior = (value.get('identity_coverage') or {}).get('sources', [])
+    if prior and registration is None:
+        production_authoring_state.require_input_context(root, task['task_id'], folder, raw, required=True)
+    selected = {source['path'] for source in task.get('sources', [])}
+    selected.update(item for item in (task.get('generation') or {}).values() if isinstance(item, str))
+    from production_reference_inputs import _authored_rows
+    reference_choices = (choices.get('authoring') or {}).get('references')
+    external = choices.get('external') or {}
+    for refs in (reference_choices, (external.get('reference_delivery') or {}).get('choices')):
+        if refs is not None:
+            for reference in _authored_rows(refs):
+                original = reference.get('source') or {}
+                if original.get('resolved_path'):
+                    selected.add(original['resolved_path'])
+                if reference.get('file'):
+                    selected.add(reference['file'])
+    external_input = external.get('image_input')
+    if isinstance(external_input, dict):
+        selected.update(row['file'] for row in external_input.get('references', []) if row.get('file'))
+    for source in prior:
+        candidates = {source['path']}
+        original = (source.get('authority') or {}).get('source') or {}
+        if original.get('resolved_path'):
+            candidates.add(original['resolved_path'])
+        for selected_path in candidates & selected:
+            try:
                 if Path(selected_path).is_absolute():
                     import production_store
                     local = Path(selected_path)
-                    if c.digest(production_store.stable_bytes(local.parent, local.name)) != source['sha256']:
-                        raise ValueError('retained identity source bytes differ: ' + selected_path)
+                    current = production_store.stable_bytes(local.parent, local.name)
                 else:
-                    reader.read({'path': selected_path, 'sha256': source['sha256']})
-    except (ValueError, OSError) as exc:
-        raise authoring.UnresolvedChoice('authoring.task.sources',
-            'Identity source evidence changed since this draft. Read the current owning sources '
-            'and draft their current application and criteria again. ' + str(exc)) from exc
+                    current = reader._live(selected_path)
+            except (ValueError, OSError) as exc:
+                raise production_authoring_state.input_context_error(root, task['task_id'], folder,
+                    code='IDENTITY_SOURCE_UNAVAILABLE', message='The selected identity source is unavailable.',
+                    file=selected_path, expected_sha256=source['sha256'], cause=str(exc)) from exc
+            actual = c.digest(current)
+            if actual != source['sha256']:
+                raise production_authoring_state.input_context_error(root, task['task_id'], folder,
+                    code='IDENTITY_SOURCE_CHANGED', message='The selected identity source differs from the draft evidence.',
+                    file=selected_path, expected_sha256=source['sha256'], actual_sha256=actual)
+            if not Path(selected_path).is_absolute():
+                reader.read({'path': selected_path, 'sha256': source['sha256']})
 
 
-def _choice_source(root: Path, choices_path: str, reader: InputEvidence, *, read_run=None) -> tuple[dict, dict, dict | None, str | None, str | None]:
+def _choice_source(root: Path, choices_path: str, reader: InputEvidence, *, choices: dict | None = None,
+                    read_run=None) -> tuple[dict, dict, dict | None, str | None, str | None]:
     """Recover the original input boundary; edited content never asserts origin."""
     path = (Path(choices_path).parent / 'context.json').as_posix()
-    context = reader.json(reader.select(path))
+    import production_authoring_state
+    task_id = (((choices or {}).get('authoring') or {}).get('task') or {}).get('task_id')
+    task_id = task_id or production_authoring_state.active_task_id(root)
+    raw = reader.read(reader.select(path)) if c.local(root, path, exists=False).is_file() else b''
+    production_authoring_state.require_input_context(root, task_id, Path(choices_path).parent.as_posix(), raw)
+    context = c.decode(raw)
     def bound(task):
         binding=context.get('task_binding')
         if binding is None:
@@ -637,15 +787,19 @@ def _authored_basis(root: Path, task: dict, origin_task: dict, reader: InputEvid
 
 
 def authoring_view(root: Path, choices_path: str, *, register: bool = False,
-                   task_path: str | None = None, from_run: str | None = None, read_run=None) -> dict:
+                   task_path: str | None = None, from_run: str | None = None, read_run=None,
+                   runtime_arguments: dict | None = None) -> dict:
     """Expose the actual editable revision, including its unfinished choices."""
     reader=InputEvidence(root,named_roots={'@skill':ROOT})
     choices,ref,locations,gaps=_load_editable(root,choices_path,reader,register=register)
     if task_path is not None or from_run is not None:
         base,_,origin,saved=_task(root,task_path,reader,from_run=from_run,read_run=read_run)
     else:
-        base,origin,saved,task_path,from_run=_choice_source(root,choices_path,reader,read_run=read_run)
+        base,origin,saved,task_path,from_run=_choice_source(root,choices_path,reader,choices=choices,read_run=read_run)
     task=_chosen_task(base,choices)
+    projected = production_target.project(choices, task, root, reader,
+                                          (Path(choices_path).parent / 'view').as_posix())
+    task = projected['task']
     for source in task.get('sources',[]):
         path=source.get('path')
         if not path:continue
@@ -654,46 +808,75 @@ def authoring_view(root: Path, choices_path: str, *, register: bool = False,
             gaps.append({'field':'authoring.task.sources','file':path,'code':'source-unavailable','message':str(exc)})
     basis = _authored_basis(root, task, base, reader, saved, allow_missing=True)
     unresolved=_unresolved(choices,task)+gaps
+    unresolved.extend(item for item in projected['unresolved'] if item not in unresolved)
+    unresolved.extend(_guidance_gap(root, task, choices, projected, runtime_arguments))
     content=((choices.get('authoring') or {}).get('delivery') or {}).get('content')
     delivery=b'' if content is None else content.encode('utf-8') if isinstance(content,str) else c.encoded(content)
     captured={path:reader._decode(value) for path,value in reader.snapshots.items() if not path.startswith('@')}
     return {'task':task,'choices':c.decode(captured[choices_path]),'resolved_choices':choices,
         'files':{},'delivery':delivery,'unresolved':unresolved,'source_map':locations,'captured':captured,
         'origin':origin,'source_run':saved,'task_path':task_path,'from_run':from_run,'choices_ref':ref,
-        'authored_basis':basis}
+        'authored_basis':basis,'target_knowledge':projected['knowledge']}
 
 
 def _assemble_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: str, *,
                  from_run: str | None = None, runtime_arguments: dict | None = None,
                  publish: bool = True) -> dict:
-    reader = InputEvidence(root, named_roots={'@skill': ROOT})
+    try:
+        return _assemble_current(root, task_path, choices_path, out_dir, from_run=from_run,
+                                 runtime_arguments=runtime_arguments, publish=publish)
+    except ProductionError as exc:
+        diagnostic = from_exception(exc, phase='authoring', file=choices_path)
+        return {'state': 'draft', 'ok': False, 'inputs': {}, 'diagnostics': [diagnostic],
+                'unresolved': [{**diagnostic, 'field': diagnostic.get('pointer') or 'authoring'}],
+                'next_actions': diagnostic.get('next_actions', []), 'external_effect': False}
+
+
+def _assemble_current(root: Path, task_path: str | None, choices_path: str, out_dir: str, *,
+                 from_run: str | None = None, runtime_arguments: dict | None = None,
+                 publish: bool = True) -> dict:
+    import runtime_evidence
+    reader = runtime_evidence.reader(root)
     choices,choices_ref,locations,file_gaps = _load_editable(root,choices_path,reader)
     if task_path is None and from_run is None:
-        base_task, task_ref, saved, task_path, from_run = _choice_source(root, choices_path, reader)
+        base_task, task_ref, saved, task_path, from_run = _choice_source(root, choices_path, reader, choices=choices)
     else:
         base_task, _, task_ref, saved = _task(root, task_path, reader, from_run=from_run)
     task = _chosen_task(base_task, choices)
+    _retained_identity_sources(root, task, choices_path, reader, choices)
     basis = _authored_basis(root, task, base_task, reader, saved)
+    if choices.get('authoring') is None and task.get('execution') == 'dispatcher':
+        # An explicit complete task owns authored inputs too. Route it through
+        # the same materialization boundary so a selected target updates its
+        # specification and derives validation from the retained evidence.
+        choices['authoring'] = authoring.draft(root, task, reader, saved=saved)
+        choices['target'] = production_target.extract(copy.deepcopy(task), choices['authoring'], choices['external'])
+        if choices['validation'] is None:
+            choices['validation'] = _validation_choices(root, task, reader, saved)
     _destination(root, out_dir)
     import production_authoring_state
     if publish:
         production_authoring_state.remember_inputs(root, task, 'build-inputs', out_dir,
             task_path=task_path, from_run=from_run, choices_path=choices_path, runtime_arguments=runtime_arguments)
+    projected = production_target.project(choices, task, root, reader, out_dir)
+    choices['target'] = copy.deepcopy(projected['choices']['target'])
     missing = _unresolved(choices, task)+file_gaps
+    missing.extend(item for item in projected['unresolved'] if item not in missing)
+    missing.extend(_guidance_gap(root, task, choices, projected, runtime_arguments))
     if missing:
+        actions = [_reading_action(root, task, choices, runtime_arguments)] if any(
+            item['field'].startswith('reading') for item in missing) else []
         return {'state': 'draft', 'ok': False, 'inputs': {}, 'unresolved': missing,
+                'target_knowledge': projected['knowledge'],
                 'derived_from': {'task': task_ref, 'choices': choices_ref},
-                'next_actions': [{'operation': 'edit-choices', 'args': {'path': choices_path},
+                'next_actions': [*actions, {'operation': 'edit-choices', 'args': {'path': choices_path},
                                   'external_effect': False}]}
-    if choices['validation'] is not None:
-        import runtime_evidence
-        original = reader
-        reader = runtime_evidence.reader(root, snapshots=original.snapshots)
-        reader.read_paths = original.read_paths
+    task, material_choices = projected['task'], projected['choices']
+    target_files = projected['files']
     reading = _reading(choices['reading'], root=root, task=task)
     visual, visual_context = adapters.build_visual(choices['visual'], task, reader, root)
-    validation_task = _validation_task(task, choices)
-    validation, validation_context = adapters.build_validation(choices['validation'], validation_task, reader, root)
+    validation, validation_context = adapters.build_validation(choices['validation'], task, reader, root,
+                                                              target=projected['resolved_target'])
     adapters.cross_check(visual_context, validation_context)
     if validation is not None:
         dialect = validation_context.get('dialect', route_reading._NO_MODEL)
@@ -705,22 +888,24 @@ def _assemble_inputs(root: Path, task_path: str | None, choices_path: str, out_d
     if validation is not None:
         content['request-validation.json'] = validation
     try:
-        _retained_identity_sources(root, task, choices_path, reader, choices)
-        copied_task, authored_files, authored_delivery = authoring.materialize(
-            root, task, choices.get('authoring'), reader, out_dir, saved=saved, validation=validation)
+        with _staged_files(root, out_dir, target_files):
+            copied_task, authored_files, authored_delivery = authoring.materialize(
+                root, task, material_choices.get('authoring'), reader, out_dir, saved=saved, validation=validation)
     except authoring.UnresolvedChoice as exc:
         return {'state': 'draft', 'ok': False, 'inputs': {},
                 'unresolved': [{'field': exc.field, 'code': 'current-judgment-required', 'message': str(exc)}],
                 'derived_from': {'task': task_ref, 'choices': choices_ref},
                 'next_actions': [{'operation': 'edit-choices', 'args': {'path': choices_path},
                                   'external_effect': False}]}
-    _retained_sources(root, saved, copied_task, reader)
     copied_task['route_reading'] = (Path(out_dir) / 'route-reading.json').as_posix()
     if copied_task.get('execution') == 'dispatcher' and copied_task.get('generation') is not None:
         for name, field in (('visual-continuity', 'visual_continuity'), ('request-validation', 'request_validation')):
             if name + '.json' in content:
-                copied_task['generation'][field] = (Path(out_dir) / (name + '.json')).as_posix()
-    encoded = dict(authored_files)
+                path = (Path(out_dir) / (name + '.json')).as_posix()
+                authoring._redirect(copied_task, (base_task.get('generation') or {}).get(field), path)
+                copied_task['generation'][field] = path
+    _retained_sources(root, saved, copied_task, reader)
+    encoded = {**target_files, **authored_files}
     if basis is not None:
         exported_basis = copy.deepcopy(basis)
         for index, original in enumerate(exported_basis['sources'], 1):
@@ -745,8 +930,10 @@ def _assemble_inputs(root: Path, task_path: str | None, choices_path: str, out_d
     if choices['external'] is not None:
         if delivery is None:
             delivery = reader.read(reader.select(copied_task['delivery']['path']))
-        external_files, external_context = adapters.build_external(
-            choices['external'], copied_task, reader, root, out_dir, delivery)
+        with _staged_files(root, out_dir, target_files):
+            external_files, external_context = adapters.build_external(
+                material_choices['external'], copied_task, reader, root, out_dir, delivery,
+                derived_files=target_files)
         encoded.update(external_files)
         copied_task['image_input'] = (Path(out_dir) / 'image-input.json').as_posix()
         route_reading.require_route_reading(reading, studio=root, routes={copied_task['route']},
@@ -760,12 +947,15 @@ def _assemble_inputs(root: Path, task_path: str | None, choices_path: str, out_d
         _retained_identity_sources(root, task, choices_path, reader, choices)
         _retained_sources(root, saved, copied_task, reader)
         current_visual, _ = adapters.build_visual(choices['visual'], task, reader, root)
-        current_validation, _ = adapters.build_validation(choices['validation'], validation_task, reader, root)
+        current_validation, _ = adapters.build_validation(choices['validation'], task, reader, root,
+                                                         target=projected['resolved_target'])
         if current_visual != visual or current_validation != validation:
             raise ValueError('selected input evidence changed during construction')
         if external_context is not None:
-            current_files, current_context = adapters.build_external(
-                choices['external'], copied_task, reader, root, out_dir, delivery)
+            with _staged_files(root, out_dir, target_files):
+                current_files, current_context = adapters.build_external(
+                    material_choices['external'], copied_task, reader, root, out_dir, delivery,
+                    derived_files=target_files)
             if current_files != external_files or current_context != external_context:
                 raise ValueError('selected external input changed during construction')
     if identity_gaps or (external_context is not None and external_context.get('unresolved')):
@@ -796,6 +986,7 @@ def _assemble_inputs(root: Path, task_path: str | None, choices_path: str, out_d
     inputs = {Path(name).stem: {'path': (Path(out_dir) / name).as_posix(),
               'sha256': c.digest(raw)} for name, raw in encoded.items()}
     result = {'state': 'built', 'ok': True, 'inputs': inputs, 'unresolved': [],
+              'target_knowledge': projected['knowledge'],
               'execution_ready': False,
               'request_state': 'materialized' if external_context is not None else 'not-rendered' if validation is not None else None,
               'derived_from': {'task': task_ref, 'choices': choices_ref,
@@ -839,16 +1030,20 @@ def compile_choices(root: Path, choices_path: str, *, persist: bool = False,
     try:
         assembled=_assemble_inputs(root,None,choices_path,output,publish=False,runtime_arguments=runtime_arguments)
         if not assembled.get('ok'):
-            return compiler.Compilation({'ok':False,'publishable':False,'diagnostics':[
+            diagnostics = assembled.get('diagnostics') or [
                 {'code':item.get('code','AUTHORED_CHOICE_REQUIRED'),'message':item.get('message','Resolve this authored choice.'),
-                 'file':item.get('file',choices_path),'pointer':item['field'],'phase':'authoring','severity':'error'}
-                for item in assembled.get('unresolved',[])], 'checks':[], 'authoring':assembled,
+                 'file':item.get('file',choices_path),'pointer':item['field'],'phase':'authoring','severity':'error',
+                 'required_action':'Complete the named current choice.', **item}
+                for item in assembled.get('unresolved',[])]
+            return compiler.Compilation({'ok':False,'publishable':False,'diagnostics':diagnostics,
+                'checks':[], 'authoring':assembled,
                 'external_effect':False,'formal_run_created':False})
         path=(Path(output)/'production-task.json').as_posix()
         compiled=compiler.compile_task(root,path,persist=persist,identity=identity,
             derived=assembled['_files'],source_inputs=assembled['_captured'])
         compiled.report['authoring']={'choices':choices_path,
-            'choices_ref':assembled['derived_from']['choices'],'source_map':assembled['_source_map']}
+            'choices_ref':assembled['derived_from']['choices'],'source_map':assembled['_source_map'],
+            'source_run': (assembled['derived_from'].get('source_run') or {}).get('run')}
         if compiled.prepared is not None:
             compiled.prepared['authoring']=copy.deepcopy(compiled.report['authoring'])
         reverse={item['path']:key for key,item in assembled['inputs'].items()}
@@ -882,8 +1077,8 @@ def add_arguments(subparsers) -> None:
         source.add_argument('--task', help='Studio-relative authored production task JSON.')
         source.add_argument('--from-run', help='Use the saved task and delivery of this existing run.')
         if name == 'draft-inputs':
-            parser.add_argument('--model',help='Initial selected model ID; its definition owns the input contract.')
-            parser.add_argument('--service',help='Initial selected offering service.')
+            parser.add_argument('--model',help='Select the canonical model in a new or reopened draft.')
+            parser.add_argument('--service',help='Select the offering service in a new or reopened draft.')
             parser.add_argument('--route', help='Initial production route; no prebuilt task is needed.')
             parser.add_argument('--artifact', dest='artifact_kind',
                 choices=('text', 'json', 'image', 'video', 'audio', 'binary'),

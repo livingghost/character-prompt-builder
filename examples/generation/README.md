@@ -91,6 +91,7 @@ Decisions, reviews and releases that a scenario records are made by the labeled 
 |---|---|
 | `--include-prompt-change` | `variant` changes the prompt and supplies the reassessed retrieval record. |
 | `--include-reference` | `variant` adds a prepared reference set and the `reference-guided` mode to a run without references. |
+| `--include-reference-retarget` | `check` and `retarget` retain a plain prompt and identity reference while changing to a synthetic target that supports a different reference operation. |
 | `--include-sheet` | `execute` records the output into the character sheet slot `canon.primary`. |
 | `--include-scope-shortage` | `status` names the missing grant target, and `execute` exits 3 before any reservation. |
 | `--include-budget-change` | `authority-import` replaces the grant with a larger cost limit, and `status --budget` shows it. |
@@ -126,6 +127,37 @@ target requires its own actual execution authority. The sample decisions remain
 synthetic and authorize no real provider. `test_production_retarget.py` exercises
 this CLI, missing evidence, the new execution profile, source reading and parent-receipt
 isolation with no network generation.
+
+### Retry a reference request with another target
+
+```text
+python examples/generation/build_example.py --out REFERENCE_TARGET_EXAMPLE --include-reference-retarget
+```
+
+The builder prepares a synthetic parent with the plain prompt `A blue robot
+carrying a small yellow toolbox.` and one identity reference. Its first target
+accepts `reference-guided`; the selected alternative is an `instruction-edit`
+model whose only supported mode is `instruction-edit`. Its optional seed stays
+unselected, so the request omits that field.
+Neither prompt declares a medium or finish. The fixture author selects the
+alternative operation, its controls and its reference policy, while preserving
+the original prompt, reference scope, independent criteria and work identity.
+No generated artwork or live provider behavior is claimed.
+
+Run the two commands printed in `scenario.next`: they check
+`studio/reference-retarget/choices.json`, then prepare it with `retarget` and
+record the source run. `choices.target` holds the new target once. The
+`validation` object selects an execution policy; its `contract` and `evidence`
+remain `null`, so the compiler selects the current offering's schema and derives
+hashes and unmeasured limits. The alternative fixture schema includes an
+unmeasured reference-size rule, which appears in the new request's evidence.
+Do not copy the parent's generated validation record into the authored choices.
+
+`test_production_retarget.py` also reopens the new run and changes only the
+prompt file. It verifies that both preparations retain the identity source and
+review basis, keep the earlier publication intact and perform no submission.
+These are generic target, mode and evidence contracts; the example does not
+depend on a named image provider or optional model pack.
 
 
 ## Local upscale and recovery

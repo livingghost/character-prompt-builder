@@ -1,6 +1,10 @@
 # Camera Framing Contract
 
-A camera label cannot reproduce a record's framing. The Camera Framing Contract records the subject-to-camera relationship, frame occupancy, crop landmarks, and perspective consequences that must remain stable across generations.
+A camera label alone may not reproduce a selected frame. The Camera Framing
+Contract records the camera relationships, coverage and perspective constraints
+that the commissioned depiction actually needs. Choose the frame through
+[Production direction](runtime/production-direction.md#choose-the-expression)
+before recording those constraints.
 
 ## When a frame needs a contract
 
@@ -11,14 +15,33 @@ not simply because one was imagined first.
 
 Only requested or meaning-bearing coverage belongs in visibility obligations.
 Follow [instruction selection](runtime/prompt-composition.md#select-the-depiction)
-before committing the shot. The complete camera record supports reproduction;
-its fields are not all instructions to paste into the model-facing text.
+before committing the shot. Whole-subject coverage, a detail view and an
+environment-led view can each serve a particular commission. Inspecting every
+design feature is not a reason to require all of them in the commissioned image.
+An intentional crop leaves the underlying design intact and is not evidence of
+missing anatomy.
 
-## Required measurements
+The [authoring template](../templates/camera-framing-contract-template.json)
+starts as `{}`: no camera constraints have been selected. Every field is
+optional. Add only the chosen facts and constraints; omitted fields impose no
+coverage, distance, occupancy, lens, margin or offscreen rule. An empty
+`allowed_offscreen_elements` list does not require every unlisted element to be
+visible. Visibility obligations are declared in `required_visible_elements` or
+the other selected coverage instructions.
+
+When exact repetition is commissioned, record enough geometry to reproduce that
+particular frame. Its necessary precision follows from the purpose and source
+evidence, not from filling every schema field. The author judges whether those
+chosen measurements are sufficient. Supplied values retain their type, range
+and complete nested-object checks. They are not all instructions to paste into
+the model-facing text.
+
+## Selected framing and measurements
 
 Use subject-relative measurements first. A metre estimate is useful only when the subject is roughly human sized.
 
-- `shot_scale`: the body range visible in the frame.
+- `shot_type`: the intended kind and purpose of the view.
+- `shot_scale`: the subject extent visible in the frame.
 - `distance_class`: a practical distance band.
 - `subject_relative_distance`: distance expressed in head heights, visible torso heights, full body heights, subject widths, or metres.
 - `human_scale_distance_equivalent_m`: optional real-world equivalent for a human-sized subject.
@@ -26,14 +49,19 @@ Use subject-relative measurements first. A metre estimate is useful only when th
 - `pitch_degrees`, `yaw_degrees`, `roll_degrees`: numeric camera orientation.
 - `lens_equivalent_mm` and `projection_behavior`: the likely perspective envelope.
 - `frame_occupancy`: subject height and width as a percentage of the image.
+- `framing_and_crop`: the selected boundaries and their relationship to the depiction.
 - `coverage_landmarks`: the top, bottom, left, and right boundaries of the intended crop.
-- `eye_line_position`: where the eye or primary sensory line sits in the frame.
+- `eye_line_position`: where the eye or primary sensory line sits in the frame, when applicable.
+- `reference_landmark_position`: another authored landmark's position, when needed.
 - `nearest_form`: the body part, prop, or structure closest to the lens.
 - `perspective_scale_change`: which forms enlarge or compress because of camera proximity.
 - `required_visible_elements`: elements that must remain inside the frame.
 - `allowed_offscreen_elements`: elements that may continue outside the frame.
-- `stability_invariants`: explicit guards against pullback, over-cropping, or wide-angle distortion.
-- `horizon_and_vanishing`: where the horizon line sits in the frame and where the dominant vanishing point falls, when the scene contains converging structure.
+- `focal_sequence`: the selected order of attention within this depiction.
+- `stability_invariants`: the conditions needed to retain the selected frame, such as an authored coverage boundary or perspective relationship. Record the actual conditions without padding the list to a fixed count.
+
+For converging structure, describe the horizon and dominant vanishing point in
+`framing_and_crop` or `lens_or_perspective` at the scope they constrain.
 
 ## Perspective anchors for environment-forward frames
 
@@ -53,7 +81,11 @@ Separate camera enlargement from stable anatomy. A near forearm enlarged by a mi
 
 ## Reference-image extraction sequence
 
-1. Identify the shot scale from the highest and lowest visible body landmarks.
+Apply the following observations where they matter to the assigned reference
+use. Reproducing an exact frame can need the full set; transferring a design or
+lighting contribution does not adopt the source camera.
+
+1. Identify the shot scale from the highest and lowest visible subject landmarks.
 2. Record the exact top, bottom, left, and right crop anchors.
 3. Estimate subject height and width occupancy.
 4. Locate camera height relative to a stable subject landmark.
@@ -66,4 +98,10 @@ Separate camera enlargement from stable anatomy. A near forearm enlarged by a mi
 
 ## Scene and production ownership
 
-A reusable base scene stores its canonical camera contract when framing is load-bearing. A Production Specification resolves that contract for the current subject, aspect ratio, and target image. An Asset Render Specification uses the same structured contract. A user-requested camera change may adapt the contract, but the change must be deliberate and all dependent crop obligations must be recomputed.
+A reusable base scene stores its canonical camera contract when framing is
+load-bearing. A Production Specification resolves that contract for the current
+subject, aspect ratio and target image. An Asset Render Specification uses the
+same structured contract. Carry a prior camera forward at its adopted scope;
+its presence in an earlier draft alone does not establish a new requirement.
+When a camera change is within the commissioned scope, revise the affected
+coverage obligations together and preserve unrelated design and authored work.

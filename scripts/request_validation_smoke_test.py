@@ -107,6 +107,17 @@ class ValidationTests(unittest.TestCase):
     def test_22_boolean_probe_count_is_not_one_output(self):
         plan=self.probe();plan['fixed_request_profile']['output_count']=True;self.save('probe.json',plan)
         with self.assertRaises(ValueError):self.build()
+    def test_restored_acquired_evidence_keeps_its_source_selection_without_result_hashes(self):
+        record=self.build()
+        self.assertEqual(rv.draft_choices(record,self.reader),self.choices)
+    def test_restored_choices_read_the_saved_evidence_when_live_sources_are_gone(self):
+        record=self.build();snapshots=copy.deepcopy(self.reader.snapshots)
+        for path in self.root.iterdir():path.unlink()
+        restored=rv.draft_choices(record,InputEvidence(None,snapshots=snapshots,live=False))
+        self.assertEqual(restored,self.choices)
+    def test_restored_probe_retains_its_explicit_bounded_scope(self):
+        self.probe();record=self.build()
+        self.assertEqual(rv.draft_choices(record,self.reader),self.choices)
 
 class OfferingSchemaTests(unittest.TestCase):
     """An active pack's attributed offering schema carries its own scope."""
@@ -203,6 +214,99 @@ class OfferingSchemaTests(unittest.TestCase):
         self.offering['request_keys']={'model':['model'],'prompt':['prompt']}
         self.schema['properties']['model']={'const':'synthetic:other'};self.write()
         self.assertTrue(all(len(issues)==1 and "fixes 'model'" in issues[0] for issues in self.readers()))
+
+    def acquired_target(self, *, model=None, offering=None):
+        """An independent immutable target fixture with an actual local schema."""
+        from types import SimpleNamespace
+        from build_generation_payload import ResolvedTarget
+        from owned_json import freeze
+        value=object.__new__(ResolvedTarget)
+        selected_model=model or self.model
+        selected_offering=offering or self.offering
+        fields={'model_id':selected_model['id'],'model':freeze(selected_model),'offering':freeze(selected_offering),
+            'service':freeze({'id':'synthetic','operations':{'generate':{}}}),
+            'transport':SimpleNamespace(OPERATIONS={'generation':'generate'},__file__=str(self.root/'transport.py')),
+            'parameter_schema':freeze(self.snapshot),'model_space':'@pack/p',
+            'transport_sha256':c.digest((self.root/'transport.py').read_bytes())}
+        for name,item in fields.items():object.__setattr__(value,name,item)
+        return value
+
+    def current_choices(self, *, policy=None):
+        return {'mode':'target-schema','contract':None,'evidence':None,'execution_policy':policy}
+
+    def alternate_target(self):
+        model={**self.model,'id':'synthetic-alternate'}
+        offering={**self.offering,'model_identifier':'synthetic:alternate','schema_snapshot':'alternate.json'}
+        snapshot={**self.snapshot,'model_id':model['id'],'model_identifier':offering['model_identifier']}
+        (self.pack/'alternate.json').write_bytes(c.encoded(snapshot))
+        return self.acquired_target(model=model,offering=offering)
+
+    def policy(self):
+        save=lambda name,value:fixture.RequestContractTests.save(self,name,value)
+        basis={**save('policy-basis.json',{'reason':'Synthetic authored reference use; no provider observation.'}),
+               'locator':'reason'}
+        reference=save('reference-policy.json',{'artifact_type':'reference-render-contract','target':self.target,
+            'dialects':['synthetic-prose'],'mode':'authored-rendition','fields':[],'basis':basis})
+        value={'artifact_type':'execution-policy','target':self.target,'text_dialect':'synthetic-prose',
+               'reference_instruction_transport':{'mode':'authored-rendition','contract':reference},'basis':basis}
+        return save('execution-policy.json',value)['path']
+
+    def test_current_target_derives_its_own_schema_after_restoring_catalog_choices(self):
+        original_target=self.acquired_target()
+        previous,_=rv.acquire_target_choices(self.current_choices(),original_target,self.reader)
+        restored=rv.draft_choices(previous.record,self.reader,target=original_target)
+        self.assertEqual(restored,self.current_choices())
+        current,_=rv.acquire_target_choices(restored,self.alternate_target(),self.reader)
+        self.assertEqual(current.record['target'],dict(self.target,model_identifier='synthetic:alternate'))
+        self.assertEqual(current.record['contract']['path'],'@pack/p/alternate.json')
+        self.assertEqual(current.record['contract'],current.record['evidence'])
+        self.assertEqual(current.record['contract']['sha256'],c.digest((self.pack/'alternate.json').read_bytes()))
+        self.assertEqual(previous.record['target'],self.target)
+        self.assertEqual(previous.record['contract']['path'],'@pack/p/schema.json')
+
+    def test_restoring_reference_policy_keeps_its_source_and_basis(self):
+        path=self.policy()
+        record,policy=rv.acquire_target_choices(self.current_choices(policy=path),self.acquired_target(),self.reader)
+        before=(self.root/path).read_bytes()
+        restored=rv.draft_choices(record.record,self.reader,target=self.acquired_target())
+        self.assertEqual(restored,self.current_choices(policy=path))
+        self.assertEqual(policy['reference_instruction_transport']['mode'],'authored-rendition')
+        self.assertIn('policy-basis.json',self.reader.snapshots)
+        from production_diagnostics import ProductionError
+        with self.assertRaises(ProductionError) as caught:
+            rv.acquire_target_choices(restored,self.alternate_target(),self.reader)
+        self.assertEqual(caught.exception.diagnostic.code,'VALIDATION_POLICY_REQUIRED')
+        self.assertEqual(caught.exception.diagnostic.pointer,'$.validation.execution_policy')
+        self.assertEqual((self.root/path).read_bytes(),before)
+
+    def test_target_without_observed_schema_names_the_needed_evidence(self):
+        offering={key:value for key,value in self.offering.items() if key!='schema_snapshot'}
+        from production_diagnostics import ProductionError
+        with self.assertRaises(ProductionError) as caught:
+            rv.acquire_target_choices(self.current_choices(),self.acquired_target(offering=offering),self.reader)
+        self.assertEqual(caught.exception.diagnostic.code,'VALIDATION_EVIDENCE_REQUIRED')
+        self.assertEqual(caught.exception.diagnostic.pointer,'$.validation')
+
+    def test_explicit_evidence_is_checked_against_the_current_target(self):
+        choices={**self.current_choices(),'contract':'@pack/p/schema.json','evidence':'@pack/p/schema.json'}
+        with self.assertRaisesRegex(ValueError,'model_identifier'):
+            rv.acquire_target_choices(choices,self.alternate_target(),self.reader)
+
+    def test_distinct_authored_pack_schema_selection_survives_restoration(self):
+        path='@pack/p/selected-scope.json'
+        (self.pack/'selected-scope.json').write_bytes(c.encoded(self.snapshot))
+        selected={**self.current_choices(),'contract':path,'evidence':path}
+        target=self.acquired_target()
+        record,_=rv.acquire_target_choices(selected,target,self.reader)
+        self.assertEqual(rv.draft_choices(record.record,self.reader,target=target),selected)
+        self.assertEqual(rv.draft_choices(record.record,self.reader),selected)
+
+    def test_unchanged_evidence_rebuilds_the_same_result(self):
+        target=self.acquired_target()
+        first,_=rv.acquire_target_choices(self.current_choices(),target,self.reader)
+        restored=rv.draft_choices(first.record,self.reader,target=target)
+        second,_=rv.acquire_target_choices(restored,target,self.reader)
+        self.assertEqual(first.record,second.record)
 
 class DelegationTests(unittest.TestCase):
     def setUp(self):

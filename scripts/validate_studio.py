@@ -223,7 +223,10 @@ def validate(root: Path) -> list[str]:
         errors.append("credentials.json: each service requires one api_key entry or one named api_key_env source")
     if not isinstance(document.get("studio_id"), str) or not studio.STUDIO_ID.match(document.get("studio_id") or ""):
         errors.append(f"{studio.MANIFEST}: studio_id is not a studio id")
-    for name in ("default_render_profile", "default_creative_latitude", "default_interaction_mode"):
+    profile = document.get("default_render_profile")
+    if profile is not None and (not isinstance(profile, str) or not profile.strip()):
+        errors.append(f"{studio.MANIFEST}: default_render_profile must be a nonempty profile id or null")
+    for name in ("default_creative_latitude", "default_interaction_mode"):
         if not isinstance(document.get(name), str) or not document[name]:
             errors.append(f"{studio.MANIFEST}: {name} must name a value")
     if document.get("default_style_family") is not None and not isinstance(document["default_style_family"], str):

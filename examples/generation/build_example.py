@@ -21,6 +21,7 @@ import production_case_fixtures as fixtures
 SCENARIOS = {
     'prompt-change': 'Change one prompt field, with the retrieval record reassessed for the new wording.',
     'reference': 'Change a run without references into one with a prepared reference set.',
+    'reference-retarget': 'Retain a plain prompt and identity reference while choosing another target and reference operation.',
     'sheet': 'Record the output into a character sheet slot.',
     'scope-shortage': 'Prepare under a grant that lacks one handoff target, so execute stops before any execution claim.',
     'outcome-unknown': 'Leave a send whose answer was lost, for resume.',
@@ -43,11 +44,20 @@ def executed(root: Path, run: str, decisions: str) -> dict:
     return execution.execute(root, run, decisions_file=fixtures.fill_decisions(root, run, decisions))
 
 
-def scenario(name: str, root: Path, runtime: list[str]) -> dict:
+def scenario(name: str, root: Path, runtime: list[str], *, case: dict) -> dict:
     """Prepare one scenario; return its run and the commands that show it."""
     import production_store as store
     import production_workflow as workflow
     R = str(root)
+    if name == 'reference-retarget':
+        retry = fixtures.reference_retarget_case(case)
+        run = retry['parent']['run']
+        choices = retry['choices_file']
+        return {'run': run, 'choices': choices, 'prepare_choices': retry['parent_choices_file'],
+            'task': workflow.read_run(root, run).prepared['task_path'], 'next': [
+            command('check', '--root', R, '--choices', choices, *runtime),
+            command('retarget', '--root', R, '--from', run, '--choices', choices,
+                '--reason', 'Compare explicitly selected synthetic reference operations.', '--prepare', *runtime)]}
     if name == 'prompt-change':
         from prompt_retrieval import settle_retrieval_record
         run = prepared(root)
@@ -142,7 +152,8 @@ def main() -> int:
     out = args.out.resolve()
     if out.exists():
         parser.error('Use a new output directory; an example studio is not overwritten.')
-    case = fixtures.create(out / 'studio', out / 'runtime', with_alternate=args.include_retarget,with_upscale=args.include_upscale)
+    case = fixtures.create(out / 'studio', out / 'runtime',
+        with_alternate=args.include_retarget or args.scenario == 'reference-retarget', with_upscale=args.include_upscale)
     if args.include_retarget:
         fixtures.alternate_task(case['root'])
     if args.include_upscale:
@@ -151,9 +162,12 @@ def main() -> int:
     runtime = ['--state-file', str(settings.state_file), '--cache-dir', str(settings.cache_dir),
                '--managed-root', str(settings.managed_root), '--pack-root', str(case['pack'])]
     prepare = command('prepare', '--root', str(case['root']), '--task', 'task.json', *runtime)
+    shown = {'name': args.scenario, **scenario(args.scenario, case['root'], runtime, case=case)} if args.scenario else None
+    if shown is not None and shown.get('prepare_choices'):
+        prepare = command('prepare', '--root', str(case['root']), '--choices', shown['prepare_choices'], *runtime)
     c.atomic(out / 'prepare-argv.json', c.encoded(prepare))
-    shown = {'name': args.scenario, **scenario(args.scenario, case['root'], runtime)} if args.scenario else None
-    print(json.dumps({'synthetic': True, 'task': str(case['root'] / 'task.json'), 'prepare_argv': prepare,
+    task = shown.get('task', 'task.json') if shown is not None else 'task.json'
+    print(json.dumps({'synthetic': True, 'task': str(case['root'] / task), 'prepare_argv': prepare,
                       'retarget_task': str(case['root'] / 'retarget/task.json') if args.include_retarget else None,
                       'upscale_task': str(case['root']/'upscale/task.json') if args.include_upscale else None,
                       'scenario': shown, 'network_generation': False,

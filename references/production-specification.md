@@ -154,8 +154,10 @@ depends on. Repeated appearances refer to the same subject record.
 
 Top-level scene, camera and lighting describe shared spatial requirements.
 Local `scene`, `camera` and `lighting` record a region's differences. A local
-camera is a complete contract. Flat lettering and graphic marks need only
-their depiction; spatial contracts apply to depicted space.
+camera carries the constraints selected for that region, with sufficient
+geometry for any commissioned repeatability. Unselected measurements remain
+absent. Flat lettering and graphic marks need only their depiction; spatial
+contracts apply to depicted space.
 When poses or visibility vary, author them locally and leave shared summaries
 undecided unless a common requirement applies.
 
@@ -226,7 +228,17 @@ The Visual State Projection owns which current cues must be visible. The Product
 
 ## Camera framing contract
 
-`camera` uses `camera-framing-contract.schema.json`, and the specification carries it once the shot is decided. A repeatable shot records shot scale, distance class, subject-relative distance, optional human-scale metre guidance, camera height against a body or environmental landmark, pitch, yaw, roll, lens behavior, frame occupancy, exact crop landmarks, eye-line position, nearest form, perspective scale change, required visible elements, allowed off-screen elements, focal sequence, and stability invariants.
+`camera` uses `camera-framing-contract.schema.json` for the constraints selected
+for the current depiction. Follow [Camera framing](camera-framing-contract.md)
+to choose the relevant fields. Exact repetition can need shot scale, distance
+class, subject-relative distance, human-scale metre guidance, camera height
+against a body or environmental landmark, pitch, yaw, roll, lens behavior,
+frame occupancy, exact crop landmarks, eye-line or other landmark position,
+nearest form, perspective scale change, required visible elements, allowed
+offscreen elements, focal sequence and stability invariants. Record the
+measurements and relationships needed to reproduce the commissioned frame at
+its required precision; unrelated fields stay absent. An empty camera object
+declares no constraints and supplies no default frame.
 
 The subject-relative measurement is authoritative across humans, animals, creatures, and robots. A metre range is a translation aid rather than a replacement for the subject-relative distance.
 
@@ -386,8 +398,16 @@ Accessory geometry is a first-class subject contract. A label such as `chain`, `
 
 ## Rendering intent
 
-Every current specification includes a resolved `render_intent`.
-Create it with `scripts/render_contract.py intent` under [Rendering choices and execution controls](runtime/render-contract.md).
+Every current specification includes a `render_intent` with its execution
+mode. That operation is sufficient when no separate rendering declaration is
+selected; the subject prompt needs no medium, presentation claim or finish
+span. Use `scripts/render_contract.py intent` to record the operation, adding
+a complete named preset when one is adopted. A custom rendering declaration
+uses `preset: null` and only the axis constraints actually selected. Unchosen
+axes add no requirement or default. Follow
+[Rendering choices and execution controls](runtime/render-contract.md) for the
+authored treatment, its expression and source scope. Applicable source
+requirements retain their authority when no extra declaration is selected.
 Draft prompt wording after retrieval, then validate with `--require-content` before building a Generation Package.
 The rendering choice owns finish; visual-language catalog references and art direction supply additional scoped evidence.
 Review them for agreement rather than silently rewriting either source.

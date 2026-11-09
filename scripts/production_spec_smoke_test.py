@@ -45,6 +45,29 @@ class ProductionSpecificationTests(unittest.TestCase):
         self.assertNotIn("camera", spec)
         self.assertEqual(1, len(spec["subjects"]))
 
+    def test_draft_preserves_only_the_authored_render_constraints(self):
+        for axes in ({}, {"dimensionality": "flat-shapes"}):
+            with self.subTest(axes=axes):
+                selected = intent("Clean blue forms in warm workshop light.")
+                selected.update(preset=None, axes=axes)
+                selected["selection"] = {"chosen_by": "user", "reason": "Synthetic author selection."}
+                original = copy.deepcopy(selected)
+                spec = production_spec.draft(
+                    model="synthetic-image-model", brief="A blue robot inspects a brass latch.",
+                    subject="mechanic", kind="robot", render_intent=selected,
+                )
+                self.assert_valid(spec)
+                self.assertEqual(spec["render_intent"], original)
+
+    def test_draft_is_complete_with_an_operation_and_no_rendering_declaration(self):
+        from render_contract_lib import operation_intent
+        selected=operation_intent('text-to-image')
+        spec=production_spec.draft(model='synthetic-image-model',
+            brief='An anthropomorphic fox postal worker.',subject='courier',kind='anthropomorphic-animal',
+            render_intent=selected)
+        self.assert_valid(spec)
+        self.assertEqual(spec['render_intent'],selected)
+
     def test_repeated_subject_keeps_independent_local_visibility(self):
         selected = layout("inspection")
         original = copy.deepcopy(selected)

@@ -50,12 +50,20 @@ python scripts/studio.py init --out <dir> --studio-id <id> --title "<title>"
   story/narrative/            a narrative series, when the studio holds authoring
 ```
 
-`init` records the defaults a request that leaves them open starts from:
+`init` records project preferences and workflow defaults:
 
-- `default_render_profile`, `profile-clear-2d-illustration` unless `--default-render-profile` names another;
+- `default_render_profile`, `null` unless `--default-render-profile` names a selected project preference;
 - `default_creative_latitude`, `directed` unless `--default-creative-latitude` names another;
 - `default_interaction_mode`, `balanced` unless `--default-interaction-mode` names another;
-- `default_style_family`, none unless `--default-style-family` names one.
+- `default_style_family`, `null` unless `--default-style-family` names a selected project preference.
+
+An unselected rendering preference leaves the treatment to the current
+[production direction](production-direction.md); initialization selects no
+medium, palette, light or emotional register. A catalog profile is available
+knowledge, not an implicit substitute for `null`. Preserve an explicitly
+selected project profile or family and apply its actual scope under the
+commission. Existing adopted treatments and the preserved parts of a local
+edit keep their authority; a new project preference does not rewrite them.
 
 `python scripts/studio.py character add <id> --studio <dir> [--profile ...]` adds a character with a blank sheet in `sheet/`; the Character Sheet workflow then runs in that folder as [Character Sheet Discipline](character-sheet-discipline.md) describes, with `SHEET_DIR` being `characters/<id>/sheet`.
 

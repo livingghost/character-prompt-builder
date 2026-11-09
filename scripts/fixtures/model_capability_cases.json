@@ -54,7 +54,7 @@
       "modes": {"text-to-image": 0, "reference-guided": 2, "instruction-edit": 2},
       "prompt_length": [2, 3000], "reference_limit": 10, "preparation_limit": 10, "output_count": [1, 20],
       "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
-      "dispatch_seed": 0, "seed_values": {"accept": [0, 2147483647], "reject": [null, -1, 2147483648]},
+      "dispatch_seed": 0, "seed_values": {"accept": [null, 0, 2147483647], "reject": [-1, 2147483648]},
       "wire_parameters": {"settings.promptExtend": false, "outputFormat": "PNG"},
       "case_sets": ["paired-profile", "provider-size", "continuous-dimensions", "area-schema", "aspect-eight", "boolean-thinking", "conditional-rewriting", "optional-seed", "no-mask"]
     }

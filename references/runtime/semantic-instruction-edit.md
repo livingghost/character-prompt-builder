@@ -210,8 +210,10 @@ After interruption, use `status` or `resume` to recover the existing result.
 Capture uses prepared evidence even if live inputs later change. An image ID is
 uncaptured until its bytes have been saved and verified. A new trial has its own
 task, image input and request; include an edit plan when that trial edits a scene.
-The dispatcher's `variant`, `repeat` and `retarget` commands do not act on an
-external run.
+The dispatcher's `variant` and `repeat` commands retain their declared input
+contracts. A changed external target uses `retarget` with reassessed editable
+choices or a complete task; it preserves the source run as lineage and checks
+the current semantic plan, source scope and exact target input together.
 
 ## Review and transferable findings
 

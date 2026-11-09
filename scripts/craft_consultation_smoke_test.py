@@ -249,6 +249,21 @@ class ConsultationTests(unittest.TestCase):
         self.assertEqual([row['record_id'] for row in opened if row['requested']], ['synthetic-recipe'])
         self.assertEqual(len(opened[0]['dependencies']), 2)
 
+    def test_style_family_opens_its_declared_profile_without_adopting_it(self):
+        result = tool.consult([], ['style-family-clear-portrait'], settings=self.settings)
+        opened = {row['record_id']: row for row in result['inspected']}
+        family = opened['style-family-clear-portrait']
+        profile_id = family['record']['base_render_profile_id']
+        self.assertEqual(set(opened), {'style-family-clear-portrait', profile_id})
+        self.assertEqual(family['dependencies'], [
+            {'field': 'base_render_profile_id', 'record_id': profile_id}])
+        self.assertTrue(family['requested'])
+        self.assertFalse(opened[profile_id]['requested'])
+        profile = next(entry.record for entry in runtime.load_entries()
+                       if entry.record['id'] == profile_id)
+        self.assertEqual(opened[profile_id]['record'], profile)
+        self.assertEqual(result['application_template']['uses'], [])
+
     def test_history_retains_searches_without_nested_full_reports(self):
         second = tool.consult([], ['camera-close-eye-level'], settings=self.settings, previous=self.report)
         third = tool.consult([], [], settings=self.settings, previous=second)

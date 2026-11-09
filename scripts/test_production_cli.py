@@ -88,17 +88,21 @@ class PublicCLITests(unittest.TestCase):
         return results
 
     def test_each_example_scenario(self):
-        names = ['prompt-change', 'reference', 'sheet', 'scope-shortage', 'outcome-unknown',
+        names = ['prompt-change', 'reference', 'reference-retarget', 'sheet', 'scope-shortage', 'outcome-unknown',
                  'partial-review', 'log-export']
         with ThreadPoolExecutor(max_workers=3) as pool:
             done = dict(zip(names, pool.map(self.scenario, names)))
         codes = {name: [code for _, code, _ in rows] for name, rows in done.items()}
-        self.assertEqual(codes, {'prompt-change': [0], 'reference': [0], 'sheet': [0], 'scope-shortage': [0, 3],
+        self.assertEqual(codes, {'prompt-change': [0], 'reference': [0], 'reference-retarget': [0, 0], 'sheet': [0], 'scope-shortage': [0, 3],
                                  'outcome-unknown': [4, 0], 'partial-review': [0, 0, 0],
                                  'log-export': [0, 0, 0]})
         output = {name: [value for _, _, value in rows] for name, rows in done.items()}
         self.assertTrue(output['prompt-change'][0]['request_preview']['prompt'].endswith('stays alone in the frame.'))
         self.assertEqual(len(output['reference'][0]['request_preview']['inputs']['references']), 1)
+        retried = output['reference-retarget'][1]
+        self.assertEqual(retried['request_preview']['model'], 'synthetic:alternate')
+        self.assertEqual(retried['request_preview']['prompt'], 'A blue robot carrying a small yellow toolbox.')
+        self.assertEqual(len(retried['request_preview']['inputs']['references']), 1)
         sheet = output['sheet'][0]['runs'][0]
         self.assertEqual((sheet['registration'], output['sheet'][0]['execution_completed']), ('registered', True))
         self.assertEqual(output['scope-shortage'][1]['diagnostics'][0]['missing'], ['decision:expression'])

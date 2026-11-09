@@ -199,6 +199,29 @@ class StructureNeutralityTests(unittest.TestCase):
                 self.assertFalse(report["stats"]["occupancy_bounds_checked"])
                 self.assertNotIn("subject_frame_occupancy_bounds", plan["camera"])
 
+    def test_preflight_checks_only_selected_camera_facts(self):
+        plan = load_json(ROOT / "templates/prompt-semantic-preflight.json")
+        self.assertEqual({}, plan["camera"])
+        for camera in ({}, {"shot_scale": "close-up"}, {"shot_scale": "full-body"},
+                       {"shot_scale": "wide", "establishing_context": True},
+                       {"subject_frame_occupancy": 0.15}):
+            with self.subTest(camera=camera):
+                plan["camera"] = copy.deepcopy(camera)
+                before = copy.deepcopy(plan)
+                report = validate_plan(plan)
+                self.assertTrue(report["ok"], report["errors"])
+                self.assertFalse(report["stats"]["occupancy_bounds_checked"])
+                self.assertEqual(before, plan)
+
+    def test_selected_occupancy_bounds_require_an_authored_value(self):
+        plan = load_json(ROOT / "templates/prompt-semantic-preflight.json")
+        plan["camera"] = {"subject_frame_occupancy_bounds": {"minimum": 0.2, "maximum": 0.4}}
+        report = validate_plan(plan)
+        self.assertFalse(report["ok"])
+        self.assertEqual(["camera.subject_frame_occupancy: an explicit value is required when occupancy bounds are declared"],
+                         report["errors"])
+        self.assertNotIn("subject_frame_occupancy", plan["camera"])
+
     def test_declared_occupancy_bounds_include_endpoints(self):
         plan = fixture("asymmetric-topology.json")
         plan["camera"]["subject_frame_occupancy_bounds"] = {"minimum": 0.2, "maximum": 0.4}
@@ -241,8 +264,8 @@ class StructureNeutralityTests(unittest.TestCase):
 
     def test_plan_errors_say_what_to_write(self):
         errors = validate_plan({"structure_plan": {"expected_counts": {}, "assigned_structures": []}})["errors"]
-        self.assertEqual(["$: missing required property 'camera'; write an object with angle, shot_scale, distance,"
-                          " pitch and subject_frame_occupancy; --template prints a plan to start from"], errors)
+        self.assertEqual(["$: missing required property 'camera'; write an object containing only selected camera facts"
+                          " and bounds; {} declares none; --template prints a plan to start from"], errors)
         plan = fixture("asymmetric-topology.json")
         plan["camera"]["subject_frame_occupancy"] = "0.45"
         del plan["structure_plan"]["assigned_structures"][0]["structure_id"]
@@ -297,14 +320,33 @@ class StructureNeutralityTests(unittest.TestCase):
         self.assertNotIn("eye_line_position", value)
         self.assertEqual([], schema_errors(value, "camera-framing-contract"))
 
+    def test_camera_contract_keeps_the_selected_scope_without_filling_other_fields(self):
+        self.assertEqual({}, load_json(ROOT / "templates/camera-framing-contract-template.json"))
+        cameras = ({}, {"shot_scale": "close-up", "required_visible_elements": ["the repaired joint"]},
+                   {"shot_scale": "full-body", "framing_and_crop": "The commissioned costume silhouette is visible."},
+                   {"shot_scale": "wide-environmental", "stability_invariants": ["The horizon crosses the upper third."]},
+                   fixture("reference-camera.json"))
+        for camera in cameras:
+            with self.subTest(camera=camera):
+                before = copy.deepcopy(camera)
+                self.assertEqual([], schema_errors(camera, "camera-framing-contract"))
+                self.assertEqual(before, camera)
+
+    def test_selected_camera_geometry_keeps_numeric_and_nested_contracts(self):
+        for camera in ({"pitch_degrees": 91}, {"yaw_degrees": -181}, {"roll_degrees": True},
+                       {"subject_relative_distance": {"basis": "subject-widths", "minimum": 1}},
+                       {"frame_occupancy": {"subject_height_percent": {"minimum": 50, "maximum": 80}}},
+                       {"lens_equivalent_mm": {"minimum": 0, "maximum": 50}},
+                       {"coverage_landmarks": {"top": "arch lintel"}}):
+            with self.subTest(camera=camera):
+                self.assertTrue(schema_errors(camera, "camera-framing-contract"))
+
     def test_production_template_omits_anatomical_summary_slots(self):
         value = load_json(ROOT / "templates/production-spec-template.json")
         for row in value["subjects"]:
             self.assertFalse({"head_and_face", "hands", "legs_and_feet", "gaze_and_head"} & row.keys())
-        self.assertFalse(production_spec.validate(value)['ok'], 'unresolved rendering choices must not pass')
-        from render_contract_lib import make_intent
-        value['render_intent'] = make_intent('flat-graphic', mode='text-to-image', chosen_by='agent',
-            reason='Synthetic structure-neutral illustration.', presentation='one illustration', prompt_expression='')
+        self.assertEqual(value['render_intent'], {
+            'artifact_type': 'render-intent', 'execution_mode': 'text-to-image'})
         report = production_spec.validate(value)
         self.assertTrue(report["ok"], report["errors"])
 

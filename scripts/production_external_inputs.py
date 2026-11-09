@@ -47,7 +47,6 @@ def unresolved(selection: Any) -> list[dict]:
     if plan is not None and not isinstance(plan, dict):
         raise ValueError('external image_input must contain the selected plan')
     if isinstance(plan, dict):
-        required(plan.get('model'), 'image_input.model')
         required(plan.get('external_request'), 'image_input.external_request')
         for index, row in enumerate(plan.get('references', []) if selection['reference_delivery'] is None else []):
             transport = row.get('transport')
@@ -154,6 +153,26 @@ def draft(plan: dict, request: Any, *, prepared: dict | None = None,
     return {'image_input': selected, 'request': native, 'media_slots': slots,
             'source_files': source_files, 'source_uploads': source_uploads,
             'reference_delivery': reference_delivery}
+
+
+def read_selection(selection: dict, reader, root: Path) -> tuple[dict, dict]:
+    """Open a selected public plan into the same editable content as an inline choice."""
+    if not isinstance(selection.get('image_input'), str):
+        return selection, {'kind': 'authored', 'sha256': c.content_id(selection)}
+    c.exact(selection, {'image_input'}, 'external input file selection')
+    source = reader.select(selection['image_input'])
+    existing = copy.deepcopy(reader.json(source))
+    external = existing.get('external_request')
+    if not isinstance(external, dict):
+        raise ValueError('select an image input plan with an external request')
+    request_file = reader.select(external['file'])
+    if external.get('sha256') is not None and external['sha256'] != request_file['sha256']:
+        raise ValueError('selected external request changed: ' + external['file'])
+    prepared_path = existing.get('prepared_references')
+    prepared = reader.json(reader.select(prepared_path)) if prepared_path else None
+    choices = draft(existing, reader.json(request_file), prepared=prepared,
+        package_root=c.local(root, prepared_path).parent if prepared_path else None, root=root)
+    return choices, source
 
 
 def _at(value: Any, path: list) -> Any:
@@ -364,11 +383,12 @@ def _media(request: Any, rows: list[dict], slots: list[list], external: dict) ->
 
 
 def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
-          delivery: bytes) -> tuple[dict[str, bytes], dict]:
+          delivery: bytes, *, derived_files: dict[str, bytes] | None = None) -> tuple[dict[str, bytes], dict]:
     """Build and validate one exact request; leave publication to its caller."""
-    source = {'kind': 'authored', 'sha256': c.content_id(selection)}
     root = Path(root)
-    generated = {}
+    selection, source = read_selection(selection, reader, root)
+    derived_files = dict(derived_files or {})
+    generated = {(Path(out_dir) / name).as_posix(): raw for name, raw in derived_files.items()}
     pins = {}
 
     def measured(row: dict, field: str = 'path') -> bytes:
@@ -398,17 +418,6 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
             raise ValueError('selected uploaded carrier changed: ' + path)
         return digest
 
-    if isinstance(selection.get('image_input'), str):
-        c.exact(selection, {'image_input'}, 'external input file selection')
-        source = reader.select(selection['image_input'])
-        existing = copy.deepcopy(reader.json(source))
-        external = existing.get('external_request')
-        if not isinstance(external, dict):
-            raise ValueError('select an image input plan with an external request')
-        prepared_path = existing.get('prepared_references')
-        prepared = reader.json(reader.select(prepared_path)) if prepared_path else None
-        selection = draft(existing, c.decode(measured(external, 'file')), prepared=prepared,
-            package_root=c.local(root, prepared_path).parent if prepared_path else None, root=root)
     missing = unresolved(selection)
     if missing:
         raise ValueError('external input requires selected choices: ' + ', '.join(row['field'] for row in missing))
@@ -442,7 +451,7 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
             measured(external[field])
     with tempfile.TemporaryDirectory(prefix='external-reference-inputs-') as temporary:
         validation_root = root
-        files = {}
+        files = dict(derived_files)
         carriers = []
         canonical = selection['reference_delivery'] is not None
         transports = {}
@@ -460,8 +469,8 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
             output = c.local(validation_root, out_dir, exists=False)
             prepared = production_reference_inputs.build_external(selection['reference_delivery'],
                 root=root, output_dir=output, publication_dir=out_dir, reader=reader)
-            files = {path.relative_to(output).as_posix(): path.read_bytes()
-                     for path in output.rglob('*') if path.is_file()}
+            files.update({path.relative_to(output).as_posix(): path.read_bytes()
+                          for path in output.rglob('*') if path.is_file()})
             generated.update({(Path(out_dir) / name).as_posix(): raw for name, raw in files.items()})
             plan['references'] = prepared['references']
             plan['prepared_references'] = (Path(out_dir) / 'prepared-reference-set.json').as_posix()

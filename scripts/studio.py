@@ -139,13 +139,17 @@ def _entries(directory: Path) -> list[Path]:
     return [path for path in directory.iterdir() if path.name != execution_contract.LOCK_FILE]
 
 
-def init(out: Path, studio_id: str, title: str, *, default_render_profile: str = "profile-clear-2d-illustration",
+def init(out: Path, studio_id: str, title: str, *, default_render_profile: str | None = None,
          default_creative_latitude: str = "directed", default_interaction_mode: str = "balanced",
          default_style_family: str | None = None) -> Path:
     if not STUDIO_ID.fullmatch(studio_id):
         raise ValueError("studio id must be at least two characters of letters, digits, dot, underscore or dash")
     if not title.strip():
         raise ValueError("a studio needs a title")
+    if default_render_profile is not None and (
+        not isinstance(default_render_profile, str) or not default_render_profile.strip()
+    ):
+        raise ValueError("default render profile must be a nonempty profile id or null")
     out = out.resolve()
     if out.exists() and not out.is_dir():
         raise ValueError(f"{out} is a file, not a directory")
@@ -163,7 +167,7 @@ def init(out: Path, studio_id: str, title: str, *, default_render_profile: str =
         write_json(out / MANIFEST, {
             "studio_id": studio_id,
             "title": title.strip(),
-            # What a request that leaves medium, latitude, interaction or style open starts from.
+            # Authored rendering preferences and workflow defaults. Null leaves treatment open.
             "default_render_profile": default_render_profile,
             "default_creative_latitude": default_creative_latitude,
             "default_interaction_mode": default_interaction_mode,
@@ -1440,11 +1444,11 @@ def main(argv: list[str] | None = None) -> int:
     init_parser.add_argument("--out", type=Path, required=True)
     init_parser.add_argument("--studio-id", required=True)
     init_parser.add_argument("--title", required=True)
-    init_parser.add_argument("--default-render-profile", default="profile-clear-2d-illustration",
-                             help="the render profile a request with an open medium starts from")
+    init_parser.add_argument("--default-render-profile",
+                             help="a selected project render-profile preference (default: unselected)")
     init_parser.add_argument("--default-creative-latitude", default="directed")
     init_parser.add_argument("--default-interaction-mode", default="balanced")
-    init_parser.add_argument("--default-style-family", help="a style family every request starts from (default: none)")
+    init_parser.add_argument("--default-style-family", help="a selected project style-family preference (default: unselected)")
     commands.add_parser("status", help="the open task, and every character's slots and candidates", parents=[after])
     auth_parser = commands.add_parser("credentials", help="manage one saved API key or environment source per service", parents=[after])
     auth_commands = auth_parser.add_subparsers(dest="auth_command", required=True)

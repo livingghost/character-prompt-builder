@@ -13,7 +13,7 @@
       "block_order": [
         "quality, style, and rating",
         "figure count and any interaction between figures",
-        "the figure from head to toe",
+        "subject appearance needed for the selected depiction, ordered by region",
         "pose without the interaction",
         "camera and background",
         "lighting, depth, and finish"
@@ -77,6 +77,7 @@
       ],
       "notes": [
         "The block order is an authoring baseline. NoobAI caption order and exact checkpoint recommendations may place artist, quality and period terms differently; preserve the selected scene while applying that evidence.",
+        "Order relevant subject details from head toward feet where that sequence fits the subject. This ordering neither requires every region to be described nor selects which regions must be visible.",
         "Rating, quality and period controls are candidates with version-specific meaning. A dialect list does not require one token from every category.",
         "The lookup includes e621 for useful established terminology even when an Illustrious derivative has no documented e621 training data. Search evidence and observed model behavior answer different questions."
       ]
@@ -221,6 +222,13 @@
           "scope": "family",
           "observed_at": "2026-11-02",
           "statement": "Anime V3 and Furry V3 have different tag vocabularies. V4 and later document natural-language support and dataset modes."
+        },
+        {
+          "kind": "provider-documentation",
+          "source": "https://docs.novelai.net/en/image/tutorial-artstyles/",
+          "scope": "family",
+          "observed_at": "2026-11-09",
+          "statement": "The Anime artstyle guide documents tags for rendering effects and warns that quality or aesthetic tags can impose a competing style. Its examples do not certify arbitrary medium terms or every model version; apply the selected version's guidance and distinguish documented use from observed results."
         },
         {
           "kind": "author-direction",

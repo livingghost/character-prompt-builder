@@ -25,6 +25,8 @@ For every documented `python scripts/<name>.py ...` command, run `uv run --proje
 
 Saved work reads [Production direction](references/runtime/production-direction.md) and applicable runtime guidance through the [route reader](#artifact-bearing-production-gate). Convey actions, states, relationships and designs as meaningful wholes with their relevant detail. Specialist knowledge answers the construction question. Preserve exact requirements and purposeful detail. Judge chosen means against the commission, including when a renderer obeys them. A draft commands its renderer, not its reviewer; plans and criteria grant no authority. Construct the intended depiction, choose suitable means and complete the work. Omissions grant no permission or exclusion.
 
+Resolve open choices within the requested work through the [conception study](references/runtime/production-direction.md#form-a-prompt-from-an-idea). Character design can be the work itself. Assess actual alternatives; use selected-target evidence for model-dependent means. A portable proposal proves no model effect.
+
 Preserve anchors and applicable adopted definitions. Record changes and reasons at their owners; resolve open choices within delegated scope. Keep creator portrayal intent distinct from facts and psychology across outputs.
 
 Bind inputs, target and count to actual authorization. Distinguish direction, editing, submission, selection and canonical adoption. Continue within delegated scope without repeated approval.
@@ -42,13 +44,14 @@ Use the optional [competing-realization test](references/runtime/prompt-composit
 ## Rendering and model controls
 
 Image work selects feature `render-contract`: [Rendering and controls](references/runtime/render-contract.md).
-Choose medium, dimensionality, linework, shading, surface, and detail explicitly, with the user's selection or the agent's reason.
+Select the operation. Add a rendering declaration for authored rendering choices; other choices may remain with the model. Preserve actual selected constraints at their scopes.
 Keep presentation and subject identity separate. Use scoped overrides for mixed media; never invent body or age changes from a finish.
 Use complete selected-model `prompt_input`, use-case guidance and author preferences. Saved work receives these through its route; unlisted targets use acquired provider evidence.
-Bind the authored rendering span in `render_intent`. Use the selected Production Specification when it owns that intent; an ordinary editable delivery can own the span directly.
+An authored rendering declaration binds its prompt span in `render_intent`. Use the selected Production Specification when it owns that intent; an ordinary editable delivery can own the span directly.
 A Generation Package uses `generation-package` (automatic for dispatcher), with its exact interface profile and mode-valid controls. Record unlisted targets under [Image Generation](references/runtime/image-generation.md#choose-execution). `image_input` binds references and exact external requests; edits add [Semantic instruction editing](references/runtime/semantic-instruction-edit.md). [Model evidence](references/runtime/model-evidence.md) owns schemas, trials, profiles, suitability and failure diagnosis.
 Put execution values in declared controls, not prompt prose. Image shape and framing remain depiction choices. Resolve required scalar recommendations with provenance; choose within ranges. Display unavailable controls without sending them.
 Display the rendering choice and complete verified request before submission. Use its named provider; never substitute engines.
+For model or service changes, follow [Retarget](references/runtime/production-variation.md#change-the-target-explicitly), starting from the source run.
 
 ## Knowledge use and retrieval records
 
@@ -115,7 +118,7 @@ Select specialist knowledge for a consequential construction question: `geometry
 
 Saved deliverables, sheets and recorded generation use [Studio Runtime](references/runtime/studio.md). Conversation-only answers need no Studio. If `python scripts/session_entry_points.py` reports none, run `studio.py init` before authoring.
 
-For dispatcher API keys, follow [Studio authentication](references/runtime/studio-authentication.md). Each service has one entry in the Studio's private `credentials.json`: `api_key` holds its saved value, or `api_key_env` names its runtime environment variable. Follow the existing source and the owner's choice. Use `studio.py credentials prepare SERVICE` for saved entry, or add `--environment NAME` for the chosen variable. Complete setup before giving the owner the returned path and JSON field; pause updates while the owner fills the value and saves. Check that service and the target run's authentication selection and readiness, then continue its next action. Ask about the method only when existing direction leaves it open. Local key availability and submission authority are separate requirements.
+For dispatcher API keys, read and follow [Studio authentication](references/runtime/studio-authentication.md) for source choice, preparation, owner input, readiness and recovery. Key availability and submission authority are separate.
 
 Use managed attempts in [Sheet fills](references/runtime/sheet-fill-workflow.md). Apply HTML edits with `sheet_workflow.py apply-edit`. Record answers with `work_ledger.py respond`, reopen the indicated step, and suspend/resume when switching tasks. `studio.py status` or `sync` reconstructs views without repeating generation.
 

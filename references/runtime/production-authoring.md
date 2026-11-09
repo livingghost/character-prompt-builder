@@ -24,7 +24,7 @@ The action retains the selected environment's Python, the installed script, the 
 
 The reader delivers the complete bodies for the selected operation, execution, route and specialist features, including their applicable prerequisites and recovery rules. Authored text receives its save, delivery and review contract. An external request receives the native request and host-call contract; dispatcher work receives its package, authentication and transport contract. Their prerequisites, constraints, exceptions and recovery instructions arrive through this same reading; following their links is not a substitute for delivery. It preserves all source bytes across pages and issues neither a reading key nor a reading record until every source range has been delivered. The final source check still verifies the snapshot's document, resource and selected-model hashes. If the source edition changed during reading, begin a new route reading from that edition.
 
-An acquired model definition outside the catalog uses `--model-file FILE` in place of `--model`. A relative file is resolved within the Studio. The reader delivers the same complete model and writing guidance, binds its exact edition, and retains its source for page continuation and fresh-context reading. This source matches `authored.target.model_file` when saving a target-specific prompt.
+An acquired model definition outside the catalog uses `--model-file FILE` in place of `--model`. A relative file is resolved within the Studio. The reader delivers the same complete model and writing guidance, binds its exact edition, and retains its source for page continuation and fresh-context reading. This source matches `choices.target.model_file` when saving a target-specific prompt; the input owner derives the compiled task's target from that selection.
 
 ## Use the delivered knowledge
 
@@ -50,7 +50,7 @@ For a new agent or lost context, read the complete contract for the current work
 again using the status action. A prior delivery record alone supplies no knowledge.
 
 - `inspect-inputs` gathers the current task, authored content, source roles, recorded candidates and unresolved choices.
-- `draft-inputs` creates `choices.json` as the editing source and a separate `context.json` for provenance and the selected starting point. `choices.authoring` holds meaningful task decisions, selectors for editable delivery and selected documents, and reference-use choices. The original files own their content; the context file owns derived provenance.
+- `draft-inputs` creates `choices.json` as the editing source and a separate `context.json` for provenance and the selected starting point. `choices.target` owns the model and service selection. `choices.authoring` holds meaningful task decisions, selectors for editable delivery and selected documents, and reference-use choices. The original files own their content; the context file owns derived provenance.
 - `save --choices FILE` saves an authored revision; `prepare --choices FILE` compiles the current editable sources and prepares a model request. Both use the same input owners. `build-inputs` exports the derived files when a separate input package is wanted; it is not a required step before saving or preparation.
 
 Start a new authored text task without first constructing a production-task file:
@@ -67,20 +67,24 @@ new image work additionally needs its target, rendering and input evidence.
 Unresolved choices stay explicit. `save --draft` preserves them with unfinished text. A completed target-specific prompt and an executable request apply their required input and vocabulary contracts; a saved draft does not certify either.
 
 To edit existing work, draft with `--task FILE` or `--from-run RUN` instead of
-the new-task selectors. Edit the same source files, then save or prepare that draft.
+the new-task selectors. Add `--model MODEL_ID` and `--service SERVICE_ID` when
+selecting another target for that draft. Edit the same source files, then save
+or prepare that draft.
 The saved context identifies its source, so the build can continue from the
 choices file without reconstructing the source command or choosing a new generated output path. Preserve the context
 beside its choices. Inspect the emitted request before preparing or sending it.
 
 | Authored area | Edit here | Builder responsibility |
 | --- | --- | --- |
+| `target` | One selected catalog model and service, acquired model file, or evidenced external interface | Acquire that target and derive its model identity, offering, specification bindings and reference transport inputs |
 | `authoring.task` | Direction, criteria, declared source use and applicable task choices | Bind materialized inputs into the task |
 | `authoring.delivery.file` | Directly editable text, or a JSON document with an optional `field` key/index array; translation notes only for an actual translation | Read the exact selected content and bind its delivered bytes |
 | `authoring.documents` | Selected settings and any required specialist material, inline or `{ "file": "path", "field": ["key"] }` | Read their owning files, materialize derived content and bind task references |
 | `authoring.sources` | Declared text or JSON source content by source ID | Preserve source roles and locators, write the selected body and update its path |
-| `authoring.generation` | Selected service, count, seed, continuity and applicable generation choices | Carry these choices into the declared generation input |
+| `authoring.generation` | Count, seed, continuity and applicable generation choices | Combine these choices with the selected target in the declared generation input |
 | `authoring.references` | Ordered source selection, uses, exclusions, subject scope and transport choice | Rebuild the prepared set, attachment order, board placement and content hashes |
-| `authoring.upscale` | Selected source, model, scale, settings, guidance and applicable evidence | Build the upscale declaration and reuse its valid evidence |
+| `authoring.upscale` | Selected source, scale, settings, guidance and applicable evidence | Build the upscale declaration for the selected target and reuse its valid evidence |
+| `validation` | The request-validation mode, selected contract or evidence, and execution policy | Resolve that evidence against the same acquired target and derive its exact binding |
 
 These are separate meanings within one editable source. Criteria remain based
 on the commission. A selected plot or other adopted specialist artifact retains its own approval and version; work that does not use it needs no empty substitute. A prompt
@@ -88,6 +92,58 @@ wording edit does not by itself require rewriting the plot or criteria.
 The builder does not infer new approval, source authority or semantic agreement
 from successful file assembly. Existing grants remain subject to their actual
 scope; a new run does not inherit an exact execution authorization or claim.
+
+### Select and change the target
+
+Edit `choices.target` once. A catalog selection has `kind: "catalog"`, the
+canonical `model` ID and selected `service`; an external host using that model
+also declares the evidenced wire `operation`. A target-specific authored prompt
+can select `kind: "acquired"` with `model_file` for a supplied model definition.
+An unlisted image interface uses `kind: "external"`: its `model` contains the
+requested identity, `target.service`, `target.model_identifier`,
+`target.operation`, input contract and acquired evidence. Its optional
+`reference_model` selects the catalog model needed to prepare canonical
+references for that interface. Portable authored text can leave `target` null.
+For target-specific authored text, keep its execution mode, native parameters,
+syntax and vocabulary record with that same target selection.
+
+The input owner projects that selection into compiled generation and upscale
+inputs, the selected Production Specification and model-facing reference
+bindings. Keep model and service selection at `choices.target`; the builder
+writes their other representations. `choices.validation` selects the policy
+and evidence for the request, without a second editable model or offering.
+The complete public artifacts retain the derived target declarations needed
+to interpret them independently.
+
+For example, reopen a saved request with another selected catalog target:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --model MODEL_ID --service SERVICE_ID --out-dir work/next-target
+```
+
+The draft retains the saved content, source definitions, references and authored
+choices. Read the selected target's complete current guidance and assess how
+the existing expression, controls and reference uses apply to it. Reuse a
+completed reading whose source editions, operation and model scope cover the
+new selection. Reuse evidence where its declared applicability still holds.
+A different target alone does not justify erasing valid content, resetting
+choices or discarding those records. Change the affected choices and let their
+owners rebuild the deterministic consequences. Missing evidence or unresolved
+judgment remains explicit at the field that needs it.
+
+To prepare a target or runtime change with lineage to the earlier dispatcher or external image
+run, use the edited choices directly:
+
+```bash
+python scripts/production_workflow.py retarget --root STUDIO --from RUN --choices work/next-target/choices.json --reason "Apply the selected target to the retained depiction." --prepare
+```
+
+Without `--prepare`, `retarget` checks the input without publishing a run.
+The parent supplies lineage; its saved input and results remain intact.
+The new request uses current applicable source evidence, guidance and controls.
+It receives no submission claim or exact-request authorization from its parent.
+Existing grants still apply according to their actual scope. Follow
+[Input variations](production-variation.md) for the complete retarget contract.
 
 [Model request evidence](model-evidence.md#the-request-validation-record) states when a task needs an authored request validation record.
 An incomplete selection returns named unresolved fields and leaves the source
@@ -145,6 +201,26 @@ preparation and execution still evaluate their actual current inputs and authori
 do not replace its inputs, reading receipts, run records or author decisions.
 Inspection reads the existing files without regenerating them or loading a
 catalog merely to discover a saved path.
+
+When a draft cannot establish its source boundary, use the reported cause and
+the complete `next_action.argv` or `next_actions` entry. Each action retains the
+active Python environment, installed script, Studio and available source
+selection. The same structured diagnostic appears in compilation and current
+authoring state; it identifies the owning file and necessary correction.
+
+| Reported cause | Continue from its owner |
+| --- | --- |
+| `AUTHORING_DRAFT_UNREGISTERED` | Inspect the task's registered inputs and continue the source draft. A copied context cannot establish a new registration by itself. |
+| `AUTHORING_DRAFT_REGISTRATION_INVALID` | Inspect and repair the registration that identifies the task and draft location. |
+| `AUTHORING_CONTEXT_MISSING` or `AUTHORING_CONTEXT_MISMATCH` | Draft from the registered source using the returned unused output location. Existing editable content remains available for continuation. |
+| `IDENTITY_SOURCE_CHANGED` | Inspect the current identity source and reassess its application and criteria. A live task can supply a new draft; a saved run exposes its retained evidence for explicit source selection. |
+| `IDENTITY_SOURCE_UNAVAILABLE` | Inspect the named source and restore or explicitly replace it before drafting its application. |
+
+These diagnostics distinguish provenance and file-state failures from creative
+judgment. Restoring a registration, context or source supplies no new identity
+adoption or approval. Keep valid content and evidence, and update the choices
+whose source or applicability changed. [Production diagnostics](production-diagnostics.md)
+owns the diagnostic and exit-status contract.
 
 The report compares the saved build's source and choices with the editable
 content. A later edit remains pending even when its earlier build has already

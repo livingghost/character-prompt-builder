@@ -60,9 +60,9 @@ Use the `reading_key` issued after the complete route, operation and specialist 
 | `delivery` | Exact text through `{file, field?}` or inline `content`; `translation_notes` only for a translation |
 | `documents` | Only selected specialist bodies; editable text can use `{file, field?}` selectors |
 | `sources` | Text or JSON source bodies keyed by their declared source ID, with `content` and `format` |
-| `generation` | Service, count, seed, continuity decisions and other declared generation choices |
+| `generation` | Count, seed, continuity, rendering and other declared generation choices |
 | `references` | Ordered reference choices, source authority, uses and transport choice |
-| `upscale` | The selected source, model, scale, settings, guidance, rendering and request evidence, or null |
+| `upscale` | The selected source, scale, settings, guidance and rendering, or null |
 
 Changing a declared source's body preserves its ID, role and locator while the
 builder creates the new file and updates its task reference. The original file
@@ -75,43 +75,61 @@ The agent still decides intended influence, prohibited transfer, subject scope,
 the depiction and its independent criteria. A plot change must carry its actual
 approval; unchanged plot content can retain its earlier approval.
 
-`visual` and `validation` stay null when their necessary evidence is already
-provided by the selected authored inputs or the ordinary model contract.
-An upscale draft retains its existing valid request validation. Choosing new
-evidence uses these fields; a new build does not require inventing another
-validation record merely because the draft was reopened.
+### Target selection
+
+`choices.target` owns the actual model selection for both new and reopened work.
+A catalog selection uses the canonical model ID and selected offering service:
+
+```json
+{"kind": "catalog", "model": "cpb-synthetic-image", "service": "synthetic"}
+```
+
+An acquired authored model uses `kind: "acquired"`, `model_file` and `service`.
+An unregistered external interface uses `kind: "external"` and its exact model
+identity, source evidence and prompt-input contract in `model`. Select null for
+portable authored text. Compilers derive specification targets, reference model
+bindings and provider identifiers from this selection. Keep the prompt, controls,
+source scope, criteria and artistic decisions in their existing authored owners.
+
+`target_knowledge` in the draft or build report shows the complete selected model
+record, model cards, offering and parameter schema. It supplies no reading key or
+artistic approval. Optional `target.assessment` holds explicit `use_cases`, `mode`
+and `reference_count` conditions for an assessment of the declared guidance.
 
 ### Validation choices
 
-Each validation choice contains the following seven fields. This synthetic
-example selects an observed schema from an active fixture pack:
+`visual` and `validation` can stay null when the ordinary preparation contract
+provides the necessary evidence. When explicit validation is selected, its four
+fields contain authored policy and evidence selectors. An upscale draft retains
+those selections from its saved request. The result is rebuilt for the selected
+target; applicable evidence remains usable and can produce the same result.
+
+For the current offering's observed parameter schema, select:
 
 ```json
-{"mode": "target-schema", "model": "cpb-synthetic-image",
- "target": {"service": "synthetic", "model_identifier": "synthetic:robot", "operation": "generate"},
- "service_profiles": null,
+{"mode": "target-schema", "contract": null, "evidence": null,
+ "execution_policy": null}
+```
+
+The builder resolves the exact schema from the selected model's active owner
+and offering. No repeated model, service, operation or hand-entered hash belongs
+in `choices.validation`. An explicitly chosen schema remains expressible:
+
+```json
+{"mode": "target-schema",
  "contract": "@pack/019a0290-1234-789a-8123-0123456789ab/resources/model-schemas/example-editor.json",
  "evidence": "@pack/019a0290-1234-789a-8123-0123456789ab/resources/model-schemas/example-editor.json",
  "execution_policy": null}
 ```
 
-Place this object in `choices.validation`. `contract` and `evidence` are string
-selectors; the builder measures their hashes and writes the final `{path, sha256}`
-references. A Studio file uses a path relative to `--root`, such as
-`"inputs/schema/contract.json"`. An active pack file uses the named selector
-`@pack/<pack-id>/<pack-relative-path>`.
-
-Derive the observed-schema selector from the current catalog:
-
-1. Run `python scripts/catalog_cli.py inspect MODEL_ID` with the selected pack runtime.
-2. Read the result's `source_pack` and select the exact service offering in `record.offerings`.
-3. Join `@pack/`, that `source_pack`, `/`, and the offering's `schema_snapshot`.
-4. Use that identical string as both `contract` and `evidence`.
-
-The pack ID is the model record's active owner; its display name or absolute
-installation path is not a selector. The runtime resolves only active named
-roots and preserves their path boundaries. Keep the same pack runtime arguments
-for reading, input construction and generation.
+`contract` and `evidence` are string selectors; the builder measures their hashes
+and writes the final `{path, sha256}` references. A Studio file is relative to
+`--root`, such as `"inputs/schema/contract.json"`. An active pack file uses
+`@pack/<pack-id>/<pack-relative-path>`. Its exact owner and offering are visible
+through `catalog_cli.py inspect MODEL_ID`: `source_pack` supplies the pack UUID
+and `record.offerings` supplies the selected offering's `schema_snapshot`.
+The pack's display name and absolute installation path are not selectors. Use
+the same selected pack runtime for reading, input construction and generation.
 
 An `observed-parameter-schema` envelope is its own pack evidence. Copying it
 into a Studio does not establish pack provenance. For a newly acquired raw
@@ -121,14 +139,13 @@ The raw schema alone does not provide either evidence contract. Follow
 [Model request evidence](../../references/runtime/model-evidence.md#import-a-schema-and-publish-it)
 for acquisition and contract construction.
 
-`target` uses the canonical model's exact service, model identifier and wire
-operation. A null `service_profiles` selects the active service resource; a
-string selects a service-profiles file. `execution_policy` is a string selector
-for the authored policy when reference delivery requires one. It may
-be null when unused. The policy keeps the same exact target and declares how
-reference instructions reach the model.
-See [Execution policy for reference delivery](../../references/runtime/model-evidence.md#execution-policy-for-reference-delivery)
-for the complete policy and reference render contract shapes and saved public examples.
+`execution_policy` selects the authored policy when reference delivery requires
+one. It may be null when unused. The policy retains its exact service, model
+identifier, wire operation, dialect and reference instruction contract. A target
+change keeps that policy selection and verifies its applicability; the compiler
+reports a mismatch with the source and required action, without relabeling the
+old evidence. See [Execution policy for reference delivery](../../references/runtime/model-evidence.md#execution-policy-for-reference-delivery)
+for the complete policy and reference render contract shapes and saved examples.
 
 ### Visual choices
 
@@ -158,6 +175,22 @@ python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN 
 python scripts/production_workflow.py build-inputs --root STUDIO --choices work/send-draft/choices.json --out-dir work/send-inputs
 ```
 
+To select another model while retaining the saved authored work:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --model MODEL_ID --service SERVICE_ID --out-dir work/target-draft
+python scripts/production_workflow.py retarget --root STUDIO --from RUN --choices work/target-draft/choices.json --reason "The selected target suits the current work." --prepare
+```
+
+Between the two calls, apply the selected guidance and settle any reported input
+conditions. The changed target is the single selection; the compiler derives its
+repeated identifiers and exact request. Reusable prompt content, source scopes,
+criteria, decisions and applicable reading or evidence are retained. New target
+conditions do not certify that existing controls, grammar or references apply.
+`retarget` records the source request as lineage for dispatcher or external image
+work. It leaves existing grants at their declared scope and requires the exact
+new request to pass its normal execution boundary.
+
 A fresh operator reads the complete applicable instructions. The saved key supplies source-delivery evidence. Change `reading` when the current operation, feature or target needs another completed reading. Use `--task-id` to reopen the source run under another active work task.
 
 Ordinary edits use the restored `authoring` content. `task_changes` is an
@@ -180,18 +213,18 @@ is also accepted:
 ```
 
 This is the external/task portion of `choices.json`; retain its authoring,
-reading, visual and validation choices. The plan follows the ordinary
+target, reading, visual and validation choices. The plan follows the ordinary
 image-input contract. Drafting an existing external task restores the editable
 plan and native request directly:
 
 ```json
-{"external": {"image_input": {}, "request": {}, "media_slots": [], "reference_delivery": null, "source_files": {}}}
+{"external": {"image_input": {}, "request": {}, "media_slots": [], "reference_delivery": null, "source_files": {}, "source_uploads": []}}
 ```
 
 This excerpt shows only the container shape, not a complete input. The actual
 draft supplies the selected plan, request object or array, and recorded media
 slots. Edit independent native controls in `request`; the common delivery
-owns prompt text, the model plan owns target identity, and
+owns prompt text, `choices.target` owns target identity, and
 `image_input.external_request.count` owns the expected count. Their repeated
 request fields are generated values.
 
@@ -207,7 +240,9 @@ or permission are invented.
 
 For a plan bound to canonical prepared references, the draft instead puts
 source selection and authority in `external.reference_delivery.choices` and
-retains the preparation target beside those choices as `target_model`.
+derives its preparation target from the catalog selection. An unregistered
+external target can select its independent canonical preparation model through
+`target.reference_model`; that profile does not replace the actual external identity.
 Its `image_input.references` rows contain the matching IDs and actual transport
 evidence. Edit the canonical selection once; the builder derives the full
 image-input references, attachments and boards from it.

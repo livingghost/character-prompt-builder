@@ -18,8 +18,14 @@ import production_inputs_smoke_test as fixtures
 
 
 class CommonAuthoringTests(unittest.TestCase):
-    setUp = fixtures.InputToolsTests.setUp
     save_choices = fixtures.InputToolsTests.save_choices
+
+    def setUp(self):
+        fixtures.InputToolsTests.setUp(self)
+        import work_ledger
+        self.work = work_ledger.begin(self.root, 'Synthetic editable authoring.', ['Compose'])
+        self.task['task_id'] = self.work['task_id']
+        (self.root / 'task.json').write_bytes(c.encoded(self.task))
 
     def editable(self, directory='draft'):
         result = inputs.draft_inputs(self.root, 'task.json', directory)
@@ -63,11 +69,9 @@ class CommonAuthoringTests(unittest.TestCase):
                          {key: value for key, value in self.task['sources'][0].items() if key != 'path'})
 
     def test_initial_creation_uses_open_work_identity_and_same_choices_build(self):
-        import work_ledger
-        opened = work_ledger.begin(self.root, 'Synthetic initial authoring.', ['Compose'])
         result = inputs.draft_inputs(self.root, None, 'initial', route='development')
         choices = c.load(self.root / result['choices_file'])
-        self.assertEqual(choices['authoring']['task']['task_id'], opened['task_id'])
+        self.assertEqual(choices['authoring']['task']['task_id'], self.work['task_id'])
         delivery = self.root / choices['authoring']['delivery']['file']
         self.assertEqual(delivery.read_text(encoding='utf-8'), '')
         choices['reading'] = copy.deepcopy(self.choices['reading'])
@@ -78,7 +82,7 @@ class CommonAuthoringTests(unittest.TestCase):
         built = inputs.build_inputs(self.root, None, result['choices_file'], 'initial-built')
         self.assertTrue(built['ok'])
         task = c.load(self.root / built['inputs']['production-task']['path'])
-        self.assertEqual(task['task_id'], opened['task_id'])
+        self.assertEqual(task['task_id'], self.work['task_id'])
         self.assertIsNone(task['authority'])
         self.assertEqual((self.root / task['delivery']['path']).read_text(encoding='utf-8'), 'First authored text.')
         self.assertEqual([row['operation'] for row in built['next_actions']], ['prepare'])
@@ -87,12 +91,16 @@ class CommonAuthoringTests(unittest.TestCase):
         result, choices = self.editable()
         choices['authoring']['task']['task_id'] = 'different-task'
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
-        with self.assertRaisesRegex(ValueError, 'preserves.*task_id'):
-            inputs.build_inputs(self.root, None, result['choices_file'], 'built')
+        built = inputs.build_inputs(self.root, None, result['choices_file'], 'built')
+        self.assertFalse(built['ok'])
+        self.assertEqual(built['diagnostics'][0]['code'], 'AUTHORING_DRAFT_UNREGISTERED')
+        self.assertEqual(c.load(self.root / result['context_file'])['task_content']['task_id'], self.work['task_id'])
         self.assertFalse((self.root / 'built').exists())
         (self.root / 'orphan.json').write_bytes(c.encoded(choices))
-        with self.assertRaises((ValueError, FileNotFoundError)):
-            inputs.build_inputs(self.root, None, 'orphan.json', 'orphan-built')
+        orphan = inputs.build_inputs(self.root, None, 'orphan.json', 'orphan-built')
+        self.assertFalse(orphan['ok'])
+        self.assertEqual(orphan['diagnostics'][0]['code'], 'AUTHORING_DRAFT_UNREGISTERED')
+        self.assertFalse((self.root / 'orphan-built').exists())
 
     def test_source_task_change_is_detected_when_source_flags_are_omitted(self):
         result, choices = self.editable()
@@ -305,7 +313,6 @@ class DispatcherAuthoringTests(unittest.TestCase):
     def test_image_input_follows_reference_edits_from_task_and_saved_run(self):
         from unittest.mock import patch
         from PIL import Image
-        from model_prompt_input_fixtures import prompt_input
         import production_case_fixtures as cases
         import production_workflow as workflow
         import transport_synthetic
@@ -316,17 +323,12 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.enterContext(patch('urllib.request.OpenerDirector.open',
             side_effect=AssertionError('prepare must not fetch URLs')))
         Image.new('RGB', (16, 16), 'blue').save(self.root / 'palette.png')
-        evidence = (self.case['pack'] / 'records/models.json').read_bytes()
-        (self.root / 'model.json').write_bytes(evidence)
         draft = inputs.draft_inputs(self.root, 'task.json', 'image-draft')
         choices = c.load(self.root / draft['choices_file'])
+        self.assertEqual(choices['target'], {'kind': 'catalog', 'model': cases.MODEL_ID, 'service': 'synthetic'})
         zero_reason = copy.deepcopy(choices['authoring']['references']['zero_reference_reason'])
         choices['authoring']['references']['image_input'] = {
-            'artifact_type': 'image-input-plan', 'model': {
-                'requested': cases.MODEL_ID, 'catalog_status': 'defined', 'catalog_model': cases.MODEL_ID,
-                'prompt_input': prompt_input('descriptive'),
-                'target': {'service': 'synthetic', 'model_identifier': 'synthetic:robot', 'operation': 'generate'},
-                'evidence': {'path': 'model.json', 'sha256': c.digest(evidence), 'locator': 'whole synthetic model record'}},
+            'artifact_type': 'image-input-plan',
             'references': [{'id': 'palette', 'role': 'palette', 'file': 'palette.png',
                 'use_for': ['selected color palette'], 'do_not_transfer': ['subject identity', 'pose']}],
             'external_request': None}
@@ -338,6 +340,8 @@ class DispatcherAuthoringTests(unittest.TestCase):
         original_task = c.load(self.root / original_task_path)
         self.assertEqual(original_task['image_input'], 'image-built/image-input.json')
         original_plan = (self.root / original_task['image_input']).read_bytes()
+        self.assertEqual(c.decode(original_plan)['model']['target'],
+                         {'service': 'synthetic', 'model_identifier': 'synthetic:robot', 'operation': 'generate'})
         first_run = workflow.prepare(self.root, original_task_path)
         self.assertTrue(first_run['ok'], first_run)
         for origin in ('task', 'run'):
@@ -416,11 +420,15 @@ class DispatcherAuthoringTests(unittest.TestCase):
         import production_case_fixtures as cases
         import production_binding
         source = cases.upscale_task(self.root)
+        original_task = c.load(self.root / source)
+        previous = c.load(self.root / original_task['delivery']['path'])['request_validation']
         result = inputs.draft_inputs(self.root, source, 'upscale/draft')
         self.assertEqual(result['unresolved'], [])
         choices = c.load(self.root / result['choices_file'])
-        self.assertIsNone(choices['validation'])
-        previous = copy.deepcopy(choices['authoring']['upscale']['request_validation'])
+        self.assertEqual(choices['target'], {'kind': 'catalog', 'model': cases.UPSCALE_MODEL_ID, 'service': 'synthetic'})
+        self.assertEqual(choices['validation'], {'mode': previous['mode'],
+            **{key: previous[key]['path'] if previous[key] is not None else None
+               for key in ('contract', 'evidence', 'execution_policy')}})
         choices['authoring']['upscale']['scale_factor'] = 4
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
         built = inputs.build_inputs(self.root, None, result['choices_file'], 'upscale/built')

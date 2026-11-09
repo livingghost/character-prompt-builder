@@ -24,6 +24,7 @@ ALTERNATE_MODEL_ID='cpb-synthetic-alternate'
 UPSCALE_MODEL_ID='cpb-synthetic-upscale'
 ALTERNATE_UPSCALE_MODEL_ID='cpb-synthetic-upscale-alternate'
 PROMPT='A flat graphic portrait of a simple synthetic robot standing against a plain background.'
+REFERENCE_RETRY_PROMPT='A blue robot carrying a small yellow toolbox.'
 
 
 def write(path:Path,value)->None:
@@ -163,6 +164,97 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
     reading=fixture_reading(route='generation',studio=root,ledger=root/'work/reads.jsonl',model=MODEL_ID,service='synthetic', execution='dispatcher')
     write(root/'reading.json',reading);task['route_reading']='reading.json';write(root/'task.json',task)
     return {'root':root,'task':task,'settings':settings,'pack':pack,'model':MODEL_ID}
+
+
+def reference_retarget_case(case: dict) -> dict:
+    """Prepare a synthetic reference parent and author a different target's retry.
+
+    The first interface accepts reference-guided requests; the second accepts
+    instruction edits. Each owns its parameter schema and reference policy.
+    These are explicit fixture-author selections, not inferred provider advice.
+    """
+    import production_inputs
+    import production_workflow
+    from catalog_retrieval import runtime
+    from reading_fixtures import fixture_reading
+    from request_validation_fixtures import fixture_validation
+    from transport_synthetic import _png
+
+    root = case['root']
+    models = c.load(case['pack'] / 'records/models.json')
+    modes = {MODEL_ID: 'reference-guided', ALTERNATE_MODEL_ID: 'instruction-edit'}
+    targets = [model for model in models['records'] if model['id'] in modes]
+    if len(targets) != 2:
+        raise ValueError('The synthetic reference retry requires both example targets.')
+    for model in targets:
+        mode = modes[model['id']]
+        if model['id'] == ALTERNATE_MODEL_ID:
+            model['operation_kind'] = 'instruction-edit'
+        offering = model['offerings'][0]
+        for declared in (model['execution_profile'], offering['execution_profile']):
+            declared['modes'] = {mode: declared['modes'][mode]}
+            if model['id'] == ALTERNATE_MODEL_ID:
+                declared['modes'][mode]['controls']['seed'].update(status='optional',
+                    schema={'type': 'integer', 'minimum': 0, 'maximum': 100})
+        schema = {'type': 'object', 'properties': {'width': {'const': 32}, 'height': {'const': 32}}}
+        if model['id'] == ALTERNATE_MODEL_ID:
+            # A deliberately unmeasured media rule exercises fresh evidence
+            # derivation. The fixture claims no live reference-size check.
+            schema['x-constraints'] = [{'parameters': ['inputs.references'],
+                'constraint': 'reference-bytes', 'maximum': 4096}]
+        offering['schema_snapshot'] = 'resources/' + model['id'] + '-parameters.json'
+        write(case['pack'] / offering['schema_snapshot'], {
+            'artifact_type': 'observed-parameter-schema', 'model_id': model['id'],
+            'service': offering['service'], 'model_identifier': offering['model_identifier'],
+            'observed_at': offering['observed_at'],
+            'source': 'Synthetic target-specific reference retry fixture.', 'schema': schema})
+    write(case['pack'] / 'records/models.json', models)
+    packs.write_lock(case['pack'])
+    runtime.configure_pack_runtime(case['settings'])
+    policies = {model['id']: fixture_validation(root, model['id'], service='synthetic',
+        reference_mode='authored-rendition')['execution_policy']['path'] for model in targets}
+
+    task = c.load(root / 'task.json')
+    for field in ('plot', 'retrieval_record', 'creative_intent', 'request_validation'):
+        task['generation'].pop(field)
+    task['direction']['decisions'] = []
+    specification = c.load(root / 'spec.json')
+    specification['render_intent'] = {'artifact_type': 'render-intent', 'execution_mode': 'reference-guided'}
+    write(root / 'spec.json', specification)
+    write(root / 'prompt.txt', REFERENCE_RETRY_PROMPT)
+    write(root / 'reading.json', fixture_reading(route='generation', studio=root, ledger=root / 'work/reads.jsonl',
+        model=MODEL_ID, service='synthetic', execution='dispatcher'))
+    write(root / 'task.json', task)
+    c.atomic(root / 'reference.png', _png(32, 32, b'\x20\x50\x90'))
+    authored = production_inputs.draft_inputs(root, 'task.json', 'reference-parent')
+    choices = authored['choices']
+    choices['validation'] = {'mode': 'target-schema', 'contract': None, 'evidence': None,
+        'execution_policy': policies[MODEL_ID]}
+    choices['authoring']['references']['additional_references'] = [{'role': 'identity',
+        'source': {'kind': 'supplied-file', 'reference_id': 'character-source', 'resolved_path': 'reference.png'},
+        'subject_uses': [{'subject_id': 'robot', 'use': 'identity', 'priority': 1}]}]
+    choices['authoring']['task']['criteria'].append({'id': 'continuity', 'strength': 'hard', 'evidence': 'image',
+        'text': 'Compare the complete original identity reference and preserve its robot identity.',
+        'identity_review': ['robot'], 'identity_bindings': [{'source': 'reference:character-source',
+            'subject_ids': ['robot'], 'selectors': [''], 'treatment': 'preserve',
+            'reason': 'Both synthetic trials retain the same original identity source.', 'variation': None,
+            'carriers': [{'kind': 'reference', 'reference': 'character-source', 'use': 'identity'}]}]})
+    write(root / authored['choices_file'], choices)
+    parent = production_workflow.prepare(root, choices=authored['choices_file'])
+
+    draft = production_inputs.draft_inputs(root, None, 'reference-retarget', from_run=parent['run'],
+        model=ALTERNATE_MODEL_ID, service='synthetic')
+    choices = draft['choices']
+    inherited = copy.deepcopy(choices)
+    reading = fixture_reading(route='generation', studio=root, ledger=root / 'work/reads.jsonl',
+        model=ALTERNATE_MODEL_ID, service='synthetic', execution='dispatcher')
+    choices['reading']['reading_key'] = reading['reading_key']
+    choices['validation']['execution_policy'] = policies[ALTERNATE_MODEL_ID]
+    choices['authoring']['documents']['production_spec']['render_intent']['execution_mode'] = 'instruction-edit'
+    choices['authoring']['documents']['parameters']['steps'] = 22
+    write(root / draft['choices_file'], choices)
+    return {'parent': parent, 'parent_choices_file': authored['choices_file'],
+        'choices_file': draft['choices_file'], 'inherited_choices': inherited}
 
 
 def copy_studio(origin:Path,target:Path)->Path:

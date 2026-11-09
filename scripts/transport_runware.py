@@ -33,7 +33,7 @@ from transport_contract import TIMEOUT, Indeterminate, Refused, post
 
 SERVICE = "runware"
 API_HOST = "api.runware.ai"
-OPERATIONS = {"generation": "imageInference", "upscale": "imageUpscale"}
+OPERATIONS = {"generation": "imageInference", "instruction-edit": "imageInference", "upscale": "imageUpscale"}
 RESULT_HOSTS = frozenset({"im.runware.ai"})
 UPLOAD_SOURCE = "url"
 STORAGE_HOSTS = frozenset({"mm.runware.ai"})

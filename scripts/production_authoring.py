@@ -15,7 +15,7 @@ import execution_contract as c
 DOCUMENTS = frozenset({'parameters', 'production_spec', 'plot', 'retrieval_record',
     'creative_intent', 'negative', 'integrated_prompt', 'native_negative',
     'negative_provenance', 'state_lineage', 'state_snapshot', 'state_graphs',
-    'visual_continuity', 'request_validation', 'mask_binding'})
+    'visual_continuity', 'mask_binding'})
 TEXT_DOCUMENTS = frozenset({'negative', 'integrated_prompt', 'native_negative'})
 TEXT_SOURCE_SUFFIXES = frozenset({'.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.tsv'})
 GENERATED_TASK_FIELDS = frozenset({'delivery', 'generation', 'route_reading', 'image_input', 'authored_basis'})
@@ -99,7 +99,7 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
         value = c.decode(content.encode('utf-8'))
         if value.get('artifact_type') == 'upscale-request':
             upscale = {key: copy.deepcopy(value[key]) for key in
-                       ('model', 'scale_factor', 'settings', 'guidance_prompt', 'render_intent', 'request_validation')}
+                       ('model', 'scale_factor', 'settings', 'guidance_prompt', 'render_intent')}
             upscale['source'] = value['source']['path']
             content = None
     references = None
@@ -110,7 +110,7 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
         package_root = c.local(root, path, exists=False).parent if path else root
         references = production_reference_inputs.draft(prepared, package_root=package_root, root=root)
     sources = {}
-    owned_paths = {task['delivery']['path'], *(generation.get(key) for key in DOCUMENTS), generation.get('references')}
+    owned_paths = {task['delivery']['path'], *(generation.get(key) for key in DOCUMENTS), generation.get('references'), generation.get('request_validation')}
     if not initial:
         for source in task.get('sources', []):
             path = source['path']
@@ -131,12 +131,13 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
         'delivery': {'content': content, 'translation_notes': task['delivery']['translation_notes']},
         'documents': documents,
         'generation': {key: copy.deepcopy(value) for key, value in generation.items()
-                       if key not in DOCUMENTS and key != 'references'},
+                       if key not in DOCUMENTS and key not in {'references', 'request_validation'}},
         'references': references, 'upscale': upscale, 'source_files': source_files}
     if initial and execution_dispatcher(task):
         if task['route'] == 'upscale':
             result['upscale'] = {'source': None, 'model': None, 'scale_factor': None,
-                'settings': {}, 'guidance_prompt': None, 'render_intent': None, 'request_validation': None}
+                'settings': {}, 'guidance_prompt': None,
+                'render_intent': {'artifact_type': 'render-intent', 'execution_mode': 'upscale'}}
         else:
             result['documents'] = {'parameters': {}}
             result['generation'] = {'model': None, 'render_intent': None,
@@ -223,19 +224,19 @@ def unresolved(authored: dict | None, task: dict) -> list[dict]:
     if execution_dispatcher(task):
         if task.get('route') == 'upscale':
             upscale = authored.get('upscale') or {}
-            for key in ('source', 'model', 'scale_factor', 'render_intent'):
+            for key in ('source', 'scale_factor', 'render_intent'):
                 if upscale.get(key) is None:
                     missing('upscale.' + key)
         else:
             if authored['documents'].get('production_spec') is None:
-                for key in ('model','render_intent'):
-                    if authored['generation'].get(key) is None:
-                        missing('generation.' + key)
+                intent = authored['generation'].get('render_intent')
+                if intent is None:
+                    missing('generation.render_intent')
+                elif isinstance(intent, dict) and intent.get('execution_mode') is None:
+                    missing('generation.render_intent.execution_mode')
             plot = authored['documents'].get('plot')
             if isinstance(plot, dict) and plot.get('approved') is None:
                 missing('documents.plot.approved', 'plot-approval-required')
-            if not authored['generation'].get('service'):
-                missing('generation.service')
     return result
 
 
@@ -349,6 +350,8 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
         if key not in DOCUMENTS and key != 'references':
             generation.pop(key)
     generation.update(copy.deepcopy(authored['generation']))
+    if generation.get('render_intent') is None:
+        generation.pop('render_intent', None)
     documents = copy.deepcopy(authored['documents'])
     if set(documents) - DOCUMENTS:
         raise ValueError('authoring.documents names an unknown production document')
@@ -396,7 +399,7 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
         import production_reference_inputs
         model = (documents.get('production_spec') or {}).get('target_model') or generation.get('model')
         if model is None:
-            raise ValueError('select authoring.generation.model or a production specification target for references')
+            raise ValueError('select choices.target before preparing references')
         with tempfile.TemporaryDirectory(prefix='production-reference-inputs-') as folder:
             folder = Path(folder)
             # The reference owner requires a fresh output directory.
@@ -433,7 +436,7 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     upscale = authored.get('upscale')
     if upscale is not None:
         import production_binding
-        record = validation or upscale.get('request_validation')
+        record = validation
         if record is None:
             raise ValueError('select request validation for the new upscale input')
         request = production_binding.upscale_request(root, c.local(root, upscale['source']),

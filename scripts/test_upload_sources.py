@@ -123,7 +123,7 @@ class UploadSourceTests(unittest.TestCase):
 
     def test_input_choices_keep_authority_and_derive_hashes_from_files(self):
         task = {'task_id': 'synthetic-task', 'authority': 'authority.json', 'execution': 'dispatcher'}
-        choices = {'reading': None, 'visual': None, 'validation': None,
+        choices = {'target': None, 'reading': None, 'visual': None, 'validation': None,
                    'task_changes': {'upload_sources': self.sources()}, 'external': None}
         production_inputs.read_choices(choices)
         changed = production_inputs._chosen_task(task, choices)

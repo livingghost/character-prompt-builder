@@ -749,7 +749,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "load both [Morphology and Species Contracts]",
         "`search --kind archetype`",
         "whose visual evidence is under consideration",
-        "A new studio takes `profile-clear-2d-illustration`",
+        "`default_render_profile`",
         "Read `query_token_count`, `axis_coverage`, and any `retrieval_note`",
     ),
     "references/runtime/sparse-discovery.md": (
@@ -1763,12 +1763,13 @@ def _pack_defaults_findings(defaults: dict[str, Any], profiles: list[dict[str, A
             "default domain-realization map must cover the six subject domains: "
             f"expected {sorted(expected_realization_domains)}, got {sorted(realization_map)}"
         )
-    default_profile_id = str(defaults.get("default_render_profile") or "")
-    default_profile = next((item for item in profiles if item.get("id") == default_profile_id), None)
-    if not default_profile:
-        findings.append(f"default render profile does not exist: {default_profile_id}")
-    elif default_profile.get("curation_status") != "curated" or not default_profile.get("medium_family"):
-        findings.append(f"default render profile is not curated production knowledge: {default_profile_id}")
+    default_profile_id = defaults.get("default_render_profile")
+    if isinstance(default_profile_id, str) and default_profile_id.strip():
+        default_profile = next((item for item in profiles if item.get("id") == default_profile_id), None)
+        if not default_profile:
+            findings.append(f"default render profile does not exist: {default_profile_id}")
+        elif default_profile.get("curation_status") != "curated" or not default_profile.get("medium_family"):
+            findings.append(f"default render profile is not curated production knowledge: {default_profile_id}")
     return findings
 
 

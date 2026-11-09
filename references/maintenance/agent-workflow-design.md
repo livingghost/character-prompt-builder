@@ -260,6 +260,18 @@ test alone is no justification for removal. A recorded read establishes
 delivery of source content under its contract, not understanding or correct
 application to the current task.
 
+Follow Production direction for the picture as a whole: emotional register,
+visual language, palette and light, mark and surface treatment, and framing.
+A generic draft does not quietly choose a mood, medium or finish, or supply a
+shot, body coverage, margin or visibility requirement solely to simplify an
+agent's inspection. Leave unselected constraints absent, and validate the
+authored values when supplied. Keep templates and resource examples within
+their stated use so that a finish, identity inventory or quality check cannot
+quietly select the picture. Preserve the author's declared style, adopted scenes
+and local edits. Correct the decision process at its owner rather than replacing
+an unchosen default with another favorite mood, medium or shot, banning media,
+or requiring novelty quotas or random rotation.
+
 ## Evaluation
 
 Assess complete agent tasks from realistic briefs and raw source artifacts.
@@ -272,6 +284,26 @@ manually propagating one choice into unrelated records.
 Use independent agents without implementation history where possible. Retain
 their actual commands, edits, diagnostics and results. Repair a demonstrated
 interface defect in its owning contract, then exercise the affected task.
+For creative-direction changes, give fresh agents the Skill and raw briefs
+without the diagnosis, desired picture, expected answer or earlier evaluations.
+Retain exact requests and each first response before feedback, including failed
+or incomplete attempts. Assess each first proposal as a whole against the
+brief, including declared style, full coverage when required, selective views,
+open briefs, and preservation of an adopted scene and frame during a local edit.
+Across the sample, inspect repeated emotional register, visual language,
+palette/light, mark/surface and framing, including recurring combinations.
+Different subject names or scenes alone do not establish that a default has
+changed. Similarity alone is not failure and difference alone is not success.
+Repeat with fresh contexts after a consequential correction; keep evaluation
+artifacts outside the Skill the next agent receives.
+Evaluate open creation with topic-only or actual sparse requests. Added focus,
+gestures, mood, medium, palette or spatial scale can cue a picture even without
+naming a shot. Select the cases before seeing outputs and retain every outcome.
+Keep evidence for following a stated purpose separate from evidence about what
+the agent chooses when that purpose is itself open.
+Report the Skill revision, model and setup. Recurrence alone does not identify
+its cause; limit causal claims to the comparable evidence and cross-model claims
+to the models actually exercised.
 Report automated contract checks, observed agent behavior, reading volume and
 unverified artistic or live-service behavior separately. Evaluate the actual
 reading, search, editing and context-reconstruction work needed to finish the

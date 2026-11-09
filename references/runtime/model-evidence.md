@@ -83,16 +83,62 @@ The builder and the compiler derive a `target-schema` record when all of these h
 - the model's offering names an attributed parameter schema in an active pack.
 
 That record names the pack file as both contract and evidence and has no execution policy.
-Every other request takes an authored record.
-`production_workflow.py build-inputs` builds it from a validation choice, and the package builder takes `--request-validation-file`.
+Requests with selected reference bindings retain an explicitly authored execution
+policy. Upscale preparation also takes its validation selection from the editable
+inputs. The compiler builds the result from the selected target and evidence;
+the package builder accepts a completed record through `--request-validation-file`.
 The tools derive `unmeasured` from the evidence and refuse a record whose list was edited.
 
-Input choices select `contract` and `evidence` with strings; the built record
-adds their byte hashes. An active offering schema uses the same
-`@pack/<source_pack>/<offering.schema_snapshot>` selector in both fields.
-The [typed input-choice example](../../examples/input-assembly/README.md#validation-choices)
-shows how to derive that selector from catalog inspection. A Studio copy of an
-observed envelope retains its content but does not become active pack evidence.
+### Editable selections and compiled evidence
+
+`choices.target` owns the model and service selection. `choices.validation`
+contains only the validation mode and authored source selectors:
+
+```json
+{"mode": "target-schema", "contract": null, "evidence": null, "execution_policy": null}
+```
+
+For `target-schema`, a null `contract` and `evidence` pair selects the current
+offering's attributed parameter schema. The compiler derives its exact target,
+source selector, execution hashes and byte witnesses. The same choice can be
+used for an upscale whose selected offering supplies that schema. A missing
+offering schema leaves an explicit evidence decision; it does not establish
+support or select a probe automatically.
+
+An explicit schema, bounded trial or adopted observed profile instead selects
+`contract` and `evidence` with strings. An active offering schema uses the same
+`@pack/<source_pack>/<offering.schema_snapshot>` selector in both fields. The
+[typed input-choice example](../../examples/input-assembly/README.md#validation-choices)
+shows the current-target selection and the explicit catalog selector. A Studio
+copy of an observed envelope retains its content but does not become active
+pack evidence. `execution_policy` selects the author's policy with a string
+or remains null when no policy is needed. All selected evidence must cover the
+current target and execution; explicit selectors do not override that check.
+
+`save`, `check`, `prepare` and the optional `build-inputs` export use this same
+source boundary where the selected operation applies. The request validation
+record is a compiled result, outside `authoring.documents` and the editable
+upscale choices. Reopening a saved run verifies its captured evidence and
+restores these source selections. An offering-owned schema returns to the
+null selector pair only when the original target identifies that exact schema
+as its offering source, so a later target change resolves that target's schema.
+An explicitly selected different schema keeps its selector and supported scope.
+An acquired schema, probe, observed profile or execution policy keeps its own
+source and scope. A target change requires a current selection when those
+sources do not apply; it never rewrites their target or turns a historical
+result into new evidence. Earlier run records remain intact.
+
+Retain every selection that remains valid for the requested operation. Reopening
+the same target with unchanged source evidence can produce an identical
+validation record. A change of target alone does not discard reusable authoring,
+and rebuilding derived evidence does not require a different result. Check the
+actual target, dialect, source scope and execution contract before deciding
+which choices need new judgment.
+
+The operator continues to judge reference use, negative rendition, trial scope
+and the policy's applicability. Preparation derives hashes and exact bindings
+from those choices. A successful input check grants no permission to submit,
+select a returned image or adopt a permanent definition.
 
 The [image-input plan](../../schemas/authoring/image-input-plan.schema.json) owns the model, ordered reference uses and exact external request for both reference generation and semantic editing. An edit additionally binds its intended changes and preserved properties through [Semantic instruction editing](semantic-instruction-edit.md). A saved request and a matching schema establish preparation; only independent recorded submission evidence can establish that those bytes reached the host call.
 
@@ -163,6 +209,13 @@ reference render contract. Author the target, dialect, policy choice and
 source witnesses for the selected execution. Keep binding IDs, policy choices
 and source witnesses in those records. Review the complete authored image and
 its reference directions in the existing exact-input rendition review.
+
+When changing the model or service, keep an earlier policy at its original
+source. The compiler reports `VALIDATION_POLICY_REQUIRED` if its target or
+dialect differs from the current selection, or the selected offering requires
+a different registered reference contract. Read the applicable guidance and
+select a policy supported by that evidence. A policy's apparent similarity to
+another interface does not supply that interface's source or author judgment.
 
 ## Import a schema and publish it
 
@@ -339,13 +392,13 @@ A changed fixed parameter cannot reuse an observed profile outside its measured 
 A new request receives its own assessment and authorization under the current grant.
 An observed image that motivates a revision stays authored source evidence with its candidate and review.
 
-For a dispatcher model or service change, use `production_workflow.py retarget --from RUN --task TASK --reason TEXT --prepare`.
-The task supplies the new target's execution profile, guide reading, retrieval assessment and validation evidence.
+For a dispatcher or external image target change, reopen the run with `draft-inputs --from-run RUN`, select `choices.target`, and use `production_workflow.py retarget --from RUN --choices FILE --reason TEXT --prepare`. An explicit complete task can use `--task TASK` instead.
+The authored input retains applicable choices and supplies the target's current guide reading, controls, retrieval assessment and validation evidence.
 See [Production execution](production-variation.md#change-the-target-explicitly) and the [generation example](../../examples/generation/README.md).
 
-For another external trial, author a separate task with its exact request, then run `check` and `prepare`.
+For another external trial, reopen the saved authored inputs, edit the exact request and run `check` and `prepare`. Use `retarget` when changing its target so the source request remains recorded as parent lineage.
 Existing-image edits also retain their source and reference scopes in a semantic plan.
 Keep the source run or reviewed candidate as ordinary comparison evidence when it motivates the new trial.
-External tasks do not use the dispatcher's `variant`, `repeat` or `retarget` commands.
+External tasks share `retarget`; `variant` and `repeat` retain the dispatcher's declared field and fixed-input contracts.
 
 `scripts/test_model_observation.py` and `scripts/request_validation_smoke_test.py` exercise these contracts on synthetic evidence.

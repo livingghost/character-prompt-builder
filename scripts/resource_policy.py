@@ -51,11 +51,14 @@ def negative_source_emission_allowed(
 
 
 def validate_pack_defaults(value: Any) -> list[str]:
-    """Check declared authoring authority in pack-defaults."""
+    """Check selected preferences and declared authoring authority in pack-defaults."""
     if not isinstance(value, Mapping):
         return ["pack-defaults must contain an object"]
 
     errors: list[str] = []
+    profile = value.get("default_render_profile")
+    if profile is not None and (not isinstance(profile, str) or not profile.strip()):
+        errors.append("default_render_profile must be a nonempty profile id or null")
     creative = value.get("creative_policy")
     if not isinstance(creative, Mapping):
         errors.append("creative_policy must be an object")

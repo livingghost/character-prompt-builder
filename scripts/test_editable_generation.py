@@ -61,6 +61,21 @@ class EditableGenerationTests(unittest.TestCase):
                         reading_ledgers=[compiled.directory/'reads.jsonl'])
         self.assertTrue(verified['verified'])
 
+    def test_complete_choices_without_authoring_retain_declared_target(self):
+        choices=inputs.draft_choices(self.task)
+        self.assertNotIn('authoring',choices)
+        choices['reading']['reading_key']=c.load(self.root/self.task['route_reading'])['reading_key']
+        fixtures.write(self.root/'complete-choices.json',choices)
+        built=inputs.build_inputs(self.root,'task.json','complete-choices.json','complete-built')
+        self.assertTrue(built['ok'],built)
+        task_path=built['inputs']['production-task']['path']
+        task=c.load(self.root/task_path)
+        self.assertEqual(task['generation']['model'],fixtures.MODEL_ID)
+        self.assertEqual(task['generation']['service'],'synthetic')
+        prepared=workflow.prepare(self.root,task_path)
+        self.assertEqual(prepared['request_preview']['model'],'synthetic:robot')
+        self.assertEqual(prepared['request_preview']['prompt'],fixtures.PROMPT)
+
     def test_revised_editor_file_creates_exact_new_preparation_and_keeps_prior_input(self):
         prompt=self.editable()
         first=workflow.prepare(self.root,choices=self.choice_path)
@@ -77,6 +92,75 @@ class EditableGenerationTests(unittest.TestCase):
         self.assertEqual(after.prepared['authoring']['choices_ref']['files'][
             self.choices['authoring']['delivery']['file']],c.digest(changed.encode('utf-8')))
         self.assertFalse(any(row['event'] in {'review','authored-review','authored-delivery'} for row in after.rows))
+
+    def test_custom_axis_selection_changes_captured_input_without_rewriting_the_prompt(self):
+        self.editable()
+        selected=self.choices['authoring']['generation']['render_intent']
+        selected.update(preset=None,axes={})
+        prepared=[]
+        for axes in ({},{'dimensionality':'flat-shapes'}):
+            with self.subTest(axes=axes):
+                selected['axes']=copy.deepcopy(axes)
+                fixtures.write(self.root/self.choice_path,self.choices)
+                result=workflow.prepare(self.root,choices=self.choice_path)
+                view=workflow.read_run(self.root,result['run'])
+                package=view.artifacts['package.json']
+                actual=package['render_contract']['intent']
+                self.assertEqual(actual,{**selected,'prompt_expression':fixtures.PROMPT})
+                self.assertEqual(result['request_preview']['prompt'],fixtures.PROMPT)
+                self.assertEqual(package['composition_prompt'],fixtures.PROMPT)
+                self.assertEqual(view.prepared['task']['criteria'],self.task['criteria'])
+                prepared.append(view)
+        before,after=prepared
+        self.assertNotEqual(before.prepared['input_sha256'],after.prepared['input_sha256'])
+        self.assertNotEqual(before.artifacts['package.json']['generation_input_sha256'],
+                            after.artifacts['package.json']['generation_input_sha256'])
+        self.assertEqual(before.artifacts['package.json']['render_contract']['intent']['axes'],{})
+
+    def test_prompt_revision_prepares_without_a_rendering_declaration(self):
+        import render_contract_lib
+        prompt=self.editable()
+        operation=render_contract_lib.operation_intent('text-to-image')
+        self.choices['authoring']['generation']['render_intent']=operation
+        fixtures.write(self.root/self.choice_path,self.choices)
+        proposed=['An anthropomorphic fox postal worker.',
+                  'An anthropomorphic fox postal worker carrying a torn delivery bag.']
+        prepared=[]
+        for content in proposed:
+            prompt.write_text(content,encoding='utf-8')
+            result=workflow.prepare(self.root,choices=self.choice_path)
+            view=workflow.read_run(self.root,result['run'])
+            package=view.artifacts['package.json']
+            self.assertEqual(result['request_preview']['prompt'],content)
+            self.assertEqual(package['composition_prompt'],content)
+            self.assertEqual(package['render_contract']['intent'],operation)
+            self.assertEqual(package['render_contract']['prompt_expression'],'')
+            self.assertEqual(view.prepared['task']['criteria'],self.task['criteria'])
+            prepared.append(view)
+        before,after=prepared
+        self.assertNotEqual(before.prepared['input_sha256'],after.prepared['input_sha256'])
+        self.assertEqual(before.consumer['instructions'],proposed[0])
+        self.assertEqual(after.consumer['instructions'],proposed[1])
+        self.assertEqual(before.artifacts['package.json']['render_contract']['intent'],operation)
+
+    def test_unselected_direct_intent_leaves_the_specification_as_owner(self):
+        import render_contract_lib
+        prompt=self.editable()
+        content='A robot holding a delivery bag.'
+        prompt.write_text(content,encoding='utf-8')
+        operation=render_contract_lib.operation_intent('text-to-image')
+        specification=c.load(self.root/'spec.json')
+        specification['render_intent']=operation
+        self.choices['authoring']['documents']['production_spec']=specification
+        self.choices['authoring']['generation']['render_intent']=None
+        self.choices['authoring']['generation']['continuity']={'robot':'one-off'}
+        fixtures.write(self.root/self.choice_path,self.choices)
+        result=workflow.prepare(self.root,choices=self.choice_path)
+        view=workflow.read_run(self.root,result['run'])
+        self.assertNotIn('render_intent',view.prepared['task']['generation'])
+        self.assertEqual(result['request_preview']['prompt'],content)
+        self.assertEqual(view.artifacts['package.json']['production_spec']['render_intent'],operation)
+        self.assertEqual(view.artifacts['package.json']['render_contract']['intent'],operation)
 
     def test_independent_document_diagnostics_point_to_editable_sources(self):
         self.editable()
