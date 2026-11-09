@@ -208,7 +208,7 @@ def remember_reading_record(root: Path | None, ledger: Path, path: Path, *,
 
 
 def _action(root: Path, command: str, *arguments: str, reason: str) -> dict:
-    argv = python_argv(SCRIPT, command, '--root', str(root.absolute()), *arguments)
+    argv = python_argv(SCRIPT, command, '--root', str(c._root(root)), *arguments)
     return {'command': command, 'argv': argv, 'shown': shown(argv), 'reason': reason}
 
 
@@ -487,7 +487,7 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
     def restart(reason):
         argv = python_argv(Path(details['skill_root']) / 'scripts/execution_routes.py', 'read', details['route'],
                            '--operation', details['operation'], '--execution', details['execution'],
-                           '--root', str(root.absolute()),
+                           '--root', str(c._root(root)),
                            '--page-bytes', str(details['page_bytes']))
         for feature in details['features']:
             argv.extend(('--feature', feature))

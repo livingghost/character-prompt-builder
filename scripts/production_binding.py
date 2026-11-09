@@ -217,6 +217,8 @@ def upscale_request(root: Path, source: Path, model: str, scale: float,
     import math
     if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(scale) or scale <= 0:
         raise ValueError('upscale factor must be positive and finite')
+    if isinstance(scale, float) and scale.is_integer():
+        scale = int(scale)
     c.text(model, 'upscale model')
     if not isinstance(settings, dict):
         raise ValueError('upscale settings must be an object')
@@ -235,7 +237,7 @@ def upscale_request(root: Path, source: Path, model: str, scale: float,
     source = c.local(root, relative)
     value = {'artifact_type': 'upscale-request',
              'source': {'path': relative, 'sha256': c.digest(c.read(source))},
-             'model': model, 'scale_factor': float(scale), 'settings': settings,
+             'model': model, 'scale_factor': scale, 'settings': settings,
              'guidance_prompt': guidance, 'render_intent': render_intent}
     import input_contracts
     reader, _ = input_contracts.capture_validation(request_validation, root=root,source=input_source)

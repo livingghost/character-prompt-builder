@@ -4,6 +4,8 @@
 
 - Preserve the declared model and service when compiling complete dispatcher
   choices that have no separate authoring section.
+- Use the same canonical Studio path in authoring recovery commands, including
+  Windows 8.3 aliases and identity-evidence repair actions.
 - Author framing when its spatial relationships or effect belong to the
   proposed depiction, and otherwise let the model compose the specified
   content. Evaluate selected framing, visible information and exclusions

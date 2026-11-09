@@ -6,7 +6,9 @@ isolated local model pack; no provider is contacted or visual verdict invented.
 from __future__ import annotations
 
 import copy
+import ctypes
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -488,6 +490,26 @@ class IdentityAuthoringTests(unittest.TestCase):
         restored = self.recovery(diagnostic)
         self.assertIn('identity_coverage', c.load(self.root / restored['context_file']))
         self.assertFalse((self.root / 'identity-built').exists())
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows 8.3 path aliases require Windows')
+    def test_identity_recovery_uses_the_same_canonical_root_as_continuation(self):
+        result, choices = self.draft_identity()
+        context_path = self.root / result['context_file']
+        context = c.load(context_path)
+        context.pop('identity_coverage')
+        context_path.write_bytes(c.encoded(context))
+        choices['authoring']['source_files'].pop('canon.json')
+        buffer = ctypes.create_unicode_buffer(1024)
+        available = ctypes.windll.kernel32.GetShortPathNameW(str(self.root), buffer, len(buffer))
+        if not available:
+            self.skipTest('8.3 short names are unavailable on this volume')
+        report = production_inputs.compile_choices(Path(buffer.value), result['choices_file']).report
+        diagnostic = report['diagnostics'][0]
+        current = next(row for row in production_inputs.inspect_inputs(self.root)['inputs'] if row['current'])
+        self.assertEqual(current['next_actions'], diagnostic['next_actions'])
+        self.assertEqual(diagnostic['next_action']['argv'][4], str(self.root.resolve()))
+        restored = self.recovery(diagnostic)
+        self.assertIn('identity_coverage', c.load(self.root / restored['context_file']))
 
     def test_editing_graph_owner_requires_its_existing_authority_workflow(self):
         result, choices = self.draft_identity(graph=True)

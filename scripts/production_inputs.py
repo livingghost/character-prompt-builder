@@ -300,6 +300,7 @@ def _validation_choices(root: Path, task: dict, reader: InputEvidence, saved: di
 
 def _reading_action(root: Path, task: dict, choices: dict, runtime_arguments: dict | None = None) -> dict:
     """Offer the real route reader; inspecting a target never fabricates delivery."""
+    root = c._root(root)
     from cli_invocation import python_argv, shown
     operation = 'author' if task['execution'] == 'authored' else 'prepare'
     args = {'root': str(root), 'operation': operation, 'execution': task['execution'],
