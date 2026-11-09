@@ -1383,7 +1383,7 @@ def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime
     import production_workflow as workflow
     import production_authoring_state
     from production_compiler import inspect_staging, unregistered_publications
-    root = Path(root)
+    root = c._root(root)
     def read_task_run(identifier):
         return loaded if loaded is not None and loaded.prepared['run'] == identifier else workflow.read_run(root, identifier)
     result = {'ok': True, 'current_task': production_authoring_state.current_task(root, read_run=read_task_run),

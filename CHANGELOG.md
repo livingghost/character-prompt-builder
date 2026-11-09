@@ -21,6 +21,8 @@
 - Preserve the authored delivery example's LF bytes on Windows. Isolate the
   state-aware pilot from personal model-selection preferences and align split
   operation guidance with its owning contracts.
+- Use one canonical Studio path in continuation commands, including Windows
+  8.3 aliases and paths already resolved by the public status owner.
 
 ## 2026.11.08.5
 

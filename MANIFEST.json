@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1078,
-  "total_bytes_excluding_manifest": 19388188,
+  "total_bytes_excluding_manifest": 19389195,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 88986,
-      "sha256": "86d5be8c286782e408c0a0ce33db62dfdeaff322a71a1e35b0c7bce5e2114ee6"
+      "bytes": 89131,
+      "sha256": "987013838a0cb394367201e82416d873ce43ea30597100f9caceb8580406088f"
     },
     {
       "path": "CLAUDE.md",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 31398,
-      "sha256": "0758f2911049d1890f9bb2f74e9e957b7e78aaa3a4ea434e8727e62c836976d0"
+      "sha256": "37c23b88dccdabc4e40e7cb2d678b3529353e0c1a6e7236e4662f159f40270be"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -4011,8 +4011,8 @@
     },
     {
       "path": "scripts/production_authored.py",
-      "bytes": 34388,
-      "sha256": "38d55eee6de8badd5373cc449866e1322bf6589f5047f660f8135ee45a5b5e64"
+      "bytes": 34413,
+      "sha256": "13de217d83629b4c8e174bcbfc3b15320d546a7fe40f8bbb828be775bda4b8b2"
     },
     {
       "path": "scripts/production_authoring.py",
@@ -4026,8 +4026,8 @@
     },
     {
       "path": "scripts/production_authoring_state.py",
-      "bytes": 40519,
-      "sha256": "b73d1b5e24a2eeb450afbbeb00b0e56f80a2f13752d059074a3f64df09add728"
+      "bytes": 40511,
+      "sha256": "b1fb15d64005b0bc7bdb4c360d7cca2b75aae4ad00f98b0346c2d47e387d3cdc"
     },
     {
       "path": "scripts/production_binding.py",
@@ -4071,8 +4071,8 @@
     },
     {
       "path": "scripts/production_execution.py",
-      "bytes": 93093,
-      "sha256": "21bfecf60367f54ef93b2ef15d431473bc79b530b1f442f98f7b6b345e0b2e50"
+      "bytes": 93096,
+      "sha256": "edfaaf9aa049ecc03598f23aaec09fac6bd880f1f6ac3aad3c78dd5a0d9d496c"
     },
     {
       "path": "scripts/production_external.py",
@@ -4871,8 +4871,8 @@
     },
     {
       "path": "scripts/test_authored_continuation.py",
-      "bytes": 5140,
-      "sha256": "99d43cfcf19870fad0895591abd6ab3309fd49a4478999388aeac758f61ba8ec"
+      "bytes": 5982,
+      "sha256": "08404a7066e9dea01147702273d0e307ed6de11c711018390053c3842c70944a"
     },
     {
       "path": "scripts/test_authored_prompt.py",

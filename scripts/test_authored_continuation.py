@@ -1,6 +1,8 @@
 """Saved authored work and edited sources expose the same next action at each entry."""
 from __future__ import annotations
 
+import ctypes
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -56,6 +58,19 @@ class AuthoredContinuationTests(unittest.TestCase):
         projected = status['current_task']
         self.assertEqual(projected['focus'], current['focus'])
         self.assertEqual(projected['next_actions'][0]['argv'], current['next_actions'][0]['argv'])
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows 8.3 path aliases require Windows')
+    def test_short_path_alias_uses_the_same_canonical_continuation(self):
+        buffer = ctypes.create_unicode_buffer(1024)
+        available = ctypes.windll.kernel32.GetShortPathNameW(str(self.root.parent), buffer, len(buffer))
+        if not available:
+            self.skipTest('8.3 short names are unavailable on this volume')
+        alias = Path(buffer.value) / self.root.name
+        workflow.save(alias, self.choices_path)
+        current = authoring.current_task(alias)
+        projected = workflow.status(alias)['current_task']
+        self.assertEqual(projected['next_actions'][0]['argv'], current['next_actions'][0]['argv'])
+        self.assertEqual(projected['next_actions'][0]['argv'][4], str(self.root.resolve()))
 
     def test_editing_the_source_takes_priority_over_delivering_the_previous_revision(self):
         saved = workflow.save(self.root, self.choices_path)

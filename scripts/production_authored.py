@@ -544,6 +544,7 @@ def validate_event(prepared: dict, rows, event: str, data: dict, read_object) ->
 
 def status(root: Path, loaded, *, logs: list | None = None) -> dict:
     """Project saved, delivered and reviewed facts for this exact authored revision."""
+    root = c._root(root)
     from cli_invocation import python_argv
     import production_workflow as workflow
     prepared, rows = loaded.prepared, loaded.rows

@@ -549,7 +549,7 @@ def _context(root: Path, task: dict, selected: dict | None, *, read_run) -> dict
 def inspect(root: Path, task: dict | None = None, *, read_run=None) -> dict:
     """Describe saved work for this ledger task, without producing inputs, keys or permissions."""
     import work_ledger
-    root = Path(root).absolute()
+    root = c._root(root)
     task = work_ledger.read_current(root) if task is None else task
     result = {'state': 'authoring-state', 'task_id': task['task_id'] if task else None,
               'inputs': [], 'readings': [], 'last_check': None, 'diagnostics': [],
