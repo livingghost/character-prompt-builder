@@ -42,6 +42,11 @@ class GenerationInputs:
         from prompt_retrieval import require_generation_retrieval
         from model_prompt_input import resolve_prompt_input
 
+        values=dict(values)
+        specification=values.get('production_spec')
+        selected_intent=values.get('render_intent')
+        if isinstance(specification,dict) and selected_intent is None:
+            values['render_intent']=specification.get('render_intent')
         authored=freeze(values)
         facts={}
 
@@ -53,12 +58,20 @@ class GenerationInputs:
             return check(name,acquire) if check is not None else acquire()
 
         def specification():
-            require_spec(authored['production_spec'])
-            return authored['production_spec']
+            value=authored.get('production_spec')
+            if value is not None:
+                require_spec(value)
+                if selected_intent is not None and selected_intent!=value['render_intent']:
+                    raise ValueError('selected render intent differs from its production specification')
+            elif any(authored.get(key) is not None for key in ('state_snapshot','state_graphs','state_lineage')):
+                raise ValueError('selected state artifacts require their production specification')
+            return value
         perform('specification',specification)
 
         def plot():
-            value=authored['plot'];report=validate_prompt_plot(value)
+            value=authored.get('plot')
+            if value is None:return None
+            report=validate_prompt_plot(value)
             errors=report.get('errors',[])+report.get('approval_errors',[])
             if errors or not report['approved']:
                 raise ValueError('; '.join(errors) or 'plot approval is required')
@@ -66,7 +79,8 @@ class GenerationInputs:
         perform('plot',plot)
 
         def creative():
-            value=authored['creative_intent']
+            value=authored.get('creative_intent')
+            if value is None:return None
             if not isinstance(value,dict):raise ValueError('creative intent must be an object')
             require_intent_revision(value)
             return value
@@ -80,7 +94,7 @@ class GenerationInputs:
             facts['reference-preparation']=builder.empty_stateless_reference_set()
 
         def intent():
-            value=authored['production_spec']['render_intent']
+            value=authored.get('render_intent')
             render.validate_intent(value,prompt=authored['prompt'])
             return value
         perform('render-intent',intent)
@@ -90,12 +104,12 @@ class GenerationInputs:
         def controls():
             target=facts['target-contract'];profile=facts['execution-profile']
             return freeze(render._parameters_from_profile(target.model,profile,
-                authored['production_spec']['render_intent']['execution_mode'],authored['parameters']))
+                authored['render_intent']['execution_mode'],authored['parameters']))
         perform('execution-controls',controls)
         if 'count' in authored:
             def quantity():
                 contract={'model_card':{'execution_profile':facts['execution-profile']},
-                          'intent':authored['production_spec']['render_intent']}
+                          'intent':facts['render-intent']}
                 return render.dispatch_values(contract,seed=authored['seed'],count=authored['count'])
             perform('execution-quantity',quantity)
         if authored.get('request_validation') is not None or validation_factory is not None:
@@ -112,7 +126,7 @@ class GenerationInputs:
 
         def channels():
             target=facts['target-contract'];profile=facts['execution-profile']
-            mode=authored['production_spec']['render_intent']['execution_mode']
+            mode=facts['render-intent']['execution_mode']
             return freeze(builder.prepare_text_transports(model_id=target.model_id,model_record=target.model,
                 prompt=authored['prompt'],negative_prompt=authored['negative_prompt'],
                 integrated_prompt=authored['integrated_prompt'],native_negative=authored['native_negative'],
@@ -125,8 +139,8 @@ class GenerationInputs:
             target=facts['target-contract']
             tag_input=resolve_prompt_input(target.model)['mode']=='tag-based'
             syntax=selected_weighting(facts['execution-controls'][0],
-                facts['execution-profile']['modes'][authored['production_spec']['render_intent']['execution_mode']]['prompt_syntax']) if tag_input else 'literal'
-            return require_generation_retrieval(authored['retrieval_record'],prompt=authored['prompt'],plot=authored['plot'],
+                facts['execution-profile']['modes'][facts['render-intent']['execution_mode']]['prompt_syntax']) if tag_input else 'literal'
+            return require_generation_retrieval(authored.get('retrieval_record'),prompt=authored['prompt'],plot=authored.get('plot'),
                 model_record=target.model,negative=authored['negative_prompt'] if tag_input else '',syntax=syntax)
         perform('retrieval',retrieval)
         required={'specification','plot','creative-intent','target-contract','reference-preparation','render-intent',

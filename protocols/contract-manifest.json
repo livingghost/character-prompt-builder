@@ -119,11 +119,11 @@
     },
     {
       "schema": "shared-state/prepared-generation-reference.schema.json",
-      "sha256": "689f51e9fc10c0d856b3c4f7329a1e9deb7ea127674c5539641379dd94e4efc4"
+      "sha256": "cc4e10eb956f8c6fef5569af56a0678a893f4054da964efd62c3d43cff9d3d85"
     },
     {
       "schema": "shared-state/prepared-reference-set.schema.json",
-      "sha256": "be2d63832333241a816bb9c0e4dbdadedfb8f9c3384251ac0c5070e786c88388"
+      "sha256": "820fba222a43e416537b30e147a9cf99b88781ce40e7b236d7078301a335fa61"
     },
     {
       "schema": "shared-state/production-spec.schema.json",
@@ -684,5 +684,5 @@
     "path": "scripts/protocol_contract.py",
     "sha256": "8cc7be004c10df1c8303860bb573da2404fb0f4c4afdfaf59324d834957a9d2e"
   },
-  "contract_set_sha256": "d1aeaf9721f6d66da3bd6104d53010cef6af50bd8405d48b32c3a8c7f7fd76e6"
+  "contract_set_sha256": "71937a4fcecf1a9382b64dce7e6ccfc8ed66275f4ccf0a09909c587315c4bed0"
 }

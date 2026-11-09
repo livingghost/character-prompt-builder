@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read complete route documents and bind authored applications to issued evidence."""
+"""Deliver complete operation knowledge and retain its exact source scope."""
 from __future__ import annotations
 import operation_context as _operation_context
 
@@ -28,94 +28,7 @@ def _hex(value: Any, length: int, label: str) -> str:
     return value
 
 
-def _normalized(value: str) -> str:
-    return ' '.join(value.split())
-
-
-def prose_blocks(document: str) -> list[str]:
-    """Parse paragraph containers, excluding headings, tables, code and metadata.
-
-    The parser preserves source spelling. Block markers describe Markdown
-    syntax; no vocabulary classifies the subject or meaning of a paragraph.
-    """
-    result: list[str] = []
-    paragraph: list[str] = []
-    fence: tuple[str, int] | None = None
-    table = False
-    frontmatter = False
-    html = False
-    def flush() -> None:
-        if paragraph:
-            result.append(_normalized('\n'.join(paragraph)))
-            paragraph.clear()
-    for index, raw in enumerate(document.splitlines()):
-        line = raw.strip()
-        if index == 0 and line == '---':
-            frontmatter = True
-            continue
-        if frontmatter:
-            if line in {'---', '...'}:
-                frontmatter = False
-            continue
-        probe = raw.lstrip(' ')
-        indent = len(raw) - len(probe)
-        # A block quote can contain a heading, fenced block or paragraph.
-        while probe.startswith('>'):
-            probe = probe[1:].lstrip(' ')
-        if fence is not None:
-            char, count = fence
-            close = probe.rstrip()
-            if len(close) >= count and all(x == char for x in close):
-                fence = None
-            continue
-        if indent <= 3 and probe and probe[0] in {'`', '~'}:
-            count = len(probe) - len(probe.lstrip(probe[0]))
-            if count >= 3:
-                flush(); table = False; fence = (probe[0], count)
-                continue
-        if not line:
-            flush(); table = False; html = False
-            continue
-        if html:
-            continue
-        if probe.startswith('<') and not probe.startswith('<http'):
-            flush(); html = True
-            continue
-        if raw.startswith('    ') or raw.startswith('\t'):
-            flush()
-            continue
-        heading_marks = len(probe) - len(probe.lstrip('#'))
-        if 1 <= heading_marks <= 6 and (len(probe) == heading_marks or probe[heading_marks].isspace()):
-            flush(); table = False
-            continue
-        # Setext headings own their preceding paragraph. A delimiter row owns
-        # the preceding table header and following table rows.
-        if line and set(line) <= {'=', '-'}:
-            paragraph.clear(); table = False
-            continue
-        cells = [cell.strip() for cell in line.strip('|').split('|')]
-        delimiter = '|' in line and bool(cells) and all(
-            len(cell.strip(':')) >= 3 and set(cell.strip(':')) == {'-'} for cell in cells)
-        if delimiter:
-            paragraph.clear(); table = True
-            continue
-        if table:
-            if '|' in line:
-                continue
-            table = False
-        if len(line.replace(' ', '')) >= 3 and set(line.replace(' ', '')) in ({'*'}, {'_'}, {'-'}):
-            flush()
-            continue
-        if probe.startswith('[') and ']:' in probe:
-            flush()
-            continue
-        paragraph.append(raw)
-    flush()
-    return result
-
-
-RESOURCE_FIELDS = {'resources'}
-RECORD_RESOURCE_FIELDS = {'resources', 'resource_applied'}
+MANIFEST_FIELDS = {'route', 'operation', 'execution', 'features', 'documents', 'resources', 'model'}
 GENERATION_ROUTES = {'generation', 'state-series', 'batch', 'repose', 'character-sheet'}
 
 
@@ -249,57 +162,71 @@ def _validate_resources(value: dict) -> None:
     bound_dialect(value)
 
 
-def _require_resource_applications(record: dict, bodies: list, dialect: str | None) -> None:
-    applications = record['resource_applied']
-    if not isinstance(applications, list):
-        raise ValueError('resource applications must be an array')
-    available = {meta['resource']: c.decode(raw) for meta, raw in bodies if meta['kind'] == 'resource'}
+def _require_dialect(record: dict, bodies: list, dialect: Any) -> None:
     bound = bound_dialect(record)
     if dialect is not _NO_MODEL and bound != dialect:
-        raise ValueError(f'the reading holds the prompt-writing guide for the {bound!r} model family; '
-                         'read the route again with --model for this model')
+        raise ValueError(f'the delivered writing guide is scoped to {bound!r}; read the current model or prompt family')
     if dialect is not _NO_MODEL and dialect is not None:
-        ids = {x['id'] for x in available.get('prompt-dialects', {}).get('dialects', [])}
+        available = {meta['resource']: c.decode(raw) for meta, raw in bodies if meta['kind'] == 'resource'}
+        ids = {row['id'] for row in available.get('prompt-dialects', {}).get('dialects', [])}
         if dialect not in ids:
-            raise ValueError('model dialect is absent from the active resource: ' + dialect)
-    for item in applications:
-        c.exact(item, {'resource', 'pointer', 'quote', 'why'}, 'resource application')
-        c.text(item['why'], 'resource application reason')
-        if item['resource'] != 'prompt-writing-guide' or item['resource'] not in available:
-            raise ValueError('resource application must refer to the active writing guide')
-        parts = item['pointer'].split('/') if isinstance(item['pointer'], str) else []
-        if len(parts) != 5 or parts[0] or parts[1] != 'sections' or parts[3] != 'rules':
-            raise ValueError('guide pointer must select a section rule')
-        try:
-            i, j = int(parts[2]), int(parts[4])
-            if str(i) != parts[2] or str(j) != parts[4] or i < 0 or j < 0:
-                raise ValueError('noncanonical index')
-            section = available[item['resource']]['sections'][i]
-            rule = section['rules'][j]
-        except (ValueError, IndexError, KeyError, TypeError) as exc:
-            raise ValueError('guide pointer has no rule') from exc
-        if not isinstance(rule, str) or item['quote'] != rule:
-            raise ValueError('guide quote differs from the complete decoded rule')
-        # With no selected model, a route reading may cite any real section.
-        # Model-facing validation supplies the declared dialect and checks it.
-        if dialect is not _NO_MODEL and section.get('dialects') and dialect not in section['dialects']:
-            raise ValueError('guide section does not apply to the selected model dialect')
+            raise ValueError('model dialect is absent from the delivered resource: ' + dialect)
 
 
-def require_model_applications(record:dict,*,dialect:str|None,resource_reader) -> None:
-    """Check model-family applications against the already acquired resources.
+def _model_material(record: dict, service: str | None) -> tuple[dict, bytes]:
+    from render_contract_lib import model_card
+    identifier = c.text(record.get('id'), 'reading model id')
+    offerings = list(record.get('offerings') or [])
+    if service is not None:
+        offerings = [row for row in offerings if row['service'] == service]
+        if len(offerings) != 1:
+            raise ValueError('selected model has no unique offering for service: ' + service)
+    cards = [model_card(record, row) for row in offerings] if offerings else [model_card(record)]
+    raw = (json.dumps(cards, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+    return {'id': identifier, 'record_sha256': c.content_id(record), 'service': service,
+            'guidance_sha256': c.digest(raw)}, raw
 
-    The route input boundary separately checks document bytes and issuance.
-    This domain check keeps resource origin/hash, delivered family, active
-    dialect and guide-rule applicability tied to that same acquired input.
+
+def _validate_model(value: Any) -> None:
+    if value is None:
+        return
+    c.exact(value, {'id', 'record_sha256', 'service', 'guidance_sha256'}, 'reading model')
+    c.text(value['id'], 'reading model id')
+    c.sha(value['record_sha256']); c.sha(value['guidance_sha256'])
+    if value['service'] is not None:
+        c.text(value['service'], 'reading model service')
+
+
+def require_model_reading(record: dict, *, dialect: Any = _NO_MODEL, resource_reader,
+                          model_record: dict | None = None, service: str | None = None) -> None:
+    """Check delivered guidance against the model and resources acquired by its consumer.
+
+    A family-only delivery serves work whose target remains at that scope.
+    A selected model requires its exact model edition and offering guidance.
+    Complete all-offering guidance covers any one of those offerings. This
+    records source delivery; it never certifies an author's understanding.
     """
     _validate_resources(record)
-    manifest={'features':record['features']}
-    bodies=[]
-    _capture_resources(manifest,bodies,bound_dialect(record),resource_reader)
-    if manifest['resources']!=record['resources']:
+    _validate_model(record['model'])
+    manifest = {'features': record['features']}
+    bodies = []
+    _capture_resources(manifest, bodies, bound_dialect(record), resource_reader)
+    if manifest['resources'] != record['resources']:
         raise ValueError('reading resources differ from the acquired sources; read again')
-    _require_resource_applications(record,bodies,dialect)
+    if model_record is not None:
+        dialect = model_record.get('prompt_dialect')
+        if record['model'] is None:
+            raise ValueError('read the complete selected model guidance with --model before using this target')
+        selected = record['model']['service']
+        if selected is not None and service is not None and selected != service:
+            raise ValueError('delivered model guidance belongs to a different service')
+        if (record['model']['id'] != model_record.get('id') or
+                record['model']['record_sha256'] != c.content_id(model_record)):
+            raise ValueError('delivered model guidance differs from the selected model edition')
+        if selected is not None and len([row for row in model_record.get('offerings', [])
+                                         if row.get('service') == selected]) != 1:
+            raise ValueError('delivered model guidance names no unique offering in the acquired model')
+    _require_dialect(record, bodies, dialect)
 
 
 def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
@@ -343,7 +270,7 @@ def ledger_rows(path: Path) -> list[dict[str, Any]]:
     if raw and not raw.endswith(b'\n'):
         raise ValueError(f'incomplete reading ledger: {path}')
     rows = []
-    fields = {'at', 'route', 'features', 'key_sha256', 'documents', 'cwd'} | RESOURCE_FIELDS
+    fields = MANIFEST_FIELDS | {'at', 'key_sha256', 'cwd'}
     for line in raw.splitlines():
         if not line.strip():
             raise ValueError(f'empty reading ledger row: {path}')
@@ -358,6 +285,8 @@ def ledger_rows(path: Path) -> list[dict[str, Any]]:
 
 def _validate_manifest(value: dict[str, Any]) -> None:
     c.text(value.get('route'), 'reading route')
+    execution_routes.require_scope(value.get('operation'), value.get('execution'))
+    _validate_model(value.get('model'))
     features = value.get('features')
     if not isinstance(features, list) or any(not isinstance(x, str) or not x for x in features):
         raise ValueError('reading features must be explicit strings')
@@ -376,21 +305,47 @@ def _validate_manifest(value: dict[str, Any]) -> None:
     _validate_resources(value)
 
 
-def capture(route: str, features: list[str] | None = None, *, root: Path = ROOT,
-            dialect: str | None = None,resource_reader=None,
-            read_source:Callable[[str],bytes]|None=None) -> tuple[dict, list[tuple[dict, bytes]]]:
-    resolved = execution_routes.resolve(route, features, root=root,read_source=read_source)
+def capture(route: str, features: list[str] | None = None, *, execution: str, root: Path = ROOT,
+            operation: str | None = None, dialect: str | None = None, resource_reader=None,
+            model: str | None = None, service: str | None = None, model_record: dict | None = None,
+            model_file: Path | None = None,
+            read_source: Callable[[str], bytes] | None = None) -> tuple[dict, list[tuple[dict, bytes]]]:
+    if model_file is not None:
+        if model is not None or model_record is not None:
+            raise ValueError('select one catalog model or acquired model file')
+        model_record = c.load(model_file)
+    if model is not None:
+        if model_record is None:
+            model, model_record = _selected_model(model)
+        elif model_record.get('id') != model:
+            raise ValueError('acquired model differs from the requested reading target')
+    if model_record is not None:
+        family = model_record.get('prompt_dialect')
+        if dialect is not None and dialect != family:
+            raise ValueError('selected model and prompt family differ')
+        dialect = family
+    if service is not None and model_record is None:
+        raise ValueError('a service selection requires a selected model')
+    resolved = execution_routes.resolve(route, features, operation=operation, execution=execution,
+                                        root=root, read_source=read_source)
     bodies = []
     for entry in resolved['reads']:
-        raw = read_source(entry['path']) if read_source is not None else c.read(c.local(root,entry['path']))
+        raw = read_source(entry['path']) if read_source is not None else c.read(c.local(root, entry['path']))
         raw.decode('utf-8')
         if c.digest(raw) != entry['sha256']:
             raise ValueError('document changed while reading: ' + entry['path'])
         bodies.append(({'kind': 'document', **entry}, raw))
-    manifest = {'route': resolved['route'], 'features': resolved['features'], 'documents': resolved['reads']}
+    manifest = {'route': resolved['route'], 'operation': resolved['operation'], 'execution': resolved['execution'],
+                'features': resolved['features'],
+                'documents': resolved['reads'], 'model': None}
     if resource_reader is None and 'prompt-dialect' in resolved['features']:
-        resource_reader=_live_resource_reader()
-    _capture_resources(manifest,bodies,dialect,resource_reader)
+        resource_reader = _live_resource_reader()
+    _capture_resources(manifest, bodies, dialect, resource_reader)
+    if model_record is not None:
+        metadata, raw = _model_material(model_record, service)
+        manifest['model'] = metadata
+        bodies.append(({'kind': 'model', 'path': 'model-guidance/' + metadata['id'],
+                        'sha256': c.digest(raw), **metadata}, raw))
     return manifest, bodies
 
 
@@ -410,20 +365,24 @@ def _issue(manifest: dict, ledger: Path, *, key: str | None = None, at: str | No
         return {'reading_key': key, 'row': row}
 
 
-def issue(route: str, features: list[str] | None = None, *, root: Path = ROOT,
+def issue(route: str, features: list[str] | None = None, *, execution: str, root: Path = ROOT,
           studio: Path | None = None, ledger: Path | None = None, stream: TextIO | None = None,
           key: str | None = None, at: str | None = None, cwd: str | None = None,
-          dialect: str | None = None) -> dict:
+          dialect: str | None = None, operation: str | None = None,
+          model: str | None = None, service: str | None = None,
+          model_file: Path | None = None, model_record: dict | None = None) -> dict:
     """Output all bytes before issuing evidence. Fixed key/time are fixture inputs."""
     stream = sys.stdout if stream is None else stream
     target = ledger if ledger is not None else ledger_candidates(studio=studio)[0]
-    manifest, bodies = capture(route, features, root=root, dialect=dialect)
+    manifest, bodies = capture(route, features, root=root, dialect=dialect, operation=operation, execution=execution, model=model,
+                               service=service, model_file=model_file, model_record=model_record)
     for meta, raw in bodies:
         stream.write('--- ' + json.dumps(meta, ensure_ascii=False) + ' ---\n')
         stream.write(raw.decode('utf-8'))
         stream.write('\n')
     stream.flush()
-    current, _ = capture(route, features, root=root, dialect=dialect)
+    current, _ = capture(route, features, root=root, dialect=dialect, operation=operation, execution=execution,
+                         model=model, service=service, model_file=model_file, model_record=model_record)
     if manifest != current:
         raise ValueError('reading sources changed; read the current documents')
     issued = _issue(manifest, target, key=key, at=at, cwd=cwd)
@@ -441,67 +400,57 @@ def _find_row(record: dict, ledgers: list[Path]) -> dict:
                 matching.append(row)
     if not matching:
         raise ValueError('reading key has no issuance row in the selected ledgers')
-    fields = {'route', 'features', 'documents'} | RESOURCE_FIELDS
+    fields = MANIFEST_FIELDS
     if any(any(row[field] != record[field] for field in fields) for row in matching):
         raise ValueError('reading issuance differs from the supplied route, features or document versions')
     return matching[0]
 
 
 def validate_record_content(record: Any) -> None:
-    """Check the recorded contract without granting a current execution permission."""
-    fields = {'route', 'features', 'reading_key', 'documents', 'applied'} | RECORD_RESOURCE_FIELDS
-    c.exact(record, fields, 'route reading')
+    """Validate a source-delivery receipt without claiming understanding or authority."""
+    c.exact(record, MANIFEST_FIELDS | {'reading_key'}, 'route reading')
     _validate_manifest(record)
     _hex(record['reading_key'], 32, 'reading key')
-    available = {item['path'] for item in record['documents']}
-    if not isinstance(record['applied'], list):
-        raise ValueError('reading applications must be an array')
-    for item in record['applied']:
-        c.exact(item, {'path', 'quote', 'why'}, 'document application')
-        c.text(item['quote'], f"{item['path']}: quotation")
-        c.text(item['why'], f"{item['path']}: application reason")
-        if item['path'] not in available:
-            raise ValueError('quotation document is absent from the recorded edition')
-    if not isinstance(record['resource_applied'], list):
-        raise ValueError('resource applications must be an array')
-    for item in record['resource_applied']:
-        c.exact(item, {'resource', 'pointer', 'quote', 'why'}, 'resource application')
-        for field in item:
-            c.text(item[field], 'resource application ' + field)
-        if item['resource'] not in record['resources']:
-            raise ValueError('quotation resource is absent from the recorded edition')
 
 
 def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path] | None = None,
                           studio: Path | None = None, package_root: Path | None = None,
                           routes: set[str] | None = None, features: list[str] | None = None,
-                          dialect: Any = _NO_MODEL,resource_reader=None,
-                          read_source:Callable[[str],bytes]|None=None) -> dict:
-    """Verify the issued full-text read and each application the author declares.
+                          operation: str | None = None, execution: str | None = None,
+                          dialect: Any = _NO_MODEL, resource_reader=None,
+                          model_record: dict | None = None, service: str | None = None,
+                          read_source: Callable[[str], bytes] | None = None) -> dict:
+    """Verify actual full delivery and coverage of the current operation.
 
-    The author decides which documents apply to the task; a document read but
-    not applied carries no quotation.
+    A delivered superset can cover a narrower operation only when all its
+    required source editions match. Consumers supply the task's actual execution
+    kind; integrity-only copies retain the delivered scope. A prior receipt remains a delivery fact,
+    not evidence that a new agent has read or understood those documents.
     """
     validate_record_content(record)
     if routes is not None and record['route'] not in routes:
         raise ValueError('reading route must be one of: ' + ', '.join(sorted(routes)))
-    if features is not None:
-        expected_features = execution_routes.resolve(record['route'], features,root=root,read_source=read_source)['features']
-        if expected_features != record['features']:
-            raise ValueError('reading features do not match the execution features')
-    current,bodies=capture(record['route'],record['features'],root=root,dialect=bound_dialect(record),
-                           resource_reader=resource_reader,read_source=read_source)
-    for field in current:
+    current, bodies = capture(record['route'], record['features'], root=root,
+                              operation=record['operation'], execution=record['execution'], dialect=bound_dialect(record),
+                              resource_reader=resource_reader, read_source=read_source)
+    for field in MANIFEST_FIELDS - {'model'}:
         if record[field] != current[field]:
             raise ValueError('reading ' + field + ' differs from the current sources; read again')
+    if operation is not None or execution is not None or features is not None:
+        expected = execution_routes.resolve(record['route'], features if features is not None else record['features'],
+                                            operation=operation or record['operation'],
+                                            execution=execution if execution is not None else record['execution'],
+                                            root=root, read_source=read_source)
+        if not set(expected['features']) <= set(record['features']):
+            raise ValueError('reading features do not cover the execution features')
+        delivered = {entry['path']: entry['sha256'] for entry in record['documents']}
+        if any(delivered.get(entry['path']) != entry['sha256'] for entry in expected['reads']):
+            raise ValueError('reading documents do not cover the current operation and execution; read their complete contract')
     row = _find_row(record, ledgers if ledgers is not None else ledger_candidates(studio=studio, package_root=package_root))
-    available = {meta['path']: raw.decode('utf-8') for meta, raw in bodies if meta['kind'] == 'document'}
-    for item in record['applied']:
-        quote = _normalized(item['quote'])
-        if len(quote.split()) < 12 or not any(quote in block for block in prose_blocks(available[item['path']])):
-            raise ValueError('quote must contain at least twelve words of paragraph text, preserving raw Markdown '
-                             'spelling including links and inline markup; whitespace wrapping may differ: ' + item['path'])
-    _require_resource_applications(record, bodies, dialect)
+    _require_dialect(record, bodies, dialect)
+    if model_record is not None:
+        require_model_reading(record, model_record=model_record, service=service,
+                              resource_reader=resource_reader or _live_resource_reader())
     return row
 
 
@@ -513,7 +462,7 @@ def resolve_issuance(key: str, *, studio: Path | None = None,
                for row in ledger_rows(path) if row['key_sha256'] == digest]
     if not matches:
         raise ValueError('reading key has no issuance row in the selected ledgers')
-    fields = {'route', 'features', 'documents'} | RESOURCE_FIELDS
+    fields = MANIFEST_FIELDS
     if any(any(row[field] != matches[0][field] for field in fields) for row in matches[1:]):
         raise ValueError('reading key has conflicting issuance records')
     return {'reading_key': key, 'row': matches[0]}
@@ -537,17 +486,13 @@ def check_snapshot_issuance(snapshot: str, issued: dict, *, studio: Path | None 
             raise ValueError('selected delivery snapshot belongs to another reading')
 
 
-def build_record(issued: dict, applications: dict, *, root: Path = ROOT,
-                 studio: Path | None = None, ledgers: list[Path] | None = None,
-                 dialect: Any = _NO_MODEL) -> dict:
+def build_record(issued: dict, *, root: Path = ROOT, studio: Path | None = None,
+                 ledgers: list[Path] | None = None, dialect: Any = _NO_MODEL) -> dict:
+    """Resolve the delivery record from its issuance; the author copies no source metadata."""
     c.exact(issued, {'reading_key', 'row'}, 'issued reading')
-    row = issued['row']
-    result = {key: row[key] for key in sorted({'route', 'features', 'documents'} | RESOURCE_FIELDS)}
-    result.update(reading_key=issued['reading_key'], applied=applications['applied'],
-                  resource_applied=applications['resource_applied'])
+    result = draft_record(issued)
     require_route_reading(result, root=root, studio=studio, ledgers=ledgers, dialect=dialect)
     return result
-
 
 
 def copy_issuance(record: dict, destination: Path, *, root: Path = ROOT, studio: Path | None = None,
@@ -557,7 +502,7 @@ def copy_issuance(record: dict, destination: Path, *, root: Path = ROOT, studio:
     with c.lock(destination.parent):
         rows = ledger_rows(destination)
         matching = [old for old in rows if old['key_sha256'] == row['key_sha256']]
-        fields = {'route', 'features', 'documents'} | RESOURCE_FIELDS
+        fields = MANIFEST_FIELDS
         if any(any(old[k] != row[k] for k in fields) for old in matching):
             raise ValueError('destination ledger has a conflicting issuance')
         if not matching:
@@ -606,7 +551,9 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
               cursor: str | None = None, replay: bool = False, page_bytes: int = DEFAULT_PAGE_BYTES,
               root: Path = ROOT, studio: Path | None = None, ledger: Path | None = None,
               stream: TextIO | None = None, runtime: dict | None = None,
-              dialect: str | None = None) -> dict:
+              dialect: str | None = None, operation: str | None = None, execution: str | None = None,
+              model: str | None = None, service: str | None = None,
+              model_file: Path | None = None) -> dict:
     """Deliver immutable pages; serialize only the final issuance ledger append."""
     if isinstance(page_bytes, bool) or not isinstance(page_bytes, int) or page_bytes < 4:
         raise ValueError('page-bytes must be an integer of at least four')
@@ -616,11 +563,12 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
     if cursor is None:
         if route is None:
             raise ValueError('a route is required to start reading')
-        manifest, bodies = capture(route, features, root=root, dialect=dialect)
+        manifest, bodies = capture(route, features, root=root, dialect=dialect, operation=operation, execution=execution, model=model,
+                                   service=service, model_file=model_file)
         import production_authoring_state
         task_id = production_authoring_state.active_task_id(authoring_studio)
         snapshot = {'manifest': manifest, 'root': str(root.absolute()), 'runtime': runtime,
-                    'task_id': task_id,
+                    'task_id': task_id, 'model_file': str(model_file.absolute()) if model_file is not None else None,
                     'nonce': secrets.token_hex(16), 'bodies': [dict(meta, size=len(raw)) for meta, raw in bodies]}
         sid = c.content_id(snapshot)
         production_authoring_state.remember_reading(authoring_studio, ledger, sid, snapshot, page_bytes)
@@ -631,8 +579,8 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
             c.object_store(folder, raw)
         start = 0
     else:
-        if route is not None or features or dialect is not None:
-            raise ValueError('a cursor fixes its route, features and prompt family')
+        if route is not None or features or dialect is not None or operation is not None or execution is not None or model is not None or service is not None or model_file is not None:
+            raise ValueError('a cursor fixes its route, operation, execution, features and model scope')
         folder, snapshot, page = _cursor(ledger, cursor)
         sid = c.content_id(snapshot)
         if str(root.absolute()) != snapshot['root']:
@@ -689,7 +637,11 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         if reach != total:
             raise ValueError('reading snapshot is incomplete')
         current, _ = capture(snapshot['manifest']['route'], snapshot['manifest']['features'], root=root,
-                             dialect=bound_dialect(snapshot['manifest']))
+                             dialect=bound_dialect(snapshot['manifest']), operation=snapshot['manifest']['operation'],
+                             execution=snapshot['manifest']['execution'],
+                             model=(snapshot['manifest']['model'] or {}).get('id') if snapshot['model_file'] is None else None,
+                             model_file=Path(snapshot['model_file']) if snapshot['model_file'] is not None else None,
+                             service=(snapshot['manifest']['model'] or {}).get('service'))
         if current != snapshot['manifest']:
             raise ValueError('sources changed during reading; start a new read')
         result['issued'] = _issue(current, ledger)
@@ -701,15 +653,14 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
 
 
 def draft_record(issued: dict) -> dict:
-    """The reading record with every derived field filled and no application yet."""
+    """Return the complete machine-owned delivery record from its issued scope."""
     row = issued['row']
-    return {'route': row['route'], 'features': row['features'], 'reading_key': issued['reading_key'],
-            'documents': row['documents'], 'resources': row['resources'], 'applied': [], 'resource_applied': []}
+    return {**{field: row[field] for field in sorted(MANIFEST_FIELDS)}, 'reading_key': issued['reading_key']}
 
 
 def write_draft(issued: dict, ledger: Path, *, studio: Path | None = None,
                 snapshot: str | None = None) -> Path:
-    """Write the draft beside the ledger once; an existing file keeps what the author wrote."""
+    """Publish the derived delivery record beside its issuance ledger."""
     row = issued['row']
     path = ledger.parent / 'readings' / (row['route'] + '-' + row['key_sha256'][:16] + '.json')
     raw = (json.dumps(draft_record(issued), ensure_ascii=False, indent=2) + '\n').encode('utf-8')
@@ -721,16 +672,17 @@ def write_draft(issued: dict, ledger: Path, *, studio: Path | None = None,
     try:
         c.atomic(path, raw)
     except FileExistsError:
-        pass
+        if c.read(path) != raw:
+            raise ValueError('saved delivery record differs from its issuance')
     return path
 
 
-def _model_family(model: str) -> str | None:
-    """The prompt family a model record names; a model that resolves to no record gets what exists."""
+def _selected_model(model: str) -> tuple[str, dict]:
+    """Resolve the selected model or return an actionable catalog/family choice."""
     from catalog_retrieval.runtime import load_pack_catalog
     from prepare_generation_references import resolve_model_record
     try:
-        return resolve_model_record(model)[1].get('prompt_dialect')
+        return resolve_model_record(model)
     except ValueError as exc:
         catalog = load_pack_catalog()
         models = sorted({str(entry.record['id']) for entry in catalog.entries
@@ -745,8 +697,14 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('route', nargs='?', help='Route to begin; a cursor supplies the saved route for continuation')
     parser.add_argument('--feature', action='append', default=[], help='Feature to include when beginning a route')
     parser.add_argument('--root', type=Path, help='Studio root for the reading ledger')
+    parser.add_argument('--operation', choices=execution_routes.OPERATIONS,
+                        help='Current operation; defaults to the route owner')
+    parser.add_argument('--execution', choices=execution_routes.EXECUTIONS,
+                        help='Execution kind selected by the task; required for a new reading')
+    parser.add_argument('--service', help='Selected offering service; with --model, omit to compare all offerings')
     family = parser.add_mutually_exclusive_group()
-    family.add_argument('--model', help="Read only the writing guide sections for this model's prompt family")
+    family.add_argument('--model', help="Deliver the selected model guidance and its complete applicable writing guide")
+    family.add_argument('--model-file', type=Path, help='Acquired model definition, relative to the Studio or absolute')
     family.add_argument('--dialect', metavar='ID',
                         help='Read only the writing guide sections for this prompt family, without a model record')
     parser.add_argument('--page-bytes', type=int, default=DEFAULT_PAGE_BYTES,
@@ -786,29 +744,28 @@ def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_by
 def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
     """Read, then write the draft reading record for the issued key and print its path."""
     continuation = args.cursor is not None or args.replay is not None
-    if continuation and (args.route is not None or args.feature or args.model is not None or args.dialect is not None):
-        raise ValueError('a cursor fixes its route, features and prompt family; execute its complete reading action')
+    if continuation and (args.route is not None or args.feature or args.model is not None or args.model_file is not None or args.dialect is not None
+                         or args.operation is not None or args.execution is not None or args.service is not None):
+        raise ValueError('a cursor fixes its route, operation, execution, features and model scope; execute its complete reading action')
+    if not continuation and args.execution is None:
+        raise ValueError('a new reading requires --execution authored, external or dispatcher from the task')
     if args.reading_ledger is not None and not continuation:
         raise ValueError('--reading-ledger locates an existing reading; use it with --continue or --replay')
     runtime = _configure_runtime(args, parser)
     ledger = ledger_candidates(studio=args.root, ledger=args.reading_ledger)[0]
     studio = args.root.absolute() if args.root is not None else (_studio(Path.cwd()) or _studio(ledger.parent))
     dialect = args.dialect
-    if args.model is not None:
-        dialect = _model_family(args.model)
-        from prepare_generation_references import resolve_model_record
-        from render_contract_lib import model_card
-        _, selected_model = resolve_model_record(args.model)
-        offers = selected_model.get('offerings') or []
-        cards = [model_card(selected_model, row) for row in offers] if offers else [model_card(selected_model)]
-        print('model-guidance: ' + json.dumps(cards, ensure_ascii=False, sort_keys=True), flush=True)
     if not continuation and args.route is None:
         raise ValueError('read requires a route or a continuation cursor')
     page_bytes = DEFAULT_PAGE_BYTES if args.page_bytes is None else args.page_bytes
     cursor = args.cursor if args.cursor is not None else args.replay
+    model_file = args.model_file
+    if model_file is not None and not model_file.is_absolute():
+        model_file = (studio or Path.cwd()) / model_file
     result = read_page(route=args.route, features=args.feature, cursor=cursor,
                        replay=args.replay is not None, page_bytes=page_bytes,
-                       ledger=ledger, studio=studio, runtime=runtime, dialect=dialect)
+                       ledger=ledger, studio=studio, runtime=runtime, dialect=dialect,
+                       operation=args.operation, execution=args.execution, model=args.model, service=args.service, model_file=model_file)
     issued = result.get('issued')
     result['actions'] = _reading_actions(result, ledger=ledger, studio=studio, page_bytes=page_bytes)
     print('reading-actions: ' + json.dumps(result['actions'], ensure_ascii=False), flush=True)
@@ -828,7 +785,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         row = require_route_reading(c.load(args.record), studio=args.root, package_root=args.record.parent)
-        print(json.dumps({'ok': True, 'route': row['route'], 'evidence': 'issuance and exact quotation'}, indent=2))
+        print(json.dumps({'ok': True, 'route': row['route'], 'operation': row['operation'],
+                          'execution': row['execution'], 'evidence': 'complete source delivery'}, indent=2))
         return 0
     except (ValueError, OSError) as exc:
         print(json.dumps({'ok': False, 'error': str(exc)})); return 1

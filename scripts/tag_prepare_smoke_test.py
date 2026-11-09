@@ -74,7 +74,7 @@ class TagPreparationTests(unittest.TestCase):
         fixture.write(self.root / 'validation.json', fixture_validation(self.root, fixture.MODEL_ID, reference_mode='authored-rendition', service='synthetic'))
         from reading_fixtures import fixture_reading
         fixture.write(self.root / 'reading.json', fixture_reading(route='generation', studio=self.root,
-                      ledger=self.root / 'work/reads.jsonl', dialect='synthetic-tags'))
+                      ledger=self.root / 'work/reads.jsonl', model=fixture.MODEL_ID, service='synthetic', execution='dispatcher'))
 
     def test_final_request_has_dictionary_meaning_and_resource_hashes(self):
         result = workflow.prepare(self.root, 'task.json')

@@ -92,7 +92,12 @@ class PackageFileInputTests(unittest.TestCase):
     def external_run(self) -> str:
         """A run whose task names no generation documents, so the builder takes them as files."""
         task=c.load(self.root/'task.json');task.pop('generation');task['execution']='external'
+        task['features'].append('generation-package')
         production_fixtures.external_image_input(self.root,task)
+        from reading_fixtures import fixture_reading
+        task['route_reading']='external-reading.json'
+        cases.write(self.root/task['route_reading'],fixture_reading(route=task['route'],features=task['features'],
+            execution=task['execution'],operation='prepare',studio=self.root,model=self.case['model'],service='synthetic'))
         cases.write(self.root/'external-task.json',task)
         return workflow.prepare(self.root,'external-task.json')['run']
 

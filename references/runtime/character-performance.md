@@ -1,7 +1,7 @@
 # Identity-Led Contextual Voice and Embodied Performance
 
-Apply [Production direction](production-direction.md) inside the existing
-[production run](production-execution.md), in this order:
+Apply [Production direction](production-direction.md) to the current
+[production operation](production-workflow.md), in this order:
 
 1. the full applicable design and persona;
 2. purpose-specific choices;
@@ -10,7 +10,7 @@ Apply [Production direction](production-direction.md) inside the existing
 5. scoped repair.
 
 [Permissions](production-permissions.md) separate delegated judgment from submission, selection
-and canonical adoption. The run keeps its single evaluation ledger (review record); cast, emotion
+and canonical adoption. A requested artifact review keeps its attributed review record; cast, emotion
 curve and stock gesture stay optional.
 
 ## Activation and scope
@@ -312,14 +312,6 @@ correct world or a recognizable face shows something else.
 
 ## Artifact evidence and completion
 
-For a saved deliverable, continue through [Production Execution](production-execution.md),
-keeping this document's own interpretation, retrieval, approval and adoption boundaries:
+Complete the operation actually commissioned under [Production workflow](production-workflow.md), preserving this document's interpretation, retrieval, authority and adoption boundaries. An authored plan, prompt or design uses [Authored storage](production-authored-storage.md): save its exact revision and perform delivery or review when requested. Model execution instead prepares its exact input, captures the actual result and binds review and selection to that result. Canonical adoption records its own decision and destination.
 
-1. Prepare the exact inputs.
-2. Capture the real output.
-3. Bind review and selection to it.
-4. Complete and close the work task.
-
-`scripts/production_workflow.py status`, `impact` and `resume` recheck dependencies and artifact
-bytes. Completion and canonical adoption are explicit recorded steps; a progress checkbox, a
-search hit or a newly created image is none of them.
+`production_workflow.py status`, `impact` and `resume` expose current dependencies, artifact integrity and the next action. Close the owning work task when its requested result is complete. A search hit, saved revision, generated image and adoption each establish their own scope.

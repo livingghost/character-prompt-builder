@@ -25,10 +25,10 @@ COMMANDS = frozenset({'inspect-inputs', 'draft-inputs', 'build-inputs'})
 
 
 def _task(root: Path, path: str | None, reader: InputEvidence, *,
-          from_run: str | None = None) -> tuple[dict, dict, dict, dict | None]:
+          from_run: str | None = None, read_run=None) -> tuple[dict, dict, dict, dict | None]:
     if (path is None) == (from_run is None):
         raise ValueError('select one task file or source run')
-    saved = _source_run(root, from_run) if from_run is not None else None
+    saved = _source_run(root, from_run, read_run=read_run) if from_run is not None else None
     if saved is None:
         ref = reader.select(path)
         value = reader.json(ref)
@@ -42,23 +42,22 @@ def _task(root: Path, path: str | None, reader: InputEvidence, *,
     features = value.get('features')
     if not isinstance(features, list):
         raise ValueError('task.features must be an explicit array')
-    route = execution_routes.resolve(value['route'], features)
+    route = execution_routes.resolve(value['route'], features, execution=value['execution'],
+        operation='author' if value.get('execution')=='authored' else 'prepare')
     return value, route, ref, saved
 
 
-def _source_run(root: Path, selected: str | None) -> dict | None:
+def _source_run(root: Path, selected: str | None, *, read_run=None) -> dict | None:
     if selected is None:
         return None
     import production_workflow as workflow
-    _, prepared, _, _ = workflow.read_run(root, selected)
-    from production_execution import status
-    current = status(root, selected)['runs'][0]
-    if current['integrity'] != 'intact':
-        raise ValueError('source run integrity changed while inspecting its evidence')
+    loaded = read_run(selected) if read_run is not None else workflow.read_run(root, selected)
+    prepared = loaded.prepared
+    diagnostics = workflow.freshness_diagnostics(root, selected, loaded=loaded)
     return {'run': selected, 'input_sha256': prepared['input_sha256'],
             'task_path': prepared['task_path'], 'task': prepared['task'],
             'route_reading': copy.deepcopy(prepared.get('route_reading')),
-            'freshness': {'current': not current['freshness_diagnostics'], 'diagnostics': current['freshness_diagnostics']},
+            'freshness': {'current': not diagnostics, 'diagnostics': diagnostics},
             'assessment_required': ['Check copied applications against the current task and changed dependencies.']}
 
 
@@ -174,9 +173,7 @@ def inspect_inputs(root: Path, task_path: str | None = None, *, from_run: str | 
 
 
 def draft_choices(task: dict) -> dict:
-    applications = {'snapshot_id': None, 'reading_key': None, 'applied': []}
-    if route_reading.RECORD_RESOURCE_FIELDS:
-        applications['resource_applied'] = []
+    applications = {'reading_key': None}
     # A null visual or validation choice builds no record here: the Generation
     # Package builder takes continuity decisions and derives request validation.
     return {'reading': applications, 'visual': None,
@@ -198,11 +195,6 @@ def _missing(choices: dict) -> list[dict]:
     else:
         if not reading.get('reading_key'):
             unresolved.append({'field': 'reading.reading_key', 'code': 'reading-required'})
-        for key in ('applied',) + (('resource_applied',) if route_reading.RECORD_RESOURCE_FIELDS else ()):
-            if key not in reading:
-                unresolved.append({'field': 'reading.' + key, 'code': 'application-selection-required'})
-            elif not isinstance(reading[key], list):
-                raise ValueError('reading.' + key + ' must be an array')
     for field in ('visual', 'validation'):
         if choices[field] is not None and not isinstance(choices[field], dict):
             raise ValueError(field + ' choices must be an object or null')
@@ -241,20 +233,12 @@ def _unresolved(choices: dict, task: dict) -> list[dict]:
 
 
 def _reading(choices: dict, *, root: Path, task: dict) -> dict:
-    fields = {'snapshot_id', 'reading_key', 'applied'}
-    if route_reading.RECORD_RESOURCE_FIELDS:
-        fields.add('resource_applied')
-    c.exact(choices, fields, 'reading choices')
+    c.exact(choices, {'reading_key'}, 'reading choices')
     issued = route_reading.resolve_issuance(choices['reading_key'], studio=root)
-    snapshot = choices['snapshot_id']
-    if snapshot is not None:
-        route_reading.check_snapshot_issuance(snapshot, issued, studio=root)
-    applications = {'applied': choices['applied']}
-    if route_reading.RECORD_RESOURCE_FIELDS:
-        applications['resource_applied'] = choices['resource_applied']
-    record = route_reading.build_record(issued, applications, studio=root)
+    record = route_reading.build_record(issued, studio=root)
     route_reading.require_route_reading(record, studio=root,
-                                       routes={task['route']}, features=task['features'])
+        routes={task['route']}, features=task['features'], execution=task['execution'],
+        operation='author' if task.get('execution')=='authored' else 'prepare')
     return record
 
 
@@ -289,9 +273,22 @@ def _publish(root: Path, out_dir: str, files: dict[str, bytes], *,
 def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: str | None = None,
                  runtime_arguments: dict | None = None, route: str | None = None,
                  artifact: str | None = None, execution: str | None = None,
-                 task_id: str | None = None, features: list[str] | None = None) -> dict:
+                 task_id: str | None = None, features: list[str] | None = None,
+                 model: str | None = None, service: str | None = None) -> dict:
     reader = InputEvidence(root)
     initial = task_path is None and from_run is None
+    if not initial and task_id is not None:
+        import production_authoring_state
+        if production_authoring_state.active_task_id(root)!=task_id:
+            raise ValueError('--task-id must select the current open work task when reopening inputs')
+    if from_run is not None:
+        import production_authored
+        unfinished = production_authored.draft_source(root, from_run)
+        if unfinished is not None:
+            if any(value is not None for value in (route, artifact, execution, features, model, service)):
+                raise ValueError('restore the saved draft before changing its route or target')
+            return _restore_draft(root, from_run, out_dir, unfinished,
+                task_id=task_id, runtime_arguments=runtime_arguments)
     if initial:
         if route is None:
             raise ValueError('select --route for initial production authoring')
@@ -299,11 +296,24 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                               task_id=task_id, features=features)
         task_ref, saved = {'initial': True, 'task_id': task['task_id']}, None
     else:
-        if any(value is not None for value in (route, artifact, execution, task_id, features)):
+        if any(value is not None for value in (route, artifact, execution, features, model, service)):
             raise ValueError('initial task flags cannot replace a selected task or run')
         task, _, task_ref, saved = _task(root, task_path, reader, from_run=from_run)
     choices = draft_choices(task)
     choices['authoring'] = authoring.draft(root, task, reader, saved=saved, initial=initial)
+    if not initial and task_id is not None:
+        task = copy.deepcopy(task)
+        task['task_id'] = task_id
+        choices['authoring']['task']['task_id'] = task_id
+    if initial and model is not None:
+        if task['execution']=='authored':
+            choices['authoring']['task'].setdefault('authored',{})['target']={'model':model}
+        else:
+            choices['authoring']['generation']['model']=model
+    if initial and service is not None:
+        if task['execution']!='dispatcher':
+            raise ValueError('--service selects an image execution target')
+        choices['authoring']['generation']['service']=service
     if _retained_validation(choices) is not None:
         choices['validation'] = None
     if initial and task.get('execution') == 'external':
@@ -327,9 +337,21 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     if previous is not None:
         route_reading.validate_record_content(previous)
         choices['reading']['reading_key'] = previous['reading_key']
-        choices['reading']['applied'] = copy.deepcopy(previous['applied'])
-        if route_reading.RECORD_RESOURCE_FIELDS:
-            choices['reading']['resource_applied'] = copy.deepcopy(previous['resource_applied'])
+    editable={}
+    delivery=choices['authoring']['delivery']
+    if choices['authoring'].get('upscale') is None:
+        raw=delivery.pop('content',None)
+        raw=b'' if raw is None else raw.encode('utf-8') if isinstance(raw,str) else c.encoded(raw)
+        delivery['file']=(Path(out_dir)/'prompt.txt').as_posix()
+        editable['prompt.txt']=raw
+    for field in authoring.TEXT_DOCUMENTS:
+        raw=choices['authoring']['documents'].get(field)
+        if isinstance(raw,str):
+            filename=field.replace('_','-')+'.txt'
+            editable[filename]=raw.encode('utf-8')
+            choices['authoring']['documents'][field]={'file':(Path(out_dir)/filename).as_posix()}
+    import production_reference_inputs
+    production_reference_inputs.identify_choices(choices)
     identity = _identity_view(root, task, reader, saved=saved)
     result = {'state': 'draft', 'choices': choices,
               'unresolved': _unresolved(choices, task) + _identity_gaps(identity),
@@ -339,16 +361,74 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     _validate_choices(choices)
     context = {key: value for key, value in result.items() if key != 'choices'}
     context['task_content'] = task
+    if not initial and task_id is not None:
+        context['task_binding']={'task_id':task_id}
     context_raw = c.encoded(context)
     _destination(root, out_dir)
     import production_authoring_state
     production_authoring_state.remember_inputs(root, task, 'draft-inputs', out_dir,
         task_path=task_path, from_run=from_run, runtime_arguments=runtime_arguments,
         context_sha256=c.digest(context_raw))
-    _publish(root, out_dir, {'choices.json': c.encoded(choices),
+    _publish(root, out_dir, {**editable,'choices.json': c.encoded(choices),
                             'context.json': context_raw}, reader=reader)
     return {**result, 'choices_file': (Path(out_dir) / 'choices.json').as_posix(),
             'context_file': (Path(out_dir) / 'context.json').as_posix()}
+
+
+def _restore_draft(root: Path, run: str, out_dir: str, saved_source: dict, *,
+                   task_id: str | None, runtime_arguments: dict | None) -> dict:
+    """Reopen the captured editor files, preserving JSON selectors and unfinished choices."""
+    import production_authoring_state
+    choices=copy.deepcopy(saved_source['choices'])
+    task=copy.deepcopy(saved_source['task'])
+    authored=choices['authoring']
+    if task_id is not None:
+        task['task_id']=task_id
+        authored['task']['task_id']=task_id
+    files={}
+    locations={}
+    def restore(item, key):
+        old=item.get(key)
+        if old not in saved_source['files']:
+            return
+        if old not in locations:
+            name='editable/'+str(len(locations)+1)+'-'+Path(old).name
+            files[name]=saved_source['files'][old]
+            locations[old]=(Path(out_dir)/name).as_posix()
+        item[key]=locations[old]
+    restore(authored['delivery'],'file')
+    for item in authored.get('documents',{}).values():
+        if isinstance(item,dict) and set(item)<= {'file','field'}:
+            restore(item,'file')
+    for item in authored.get('sources',{}).values():
+        restore(item,'file')
+    target=(authored['task'].get('authored') or {}).get('target') or {}
+    restore(target,'model_file')
+    restore(target,'vocabulary_record')
+    negative=(authored['task'].get('authored') or {}).get('negative')
+    if negative is not None:
+        restore(negative,'path')
+    saved=_source_run(root,run)
+    reference={'run':run,'input_sha256':saved['input_sha256']}
+    unresolved=copy.deepcopy(saved_source['unresolved'])
+    for item in unresolved:
+        if item.get('file') in locations:
+            item['file']=locations[item['file']]
+    result={'state':'draft','choices':choices,'unresolved':unresolved,
+        'derived_from':{'task':reference,'source_run':saved},'external_effect':False}
+    context={key:value for key,value in result.items() if key!='choices'}
+    context['task_content']=task
+    if task_id is not None:
+        context['task_binding']={'task_id':task_id}
+    _validate_choices(choices)
+    raw=c.encoded(context)
+    _destination(root,out_dir)
+    production_authoring_state.remember_inputs(root,task,'draft-inputs',out_dir,
+        task_path=None,from_run=run,runtime_arguments=runtime_arguments,context_sha256=c.digest(raw))
+    _publish(root,out_dir,{**files,'choices.json':c.encoded(choices),'context.json':raw},
+        reader=InputEvidence(root))
+    return {**result,'choices_file':(Path(out_dir)/'choices.json').as_posix(),
+        'context_file':(Path(out_dir)/'context.json').as_posix()}
 
 
 def _validate_choices(value: dict) -> None:
@@ -469,18 +549,27 @@ def _retained_identity_sources(root: Path, task: dict, choices_path: str, reader
             'and draft their current application and criteria again. ' + str(exc)) from exc
 
 
-def _choice_source(root: Path, choices_path: str, reader: InputEvidence) -> tuple[dict, dict, dict | None, str | None, str | None]:
+def _choice_source(root: Path, choices_path: str, reader: InputEvidence, *, read_run=None) -> tuple[dict, dict, dict | None, str | None, str | None]:
     """Recover the original input boundary; edited content never asserts origin."""
     path = (Path(choices_path).parent / 'context.json').as_posix()
     context = reader.json(reader.select(path))
+    def bound(task):
+        binding=context.get('task_binding')
+        if binding is None:
+            return task
+        c.exact(binding,{'task_id'},'reopened work task')
+        import production_authoring_state
+        production_authoring_state.require_input_context(root,binding['task_id'],
+            Path(choices_path).parent.as_posix(),reader.read(reader.select(path)),required=True)
+        return {**task,'task_id':binding['task_id']}
     origin = context['derived_from']
     reference = origin['task']
     saved = origin.get('source_run')
     if saved is not None:
-        task, _, current, recovered = _task(root, None, reader, from_run=saved['run'])
+        task, _, current, recovered = _task(root, None, reader, from_run=saved['run'], read_run=read_run)
         if current['input_sha256'] != saved['input_sha256']:
             raise ValueError('saved authoring context no longer matches its source run')
-        return task, current, recovered, None, saved['run']
+        return bound(task), current, recovered, None, saved['run']
     if reference.get('initial') is True:
         task = copy.deepcopy(context['task_content'])
         if task['task_id'] != reference['task_id']:
@@ -489,24 +578,108 @@ def _choice_source(root: Path, choices_path: str, reader: InputEvidence) -> tupl
     task_path = reference['path']
     reader.read(reference)
     task, _, current, recovered = _task(root, task_path, reader)
-    return task, current, recovered, task_path, None
+    return bound(task), current, recovered, task_path, None
 
 
-def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: str, *,
-                 from_run: str | None = None, runtime_arguments: dict | None = None) -> dict:
+def _load_editable(root: Path, choices_path: str, reader: InputEvidence, *, register: bool = True) -> tuple[dict,dict,dict,list]:
+    path=c.local(root,choices_path)
+    raw=c.read(path)
+    choices=read_choices(c.decode(raw))
+    import production_reference_inputs
+    if register and production_reference_inputs.identify_choices(choices):
+        if c.read(path)!=raw:
+            raise ValueError('editable choices changed while assigning reference uses')
+        c.atomic(path,c.encoded(choices),replace=True)
+    ref=reader.select(choices_path)
+    locations={}
+    gaps=[]
+    if choices.get('authoring') is not None:
+        choices['authoring'],locations,gaps=authoring.read_editable(choices['authoring'],reader)
+    ref={**ref,'files':{path:item['sha256'] for path,item in reader.snapshots.items()
+                       if path!=choices_path and not path.startswith('@')}}
+    return choices,ref,locations,gaps
+
+
+def _authored_basis(root: Path, task: dict, origin_task: dict, reader: InputEvidence,
+                    saved: dict | None, *, allow_missing: bool = False) -> dict | None:
+    """Retain the commission and original sources before editable adaptations."""
+    if task.get('execution') != 'authored':
+        return None
+    previous = None
+    if saved is not None:
+        import production_workflow as workflow
+        previous = workflow.read_run(root, saved['run'])
+    basis = (previous.prepared['task'].get('authored_basis') or {}) if previous else (origin_task.get('authored_basis') or {})
+    originals = {item['source']['id']: item for item in basis.get('sources', [])}
+    previous_sources = {item['id']: item for item in
+                        (previous.prepared['task'] if previous else origin_task).get('sources', [])}
+    retained = []
+    for source in task.get('sources', []):
+        original = originals.get(source['id'])
+        if original and previous_sources.get(source['id'], {}).get('path') == source['path']:
+            path = ((previous.directory / 'objects' / original['file']['sha256']).relative_to(root).as_posix()
+                    if previous else original['file']['path'])
+            definition = original['source']
+            selected = {'path': path, 'sha256': original['file']['sha256']}
+        else:
+            path, definition = source['path'], source
+            selected = None
+        try:
+            selected = selected or reader.select(path)
+            raw = reader.read(selected)
+        except (ValueError, OSError):
+            if allow_missing:
+                continue
+            raise
+        retained.append({'source': copy.deepcopy(definition),
+                         'file': {**selected, 'size': len(raw)}})
+    return {'origin_task': copy.deepcopy(basis.get('origin_task', origin_task)), 'sources': retained}
+
+
+def authoring_view(root: Path, choices_path: str, *, register: bool = False,
+                   task_path: str | None = None, from_run: str | None = None, read_run=None) -> dict:
+    """Expose the actual editable revision, including its unfinished choices."""
+    reader=InputEvidence(root,named_roots={'@skill':ROOT})
+    choices,ref,locations,gaps=_load_editable(root,choices_path,reader,register=register)
+    if task_path is not None or from_run is not None:
+        base,_,origin,saved=_task(root,task_path,reader,from_run=from_run,read_run=read_run)
+    else:
+        base,origin,saved,task_path,from_run=_choice_source(root,choices_path,reader,read_run=read_run)
+    task=_chosen_task(base,choices)
+    for source in task.get('sources',[]):
+        path=source.get('path')
+        if not path:continue
+        try:reader.read(reader.select(path))
+        except (ValueError,OSError) as exc:
+            gaps.append({'field':'authoring.task.sources','file':path,'code':'source-unavailable','message':str(exc)})
+    basis = _authored_basis(root, task, base, reader, saved, allow_missing=True)
+    unresolved=_unresolved(choices,task)+gaps
+    content=((choices.get('authoring') or {}).get('delivery') or {}).get('content')
+    delivery=b'' if content is None else content.encode('utf-8') if isinstance(content,str) else c.encoded(content)
+    captured={path:reader._decode(value) for path,value in reader.snapshots.items() if not path.startswith('@')}
+    return {'task':task,'choices':c.decode(captured[choices_path]),'resolved_choices':choices,
+        'files':{},'delivery':delivery,'unresolved':unresolved,'source_map':locations,'captured':captured,
+        'origin':origin,'source_run':saved,'task_path':task_path,'from_run':from_run,'choices_ref':ref,
+        'authored_basis':basis}
+
+
+def _assemble_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: str, *,
+                 from_run: str | None = None, runtime_arguments: dict | None = None,
+                 publish: bool = True) -> dict:
     reader = InputEvidence(root, named_roots={'@skill': ROOT})
-    choices_ref = reader.select(choices_path)
-    choices = read_choices(reader.json(choices_ref))
+    choices,choices_ref,locations,file_gaps = _load_editable(root,choices_path,reader)
     if task_path is None and from_run is None:
         base_task, task_ref, saved, task_path, from_run = _choice_source(root, choices_path, reader)
     else:
         base_task, _, task_ref, saved = _task(root, task_path, reader, from_run=from_run)
     task = _chosen_task(base_task, choices)
+    basis = _authored_basis(root, task, base_task, reader, saved)
     _destination(root, out_dir)
     import production_authoring_state
-    production_authoring_state.remember_inputs(root, task, 'build-inputs', out_dir,
-        task_path=task_path, from_run=from_run, choices_path=choices_path, runtime_arguments=runtime_arguments)
-    missing = _unresolved(choices, task)
+    if publish:
+        production_authoring_state.remember_inputs(root, task, 'build-inputs', out_dir,
+            task_path=task_path, from_run=from_run, choices_path=choices_path, runtime_arguments=runtime_arguments)
+    missing = _unresolved(choices, task)+file_gaps
     if missing:
         return {'state': 'draft', 'ok': False, 'inputs': {}, 'unresolved': missing,
                 'derived_from': {'task': task_ref, 'choices': choices_ref},
@@ -525,7 +698,7 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
     if validation is not None:
         dialect = validation_context.get('dialect', route_reading._NO_MODEL)
         route_reading.require_route_reading(reading, studio=root, routes={task['route']},
-                                           features=task['features'], dialect=dialect)
+                                           features=task['features'], execution=task['execution'], dialect=dialect)
     content = {'route-reading.json': reading}
     if visual is not None:
         content['visual-continuity.json'] = visual
@@ -548,6 +721,15 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
             if name + '.json' in content:
                 copied_task['generation'][field] = (Path(out_dir) / (name + '.json')).as_posix()
     encoded = dict(authored_files)
+    if basis is not None:
+        exported_basis = copy.deepcopy(basis)
+        for index, original in enumerate(exported_basis['sources'], 1):
+            item = original['file']
+            raw = reader.read({key: item[key] for key in ('path', 'sha256')})
+            name = 'basis/source-' + str(index).zfill(3) + Path(original['source']['path']).suffix
+            encoded[name] = raw
+            item['path'] = (Path(out_dir) / name).as_posix()
+        copied_task['authored_basis'] = exported_basis
     encoded.update({name: c.encoded(value) for name, value in content.items()})
     delivery = authored_delivery
     if delivery is None and saved is not None:
@@ -568,7 +750,7 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
         encoded.update(external_files)
         copied_task['image_input'] = (Path(out_dir) / 'image-input.json').as_posix()
         route_reading.require_route_reading(reading, studio=root, routes={copied_task['route']},
-            features=copied_task['features'], dialect=external_context['dialect'])
+            features=copied_task['features'], execution=copied_task['execution'], dialect=external_context['dialect'])
     else:
         external_context = None
     identity = _identity_view(root, copied_task, reader, files=encoded, out_dir=out_dir)
@@ -604,10 +786,11 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
                                     'external_effect': False}],
                   'external_effect': False}
         encoded['input-report.json'] = c.encoded(result)
-        _publish(root, out_dir, encoded, reader=reader, before_publish=recheck)
+        if publish:_publish(root, out_dir, encoded, reader=reader, before_publish=recheck)
         return result
     from production_workflow import validate_task
-    validate_task(copied_task)
+    if publish:
+        validate_task(copied_task)
     encoded['production-task.json'] = c.encoded(copied_task)
     encoded['input-snapshots.json'] = c.encoded(reader.snapshots)
     inputs = {Path(name).stem: {'path': (Path(out_dir) / name).as_posix(),
@@ -621,12 +804,71 @@ def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: 
                           for key, value in copied_task.items() if value != base_task.get(key)],
               'external_input': external_context,
               **({'identity_coverage': identity} if identity is not None else {}),
-              'assessment_required': ['Apply the selected quotations to the current rendition and settings.'],
+              'assessment_required': ['Judge the depiction and selected sources against the commission.'],
               'next_actions': adapters.next_actions(inputs, copied_task, root, runtime_arguments=runtime_arguments),
               'external_effect': False}
     encoded['input-report.json'] = c.encoded(result)
-    _publish(root, out_dir, encoded, reader=reader, before_publish=recheck)
+    if publish:
+        _publish(root, out_dir, encoded, reader=reader, before_publish=recheck)
+    else:
+        recheck()
+        result['_files']=encoded
+        result['_captured']={path:reader._decode(item) for path,item in reader.snapshots.items() if not path.startswith('@')}
+        result['_source_map']=locations
+        result['_task']=copied_task
     return result
+
+
+def build_inputs(root: Path, task_path: str | None, choices_path: str, out_dir: str, *,
+                 from_run: str | None = None, runtime_arguments: dict | None = None) -> dict:
+    """Export derived files for explicit inspection or interchange."""
+    return _assemble_inputs(root,task_path,choices_path,out_dir,from_run=from_run,runtime_arguments=runtime_arguments)
+
+
+def compile_choices(root: Path, choices_path: str, *, persist: bool = False,
+                    identity: str | None = None, draft: bool = False,
+                    runtime_arguments: dict | None = None):
+    """Compile the editable source with the same validators used by task input."""
+    import production_compiler as compiler
+    from production_diagnostics import from_exception
+    from pack_manager import generate_uuid7
+    identity=identity or generate_uuid7()
+    if draft:
+        raise ValueError('unfinished revisions use the authored save owner and authoring_view')
+    output=compiler.run_inputs(identity)
+    try:
+        assembled=_assemble_inputs(root,None,choices_path,output,publish=False,runtime_arguments=runtime_arguments)
+        if not assembled.get('ok'):
+            return compiler.Compilation({'ok':False,'publishable':False,'diagnostics':[
+                {'code':item.get('code','AUTHORED_CHOICE_REQUIRED'),'message':item.get('message','Resolve this authored choice.'),
+                 'file':item.get('file',choices_path),'pointer':item['field'],'phase':'authoring','severity':'error'}
+                for item in assembled.get('unresolved',[])], 'checks':[], 'authoring':assembled,
+                'external_effect':False,'formal_run_created':False})
+        path=(Path(output)/'production-task.json').as_posix()
+        compiled=compiler.compile_task(root,path,persist=persist,identity=identity,
+            derived=assembled['_files'],source_inputs=assembled['_captured'])
+        compiled.report['authoring']={'choices':choices_path,
+            'choices_ref':assembled['derived_from']['choices'],'source_map':assembled['_source_map']}
+        if compiled.prepared is not None:
+            compiled.prepared['authoring']=copy.deepcopy(compiled.report['authoring'])
+        reverse={item['path']:key for key,item in assembled['inputs'].items()}
+        for diagnostic in compiled.report.get('diagnostics',[]):
+            generated=diagnostic.get('file')
+            name=reverse.get(generated)
+            field='authoring.delivery' if name=='delivery' else 'authoring.documents.'+name.replace('-','_') if name else None
+            origin=assembled['_source_map'].get(field)
+            if origin is not None:
+                diagnostic['generated_file']=generated
+                diagnostic['file']=origin['file']
+                if origin.get('pointer') is not None:diagnostic['source_field']=origin['pointer']
+            elif generated and generated.startswith(output+'/'):
+                diagnostic['generated_file']=generated;diagnostic['file']=choices_path
+                diagnostic['authoring_field']=field or 'authoring.task'
+        return compiled
+    except (ValueError,OSError,KeyError,TypeError) as exc:
+        return compiler.Compilation({'ok':False,'publishable':False,'diagnostics':[
+            from_exception(exc,phase='authoring',file=choices_path)],'checks':[],
+            'external_effect':False,'formal_run_created':False})
 
 
 def add_arguments(subparsers) -> None:
@@ -640,6 +882,8 @@ def add_arguments(subparsers) -> None:
         source.add_argument('--task', help='Studio-relative authored production task JSON.')
         source.add_argument('--from-run', help='Use the saved task and delivery of this existing run.')
         if name == 'draft-inputs':
+            parser.add_argument('--model',help='Initial selected model ID; its definition owns the input contract.')
+            parser.add_argument('--service',help='Initial selected offering service.')
             parser.add_argument('--route', help='Initial production route; no prebuilt task is needed.')
             parser.add_argument('--artifact', dest='artifact_kind',
                 choices=('text', 'json', 'image', 'video', 'audio', 'binary'),
@@ -669,5 +913,6 @@ def command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
     if args.command == 'draft-inputs':
         return draft_inputs(root, args.task, args.out_dir, from_run=args.from_run,
                             runtime_arguments=runtime_arguments, route=args.route, artifact=args.artifact_kind,
-                            execution=args.execution, task_id=args.task_id, features=args.features)
+                            execution=args.execution, task_id=args.task_id, features=args.features,
+                            model=args.model,service=args.service)
     return build_inputs(root, args.task, args.choices, args.out_dir, from_run=args.from_run, runtime_arguments=runtime_arguments)

@@ -194,10 +194,22 @@ def _validate_task(task: dict) -> None:
                 if not isinstance(carrier, dict):
                     _fail('An identity carrier must be an object.')
                 if carrier.get('kind') == 'text':
-                    c.exact(carrier, {'kind', 'surface', 'quote'}, 'identity text carrier')
+                    selector='selection' if 'selection' in carrier else 'quote'
+                    c.exact(carrier, {'kind', 'surface', selector}, 'identity text carrier')
                     if carrier['surface'] not in {'primary', 'negative'}:
                         _fail('A text carrier must select the actual primary or negative surface.')
-                    c.text(carrier['quote'], 'identity carrier quote')
+                    if selector=='quote':
+                        c.text(carrier['quote'], 'identity carrier quote')
+                    else:
+                        selection=carrier['selection']
+                        if selection=={'whole':True}:
+                            pass
+                        elif isinstance(selection,dict) and set(selection)<= {'text','occurrence'} and 'text' in selection:
+                            c.text(selection['text'],'selected carrier text')
+                            if 'occurrence' in selection and (type(selection['occurrence']) is not int or selection['occurrence']<1):
+                                _fail('Text selection occurrence must be a positive integer.')
+                        else:
+                            _fail('Select the whole text surface or an exact text occurrence.')
                 elif carrier.get('kind') == 'reference':
                     c.exact(carrier, {'kind', 'reference', 'use'}, 'identity reference carrier')
                     c.text(carrier['reference'], 'identity reference id')
@@ -401,7 +413,9 @@ def _text_carrier(carrier: dict, context: dict) -> dict:
     surface = context.get('text', {}).get(carrier['surface'])
     if not isinstance(surface, dict) or not isinstance(surface.get('text'), str):
         _fail('The claimed text surface is absent from the actual model input.', code='IDENTITY_CARRIER_MISSING')
-    text, quote = surface['text'], carrier['quote']
+    text=surface['text']
+    selection=carrier.get('selection')
+    quote=(text if selection=={'whole':True} else selection['text']) if selection is not None else carrier['quote']
     field = _field(surface.get('field'))
     digest = c.digest(text.encode('utf-8'))
     if c.sha(surface.get('sha256')) != digest:
@@ -412,8 +426,17 @@ def _text_carrier(carrier: dict, context: dict) -> dict:
         offset += 1
     if not starts:
         _fail('An identity text quote is absent from the actual model input.', code='IDENTITY_CARRIER_MISSING')
-    return {**carrier, 'field': copy.deepcopy(field), 'surface_sha256': digest,
-            'ranges': starts, 'range_unit': 'unicode-codepoints'}
+    if selection is not None:
+        occurrence=selection.get('occurrence')
+        if occurrence is not None:
+            if occurrence>len(starts):
+                _fail('The selected text occurrence is absent.',code='IDENTITY_CARRIER_MISSING')
+            starts=[starts[occurrence-1]]
+        elif len(starts)!=1:
+            _fail('The text selection is ambiguous; select its occurrence.',code='IDENTITY_CARRIER_MISSING')
+    ranges=[[len(text[:start].encode('utf-8')),len(text[:end].encode('utf-8'))] for start,end in starts]
+    return {**carrier,'quote':quote, 'field': copy.deepcopy(field), 'surface_sha256': digest,
+            'ranges': ranges, 'range_unit': 'utf-8-bytes'}
 
 
 def _reference_carrier(carrier: dict, binding: dict, references: dict) -> dict:

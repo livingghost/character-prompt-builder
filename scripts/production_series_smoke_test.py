@@ -16,10 +16,10 @@ class SeriesTests(unittest.TestCase):
         temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup);self.root=Path(temporary.name)
         task=work_ledger.begin(self.root,'Synthetic independent production series',['prepare','deliver'])
         (self.root/'delivery.txt').write_text('Synthetic fixture delivery.\n', encoding='utf-8')
-        self.task={'task_id':task['task_id'],'route':'development','features':[],'sources':[],
+        self.task={'task_id':task['task_id'],'route':'development','features':[],'sources':[], 'execution':'external',
                    'delivery':{'path':'delivery.txt','translation_notes':'Synthetic exact text.'},
                    'criteria':[{'id':'identity','strength':'hard','text':'First synthetic criterion.'}],'world_views':[]}
-        fixture.task(self.root,self.task)
+        fixture.task(self.root,self.task,execution='external')
         a=c.load(self.root/'fixture-authority.json');a['grants'][0]['protected_criteria']=['identity']
         (self.root/'fixture-authority.json').write_bytes(c.encoded(a))
     def prepare(self,name='task.json'):

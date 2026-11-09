@@ -591,7 +591,7 @@ def _package(
     from request_validation_fixtures import fixture_validation
     validation = fixture_validation(fixture_root(), model, reference_mode='authored-rendition')
 
-    return build_payload(request_validation=validation, input_root=fixture_root(), visual_continuity=fixture_visual(production_spec), visual_root=fixture_root(), route_reading=fixture_reading(route='generation'), 
+    return build_payload(execution='dispatcher', request_validation=validation, input_root=fixture_root(), visual_continuity=fixture_visual(production_spec), visual_root=fixture_root(), route_reading=fixture_reading(route='generation', model=model, execution='dispatcher'),
         retrieval_record=(fixture_retrieval(prompt, APPROVED_PLOT) if retrieval_record is _UNSET else retrieval_record),
         plot=copy.deepcopy(APPROVED_PLOT),
         model=model,
@@ -2885,7 +2885,9 @@ def run() -> dict[str, Any]:
             with mock.patch.object(generation_builder, "resolve_model_record",
                                    return_value=(INTEGRATED_MODEL_ID, integrated_record)), \
                     mock.patch.object(generation_builder, "_selected_model",
-                                      return_value=(INTEGRATED_MODEL_ID, integrated_record)):
+                                      return_value=(INTEGRATED_MODEL_ID, integrated_record)), \
+                    mock.patch("route_reading._selected_model",
+                               return_value=(INTEGRATED_MODEL_ID, integrated_record)):
                 limited_package = _package(empty_stateless_reference_set(), model=INTEGRATED_MODEL_ID,
                                            integrated_prompt=selected_text)
                 limited_verified = verify(limited_package)
@@ -2907,7 +2909,9 @@ def run() -> dict[str, Any]:
             with mock.patch.object(generation_builder, "resolve_model_record",
                                    return_value=(NATIVE_MODEL_ID, native_record)), \
                     mock.patch.object(generation_builder, "_selected_model",
-                                      return_value=(NATIVE_MODEL_ID, native_record)):
+                                      return_value=(NATIVE_MODEL_ID, native_record)), \
+                    mock.patch("route_reading._selected_model",
+                               return_value=(NATIVE_MODEL_ID, native_record)):
                 limited_native = _package(empty_stateless_reference_set(), model=NATIVE_MODEL_ID,
                                           integrated_prompt="", native_negative="text")
                 checked(
@@ -3166,7 +3170,7 @@ def run_derived_inputs() -> dict[str, Any]:
                 cache_dir=base / "cache", managed_root=base / "managed", default_enabled_packs=())
             configure_pack_runtime(settings)
             root = studio.init(base / "studio", "derived-inputs", "Derived input checks")
-            run_id = production_fixtures.prepare_external_delivery(root, PROMPT + "\n")
+            run_id = production_fixtures.prepare_external_delivery(root, PROMPT + "\n", model=model)
             (base / "prompt.txt").write_text(PROMPT + "\n", encoding="utf-8")
             for name, value in {"plot.json": APPROVED_PLOT, "retrieval.json": fixture_retrieval(PROMPT, APPROVED_PLOT)}.items():
                 atomic_write_json(base / name, value)
@@ -3261,7 +3265,7 @@ def run_derived_inputs() -> dict[str, Any]:
                     "derived inputs differ from the hand-supplied records")
 
             # Decisions stay explicit, and derivation refuses what it cannot prove.
-            refused("state each production subject")
+            refused("each production subject")
             refused("already states continuity", "--continuity", "C01=one-off", "--visual-continuity-file", str(base / "hand-visual.json"))
             refused("studio character", "--continuity", "C01=recurring")
             # The first images of a new character are undecided until the author accepts one.

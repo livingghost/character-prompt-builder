@@ -203,8 +203,8 @@ class MixedReferenceSourceTests(unittest.TestCase):
             parameters={'width': 1024, 'height': 1024, 'settings': {'quality': 'high'}},
             request_validation=fixture_validation(self.root, MODEL, reference_mode='authored-rendition'),
             visual_continuity=visual, visual_root=self.root,
-            route_reading=fixture_reading(route='state-series', studio=self.root,
-                                         ledger=self.root / 'work/mixed-reference-reads.jsonl'))
+            route_reading=fixture_reading(route='state-series', model=MODEL, studio=self.root,
+                                         ledger=self.root / 'work/mixed-reference-reads.jsonl', execution='dispatcher'))
         inputs['retrieval_record'] = fixture_retrieval(inputs['prompt'], inputs['plot'])
         package = build_package(**inputs)
         self.assertTrue(verify(package, package_root=package_root, studio=self.root)['verified'])

@@ -285,14 +285,28 @@ in the ordinary task; its independent whole-subject criterion is also required.
 }
 ```
 
-A text carrier selects `primary` or `negative` and an exact nonempty `quote`.
-The compiler locates it in the actual rendered request field, not in the
-Production Specification, criterion or an unused prompt file. A reference
+A text carrier selects the actual `primary` or `negative` request surface.
+Use `"selection": {"whole": true}` when the whole selected surface carries the
+obligation. The compiler takes its current text directly; no separate quotation
+or numeric offset needs editing. For a narrower selection, use
+`"selection": {"text": "the exact selected passage"}`. If that passage occurs
+more than once, add a one-based `occurrence` to select one occurrence. An
+ambiguous or missing selection identifies the unresolved carrier. An explicitly
+authored `quote` is also an exact wording choice, as in the example above.
+
+The compiler derives the quotation, current field hash and UTF-8 byte ranges
+from the actual rendered request. A changed surface becomes new input; an
+updated position does not certify that the source's meaning remains preserved.
+Text in a Production Specification, criterion or unused prompt file does not
+establish delivery to the model. A reference
 carrier selects `{"kind":"reference","reference":"REFERENCE_ID","use":"identity"}`
 or another explicitly permitted influence appropriate to the obligation. The
 compiler resolves its subject assignment, original source, delivered bytes,
 request field and any board region or transform. Reordering attachments keeps
-their logical identity. A different approved view may carry a definition; the
+their logical identity. The reference input owner assigns the editable use ID
+when the selection is first saved and retains it through reordering or an
+explicit same-use replacement. The actual source, crop and delivered content
+remain separately bound by their current hashes. A different approved view may carry a definition; the
 source image need not be pasted into every request. The reference's allowed
 influence and exclusions still apply.
 

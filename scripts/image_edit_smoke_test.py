@@ -26,11 +26,12 @@ class ImageEditTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
         task=work_ledger.begin(self.root,'Synthetic image operations',['prepare','deliver'])
         self.put('source.png',png());self.put('overlay.png',png((2,2),(200,0,0,255)));self.put('delivery.txt','Create the specified synthetic plate.')
-        self.task={'task_id':task['task_id'],'route':'development','features':[],
+        self.task={'task_id':task['task_id'],'route':'development','features':[], 'execution':'external',
           'sources':[{'id':name,'path':name+'.png','role':'world','locator':'whole','disposition':'applied','reason':'Synthetic test source.'} for name in ('source','overlay')],
           'delivery':{'path':'delivery.txt','translation_notes':'Synthetic only.'},
           'criteria':[{'id':'pixels','strength':'hard','text':'Observed pixel structure.'}],'world_views':[]}
-        fixture.task(self.root,self.task,artifact='image');self.task['criteria'][0]['evidence']='image'
+        fixture.task(self.root,self.task,artifact='image',execution='external');self.task['criteria'][0]['evidence']='image'
+        fixture.external_image_input(self.root,self.task)
         self.put('task.json',self.task);self.run=w.prepare(self.root,'task.json')['run'];fixture.handoff(self.root,self.run,'pixel editor','manual')
         self.plan={'input_sha256':w.load_run(self.root,self.run)[1]['input_sha256'],
           'source':self.source('source.png'),'operations':[{'operation':'crop','box':[1,2,7,6]}],
@@ -46,6 +47,15 @@ class ImageEditTests(unittest.TestCase):
         return edit.execute(self.root,self.run,'edit.json',authorization)
     def pixels(self):
         with Image.open(self.root/'art/result.png') as im:return im.copy()
+    def received_candidate(self):
+        authorization=fixture.grant(self.root,self.run,w.external_intent(self.root,self.run,1))
+        w.claim_external(self.root,self.run,1,authorization)
+        self.put('candidate.png',png())
+        candidate=w.capture(self.root,self.run,'candidate.png','Actual synthetic plate from the delegated fixture.')
+        self.put('host-response.json',{'synthetic':True,'status':'received','file':'candidate.png'})
+        w.receive_external(self.root,self.run,response_file='host-response.json',artifacts=['candidate.png'],
+                           final=True,reason='The synthetic host returned the declared source plate.')
+        return candidate
     def observed(self,candidate,verdict='pass',name='review.json',repair=False):
         d=w.draft_review(self.root,self.run,candidate['sha256'])
         d.update(reviewer='SYNTHETIC REVIEWER',observations=[{'evidence':'candidate','locator':{'kind':'whole'},'observation':'Inspected the synthetic pixels.','interpretation':'Technical check only.','limitations':['Not an acting test.']}],conclusion='Synthetic check.')
@@ -161,7 +171,7 @@ class ImageEditTests(unittest.TestCase):
         self.observed(candidate);data=c.load(self.root/'review.json');data['checks'][0]['verdict']='fail';data['unresolved']=['Need an actual correction decision.'];self.put('failed.json',data)
         self.assertEqual(w.review(self.root,self.run,'failed.json')['event'],'review')
     def test_reviewed_repair_and_completion(self):
-        self.put('candidate.png',png());candidate=w.capture(self.root,self.run,'candidate.png','Synthetic plate')
+        candidate=self.received_candidate()
         self.observed(candidate,'fail',repair=True)
         self.plan['source']=self.source('candidate.png');self.plan['repair']={'candidate':candidate['sha256'],'repair':'crop'}
         edited=self.execute();self.assertNotEqual(candidate['sha256'],edited['sha256'])
@@ -170,11 +180,11 @@ class ImageEditTests(unittest.TestCase):
         selection['reason']='Synthetic technical result.';fixture.selection(self.root,self.run,selection);self.put('select.json',selection)
         w.select(self.root,self.run,'select.json');self.assertEqual(w.complete(self.root,self.run)['event'],'completion')
     def test_reviewed_source_cannot_hide_repair(self):
-        self.put('candidate.png',png());candidate=w.capture(self.root,self.run,'candidate.png','Synthetic plate');self.observed(candidate,'fail',repair=True)
+        candidate=self.received_candidate();self.observed(candidate,'fail',repair=True)
         self.plan['source']=self.source('candidate.png')
         with self.assertRaisesRegex(ValueError,'explicit latest'):self.intent()
     def test_stale_review_invalidates_edit_permission(self):
-        self.put('candidate.png',png());candidate=w.capture(self.root,self.run,'candidate.png','Synthetic plate');self.observed(candidate,'fail',repair=True)
+        candidate=self.received_candidate();self.observed(candidate,'fail',repair=True)
         self.plan['source']=self.source('candidate.png');self.plan['repair']={'candidate':candidate['sha256'],'repair':'crop'};grant=fixture.grant(self.root,self.run,self.intent())
         self.observed(candidate,name='new-review.json')
         with self.assertRaises(ValueError):edit.execute(self.root,self.run,'edit.json',grant)

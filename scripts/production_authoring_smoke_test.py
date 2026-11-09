@@ -29,7 +29,8 @@ class CommonAuthoringTests(unittest.TestCase):
 
     def test_existing_text_edit_materializes_delivery_and_keeps_independent_criteria(self):
         result, choices = self.editable()
-        choices['authoring']['delivery']['content'] = 'Changed authored delivery.\n'
+        (self.root / choices['authoring']['delivery']['file']).write_text(
+            'Changed authored delivery.\n', encoding='utf-8')
         choices['authoring']['task']['direction']['purpose'] = 'Revised purpose.'
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
         built = inputs.build_inputs(self.root, None, result['choices_file'], 'built')
@@ -67,11 +68,12 @@ class CommonAuthoringTests(unittest.TestCase):
         result = inputs.draft_inputs(self.root, None, 'initial', route='development')
         choices = c.load(self.root / result['choices_file'])
         self.assertEqual(choices['authoring']['task']['task_id'], opened['task_id'])
-        self.assertIsNone(choices['authoring']['delivery']['content'])
+        delivery = self.root / choices['authoring']['delivery']['file']
+        self.assertEqual(delivery.read_text(encoding='utf-8'), '')
         choices['reading'] = copy.deepcopy(self.choices['reading'])
         choices['authoring']['task']['direction'] = copy.deepcopy(self.task['direction'])
         choices['authoring']['task']['criteria'] = copy.deepcopy(self.task['criteria'])
-        choices['authoring']['delivery'] = {'content': 'First authored text.', 'translation_notes': 'Authored directly.'}
+        delivery.write_text('First authored text.', encoding='utf-8')
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
         built = inputs.build_inputs(self.root, None, result['choices_file'], 'initial-built')
         self.assertTrue(built['ok'])
@@ -390,7 +392,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
         choices = c.load(self.root / result['choices_file'])
         original = c.load(self.root / 'task.json')
         prompt = 'A flat graphic portrait of one synthetic robot beside a simple bench.'
-        choices['authoring']['delivery']['content'] = prompt
+        (self.root / choices['authoring']['delivery']['file']).write_text(prompt, encoding='utf-8')
         choices['authoring']['documents']['parameters'].update(width=64, height=64)
         choices['authoring']['task']['direction']['purpose'] = 'Compare an authored local composition.'
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
@@ -408,7 +410,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.assertEqual(retrieval['context'], retrieval_context(prompt, new_plot))
         self.assertEqual(choices['authoring']['documents']['retrieval_record']['elements'], retrieval['elements'])
         next_draft = inputs.draft_inputs(self.root, built['inputs']['production-task']['path'], 'second-draft')
-        self.assertEqual(next_draft['choices']['authoring']['delivery']['content'], prompt)
+        self.assertEqual((self.root / next_draft['choices']['authoring']['delivery']['file']).read_text(encoding='utf-8'), prompt)
 
     def test_upscale_reuses_valid_validation_and_builds_edited_request(self):
         import production_case_fixtures as cases

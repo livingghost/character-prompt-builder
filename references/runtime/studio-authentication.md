@@ -2,7 +2,7 @@
 
 Activate this document when configuring a service API key, inspecting or changing its source, or repairing authentication before execution or recovery. Use the service ID selected by the model's offering. Each service has one authentication entry in the Studio's private `credentials.json`: `api_key` holds a saved value, or `api_key_env` names the process environment variable that supplies it.
 
-The Studio supplies access to the service. [Production permissions](production-permissions.md) supplies authority for the exact operation, and [Production execution](production-execution.md) performs the authorized request. An available key establishes neither a grant nor approval of a request.
+The Studio supplies access to the service. [Production permissions](production-permissions.md) supplies authority for the exact operation, and [Prepared request execution](production-request-execution.md) performs the authorized request. An available key establishes neither a grant nor approval of a request.
 
 ## Contents
 

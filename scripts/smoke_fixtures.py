@@ -15,7 +15,8 @@ def fixture_retrieval(prompt: str, plot: dict[str, Any]) -> dict[str, Any]:
         prompt=prompt, plot=plot)
 
 
-def fixture_external_delivery(folder: Path, prompt: str, features: list[str]) -> tuple[Path, str]:
+def fixture_external_delivery(folder: Path, prompt: str, features: list[str], *,
+                              model: str | None = None) -> tuple[Path, str]:
     """Prepare input for an independent package-construction test, not automatic dispatch.
 
     These tests inspect reference/package bytes and never execute a service. The
@@ -30,6 +31,7 @@ def fixture_external_delivery(folder: Path, prompt: str, features: list[str]) ->
     root = studio.init(folder, 'synthetic-cli', 'Synthetic CLI fixture')
     started = work_ledger.begin(root, 'Synthetic package', ['prepare'])
     (root / 'fixture-delivery.txt').write_bytes(prompt.encode('utf-8'))
+    features = [*features, 'generation-package']
     spec = {'task_id': started['task_id'], 'route': 'generation', 'features': features, 'sources': [],
             'delivery': {'path': 'fixture-delivery.txt',
                          'translation_notes': 'Exact synthetic test input.'},
@@ -37,6 +39,12 @@ def fixture_external_delivery(folder: Path, prompt: str, features: list[str]) ->
             'world_views': []}
     production_fixtures.external_image_input(root, spec)
     production_fixtures.task(root, spec, artifact='image', execution='external')
+    if model is not None:
+        from reading_fixtures import fixture_reading
+        reading = fixture_reading(route=spec['route'], features=features, operation='prepare',
+                                  model=model, studio=root, execution=spec['execution'])
+        (root / 'reading.json').write_bytes(c.encoded(reading))
+        spec['route_reading'] = 'reading.json'
     (root / 'fixture-task.json').write_bytes(c.encoded(spec))
     return root, production_workflow.prepare(root, 'fixture-task.json')['run']
 
@@ -54,6 +62,11 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
     configure_pack_runtime(default_settings(extra_roots=extra, **values))
     with tempfile.TemporaryDirectory(prefix='synthetic-cli-inputs-') as temp:
         args=list(argv)
+        model = args[args.index('--model')+1] if '--model' in args else None
+        if model is None and '--production-spec-file' in args:
+            selected = Path(args[args.index('--production-spec-file')+1])
+            if selected.is_file():
+                model = json.loads(selected.read_text(encoding='utf-8')).get('target_model')
         if '--production-spec-file' in args and '--prompt-file' in args:
             spec_path=Path(args[args.index('--production-spec-file')+1])
             prompt_path=Path(args[args.index('--prompt-file')+1])
@@ -76,7 +89,8 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
             prompt_path=Path(argv[argv.index('--prompt-file')+1])
             prompt=prompt_path.read_bytes().decode('utf-8') if prompt_path.is_file() else ''
             features=['state-series'] if main.__module__=='build_state_generation_package' else []
-            root,run=fixture_external_delivery(Path(temp)/'studio',prompt or 'synthetic absent prompt',features)
+            root,run=fixture_external_delivery(Path(temp)/'studio',prompt or 'synthetic absent prompt',features,
+                                               model=model)
             args.extend(['--production-root',str(root),'--production-run',run])
         root=Path(args[args.index('--production-root')+1])
         # Later verification in these tests reads the shared fixture root, so
@@ -93,11 +107,6 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
             from request_validation_fixtures import fixture_validation
             # This helper authors only explicit synthetic test data for models
             # whose request check cannot be derived from an active pack.
-            model = args[args.index('--model')+1] if '--model' in args else None
-            if model is None and '--production-spec-file' in args:
-                spec_path = Path(args[args.index('--production-spec-file')+1])
-                if spec_path.is_file():
-                    model = json.loads(spec_path.read_text(encoding='utf-8')).get('target_model')
             if isinstance(model, str) and model.strip():
                 path=Path(temp)/'request-validation.json'
                 path.write_text(json.dumps(fixture_validation(root, model, reference_mode='authored-rendition')), encoding='utf-8')

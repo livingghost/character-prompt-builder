@@ -4,38 +4,31 @@
   "sources": [
     {
       "source_id": "BASE",
-      "path": "base.json",
-      "sha256": "bb82335777b20160496dad61dbc2b4a093e01611248f38cb368502c503c7c391"
+      "path": "base.json"
     },
     {
       "source_id": "EVENTS",
-      "path": "events.jsonl",
-      "sha256": "d9dbb983733f783376c0bbba304c35b794a127837ce8727e587c35b982d3d65e"
+      "path": "events.jsonl"
     },
     {
       "source_id": "PROCESSES",
-      "path": "processes.json",
-      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      "path": "processes.json"
     },
     {
       "source_id": "COVERAGE",
-      "path": "coverage.json",
-      "sha256": "fc2a6332a0ffdcb7416017296838d663902686dd1fb9794eb9798150a47cd5e5"
+      "path": "coverage.json"
     },
     {
       "source_id": "DESIGN",
-      "path": "design.md",
-      "sha256": "bd7bd100e1dcb889a7e202aaaed140ba32fc01e41a1d369484e0b4c7486c0a40"
+      "path": "design.md"
     },
     {
       "source_id": "PERSONA",
-      "path": "persona.md",
-      "sha256": "b963cad2ec3b3dce52b75cf1c16bec722aad41354249b0755aa7f1494271bd36"
+      "path": "persona.md"
     },
     {
       "source_id": "INTENT",
-      "path": "intent.md",
-      "sha256": "36a615eb1542d8a89056519f35d431e6ec1f6066a287c095996d9e0787948315"
+      "path": "intent.md"
     }
   ],
   "timeline": {

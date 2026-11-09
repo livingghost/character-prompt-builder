@@ -67,7 +67,7 @@ class StudioStateTests(unittest.TestCase):
             request_validation=fixture_validation(self.root,'gpt-image-2.5-flare',reference_mode='authored-rendition'),
             parameters={'width':1024,'height':1024,'settings':{'quality':'high'}})
         return build_package(**inputs,visual_continuity=visual,visual_root=self.root,
-            route_reading=fixture_reading(route='state-series'),prepared_reference_set=prepared,prepared_reference_root=self.package_root)
+            route_reading=fixture_reading(route='state-series', model=inputs['model'], execution='dispatcher'),prepared_reference_set=prepared,prepared_reference_root=self.package_root)
 
     def test_binding_reads_hashes_and_preserves_authored_scope(self):
         binding = self.binding()

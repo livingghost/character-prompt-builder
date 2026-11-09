@@ -586,6 +586,10 @@
         },
         "subject_uses": {
           "$ref": "prepared-generation-reference.schema.json#/$defs/subject-uses"
+        },
+        "reference_id": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false

@@ -110,6 +110,22 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(result['panels']['canon.primary']['status'], 'blocked')
         self.assertIn('dimensions', result['panels']['canon.primary']['diagnostic']['message'])
 
+    def test_manifest_generation_dimensions_fill_missing_parameters_only(self):
+        parameters=c.load(self.root/'parameters.json')
+        parameters.pop('width');parameters.pop('height')
+        fixtures.write(self.root/'parameters.json',parameters)
+        # Display content dimensions are independent from requested image pixels.
+        self.manifest['requests'][0]['target'].update(content_x=12,content_y=20,content_w=120,content_h=80)
+        fixtures.write(self.root/'panel-fill-requests.json',self.manifest)
+        (self.root/'batch.json').unlink();batch.initialize(self.root,'batch-plan.json','batch.json')
+        run=self.prepare()
+        import production_workflow as workflow
+        loaded=workflow.read_run(self.root,run)
+        actual=loaded.artifacts['package.json']['render_contract']['parameters']
+        self.assertEqual((actual['width'],actual['height']),(32,32))
+        self.assertEqual(actual['steps'],parameters['steps'])
+        self.assertEqual(c.load(self.root/'parameters.json'),parameters)
+
     def test_reference_stage_pins_one_accepted_anchor_and_copies_companion(self):
         from sheet_artifacts_smoke_test import accepted
         spec = c.load(self.root / 'spec.json')

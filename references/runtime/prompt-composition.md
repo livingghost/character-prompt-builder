@@ -98,6 +98,15 @@ actual boundary; it does not automatically select the opposite or diminish
 the remaining requested quality. Preserve modifier scope and intended degree.
 A direct exclusion is sufficient when that boundary fully defines the change.
 
+Use the same production knowledge from either starting point. For
+[an image source](production-direction.md#form-a-prompt-from-an-image), identify
+the appearance and relationships to carry, including distinctive details at
+the requested fidelity. For
+[an idea](production-direction.md#form-a-prompt-from-an-idea), choose concepts
+and a visual realization that make the intended experience concrete. The
+former interprets supplied choices; the latter authors open choices. Neither
+requires converting every visible or imagined consequence into an instruction.
+
 The current Production Specification records the chosen depiction:
 `constraints.user_anchors` holds explicit requirements, `purposeful_additions`
 holds selected art direction, and `construction_invariants` holds relationships
@@ -372,7 +381,7 @@ an unresolved, consequential input reading. Preserve permitted variation and
 judge at the precision the commission needs. Structured validation checks
 declared assignments and bounds; the author evaluates their relevance and
 agreement with the rendition. When a generated image is available, observe it
-under [Production execution](production-execution.md#observe-before-interpreting)
+under [Production execution](production-review.md#observe-before-interpreting)
 and compare it with the same commission and applicable sources. Neither a
 valid request nor a criterion supplies evidence of rendered success.
 

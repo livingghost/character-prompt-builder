@@ -151,6 +151,94 @@ class SemanticEditPlanTests(unittest.TestCase):
                          {'mode': 'bounded-probe', 'unmeasured': ['schema-unavailable']})
         inputs.validate_binding(result)
 
+    def test_revision_scopes_compare_words_across_new_request_files(self):
+        before = self.validate()
+        retained = copy.deepcopy(before)
+        plan = copy.deepcopy(self.plan)
+        evidence = plan['model']['evidence']
+        write(self.root, 'copied-model-evidence.json', (self.root / evidence['path']).read_bytes())
+        evidence['path'] = 'copied-model-evidence.json'
+        request = c.load(self.root / 'request.json')
+        request['prompt'] += ' Use a pale blue wall.'
+        write(self.root, 'revised-request.json', request)
+        plan['external_request']['file'] = 'revised-request.json'
+        after = inputs.validate(plan, self.root)
+        compared = inputs.revision_scopes(before, after)
+        self.assertEqual(compared['scopes'], ['delivery'])
+        self.assertTrue({'request.json', 'revised-request.json', 'model-evidence.json',
+                         'copied-model-evidence.json'} <= set(compared['paths']))
+        self.assertEqual(before, retained)
+
+    def test_revision_scopes_keep_nontext_changes_in_execution(self):
+        before = self.validate()
+        original_request = (self.root / 'request.json').read_bytes()
+        original_image = (self.root / 'design.png').read_bytes()
+        for change in ('service', 'model', 'operation', 'count', 'native-control',
+                       'unbound-text', 'reference-image', 'reference-use'):
+            with self.subTest(change=change):
+                plan = copy.deepcopy(self.plan)
+                request = c.decode(original_request)
+                request['prompt'] += ' Use a pale blue wall.'
+                if change == 'service':
+                    plan['model']['target']['service'] = 'another-synthetic-host'
+                elif change == 'model':
+                    plan['model']['target']['model_identifier'] = request['model'] = 'vendor:other-editor@1'
+                elif change == 'operation':
+                    plan['model']['target']['operation'] = request['operation'] = 'another-edit'
+                elif change == 'count':
+                    plan['external_request']['count'] = request['count'] = 2
+                elif change == 'native-control':
+                    request['quality'] = 'high'
+                elif change == 'unbound-text':
+                    request['other_instructions'] = 'Add a cup.'
+                elif change == 'reference-image':
+                    write(self.root, 'design.png', png((70, 20, 40), (32, 24)))
+                else:
+                    plan['references'][1]['do_not_transfer'].append('color')
+                write(self.root, 'request.json', request)
+                after = inputs.validate(plan, self.root)
+                self.assertEqual(inputs.revision_scopes(before, after)['scopes'], ['delivery', 'execution'])
+                (self.root / 'design.png').write_bytes(original_image)
+
+    def test_revision_scopes_negative_text_is_delivery(self):
+        self.plan['external_request']['negative_field'] = ['negative_text']
+        request = c.load(self.root / 'request.json')
+        request['negative_text'] = 'A printed label.'
+        write(self.root, 'request.json', request)
+        before = self.validate()
+        request['negative_text'] = 'A printed label or a watermark.'
+        write(self.root, 'request.json', request)
+        self.assertEqual(inputs.revision_scopes(before, self.validate())['scopes'], ['delivery'])
+
+    def test_revision_uncomparable_input_retains_dependency_scope(self):
+        import production_workflow as workflow
+        before_input = self.validate()
+        request = c.load(self.root / 'request.json')
+        request['prompt'] += ' Use a pale blue wall.'
+        write(self.root, 'revised-request.json', request)
+        plan = copy.deepcopy(self.plan)
+        plan['external_request']['file'] = 'revised-request.json'
+        after_input = inputs.validate(plan, self.root)
+        task = {'delivery': {'path': 'prompt.txt'}, 'sources': [], 'criteria': [],
+                'image_input': 'image-input.json', 'direction': {
+                    'purpose': 'Synthetic scene.', 'intended_effect': 'Visible wall color.', 'basis': [],
+                    'action_slice': None, 'limitations': [], 'decisions': []}}
+        before = {'task': task, 'task_path': 'task.json', 'dependencies': [
+            {'space': 'studio', 'path': 'image-input.json', 'sha256': before_input['plan_sha256']},
+            {'space': 'studio', 'path': 'request.json', 'sha256': before_input['external_request']['sha256']}]}
+        after = {'task': copy.deepcopy(task), 'task_path': 'task.json', 'dependencies': [
+            {'space': 'studio', 'path': 'image-input.json', 'sha256': after_input['plan_sha256']},
+            {'space': 'studio', 'path': 'revised-request.json', 'sha256': after_input['external_request']['sha256']}]}
+        self.assertEqual(workflow.changed_scopes(before, after, before_inputs=before_input,
+                         after_inputs=after_input), ['delivery'])
+        invalid = copy.deepcopy(after_input)
+        invalid['external_request'].pop('prompt_check')
+        for value in (None, invalid):
+            with self.subTest(input=value is None):
+                self.assertIsNone(inputs.revision_scopes(before_input, value))
+                self.assertEqual(workflow.changed_scopes(before, after, before_inputs=before_input,
+                                 after_inputs=value), ['execution'])
+
     def test_external_review_covers_pixels_and_every_request_field(self):
         from production_request import draft_external_decision, check_external_authorization
         from production_fixtures import ACTOR, assess_rendition
@@ -1095,6 +1183,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         task.pop('generation')
         task.pop('recording')
         task.update(execution='external', image_input='external-input.json')
+        from reading_fixtures import task_reading
+        task_reading(self.root, task)
         write(self.root, 'external-task.json', task)
         return external, references, carriers
 
@@ -1271,6 +1361,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         task.pop('recording')
         task.update(execution='external', image_input='external-input.json')
         write(self.root, 'external-input.json', external)
+        from reading_fixtures import task_reading
+        task_reading(self.root, task)
         write(self.root, 'external-task.json', task)
         run = workflow.prepare(self.root, 'external-task.json')['run']
         self.assertEqual(workflow.impact(self.root, run).get('provenance'), [])
@@ -1501,8 +1593,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         task['generation'].update(references='references.json', continuity={})
         studio.add_character(self.root, 'product-scene', 'general')
         task['recording'].update(character='product-scene', slot='candidate', subject_map={}, sheet_panel=False)
-        write(self.root, 'reading.json', fixture_reading(route=task['route'], features=task['features'],
-                                                        studio=self.root, ledger=self.root / 'work/reads.jsonl'))
+        write(self.root, 'reading.json', fixture_reading(route=task['route'], features=task['features'], model=self.model,
+                                                        studio=self.root, ledger=self.root / 'work/reads.jsonl', execution=task['execution']))
         write(self.root, 'task.json', task)
         return task
 
@@ -1582,8 +1674,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         task.pop('image_input')
         task['features'].remove('semantic-instruction-edit')
         from reading_fixtures import fixture_reading
-        write(self.root, 'reading.json', fixture_reading(route=task['route'], features=task['features'],
-                                                        studio=self.root, ledger=self.root / 'work/reads.jsonl'))
+        write(self.root, 'reading.json', fixture_reading(route=task['route'], features=task['features'], model=self.model,
+                                                        studio=self.root, ledger=self.root / 'work/reads.jsonl', execution=task['execution']))
         write(self.root, 'task.json', task)
         check = check_task(self.root, 'task.json')
         self.assertFalse(check['ok'])
@@ -1701,7 +1793,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.task['sources'].append({'id': 'specification', 'path': 'external-spec.json', 'role': 'production-spec',
             'disposition': 'applied', 'locator': 'whole', 'reason': 'Explicit synthetic new scene specification.'})
         write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
-            ledger=self.root / 'work/reads.jsonl'))
+            ledger=self.root / 'work/reads.jsonl', execution=self.task['execution']))
         self.task['route_reading'] = 'reading.json'
         sync_external_prompt(self.root, self.plan)
         write(self.root, 'image-input.json', self.plan)
@@ -1733,7 +1825,7 @@ class SemanticEditProductionTests(unittest.TestCase):
                                  'text': 'Inspect the vase and table in the returned image.'}]
         self.task['delivery']['translation_notes'] = 'Exact synthetic text-only image request.'
         write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
-            ledger=self.root / 'work/reads.jsonl'))
+            ledger=self.root / 'work/reads.jsonl', execution=self.task['execution']))
         self.task['route_reading'] = 'reading.json'
         write(self.root, 'task.json', self.task)
         request = c.load(self.root / 'request.json')
@@ -1773,7 +1865,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.task['features'] = []
         self.task['sources'] = []
         write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
-            ledger=self.root / 'work/reads.jsonl'))
+            ledger=self.root / 'work/reads.jsonl', execution=self.task['execution']))
         self.task['route_reading'] = 'reading.json'
         write(self.root, 'task.json', self.task)
         run = workflow.prepare(self.root, 'task.json')['run']
@@ -1820,7 +1912,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.task['features'] = []
         self.task['sources'] = []
         write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
-            ledger=self.root / 'work/reads.jsonl'))
+            ledger=self.root / 'work/reads.jsonl', execution=self.task['execution']))
         self.task['route_reading'] = 'reading.json'
         write(self.root, 'task.json', self.task)
         checked = check_task(self.root, 'task.json')

@@ -104,6 +104,16 @@ class RealizationTests(unittest.TestCase):
     def test_no_source_mutation(self):
         before={p.name:p.read_bytes() for p in self.root.iterdir()};wr.compile_plan(self.root,'plan.json')
         self.assertEqual(before,{p.name:p.read_bytes() for p in self.root.iterdir()})
+    def test_initial_sources_are_pinned_and_published_content_detects_later_change(self):
+        for source in self.plan['sources']:source.pop('sha256')
+        result=self.run_plan();out=Path(self.tmp.name)/'out';wr.publish(result,out)
+        for source in result['sources']:
+            self.assertEqual(source['sha256'],hashlib.sha256((self.root/source['path']).read_bytes()).hexdigest())
+        self.assertTrue(wr.verify_bundle(self.root,'plan.json',out)['ok'])
+        preserved={p.relative_to(out).as_posix():p.read_bytes() for p in out.rglob('*') if p.is_file()}
+        (self.root/'world.md').write_text('A newly edited world source.',encoding='utf-8')
+        self.assertFalse(wr.verify_bundle(self.root,'plan.json',out)['ok'])
+        self.assertEqual(preserved,{p.relative_to(out).as_posix():p.read_bytes() for p in out.rglob('*') if p.is_file()})
     def test_presentation_order_not_sorted_into_story_order(self):
         self.assertEqual(self.run_plan()['presentation_order'],['AFTER','BEFORE','RETURN'])
     def test_flashback_does_not_inherit_render_order_state(self):

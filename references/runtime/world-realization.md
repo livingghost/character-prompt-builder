@@ -196,9 +196,10 @@ The [plan schema](../../schemas/authoring/world-realization-plan.schema.json) an
 [empty starter](../../templates/realization/world-realization-plan.json) describe
 a local coordination file, not a new shared-state interchange contract.
 Plans reference the existing base, `state-event` JSONL and `state-process` array
-by source ID; every source path is a literal studio-relative path with the
-SHA-256 of the complete file bytes, and events remain the canonical mutation
-records.
+by source ID; every source path is a literal studio-relative path. The source
+owner acquires complete bytes and records their first SHA-256 in the compiled
+bundle. An already declared expected `sha256` is enforced without replacement.
+Events remain the canonical mutation records.
 
 Use [the worked unpeopled example](../../examples/world-realization/README.md) as
 a runnable structural example, not adopted world lore. From the installed
@@ -216,16 +217,19 @@ python scripts/world_realization_smoke_test.py
 - `inspect` returns the full author-facing result and writes nothing.
 - `build` stages a new directory and publishes it only after all explicit
   comparisons pass; existing outputs stay untouched.
-- `verify` recompiles from currently pinned sources and checks all output bytes
-  and the exact file inventory.
+- `verify` recompiles from the selected sources, enforces existing expected pins,
+  and checks all output bytes and the exact file inventory against the published
+  bundle. It never updates that bundle to match a changed source.
 - `impact` reports stale or missing sources and conservatively affected
   units/views; hashes, approvals and the ledger stay as they were. A changed
   event/evidence source affects every unit on that timeline, and that breadth
-  is deliberate rather than a minimal semantic invalidation.
+  is deliberate rather than a minimal semantic invalidation. A source selected
+  for its first acquisition has no previous expected pin to compare; verify the
+  published bundle when checking its recorded source state.
 
 Plan fields:
 
-- `sources`: unique IDs, local paths and exact hashes; world, persona, intent and
+- `sources`: unique IDs, local paths and optional existing expected hashes; world, persona, intent and
   evidence can be separate sources whose status and authoritative meaning remain
   in their owning records.
 - `timelines`: explicit base/events/processes source IDs and `base_provenance`.
@@ -286,4 +290,6 @@ implementation bounds, not constraints on a work's length or number of subjects.
 
 ## Artifact evidence and completion
 
-For a saved deliverable, continue through [Production Execution](production-execution.md), preserving this document's interpretation, retrieval, approval and adoption boundaries. Prepare the exact inputs, capture the real output, bind review and selection to it, then complete and close the work task. `scripts/production_workflow.py status`, `impact` and `resume` recheck dependencies and artifact bytes. A progress checkbox, a search hit or a newly created image is not production completion or canonical adoption.
+Complete the operation actually commissioned under [Production workflow](production-workflow.md), preserving this document's interpretation, retrieval, authority and adoption boundaries. An authored plan, prompt or design uses [Authored storage](production-authored-storage.md): save its exact revision and perform delivery or review when requested. Model execution instead prepares its exact input, captures the actual result and binds review and selection to that result. Canonical adoption records its own decision and destination.
+
+`production_workflow.py status`, `impact` and `resume` expose current dependencies, artifact integrity and the next action. Close the owning work task when its requested result is complete. A search hit, saved revision, generated image and adoption each establish their own scope.

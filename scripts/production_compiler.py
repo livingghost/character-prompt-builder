@@ -108,6 +108,12 @@ def _file_inputs(task: dict) -> list[tuple[str,str]]:
     if isinstance(task.get('route_reading'),str):items.append(('$.route_reading',task['route_reading']))
     if isinstance(task.get('image_input'),str):items.append(('$.image_input',task['image_input']))
     if isinstance(task.get('semantic_edit'),str):items.append(('$.semantic_edit',task['semantic_edit']))
+    basis = task.get('authored_basis')
+    if isinstance(basis, dict):
+        for index, source in enumerate(basis.get('sources', []) if isinstance(basis.get('sources'), list) else []):
+            item = source.get('file') if isinstance(source, dict) else None
+            if isinstance(item, dict) and isinstance(item.get('path'), str):
+                items.append((f'$.authored_basis.sources[{index}].file.path', item['path']))
     for index,source in enumerate(task.get('sources',[]) if isinstance(task.get('sources'),list) else []):
         if isinstance(source,dict) and isinstance(source.get('path'),str):items.append((f'$.sources[{index}].path',source['path']))
     for index,source in enumerate(task.get('upload_sources',[]) if isinstance(task.get('upload_sources'),list) else []):
@@ -304,10 +310,15 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                      file=task_path, pointer='$.recording')
     import route_reading
     checks.check('route-reading', lambda: route_reading.require_route_reading(
-        c.decode(captured[task['route_reading']]), studio=root, routes={task['route']}, features=task['features']),
+        c.decode(captured[task['route_reading']]), studio=root, routes={task['route']}, features=task['features'], execution=task['execution'],
+        operation='author' if task.get('execution')=='authored' else 'prepare'),
         requires=[dependency('$.route_reading'),'task-contract'] + (['runtime-resolution'] if dispatcher else []),
         file=files.get('$.route_reading'), pointer='$.route_reading',
-        required_action='Use the issued reading for this route and its exact features. Copy quotations from raw Markdown, including links and inline markup; whitespace wrapping may differ.')
+        required_action='Read the complete contract for this operation and selected target, then use its issued reading.')
+    if task.get('execution') == 'authored':
+        import authored_prompt
+        checks.check('authored-prompt', lambda: authored_prompt.check(task, cached),
+                     requires=['task-contract', 'delivery-content'], file=task_path, pointer='$.authored')
     # Bounded views and scene material: each is checked against its own scope
     # here, and the bytes read are kept for the immutable capture.
     def bounded(function):
@@ -436,7 +447,10 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         raw=captured.get(path,b'') if path else b''
         try:return raw.decode('utf-8')
         except UnicodeDecodeError:return raw
-    values={**documents,'model':(documents.get('production_spec') or {}).get('target_model') if isinstance(documents.get('production_spec'),dict) else None,
+    specification=documents.get('production_spec')
+    values={**documents,'model':selected.get('model') or (specification.get('target_model') if isinstance(specification,dict) else None),
+        'render_intent':selected.get('render_intent'),
+        'parameters':documents.get('parameters') if selected.get('parameters') else {},
         'prompt':input_text('prompt'),'negative_prompt':input_text('negative'),
         'integrated_prompt':input_text('integrated_prompt'),'native_negative':input_text('native_negative'),
         'brief':selected.get('brief',''),'service':selected.get('service'),
@@ -470,28 +484,29 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
             companion_name='package.'+c.content_id(documents['references'])[:24]+'.references',artifacts=artifacts)
         return prepared
     def validation(selected_target):
-        if selected.get('references') is not None:
+        reference_document=documents.get('references')
+        if reference_document is not None and reference_document.get('transport_mode')!='none':
             raise ProductionError('MODEL_PROFILE_MISSING','Reference delivery requires an explicitly authored request validation policy.',
                                   phase='request-compilation',pointer='$.generation.request_validation')
         from request_validation import acquire_offering
         return acquire_offering(selected_target,evidence),freeze({})
     required={
-        'specification':[dependency('$.generation.production_spec')],
-        'plot':[dependency('$.generation.plot')],
-        'creative-intent':[dependency('$.generation.creative_intent')],
+        'specification':[dependency('$.generation.production_spec')] if specpath else [],
+        'plot':[dependency('$.generation.plot')] if selected.get('plot') else [],
+        'creative-intent':[dependency('$.generation.creative_intent')] if selected.get('creative_intent') else [],
         'target-contract':['specification','runtime-resolution']+gate(selected.get('service')),
         'dependency-preflight':[dependency('$.generation.references')],
         'reference-preparation':['target-contract','dependency-preflight',dependency('$.generation.references')],
         'render-intent':['specification','delivery-content'],
         'execution-profile':['target-contract'],
-        'execution-controls':['execution-profile','specification',dependency('$.generation.parameters')],
-        'execution-quantity':['execution-profile','specification']+whole,
+        'execution-controls':['execution-profile']+([dependency('$.generation.parameters')] if selected.get('parameters') else []),
+        'execution-quantity':['execution-profile','render-intent']+whole,
         'request-validation-evidence':([dependency('$.generation.request_validation'),'runtime-resolution']
             if selected.get('request_validation') else ['target-contract']),
         'negative-provenance':[dependency('$.generation.negative_provenance')] if selected.get('negative_provenance') else [],
         'negative-transport':['delivery-content','execution-controls']+[dependency('$.generation.'+field)
             for field in ('negative','integrated_prompt','native_negative') if selected.get(field)],
-        'retrieval':[dependency('$.generation.retrieval_record'),'plot','delivery-content','target-contract']}
+        'retrieval':['plot','delivery-content','target-contract']+([dependency('$.generation.retrieval_record')] if selected.get('retrieval_record') else [])}
     field_for={'specification':'production_spec','plot':'plot','creative-intent':'creative_intent',
         'target-contract':'production_spec','dependency-preflight':'references','reference-preparation':'references',
         'render-intent':'production_spec','execution-profile':'production_spec','execution-controls':'parameters',
@@ -519,7 +534,9 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
 
 def validate_recording(root: Path, task: dict, specification: dict, visual: dict | None = None) -> None:
     import studio
-    recording=task['recording']
+    recording=task.get('recording')
+    if recording is None:
+        return
     try:studio.validate_recording_target(root,recording['character'],recording['slot'])
     except (ValueError,OSError) as exc:
         raise ProductionError('RECORDING_CONTRACT_INVALID',str(exc),phase='recording-validation',pointer='$.recording',
@@ -569,14 +586,14 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
         visual=inputs.values['visual_continuity']
     else:
         from visual_continuity import from_decisions
-        visual=from_decisions(selected['continuity'],production_spec=specification,prepared=reference_set,root=root,
-            characters=task['recording']['subject_map'],sheet_panel=task['recording']['sheet_panel'],
+        visual=from_decisions(selected.get('continuity',{}),production_spec=specification,prepared=reference_set,root=root,
+            characters=(task.get('recording') or {}).get('subject_map',{}),sheet_panel=(task.get('recording') or {}).get('sheet_panel',False),
             basis={'path':prepared['task_path'],'locator':'$.generation.continuity and $.recording'})
     issued=copy_issuance(prepared['route_reading'],directory/'reads.jsonl',ledgers=ledger_candidates(studio=root))
     artifacts.add('reads.jsonl',c.encoded(issued))
     with stage('package-compilation'):
         content=builder.acquire_generation(inputs,prepared_reference_root=directory,visual_root=root,
-            production_root=root,evidence=evidence,visual_continuity=visual,recording=task['recording'])
+            production_root=root,evidence=evidence,visual_continuity=visual,recording=task.get('recording'))
         from sheet_artifacts import dependency
         known={(d['space'],d['path']):d for d in prepared['dependencies']}
         for path,raw in content.evidence.bytes.items():
@@ -665,7 +682,7 @@ def _prompt_check(package:dict,rendered:dict,model_record:dict)->dict:
     from prompt_weighting import from_contract
     prompt_check = require_request(rendered, model_record,
         prompt_syntax=from_contract(package['render_contract']),
-        vocabulary_selection=package['retrieval_record'].get('vocabulary')) if package.get('artifact_type') != 'upscale-request' else {
+        vocabulary_selection=(package.get('retrieval_record') or {}).get('vocabulary')) if package.get('artifact_type') != 'upscale-request' else {
         'state': 'not-applicable', 'request_sha256': rendered['request_sha256'], 'findings': []}
     # This is the verified package's audit, not newly inferred guidance or text.
     # In particular a compound expression may preserve recommendations as advice.
@@ -683,7 +700,7 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
     direction={'operation':'direction','targets':workflow.plan.direction_targets(task),
                'payload':{'consumer_sha256':prepared['consumer_sha256'],'recipient':service['transport'],'method':'dispatcher'}}
     plan={'run':identity,'execution':task['execution'],'input_sha256':prepared['input_sha256'],'request_sha256':rendered['request_sha256'],
-          'operations':[direction,intent],'recording':task['recording'],'quantities':{'submissions':1,'outputs':count},
+          'operations':[direction,intent],'recording':task.get('recording'),'quantities':{'submissions':1,'outputs':count},
           'service':offering['service'],'model':model_id,'transport':service['transport'],
           'handoff':{'recipient':service['transport'],'method':'dispatcher','consumer_sha256':prepared['consumer_sha256'],
                      'targets':direction['targets']},
@@ -720,6 +737,9 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
         artifacts.write('sheet-derivation.json', c.encoded(source_artifact))
     target=inspected.values['target-contract']
     model_id,model,offering,service,transport=(target.model_id,target.model,target.offering,target.service,target.transport)
+    from route_reading import require_model_reading
+    require_model_reading(prepared['route_reading'],model_record=model,service=offering['service'],
+        resource_reader=runtime_inputs.runtime.read_resource)
     dispatch.require_guidance_key(offering,package['guidance_prompt'])
     settings=dispatch.mapped_settings(model,offering,package['settings'])
     path=package['source']['path']
@@ -799,10 +819,10 @@ REQUEST=['request-compilation']
 # Document fields: the document a named file holds, whether the request needs
 # it, whether null removes it, and the compiler checks that run again.
 DOCUMENT_DECLARATIONS={
-    'production-spec':('production-spec',True,False,['specification','target-contract','render-intent','execution-profile','execution-controls']+REQUEST),
-    'plot':('prompt-plot',True,False,['plot','retrieval','package-compilation']+REQUEST),
-    'retrieval-record':('prompt-retrieval-record',True,False,['retrieval','package-compilation']),
-    'creative-intent':('creative-intent',True,False,['creative-intent','package-compilation']),
+    'production-spec':('production-spec',False,True,['specification','target-contract','render-intent','execution-profile','execution-controls']+REQUEST),
+    'plot':('prompt-plot',False,True,['plot','retrieval','package-compilation']+REQUEST),
+    'retrieval-record':('prompt-retrieval-record',False,True,['retrieval','package-compilation']),
+    'creative-intent':('creative-intent',False,True,['creative-intent','package-compilation']),
     'request-validation':('request-validation',False,True,['request-validation-evidence']+REQUEST),
     'visual-continuity':('visual-continuity',False,True,['recording-validation','package-compilation']),
     'state-lineage':('state-lineage',False,True,['source-validation','package-compilation']),
@@ -853,8 +873,8 @@ def mutable_fields(package: dict, rendered: dict) -> dict:
         fields[label]=_field('The complete reassessed '+label+' declaration of the task.',task_schema['properties'][name],
                              required=required,checks=checks,protected=protected)
     fields['recording']=_field('The complete Studio recording contract.',task_schema['properties']['recording'],
-                               required=True,checks=['recording-validation'])
-    mode=package['production_spec']['render_intent']['execution_mode']
+                               required=False,nullable=True,checks=['recording-validation'])
+    mode=package['render_contract']['intent']['execution_mode']
     for name,control in profile['modes'][mode]['controls'].items():
         if control['status'] not in {'required','optional'}:continue
         label='seed' if control.get('binding')=='dispatch-seed' else 'count' if control.get('binding')=='dispatch-count' else 'parameter:'+name
@@ -885,7 +905,8 @@ STAGES=['source-validation','package-compilation','request-compilation','executi
 
 
 def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: str | None=None,
-                 runtime_inputs=None, derived: dict[str, bytes] | None=None) -> Compilation:
+                 runtime_inputs=None, derived: dict[str, bytes] | None=None,
+                 source_inputs: dict[str,bytes] | None=None) -> Compilation:
     """Check and compile one task in one context, reading each declared input once.
 
     `derived` holds the inputs a derivation writes for this run, by file name.
@@ -949,6 +970,18 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
             active_phase='source-validation'
             with stage('source-validation'):
                 prepared,consumer,_,blobs=workflow.snapshot(root,task_path,captured=captured,checked=checks.values)
+            from sheet_artifacts import dependency
+            extra_inputs=dict(source_inputs or {})
+            if task.get('execution') == 'authored':
+                prepared['authored_prompt']=checks.values.get('authored-prompt')
+                extra_inputs.update({path:raw for path,raw in captured.items()
+                                     if path not in {row['path'] for row in prepared['dependencies']}})
+            for path,raw in extra_inputs.items():
+                if c.read(c.local(root,path)) != raw:
+                    raise ValueError('authoring source changed during compilation: ' + path)
+                prepared['dependencies'].append(dependency(dependency_space(path),path,raw))
+                blobs[c.digest(raw)]=raw
+            prepared['dependencies']=list({(row['space'],row['path']):row for row in prepared['dependencies']}.values())
             checks.record('source-validation','passed')
             prepared['runtime_snapshot']=None
             prepared['input_sha256']=input_digest(prepared,consumer)
@@ -1034,6 +1067,9 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                           request_preview=rendered['request'] if rendered else execution_plan.get('request'),execution_plan=execution_plan)
             compiled=Compilation(report,directory,prepared,consumer,package,rendered,execution_plan,identity,artifacts,
                                  runtime_read)
+            if task['execution']=='authored':
+                import production_authored
+                production_authored.finalize_compilation(compiled)
             # Checks consume the compiled values directly. Publication is the
             # only writer of the final JSON documents and their carrier paths.
             relocate_compiled_media(compiled,media_root=directory)
@@ -1285,7 +1321,8 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
                 compiled.artifacts.flush_files()
                 compiled.artifacts.flush_directories(controls=PUBLICATION_CONTROLS)
             c.publish_directory(directory,target);c.fsync_dir(target.parent)
-            if prepared['task'].get('authority') and store.read_authority(root,prepared['task']['task_id'],required=False) is None:
+            if ((prepared.get('authored_revision') or {}).get('state')!='draft' and
+                prepared['task'].get('authority') and store.read_authority(root,prepared['task']['task_id'],required=False) is None):
                 store.import_authority(root,prepared['task']['authority'],initial=True)
             read_manifest(target,expected=manifest_sha256)
             ArtifactSet(target,manifest['files']).require_membership(controls=PUBLICATION_CONTROLS)

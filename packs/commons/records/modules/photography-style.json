@@ -4,31 +4,33 @@
   "records": [
     {
       "id": "photography-style-cinematic-still",
-      "label": "Cinematic film still",
+      "label": "Shallow-focus cinematic still",
       "category": "photography-style",
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
-      "visual_function": "Frame the subject as one still from a high-budget film: shallow focus, moody grade, widescreen feel, and restrained film grain.",
-      "prompt": "Compose the image as a cinematic film still: shallow depth of field isolating the subject, a gentle vignette, moody controlled color grading, widescreen cinematic framing, soft film grain, and high-budget production polish.",
+      "visual_function": "Isolate the subject in a moody film-frame treatment through shallow focus, a coherent grade, widescreen framing, and restrained grain. This is one cinematic treatment; deep focus, bright lighting, other frame shapes, and clean digital finishes remain valid choices for other cinematic images.",
+      "prompt": "Compose a moody cinematic still with shallow depth of field isolating the subject, a gentle peripheral vignette, controlled color grading across the frame, widescreen framing, fine soft film grain, and polished production design.",
       "invariants": [
-        "one selective focus plane carries the subject",
+        "the selected shallow-focus treatment keeps the subject on the principal focus plane",
         "the grade stays coherent across the whole frame",
         "grain stays fine and photographic"
       ],
       "misreadings_to_avoid": [
-        "flat even video lighting erasing the mood",
-        "oversaturated punchy contrast replacing the grade",
-        "sharp deep focus contradicting the cinematic look"
+        "lighting that erases the selected moody value design",
+        "saturation or contrast that breaks the selected coherent grade",
+        "deep focus losing the intended subject isolation when this shallow-focus treatment is selected"
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
         "automatic_prompt_injection": false
       },
-      "applies_to": "photographic finish",
+      "applies_to": "photographic finish when a moody, shallow-focus, widescreen film treatment is wanted",
       "tags": [
         "cinematic still",
         "film look",
-        "movie frame"
+        "movie frame",
+        "shallow focus",
+        "moody widescreen treatment"
       ],
       "domains": [
         "shared"
@@ -50,6 +52,18 @@
           "phrase": "movie still look",
           "facet": "photography-style",
           "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "shallow focus film frame",
+          "facet": "photography-style",
+          "weight": 1.25,
+          "source": "author"
+        },
+        {
+          "phrase": "moody widescreen subject isolation",
+          "facet": "photography-style",
+          "weight": 1.1,
           "source": "author"
         }
       ]

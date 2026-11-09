@@ -27,7 +27,9 @@ def main() -> int:
     report = {"ok": True, "measurement": "static-lexical-words-not-host-tokens", "routes": {}}
     from execution_routes import resolve
     for name, scenario in routes.items():
-        files = [entry["path"] for entry in resolve(scenario["route"], scenario["features"])["reads"]]
+        resolved = resolve(scenario["route"], scenario["features"], execution=scenario["execution"],
+                           operation=scenario["operation"])
+        files = [entry["path"] for entry in resolved["reads"]]
         total = 0
         parts = []
         for rel in files:
@@ -40,7 +42,8 @@ def main() -> int:
             total += words
             entry = {"path": rel, "missing": False, "words": words}
             parts.append(entry)
-        report["routes"][name] = {"words": total, "files": parts}
+        report["routes"][name] = {"operation": resolved["operation"], "execution": resolved["execution"],
+                                  "words": total, "files": parts}
     report["errors"] = [] if report["ok"] else ["one or more route files are missing"]
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["ok"] else 1

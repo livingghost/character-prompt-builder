@@ -189,7 +189,7 @@ def run(out: Path) -> dict:
             walk.run('studio','character','add','C01','--studio',str(root))
             walk.run('work_ledger','--studio',str(root),'begin','--goal','Preview one portrait request','--step','prepare','--step','preview')
             task_id=c.load(root/'work/current.json')['task_id']
-            walk.run('execution_routes','read','generation','--root',str(root),'--model',MODEL,*runtime,
+            walk.run('execution_routes','read','generation','--execution','dispatcher','--root',str(root),'--model',MODEL,*runtime,
                      result=lambda text:f'{len(text)} characters read; '+text.strip().splitlines()[-1])
             walk.run('render_contract','model','--model',MODEL,'--service',SERVICE,*runtime)
             elements={
@@ -220,11 +220,11 @@ def run(out: Path) -> dict:
                      '--model',MODEL,'--brief',BRIEF,'--kind','human','--continuity','one-off')
             write(root/'parameters.json',{'width':832,'height':1248,'settings':{'quality':'medium'}})
             write(root/'creative-intent.json',{'image_promise':'An explicitly synthetic preview of a quiet rainy-day portrait.'})
-            # The fixture helper quotes actual route documents and labels every
-            # application as synthetic. It cannot supply real execution consent.
+            # The fixture helper delivers the complete current contract.
+            # Its delivery record supplies no real execution consent.
             from reading_fixtures import fixture_reading
             catalog_cli.configure_pack_runtime(settings)
-            write(root/'reading.json',fixture_reading(route='generation',studio=root,ledger=root/'work/reads.jsonl'))
+            write(root/'reading.json',fixture_reading(route='generation',studio=root,ledger=root/'work/reads.jsonl',model=MODEL,service=SERVICE, execution='dispatcher'))
             task={'task_id':task_id,'production_id':pm.generate_uuid7(),'route':'generation','features':[],
                 'sources':[],'world_views':[],'authority':None,'route_reading':'reading.json','artifact':'image','execution':'dispatcher',
                 'delivery':{'path':'prompt.txt','translation_notes':'The prompt is sent exactly as authored, including its final newline.'},

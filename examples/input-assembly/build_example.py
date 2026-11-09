@@ -39,10 +39,10 @@ def build():
         (root / 'task.json').write_bytes(c.encoded(task))
         (root / 'delivery.txt').write_text('Synthetic input assembly exercise.\n', encoding='utf-8')
         original = (root / 'task.json').read_bytes()
-        # Fixed quotations belong only to this synthetic exercise.
-        # A real operator reads the source and supplies its applications.
+        # The fixture delivers actual source bytes without an operator judgment.
+        # A real operator reads and applies the complete current contract.
         reading = reading_fixtures.fixture_reading(route='development', studio=root,
-                                                   ledger=root / 'work/reads.jsonl')
+                                                   ledger=root / 'work/reads.jsonl', execution=task['execution'])
         inspection = command(root, 'inspect-inputs')
         draft = command(root, 'draft-inputs', '--out-dir', 'draft')
         missing = command(root, 'build-inputs', '--choices', draft['choices_file'],
@@ -52,8 +52,6 @@ def build():
         authored = c.load(root / draft['choices_file'])
         choices = authored
         choices['reading']['reading_key'] = reading['reading_key']
-        choices['reading']['applied'] = reading['applied']
-        choices['reading']['resource_applied'] = reading['resource_applied']
         (root / draft['choices_file']).write_bytes(c.encoded(authored))
         result = command(root, 'build-inputs', '--choices', draft['choices_file'], '--out-dir', 'built')
         correct = all(c.digest((root / ref['path']).read_bytes()) == ref['sha256'] for ref in result['inputs'].values())

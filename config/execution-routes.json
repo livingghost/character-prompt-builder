@@ -1,10 +1,4 @@
 {
-  "always_read": [
-    "references/runtime/production-workflow.md",
-    "references/runtime/production-direction.md",
-    "references/runtime/production-permissions.md",
-    "references/runtime/production-execution.md"
-  ],
   "external_inputs": [
     "task",
     "source-files",
@@ -148,6 +142,57 @@
       "resume": "status",
       "owner": "scripts/production_workflow.py:complete",
       "command": "python scripts/production_workflow.py complete --help"
+    },
+    {
+      "id": "save",
+      "inputs": [
+        "task",
+        "source-files",
+        "delivery"
+      ],
+      "outputs": [
+        "authored-revision"
+      ],
+      "next": [
+        "complete-authored"
+      ],
+      "on_failure": "save",
+      "resume": "status",
+      "owner": "scripts/production_workflow.py:save",
+      "command": "python scripts/production_workflow.py save --help"
+    },
+    {
+      "id": "complete-authored",
+      "inputs": [
+        "authored-revision"
+      ],
+      "outputs": [
+        "completion"
+      ],
+      "next": [
+        "done"
+      ],
+      "on_failure": "save",
+      "resume": "status",
+      "owner": "scripts/production_workflow.py:complete",
+      "command": "python scripts/production_workflow.py complete --help"
+    },
+    {
+      "id": "adopt",
+      "inputs": [
+        "artifact-file",
+        "authorization-receipt"
+      ],
+      "outputs": [
+        "canonical-adoption"
+      ],
+      "next": [
+        "done"
+      ],
+      "on_failure": "adopt",
+      "resume": "status",
+      "owner": "scripts/adoption_workflow.py:adopt",
+      "command": "python scripts/adoption_workflow.py adopt --help"
     }
   ],
   "features": {
@@ -300,7 +345,8 @@
     },
     "revision-guidance": {
       "reads": [
-        "references/runtime/revision-contract.md"
+        "references/runtime/revision-contract.md",
+        "references/runtime/production-variation.md"
       ],
       "source_roles": []
     },
@@ -347,7 +393,12 @@
         "references/runtime/story-timeline.md",
         "references/runtime/studio-canon-references.md"
       ],
-      "source_roles": []
+      "source_roles": [],
+      "execution_features": {
+        "dispatcher": [
+          "generation-package"
+        ]
+      }
     },
     "craft-consultation": {
       "reads": [
@@ -447,6 +498,12 @@
       "source_roles": [
         "accepted-source"
       ]
+    },
+    "generation-package": {
+      "reads": [
+        "references/runtime/generation-package.md"
+      ],
+      "source_roles": []
     }
   },
   "routes": {
@@ -457,13 +514,10 @@
       ],
       "features": [],
       "stages": [
-        "prepare",
-        "handoff",
-        "capture",
-        "review",
-        "select",
-        "complete"
-      ]
+        "save",
+        "complete-authored"
+      ],
+      "default_operation": "author"
     },
     "performance": {
       "reads": [
@@ -474,13 +528,10 @@
         "authorial-intent"
       ],
       "stages": [
-        "prepare",
-        "handoff",
-        "capture",
-        "review",
-        "select",
-        "complete"
-      ]
+        "save",
+        "complete-authored"
+      ],
+      "default_operation": "author"
     },
     "world-realization": {
       "reads": [
@@ -490,13 +541,10 @@
         "world-view"
       ],
       "stages": [
-        "prepare",
-        "handoff",
-        "capture",
-        "review",
-        "select",
-        "complete"
-      ]
+        "save",
+        "complete-authored"
+      ],
+      "default_operation": "author"
     },
     "prompt-only": {
       "reads": [
@@ -506,13 +554,10 @@
         "render-contract"
       ],
       "stages": [
-        "prepare",
-        "handoff",
-        "capture",
-        "review",
-        "select",
-        "complete"
-      ]
+        "save",
+        "complete-authored"
+      ],
+      "default_operation": "author"
     },
     "composition": {
       "reads": [
@@ -522,13 +567,10 @@
         "render-contract"
       ],
       "stages": [
-        "prepare",
-        "handoff",
-        "capture",
-        "review",
-        "select",
-        "complete"
-      ]
+        "save",
+        "complete-authored"
+      ],
+      "default_operation": "author"
     },
     "reference-artifacts": {
       "reads": [
@@ -540,13 +582,10 @@
         "render-contract"
       ],
       "stages": [
-        "prepare",
-        "handoff",
-        "capture",
-        "review",
-        "select",
-        "complete"
-      ]
+        "save",
+        "complete-authored"
+      ],
+      "default_operation": "author"
     },
     "generation": {
       "reads": [
@@ -564,7 +603,13 @@
         "review",
         "select",
         "complete"
-      ]
+      ],
+      "default_operation": "prepare",
+      "execution_features": {
+        "dispatcher": [
+          "generation-package"
+        ]
+      }
     },
     "state-series": {
       "reads": [
@@ -585,7 +630,13 @@
         "review",
         "select",
         "complete"
-      ]
+      ],
+      "default_operation": "prepare",
+      "execution_features": {
+        "dispatcher": [
+          "generation-package"
+        ]
+      }
     },
     "batch": {
       "reads": [
@@ -602,7 +653,13 @@
         "review",
         "select",
         "complete"
-      ]
+      ],
+      "default_operation": "prepare",
+      "execution_features": {
+        "dispatcher": [
+          "generation-package"
+        ]
+      }
     },
     "repose": {
       "reads": [
@@ -620,7 +677,13 @@
         "review",
         "select",
         "complete"
-      ]
+      ],
+      "default_operation": "prepare",
+      "execution_features": {
+        "dispatcher": [
+          "generation-package"
+        ]
+      }
     },
     "upscale": {
       "reads": [
@@ -637,7 +700,8 @@
         "review",
         "select",
         "complete"
-      ]
+      ],
+      "default_operation": "prepare"
     },
     "character-sheet": {
       "reads": [
@@ -656,7 +720,13 @@
         "review",
         "select",
         "complete"
-      ]
+      ],
+      "default_operation": "prepare",
+      "execution_features": {
+        "dispatcher": [
+          "generation-package"
+        ]
+      }
     },
     "adoption": {
       "reads": [
@@ -667,13 +737,9 @@
         "studio"
       ],
       "stages": [
-        "prepare",
-        "handoff",
-        "capture",
-        "review",
-        "select",
-        "complete"
-      ]
+        "adopt"
+      ],
+      "default_operation": "adopt"
     },
     "revise": {
       "reads": [
@@ -683,13 +749,10 @@
         "revision-guidance"
       ],
       "stages": [
-        "prepare",
-        "handoff",
-        "capture",
-        "review",
-        "select",
-        "complete"
-      ]
+        "save",
+        "complete-authored"
+      ],
+      "default_operation": "author"
     },
     "story-context": {
       "reads": [
@@ -699,13 +762,10 @@
         "story-context"
       ],
       "stages": [
-        "prepare",
-        "handoff",
-        "capture",
-        "review",
-        "select",
-        "complete"
-      ]
+        "save",
+        "complete-authored"
+      ],
+      "default_operation": "author"
     }
   },
   "regression": [
@@ -968,6 +1028,134 @@
       "owner": "scripts/production_acceptance.py:accept",
       "command": "python scripts/production_workflow.py accept --help",
       "effect": "record or recover exact selection, Studio slot acceptance and completion of the original run from authored choices"
+    }
+  },
+  "operation_contexts": {
+    "author": {
+      "reads": [
+        "references/runtime/production-workflow.md",
+        "references/runtime/production-direction.md",
+        "references/runtime/production-authoring.md"
+      ],
+      "executions": {
+        "authored": [
+          "references/runtime/production-authored-storage.md"
+        ],
+        "external": [
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-image-inputs.md",
+          "references/runtime/production-external-inputs.md"
+        ],
+        "dispatcher": [
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-image-inputs.md"
+        ]
+      }
+    },
+    "save": {
+      "reads": [
+        "references/runtime/production-workflow.md",
+        "references/runtime/production-direction.md",
+        "references/runtime/production-authoring.md"
+      ],
+      "executions": {
+        "authored": [
+          "references/runtime/production-authored-storage.md"
+        ],
+        "external": [
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-image-inputs.md",
+          "references/runtime/production-external-inputs.md"
+        ],
+        "dispatcher": [
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-image-inputs.md"
+        ]
+      }
+    },
+    "prepare": {
+      "reads": [
+        "references/runtime/production-workflow.md",
+        "references/runtime/production-direction.md",
+        "references/runtime/production-authoring.md"
+      ],
+      "executions": {
+        "authored": [
+          "references/runtime/production-authored-storage.md"
+        ],
+        "external": [
+          "references/runtime/production-preparation.md",
+          "references/runtime/production-diagnostics.md",
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-image-inputs.md",
+          "references/runtime/production-external-inputs.md"
+        ],
+        "dispatcher": [
+          "references/runtime/production-preparation.md",
+          "references/runtime/production-diagnostics.md",
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-image-inputs.md"
+        ]
+      }
+    },
+    "execute": {
+      "reads": [
+        "references/runtime/production-workflow.md"
+      ],
+      "executions": {
+        "authored": [
+          "references/runtime/production-authored-storage.md"
+        ],
+        "external": [
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-request-execution.md",
+          "references/runtime/production-external-execution.md",
+          "references/runtime/production-recovery.md",
+          "references/runtime/production-diagnostics.md"
+        ],
+        "dispatcher": [
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-request-execution.md",
+          "references/runtime/production-dispatch.md",
+          "references/runtime/production-recovery.md",
+          "references/runtime/production-diagnostics.md"
+        ]
+      }
+    },
+    "review": {
+      "reads": [
+        "references/runtime/production-workflow.md",
+        "references/runtime/production-direction.md"
+      ],
+      "executions": {
+        "authored": [
+          "references/runtime/production-authored-storage.md"
+        ],
+        "external": [
+          "references/runtime/production-review.md"
+        ],
+        "dispatcher": [
+          "references/runtime/production-review.md"
+        ]
+      }
+    },
+    "adopt": {
+      "reads": [
+        "references/runtime/production-workflow.md"
+      ],
+      "executions": {
+        "authored": [
+          "references/runtime/production-authored-storage.md"
+        ],
+        "external": [
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-adoption.md"
+        ],
+        "dispatcher": [
+          "references/runtime/production-permissions.md",
+          "references/runtime/production-adoption.md"
+        ]
+      }
     }
   }
 }

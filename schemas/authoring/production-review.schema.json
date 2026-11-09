@@ -7,7 +7,8 @@
     },
     "candidate": {
       "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The actual generated candidate event, or the saved artifact digest for an authored revision. draft-review derives the value; no generated candidate event is created for authored text."
     },
     "reviewer": {
       "type": "string",
@@ -59,7 +60,7 @@
         "additionalProperties": false
       },
       "minItems": 0,
-      "description": "The editable draft contains additional reviewer evidence. Recording also resolves prepared references and delivery carriers from the run."
+      "description": "The editable draft contains additional reviewer evidence. Recording also resolves prepared references and delivery carriers, or an authored revision's original sources and separate adaptations, from retained run evidence."
     },
     "observations": {
       "type": "array",

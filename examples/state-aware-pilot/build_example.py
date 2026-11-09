@@ -19,6 +19,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Sequence
+from unittest.mock import patch
 
 EXAMPLE = Path(__file__).resolve().parent
 ROOT = EXAMPLE.parents[1]
@@ -630,8 +631,9 @@ def _build_into(output_dir: Path) -> list[Path]:
     """Build the pilot with the pack runtime pinned to the tracked commons pack.
 
     The deterministic pilot must resolve identically on machines with private
-    packs enabled and in clean environments: ``model="gpt-image-2.5-flare"`` resolves
-    through the commons alias to the same canonical record everywhere.
+    packs, model-selection preferences and clean environments:
+    ``model="gpt-image-2.5-flare"`` resolves through the commons alias to the
+    same canonical record everywhere.
     """
 
     with tempfile.TemporaryDirectory(prefix="cpb-pilot-runtime-") as workspace:
@@ -641,7 +643,7 @@ def _build_into(output_dir: Path) -> list[Path]:
             state_file=root / "pack-state.json", cache_dir=root / "cache",
             default_enabled_packs=[COMMONS_PACK_ID],
         )
-        with using_pack_runtime(settings):
+        with patch.dict(os.environ, {'CPB_HOME': str(root / 'home')}), using_pack_runtime(settings):
             return _build_into_pinned(output_dir)
 
 
@@ -830,7 +832,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
 
 
     from reading_fixtures import fixture_reading
-    route_reading = fixture_reading(route="state-series", ledger=generated / "reads.jsonl")
+    route_reading = fixture_reading(route="state-series", model=production_spec['target_model'], ledger=generated / "reads.jsonl", execution='dispatcher')
     write_json(generated / "route-reading.json", route_reading)
     from visual_fixtures import fixture_visual
     visual = fixture_visual(production_spec, root=generated, continuity='undecided',
@@ -845,6 +847,7 @@ def _build_into_pinned(output_dir: Path) -> list[Path]:
         "asset_render_spec": render_spec}]
     write_json(generated / "state-graphs.json", state_graphs)
     payload = build_package(
+        execution='dispatcher',
         request_validation=validation, input_root=generated,
         route_reading=route_reading,
         visual_continuity=visual, visual_root=generated,
@@ -1056,6 +1059,41 @@ def verify_deterministic() -> dict[str, Any]:
     return {"ok": True, "file_count": len(canonical_bytes)}
 
 
+def preference_isolation_self_test() -> dict[str, Any]:
+    personal = {
+        "artifact_type": "model-selection-preferences",
+        "entries": [{
+            "id": "synthetic-preference-isolation-probe",
+            "selector": {
+                "family": "Synthetic preference probe",
+                "model_patterns": [{"field": "model-id", "pattern": "gpt-image-2.5-flare"}],
+                "service": None,
+                "operations": ["generation"],
+                "use_cases": ["portrait"],
+            },
+            "preference": "discourage",
+            "reported_failure": None,
+            "reason": "Verify that an outer personal preference cannot enter the canonical pilot.",
+            "basis": {
+                "kind": "author-preference",
+                "source": "Synthetic preference-isolation fixture",
+                "observed_at": "2000-01-01",
+                "limitations": ["No actual model judgment or user preference is represented."],
+            },
+        }],
+    }
+    with tempfile.TemporaryDirectory(prefix="cpb-state-pilot-preferences-") as temporary:
+        root = Path(temporary).resolve()
+        write_json(root / "home/model-selection-preferences.json", personal)
+        with patch.dict(os.environ, {"CPB_HOME": str(root / "home")}):
+            first, second = root / "first", root / "second"
+            _build_into(first)
+            _build_into(second)
+        if _tree_bytes(first) != _tree_bytes(second):
+            raise ValueError("an outer model-selection preference changed the canonical pilot")
+    return {"preferences_isolated": True}
+
+
 def replacement_self_test() -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="cpb-state-pilot-replace-") as temporary:
         pilot_root = Path(temporary).resolve() / "state-aware-pilot"
@@ -1079,11 +1117,13 @@ def replacement_self_test() -> dict[str, Any]:
             raise ValueError(
                 f"clean pilot rebuild omitted required artifacts: {sorted(required-set(second_bytes))}"
             )
+        isolated = preference_isolation_self_test()
         return {
             "ok": True,
             "unexpected_sentinel_removed": True,
             "file_count": len(second_bytes),
             "deterministic": True,
+            **isolated,
         }
 
 

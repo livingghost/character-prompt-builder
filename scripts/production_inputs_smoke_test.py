@@ -151,19 +151,9 @@ class InputToolsTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
         self.issued = reading.issue('development', studio=self.root, ledger=self.ledger,
-                                    stream=io.StringIO(), key='1' * 32, at='2000-01-01T00:00:00Z')
-        manifest, bodies = reading.capture('development')
-        always = set(c.load(reading.ROOT / reading.execution_routes.MANIFEST)['always_read'])
-        applied = []
-        for meta, raw in bodies:
-            if meta['kind'] != 'document' or meta['path'] in always:
-                continue
-            paragraph = next(block for block in reading.prose_blocks(raw.decode()) if len(block.split()) >= 12)
-            applied.append({'path': meta['path'], 'quote': paragraph,
-                            'why': 'Synthetic operator applies this source to the local development exercise.'})
+                                    stream=io.StringIO(), key='1' * 32, at='2000-01-01T00:00:00Z', execution=self.task['execution'])
         self.choices = tool.draft_choices(self.task)
         self.choices['reading']['reading_key'] = self.issued['reading_key']
-        self.choices['reading']['applied'] = applied
         self.save_choices()
 
     def save_choices(self):
@@ -221,22 +211,24 @@ class InputToolsTests(unittest.TestCase):
         self.assertEqual(c.digest(raw), ref['sha256'])
         record = c.decode(raw)
         self.assertEqual(record['documents'], self.issued['row']['documents'])
-        self.assertEqual(record['applied'], self.choices['reading']['applied'])
+        self.assertEqual(record['operation'], 'author')
         reading.require_route_reading(record, studio=self.root)
         self.assertEqual((self.root / 'task.json').read_bytes(), before_task)
         self.assertEqual(c.load(self.root / 'built/production-task.json')['route_reading'], 'built/route-reading.json')
         self.assertFalse((self.root / 'production').exists())
         self.assertFalse(result['external_effect'])
 
-    def test_empty_why_is_not_completed(self):
-        self.choices['reading']['applied'][0]['why'] = ''
+    def test_unissued_reading_cannot_supply_a_delivery(self):
+        self.choices['reading']['reading_key'] = '9' * 32
         self.save_choices()
         with self.assertRaises(ValueError):
             self.build()
         self.assertFalse((self.root / 'built').exists())
 
-    def test_quotation_is_not_replaced(self):
-        self.choices['reading']['applied'][0]['quote'] = 'Synthetic fabricated sentence absent from the selected source document and its complete original contents.'
+    def test_other_operation_reading_does_not_cover_authored_work(self):
+        issued = reading.issue('development', operation='execute', studio=self.root,
+                               ledger=self.ledger, stream=io.StringIO(), execution=self.task['execution'])
+        self.choices['reading']['reading_key'] = issued['reading_key']
         self.save_choices()
         with self.assertRaises(ValueError):
             self.build()
@@ -320,7 +312,7 @@ class InputToolsTests(unittest.TestCase):
             self.build()
 
     def test_unrelated_issuance_keeps_existing_record(self):
-        reading.issue('development', studio=self.root, ledger=self.ledger, stream=io.StringIO(), key='3' * 32)
+        reading.issue('development', studio=self.root, ledger=self.ledger, stream=io.StringIO(), key='3' * 32, execution=self.task['execution'])
         self.assertTrue(self.build()['ok'])
 
     def test_context_does_not_fill_unanswered_choices(self):
@@ -350,13 +342,14 @@ class InputToolsTests(unittest.TestCase):
         (self.root / 'task.json').write_bytes(c.encoded(task))
         return task
 
-    def test_incomplete_image_task_draft_names_missing_authored_documents(self):
+    def test_incomplete_image_task_names_its_actual_target_choices(self):
         task = self.dispatcher_task()
         draft = tool.draft_inputs(self.root, 'task.json', 'draft')
         self.assertEqual((draft['choices']['visual'], draft['choices']['validation']), (None, None))
         fields = [x['field'] for x in draft['unresolved']]
         self.assertIn('reading.reading_key', fields)
-        self.assertIn('authoring.documents.production_spec', fields)
+        self.assertTrue({'authoring.generation.model', 'authoring.generation.render_intent',
+                         'authoring.generation.service'} <= set(fields))
         self.assertNotIn('validation', fields)
         self.assertEqual(tool.inspect_inputs(self.root, 'task.json')['required_choices'], ['reading'])
         self.assertEqual(adapters.build_visual(None, task, InputEvidence(self.root), self.root), (None, {}))
@@ -400,18 +393,22 @@ class InputToolsTests(unittest.TestCase):
         saved = result['derived_from']['source_run']
         self.assertEqual(saved['run'], run)
         self.assertEqual(result['choices']['reading']['reading_key'], saved['route_reading']['reading_key'])
-        self.assertEqual(result['choices']['reading']['applied'], saved['route_reading']['applied'])
+        self.assertEqual(saved['route_reading']['operation'], 'author')
         self.assertTrue(saved['assessment_required'])
         self.assertEqual(before, self.ledger.read_bytes())
 
-    def test_changed_source_is_reported_before_reusing_applications(self):
+    def test_changed_source_is_reported_before_reusing_saved_inputs(self):
         run = self.prepared_source()
         (self.root / 'delivery.txt').write_text('Changed synthetic delivery for a separate assessment.', encoding='utf-8')
+        changed = c.load(self.root / 'task.json')
+        changed['criteria'][0]['text'] = 'A criterion authored after the saved revision.'
+        (self.root / 'task.json').write_bytes(c.encoded(changed))
         before = self.files()
         result = tool.inspect_inputs(self.root, from_run=run)
         fresh = result['source_run']['freshness']
         self.assertFalse(fresh['current'])
-        self.assertTrue(any(item['code'] == 'SOURCE_CHANGED' and item['file'] == 'delivery.txt' for item in fresh['diagnostics']), fresh)
+        self.assertTrue({'task.json', 'delivery.txt'} <=
+            {item['file'] for item in fresh['diagnostics'] if item['code'] == 'SOURCE_CHANGED'}, fresh)
         self.assertEqual(before, self.files())
 
     def test_edited_saved_draft_builds_without_reusing_authority(self):
@@ -465,9 +462,8 @@ class InputToolsTests(unittest.TestCase):
         draft = tool.draft_inputs(self.root, None, 'external-draft', from_run=run)
         choices = c.load(self.root / draft['choices_file'])
         record = fixture_reading(route='generation', features=['unlisted-interface'], studio=self.root,
-                                 ledger=self.ledger)
-        choices['reading'] = {key: record[key] for key in ('reading_key', 'applied', 'resource_applied')}
-        choices['reading']['snapshot_id'] = None
+                                 ledger=self.ledger, execution='external')
+        choices['reading'] = {'reading_key': record['reading_key']}
         choices['task_changes'] = {'route': 'generation', 'features': ['unlisted-interface']}
         choices['external'] = {'image_input': plan_path}
         (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
@@ -532,7 +528,7 @@ class InputToolsTests(unittest.TestCase):
         self.assertIn('--choices', run.stdout)
         self.assertIn('--out-dir', run.stdout)
 
-    def test_cli_build_uses_current_authored_applications(self):
+    def test_cli_build_binds_the_selected_source_delivery(self):
         run = subprocess.run([sys.executable, str(tool.ROOT / 'scripts/production_workflow.py'),
                               'build-inputs', '--root', str(self.root), '--task', 'task.json',
                               '--choices', 'choices.json', '--out-dir', 'cli-built'],
@@ -540,7 +536,8 @@ class InputToolsTests(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertEqual(json.loads(run.stdout)['state'], 'built')
         actual = c.load(self.root / 'cli-built/route-reading.json')
-        self.assertEqual(actual['applied'], self.choices['reading']['applied'])
+        self.assertEqual(actual['reading_key'], self.choices['reading']['reading_key'])
+        self.assertEqual(actual['documents'], self.issued['row']['documents'])
 
 
 class AuthoringRecoveryTests(unittest.TestCase):
@@ -605,7 +602,7 @@ class AuthoringRecoveryTests(unittest.TestCase):
         before = self.ledger.read_bytes()
         with self.assertRaisesRegex(OSError, 'before page delivery'):
             reading.read_page(route='development', studio=self.root, ledger=self.ledger,
-                              page_bytes=128, stream=InterruptedStream())
+                              page_bytes=128, stream=InterruptedStream(), execution=self.task['execution'])
         program = ('import json,sys;from pathlib import Path;from unittest.mock import patch;'
                    'import production_inputs as p;'
                    '\nwith patch("catalog_retrieval.runtime.load_pack_catalog",side_effect=AssertionError("catalog read")):'
@@ -626,7 +623,7 @@ class AuthoringRecoveryTests(unittest.TestCase):
 
     def test_completed_reading_reuses_its_saved_application_record(self):
         page = reading.read_page(route='development', studio=self.root, ledger=self.ledger,
-                                 page_bytes=10_000_000, stream=io.StringIO())
+                                 page_bytes=10_000_000, stream=io.StringIO(), execution=self.task['execution'])
         path = reading.write_draft(page['issued'], self.ledger, studio=self.root, snapshot=page['snapshot'])
         before = self.ledger.read_bytes()
         report = self.inspect()['readings'][0]
@@ -661,26 +658,28 @@ class AuthoringRecoveryTests(unittest.TestCase):
         self.assertEqual(runtime['state-file'], str(self.root / 'runtime/state.json'))
         self.assertIsNone(_runtime_basis(None))
 
-    def test_complete_choices_emit_build_and_prepare_with_the_saved_runtime(self):
+    def test_complete_choices_save_directly_with_the_saved_runtime(self):
+        self.task['authority'] = None
+        (self.root / 'task.json').write_bytes(c.encoded(self.task))
         runtime = {'state-file': str(self.root / 'runtime/state.json'),
                    'cache-dir': str(self.root / 'runtime/cache'),
                    'managed-root': str(self.root / 'runtime/managed'), 'pack-root': []}
         draft = tool.draft_inputs(self.root, 'task.json', 'draft', runtime_arguments=runtime)
         (self.root / draft['choices_file']).write_bytes(c.encoded(self.choices))
         action = self.inspect()['next_actions'][0]
-        self.assertEqual(action['command'], 'build-inputs')
+        self.assertEqual(action['command'], 'save')
         for key in ('state-file', 'cache-dir', 'managed-root'):
             self.assertEqual(action['argv'][action['argv'].index('--' + key) + 1], runtime[key])
         run = subprocess.run(action['argv'], env={**os.environ, 'CPB_HOME': str(self.root / 'runtime/home')},
                              capture_output=True, text=True, encoding='utf-8', check=False)
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        saved = json.loads(run.stdout)
+        self.assertTrue(saved['saved'])
         state = self.inspect()
-        self.assertTrue(state['inputs'][0]['assembled_task'].endswith('/production-task.json'))
-        prepare = state['next_actions'][0]
-        self.assertEqual(prepare['command'], 'prepare')
-        for key in ('state-file', 'cache-dir', 'managed-root'):
-            self.assertEqual(Path(prepare['argv'][prepare['argv'].index('--' + key) + 1]).resolve(),
-                             Path(runtime[key]).resolve())
+        current = next(row for row in state['inputs'] if row['current'])
+        self.assertEqual(current['prepared_run'], saved['run'])
+        self.assertFalse(state['pending'])
+        self.assertEqual([action['command'] for action in state['next_actions']], ['finish'])
 
     def test_unpublished_attempt_accepts_corrected_choices_and_preserves_existing_outputs(self):
         incomplete = self.root / 'incomplete.json'
@@ -708,11 +707,11 @@ class AuthoringRecoveryTests(unittest.TestCase):
         with patch.object(c, 'atomic', side_effect=interrupted):
             with self.assertRaisesRegex(OSError, 'before snapshot publication'):
                 reading.read_page(route='development', studio=self.root, ledger=self.ledger,
-                                  page_bytes=128, stream=io.StringIO())
+                                  page_bytes=128, stream=io.StringIO(), execution=self.task['execution'])
         with patch.object(c, 'object_store', side_effect=OSError('Synthetic interruption before page receipt.')):
             with self.assertRaisesRegex(OSError, 'before page receipt'):
                 reading.read_page(route='development', studio=self.root, ledger=self.ledger,
-                                  page_bytes=128, stream=io.StringIO())
+                                  page_bytes=128, stream=io.StringIO(), execution=self.task['execution'])
         report = self.inspect()
         self.assertEqual(len(report['readings']), 2)
         for saved in report['readings']:
@@ -722,12 +721,12 @@ class AuthoringRecoveryTests(unittest.TestCase):
             self.assertNotIn('--continue', saved['actions']['restart']['argv'])
         self.assertEqual(self.ledger.read_bytes(), before)
 
-    def test_reading_actions_follow_the_explicit_task_features(self):
+    def test_reading_actions_follow_the_current_operation_and_features(self):
         tool.draft_inputs(self.root, 'task.json', 'draft')
         selected = reading.read_page(route='development', studio=self.root, ledger=self.ledger,
-                                      page_bytes=128, stream=io.StringIO())
-        other = reading.read_page(route='development', features=['studio'], studio=self.root,
-                                 ledger=self.ledger, page_bytes=128, stream=io.StringIO())
+                                      page_bytes=128, stream=io.StringIO(), execution=self.task['execution'])
+        other = reading.read_page(route='development', operation='execute', features=['studio'], studio=self.root,
+                                 ledger=self.ledger, page_bytes=128, stream=io.StringIO(), execution=self.task['execution'])
         state = self.inspect()
         current = [row for row in state['readings'] if row['current']]
         self.assertEqual([row['snapshot'] for row in current], [selected['snapshot']])
@@ -736,11 +735,11 @@ class AuthoringRecoveryTests(unittest.TestCase):
         self.assertNotIn(other['cursor'], json.dumps(state['next_actions']))
 
     def test_status_contract_and_source_free_inspection_accept_saved_authoring(self):
-        import production_execution
+        import production_authoring_state
         from state_protocol import validate_against_schema
         tool.draft_inputs(self.root, 'task.json', 'draft')
         schema = c.load(tool.ROOT / 'schemas/authoring/production-status.schema.json')
-        current = production_execution._current_task(self.root)
+        current = production_authoring_state.current_task(self.root)
         self.assertEqual(validate_against_schema(current, {'$ref': '#/$defs/current_task', '$defs': schema['$defs']}), [])
         run = subprocess.run([sys.executable, str(tool.ROOT / 'scripts/production_workflow.py'),
                               'inspect-inputs', '--root', str(self.root)],

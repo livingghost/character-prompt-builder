@@ -257,6 +257,8 @@ class ExternalInputTests(unittest.TestCase):
         task.pop('generation')
         task.pop('recording')
         task.update(execution='external', image_input='image-input.json')
+        from reading_fixtures import task_reading
+        task_reading(self.root, task)
         write(self.root, 'task.json', task)
         return prepared
 

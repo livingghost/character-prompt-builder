@@ -26,7 +26,7 @@ Use the same locked environment for ordinary skill execution and publication. `p
 
 ```bash
 uv sync --locked
-uv run --locked python scripts/check_dependencies.py
+uv run --locked python scripts/check_dependencies.py --capability sheet --capability temporal-media
 ```
 
 Prefix the `python` commands in this document with `uv run --locked`, or use the synchronized environment's interpreter. From a Studio directory, select the skill with `--project` and use absolute script paths as described in [Dependencies](../../DEPENDENCIES.md#uv-project-environment). CI synchronizes an environment outside the checkout and adds that environment's interpreter directory to its executable search path. `UV_PROJECT_ENVIRONMENT` selects an absolute environment directory outside the product tree when needed.
@@ -34,7 +34,7 @@ Prefix the `python` commands in this document with `uv run --locked`, or use the
 The dependency checker also supports installing the same generated `requirements.txt` into an explicitly selected Python environment. With the selected Python, this command creates the environment at `../cpb-environment` when absent and installs into it after the required confirmation:
 
 ```bash
-python scripts/check_dependencies.py --venv ../cpb-environment --install
+python scripts/check_dependencies.py --capability sheet --capability temporal-media --venv ../cpb-environment --install
 ```
 
 Run every other check with the selected environment's Python. The environment requires ffprobe from FFmpeg; `check_dependencies.py --install` prints its system-package installation command and runs it under the checker's confirmation rules. The check verifies representative CJK glyph coverage with the sheet renderer's regular and bold font resolution. Install missing system fonts before the sheet suites; the dependency report identifies unavailable weights and characters. uv synchronizes Python packages, and this check verifies the complete environment used by runtime and publication.

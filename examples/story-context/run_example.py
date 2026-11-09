@@ -13,7 +13,8 @@ import sys
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'scripts'))
 import authorial_intent_audit
-import production_fixtures as fixture
+import production_authoring
+import reading_fixtures
 from io_budget import environment_seconds
 
 
@@ -73,7 +74,7 @@ def write_inputs(root: Path):
     intent='### Intent steady\n'+''.join('- **'+f+'**: '+('adopted' if f=='status' else 'Synthetic portrayal decision for this fixture.')+'\n' for f in authorial_intent_audit.REQUIRED_FIELDS)
     write(root,'intent.md',intent)
     evidence=[{'source_id':'DESIGN','locator':'Test premise','basis':'author-decision'}]
-    query={'artifact_type':'story-context-query','query_id':'moment.demo','sources':[{'source_id':i,'path':p,'sha256':'0'*64} for i,p in [('BASE','base.json'),('EVENTS','events.jsonl'),('PROCESSES','processes.json'),('COVERAGE','coverage.json'),('DESIGN','design.md'),('PERSONA','persona.md'),('INTENT','intent.md')]],
+    query={'artifact_type':'story-context-query','query_id':'moment.demo','sources':[{'source_id':i,'path':p} for i,p in [('BASE','base.json'),('EVENTS','events.jsonl'),('PROCESSES','processes.json'),('COVERAGE','coverage.json'),('DESIGN','design.md'),('PERSONA','persona.md'),('INTENT','intent.md')]],
         'timeline':{'timeline_id':'main','base_source':'BASE','events_source':'EVENTS','processes_source':'PROCESSES',
                     'base_provenance':[{'pointer':p,'evidence':evidence} for p in ['/characters/A','/characters/B','/environments/SPACE','/world']]},
         'at':{'story_order':15,'story_time':'between the declared changes'},'coverage_source_id':'COVERAGE',
@@ -86,57 +87,66 @@ def write_inputs(root: Path):
                  'fields':['/characters/A/mood','/characters/A/attention','/environments/SPACE/light'],
                  'requirement_ids':['active'],'guidance':[{'binding_ids':['voice','intent'],'instruction':'Keep the response concise; show the pause without making the character evasive.'}],
                  'instructions':['Depict the selected moment, not a new event.']}]}
-    pin(root,query)
+    write(root,'query.json',query)
     return query
 
 
 def run(out: Path):
     if out.exists():raise ValueError('choose a new output directory')
     q=write_inputs(out);log=[]
+    def invoke(argv,*,parse=True):
+        p=subprocess.run(argv,cwd=out,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'},capture_output=True,timeout=environment_seconds('EXAMPLE_COMMAND_TIMEOUT_SECONDS'))
+        stdout,stderr=p.stdout.decode('utf-8'),p.stderr.decode('utf-8')
+        log.append({'argv':argv,'returncode':p.returncode,'stdout':stdout,'stderr':stderr});write(out,'commands.json',log)
+        if p.returncode:raise ValueError(stdout+stderr)
+        return json.loads(stdout) if parse else stdout
     def command(script,*args):
-        argv=[sys.executable,'-B',str(ROOT/'scripts'/script),*map(str,args)]
-        p=subprocess.run(argv,cwd=out,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'},capture_output=True,text=True,encoding='utf-8',timeout=environment_seconds('EXAMPLE_COMMAND_TIMEOUT_SECONDS'))
-        log.append({'argv':argv,'returncode':p.returncode,'stdout':p.stdout,'stderr':p.stderr});write(out,'commands.json',log)
-        if p.returncode:raise ValueError(p.stdout+p.stderr)
-        return json.loads(p.stdout)
+        return invoke([sys.executable,'-B',str(ROOT/'scripts'/script),*map(str,args)])
     command('story_context.py','inspect','--root',out,'--query','query.json')
     command('story_context.py','build','--root',out,'--query','query.json','--out',out/'moment','--require-fields')
     command('story_context.py','verify','--root',out,'--query','query.json','--bundle',out/'moment','--require-fields')
     import work_ledger
-    task=work_ledger.begin(out,'Synthetic moment delivery',['prepare','deliver'])
-    write(out,'delivery.txt','Write one sentence using the selected moment fields and guidance.\n')
-    spec={'task_id':task['task_id'],'route':'story-context','features':[], 'sources':[],
-        'delivery':{'path':'delivery.txt','translation_notes':'Selected state and explicit portrayal instruction only.'},
-        'criteria':[{'id':'moment','strength':'hard','text':'Respect the selected moment and portrayal direction.'}],
-        'world_views':[],'moment_views':[{'query':'query.json','bundle':'moment','view_id':'depiction.main'}]}
-    fixture.task(out,spec)
+    task=work_ledger.begin(out,'Synthetic moment text delivery',['compose'])
+    write(out,'delivery.txt','A pauses in the soft light, then gives a brief answer.\n')
+    spec=production_authoring.seed(out,route='story-context',artifact='text',execution='authored',task_id=task['task_id'])
+    spec.update(criteria=[{'id':'moment','strength':'hard','text':'Respect the selected moment and portrayal direction.','evidence':'text'}],
+        moment_views=[{'query':'query.json','bundle':'moment','view_id':'depiction.main'}],
+        authored={'requirements':['save','delivery','review']})
+    spec['direction'].update(purpose='Write one sentence using the selected moment and portrayal guidance.',
+        intended_effect='A concise portrayal of the selected pause and response, preserving the bounded state.')
+    reading_fixtures.task_reading(out,spec)
     write(out,'task.json',spec)
-    result=command('production_workflow.py','prepare','--root',out,'--task','task.json');rid=result['run']
+    draft=command('production_workflow.py','draft-inputs','--root',out,'--task','task.json','--out-dir','editing')
+    choices=json.loads((out/draft['choices_file']).read_text(encoding='utf-8'))
+    choices['reading']['reading_key']=json.loads((out/spec['route_reading']).read_text(encoding='utf-8'))['reading_key']
+    write(out,draft['choices_file'],choices)
+    saved=command('production_workflow.py','save','--root',out,'--choices',draft['choices_file']);rid=saved['run']
     def workflow(op,*args):return command('production_workflow.py',op,'--root',out,'--run',rid,*args)
-    def authorize(intent):
-        number=len(log);ip=f'intent-{number}.json';rp=f'authorization-{number}.json'
-        write(out,ip,intent)
-        request=workflow('draft-authorization','--grant','fixture-grant','--intent',ip,'--out',rp)
-        request['reason']='Explicit synthetic fixture declaration; not user consent.'
-        write(out,rp,request)
-        return workflow('authorize','--file',rp)['sha256']
-    intent=workflow('handoff-intent','--recipient','synthetic writer','--method','manual')
-    workflow('handoff','--recipient','synthetic writer','--method','manual','--authorization',authorize(intent))
-    write(out,'output.txt','A pauses in the soft light, then gives a brief answer.\n')
-    candidate=workflow('capture','--artifact','output.txt','--note','Handwritten fixture, not generated media.')
-    review=workflow('draft-review','--candidate',candidate['sha256'],'--out','review.json')
-    review.update(reviewer='synthetic reviewer',observations=[{'locator':{'kind':'whole'},'observation':'The sentence uses only the declared fields and direction.'}],conclusion='Fixture inspection, not user approval.')
-    review['checks'][0].update(verdict='pass',observation_indices=[0],reason='Literal fixture inspection.')
-    fixture.observation(review)
-    write(out,'review.json',review);workflow('review','--file','review.json')
-    selection=workflow('draft-selection','--candidate',candidate['sha256'],'--out','selection.json')
-    selection.update(selector=fixture.ACTOR,reason='Exercise delivery without canon adoption.')
-    write(out,'selection.json',selection)
-    selection['authorization']=authorize(workflow('selection-intent','--file','selection.json'))
-    write(out,'selection.json',selection);workflow('select','--file','selection.json');workflow('complete')
-    for i in (1,2):work_ledger.step_done(out,i)
+    presented=invoke([sys.executable,'-c',
+        'from pathlib import Path; import sys; sys.stdout.buffer.write(Path(sys.argv[1]).read_bytes())',
+        saved['artifact']],parse=False)
+    write(out,'presentation.json',{'stdout':presented,'destination':'synthetic local output stream'})
+    write(out,'delivery-receipt.json',{'recipient':'Synthetic local output receiver','channel':'Captured subprocess stdout',
+        'evidence':{'path':'presentation.json','field':['stdout']},
+        'note':'These saved bytes were actually emitted; no human reading is inferred.'})
+    workflow('deliver','--file','delivery-receipt.json')
+    workflow('workspace','--phase','input')
+    if presented != 'A pauses in the soft light, then gives a brief answer.\n':
+        raise ValueError('the local output differs from the authored fixture')
+    workflow('workspace','--phase','review')
+    review=workflow('draft-review','--out','review.json')
+    review.update(reviewer='Synthetic moment-text reviewer',observations=[{
+        'evidence':'candidate','locator':{'kind':'whole'},
+        'observation':'The saved sentence portrays the pause and brief response in the selected soft light.',
+        'interpretation':'It reflects the selected moment and bounded portrayal guidance.',
+        'limitations':['Literal fixture assessment; no generated portrayal or audience response is claimed.']}],
+        conclusion='The saved text preserves the selected fixture moment.')
+    review['checks'][0].update(verdict='pass',observation_indices=[0],
+        reason='Compared the actual saved sentence with moment view depiction.main and its portrayal guidance.')
+    write(out,'review.json',review)
+    workflow('review-authored','--file','review.json')
     work_ledger.finish(out,rid)
-    result=workflow('resume');write(out,'result.json',result)
+    result=workflow('status');write(out,'result.json',result)
     return {'ok':result['ok'] and result['runs'][0]['task_disposition']=='completed' and result['runs'][0]['next_action'] is None,'run':rid,'commands':len(log),'fixture_only':True}
 
 

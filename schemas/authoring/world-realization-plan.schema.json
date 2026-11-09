@@ -37,8 +37,7 @@
         "type": "object",
         "required": [
           "source_id",
-          "path",
-          "sha256"
+          "path"
         ],
         "properties": {
           "source_id": {

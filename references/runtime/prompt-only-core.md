@@ -17,6 +17,12 @@ the commission and source roles to assess their contribution, without adopting
 them or automatically performing an edit. A local correction and a
 request to reconsider the whole depiction have different scopes.
 
+Its [image-source guidance](production-direction.md#form-a-prompt-from-an-image)
+and [idea development](production-direction.md#form-a-prompt-from-an-idea)
+support both ways of authoring. Preserve the assigned appearance when working
+from an image; choose a concrete visual proposal when working from a brief.
+Use meaningful concepts and the distinctions the intended result needs.
+
 Use [Composition](prompt-composition.md) for the construction knowledge a
 complex question needs. Its specialist resources contribute anatomy, spatial,
 performance, material or layout knowledge to the same depiction. They are not
@@ -29,9 +35,14 @@ Resolve the rendering axes under [Rendering choices and execution controls](rend
 at the scope needed for this work, recording user selection or the agent's
 reason. Finish and presentation do not change subject identity. Read a named
 model's complete guidance card before target-specific wording, including its
-explicit input mode, supported forms, vocabulary scope and evidence. An unnamed
-interface uses portable wording without invented execution settings. An
-unresolved target stays unresolved until evidence establishes its input.
+explicit input mode, supported forms, vocabulary scope and evidence. Obtain the
+applicable guidance through [the writing guide resolver](prompt-writing-guide.md#resolve-the-active-guide).
+A request for family-oriented text can use that family's guidance without
+selecting a checkpoint or reading unrelated service execution fields. Its tag
+wording still requires actual dictionary searches. An unnamed interface uses
+portable wording without invented execution settings. Exact model publication
+or generation later applies the selected model's complete input contract; a
+family draft does not establish that readiness.
 
 ## Knowledge and sources
 
@@ -95,6 +106,15 @@ numeric camera bounds need a record. Its validator checks those declarations,
 not whether they are the right depiction. The author owns that judgment.
 
 ## Saved prompt artifacts
+
+For ordinary editable text, use `production_workflow.py draft-inputs` and write
+the body in its directly editable delivery file. Save it with `save --choices
+FILE`; `--draft` retains unfinished text and unresolved choices. A finished
+model-targeted prompt still requires its real vocabulary search and grammar
+contract. [Authored storage](production-authored-storage.md) owns exact revision,
+delivery and requested-review completion.
+
+### Specialized prompt artifact export
 
 Use `python scripts/build_prompt_artifacts.py --help` to materialize the conditional prompt artifact set. The builder accepts an optional structured semantic plan and refuses violations of its explicit counts, connections, action assignments and numeric camera bounds before publication. `python scripts/validate_prompt_semantics.py plan.json` checks the plan alone; its `--template` prints a plan to start from, and its `--help` names every field.
 
@@ -215,4 +235,4 @@ The plan `validate_prompt_semantics.py --template` prints uses an empty `structu
 
 ## Artifact evidence and completion
 
-For a saved deliverable, continue through [Production Execution](production-execution.md). A search hit or a newly created image is neither production completion nor canonical adoption.
+Saving, delivery and requested review use [Authored storage](production-authored-storage.md). Preparing or executing a later image request is a separate operation. A search hit, completed prompt or received image establishes its own result; it does not establish canonical adoption.

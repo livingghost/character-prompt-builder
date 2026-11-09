@@ -1,0 +1,31 @@
+{
+  "title": "Captured basis of an authored result",
+  "description": "The materializer retains the original commission and source bytes independently of authored adaptations. It derives these references in the exported task; editable choices do not require author-entered hashes.",
+  "type": "object",
+  "properties": {
+    "origin_task": {"type": "object"},
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {"$ref": "authoring/production-task.schema.json#/properties/sources/items"},
+          "file": {
+            "type": "object",
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "size": {"type": "integer", "minimum": 0}
+            },
+            "required": ["path", "sha256", "size"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["source", "file"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["origin_task", "sources"],
+  "additionalProperties": false
+}

@@ -438,33 +438,30 @@ class StudioSceneTests(unittest.TestCase):
 
     def test_impact_names_the_studio_images_made_from_a_material(self):
         import execution_contract as c
-        import production_binding
+        import production_case_fixtures as cases
+        import production_execution as execution
         import production_fixtures as fixture
         import production_workflow as workflow
+        import shutil
         import studio
-        import work_ledger
+        from catalog_retrieval import runtime
+        from reading_fixtures import task_reading
+        from test_production_execution import decisions
+        self.addCleanup(runtime.configure_pack_runtime,None)
+        case=cases.create(Path(self.tmp.name)/'image-studio',Path(self.tmp.name)/'runtime')
+        shutil.copytree(self.root/'story',case['root']/'story')
+        self.root=case['root']
         self.built('image')
-        task = work_ledger.begin(self.root, 'Constructed image from a scene material', ['prepare'])
-        (self.root / 'delivery.txt').write_text('One figure at the bench.\n', encoding='utf-8', newline='\n')
-        spec = {'task_id': task['task_id'], 'route': 'performance', 'features': ['scene-persona'], 'sources': [],
-                'delivery': {'path': 'delivery.txt',  'translation_notes': 'None.'},
-                'criteria': [{'id': 'scope', 'strength': 'hard', 'text': 'Use only the prepared scope.'}],
-                'world_views': [], 'scene_materials': [{'plan': self.PLAN, 'bundle': self.BUNDLE}]}
-        fixture.task(self.root, spec, artifact='image')
+        spec=case['task']
+        spec.update(features=['scene-persona'],scene_materials=[{'plan':self.PLAN,'bundle':self.BUNDLE}])
+        task_reading(self.root,spec)
         (self.root / 'task.json').write_bytes(c.encoded(spec))
         run = workflow.prepare(self.root, 'task.json')['run']
-        package = Path(self.tmp.name) / 'package.json'
-        package.write_bytes(c.encoded({'production_binding': production_binding.create(
-            self.root, run, 'One figure at the bench.\n')}))
         # The Studio projection names an actual Production candidate and its
         # review. This fixture exercises provenance, not artistic conformance.
-        from production_direction_smoke_test import png
-        result = self.root / 'result.png'
-        result.write_bytes(png())
-        fixture.handoff(self.root, run, 'synthetic author', 'manual')
-        candidate = workflow.capture(self.root, run, 'result.png',
-            'Locally constructed constant-field PNG; not an artwork-quality claim.')
-        reviewed = workflow.draft_review(self.root, run, candidate['sha256'])
+        result=execution.execute(self.root,run,decisions_file=decisions(self.root,run))
+        candidate=result['runs'][0]['candidates'][0]
+        reviewed = workflow.draft_review(self.root, run, candidate)
         reviewed.update(reviewer=fixture.ACTOR, observations=[{
             'evidence': 'candidate',
             'locator': {'kind': 'image-region', 'x': 0, 'y': 0, 'width': 1, 'height': 1},
@@ -473,23 +470,20 @@ class StudioSceneTests(unittest.TestCase):
             'limitations': ['Synthetic scope/provenance check, not artwork acceptance.']}],
             conclusion='Synthetic projection fixture only.')
         reviewed['checks'][0].update(verdict='pass', observation_indices=[0],
-            reason='The constant field does not introduce any facts outside the prepared scope.')
+            reason='The synthetic response is a retained PNG with the requested dimensions.')
         (self.root / 'review.json').write_bytes(c.encoded(reviewed))
         workflow.review(self.root, run, 'review.json')
         # The Studio accepts only the run's current selection, so the fixture selects first.
-        chosen = workflow.draft_selection(self.root, run, candidate['sha256'])
+        chosen = workflow.draft_selection(self.root, run, candidate)
         chosen['reason'] = 'Synthetic projection fixture selection; not an artistic judgment.'
         (self.root / 'selection.json').write_bytes(c.encoded(fixture.selection(self.root, run, chosen)))
         workflow.select(self.root, run, 'selection.json')
-        studio.add_character(self.root, 'C01', '')
-        studio.iterate(self.root, 'C01', 'base.front', result, package=package, request=None, response=None,
-                       note='Constructed iteration.')
-        studio.accept(self.root, 'C01', 'it-0001')
-        with (self.root / 'characters/C01/iterations.jsonl').open('a', encoding='utf-8', newline='\n') as log:
+        studio.accept(self.root, 'robot', 'it-0001')
+        with (self.root / 'characters/robot/iterations.jsonl').open('a', encoding='utf-8', newline='\n') as log:
             log.write('{"damaged": \n')
         row = scene.impact(self.root)['scenes'][0]
         self.assertEqual(row['runs'], [{'run': run, 'selection_recorded': True}])
-        self.assertEqual(row['iterations'], [{'character': 'C01', 'slot': 'base.front', 'iteration_id': 'it-0001',
+        self.assertEqual(row['iterations'], [{'character': 'robot', 'slot': 'candidate', 'iteration_id': 'it-0001',
                                               'status': 'accepted', 'accepted': True}])
 
 
@@ -509,6 +503,15 @@ class SourceMaterialTests(unittest.TestCase):
         self.ingest();index,blobs=source.checked_index(self.root,'archive')
         self.assertEqual(blobs['D'],self.raw);self.assertEqual(index['segments'][1]['completion'],'partial')
         self.assertFalse(index['canon_adopted']);self.assertEqual((self.root/'original.txt').read_bytes(),self.raw)
+    def test_first_ingestion_pins_actual_bytes_without_editing_the_authored_plan(self):
+        self.plan['documents'][0].pop('sha256')
+        authored=m.encoded(self.plan);(self.root/'input.json').write_bytes(authored)
+        self.ingest();index,blobs=source.checked_index(self.root,'archive')
+        self.assertEqual(index['documents'][0]['sha256'],m.digest(self.raw))
+        self.assertEqual(blobs['D'],self.raw)
+        self.assertEqual((self.root/'input.json').read_bytes(),authored)
+        (self.root/'original.txt').write_bytes(b'A changed working source.\n')
+        self.assertEqual(source.checked_index(self.root,'archive')[1]['D'],self.raw)
     def test_quote_is_copied_exactly_from_ingested_bytes(self):
         self.ingest();idx,_=source.checked_index(self.root,'archive')
         p={'proposal_id':'P','index_sha256':idx['content_sha256'],'claims':[{'claim_id':'c','subject_ids':[],
@@ -517,6 +520,15 @@ class SourceMaterialTests(unittest.TestCase):
         (self.root/'claims.json').write_bytes(m.encoded(p));source.propose(self.root,'archive','claims.json','proposal')
         value=m.load(self.root,'proposal/proposal.json');self.assertEqual(value['claims'][0]['evidence'][0]['quote'],'描述。\r\n')
         self.assertFalse(value['canon_adopted']);self.assertEqual(value['claims'][0]['epistemic_status'],'inference')
+    def test_claims_acquire_the_selected_archive_pin_and_enforce_an_existing_pin(self):
+        self.ingest();index,_=source.checked_index(self.root,'archive')
+        plan={'proposal_id':'P','claims':[{'claim_id':'c','subject_ids':[],
+            'epistemic_status':'unknown','text':'The outcome remains unresolved.','proposed_use':'Review the source.',
+            'conflicts_with':[],'evidence':[{'source_id':'D','start_line':1,'end_line':1}]}],'unresolved':[]}
+        self.assertEqual(source.compile_proposal(self.root,'archive',plan)['index_sha256'],index['content_sha256'])
+        plan['index_sha256']='f'*64
+        with self.assertRaisesRegex(ValueError,'different source index'):
+            source.compile_proposal(self.root,'archive',plan)
     def test_archive_corruption_refused(self):
         self.ingest();idx,_=source.checked_index(self.root,'archive');(self.root/'archive'/idx['documents'][0]['stored_path']).write_bytes(b'changed')
         with self.assertRaisesRegex(ValueError,'archived original'):source.checked_index(self.root,'archive')

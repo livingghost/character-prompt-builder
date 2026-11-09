@@ -32,7 +32,7 @@ def build():
         root = Path(temporary)
         started = work_ledger.begin(root, 'Synthetic recovery example', ['inspect retained evidence'])
         (root / 'delivery.txt').write_text('Synthetic local instructions.\n', encoding='utf-8')
-        task = {'task_id': started['task_id'], 'route': 'development', 'features': [], 'sources': [],
+        task = {'task_id': started['task_id'], 'route': 'development', 'execution': 'external', 'features': [], 'sources': [],
                 'delivery': {'path': 'delivery.txt',
                              'translation_notes': 'Synthetic authored fixture.'},
                 'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect retained output.'}]}
@@ -74,7 +74,7 @@ def main():
 def prepare_fixture(root, task):
     import production_fixtures as fixture
     task['world_views'] = []
-    fixture.task(root, task)
+    fixture.task(root, task, execution='external')
     (root / 'task.json').write_bytes(c.encoded(task))
     run = w.prepare(root, 'task.json')['run']
     fixture.grant(root, run, {'operation': 'submit', 'targets': ['delivery'], 'payload': {'count': 1, 'synthetic': True}})

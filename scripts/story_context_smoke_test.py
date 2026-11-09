@@ -31,6 +31,7 @@ class MomentTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='moment-');self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)/'作品 and spaces';self.query=fixture.write_inputs(self.root)
+        fixture.pin(self.root,self.query)
     def save(self):fixture.pin(self.root,self.query)
     def value(self):self.save();return sc.materialize(self.root,'query.json')
     def change_json(self,name,fn):
@@ -136,9 +137,17 @@ class MomentTests(unittest.TestCase):
     def test_wrong_coverage_timeline(self):
         self.change_json('coverage.json',lambda v:v.update(timeline_id='other'))
         with self.assertRaisesRegex(ValueError,'another timeline'):self.value()
-    def test_unpinned_sources_fail(self):
+    def test_existing_source_pin_detects_changed_bytes(self):
         fixture.write(self.root,'design.md','changed')
         with self.assertRaisesRegex(ValueError,'fingerprint changed'):sc.materialize(self.root,'query.json')
+    def test_initial_sources_are_acquired_and_pinned_in_the_author_context(self):
+        for source in self.query['sources']:source.pop('sha256')
+        fixture.write(self.root,'query.json',self.query)
+        before=(self.root/'query.json').read_bytes()
+        result=sc.materialize(self.root,'query.json')
+        for source in result['author']['sources']:
+            self.assertEqual(source['sha256'],hashlib.sha256((self.root/source['path']).read_bytes()).hexdigest())
+        self.assertEqual((self.root/'query.json').read_bytes(),before)
     def test_unknown_source(self):
         self.query['timeline']['base_source']='ABSENT'
         with self.assertRaisesRegex(ValueError,'unresolved source'):self.value()

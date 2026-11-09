@@ -45,6 +45,11 @@
         },
         "subject_uses": {
           "$ref": "#/$defs/subject-uses"
+        },
+        "reference_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable authored reference use, distinct from source or carrier content."
         }
       },
       "additionalProperties": false
@@ -118,6 +123,11 @@
         "subject_id": {
           "type": "string",
           "minLength": 1
+        },
+        "reference_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable authored reference use, distinct from source or carrier content."
         }
       },
       "additionalProperties": false

@@ -153,7 +153,13 @@ domains
 applies_to
 ```
 
-The prompt is a complete visual instruction for one decision. Invariants define what survives adaptation. Misreadings are diagnostic-only.
+The prompt is a complete visual instruction for one decision. Invariants define
+what survives adaptation within that decision's scope. State the useful visual
+function and the variant actually taught. A module for a selected shallow-focus
+treatment can preserve selective focus; a general cinematic module cannot
+declare every deep-focus image a failure. Keep alternative realizations in
+their proper scope instead of treating one source's arrangement as a universal
+definition. Misreadings are diagnostic-only.
 
 Examples:
 
@@ -463,8 +469,11 @@ Vocabulary records are compact by design. They provide names and model-legible p
 
 For reference material being converted into canonical production knowledge,
 `reference-corpus-visual-technique-observation.md` is a required companion to
-this standard. Complete its whole-image inventory before naming a style, scene
-or module. When visible emotion, social intent, viewer relationship, physiology,
+this standard. Understand the whole image and use its applicable observation
+knowledge before naming a style, scene or module. For prompt-output pairs,
+distinguish selected wording, visible realization and scoped generation
+evidence before promoting a reusable construction. When visible emotion,
+social intent, viewer relationship, physiology,
 appendage behavior or mechanical acting contributes to the source, use the
 source observation and interpretation sections of
 `performance-language-specification.md` before selecting the performance

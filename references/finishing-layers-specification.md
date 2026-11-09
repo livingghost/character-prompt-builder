@@ -33,7 +33,27 @@ material response and finishing detail together. A selected style family or
 profile contributes within that scope. Preserve both local coherence and the
 chosen relationship between different treatments.
 
-During prompt assembly, run one vocabulary lookup per resolved layer (see the Prompt Vocabulary Runtime). The dictionary carries dedicated categories for typography and logo design, landscape and atmosphere, photography parameters, illustration technique, 3D rendering and materials, and toy and figure finish. Catalog modules exist for the recurring layer choices (rendering, lens, lighting, aesthetic-touch categories); search them before hand-composing a layer.
+Investigate unresolved construction or wording questions under
+[Prompt-only Core](runtime/prompt-only-core.md#knowledge-and-sources). A brief,
+reference or selected style family may already resolve a layer. Descriptive and
+portable wording needs a search only where a question remains. Choose the
+source that can answer it and inspect complete selected records at their
+applicable scope.
+
+The dictionary carries dedicated categories for typography and logo design,
+landscape and atmosphere, photography parameters, illustration technique, 3D
+rendering and materials, and toy and figure finish. Catalog modules cover
+recurring layer choices in rendering, lens, lighting and aesthetic-touch
+categories. Use these resources according to the actual question; each layer
+need not use both systems or have its own query. Preserve the selected finish's
+necessary detail when composing its wording.
+
+The selected model's `prompt_input` separately governs rendition. A `tag-based`
+input requires real [dictionary search and vocabulary selection](runtime/prompt-vocabulary.md#select-wording-for-a-tag-based-model)
+for the actual prompt, even when its finishing choices and intended terms are
+already understood. Record actual investigations under
+[Saved prompt artifacts](runtime/prompt-only-core.md#saved-prompt-artifacts).
+A layer's presence alone requires no retrieval entry.
 
 ## 4. Observation contract
 

@@ -1,6 +1,6 @@
 # Sheet fills, evidence and adoption
 
-Read [Character Sheet Discipline](character-sheet-discipline.md) for authored identity and layout, [Production Execution](production-execution.md) for exact request approval, and [Adoption Workflow](adoption-workflow.md) for Production candidates. These tools never infer acceptance from image presence, a successful request or numerical similarity.
+Read [Character Sheet Discipline](character-sheet-discipline.md) for authored identity and layout, [Prepared request execution](production-request-execution.md) for exact request approval, and [Adoption Workflow](adoption-workflow.md) for Production candidates. These tools never infer acceptance from image presence, a successful request or numerical similarity.
 
 ## One artifact and one selection contract
 
@@ -29,7 +29,7 @@ Under the sheet lock, only touched keys are compared and applied. A field or tab
 
 ## Sequential panel execution
 
-Render `panel-fill-requests.json` first. Review each prompt with its actual reference images under [Prompt Composition](prompt-composition.md#prompt-assembly-and-review). Author a complete Production task per selected panel, including its prompt, model/mode, parameters, seed, interface evidence and recording target. No creative field is synthesized by the runner. The requested width and height must match the renderer's `target.generation_w` and `target.generation_h`; render with supported `--panel-geometries` when a model has fixed geometry choices.
+Render `panel-fill-requests.json` first. Review each prompt with its actual reference images under [Prompt Composition](prompt-composition.md#prompt-assembly-and-review). Author a Production task per selected panel with its prompt, model/mode, meaningful controls, interface evidence and recording target. The existing managed batch derives omitted width and height from the selected renderer request's `target.generation_w` and `target.generation_h`; conflicting explicit dimensions are rejected. Other parameters remain authored. The sheet canvas and display content box do not become generation dimensions. Render with supported `--panel-geometries` when a model has fixed geometry choices. No creative field is synthesized by the runner.
 
 A [sheet-fill-plan](../../schemas/authoring/sheet-fill-plan.schema.json) is Studio-relative. Each reference explicitly names a slot and role. An artifact ID pins a known acceptance; null elects the current accepted artifact at the preparation boundary. Neither form selects a candidate. The resolved artifact is then frozen in the batch journal, the reference preparation and the exact request shown for approval.
 

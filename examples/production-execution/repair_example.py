@@ -16,6 +16,7 @@ import sys
 SKILL = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SKILL / 'scripts'))
 import production_fixtures as fixture
+import execution_contract as contract
 from io_budget import environment_seconds
 from PIL import Image, ImageDraw
 
@@ -44,6 +45,8 @@ def run(out: Path) -> dict:
         write(ip, intent)
         request = workflow(rid, 'draft-authorization', '--grant', 'fixture-grant', '--intent', ip, '--out', rp)
         request['reason'] = 'Explicit synthetic fixture instruction; no user consent or paid generation is claimed.'
+        if request.get('request_decision') is not None:
+            fixture.assess_rendition(request['request_decision']['rendition_review'])
         write(rp, request)
         return workflow(rid, 'authorize', '--file', rp)['sha256']
     command('work_ledger.py', '--studio', out, 'begin', '--goal', 'Synthetic localized image repair',
@@ -51,13 +54,14 @@ def run(out: Path) -> dict:
     task_id = json.loads((out / 'work/current.json').read_text(encoding='utf-8'))['task_id']
     (out / 'brief.txt').write_text('Processing fixture: a central region must differ from the surrounding field. No cast, story or audience claim.\n', encoding='utf-8')
     (out / 'delivery.txt').write_text('Use an unbroken field for the initial diagnostic fixture.\n', encoding='utf-8')
-    task = {'task_id': task_id, 'route': 'development', 'features': [],
+    task = {'task_id': task_id, 'route': 'development', 'features': [], 'execution': 'external',
             'sources': [{'id': 'brief', 'path': 'brief.txt', 'role': 'world', 'disposition': 'applied',
                          'locator': 'whole', 'reason': 'Explicit synthetic processing requirement.'}],
             'delivery': {'path': 'delivery.txt',  'translation_notes': 'Only selected expression instructions.'},
             'criteria': [{'id': 'region', 'strength': 'hard', 'text': 'Actual central and peripheral pixels differ.'}],
             'world_views': []}
-    fixture.task(out, task, artifact='image')
+    fixture.task(out, task, artifact='image', execution='external')
+    fixture.external_image_input(out, task)
     task['criteria'][0]['evidence'] = 'image'
     task['direction'].update(purpose='Demonstrate a scoped correction from an actual failed image observation.',
         intended_effect='A distinct central region, measured only as a synthetic pixel condition.', basis=['brief'])
@@ -72,16 +76,34 @@ def run(out: Path) -> dict:
         'selected': 'uniform', 'reason': 'A deliberately failing initial diagnostic fixture.', 'criteria': ['region'],
         'depends_on': [], 'deviations': []}]
     write('task.json', task)
-    first = command('production_workflow.py', 'prepare', '--root', out, '--task', 'task.json')['run']
+    first_input = command('production_workflow.py', 'prepare', '--root', out, '--task', 'task.json')
+    first = first_input['run']
+    consumers = {first: first_input['consumer']}
     def capture_and_review(rid, filename, corrected):
         intent = workflow(rid, 'handoff-intent', '--recipient', 'synthetic raster fixture', '--method', 'manual')
         workflow(rid, 'handoff', '--recipient', 'synthetic raster fixture', '--method', 'manual',
                  '--authorization', authorize(rid, intent))
+        intent = workflow(rid, 'external-intent', '--count', '1')
+        workflow(rid, 'claim-external', '--count', '1', '--authorization', authorize(rid, intent))
+        consumer = json.loads(Path(consumers[rid]).read_text(encoding='utf-8'))
+        request = consumer['image_input']['external_request']['request']
+        expected = ('Change only the central image region.\n' if corrected
+                    else 'Use an unbroken field for the initial diagnostic fixture.\n')
+        if request['prompt'] != expected or request['count'] != 1:
+            raise ValueError('the fixture host received an unsupported exact request')
+        write(filename + '.call.json', {'synthetic_host': True, 'request': request})
         image = Image.new('RGB', (32, 24), (64, 64, 64))
-        if corrected:
+        if request['prompt'] == 'Change only the central image region.\n':
             ImageDraw.Draw(image).rectangle((12, 8, 19, 15), fill=(192, 192, 192))
         image.save(out / filename)
-        candidate = workflow(rid, 'capture', '--artifact', filename, '--note', 'Authored synthetic pixels, not model artwork.')
+        candidate = workflow(rid, 'capture', '--artifact', filename,
+            '--note', 'Actual local synthetic host output from the recorded request; not model artwork.')
+        write(filename + '.response.json', {'synthetic_host': True, 'status': 'completed',
+            'file': filename, 'sha256': contract.sha256_file(out / filename), 'cost': None})
+        workflow(rid, 'receive-external', '--response', filename + '.response.json', '--artifact', filename,
+                 '--call', filename + '.call.json', '--request-pointer', '["request"]',
+                 '--cost-pointer', '["cost"]', '--reason',
+                 'The local fixture host produced this PNG from its exact recorded input; no provider or billing claim.')
         rp = filename + '.review.json'
         review = workflow(rid, 'draft-review', '--candidate', candidate['sha256'], '--out', rp)
         with Image.open(out / filename) as actual:
@@ -106,10 +128,13 @@ def run(out: Path) -> dict:
     revised['direction']['decisions'][0].update(selected='local', reason='The actual initial artifact failed the declared contrast check.')
     revised['delivery']['path'] = 'revised-delivery.txt'
     (out / 'revised-delivery.txt').write_text('Change only the central image region.\n', encoding='utf-8')
+    fixture.external_image_input(out, revised)
     write('revised-task.json', revised)
     intent = workflow(first, 'revision-intent', '--task', 'revised-task.json', '--candidate', initial['sha256'], '--repair', 'separate-region')
-    child = workflow(first, 'revise', '--task', 'revised-task.json', '--candidate', initial['sha256'], '--repair', 'separate-region',
-                     '--authorization', authorize(first, intent))['run']
+    child_input = workflow(first, 'revise', '--task', 'revised-task.json', '--candidate', initial['sha256'], '--repair', 'separate-region',
+                           '--authorization', authorize(first, intent))
+    child = child_input['run']
+    consumers[child] = child_input['consumer']
     final = capture_and_review(child, 'revised.png', True)
     choice = workflow(child, 'draft-selection', '--candidate', final['sha256'], '--out', 'selection.json')
     choice.update(selector=fixture.ACTOR, reason='Select only the demonstrated fixture deliverable; no canon adoption.')

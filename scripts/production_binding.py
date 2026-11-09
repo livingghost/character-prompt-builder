@@ -157,6 +157,15 @@ def validate(binding: Any, prompt: str) -> None:
         raise ValueError('production binding integrity mismatch')
     consumer=binding['consumer']
     fields = {'route','instructions','criteria','direction','world_views','moment_views','authoring_materials'}
+    if 'authored' in consumer:
+        state=consumer['authored']
+        c.exact(state,{'state','requirements','completion_state'},'authored consumer state')
+        if state['state'] not in {'draft','finished'}:
+            raise ValueError('authored consumer state must name its saved draft or finished revision')
+        from production_workflow import schema_check
+        schema_check({'requirements':state['requirements'],
+                      'completion_state':state['completion_state']},'authored-contract')
+        fields.add('authored')
     if 'image_input' in consumer:
         import image_input
         image_input.validate_binding(consumer['image_input'])

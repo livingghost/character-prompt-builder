@@ -469,10 +469,16 @@ class ExternalPackGuidanceTests(unittest.TestCase):
     def test_route_reading_shows_external_model_card(self):
         studio = self.root/'studio'
         studio.mkdir(exist_ok=True)
-        output = self.command('execution_routes.py','read','generation','--feature','prompt-dialect',
-                               '--model',self.alias,'--root',str(studio),'--page-bytes','1024').stdout
-        line = next(s for s in output.splitlines() if s.startswith('model-guidance: '))
-        self.check_card(json.loads(line.partition(': ')[2])[0])
+        output = self.command('execution_routes.py','read','generation','--execution','external','--feature','prompt-dialect',
+                               '--model',self.alias,'--root',str(studio),'--page-bytes','1048576').stdout
+        line = next(line for line in output.splitlines()
+                    if line.startswith('--- {') and line.endswith('} ---')
+                    and json.loads(line[4:-4])['kind'] == 'model')
+        metadata = json.loads(line[4:-4])
+        self.assertEqual(metadata['path'], 'model-guidance/' + self.model_id)
+        cards, _ = json.JSONDecoder().raw_decode(output.split(line + '\n', 1)[1])
+        self.check_card(cards[0])
+        self.assertIn('reading-key: generation ', output)
 
     def test_missing_profile_keeps_advice_visible_but_blocks_compile(self):
         model = 'fixture-external-unconfigured'

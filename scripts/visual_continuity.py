@@ -42,7 +42,8 @@ def validate_content(value: Any, production_spec: dict) -> None:
     c.text(value['basis']['path'], 'continuity source')
     c.text(value['basis']['locator'], 'continuity locator')
     c.sha(value['basis']['sha256'])
-    originals = production_spec.get('subjects')
+    originals = (production_spec.get('subjects') if production_spec is not None else
+                 [{'id': key} for key in value['subjects']])
     if not isinstance(originals, list) or not isinstance(value['subjects'], dict):
         raise ValueError('visual continuity requires the production subject collection')
     ids = [item.get('id') for item in originals if isinstance(item, dict)]
@@ -384,7 +385,8 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
     """
     characters = dict(characters or {})
     work_ids = dict(work_ids or {})
-    ids = [item.get('id') for item in production_spec.get('subjects') or [] if isinstance(item, dict)]
+    ids = ([item.get('id') for item in production_spec.get('subjects') or [] if isinstance(item, dict)]
+           if production_spec is not None else list(decisions))
     if set(decisions) != set(ids):
         raise ValueError('state one continuity decision for each production subject: ' + ', '.join(map(str, ids)))
     if set(characters) - set(ids):

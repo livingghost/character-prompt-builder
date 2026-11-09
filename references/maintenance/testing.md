@@ -31,7 +31,7 @@ with `uv run --locked`. For a Studio working directory, use the project's
 For the complete maintenance check, run:
 
 ```bash
-python scripts/check_dependencies.py
+python scripts/check_dependencies.py --capability sheet --capability temporal-media
 python scripts/run_checks.py
 ```
 

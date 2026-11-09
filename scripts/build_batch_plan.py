@@ -22,8 +22,98 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from execution_contract import sha256_file
+import runtime_snapshot
 
 RESULT_STATUSES = ("accepted", "rejected", "pending", "failed")
+
+
+@runtime_snapshot.operation
+def project_managed_batch(root: Path, runs: Sequence[str], *, label: str | None = None) -> dict[str, Any]:
+    """Project selected child runs from their verified owners without another result ledger.
+
+    Execution, captured bytes, review, selection and canonical adoption remain
+    separate facts. The report records the event tail it observed and can be
+    regenerated; it grants no readiness, submission or adoption authority.
+    """
+    import execution_contract as contract
+    import execution_lifecycle as lifecycle
+    import production_execution as execution
+    import production_workflow as workflow
+    import studio
+
+    root = studio.require_studio(root).resolve()
+    if not isinstance(runs, (list, tuple)) or not runs:
+        raise ValueError('managed batch requires selected child runs')
+    identifiers = [workflow.run_identifier(value) for value in runs]
+    if len(identifiers) != len(set(identifiers)):
+        raise ValueError('managed batch repeats a child run')
+    if label is not None:
+        label = _require_string(label, 'batch label')
+    jobs = []
+    groups: dict[tuple[str, str | None, str | None], dict[str, list[str]]] = {}
+    submission_counts: dict[str, int] = {}
+    evaluation_counts: dict[str, int] = {}
+    disposition_counts: dict[str, int] = {}
+    captured = selected = 0
+    for run in identifiers:
+        observed = workflow.read_run(root, run)
+        _, prepared, _, rows = observed
+        task = prepared['task']
+        if task['artifact'] != 'image' or task['execution'] not in {'dispatcher', 'external'}:
+            raise ValueError('managed image batch requires image generation child runs: ' + run)
+        plan = observed.artifacts['execution-plan.json']
+        model = _require_string(plan.get('model'), 'child run model')
+        mode = task['execution']
+        transport = plan.get('transport')
+        service = plan.get('service')
+        groups.setdefault((mode, service, transport), {}).setdefault(model, []).append(run)
+        claims = [row for row in rows if row['event'] == 'dispatch-claim']
+        submission, effects = execution.submission_state(
+            rows, prepared, run, sender_alive=execution._sender_alive(root, claims))
+        submission_counts[submission] = submission_counts.get(submission, 0) + 1
+        candidates = []
+        for event in rows:
+            if event['event'] != 'candidate':
+                continue
+            state = workflow.candidate_state(root, run, event['sha256'], loaded=observed)
+            candidates.append({**state, 'captured_files': copy.deepcopy(event['data']['files'])})
+            evaluation_counts[state['evaluation']] = evaluation_counts.get(state['evaluation'], 0) + 1
+            disposition_counts[state['disposition']] = disposition_counts.get(state['disposition'], 0) + 1
+            selected += int(state['disposition'] == 'selected' and state['selection_current'] is True)
+        captured += len(candidates)
+        records = lifecycle.summarize_states(lifecycle.derive(rows, prepared, run).values())
+        artifacts = {row['path']: row for row in observed.manifest['files']}
+        package = artifacts.get('package.json')
+        external = [row for row in rows if row['event'] == 'external-claim']
+        captures = [row for row in rows if row['event'] == 'capture-status']
+        capture = captures[-1]['data']['capture'] if captures else 'none'
+        if external:
+            expected = external[-1]['data']['count']
+            capture = 'complete' if len(candidates) == expected else 'partial' if candidates else 'none'
+        jobs.append({'run': run, 'task_id': task['task_id'], 'execution_mode': mode,
+            'model': model, 'service': service, 'transport': transport,
+            'input_sha256': prepared['input_sha256'], 'request_sha256': plan['request_sha256'],
+            'generation_package': None if package is None else {
+                'path': (observed.directory / 'package.json').relative_to(root).as_posix(),
+                'sha256': package['sha256']},
+            'planned_outputs': plan.get('quantities', {}).get('outputs'),
+            'submission': submission, 'effects': effects, 'capture': capture,
+            'execution_records': records, 'candidates': candidates,
+            'adoptions': [{'event': row['sha256'], **copy.deepcopy(row['data'])}
+                          for row in rows if row['event'] == 'adoption-result'],
+            'task_disposition': ('completed' if any(row['event'] == 'completion' for row in rows)
+                                 else 'abandoned' if any(row['event'] == 'abandoned' for row in rows) else 'open'),
+            'events_through': None if not rows else {'sequence': rows[-1]['sequence'], 'sha256': rows[-1]['sha256']}})
+    report = {'label': label, 'source': 'verified-production-runs', 'jobs': jobs,
+        'dispatch': {'run_count': len(jobs), 'endpoint_groups': [
+            {'execution_mode': mode, 'service': service, 'transport': transport,
+             'models': {model: models[model] for model in sorted(models)}}
+            for (mode, service, transport), models in groups.items()]},
+        'summary': {'runs': len(jobs), 'submission': submission_counts,
+                    'captured_candidates': captured, 'evaluation': evaluation_counts,
+                    'disposition': disposition_counts, 'current_selections': selected}}
+    # Export ordinary editable JSON values from the immutable shared read model.
+    return json.loads(contract.encoded(report))
 
 
 def _require_string(value: Any, label: str) -> str:
@@ -479,6 +569,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _operation_context.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
 
+    project_parser = commands.add_parser('project', help='aggregate selected managed child runs from their actual records')
+    project_parser.add_argument('--root', type=Path, required=True, help='Studio directory')
+    project_parser.add_argument('--run', action='append', required=True, help='selected child run; repeat for every member')
+    project_parser.add_argument('--label')
+    project_parser.add_argument('--out', type=Path, required=True, help='derived batch report JSON')
+
     plan_parser = commands.add_parser(
         "plan", help="validate an authored batch job list and expand dispatch variants"
     )
@@ -493,6 +589,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     record_parser.add_argument("--out", type=Path, required=True, help="output batch ledger JSON")
 
     args = parser.parse_args(argv)
+    if args.command == 'project':
+        from execution_contract import atomic, encoded
+        report = project_managed_batch(args.root, args.run, label=args.label)
+        atomic(args.out, encoded(report), replace=True)
+        print(json.dumps({'ok': True, 'summary': report['summary'], 'out': str(args.out)}))
+        return 0
     if args.command == "plan":
         document = _load_json_file(args.jobs, "--jobs")
         plan = build_batch_plan(document, args.jobs.resolve().parent)

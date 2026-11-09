@@ -389,6 +389,106 @@
           "source": "author"
         }
       ]
+    },
+    {
+      "id": "camera-arm-length-self-portrait",
+      "label": "Arm's-length self-portrait",
+      "category": "camera",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Give an informal portrait a self-operated camera relationship: the depicted subject holds the viewpoint toward themselves, with a coherent reach and near-to-far perspective.",
+      "prompt": "Use an arm's-length self-portrait viewpoint from a camera held by the depicted subject and aimed back toward them. When the holding arm or manipulator is visible, keep its connection to the subject clear and its reach consistent with the camera position; a cropped reach continues toward that position. Let nearer visible forms enlarge relative to more distant forms as the selected perspective warrants, preserving the subject's underlying proportions. Keep the chosen gaze, expression and pose coherent with the subject making the image.",
+      "invariants": [
+        "the viewpoint belongs to a camera held within the depicted subject's reach and aimed back toward that subject",
+        "any visible holding limb remains connected to its owner and consistent with the camera position",
+        "near-to-far scale follows one camera relationship while underlying anatomy remains consistent"
+      ],
+      "applicability": [
+        "An informal or personal portrait for which the subject taking their own picture is a chosen relationship.",
+        "Use the selected subject's actual arm or manipulator anatomy and camera equipment."
+      ],
+      "interactions": [
+        "Choose camera height, pitch, roll, lens behavior and crop for the portrayal. Arm's-length capture fixes none of these to one setting.",
+        "The holding hand, complete arm and device may remain outside the crop. When a portion of the reach is visible, its ownership and direction still follow the same capture geometry.",
+        "The subject may look into the lens, toward a screen or elsewhere according to the chosen performance. Self-operated capture does not determine a smile or direct gaze.",
+        "Choose the holding side, clothing, environment and degree of perspective expansion for the current portrait; an informal intent alone does not require this camera construction."
+      ],
+      "misreadings_to_avoid": [
+        "another participant's eye-position view substituted for the subject's own camera",
+        "a visible holding limb detached from its owner or reaching away from the stated camera position",
+        "camera-near enlargement treated as a permanent change to the subject's proportions",
+        "a fixed high angle, room, tilted horizon or extreme wide-angle treatment imported as a requirement of every selfie"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "subject-operated arm's-length portrait camera geometry",
+      "tags": [
+        "selfie",
+        "self-operated portrait",
+        "personal camera relationship"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "distinct_from": [
+        "camera-first-person-pov"
+      ],
+      "search_profile": {
+        "aliases": [
+          "informal portrait taken by the subject",
+          "taking a personal picture with an outstretched arm",
+          "close casual selfie"
+        ],
+        "outcome_summary": "An informal self-portrait whose viewpoint belongs to the depicted subject's own camera, with a coherent reach and near-to-far scale.",
+        "discovery_group": "camera-arm-length-self-portrait",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "camera": [
+            "arm's-length self-portrait",
+            "subject-operated camera",
+            "near-to-far perspective"
+          ],
+          "activity": [
+            "taking a selfie"
+          ],
+          "viewer_relationship": [
+            "informal self-presentation",
+            "subject holds the camera"
+          ]
+        },
+        "kind": "module",
+        "category": "camera",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "informal portrait taken by the subject",
+          "facet": "viewer_relationship",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "taking a personal picture with an outstretched arm",
+          "facet": "activity",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "close casual selfie",
+          "facet": "camera",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
     }
   ]
 }

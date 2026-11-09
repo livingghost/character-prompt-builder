@@ -15,7 +15,7 @@ from prepare_generation_references import (build_prepared_reference_set, prepare
     prepare_state_reference_selection, validate_prepared_references)
 from reading_fixtures import fixture_reading
 from state_generation_smoke_test import _load_graph, _payload_inputs
-from state_protocol import (artifact_hash, combine_reference_selections, finalize_artifact,
+from state_protocol import (acquire_subject_state_graphs, artifact_hash, combine_reference_selections, finalize_artifact,
                             select_state_references, validate_artifact, validate_subject_state_graphs)
 from visual_fixtures import fixture_root, fixture_visual, verify_package
 
@@ -92,7 +92,7 @@ class IndependentReferenceStateTests(unittest.TestCase):
         arguments.update(production_spec=spec, state_graphs=graphs, prepared_reference_set=prepared,
             parameters={'width': 1024, 'height': 1024, 'settings': {'quality': 'high'}},
             visual_continuity=fixture_visual(spec), visual_root=fixture_root(),
-            route_reading=fixture_reading(route='state-series'))
+            route_reading=fixture_reading(route='state-series', model=arguments['model'], execution='dispatcher'))
         return arguments
 
     def test_two_full_graphs_build_and_verify(self):
@@ -103,6 +103,50 @@ class IndependentReferenceStateTests(unittest.TestCase):
         changed['state_graphs'][1]['identity_contract']['display_name'] = 'uncommitted replacement'
         with self.assertRaisesRegex(ValueError, 'invalid state artifact graph for C03'):
             verify_package(changed)
+
+    def graph_inventory(self):
+        files = {}
+        selected = {'lineages': [], 'artifacts': []}
+        for index, graph in enumerate(self.graphs):
+            for node, value in graph.items():
+                path = f'subject-{index}/{node}.json'
+                files[path] = json.dumps(value).encode('utf-8')
+                selected['lineages' if node == 'lineage' else 'artifacts'].append(path)
+        return selected, files
+
+    def test_selected_roots_acquire_concrete_graphs_without_hash_transcription(self):
+        selected, files = self.graph_inventory()
+        graphs = acquire_subject_state_graphs(selected, files.__getitem__, production_spec=self.specification)
+        self.assertEqual(graphs, self.graphs)
+        selection = combine_reference_selections([selection_for(graph) for graph in graphs], selection_id='SEL-ACQUIRED')
+        self.assertEqual(acquire_subject_state_graphs(selected, files.__getitem__, production_spec=self.specification,
+                                                     reference_selection=selection), graphs)
+        # A caller can edit the returned value without changing its source objects.
+        graphs[0]['identity_contract']['display_name'] = 'editable copy'
+        self.assertNotEqual(graphs, self.graphs)
+
+    def test_root_closure_rejects_missing_exact_node_and_wrong_subject_commitment(self):
+        selected, files = self.graph_inventory()
+        selected['artifacts'].remove('subject-1/identity_contract.json')
+        with self.assertRaisesRegex(ValueError, 'requires missing character-identity-contract'):
+            acquire_subject_state_graphs(selected, files.__getitem__, production_spec=self.specification)
+        selected, files = self.graph_inventory()
+        altered = copy.deepcopy(self.specification)
+        altered['subjects'][1]['identity_contract_ref']['sha256'] = 'e' * 64
+        with self.assertRaisesRegex(ValueError, 'invalid state artifact graph for C03'):
+            acquire_subject_state_graphs(selected, files.__getitem__, production_spec=altered)
+
+    def test_root_closure_keeps_only_declared_nodes_and_requires_all_state_subjects(self):
+        selected, files = self.graph_inventory()
+        unrelated = copy.deepcopy(self.graphs[0]['identity_contract'])
+        unrelated['notes'].append('A different reviewed source outside this selected lineage.')
+        files['other-identity.json'] = json.dumps(finalize_artifact(unrelated)).encode('utf-8')
+        selected['artifacts'].append('other-identity.json')
+        self.assertEqual(acquire_subject_state_graphs(selected, files.__getitem__, production_spec=self.specification),
+                         self.graphs)
+        selected['lineages'].pop()
+        with self.assertRaisesRegex(ValueError, 'every state-aware subject exactly once'):
+            acquire_subject_state_graphs(selected, files.__getitem__, production_spec=self.specification)
 
     def test_second_graph_invalid_edge_blocks_build(self):
         arguments = self.inputs()

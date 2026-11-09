@@ -54,7 +54,8 @@ def authoring_lines(cwd: Path) -> list[str]:
     """The studio or work trail the working directory belongs to, and where its work stands."""
 
     from studio import init_command, status, studio_root
-    from work_ledger import read_current, read_ledger, show
+    from work_ledger import read_ledger, show
+    import production_authoring_state
 
     found = studio_root(cwd)
     root = found or next(
@@ -64,8 +65,8 @@ def authoring_lines(cwd: Path) -> list[str]:
     if root is None:
         return [f"The working directory is not in a studio. Create one with: {init_command()}"]
     try:
-        lines = [status(root) if found is not None else show(root)]
-        active = read_current(root)
+        active = production_authoring_state.current_task(root)
+        lines = [status(root, current_work=active) if found is not None else show(root)]
         records = read_ledger(root)
         run = (active or {}).get("production_run")
         if not run and not active:
@@ -78,18 +79,16 @@ def authoring_lines(cwd: Path) -> list[str]:
         check = shown(python_argv(ROOT / "scripts" / "validate_studio.py", str(root)))
         return [f"The studio at {root} cannot be read: {one_line(exc)}. Check it with: {check}"]
     pending = False
-    if active:
-        import production_authoring_state
-        report = production_authoring_state.inspect(root, active)
+    if active and active.get('authoring') is not None:
+        report = active['authoring']
         pending = report['pending']
-        saved = production_authoring_state.session_lines(root, active, report=report)
-        if saved:
-            lines.extend(saved)
-        elif not run:
-            lines.append("No prepared run or saved input choices for the open task. Follow Production Execution to prepare exact inputs before delivery.")
+        if found is None:
+            lines.extend(production_authoring_state.session_lines(root, active, report=report))
+        if not run and not report['inputs']:
+            lines.append("The open task has no saved input choices. Continue its requested authoring operation from the commission and sources.")
     if run:
-        command = python_argv(ROOT / "scripts/production_workflow.py", "resume", "--root", str(root), "--run", run)
-        label = "Existing production run, using its saved inputs: " if pending else "Production status: "
+        command = python_argv(ROOT / "scripts/production_workflow.py", "status", "--root", str(root), "--run", run)
+        label = "Existing saved input, alongside current authoring: " if pending else "Production status: "
         lines.append(label + shown(command))
     return lines
 

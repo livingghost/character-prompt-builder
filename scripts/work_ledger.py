@@ -385,13 +385,33 @@ def _clear_finished_pointer(root: Path, task_id: str) -> None:
             write_current(root, None)
 
 
+def _require_finished_steps(task: dict[str, Any]) -> None:
+    left = [step for step in task.get("steps") or [] if not step.get("done_at")]
+    if left:
+        raise ValueError(
+            f"{len(left)} step(s) are not done: " + "; ".join(f"{s['n']} {s['text']}" for s in left)
+            + ". Mark them done, or abandon the task with the reason."
+        )
+
+
 def _finish_verified(root: Path, run: str) -> dict[str, Any]:
-    from production_workflow import read_run, verify_completion
+    from production_workflow import complete, read_run, verify_completion
     from execution_contract import load
-    task_id = read_run(root, run)[1]['task']['task_id']
+    loaded = read_run(root, run)
+    task_id = loaded.prepared['task']['task_id']
     task = load(task_path(root, task_id))
     if task.get('task_id') != task_id:
         raise ValueError('the saved task differs from the run owner')
+    if (loaded.prepared['task']['execution'] == 'authored'
+            and not any(row['event'] == 'completion' for row in loaded.rows)):
+        if task.get('work_state') not in {'active', 'suspended'}:
+            raise ValueError('only active or suspended work can finish on its own production completion')
+        if task.get('blocked_on') or any(question['state'] == 'open' for question in task.get('questions', [])):
+            raise ValueError('resolve the open author questions before finishing')
+        _require_finished_steps(task)
+        # The authored owner records the actual outcomes through its ordinary
+        # completion event. Finishing work need not repeat that bookkeeping.
+        complete(root, run)
     completion = verify_completion(root, run, task_id)
     matching = [entry for entry in read_ledger(root) if entry.get('event') == 'finished'
                 and entry.get('task_id') == task_id]
@@ -407,12 +427,7 @@ def _finish_verified(root: Path, run: str) -> dict[str, Any]:
         raise ValueError('only active or suspended work can finish on its own production completion')
     if task.get("blocked_on") or any(question['state'] == 'open' for question in task.get('questions', [])):
         raise ValueError("resolve the open author questions before finishing")
-    left = [step for step in task.get("steps") or [] if not step.get("done_at")]
-    if left:
-        raise ValueError(
-            f"{len(left)} step(s) are not done: " + "; ".join(f"{s['n']} {s['text']}" for s in left)
-            + ". Mark them done, or abandon the task with the reason."
-        )
+    _require_finished_steps(task)
     if not matching:
         finished = {"at": now(), "task_id": task_id, "event": "finished", "text": task["goal"],
                     "production_run": run, "completion_sha256": completion['sha256']}

@@ -21,7 +21,7 @@ import production_store as store
 from production_diagnostics import ProductionError
 
 
-PREPARED = {'task': {'task_id': 'synthetic-task', 'criteria': []}, 'input_sha256': 'a' * 64}
+PREPARED = {'task': {'task_id': 'synthetic-task', 'criteria': [], 'execution': 'external'}, 'input_sha256': 'a' * 64}
 RUN = 'synthetic-run'
 REQUEST = 'b' * 64
 EVIDENCE = [{'sha256': 'c' * 64}]

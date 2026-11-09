@@ -109,6 +109,8 @@ def draft(prepared: dict | None, *, package_root: Path, root: Path | None = None
                 continue
             direct.append({key: copy.deepcopy(row[key]) for key in ('role', 'source', 'subject_uses')
                            if key in row})
+            if row.get('reference_id'):
+                direct[-1]['id']=row['reference_id']
     result = {'transport_mode': mode if mode != 'none' else 'multi-image',
             'max_side': maximum, 'reference_use_plan': authored_plan,
             'reference_selection': state, 'additional_references': direct,
@@ -279,6 +281,44 @@ def _authored_rows(choices: dict) -> list[dict]:
     return result
 
 
+def identify(choices: dict) -> bool:
+    """Assign stable use identities at the editable selection boundary."""
+    from pack_manager import generate_uuid7
+    changed=False
+    seen=set()
+    for row in _authored_rows(choices):
+        if not row.get('id'):
+            source=row.get('source') or {}
+            identifier=source.get('reference_id')
+            if not identifier or identifier in seen:
+                identifier='reference-'+generate_uuid7()
+            row['id']=identifier
+            changed=True
+        if row['id'] in seen:
+            raise ValueError('duplicate reference use id: '+row['id'])
+        seen.add(row['id'])
+        source=row.get('source')
+        if source is not None and source.get('kind')=='supplied-file' and not source.get('reference_id'):
+            source['reference_id']=row['id'];changed=True
+    return changed
+
+
+def identify_choices(choices: dict) -> bool:
+    changed=False
+    refs=(choices.get('authoring') or {}).get('references')
+    if refs is not None:changed=identify(refs) or changed
+    external=choices.get('external') or {}
+    refs=(external.get('reference_delivery') or {}).get('choices')
+    if refs is not None:changed=identify(refs) or changed
+    plan=external.get('image_input')
+    if isinstance(plan,dict):
+        from pack_manager import generate_uuid7
+        for row in plan.get('references',[]):
+            if not row.get('id'):
+                row['id']='reference-'+generate_uuid7();changed=True
+    return changed
+
+
 def _input_references(choices: dict, prepared: dict, *, publication_dir: str,
                       identity_field: str = 'id') -> list[dict]:
     authored_rows = _authored_rows(choices)
@@ -287,9 +327,11 @@ def _input_references(choices: dict, prepared: dict, *, publication_dir: str,
     selected = []
     seen = set()
     for index, (choice, row) in enumerate(zip(authored_rows, prepared['selected_references'], strict=True)):
-        identifier = choice.get(identity_field)
+        identifier = choice.get(identity_field) or row.get('reference_id')
         if identifier is None:
-            identifier = 'reference-' + c.content_id({key: row[key] for key in row if key != 'transport'})[:20]
+            identifier = row['source'].get('reference_id') or row.get('binding_id')
+            if identifier is None:
+                raise ValueError('select the reference use before materializing its input')
             if identifier in seen:
                 identifier += '-' + str(index + 1)
         identifier = c.text(identifier, 'reference id')
@@ -334,6 +376,7 @@ def build(choices: dict, *, model: str, root: Path, output_dir: Path, reader=Non
           publication_dir: str | None = None, emit_image_input: bool = True) -> dict:
     """Build portable bytes in an unpublished directory; perform no generation."""
     c.exact(choices, set(FIELDS), 'reference input choices')
+    identify(choices)
     source_files = choices['source_files']
     if not isinstance(source_files, dict):
         raise ValueError('reference source_files must contain original file witnesses')
@@ -401,6 +444,12 @@ def build(choices: dict, *, model: str, root: Path, output_dir: Path, reader=Non
                 if not prepared['selected_references'] and choices['zero_reference_reason'] is not None:
                     prepared = references.build_prepared_reference_set(transport_mode='none', target_model=None,
                         reference_selection=state, zero_reference_reason=choices['zero_reference_reason'])
+        rows=_authored_rows(choices)
+        if len(rows)!=len(prepared['selected_references']):
+            raise ValueError('selected reference uses differ from prepared sources')
+        for choice,row in zip(rows,prepared['selected_references'],strict=True):
+            row['reference_id']=choice['id']
+        prepared=references.finalize_prepared_reference_set(prepared,package_root=source_root)
         from build_generation_payload import materialize_cli_reference_bundle
         staged = work / 'output'
         staged.mkdir()

@@ -18,7 +18,7 @@ DOCUMENTS = frozenset({'parameters', 'production_spec', 'plot', 'retrieval_recor
     'visual_continuity', 'request_validation', 'mask_binding'})
 TEXT_DOCUMENTS = frozenset({'negative', 'integrated_prompt', 'native_negative'})
 TEXT_SOURCE_SUFFIXES = frozenset({'.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.tsv'})
-GENERATED_TASK_FIELDS = frozenset({'delivery', 'generation', 'route_reading', 'image_input'})
+GENERATED_TASK_FIELDS = frozenset({'delivery', 'generation', 'route_reading', 'image_input', 'authored_basis'})
 AUTHORING_SPACES = frozenset({'studio', 'task-source'})
 
 
@@ -37,7 +37,7 @@ def seed(root: Path, *, route: str, artifact: str, execution: str,
     if task_id is None:
         raise ValueError('start the work task or select --task-id before drafting production inputs')
     features = features or []
-    execution_routes.resolve(route, features)
+    execution_routes.resolve(route, features, execution=execution)
     return {'task_id': task_id, 'production_id': generate_uuid7(), 'route': route,
         'features': features, 'artifact': artifact, 'execution': execution,
         'sources': [], 'delivery': {'path': 'delivery.txt', 'translation_notes': None},
@@ -138,10 +138,49 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
             result['upscale'] = {'source': None, 'model': None, 'scale_factor': None,
                 'settings': {}, 'guidance_prompt': None, 'render_intent': None, 'request_validation': None}
         else:
-            result['documents'] = {key: None for key in
-                ('parameters', 'production_spec', 'plot', 'retrieval_record', 'creative_intent')}
-            result['generation'] = {'service': None, 'count': 1, 'seed': None, 'continuity': {}}
+            result['documents'] = {'parameters': {}}
+            result['generation'] = {'model': None, 'render_intent': None,
+                'service': None, 'count': 1, 'seed': None, 'continuity': {}}
     return result
+
+
+def read_editable(authored: dict, reader) -> tuple[dict, dict, list[dict]]:
+    """Read the selected editable files once and retain their source locations."""
+    value=copy.deepcopy(authored)
+    locations={}
+    missing=[]
+    def selected(item, field, *, text=False):
+        if not isinstance(item,dict) or 'file' not in item or set(item)-{'file','field'}:
+            return item
+        path=c.text(item['file'],field+' file')
+        locations[field]={'file':path,'pointer':item.get('field')}
+        try:
+            raw=reader.read(reader.select(path))
+            result=raw.decode('utf-8') if text and 'field' not in item else c.decode(raw)
+            for key in item.get('field',[]):
+                result=result[key]
+            if text and not isinstance(result,str):
+                raise ValueError('selected text field must contain a string')
+            return result
+        except (OSError,ValueError,KeyError,TypeError,IndexError) as exc:
+            missing.append({'field':field,'file':path,'code':'editable-source-unavailable','message':str(exc)})
+            return None
+    delivery=value['delivery']
+    if 'file' in delivery:
+        delivery['content']=selected({key:delivery[key] for key in ('file','field') if key in delivery},
+                                     'authoring.delivery',text='field' not in delivery)
+        delivery.pop('file',None);delivery.pop('field',None)
+    for name,item in value['documents'].items():
+        value['documents'][name]=selected(item,'authoring.documents.'+name,text=name in TEXT_DOCUMENTS)
+    for name,item in value['sources'].items():
+        if 'file' in item:
+            item['content']=selected({key:item[key] for key in ('file','field') if key in item},
+                                     'authoring.sources.'+name,text=item['format']=='text')
+            item.pop('file',None);item.pop('field',None)
+    intent=value['generation'].get('render_intent')
+    if isinstance(intent,dict) and intent.get('prompt_expression')=={'document':'delivery'}:
+        intent['prompt_expression']=delivery.get('content') or ''
+    return value,locations,missing
 
 
 def execution_dispatcher(task: dict) -> bool:
@@ -179,9 +218,7 @@ def unresolved(authored: dict | None, task: dict) -> list[dict]:
             missing('task.direction.' + key)
     if not task.get('criteria'):
         missing('task.criteria')
-    if not authored['delivery'].get('translation_notes'):
-        missing('delivery.translation_notes')
-    if authored['upscale'] is None and authored['delivery'].get('content') is None:
+    if authored['upscale'] is None and not authored['delivery'].get('file') and not authored['delivery'].get('content'):
         missing('delivery.content')
     if execution_dispatcher(task):
         if task.get('route') == 'upscale':
@@ -190,9 +227,10 @@ def unresolved(authored: dict | None, task: dict) -> list[dict]:
                 if upscale.get(key) is None:
                     missing('upscale.' + key)
         else:
-            for key in ('parameters', 'production_spec', 'plot', 'retrieval_record', 'creative_intent'):
-                if authored['documents'].get(key) is None:
-                    missing('documents.' + key)
+            if authored['documents'].get('production_spec') is None:
+                for key in ('model','render_intent'):
+                    if authored['generation'].get(key) is None:
+                        missing('generation.' + key)
             plot = authored['documents'].get('plot')
             if isinstance(plot, dict) and plot.get('approved') is None:
                 missing('documents.plot.approved', 'plot-approval-required')
@@ -314,6 +352,10 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     documents = copy.deepcopy(authored['documents'])
     if set(documents) - DOCUMENTS:
         raise ValueError('authoring.documents names an unknown production document')
+    if isinstance(documents.get('state_graphs'),dict):
+        from state_protocol import acquire_subject_state_graphs
+        documents['state_graphs']=acquire_subject_state_graphs(documents['state_graphs'],
+            lambda path:reader.read(reader.select(path)),production_spec=documents.get('production_spec'))
     if documents.get('state_graphs') is not None and old_generation.get('state_graphs'):
         from production_identity import IDENTITY_NODES
         previous_graphs = c.decode(source_bytes(root, old_generation['state_graphs'], reader, saved))
@@ -334,10 +376,10 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     delivery = authored['delivery']['content']
     if delivery is not None:
         delivery = delivery.encode('utf-8') if isinstance(delivery, str) else c.encoded(delivery)
-    if documents.get('retrieval_record') is not None and documents.get('plot') is not None and delivery is not None:
+    if documents.get('retrieval_record') is not None and delivery is not None:
         from prompt_retrieval import settle_retrieval_record
         documents['retrieval_record'] = settle_retrieval_record(documents['retrieval_record'],
-            prompt=delivery.decode('utf-8'), plot=documents['plot'])
+            prompt=delivery.decode('utf-8'), plot=documents.get('plot'))
     visual_choices = documents.pop('visual_continuity', None)
     for field in DOCUMENTS:
         if field not in documents or documents[field] is None:
@@ -352,9 +394,9 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     carriers = set()
     if references is not None:
         import production_reference_inputs
-        model = (documents.get('production_spec') or {}).get('target_model')
+        model = (documents.get('production_spec') or {}).get('target_model') or generation.get('model')
         if model is None:
-            raise ValueError('authoring.documents.production_spec.target_model is required for references')
+            raise ValueError('select authoring.generation.model or a production specification target for references')
         with tempfile.TemporaryDirectory(prefix='production-reference-inputs-') as folder:
             folder = Path(folder)
             # The reference owner requires a fresh output directory.
@@ -383,7 +425,7 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
         if prepared is None:
             raise ValueError('visual continuity needs the selected prepared references')
         visual = visual_continuity.build_record(visual_choices,
-            production_spec=documents['production_spec'], prepared=prepared, root=root)
+            production_spec=documents.get('production_spec'), prepared=prepared, root=root)
         reader.basis(visual['basis'])
         files['visual-continuity.json'] = c.encoded(visual)
         generation['visual_continuity'] = (Path(out_dir) / 'visual-continuity.json').as_posix()

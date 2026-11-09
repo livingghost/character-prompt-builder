@@ -48,7 +48,7 @@ This proves inclusion, not semantic correctness or model effectiveness; the agen
 `templates/render-intent.template.json` provides the custom form.
 A template with unresolved axes is not a valid generation input.
 `schemas/render-intent.schema.json` owns the public structure.
-The Production Specification contains dispatcher intent. External image work retains the same intent as an applied task source.
+Dispatcher intent is owned by the editable generation choices or their selected Production Specification. A direct task can supply `generation.render_intent`; the authoring selector `{ "document": "delivery" }` binds the actual editable text. External image work retains the same intent as an applied task source.
 The chosen source's identity and current-state authority remain separate from rendering.
 
 ## Read the model's guidance
@@ -238,7 +238,7 @@ python scripts/render_contract.py validate-profile execution-profile.json
 
 ## Resolve and inspect the exact input
 
-After retrieval and plot approval, compile a local plan without a paid request:
+After resolving the selected target and rendering intent, compile a local plan without a paid request. Required tag retrieval and any selected plot approval keep their own contracts:
 
 ```bash
 python scripts/render_contract.py compile --model MODEL_ID --service SERVICE_ID \
@@ -254,7 +254,7 @@ Each decision includes its reason. The plan retains both authored and effective 
 Unknown or incomplete input fails with a nonzero exit and a concrete error; it creates no partial plan.
 The CLI refuses to overwrite an existing output file.
 
-The Generation Package builder compiles this contract from its Production Specification.
+The Generation Package builder compiles this contract from the selected rendering intent, using the Production Specification when it owns that intent.
 Its commitment includes the chosen intent, complete model card, recommendations, and resolved controls.
 Verification recomputes the decisions and checks the active interface against the pinned card.
 Preparation compiles the real request with the task's seed and count and checks the wire values again.

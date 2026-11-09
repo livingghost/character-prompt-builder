@@ -90,7 +90,8 @@
     "preparation": {
       "enum": [
         "staged",
-        "prepared"
+        "prepared",
+        "authored"
       ]
     },
     "readiness": {
@@ -98,7 +99,9 @@
         "ready",
         "authorization_required",
         "configuration_required",
-        "blocked"
+        "blocked",
+        "saved",
+        "published"
       ]
     },
     "authentication_identifier": {
@@ -201,14 +204,16 @@
         "pending",
         "acknowledged",
         "outcome_unknown",
-        "not_executed"
+        "not_executed",
+        "not-applicable"
       ]
     },
     "capture": {
       "enum": [
         "none",
         "partial",
-        "complete"
+        "complete",
+        "not-applicable"
       ]
     },
     "cleanup": {
@@ -243,7 +248,8 @@
       "enum": [
         "unregistered",
         "registered",
-        "projection-missing"
+        "projection-missing",
+        "work-task"
       ]
     },
     "review": {
@@ -397,7 +403,7 @@
           "$ref": "#/$defs/authoring_state"
         },
         "focus": {
-          "enum": ["authoring", "execution"]
+          "enum": ["authoring", "authored", "execution"]
         },
         "next_actions": {
           "type": "array",
@@ -434,11 +440,25 @@
         "last_check": {"type": ["object", "null"]},
         "pending": {"type": "boolean"},
         "context": {"type": ["object", "null"]},
+        "saved": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/saved_authored"}]},
         "diagnostics": {"type": "array", "items": {"type": "object"}},
         "next_actions": {"type": "array", "items": {"type": "object"}},
         "external_effect": {"const": false}
       },
-      "required": ["state", "task_id", "inputs", "readings", "last_check", "pending", "context", "diagnostics", "next_actions", "external_effect"],
+      "required": ["state", "task_id", "inputs", "readings", "last_check", "pending", "context", "saved", "diagnostics", "next_actions", "external_effect"],
+      "additionalProperties": false
+    },
+    "saved_authored": {
+      "type": "object",
+      "properties": {
+        "run": {"$ref": "#/$defs/run/properties/run"},
+        "task_id": {"$ref": "#/$defs/run/properties/task_id"},
+        "task_disposition": {"$ref": "#/$defs/run/properties/task_disposition"},
+        "authored": {"$ref": "#/$defs/authored"},
+        "next_action": {"$ref": "#/$defs/run/properties/next_action"},
+        "working_changes": {"type": "boolean"}
+      },
+      "required": ["run", "task_id", "task_disposition", "authored", "next_action", "working_changes"],
       "additionalProperties": false
     },
     "effect": {
@@ -468,6 +488,23 @@
       ],
       "additionalProperties": false
     },
+    "authored": {
+      "type": "object",
+      "properties": {
+        "state": {"enum": ["draft", "finished"]},
+        "completion_state": {"enum": ["draft", "finished"]},
+        "input_verified": {"type": "boolean"},
+        "saved": {"type": ["string", "null"]},
+        "delivered": {"type": ["string", "null"]},
+        "reviewed": {"type": ["string", "null"]},
+        "requirements": {"type": "array", "items": {"enum": ["save", "delivery", "review"]}, "uniqueItems": true},
+        "missing": {"type": "array", "items": {"enum": ["finished-revision", "save", "delivery", "review"]}, "uniqueItems": true},
+        "unresolved": {"type": "array"},
+        "artifact": {"type": "string", "minLength": 1}
+      },
+      "required": ["state", "completion_state", "input_verified", "saved", "delivered", "reviewed", "requirements", "missing", "unresolved", "artifact"],
+      "additionalProperties": false
+    },
     "run": {
       "type": "object",
       "properties": {
@@ -481,6 +518,9 @@
         },
         "integrity": {
           "const": "intact"
+        },
+        "authored": {
+          "$ref": "#/$defs/authored"
         },
         "preparation": {
           "$ref": "#/$defs/preparation"

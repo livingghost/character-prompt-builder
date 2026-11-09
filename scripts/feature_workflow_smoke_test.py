@@ -120,8 +120,10 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual(package['retrieval_record_sha256'], digest(record))
         self.assertTrue(verify(package, studio=self.root)['verified'])
 
-    def test_02_missing_unsettled_and_unavailable_retrieval_rejected(self):
-        for value in (None, {}, {'unavailable': 'test lookup unavailable'}, {'artifact_type': 'prompt-retrieval-record', 'elements': []}):
+    def test_02_descriptive_retrieval_is_optional_and_selected_records_are_validated(self):
+        self.assertTrue(require_generation_retrieval(None,prompt=PROMPT,plot=APPROVED_PLOT,
+            model_record=self.model_record)['ok'])
+        for value in ({}, {'unavailable': 'test lookup unavailable'}, {'artifact_type': 'prompt-retrieval-record', 'elements': []}):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 require_generation_retrieval(value, prompt=PROMPT, plot=APPROVED_PLOT, model_record=self.model_record)
         value = fixture_retrieval(PROMPT, APPROVED_PLOT); value['settled'] = False
@@ -532,13 +534,13 @@ class FeatureWorkflowTests(unittest.TestCase):
         changed=self.revision();changed['candidate']['scene']['lighting']='unrequested';pm.atomic_write_json(path,changed)
         with self.assertRaisesRegex(ValueError,'revision'):self.prompt_artifacts(['--retrieval-unavailable','test lookup unavailable','--revision-contract',str(path)],'bad-revision')
 
-    def test_31_stateless_builder_itself_rejects_missing_retrieval(self):
+    def test_31_descriptive_builder_preserves_selected_revision_requirements(self):
         import generation_payload_smoke_test as fixture
         from build_generation_payload import build_payload
         with patch.object(fixture,'build_payload') as capture:
             fixture._package(empty_stateless_reference_set())
         args=capture.call_args.kwargs;args['retrieval_record']=None
-        with self.assertRaisesRegex(ValueError,'retrieval'):build_payload(**args)
+        self.assertIsNone(build_payload(**args)['retrieval_record'])
         args['retrieval_record']=fixture_retrieval(PROMPT,APPROVED_PLOT)
         invalid=self.revision();invalid['candidate']['scene']['lighting']='unrequested'
         args['creative_intent']['revision_contract']=invalid
@@ -601,7 +603,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         import build_state_generation_package as state_builder
         required = {name: {} for name, param in inspect.signature(state_builder.build_package).parameters.items()
                     if param.default is inspect.Parameter.empty}
-        required.update(model=MODEL_ID, prompt=PROMPT, negative_prompt='', brief='', plot=APPROVED_PLOT,
+        required.update(execution='dispatcher', model=MODEL_ID, prompt=PROMPT, negative_prompt='', brief='', plot=APPROVED_PLOT,
                         production_spec=copy.deepcopy(self.package['production_spec']), state_graphs=[],
                         prepared_reference_set=empty_stateless_reference_set())
         for record in (None, {'settled': False}, fixture_retrieval(PROMPT+' other', APPROVED_PLOT)):
@@ -612,7 +614,7 @@ class FeatureWorkflowTests(unittest.TestCase):
 
     def test_38_documented_state_package_commands_include_required_gates(self):
         import re
-        for name in ('references/runtime/image-generation.md', 'references/state-aware-prompt-workflow.md'):
+        for name in ('references/runtime/generation-package.md', 'references/state-aware-prompt-workflow.md'):
             text=(ROOT/name).read_text(encoding='utf-8')
             commands=re.findall(r'python scripts/build_state_generation_package\.py[^`]+?(?=\npython |```)', text)
             self.assertTrue(commands, name)

@@ -2,6 +2,7 @@
 """Adopt an iteration through an explicitly approved scope, resumably.
 
 python scripts/adoption_workflow.py --studio DIR --character ID status
+python scripts/adoption_workflow.py --studio DIR --character ID draft --iteration ID --scope sheet --influence identity --out approval.json
 python scripts/adoption_workflow.py --studio DIR --character ID adopt --iteration ID --approval FILE
 python scripts/adoption_workflow.py --studio DIR --character ID references --out selections.json
 
@@ -76,6 +77,40 @@ def validate_approval(value: Any, character: str, row: dict[str, Any]) -> dict[s
     if value["influence"] != "identity" and row["slot"].startswith(("base.", "canon.")):
         raise ValueError("base/canon identity slots cannot be replaced by outfit or scene references")
     return copy.deepcopy(value)
+
+
+def validate_registration_record(record: Any) -> dict[str, Any]:
+    """Validate the selected canonical module before binding its exact content."""
+    if not isinstance(record, dict):
+        raise ValueError('registration record must be a canonical module object')
+    from pack_manager import _schema_issues, PACK_RECORD_SCHEMA_PATH
+    issues = _schema_issues({'kind': 'module', 'category': record.get('category'),
+                             'records': [record]}, PACK_RECORD_SCHEMA_PATH, Path('registration-record.json'))
+    if issues:
+        raise ValueError('registration record is not a valid canonical module: ' + '; '.join(i.message for i in issues))
+    return record
+
+
+@runtime_snapshot.operation
+def draft_approval(root: Path, character: str, iteration: str, *, scope: str, influence: str,
+                   registration_record: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Bind the requested adoption subject without asserting a decision or approver."""
+    if scope not in SCOPES or influence not in INFLUENCES:
+        raise ValueError('unknown adoption scope or influence')
+    root = studio.require_studio(root).resolve()
+    read = studio.StudioRead(root)
+    row = studio._find(read.iterations(character), iteration)
+    require_adoption_source(root, character, row, read=read)
+    if influence != 'identity' and row['slot'].startswith(('base.', 'canon.')):
+        raise ValueError('base/canon identity slots cannot be replaced by outfit or scene references')
+    result = {'scope': scope, 'influence': influence, 'character': character,
+              'iteration_id': row['iteration_id'], 'slot': row['slot'],
+              'image_sha256': row['result']['sha256'], 'by': None, 'at': None}
+    if scope == 'catalog':
+        result['registration_record_sha256'] = digest(validate_registration_record(registration_record))
+    elif registration_record is not None:
+        raise ValueError('registration arguments require catalog scope')
+    return result
 
 
 def _bind_sheet(root: Path, home: Path, row: dict[str, Any], approval: dict, journal: dict, *,
@@ -313,11 +348,7 @@ def preflight(root: Path, character: str, iteration: str, approval: Any, *,
     if confirmed['scope'] == 'catalog':
         if not isinstance(registration_record, dict) or pack_dir is None or (require_claim and settings is None):
             raise ValueError('catalog adoption requires --registration-record, --pack-dir and a resolved pack runtime')
-        from pack_manager import _schema_issues, PACK_RECORD_SCHEMA_PATH
-        issues = _schema_issues({'kind': 'module', 'category': registration_record.get('category'),
-                                 'records': [registration_record]}, PACK_RECORD_SCHEMA_PATH, Path('registration-record.json'))
-        if issues:
-            raise ValueError('registration record is not a valid canonical module: ' + '; '.join(i.message for i in issues))
+        validate_registration_record(registration_record)
         if confirmed.get('registration_record_sha256') != digest(registration_record):
             raise ValueError('catalog approval must bind registration_record_sha256')
     elif registration_record is not None or pack_dir is not None:
@@ -607,6 +638,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     add_pack_runtime_arguments(parser)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status")
+    draft_parser = sub.add_parser('draft', help='bind the selected adoption subject for an actual approval')
+    draft_parser.add_argument('--iteration', required=True)
+    draft_parser.add_argument('--scope', required=True, choices=SCOPES)
+    draft_parser.add_argument('--influence', required=True, choices=INFLUENCES)
+    draft_parser.add_argument('--registration-record', type=Path)
+    draft_parser.add_argument('--out', required=True, type=Path)
     adopt_parser = sub.add_parser("adopt")
     adopt_parser.add_argument("--iteration", required=True)
     adopt_parser.add_argument("--approval", required=True, type=Path)
@@ -617,7 +654,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         root = studio.require_studio(args.studio)
-        if args.command == "adopt":
+        if args.command == 'draft':
+            from execution_contract import atomic, encoded
+            approval = draft_approval(root, args.character, args.iteration, scope=args.scope,
+                influence=args.influence,
+                registration_record=studio.read_json(args.registration_record) if args.registration_record else None)
+            atomic(args.out, encoded(approval), replace=False)
+            result = {'ok': True, 'output': str(args.out), 'approval': approval,
+                      'unresolved': ['Record the actual approver and approval time for this exact subject.']}
+        elif args.command == "adopt":
             approval = studio.read_json(args.approval)
             runtime = resolve_pack_runtime(parser, args) if approval.get("scope") == "catalog" else None
             result = adopt(root, args.character, args.iteration, approval,

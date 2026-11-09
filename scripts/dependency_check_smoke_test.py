@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The dependency check reads project pins and verifies one complete environment.
+"""The dependency check reads project pins and verifies selected external capabilities.
 
 Installation targets the selected interpreter and requires the user's confirmation.
 """
@@ -155,7 +155,7 @@ class EnvironmentReportTests(unittest.TestCase):
             with mock.patch.object(deps, "check_in", return_value=child) as check_in, \
                     mock.patch.object(deps, "ffprobe_report") as ffprobe_report:
                 report = deps.check_environment(venv, plan=([], None))
-        check_in.assert_called_once_with(str(deps.environment_python(venv)))
+        check_in.assert_called_once_with(str(deps.environment_python(venv)), capabilities=(), sheet_text=())
         ffprobe_report.assert_not_called()
         self.assertEqual((report["python"], report["ffprobe"]), ("3.12.0", child["ffprobe"]))
 
@@ -167,7 +167,8 @@ class EnvironmentReportTests(unittest.TestCase):
             report = deps.check_in("python-in-env")
         self.assertEqual(run.call_args.args[0][0], "python-in-env")
         self.assertEqual(run.call_args.args[0][1], str(Path(deps.__file__).resolve()))
-        self.assertEqual(report, {field: printed[field] for field in (*deps.REPORT_FIELDS, "ffprobe")})
+        self.assertEqual(report, {**{field: printed[field] for field in (*deps.REPORT_FIELDS, "ffprobe")},
+                                  'capabilities': []})
 
     def test_a_new_process_without_a_report_names_its_last_error_line(self):
         completed = subprocess.CompletedProcess([], 1, stdout="", stderr="Traceback\nModuleNotFoundError: tomllib\n")
@@ -212,13 +213,13 @@ class FfprobeTests(unittest.TestCase):
         self.assertIsNone(missing)
         self.assertIn("install FFmpeg", note)
 
-    def test_the_complete_environment_requires_a_running_ffprobe(self):
+    def test_temporal_media_requires_a_running_ffprobe(self):
         absent = {"required": True, "enables": deps.FFPROBE_ENABLES, "path": None, "runs": False, "version": None}
         passing = {"ok": True, "python": "3", "definition": "pyproject.toml", "dependencies": [], "errors": []}
         with mock.patch.object(deps, "_packages", return_value=passing), \
                 mock.patch.object(deps, "with_sheet_fonts", side_effect=lambda report, texts: report), \
                 mock.patch.object(deps, "ffprobe_report", return_value=absent):
-            report = deps.check(deps.PYPROJECT)
+            report = deps.check(deps.PYPROJECT, capabilities=('temporal-media',))
         self.assertFalse(report["ok"])
         self.assertTrue(report["ffprobe"]["required"])
         self.assertIn("ffprobe", report["errors"][-1])
@@ -327,17 +328,31 @@ class SheetFontTests(unittest.TestCase):
         self.assertFalse(report["ok"])
         self.assertIn("U+65E5", " ".join(report["errors"]))
 
-    def test_every_environment_checks_representative_and_requested_text(self):
+    def test_sheet_capability_checks_representative_and_requested_text(self):
         from character_sheet_render import textmetrics
         with mock.patch.object(deps, "_packages", side_effect=lambda path: self.passing_environment()), \
                 mock.patch.object(deps, "ffprobe_report", return_value={"required": True, "runs": True}), \
                 mock.patch.object(textmetrics, "usable_cjk_font_files", return_value=[]):
             ordinary = deps.check(deps.PYPROJECT)
+            sheet = deps.check(deps.PYPROJECT, capabilities=('sheet',))
             requested = deps.check_environment(plan=([], None), sheet_text=[self.TEXT])
-        self.assertFalse(ordinary["ok"])
-        self.assertEqual(ordinary["sheet_fonts"]["checked_texts"], [deps.SHEET_TEXT])
+        self.assertTrue(ordinary['ok'])
+        self.assertNotIn('sheet_fonts',ordinary)
+        self.assertNotIn('ffprobe',ordinary)
+        self.assertFalse(sheet['ok'])
+        self.assertEqual(sheet["sheet_fonts"]["checked_texts"], [deps.SHEET_TEXT])
         self.assertFalse(requested["ok"])
         self.assertEqual(requested["sheet_fonts"]["checked_texts"], [deps.SHEET_TEXT, self.TEXT])
+
+    def test_unselected_external_tools_do_not_run_or_block_an_operation(self):
+        with mock.patch.object(deps,'_packages',side_effect=lambda path:self.passing_environment()), \
+                mock.patch.object(deps,'with_sheet_fonts',side_effect=lambda report,texts:report) as sheet, \
+                mock.patch.object(deps,'with_ffprobe',side_effect=lambda report:report) as media:
+            deps.check(capabilities=('sheet',))
+            sheet.assert_called_once();media.assert_not_called()
+            sheet.reset_mock()
+            deps.check(capabilities=('temporal-media',))
+            media.assert_called_once();sheet.assert_not_called()
 
     def test_virtual_environment_keeps_its_own_font_result_and_requested_text(self):
         child = {**self.passing_environment(), "sheet_fonts": {"ok": False, "roles": {"bold": {"ok": False}}}}

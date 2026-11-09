@@ -20,10 +20,10 @@ import work_ledger
 def setup(root: Path):
     task = work_ledger.begin(root, 'Synthetic execution test', ['deliver'])
     (root / 'delivery.txt').write_text('Synthetic declared output.', encoding='utf-8')
-    spec = {'task_id': task['task_id'], 'route': 'development', 'features': [], 'sources': [],
+    spec = {'task_id': task['task_id'], 'route': 'development', 'features': [], 'sources': [], 'execution': 'external',
             'delivery': {'path': 'delivery.txt',  'translation_notes': 'Synthetic rendition.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual bytes.'}], 'world_views': []}
-    fixture.task(root, spec)
+    fixture.task(root, spec, execution='external')
     (root / 'task.json').write_bytes(c.encoded(spec))
     run = w.prepare(root, 'task.json')['run']
     token = fixture.grant(root, run, {'operation': 'submit', 'targets': ['delivery'], 'payload': {'count': 1, 'test': 'synthetic'}})

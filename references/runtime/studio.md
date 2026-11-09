@@ -161,7 +161,7 @@ A checkpoint is a `note` or a `step` written at a boundary where loss would cost
 
 ## Every image with what produced it
 
-`python scripts/production_workflow.py execute` records each returned image as an iteration. [Production execution](production-execution.md) describes that path. Only an image obtained some other way (a host with no transport, a model exposed on no service) is recorded by hand, before anything else is done with it:
+`python scripts/production_workflow.py execute` records each returned image as a Production candidate. A task with a `recording` destination also projects that candidate into the selected character iteration; a characterless output remains with its work task and run. [Production execution](production-execution.md) locates the execution and review contracts. Record an image obtained another way (a host with no transport, a model exposed on no service) by hand before using it as a character iteration:
 
 ```bash
 python scripts/studio.py iterate --studio <dir> --character C02 --slot base.front \
@@ -282,7 +282,7 @@ Production records the nonsecret credential selection with the execution claim. 
 
 A failed run is not a reason to resend automatically.
 A failure while `sending` means the service outcome may be unknown.
-[Production execution](production-execution.md#status-and-resume) shows how `resume` asks the provider and records an outcome.
+[Production execution](production-recovery.md#status-and-resume) shows how `resume` asks the provider and records an outcome.
 Inspect the retained answer and the studio's iteration log first; a gallery-write failure can happen after an iteration row is written.
 When the answer was saved, `python scripts/production_workflow.py resume --root STUDIO --run RUN_ID` downloads what the run lacks.
 It records the missing iterations without sending again.
@@ -417,20 +417,14 @@ abandoned. It appends its own adoption evidence and preserves the original
 production decision and closure. For imported iterations, the Studio
 owns plain slot acceptance and [Adoption Workflow](adoption-workflow.md) owns
 sheet or catalog binding.
-[Production execution](production-execution.md#select-optionally-adopt-and-finish)
+[Production execution](production-adoption.md#select-optionally-adopt-and-finish)
 gives the procedures and the rules that withdraw a selection.
 
 ## Artifact evidence and completion
 
-For a saved deliverable, continue through [Production Execution](production-execution.md).
-New production prepares the exact inputs and captures the real output; choosing
-an existing candidate retains that evidence and follows its acceptance scope.
-Bind review and selection to the candidate, complete the run and close its
-owning work task. `status`, `impact` and `resume` report current dependencies and
-artifact integrity. Selection and completion of retained output use its saved
-evidence. A new selection checks current authority; completion verifies the saved
-decision and its required destination. A progress checkbox, a search hit or a
-newly created image establishes neither completion nor canonical adoption.
+Continue the commissioned operation through [Production workflow](production-workflow.md). Authored revisions use [Authored storage](production-authored-storage.md) and have their actual save, delivery and review status. Model execution prepares exact inputs and captures real results; choosing an existing candidate retains that evidence and its acceptance scope. Bind review and selection to the exact candidate. Complete the requested result before closing its owning work task.
+
+`status`, `impact` and `resume` report current dependencies and artifact integrity. A new selection checks current authority; completion verifies the saved decision and its required destination. Canonical adoption is its own recorded decision, independent of saving or receiving an artifact.
 
 
 ## Iteration infrastructure

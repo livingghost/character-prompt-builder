@@ -9,16 +9,16 @@
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
       "visual_function": "Create a strong, trained physique whose muscle groups support posture, motion, and weight as connected anatomical volumes.",
-      "prompt": "Give the subject a muscular trained build with a broad load-bearing torso, developed shoulders and limbs, clear joint transitions, and muscle volumes that follow the pose and remain proportional to the head and frame.",
+      "prompt": "Give the subject the intended muscular build, with developed muscle volumes following the pose, connected shoulders and limbs, and clear joint transitions. Preserve the selected head-to-body and limb proportions and degree of stylization.",
       "invariants": [
-        "major muscle groups follow the skeleton and action line",
-        "the torso, neck, shoulders, and limbs share one believable scale",
+        "major muscle groups follow the declared body structure and action line",
+        "torso, neck, shoulders and limbs remain coherent with the intended design and degree of exaggeration",
         "strength remains readable in both relaxed and active poses"
       ],
       "misreadings_to_avoid": [
-        "inflated balloon-like anatomy",
+        "unintended loss of connected form between muscle groups",
         "random muscle grooves disconnected from movement",
-        "tiny head caused by uncontrolled torso enlargement"
+        "unintended reduction of head-to-body ratio through torso enlargement relative to the selected design"
       ],
       "misreading_policy": {
         "role": "diagnostic-only",

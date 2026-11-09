@@ -9589,10 +9589,10 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "cd582d80d2da0845f6c0d30645e8cdd18a5d2093a73f4a7c5868de179b5f836c",
+    "route_reading_sha256": "703769f2518f37b0f26c2ace9eee49bbaf218597153402a2c6a2bc33997dd6e5",
     "request_validation_sha256": "46ac91e53df14679e706e8e270237386a0a823864d9432c43bf9dbb01bf68026",
     "input_snapshots_sha256": "56d21fbb6eaa885bb10f586330d43d25f1fd8adf7d2c10e005153acb7d4c5594",
-    "generation_input_sha256": "f6f943a54a3e55fc0e0e8a21c95137c6cf60626123cc4744ec354f764f3175c1"
+    "generation_input_sha256": "319f323af832ec5cf74eab40c46ad2c1a60fda1bc3d5f3fae8617ca4957e2a3f"
   },
   "visual_continuity": {
     "purpose": "image",
@@ -9615,23 +9615,35 @@
     "documents": [
       {
         "path": "references/runtime/production-workflow.md",
-        "sha256": "55a04b32a7050658653c8994c00eebc4f0434368e82a1f0022101ac640cc9427"
+        "sha256": "119f3a1e399c6f67154f613546b9a308862d2174c7e38eae1a89e4427ca3ec4b"
       },
       {
         "path": "references/runtime/production-direction.md",
-        "sha256": "5d69c369a98c9fc1a4a485bf0e049f448f1cee21d8374a4af6b4cd31eee6fdb4"
+        "sha256": "5a853891f4999f56ec6783faacd370b38fe53be17c52fa785a94162ad8a0a494"
+      },
+      {
+        "path": "references/runtime/production-authoring.md",
+        "sha256": "fb5a9a71d370b8e695f8c676e059ffc7bb593aacd4725aab68720d3a883e86a7"
+      },
+      {
+        "path": "references/runtime/production-preparation.md",
+        "sha256": "9e2905bdae19b9a19b68f118fc20eaa3f72afd56eec2970d92d68eb22234c5e0"
+      },
+      {
+        "path": "references/runtime/production-diagnostics.md",
+        "sha256": "70f1b8bb91864944293cdafa79b548acab8df17112da42524c3a3fc5c1eb8db5"
       },
       {
         "path": "references/runtime/production-permissions.md",
-        "sha256": "52d2399e8c3e1307f7b85f7cc9fea9437d454074bcc22ad64ad9916f1c511cee"
+        "sha256": "bda865d65d7afb17b4360480dcca539d46c47c4397ef707cbd90538ebf55c200"
       },
       {
-        "path": "references/runtime/production-execution.md",
-        "sha256": "b6660d34c29c1edfd575868b32f8f6213b3ea1a19362c8bb09522fe2c6465ea1"
+        "path": "references/runtime/production-image-inputs.md",
+        "sha256": "84b0bac4efbdc6a7df332de096185c319f473d84856d2dbf1fe2a597276b3fda"
       },
       {
         "path": "references/runtime/state-aware-series.md",
-        "sha256": "463bb00579fa510a9bb8aefd1361a53887443f2069ca75143ec42721c2f70938"
+        "sha256": "ff65c1fb45f8ee53e91024e37bd2df2f7d815c62725fe1bbb9967cf3e2dc2d26"
       },
       {
         "path": "references/runtime/story-timeline.md",
@@ -9642,8 +9654,12 @@
         "sha256": "73d48c19036021b93e4381aaa0b4a2c43ced3657df825cffe04a4337c36218a1"
       },
       {
+        "path": "references/runtime/generation-package.md",
+        "sha256": "486c681fdbff131588d993b7b6f3a7fcb63c10c666af7713c183ee85f035ba19"
+      },
+      {
         "path": "references/runtime/prompt-writing-guide.md",
-        "sha256": "938bc8f34e3eac9d9bd2041dc6635e986b9406093d706e6a841b3beb21ede9c2"
+        "sha256": "c9367b47b236fe3b775915f13eb2acd1233df7bee0d9ab2de5ee099b670437ad"
       },
       {
         "path": "references/runtime/prompt-weighting.md",
@@ -9655,24 +9671,33 @@
       },
       {
         "path": "references/runtime/render-contract.md",
-        "sha256": "1e27f90299ee8aec33b37ca62b12df927b4be9ea0e5bacc21c6edb1e3c7ebcf4"
+        "sha256": "3f9dad350084ca18fc444abcae3b3077d6c284f812f8d79f213a36df303becac"
       },
       {
         "path": "references/runtime/studio.md",
-        "sha256": "ee225c804b2aec96a46b3799ba6084a1557087036d73f223a753ba5a6af2b788"
+        "sha256": "dae856f97697cdc66d18b328bae6eb2e1e2d749a174aedeaf1c6e3e5b70c734e"
       },
       {
         "path": "references/runtime/world-realization.md",
-        "sha256": "7679b7feb4a8d1e2daab197a7e2922b77741e99de1c7cb03ada771c3c06227bc"
+        "sha256": "4861b2bd73a563266f5991d5b5c9f520f559f65454b3988d90dbf93dd2780e74"
       }
     ],
+    "execution": "dispatcher",
     "features": [
+      "generation-package",
       "prompt-dialect",
       "reference-delivery",
       "render-contract",
       "studio",
       "world-view"
     ],
+    "model": {
+      "id": "gpt-image-2.5-flare",
+      "record_sha256": "9de6097e64ba8907ef03d61f710694c5d539d1440507e657109be6569a6f6cb7",
+      "service": null,
+      "guidance_sha256": "cc414bc67e600ecd3653752d9de1c7a266813065fbfb5c8083f553678a854fa3"
+    },
+    "operation": "prepare",
     "resources": {
       "prompt-writing-guide": {
         "status": "present",
@@ -9690,34 +9715,9 @@
       }
     },
     "route": "state-series",
-    "reading_key": "e26e548cab9782f7fc986b5b4c0fc3d4",
-    "applied": [
-      {
-        "path": "references/runtime/state-aware-series.md",
-        "quote": "Use this document for recurring characters, temporal continuity, visible consequences of off-screen events, rendered identity references from other scenes, or an arriving shot-request. For a one-off image with no continuity state, use a stateless Production Specification and skip this document.",
-        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
-      },
-      {
-        "path": "references/runtime/story-timeline.md",
-        "quote": "Read the development of a story, compare passages and inspect their recorded consequences. Graph is the opening view and shows branches and revisions as connected cards. Flow reads the story as ordered passages. Axis retains the event lanes and exact state inspection. The author judges motivation, continuity, information gaps and the effect of a scene. A structural check does not decide whether the story is convincing.",
-        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
-      },
-      {
-        "path": "references/runtime/studio-canon-references.md",
-        "quote": "A `studio-artifact` source selects a character, sheet slot, immutable artwork and its exact current adoption. The preparer reads the image hash and approval from the Studio. Working artwork needs no pack record. Packs remain a choice for reusable, distributed reference material.",
-        "why": "Exercise quotation integrity with synthetic input, not evidence of a real reading session."
-      }
-    ],
-    "resource_applied": [
-      {
-        "resource": "prompt-writing-guide",
-        "pointer": "/sections/0/rules/0",
-        "quote": "Render the model-facing prompt in English unless the active model record or interface provides better evidence for another language.",
-        "why": "Synthetic fixture exercises the complete decoded rule and its source pointer."
-      }
-    ]
+    "reading_key": "772ee84994617d384cc22832f692d367"
   },
-  "route_reading_sha256": "cd582d80d2da0845f6c0d30645e8cdd18a5d2093a73f4a7c5868de179b5f836c",
+  "route_reading_sha256": "703769f2518f37b0f26c2ace9eee49bbaf218597153402a2c6a2bc33997dd6e5",
   "request_validation": {
     "mode": "target-schema",
     "target": {
@@ -9782,5 +9782,5 @@
     }
   },
   "input_snapshots_sha256": "56d21fbb6eaa885bb10f586330d43d25f1fd8adf7d2c10e005153acb7d4c5594",
-  "generation_input_sha256": "f6f943a54a3e55fc0e0e8a21c95137c6cf60626123cc4744ec354f764f3175c1"
+  "generation_input_sha256": "319f323af832ec5cf74eab40c46ad2c1a60fda1bc3d5f3fae8617ca4957e2a3f"
 }

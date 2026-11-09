@@ -1335,12 +1335,16 @@ def _count(number: int, word: str) -> str:
 
 
 @runtime_snapshot.operation
-def status(root: Path) -> str:
+def status(root: Path, *, current_work: dict | None = None) -> str:
     import studio_activity as activity
     read = StudioRead(root)
     projection = activity.refresh(root, read=read)
     document = read.document
     lines = [f"studio {document.get('studio_id')}: {document.get('title')} ({root})", work_ledger.show(root)]
+    import production_authoring_state
+    current = current_work if current_work is not None else production_authoring_state.current_task(root, read_run=read.run)
+    if current is not None and current.get('authoring') is not None:
+        lines.extend(production_authoring_state.session_lines(root, current, report=current['authoring']))
     if not projection.get('ok'):
         lines.append("display/log refresh pending; committed work retained: " + projection['message'])
     for entry in document.get("characters") or []:

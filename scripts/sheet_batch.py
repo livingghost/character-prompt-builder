@@ -135,7 +135,8 @@ def _resolve_task(root: Path, plan: dict, panel: dict, entry: dict, state_file: 
 
     A null artifact selector means the explicitly adopted current image at this
     boundary, never a candidate. The chosen bytes are then pinned and presented
-    by normal Production approval. No prompt, model mode or control is invented.
+    by normal Production approval. The renderer owns the requested generation
+    dimensions; other authored controls and all creative inputs keep their owners.
     """
     task = c.load(_relative(root, panel['task']))
     sheet = _relative(root, plan['sheet'])
@@ -145,12 +146,36 @@ def _resolve_task(root: Path, plan: dict, panel: dict, entry: dict, state_file: 
                 'artifact': fills.current_artifact(document['slots'].get(ref['slot']))}
                 for ref in panel['references']]
     selected = entry['selected_references']
-    if not selected:
+    manifest = c.load(_relative(root, plan['manifest']))
+    target = _request(manifest, panel['request_id'])['target']
+    generation = task['generation']
+    parameters = c.load(_relative(root, generation['parameters'])) if generation.get('parameters') else {}
+    if not isinstance(parameters, dict):
+        raise ValueError('panel generation parameters must be an object')
+    dimensions = {'width': target['generation_w'], 'height': target['generation_h']}
+    for name, value in dimensions.items():
+        if name in parameters and (type(parameters[name]) is not int or parameters[name] != value):
+            raise ValueError('the authored request dimensions differ from the panel manifest; choose supported panel geometries before rendering')
+    derive_dimensions = any(name not in parameters for name in dimensions)
+    if not selected and not derive_dimensions:
         entry['compiled_task'] = panel['task']
         return panel['task']
-    from prepare_generation_references import prepare_references
     directory = _relative(root, entry['inputs'], exists=False) / 'resolved'
     directory.mkdir(parents=True, exist_ok=True)
+    if derive_dimensions:
+        parameters.update(dimensions)
+        parameters_path = directory / 'parameters.json'
+        _same_file(parameters_path, c.encoded(parameters))
+        generation['parameters'] = parameters_path.relative_to(root).as_posix()
+    if selected:
+        _resolve_references(root, task, selected, sheet, directory)
+    target = directory / 'task.json'; _same_file(target, c.encoded(task))
+    entry['compiled_task'] = target.relative_to(root).as_posix()
+    return entry['compiled_task']
+
+
+def _resolve_references(root: Path, task: dict, selected: list[dict], sheet: Path, directory: Path) -> None:
+    from prepare_generation_references import prepare_references
     sources = []
     for row in selected:
         artifact = row['artifact']
@@ -158,7 +183,9 @@ def _resolve_task(root: Path, plan: dict, panel: dict, entry: dict, state_file: 
         sources.append({'role': row['role'], 'source': {'kind': 'supplied-file',
                         'reference_id': artifact['artifact_id'],
                         'resolved_path': str(fills._file(sheet.parent, artifact['image']['path']))}})
-    specification = c.load(_relative(root, task['generation']['production_spec']))
+    generation = task['generation']
+    specification = c.load(_relative(root, generation['production_spec'])) if generation.get('production_spec') else None
+    model = specification['target_model'] if specification is not None else generation['model']
     references = directory / 'references.json'
     if references.exists():
         # Publication can have completed before the batch journal was saved.
@@ -167,13 +194,10 @@ def _resolve_task(root: Path, plan: dict, panel: dict, entry: dict, state_file: 
         if actual != [row['artifact']['image']['sha256'] for row in selected]:
             raise ValueError('the frozen batch reference preparation differs from its selected artifacts')
     else:
-        prepared = prepare_references(sources, model=specification['target_model'], output_dir=directory / 'references',
+        prepared = prepare_references(sources, model=model, output_dir=directory / 'references',
                 max_side=max(max(row['artifact']['image']['width'], row['artifact']['image']['height']) for row in selected))
         c.atomic(references, c.encoded(prepared))
     task['generation']['references'] = references.relative_to(root).as_posix()
-    target = directory / 'task.json'; _same_file(target, c.encoded(task))
-    entry['compiled_task'] = target.relative_to(root).as_posix()
-    return entry['compiled_task']
 
 
 def _same_file(path: Path, raw: bytes) -> None:

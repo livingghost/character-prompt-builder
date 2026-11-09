@@ -75,14 +75,16 @@ def compile_index(root: Path, plan: dict) -> tuple[dict, dict[str, bytes]]:
         if row['encoding'] not in ENCODINGS:
             raise ValueError('unsupported text encoding')
         text = raw.decode(row['encoding'])
-        if m.digest(raw) != row['sha256']:
+        source_hash = m.digest(raw)
+        if row.get('sha256') is not None and source_hash != row['sha256']:
             raise ValueError('source changed before ingestion: ' + row['source_id'])
         if not text.strip():
             raise ValueError('source document is empty')
-        name = 'sources/' + m.digest(raw) + '.bin'
+        name = 'sources/' + source_hash + '.bin'
         files[name] = raw
         blobs[row['source_id']] = raw
-        documents.append({**copy.deepcopy(row), 'bytes': len(raw), 'line_count': len(text.splitlines(keepends=True)),
+        documents.append({**copy.deepcopy(row), 'sha256': source_hash,
+                          'bytes': len(raw), 'line_count': len(text.splitlines(keepends=True)),
                           'stored_path': name})
     by_id = {d['source_id']: d for d in documents}
     segments = []
@@ -154,7 +156,7 @@ def checked_index(root: Path, bundle: str) -> tuple[dict, dict[str, bytes]]:
 def compile_proposal(root: Path, bundle: str, plan: dict) -> dict:
     schema(plan, 'source-claims-plan')
     index, blobs = checked_index(root, bundle)
-    if index['content_sha256'] != plan['index_sha256']:
+    if plan.get('index_sha256') is not None and index['content_sha256'] != plan['index_sha256']:
         raise ValueError('claims refer to a different source index')
     m.indexed(plan['claims'], 'claim_id', 'claims')
     docs = {d['source_id']: d for d in index['documents']}

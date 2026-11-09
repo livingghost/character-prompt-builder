@@ -607,7 +607,7 @@ def _adapter_documents(root: Path) -> tuple[str, ...]:
 
 
 def _route_deliveries(root: Path) -> dict[str, tuple[str, ...]]:
-    """Return, for each route and feature name, the documents a route read prints for it."""
+    """Return the complete operation contracts and specialists reachable through each route."""
 
     path = root / "config/execution-routes.json"
     if not path.is_file():
@@ -617,11 +617,23 @@ def _route_deliveries(root: Path) -> dict[str, tuple[str, ...]]:
     deliveries: dict[str, set[str]] = {}
     for name, feature in features.items():
         deliveries.setdefault(name, set()).update(feature.get("reads", ()))
+    for _ in features:
+        for name, feature in features.items():
+            for scoped in feature.get("execution_features", {}).values():
+                for selected in scoped:
+                    deliveries[name].update(deliveries.get(selected, ()))
     for name, route in manifest.get("routes", {}).items():
         reads = deliveries.setdefault(name, set())
-        reads.update(manifest.get("always_read", ()), route.get("reads", ()))
-        for feature in route.get("features", ()):
-            reads.update(features.get(feature, {}).get("reads", ()))
+        reads.update(route.get("reads", ()))
+        for operation in manifest.get("operation_contexts", {}).values():
+            reads.update(operation.get("reads", ()))
+            for scoped in operation.get("executions", {}).values():
+                reads.update(scoped)
+        selected = list(route.get("features", ()))
+        for scoped in route.get("execution_features", {}).values():
+            selected.extend(scoped)
+        for feature in selected:
+            reads.update(deliveries.get(feature, ()))
     return {name: tuple(sorted(reads)) for name, reads in deliveries.items()}
 
 
@@ -690,10 +702,18 @@ SKILL_FORBIDDEN_DEEP_RUNTIME_TOKENS = (
 )
 AUTHORITATIVE_DOCUMENT_MARKERS = {
     "references/runtime/production-workflow.md": (
-        "# Common runtime sequence",
-        "Inspect complete selected knowledge records.",
-        "resolve the optional `prompt-writing-guide`",
-        "read the complete selected guide before final rendition",
+        "# Production workflow",
+        "## Open the current work",
+        "## Edit and produce the requested artifact",
+        "## Continue according to the actual result",
+        "complete contract for the current operation",
+    ),
+    "references/runtime/production-authoring.md": (
+        "# Production authoring",
+        "### Read the route to completion",
+        "## Use the delivered knowledge",
+        "preserves all source bytes across pages",
+        "same complete, paged snapshot",
     ),
     "references/runtime/narrative-development.md": (
         "# World-Coherent Creative Development",
@@ -752,7 +772,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "## Weighting and prompt pressure",
         "## Controlled comparison",
         "## Failure policy",
-        "Read the complete resolved guide before writing the final model-facing rendition",
+        "Read the complete `guide.universal` and `guide.dialect` sections returned by the",
         "The Skill-using agent decides which rules are relevant.",
     ),
     "references/runtime/reference-prompt-artifacts.md": (
@@ -771,12 +791,15 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "# Image Generation Runtime",
         "## Activation and dependency preflight",
         "## Model-facing reference transport",
+        "Generation Package dispatch requires an enabled, evidence-backed model offering",
+        "Only the selected transport must be available.",
+    ),
+    "references/runtime/generation-package.md": (
+        "# Generation Package",
         "## Generation Package",
         "## Verification and host forwarding",
         "## Failure policy",
         "Do not reconstruct from chat.",
-        "Generation Package dispatch requires an enabled, evidence-backed model offering",
-        "Only the selected transport must be available.",
         "are the complete forwarding contract",
     ),
     "references/runtime/state-aware-series.md": (
@@ -1822,7 +1845,8 @@ def validate(
             "validated release packs omit default-pack-state activations: "
             + ", ".join(missing_default_pack_ids)
         )
-    dependency_report = check_dependencies(root / metadata.pyproject_file)
+    dependency_report = check_dependencies(root / metadata.pyproject_file,
+                                           capabilities=('sheet', 'temporal-media'))
     if not dependency_report.get("ok"):
         errors.append("project Python environment validation failed")
     from release_contract import check_dependency_artifacts

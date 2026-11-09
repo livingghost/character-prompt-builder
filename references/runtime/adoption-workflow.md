@@ -4,7 +4,7 @@ Activate this route when acceptance means "use this as the next reference" or
 "register this reference for reuse". Acceptance for a Studio slot leaves the
 sheet, catalog and canonical state contracts unchanged. When the request is
 only to choose an existing Production candidate for its slot, use
-[the compact acceptance operation](production-execution.md#accept-an-existing-candidate-for-its-studio-slot).
+[the compact acceptance operation](production-adoption.md#accept-an-existing-candidate-for-its-studio-slot).
 For an externally imported iteration, `studio.py accept` owns that slot decision.
 When the requested result includes sheet or catalog reuse of a Production
 candidate, use its canonical adoption procedure below. The selected candidate
@@ -32,23 +32,22 @@ image and committed Generation Package, and a JSON approval. Use Studio's
 [`attach-package` operation](studio.md#record-a-missing-generation-package) to attach a missing original package to the same
 imported iteration, with evidence of its relationship to that image. The
 iteration's identity, creation time and acceptance history remain unchanged.
-File presence alone establishes no generation provenance. The approval contains
-exactly these required fields:
+File presence alone establishes no generation provenance. Select the actual
+iteration, scope and influence; the adoption owner derives the subject:
 
-```json
-{
-  "scope": "sheet",
-  "influence": "identity",
-  "character": "C01",
-  "iteration_id": "it-0002",
-  "slot": "base.front",
-  "image_sha256": "REPLACE_WITH_THE_RECORDED_IMAGE_SHA256",
-  "by": "RECORD_THE_ACTUAL_APPROVER",
-  "at": "RECORD_THE_ACTUAL_RFC3339_UTC_TIME"
-}
+```bash
+python scripts/adoption_workflow.py --studio ./studio --character C01 draft \
+  --iteration it-0002 --scope sheet --influence identity --out ./approval.json
 ```
 
-These placeholders are deliberately unusable as authorization: read the iteration's recorded hash and record only real approval. `scope` is `sheet` or `catalog`. `influence` uses the ordinary reference vocabulary: `identity`, `pose-camera`, `outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or `local-color`. Optional fields are `note`, `license`, and, for catalog scope, `registration_record_sha256`.
+The draft contains exact `character`, `iteration_id`, `slot` and `image_sha256`
+from the recorded image. It leaves `by` and `at` null. Fill those fields only from
+the actual approval and its RFC3339 UTC time; the draft grants no permission and
+changes no candidate or canonical state. `scope` is `sheet` or `catalog`.
+`influence` uses the ordinary reference vocabulary: `identity`, `pose-camera`,
+`outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or
+`local-color`. Optional fields are `note`, `license`, `continuity_decision`, and,
+for catalog scope, the derived `registration_record_sha256`.
 
 Identity-image adoption binds visual evidence only; the authored Identity/Era/Form/Appearance Contracts, story-state transitions and execution permission stay with their own owners. An outfit-only image must use a non-identity slot, leaving `base.*` and `canon.*` as they are. Normal scene clothing stays in the scene. See [Revision Contract](revision-contract.md).
 
@@ -118,13 +117,19 @@ Write one canonical module record conforming to the module branch of `schemas/pa
 }
 ```
 
-Compute its canonical digest with the same function used by the approval validator:
+Select the authored record when drafting catalog approval:
 
 ```bash
-python -c "import json,sys; sys.path.insert(0,'scripts'); from revision_contract import digest; print(digest(json.load(open('registration-record.json',encoding='utf-8'))))"
+python scripts/adoption_workflow.py --studio ./studio --character C01 draft \
+  --iteration it-0002 --scope catalog --influence identity \
+  --registration-record ./registration-record.json --out ./catalog-approval.json
 ```
 
-The new catalog approval must match the same character, iteration, slot and image, and include this value in `registration_record_sha256`. Choose a new pack directory, outside commons and every existing pack:
+The owner validates the canonical module and records its exact
+`registration_record_sha256` beside the image subject. Complete only actual
+approval fields. Adoption rechecks both subjects, so changing the image or
+record does not reuse an earlier approval. Choose a new pack directory, outside
+commons and every existing pack:
 
 ```bash
 python scripts/adoption_workflow.py --studio ./studio --character C01 \

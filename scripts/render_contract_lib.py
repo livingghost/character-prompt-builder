@@ -387,8 +387,30 @@ def resolve_parameters(record: Mapping, profile: dict, mode: str, parameters: di
     return _parameters_from_profile(record, profile, mode, parameters)
 
 
+def resolve_prompt_syntax(record: Mapping, profile: dict, mode: str, parameters: dict) -> str:
+    """Resolve text grammar without requiring unrelated image-generation inputs.
+
+    Supplied controls retain their declared value checks. Only the control
+    owning the grammar can require an omitted value or model recommendation;
+    whole-request parameter constraints remain part of generation preparation.
+    """
+    from prompt_weighting import selected
+    validate_profile(profile)
+    if mode not in profile['modes']:
+        raise ParameterErrors([problem('execution_profile.modes', 'mode-not-exposed',
+                                       'mode not exposed by this execution profile: ' + mode)])
+    selected_mode = profile['modes'][mode]
+    declaration = selected_mode['prompt_syntax']
+    control = declaration['control']
+    required = {key for key in selected_mode['controls']
+                if control is not None and key.split('.') == control['field'][:len(key.split('.'))]}
+    effective, _ = _parameters_from_profile(record, profile, mode, parameters,
+                                            required_controls=required)
+    return selected(effective, declaration)
+
+
 def _parameters_from_profile(record: Mapping, profile: dict, mode: str,
-                             parameters: dict) -> tuple[dict, list[dict]]:
+                             parameters: dict, *, required_controls: set[str] | None = None) -> tuple[dict, list[dict]]:
     """Resolve values against one checked profile without changing that input."""
     if mode not in profile['modes']:
         raise ParameterErrors([problem('execution_profile.modes', 'mode-not-exposed',
@@ -418,7 +440,7 @@ def _parameters_from_profile(record: Mapping, profile: dict, mode: str,
                 continue
             source = 'explicit'
             if not present:
-                if status == 'optional':
+                if status == 'optional' or (required_controls is not None and key not in required_controls):
                     decisions.append({'key': key, 'status': 'not-selected', 'value': None, 'reason': rule['reason']})
                     continue
                 name = rule['recommendation']
@@ -437,7 +459,8 @@ def _parameters_from_profile(record: Mapping, profile: dict, mode: str,
             problems.append(problem(key, 'schema-invalid', str(exc)))
     if problems:
         raise ParameterErrors(problems)
-    _schema(result, profile['modes'][mode]['parameter_schema'], 'combined mode parameters')
+    if required_controls is None:
+        _schema(result, profile['modes'][mode]['parameter_schema'], 'combined mode parameters')
     return result, decisions
 
 

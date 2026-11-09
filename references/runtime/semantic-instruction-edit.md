@@ -7,7 +7,7 @@ the result. Production pins the selected source, reference scopes, model, exact
 request and output evidence through its ordinary execution path.
 
 A new scene assembled from character or design references uses the common
-`image_input` contract in [Production Execution](production-execution.md#image-input-and-exact-external-requests).
+`image_input` contract in [Production Execution](production-image-inputs.md#image-input).
 It has no edit source unless an existing scene is actually being edited.
 
 ## Contents
@@ -67,7 +67,7 @@ binding pins the common input binding's hash; it does not copy the reference
 registry or invent another authority owner.
 
 For external execution, inspect the reference mapping through
-[exact request authoring](production-execution.md#exact-target-and-provider-schema).
+[exact request authoring](production-external-inputs.md#exact-target-and-provider-schema).
 Express each source's assigned use in the final instruction against the actual
 delivered images. The saved request binds that text and those media fields
 before the edit plan is validated.
@@ -116,15 +116,18 @@ When the finish is fixed, include its preservation in the edit and instruction.
 A declared Production Specification is validated through the same owner used
 by dispatch. Subject assignments must resolve against that specification.
 
-Run catalog and vocabulary retrieval before composing the edit. Record each
-selected outcome under the ordinary retrieval gate, then validate:
+Use the selected model's input contract. Tag-based input requires the actual
+dictionary search and wording selection. Descriptive input needs retrieval for
+unresolved construction or wording questions. Record the investigations actually
+performed and their selected outcomes; their owning validators are available
+when an independent diagnostic is useful:
 
 ```sh
 python scripts/prompt_retrieval.py STUDIO/inputs/lookups.json
 python scripts/render_contract.py validate-intent STUDIO/inputs/render-intent.json
 ```
 
-Keep lookup evidence as an applied source with role `retrieval-evidence`. Assess
+When lookup work was performed, keep its evidence as an applied source with role `retrieval-evidence`. Assess
 wording against those outcomes in task direction. When an approved plot is
 required, use normal retrieval settlement with that plot and final prompt.
 External preparation pins this evidence; it does not invent a specification,
@@ -196,7 +199,7 @@ For images without subjects, use [object-only Production Specifications](../prod
 
 ## Execute through an external host
 
-Follow [image input and exact external requests](production-execution.md#image-input-and-exact-external-requests)
+Follow [image input and exact external requests](production-image-inputs.md#image-input)
 for request schemas, endpoint/tool identity, media field bindings and saved-call
 evidence. Complete the ordinary handoff, exact authorization and external claim
 before one host call. Save the actual response, capture original returned bytes

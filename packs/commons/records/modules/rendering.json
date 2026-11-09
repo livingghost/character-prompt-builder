@@ -310,6 +310,111 @@
           "source": "author"
         }
       ]
+    },
+    {
+      "id": "rendering-material-defined-form",
+      "label": "Recognizable form made from a chosen material",
+      "category": "rendering",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Keep an object or creature identifiable when its substance defines its appearance, coordinating recognizable structure with the material's light response, boundaries and behavior.",
+      "prompt": "Build the chosen subject from its selected material, retaining the silhouette, connected major forms and identifying features needed to recognize it. Describe those forms through the material's relevant reflection, transmission, opacity or internal density. Allow the selected edges and parts to flow, dissolve, bend or stay rigid according to that material and the intended stylization. Preserve the chosen supporting structure and meaningful contact as the material behaves through the form.",
+      "invariants": [
+        "the selected material is expressed through properties that apply to its intended treatment",
+        "the silhouette, connections and details chosen as identifying anchors remain legible within the material treatment",
+        "material behavior and retained structure describe one coherent subject"
+      ],
+      "applicability": [
+        "Objects or creatures whose selected substance is part of their construction, from glass objects to imagined smoke forms.",
+        "Use with an authored degree of realism or stylization; material choice does not select a complete rendering medium."
+      ],
+      "interactions": [
+        "Choose the structural anchors from the design: an object's opening, rim or handle, a creature's face and body connections, or other identifying features may carry recognition. Keep fine markings, texture or readable lettering when the depiction depends on them.",
+        "A glass object can retain a distinct rim and joined parts while transmission, refraction and reflections describe its volume. Select the clarity, roughness and edge treatment for that particular glass design.",
+        "A smoke form can retain selected landmarks through organized density while other boundaries disperse. Choose which regions may dissolve and how much of the structure remains apparent.",
+        "Where contact matters, render the chosen resting, yielding, adhering or dispersing relation coherently with both material and structure.",
+        "Choose physical plausibility or stylized material logic for the depiction. A designed form may retain recognizable structure while selected regions deform; the material does not impose a universal fluid simulation, opaque core or level of detail."
+      ],
+      "misreadings_to_avoid": [
+        "a decorative material texture pasted over an unchanged opaque subject when the material is meant to constitute the form",
+        "drips, transparency or diffuse edges imposed on a material whose chosen behavior is rigid or opaque",
+        "literal material simulation removing the identifying structure the depiction requires",
+        "material effects erasing required small design, construction or communication details"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "recognizable object or creature construction through material behavior",
+      "tags": [
+        "material construction",
+        "form readability",
+        "material behavior"
+      ],
+      "domains": [
+        "shared"
+      ],
+      "distinct_from": [
+        "rendering-pbr-material-response"
+      ],
+      "search_profile": {
+        "aliases": [
+          "recognizable object made of glass",
+          "creature formed from smoke with a readable silhouette",
+          "keep identifying features within an unusual material"
+        ],
+        "outcome_summary": "An object or creature remains identifiable while its chosen material governs light response, boundaries and any permitted deformation or contact.",
+        "discovery_group": "rendering-material-defined-form",
+        "anchor_signature": {
+          "domain": [
+            "shared"
+          ]
+        },
+        "facets": {
+          "domain": [
+            "shared"
+          ],
+          "rendering": [
+            "recognizable structure within a material",
+            "coherent form and material behavior"
+          ],
+          "material": [
+            "glass form",
+            "smoke form",
+            "selected material constitutes the subject"
+          ],
+          "communication_goal": [
+            "retain identifying structure and detail through a material treatment"
+          ],
+          "use_case": [
+            "material object study",
+            "material creature design"
+          ]
+        },
+        "kind": "module",
+        "category": "rendering",
+        "tier": "curated"
+      },
+      "search_terms": [
+        {
+          "phrase": "recognizable object made of glass",
+          "facet": "material",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "creature formed from smoke with a readable silhouette",
+          "facet": "rendering",
+          "weight": 1.05,
+          "source": "author-alias"
+        },
+        {
+          "phrase": "keep identifying features within an unusual material",
+          "facet": "rendering",
+          "weight": 1.05,
+          "source": "author-alias"
+        }
+      ]
     }
   ]
 }

@@ -133,9 +133,9 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
                 required_action='Supply {"changes": {FIELD_ID: value}, "reason": text} as UTF-8 JSON.') from exc
         changes, reason = selected['changes'], selected['reason']
     generation = task.get('generation')
-    parameters = c.decode(_captured(loaded, generation['parameters'])) if generation is not None else {}
-    spec = c.decode(_captured(loaded, generation['production_spec'])) if generation is not None else {}
-    original_model = copy.deepcopy(spec.get('target_model'))
+    parameters = c.decode(_captured(loaded, generation['parameters'])) if (generation or {}).get('parameters') else {}
+    spec = c.decode(_captured(loaded, generation['production_spec'])) if (generation or {}).get('production_spec') else {}
+    original_model = copy.deepcopy(spec.get('target_model') or (generation or {}).get('model'))
     replacements: dict[str, bytes] = {}
     replaced: set[str] = set()
     difference = []
@@ -205,7 +205,8 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
             if present and same_json(before, value):
                 raise no_op(field, 'The parameter is unchanged.')
             _put(parameters, key, value)
-            replaced.add(generation['parameters'])
+            if generation.get('parameters'):
+                replaced.add(generation['parameters'])
             replacements['parameters'] = c.encoded(parameters)
             return before
         if field in {'seed', 'count'}:
@@ -215,15 +216,17 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
             generation[field] = copy.deepcopy(value)
             return before
         if field == 'execution-mode':
-            before = spec['render_intent']['execution_mode']
+            intent = spec['render_intent'] if spec else generation['render_intent']
+            before = intent['execution_mode']
             if same_json(before, value):
                 raise no_op(field, 'The execution mode is unchanged.')
-            spec['render_intent']['execution_mode'] = value
-            replaced.add(generation['production_spec'])
-            replacements['production_spec'] = c.encoded(spec)
+            intent['execution_mode'] = value
+            if spec:
+                replaced.add(generation['production_spec'])
+                replacements['production_spec'] = c.encoded(spec)
             return before
         if field == 'recording':
-            before = copy.deepcopy(task['recording'])
+            before = copy.deepcopy(task.get('recording'))
             if same_json(before, value):
                 raise no_op(field, 'The recording contract is unchanged.')
             task['recording'] = copy.deepcopy(value)
@@ -237,6 +240,9 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
                     raise no_op(field, 'No input is selected for this field.')
                 generation.pop(name)
                 replaced.add(old)
+                if field == 'production-spec':
+                    generation['model'] = previous['target_model']
+                    generation['render_intent'] = copy.deepcopy(previous['render_intent'])
                 return c.content_id(previous)
             raw, document = _document(root, field, value)
             # Relative locators inside a document resolve from its directory, so
@@ -246,6 +252,9 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
             # Referencing the actual supplied document preserves relative
             # media locators. The compiler snapshots the full dependency set.
             generation[name] = value['path']
+            if field == 'production-spec':
+                generation.pop('model', None)
+                generation.pop('render_intent', None)
             _redirect_source(task, old, value['path'])
             if old:
                 replaced.add(old)

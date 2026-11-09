@@ -623,15 +623,20 @@ def main() -> int:
         import production_workflow as production
         import production_fixtures
         (root / "delivery.txt").write_text("Deliver the selected test image.\n", encoding="utf-8")
-        spec = {"task_id": task["task_id"], "route": "development", "features": [],
+        spec = {"task_id": task["task_id"], "route": "development", "features": [], "execution": "external",
                 "sources": [], "world_views": [],
                 "delivery": {"path": "delivery.txt",  "translation_notes": "Synthetic fixture."},
                 "criteria": [{"id": "fixture", "strength": "hard", "text": "Deliver the inspected image fixture."}]}
-        production_fixtures.task(root,spec,artifact="binary")
+        production_fixtures.task(root,spec,artifact="binary",execution="external")
         (root / "production-task.json").write_bytes(evidence.encoded(spec))
         run = production.prepare(root, "production-task.json")["run"]
         production_fixtures.handoff(root, run, "synthetic fixture", "manual")
+        token = production_fixtures.grant(root, run, production.external_intent(root, run, 1))
+        production.claim_external(root, run, 1, token)
         candidate = production.capture(root, run, again["accepted_path"], "Synthetic image bytes, not generated media.")
+        (root / "synthetic-receipt.json").write_bytes(evidence.encoded({"synthetic": True, "status": "received"}))
+        production.receive_external(root, run, response_file="synthetic-receipt.json", artifacts=[again["accepted_path"]],
+                                    final=True, reason="The synthetic delegated fixture was received.")
         review = production.draft_review(root, run, candidate["sha256"])
         review.update(reviewer="synthetic fixture reviewer", observations=[{"locator": {"kind": "whole"}, "observation": "Fixture bytes match the test result."}], conclusion="Synthetic test only.")
         review["checks"][0].update(verdict="pass", observation_indices=[0], reason="Synthetic inspection.")

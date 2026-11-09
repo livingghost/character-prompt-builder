@@ -270,11 +270,12 @@ class LifecycleTests(unittest.TestCase):
         entry = ledger.begin(self.root, 'Synthetic complete production loop', ['prepare', 'deliver'])
         (self.root/'brief.md').write_bytes(b'A deliberately held abstract field. PRIVATE DOSSIER.\n')
         (self.root/'delivery.txt').write_bytes(b'Keep the sparse field.\n')
-        self.task = {'task_id':entry['task_id'],'route':'development','features':[],
+        self.task = {'task_id':entry['task_id'],'route':'development','features':[], 'execution':'external',
             'sources':[{'id':'brief','path':'brief.md','role':'design','disposition':'applied','locator':'whole','reason':'Declared fixture purpose.'}],
             'delivery':{'path':'delivery.txt','translation_notes':'Use the selected expression.'},
             'criteria':[{'id':'read','strength':'hard','text':'The intended field is observable.'}],'world_views':[]}
-        fixture.task(self.root, self.task, artifact='image')
+        fixture.task(self.root, self.task, artifact='image', execution='external')
+        fixture.external_image_input(self.root, self.task)
         self.task['criteria'][0]['evidence'] = 'image'
         self.task['direction']['decisions'] = [decision(basis=['brief'])]
         self.write('task.json', self.task)
@@ -284,9 +285,12 @@ class LifecycleTests(unittest.TestCase):
     def prepare(self):
         return w.prepare(self.root, 'task.json')['run']
     def candidate(self):
-        run = self.prepare(); fixture.handoff(self.root, run, 'synthetic author', 'manual')
+        run, _, _ = self.external_case()
         self.write('image.png', png())
-        return run, w.capture(self.root, run, 'image.png', 'Pillow-generated process fixture, not an artwork-quality test.')
+        candidate = w.capture(self.root, run, 'image.png', 'Pillow-generated process fixture, not an artwork-quality test.')
+        self.external_response(amount=None)
+        self.receive(run, artifacts=['image.png'])
+        return run, candidate
     def review_data(self, run, candidate, verdict='pass'):
         data = w.draft_review(self.root, run, candidate['sha256'])
         data.update(reviewer=fixture.ACTOR, observations=[{'evidence':'candidate',
@@ -361,12 +365,17 @@ class LifecycleTests(unittest.TestCase):
         run = self.prepare(); auth = fixture.grant(self.root, run, w.handoff_intent(self.root, run, 'one', 'manual'))
         with self.assertRaises(ValueError): w.handoff(self.root, run, 'two', 'manual', auth)
     def test_submit_grant_does_not_authorize_selection(self):
-        run, ca = self.candidate(); self.record_review(run, ca)
+        run, submit_authorization, _ = self.external_case()
+        self.write('image.png', png())
+        ca = w.capture(self.root, run, 'image.png', 'Actual synthetic delegated image.')
+        self.external_response(amount=None)
+        self.receive(run, artifacts=['image.png'])
+        self.record_review(run, ca)
         d = w.draft_selection(self.root, run, ca['sha256']); d.update(selector=fixture.ACTOR,reason='test')
-        intent = {'operation':'submit','targets':['delivery'],'payload':{'count':1}}
-        d['authorization'] = fixture.grant(self.root, run, intent)
+        d['authorization'] = submit_authorization
         self.write('selection.json', d)
-        with self.assertRaises(ValueError): w.select(self.root, run, 'selection.json')
+        with self.assertRaisesRegex(ValueError, 'AUTHORIZATION_MISMATCH'):
+            w.select(self.root, run, 'selection.json')
     def test_selection_reason_cannot_change_after_authorization(self):
         run, ca = self.candidate(); self.record_review(run, ca); d = self.selection(run, ca)
         d['reason'] = 'A different decision'; self.write('selection.json', d)
@@ -838,6 +847,7 @@ class LifecycleTests(unittest.TestCase):
         self.write('review.json',d);w.review(self.root,run,'review.json')
         revised=copy.deepcopy(self.task);revised['direction']['decisions'][0]['selected']='shift'
         revised['delivery']['path']='revised-delivery.txt';(self.root/'revised-delivery.txt').write_text('Use the intended spacing.', encoding='utf-8')
+        fixture.external_image_input(self.root, revised)
         self.write('revised-task.json',revised)
         intent=w.revision_intent(self.root,run,'revised-task.json',ca['sha256'],'spacing')
         authorization=fixture.grant(self.root,run,intent)
@@ -846,7 +856,10 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(prepared['parent']['candidate'],ca['sha256']);self.assertEqual(prepared['parent']['repair'],'spacing')
         self.assertNotEqual(child['run'],run);self.assertIsNone(next(r for r in w.load_run(self.root,run)[3] if r['event']=='review')['data']['review'].get('approved'))
         fixture.handoff(self.root,child['run'],'synthetic author','manual')
+        token=fixture.grant(self.root,child['run'],w.external_intent(self.root,child['run'],1))
+        w.claim_external(self.root,child['run'],1,token)
         self.write('revised.png',png(128));child_ca=w.capture(self.root,child['run'],'revised.png','Synthetic repaired result.')
+        self.external_response(amount=None);self.receive(child['run'],artifacts=['revised.png'])
         self.record_review(child['run'],child_ca,name='revised-review.json');self.selection(child['run'],child_ca)
         w.select(self.root,child['run'],'selection.json');w.complete(self.root,child['run'])
         self.assertEqual(w.status(self.root,child['run'])['runs'][0]['task_disposition'],'completed')
@@ -865,6 +878,7 @@ class LifecycleTests(unittest.TestCase):
         revised['direction']['decisions'][0]['selected'] = 'shift'
         revised['delivery']['path'] = 'new-delivery.txt'
         (self.root / 'new-delivery.txt').write_text('Use the intended spacing.', encoding='utf-8')
+        fixture.external_image_input(self.root, revised)
         self.write('new-task.json', revised)
         return revised
     def test_repair_cannot_hide_a_changed_decision(self):

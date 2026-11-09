@@ -341,7 +341,7 @@ An observed image that motivates a revision stays authored source evidence with 
 
 For a dispatcher model or service change, use `production_workflow.py retarget --from RUN --task TASK --reason TEXT --prepare`.
 The task supplies the new target's execution profile, guide reading, retrieval assessment and validation evidence.
-See [Production execution](production-execution.md#change-the-target-explicitly) and the [generation example](../../examples/generation/README.md).
+See [Production execution](production-variation.md#change-the-target-explicitly) and the [generation example](../../examples/generation/README.md).
 
 For another external trial, author a separate task with its exact request, then run `check` and `prepare`.
 Existing-image edits also retain their source and reference scopes in a semantic plan.

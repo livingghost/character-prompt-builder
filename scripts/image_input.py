@@ -523,6 +523,72 @@ def task_binding(root: Path, task: dict, add) -> dict | None:
     return result
 
 
+def revision_scopes(before: Any, after: Any) -> dict | None:
+    """Compare bound external inputs by their actual text and execution values.
+
+    File locations and derived checks are owned representations of these values.
+    Only validated, fully captured external inputs can account for those files;
+    other input kinds leave dependency classification with the caller.
+    """
+    if not all(isinstance(value, dict) and value.get('external_request') is not None
+               for value in (before, after)):
+        return None
+    try:
+        validate_binding(before)
+        validate_binding(after)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    def projection(binding: dict) -> tuple[dict, dict, set[str]]:
+        value = copy.deepcopy(binding)
+        for key in DERIVED - {'prepared_reference_set'}:
+            value.pop(key, None)
+        paths: set[str] = set()
+
+        def evidence(selector: dict | None) -> None:
+            if selector is not None:
+                paths.add(selector.pop('path'))
+
+        evidence(value['model']['evidence'])
+        # Image bytes and their use remain exact. A different media path also
+        # remains an execution difference unless its delivery owner proves it.
+        paths.update(row['file'] for row in value['references'])
+        if value.get('prepared_references') is not None:
+            paths.add(value['prepared_references'])
+        external = value['external_request']
+        paths.add(external.pop('file'))
+        external.pop('sha256')
+        evidence(external.get('schema'))
+        identity = external.get('model_identity')
+        if identity is not None:
+            evidence(identity['evidence'])
+        for row in external['reference_fields']:
+            evidence(row['evidence'])
+        vocabulary = external.pop('vocabulary_record', None)
+        if vocabulary is not None:
+            paths.add(vocabulary['path'])
+        check = external.pop('prompt_check')
+        external['prompt_constraints'] = check['model_constraints']
+        # A validated vocabulary selection and grammar report describe these
+        # exact words. Changing words necessarily changes their derived record.
+        text: dict[str, str] = {}
+        for role, field in (('prompt', 'prompt_field'), ('negative', 'negative_field')):
+            path = external.get(field)
+            if path is not None:
+                text[role] = rc.get(external['request'], path)
+                rc.put(external['request'], path, None)
+        return value, text, paths
+
+    old, old_text, old_paths = projection(before)
+    new, new_text, new_paths = projection(after)
+    scopes = []
+    if old_text != new_text:
+        scopes.append('delivery')
+    if old != new:
+        scopes.append('execution')
+    return {'scopes': scopes, 'paths': sorted(old_paths | new_paths)}
+
+
 def external_document_sources(task: dict) -> list[dict]:
     """Select document owners from declared roles, including independently checkable inputs."""
     if task.get('execution') != 'external' or task.get('artifact') != 'image':

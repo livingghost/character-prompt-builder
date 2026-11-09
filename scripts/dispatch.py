@@ -593,7 +593,7 @@ def _differs(what: str, pointer: str) -> Exception:
                            required_action="Preview the run as prepared, or prepare a variant for the changed input.")
 
 
-def sealed_run(root: Path, run: str, character: str, slot: str) -> tuple:
+def sealed_run(root: Path, run: str, character: str | None = None, slot: str | None = None) -> tuple:
     """The sealed run execute would send, refused where execute refuses it before authorization.
 
     `production_execution.compiled` checks the run's integrity and every live
@@ -608,11 +608,13 @@ def sealed_run(root: Path, run: str, character: str, slot: str) -> tuple:
         raise ProductionError("DISPATCH_ALREADY_CLAIMED", "This run already owns an execution.", phase="preview", run=run,
                               required_action="Use resume for this execution, variant for changed input, "
                               "or repeat for an intentional new run.")
-    recording = prepared["task"]["recording"]
-    if not same_json({"character": recording["character"], "slot": recording["slot"]},
-                     {"character": character, "slot": slot}):
-        raise _differs("the recording target", "$.recording")
-    studio.validate_recording_target(root, character, slot, writable=True)
+    recording = prepared["task"].get("recording")
+    if character is not None or slot is not None:
+        expected = {"character": recording["character"], "slot": recording["slot"]} if recording else None
+        if not same_json(expected, {"character": character, "slot": slot}):
+            raise _differs("the recording target", "$.recording")
+    if recording is not None:
+        studio.validate_recording_target(root, recording['character'], recording['slot'], writable=True)
     endpoint(target["service"], transport)
     return sealed
 
@@ -641,7 +643,7 @@ def dispatch_generation(args: argparse.Namespace, root: Path) -> int:
     from build_generation_payload import resolve_execution_target
     resolved=resolve_execution_target(target,source=source)
     verified = verify(stored, package_root=directory, studio=root, reading_ledgers=[directory / "reads.jsonl"],
-                      target=resolved,input_source=source)
+                      target=resolved,input_source=source,execution=prepared['task']['execution'])
     validation = request_renderer.check_final(
         stored["request_validation"],
         runtime_evidence.reader(root, snapshots=copy.deepcopy(stored["input_snapshots"]),source=source), rendered)
@@ -711,8 +713,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("package", nargs="?", help="A Generation Package bound to a prepared run; absent with --upscale")
     parser.add_argument("--studio", type=Path, required=True, help="A directory in the studio the run belongs to")
-    parser.add_argument("--character", required=True, help="The studio character the run records under")
-    parser.add_argument("--slot", required=True, help="The slot the run records into")
+    parser.add_argument("--character", help="Check the optional Studio character already selected by the run")
+    parser.add_argument("--slot", help="Check the optional Studio slot already selected by the run")
     parser.add_argument("--upscale", action="store_true", help="Preview the upscale prepared for the studio's open task")
     parser.add_argument("--model", help="With --upscale: the upscaler record")
     parser.add_argument("--source", help="With --upscale: the image to enlarge")

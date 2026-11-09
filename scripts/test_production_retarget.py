@@ -60,7 +60,7 @@ class RetargetTests(unittest.TestCase):
     def test_unusable_reading_is_not_fabricated(self):
         f.alternate_task(self.root)
         reading=c.load(self.root/'retarget/reading.json')
-        reading['applied'][0]['quote']='Invented text that was never present in the claimed source material for this target.'
+        reading['documents'][0]['sha256']='0'*64
         f.write(self.root/'retarget/reading.json',reading)
         with self.assertRaises(CompilationError):self.target(prepare=True)
         self.assertEqual(len(store.runs(self.root)),1)
@@ -78,6 +78,9 @@ class RetargetTests(unittest.TestCase):
         models['records'][0]['label']='Local synthetic image fixture, relabelled'
         f.write(path,models);pack_manager.write_lock(self.case['pack'])
         runtime.configure_pack_runtime(self.case['settings'])
+        from reading_fixtures import fixture_reading
+        f.write(self.root/'reading.json',fixture_reading(route='generation',studio=self.root,
+            ledger=self.root/'work/reads.jsonl',model=f.MODEL_ID,service='synthetic', execution='dispatcher'))
         parent=workflow.load_run(self.root,self.run)[1]
         drift=runtime_snapshot.current_diagnostics(self.root,parent['runtime_snapshot'],run=self.run)
         self.assertEqual([row['code'] for row in drift],['PACK_CONTENT_MISMATCH'])

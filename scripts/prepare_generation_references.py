@@ -964,6 +964,8 @@ def _validate_prepared_references(
         expected_fields = STATE_PREPARED_REFERENCE_FIELDS if expected is not None else GENERIC_PREPARED_REFERENCE_FIELDS
         if 'subject_uses' in raw:
             expected_fields = expected_fields | {'subject_uses'}
+        if 'reference_id' in raw:
+            expected_fields = expected_fields | {'reference_id'}
         _require_exact_fields(raw, expected_fields, field)
         role = _require_string(raw.get("role"), f"{field}.role", ROLE_RE)
         source = _validate_source(raw.get("source"), f"{field}.source", context=context)
@@ -988,6 +990,8 @@ def _validate_prepared_references(
         }
         if 'subject_uses' in raw:
             normalized['subject_uses'] = validate_subject_uses(raw['subject_uses'])
+        if 'reference_id' in raw:
+            normalized['reference_id'] = _require_string(raw['reference_id'], f'{field}.reference_id', IDENTIFIER_RE)
         if expected is not None:
             normalized['subject_id'] = _require_string(raw.get('subject_id'), f'{field}.subject_id')
             normalized["binding_id"] = _require_string(

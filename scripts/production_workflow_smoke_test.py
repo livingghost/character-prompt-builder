@@ -35,12 +35,12 @@ class ProductionTests(unittest.TestCase):
         task=ledger.begin(self.root,'Synthetic test',['prepare','deliver'])
         self.write('brief.md','A lamp. PRIVATE_SOURCE_NOT_FOR_CONSUMER.\n')
         self.write('delivery.txt','Describe one lamp.\n')
-        self.spec={'task_id':task['task_id'],'route':'development','features':[],
+        self.spec={'task_id':task['task_id'],'route':'development','features':[], 'execution':'external',
           'sources':[{'id':'brief','path':'brief.md','role':'world','locator':'whole','disposition':'applied','reason':'Explicit test premise.'}],
           'delivery':{'path':'delivery.txt','translation_notes':'Only public instructions.'},
           'criteria':[{'id':'lamp','strength':'hard','text':'Keep one lamp.'},{'id':'style','strength':'advisory','text':'Optional spare wording.'}],
           'world_views':[]}
-        fixture.task(self.root,self.spec)
+        fixture.task(self.root,self.spec,execution='external')
         self.save_spec()
 
     def write(self,name,value):
@@ -57,8 +57,14 @@ class ProductionTests(unittest.TestCase):
     def prepare(self): return w.prepare(self.root,'task.json')['run']
     def candidate(self,run=None,name='output.txt',content='One lamp.\n'):
         run=run or self.prepare(); fixture.handoff(self.root,run,'test','manual')
+        token=fixture.grant(self.root,run,w.external_intent(self.root,run,1))
+        w.claim_external(self.root,run,1,token)
         self.write(name,content)
-        return run,w.capture(self.root,run,name,'Synthetic fixture')
+        candidate=w.capture(self.root,run,name,'Synthetic fixture')
+        self.write('host-receipt.json',{'synthetic':True,'status':'received'})
+        w.receive_external(self.root,run,response_file='host-receipt.json',artifacts=[name],final=True,
+                           reason='The synthetic delegated fixture was received.')
+        return run,candidate
     def review_data(self,run,candidate):
         data=w.draft_review(self.root,run,candidate['sha256'])
         data.update(reviewer='synthetic reviewer',observations=[{'locator':{'kind':'whole'},'observation':'The fixture is inspected.'}],conclusion='Synthetic test only.')
@@ -274,6 +280,8 @@ class ProductionTests(unittest.TestCase):
             release.set(); t.join(30)
     def test_concurrent_capture(self):
         run=self.prepare(); fixture.handoff(self.root,run,'test','manual'); self.write('output.txt','One lamp.')
+        token=fixture.grant(self.root,run,w.external_intent(self.root,run,1))
+        w.claim_external(self.root,run,1,token)
         with ThreadPoolExecutor(max_workers=2) as pool:
             results=list(pool.map(lambda _:w.capture(self.root,run,'output.txt','test'),range(2)))
         self.assertEqual(results[0],results[1])

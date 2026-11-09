@@ -80,7 +80,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Terms in this category that put the subject close enough for a fragile part to occupy many pixels."
+          "description": "Terms whose meanings select close framing or give a subject or detail a large share of the frame."
         }
       },
       "additionalProperties": false

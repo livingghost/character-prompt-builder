@@ -1,49 +1,67 @@
 {
   "prompt-only-minimal": {
     "route": "prompt-only",
-    "features": []
+    "features": [],
+    "execution": "authored",
+    "operation": "author"
   },
   "prompt-only-anthropomorphic": {
     "route": "prompt-only",
     "features": [
       "subject-domain"
-    ]
+    ],
+    "execution": "authored",
+    "operation": "author"
   },
   "prompt-only-with-selected-reference": {
     "route": "prompt-only",
     "features": [
       "references"
-    ]
+    ],
+    "execution": "authored",
+    "operation": "author"
   },
   "persona-development": {
     "route": "development",
     "features": [
       "persona",
       "authorial-intent"
-    ]
+    ],
+    "execution": "authored",
+    "operation": "author"
   },
   "performance": {
     "route": "performance",
-    "features": []
+    "features": [],
+    "execution": "authored",
+    "operation": "author"
   },
   "world-realization": {
     "route": "world-realization",
-    "features": []
+    "features": [],
+    "execution": "authored",
+    "operation": "author"
   },
   "generation": {
     "route": "generation",
     "features": [
       "unlisted-interface"
-    ]
+    ],
+    "execution": "external",
+    "operation": "prepare"
   },
   "revision-review-resume": {
     "route": "revise",
-    "features": []
+    "features": [],
+    "execution": "authored",
+    "operation": "author"
   },
   "performance-reuse": {
     "route": "performance",
     "features": [
       "scene-persona"
-    ]
+    ],
+    "execution": "authored",
+    "operation": "author"
   }
 }

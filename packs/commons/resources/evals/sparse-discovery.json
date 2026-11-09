@@ -504,7 +504,49 @@
       "expected_inventory_categories": [
         "composition"
       ]
+    },
+    {
+      "id": "subject-held-camera",
+      "mode": "recommend",
+      "query": "portrait photographed with the subject holding the camera",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "camera-arm-length-self-portrait"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "camera"
+      ]
+    },
+    {
+      "id": "material-keeps-identity",
+      "mode": "recommend",
+      "query": "recognizable figure made from smoke",
+      "limit": 8,
+      "expected_candidate_ids": [
+        "rendering-material-defined-form"
+      ],
+      "minimum_candidates": 1,
+      "required_candidate_fields": [
+        "id",
+        "kind",
+        "source_pack",
+        "source_file",
+        "tier",
+        "outcome_summary"
+      ],
+      "expected_inventory_categories": [
+        "rendering"
+      ]
     }
   ],
-  "case_count": 24
+  "case_count": 26
 }

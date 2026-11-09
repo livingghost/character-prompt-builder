@@ -141,8 +141,8 @@ class DocumentationContractSmokeTest(unittest.TestCase):
 
     def test_preparation_and_material_reuse_have_distinct_reads(self) -> None:
         from execution_routes import resolve
-        preparing = {x['path'] for x in resolve('performance')['reads']}
-        reusing = {x['path'] for x in resolve('performance', ['scene-persona'])['reads']}
+        preparing = {x['path'] for x in resolve('performance', execution='authored')['reads']}
+        reusing = {x['path'] for x in resolve('performance', ['scene-persona'], execution='authored')['reads']}
         self.assertIn('templates/narrative/personas/persona-template.md', preparing)
         self.assertIn('references/runtime/scene-persona.md', reusing)
         self.assertNotIn('templates/narrative/personas/persona-template.md', reusing)
@@ -185,7 +185,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self._write(specialist, "# Specialist\n\nA route read delivers this document.")
         self._write(adapter, "# Stray Surface Adapter")
         manifest = {
-            "always_read": [],
+            "operation_contexts": {},
             "routes": {},
             "features": {"specialist": {"reads": [required, specialist, adapter], "source_roles": []}},
         }
@@ -201,7 +201,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
 
     def test_conversational_prompt_document_needs_its_own_link(self) -> None:
         relative = SKILL_DIRECT_LINKS[-1]
-        manifest = {"always_read": [], "routes": {},
+        manifest = {"operation_contexts": {}, "routes": {},
                     "features": {"prompt-help": {"reads": [relative], "source_roles": []}}}
         self._write("config/execution-routes.json", json.dumps(manifest))
         path = self.root / "SKILL.md"
@@ -427,7 +427,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn(check, generation)
         self.assertIn(check, prompt_artifacts)
         self.assertIn("uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...", skill)
-        self.assertIn("Use this same environment for every route", skill)
+        self.assertIn("Use this environment for every route", skill)
         self.assertLess(skill.index("## Mandatory execution environment"), skill.index("## Core contract"))
         self.assertIn("prompt-artifacts", prompt_artifacts)
         self.assertIn("same locked environment", prompt_artifacts)
@@ -463,18 +463,18 @@ class DocumentationContractSmokeTest(unittest.TestCase):
     def test_a_prompt_answered_in_conversation_reads_no_route(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         paths = skill.partition("## Choose a runtime path")[2].partition("\n- ")[0]
-        self.assertIn("with nothing saved, reads no route", paths)
+        self.assertIn("Conversation-only prompts read no route", paths)
         core = "references/runtime/prompt-only-core.md"
         self.assertIn(f"]({core})", paths)
         routes = json.loads((ROOT / "config/execution-routes.json").read_text(encoding="utf-8"))
         self.assertIn(core, routes["routes"]["prompt-only"]["reads"])
 
         gate = skill.partition("## Artifact-bearing production gate")[2].partition("\n## ")[0]
-        route_command = "`python scripts/execution_routes.py read ROUTE --root STUDIO`"
-        self.assertIn("For saved deliverables", gate)
+        route_command = "`python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO`"
+        self.assertIn("Saved work reads", gate)
         self.assertIn(route_command, gate)
         self.assertEqual(1, skill.count(route_command))
-        for marker in ("--page-bytes", "reading-actions", "`continue`", "`replay`", "reading-record"):
+        for marker in ("--operation", "reading-actions.continue", "reading-record", "--model-file"):
             self.assertIn(marker, gate)
 
         sequence = skill.partition("## Common runtime sequence")[2].partition("\n## ")[0]
@@ -482,12 +482,12 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn(f"]({owner})", sequence)
         self.assertIn("for every image deliverable", sequence)
         workflow = (ROOT / owner).read_text(encoding="utf-8")
-        self.assertIn("Conversation-only text needs no generation workflow.", workflow)
-        handoff = workflow.partition("## Authoring and handoff\n")[2].partition("\n## ")[0].strip()
-        self.assertTrue(handoff.startswith("Establish the Studio, open its work task and read the applicable route for saved work."))
+        self.assertIn("For saved work, initialize or reopen its Studio and work task.", workflow)
+        self.assertIn("## Open the current work", workflow)
+        self.assertIn("complete contract for the current operation", workflow)
 
     def test_paged_reading_guidance_matches_the_continuation_cli(self) -> None:
-        document = (ROOT / "references/runtime/production-execution.md").read_text(encoding="utf-8")
+        document = (ROOT / "references/runtime/production-authoring.md").read_text(encoding="utf-8")
         reading = document.partition("### Read the route to completion")[2].partition("\n### ")[0]
         for marker in ("reading-actions", "`argv`", "`command`", "`reason`", "`continue`", "`replay`",
                        "--reading-ledger", "CPB_READS_LEDGER", "reading-record"):
@@ -540,7 +540,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         prompt_only = (ROOT / "references/runtime/prompt-only-core.md").read_text(encoding="utf-8")
         composition = (ROOT / "references/runtime/prompt-composition.md").read_text(encoding="utf-8")
         output_template = (ROOT / "templates/output-template.md").read_text(encoding="utf-8")
-        workflow = (ROOT / "references/runtime/production-workflow.md").read_text(encoding="utf-8")
+        workflow = (ROOT / "references/runtime/production-authoring.md").read_text(encoding="utf-8")
 
         self.assertIn("resolve the optional `prompt-writing-guide`", workflow)
         self.assertIn("read the complete selected guide before final rendition", workflow)
@@ -788,7 +788,7 @@ class ReleaseDocumentationOwnershipTests(unittest.TestCase):
         from unittest.mock import patch
         from validate import check_documentation
         read = Path.read_text
-        for fragment, accepted in (('common-runtime-sequence', True), ('unavailable-synthetic-heading', False)):
+        for fragment, accepted in (('open-the-current-work', True), ('unavailable-synthetic-heading', False)):
             with self.subTest(fragment=fragment):
                 target = 'references/runtime/production-workflow.md#' + fragment
                 def with_anchor(path, *args, **kwargs):

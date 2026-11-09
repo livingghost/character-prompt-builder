@@ -338,7 +338,7 @@ class PersonaWorkflowTests(unittest.TestCase):
 class RoutingTests(unittest.TestCase):
     def test_persona_route_and_full_form_are_direct_skill_links(self):
         text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
-        route = resolve_route("development", ["persona"], root=ROOT)
+        route = resolve_route("development", ["persona"], execution='authored', root=ROOT)
         paths = {item["path"] for item in route["reads"]}
         for relative in (
             "references/runtime/narrative-development.md",

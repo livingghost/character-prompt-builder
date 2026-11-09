@@ -1,10 +1,34 @@
 # Reference-Corpus Visual-Technique Observation Guide
 
-Use this guide whenever supplied images are being converted into new or revised preset records. It complements `reference-corpus-detail-observation.md`, which handles localized identity details. This guide covers whole-image drawing technique, proportion, camera, gaze, light, depth, and staging. Use `performance-language-specification.md` for the complete multi-channel emotion and body-language pass.
+Use this guide when supplied images or prompt-output pairs inform new or revised
+preset records. It complements `reference-corpus-detail-observation.md`, which
+handles localized identity details. The observation knowledge below covers
+whole-image drawing technique, proportion, camera, gaze, light, depth and
+staging. Consult the applicable parts and `performance-language-specification.md`
+for a performance question; they provide knowledge rather than fields to fill
+for every source.
+
+## Contents
+
+- [Core rule](#core-rule)
+- [Evidence discipline](#evidence-discipline)
+- [Learn from a prompt-output pair](#learn-from-a-prompt-output-pair)
+- [Observation knowledge](#observation-knowledge)
+- [Classification after observation](#classification-after-observation)
+- [Cross-scene family audit](#cross-scene-family-audit)
+- [Promotion threshold](#promotion-threshold)
+- [Discovery handoff](#discovery-handoff)
+- [Style-family boundary review](#style-family-boundary-review)
+- [Record review](#record-review)
+- [Distance and crop are visual technique](#distance-and-crop-are-visual-technique)
 
 ## Core rule
 
-Inventory what is visibly happening before naming a style, scene, or module. Observe the complete image first, then separate the evidence by production function. Do not use subject matter as a shortcut for style, and do not treat every visible feature as a stable character trait.
+Understand the complete depiction before naming a style, scene or module.
+Observe its relationships and presentation, then assign reusable knowledge to
+its production function. Do not use subject matter as a shortcut for style or
+treat every visible feature as a stable character trait. An explanation of the
+image's construction is not automatically a list of necessary prompt clauses.
 
 A useful observation must let another agent understand the visual decision without seeing the source image. Record relationships, not only labels.
 
@@ -17,7 +41,53 @@ A useful observation must let another agent understand the visual decision witho
 - Compare against existing canonical records before creating a new ID.
 - Remove source names, signatures, logos, readable text, franchise identifiers, exact insignia geometry, and obvious editorial censorship devices from reusable knowledge. A mosaic, blur patch, opaque paint shape, sticker, bar, warning label, or replacement mark is source contamination; preserve the underlying supported semantic category and keep hidden fine structure unspecified.
 
-## Required observation inventory
+## Learn from a prompt-output pair
+
+Keep three contributions distinct: what the source text asks for, what the
+image visibly realizes, and what production knowledge may transfer to a new
+task. Read the image before using the prompt to explain it. An independent
+image reading can help expose assumptions when that comparison is the study's
+question; it is not a new production gate.
+
+Examine how the text selects meaningful concepts, relationships and distinctive
+details. A material term can invoke edge, highlight and deformation behavior
+together; a recognizable activity can imply ordinary handling and posture.
+The useful lesson may be that connected concept rather than a separate
+instruction for every resulting feature. Conversely, a polished output can
+change the requested action or design. Record such departures without treating
+the image as proof that its source wording was fully obeyed.
+
+Use available generation context at its actual scope. A sidecar may contain
+only the main prompt while embedded metadata records additional local prompts,
+references, adapters or later image processing. Distinguish saved settings from
+execution evidence and active connections from unused workflow nodes. Missing
+context limits claims about wording effectiveness; it need not prevent visual
+analysis. Model-specific syntax and response observations belong to their
+model or dialect owner, not to a universal depiction rule.
+
+One pair establishes a used input and an observed result when that association
+is supported. It does not establish the necessity, isolated effect or optimality
+of each token. Compare repeated inputs, variants and materially different uses
+when available. If several conditions change, retain a comparison of complete
+setups. Use a controlled trial only when the question actually concerns the
+effect of a particular change.
+
+Promote knowledge that helps choose and construct a new picture. State the
+effect, the meaningful concept or relationship that can produce it, the
+conditions where it is useful, and the choices that can vary. Keep precise
+detail when it defines the construction. Distinguish a general concept from
+one selected variant: a shallow-focus film still can be a reusable treatment,
+but shallow focus is not an invariant of all cinematic images. Store source
+pairs and their observations with their owning content collection; public
+teaching examples use independent subjects and briefs.
+
+## Observation knowledge
+
+Use these questions where they explain the image or the reusable decision.
+An image without a physical camera needs no inferred lens; a material study
+needs no invented expression. Preserve consequential fine information and
+uncertainty. The resulting record should teach a coherent construction rather
+than reproduce this section's headings as a checklist.
 
 ### 1. Image intent and center of appeal
 
@@ -33,7 +103,7 @@ Record:
 - foreground, subject, and background layers
 - crop boundaries and which body parts leave the frame
 - overlap order
-- focal sequence, including the first, second, and third reads
+- focal sequence and supporting reads where the image establishes them
 - how background value, edge density, and detail support the subject
 
 A scene record may preserve these relationships. A style family may preserve only the recurring background and detail treatment, not the specific body arrangement.
@@ -143,7 +213,8 @@ Temporary wetness, sweat, blush, dirt, injury, and lighting color are scene-visi
 
 ### 10. Support, contact, and action chains
 
-Trace every active structure from its root to its endpoint:
+For the action or construction being learned, follow its relevant connected
+structures and distinguish visible connections from inferred ones:
 
 - shoulder to elbow to wrist to hand or paw
 - hip to knee to ankle to foot
@@ -207,7 +278,7 @@ When the evidence generalizes an existing scene-named family, revise the single 
 
 ## Promotion threshold
 
-A vocabulary record may be promoted to curated when the reference material supplies a reusable visual function, a complete affirmative construction, at least three adaptation invariants, and at least three nearby misreadings. A new scene must preserve body geometry, action, gaze, contact, depth, crop, focal hierarchy, lighting geometry, adaptation fields, and diagnostic failures.
+A vocabulary record may be promoted to curated when the reference material supplies a reusable visual function, a complete affirmative construction, at least three adaptation invariants, and at least three nearby misreadings. A new scene preserves the applicable body or object geometry, action, gaze, contact, depth, crop, focal hierarchy and lighting relationships, with adaptation fields and diagnostic failures. An invariant belongs to that construction's declared scope; a visible choice does not become invariant merely because it is easy to measure.
 
 A new style family requires repeated evidence that the finish axes operate together under the cross-scene audit above. One strong image can justify an atomic module or scene when its construction is independently reusable, but one image rarely establishes a complete cross-domain style family by itself.
 
@@ -234,9 +305,9 @@ Read `references/runtime/sparse-discovery.md` for knowledge discovery and `refer
 
 After the observation inventory, compare the extracted line, form, shadow, highlight, color, surface, background, and detail hierarchy against every nearby canonical family. Test the grammar on a materially different scene and remove scene nouns, species, body build, camera, relationship, temporary state, and source-specific graphics. If the finish survives, it may support a family. If new evidence shows that an existing family is named after a season, room, prop, or one effect even though the grammar transfers elsewhere, generalize that family through reviewed lossless authoring and update all references to its current canonical ID. Record the comparison in the family record's `nearest_family` and `boundary` fields. Validate a released pack and its required dependencies with `scripts/pack_release_gate.py`. Use `scripts/style_family_audit.py` only as a focused development diagnostic with the same explicit pack runtime.
 
-## Final review checklist
+## Record review
 
-Before committing a record, verify:
+Review the completed record against its function and applicable evidence:
 
 - The whole-image center of appeal was identified before parts were classified.
 - Base proportion was separated from perspective enlargement.

@@ -35,7 +35,7 @@ EVENTS = {'authorization', 'handoff', 'external-claim', 'dispatch-claim',
           'dispatch-results', 'candidate', 'review', 'selection', 'edit',
           'adoption-claim', 'adoption-result', 'image-edit-claim', 'image-edit-output', 'completion',
           'disposition', 'handoff-ready', 'capture-status', 'execution-outcome', 'abandoned',
-          'slot-acceptance', 'cleanup-observation'} | lifecycle.EVENTS
+          'slot-acceptance', 'cleanup-observation', 'authored-save', 'authored-delivery', 'authored-review'} | lifecycle.EVENTS
 
 
 def run_identifier(run: Any) -> str:
@@ -64,7 +64,12 @@ def validate_task(task: Any) -> dict:
     if isinstance(task, dict):
         production_identifier(task.get('production_id'))
     schema_check(task, 'task')
-    route = execution_routes.resolve(task['route'], task['features'])
+    if task.get('authored') is not None and task['execution'] != 'authored':
+        raise ValueError('authored completion and target choices belong to an authored task')
+    if task.get('authored_basis') is not None and task['execution'] != 'authored':
+        raise ValueError('an authored assessment basis belongs to an authored task')
+    route = execution_routes.resolve(task['route'], task['features'], execution=task['execution'],
+        operation='author' if task['execution']=='authored' else 'prepare')
     plan.strings(task['features'], 'features')
     if bool(task.get('semantic_edit')) != ('semantic-instruction-edit' in route['features']):
         raise ValueError('semantic-instruction-edit requires an explicit semantic_edit plan and vice versa')
@@ -345,9 +350,15 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
     if 'route-reading' in checked:
         issuance = checked['route-reading']
     else:
-        issuance = route_reading.require_route_reading(reading, studio=root, routes={task['route']}, features=task['features'])
+        issuance = route_reading.require_route_reading(reading, studio=root, routes={task['route']},
+                                                       features=task['features'], execution=task['execution'])
     for source in task['sources']:
         add(root, source['path'])
+    for source in (task.get('authored_basis') or {}).get('sources', []):
+        item = source['file']
+        raw = add(root, item['path'])
+        if c.digest(raw) != item['sha256'] or len(raw) != item['size']:
+            raise ValueError('authored original source differs from its exported bytes: ' + item['path'])
     for source in task.get('upload_sources', []):
         add(root, source['file'])
     plan.validate_variation_bindings(task, {source['id']: c.digest(captured[source['path']]) for source in task['sources']})
@@ -485,13 +496,51 @@ def validate_protected_criteria(root: Path, prepared: dict, grant: dict, *, revi
 def _prepare(root: Path, task_path: str, *, parent: dict | None = None, identity: str | None = None) -> dict:
     """Compile one task and publish only its complete, verified result."""
     from production_compiler import prepare_task
-    return prepare_task(c._root(root), task_path, parent=parent, identity=identity)
+    result = prepare_task(c._root(root), task_path, parent=parent, identity=identity)
+    if read_run(root, result['run']).prepared['task']['execution'] == 'authored':
+        from production_authored import record_save
+        result.update(record_save(root, result['run']))
+    return result
 
 
 @runtime_snapshot.operation
-def prepare(root: Path, task: str, *, identity: str | None = None) -> dict:
-    """Prepare one task; an owning batch may reserve the identity before publication."""
-    return _prepare(c._root(root), task, identity=identity)
+def prepare(root: Path, task: str | None = None, *, choices: str | None = None,
+            identity: str | None = None) -> dict:
+    """Compile the selected editing source and publish its exact verified input."""
+    root = c._root(root)
+    if (task is None) == (choices is None):
+        raise ValueError('prepare selects exactly one task or editable choices file')
+    if choices is None:
+        return _prepare(root, task, identity=identity)
+    from production_inputs import compile_choices
+    from production_compiler import publish_compilation
+    compiled = compile_choices(root, choices, persist=True, identity=identity)
+    result = publish_compilation(root, compiled)
+    if compiled.prepared['task']['execution'] == 'authored':
+        from production_authored import record_save
+        result.update(record_save(root, result['run']))
+    return result
+
+
+@runtime_snapshot.operation
+def save(root: Path, choices: str, *, draft: bool = False) -> dict:
+    """Save one authored revision, retaining unfinished choices when requested."""
+    from production_authored import save as save_revision
+    return save_revision(c._root(root), choices, draft=draft)
+
+
+@runtime_snapshot.operation
+def deliver(root: Path, run: str, receipt: str | None = None, *, destination: str | None = None) -> dict:
+    """Deliver exact saved bytes locally, or record an actual external handoff."""
+    from production_authored import deliver as record_delivery
+    return record_delivery(c._root(root), run, receipt, destination=destination)
+
+
+@runtime_snapshot.operation
+def review_authored(root: Path, run: str, review_file: str) -> dict:
+    """Record the observed authored artifact against its independent criteria."""
+    from production_authored import review as record_review
+    return record_review(c._root(root), run, review_file)
 
 
 def _validate_publication_content(run: str, prepared: dict, consumer: dict, read_object,
@@ -529,6 +578,8 @@ def _validate_publication_content(run: str, prepared: dict, consumer: dict, read
                                        file=dependency['path'], run=run, expected=key, actual=c.digest(raw),
                                        space=dependency['space'], artifact='objects/' + key)
         known[key] = len(raw)
+    from production_authored import validate_publication
+    validate_publication(prepared, consumer, read_object)
 
 
 def _validate_run_history(run: str, prepared: dict, history, read_object,
@@ -669,6 +720,7 @@ def _current_source_inputs(root: Path, run: str, prepared: dict, *, force: bool 
                                                    previous=previous_runtime)
         route_reading.require_route_reading(prepared['route_reading'],studio=root,
             routes={prepared['task']['route']},features=prepared['task']['features'],
+            execution=prepared['task']['execution'],
             resource_reader=fixed.read_resource if fixed is not None else None,
             read_source=sources.skill_bytes)
     except (ValueError,OSError) as exc:
@@ -1250,6 +1302,11 @@ def review_basis(root: Path, run: str, candidate: str | None = None) -> dict:
     """Read frozen assessment context separately from the reviewer's editable answers."""
     loaded = read_run(root, run)
     directory, prepared, consumer, rows = loaded
+    if prepared['task']['execution'] == 'authored':
+        if candidate is not None:
+            raise ValueError('an authored review assesses its saved revision')
+        from production_authored import review_basis as authored_basis
+        return authored_basis(loaded)
     if candidate is not None:
         find(rows, 'candidate', candidate)
     from craft_consultation import review_questions
@@ -1281,8 +1338,15 @@ def review_basis(root: Path, run: str, candidate: str | None = None) -> dict:
 
 
 @runtime_snapshot.operation
-def draft_review(root: Path, run: str, candidate: str) -> dict:
+def draft_review(root: Path, run: str, candidate: str | None = None) -> dict:
     _, prepared, _, rows = read_run(root, run)
+    if prepared['task']['execution'] == 'authored':
+        if candidate is not None:
+            raise ValueError('an authored review assesses its saved revision')
+        from production_authored import draft_review as authored_draft
+        return authored_draft(prepared)
+    if candidate is None:
+        raise ValueError('a generated result review requires its candidate')
     find(rows, 'candidate', candidate)
     return {'input_sha256': prepared['input_sha256'], 'candidate': candidate, 'reviewer': '',
             'evidence': [], 'observations': [],
@@ -1515,6 +1579,26 @@ def latest_review(rows: list[dict], candidate: str) -> dict:
     return found[-1]
 
 
+def review_evaluation(criteria: list[dict], review: dict | None) -> tuple[str, list[str]]:
+    """Summarize actual criterion coverage without treating a review event as a verdict."""
+    expected = {item['id'] for item in criteria}
+    checks = review['checks'] if review is not None else []
+    verdicts = {item['verdict'] for item in checks}
+    assessed = {item['criterion'] for item in checks if item['verdict'] != 'not-assessed'}
+    unassessed = sorted(expected - assessed)
+    if not assessed:
+        evaluation = 'unreviewed'
+    elif 'fail' in verdicts:
+        evaluation = 'nonconforming'
+    elif 'indeterminate' in verdicts or review['unresolved']:
+        evaluation = 'indeterminate'
+    elif unassessed:
+        evaluation = 'partially_reviewed'
+    else:
+        evaluation = 'conforming'
+    return evaluation, unassessed
+
+
 @runtime_snapshot.operation
 def candidate_state(root: Path, run: str, candidate: str, *, loaded: tuple | None = None) -> dict:
     """Project evaluation and disposition from the one official event stream.
@@ -1534,21 +1618,8 @@ def candidate_state(root: Path, run: str, candidate: str, *, loaded: tuple | Non
     state = lifecycle._indexed(rows, prepared, run)
     chosen = state.find('candidate', candidate)
     latest = state.review(candidate)
-    expected = {x['id'] for x in prepared['task']['criteria']}
-    checks = latest['data']['review']['checks'] if latest else []
-    verdicts = {x['verdict'] for x in checks}
-    assessed = {x['criterion'] for x in checks if x['verdict'] != 'not-assessed'}
-    unassessed = sorted(expected - assessed)
-    if not assessed:
-        evaluation = 'unreviewed'
-    elif 'fail' in verdicts:
-        evaluation = 'nonconforming'
-    elif 'indeterminate' in verdicts or latest['data']['review']['unresolved']:
-        evaluation = 'indeterminate'
-    elif unassessed:
-        evaluation = 'partially_reviewed'
-    else:
-        evaluation = 'conforming'
+    evaluation, unassessed = review_evaluation(
+        prepared['task']['criteria'], latest['data']['review'] if latest else None)
     decision = state.decision(candidate)
     disposition_value = ('pending' if decision is None else 'selected' if decision['event'] == 'selection'
                          else decision['data']['disposition']['disposition'])
@@ -1815,6 +1886,9 @@ def complete(root: Path, run: str) -> dict:
             directory, prepared, _, rows = read_run(root, run)
             if any(item['event'] == 'completion' for item in rows):
                 row = verify_completion(root, run, prepared['task']['task_id'])
+            elif prepared['task']['execution'] == 'authored':
+                from production_authored import completion_data
+                row = append_record(directory, prepared, rows, 'completion', completion_data(prepared, rows))
             else:
                 selection, chosen, reviewed = current_selection(prepared, rows)
                 if chosen['scope'] == 'studio-adoption':
@@ -1837,6 +1911,11 @@ def verify_completion(root: Path, run: str, task_id: str) -> dict:
     if prepared['task']['task_id'] != task_id or done['data']['task_id'] != task_id or done['data']['run'] != run:
         raise ValueError('completion belongs to another task')
     completed = [row for row in rows if row['sequence'] < done['sequence']]
+    if prepared['task']['execution'] == 'authored':
+        from production_authored import completion_data
+        if done['data'] != completion_data(prepared, completed):
+            raise ValueError('authored completion differs from its recorded results')
+        return done
     selection, selected, reviewed = current_selection(prepared, completed)
     expected = {'selection': selection['sha256'], 'candidate': selected['candidate'],
                 'scope': selected['scope'], 'task_id': task_id, 'run': run,
@@ -1915,7 +1994,8 @@ def status(root: Path, run: str | None = None) -> dict:
     return report(root, run)
 
 
-def changed_scopes(before: dict, after: dict) -> list[str]:
+def changed_scopes(before: dict, after: dict, *, before_inputs: dict | None = None,
+                   after_inputs: dict | None = None) -> list[str]:
     """Conservative explicit edit scopes, never inferred aesthetic causality."""
     old, new = before['task'], after['task']
     scopes: set[str] = set()
@@ -1945,6 +2025,13 @@ def changed_scopes(before: dict, after: dict) -> list[str]:
     declared = {x['path'] for x in old['sources'] + new['sources']}
     declared.update((old['delivery']['path'], new['delivery']['path'],
                      before['task_path'], after['task_path']))
+    from image_input import revision_scopes
+    image_changes = revision_scopes(before_inputs, after_inputs)
+    if image_changes is not None:
+        scopes.update(image_changes['scopes'])
+        declared.update(image_changes['paths'])
+        declared.update(path for path in (old.get('image_input'), new.get('image_input'))
+                        if path is not None)
     if any(space == 'studio' and path not in declared and old_dependencies.get((space, path)) != new_dependencies.get((space, path))
            for space, path in old_dependencies.keys() | new_dependencies.keys()):
         scopes.add('execution')
@@ -1953,7 +2040,7 @@ def changed_scopes(before: dict, after: dict) -> list[str]:
 
 @runtime_snapshot.operation
 def revision_intent(root: Path, run: str, task: str, candidate: str, repair: str) -> dict:
-    _, prepared, _, rows = read_run(root, run)
+    _, prepared, consumer, rows = read_run(root, run)
     find(rows, 'candidate', candidate)
     reviewed = latest_review(rows, candidate)
     matches = [r for r in reviewed['data']['review']['repairs'] if r['id'] == repair]
@@ -1964,7 +2051,8 @@ def revision_intent(root: Path, run: str, task: str, candidate: str, repair: str
         raise ValueError('revision must remain within the current work task')
     if revised['task']['production_id'] != prepared['task']['production_id']:
         raise ValueError('a revision preserves its production_id')
-    scopes = changed_scopes(prepared, revised)
+    scopes = changed_scopes(prepared, revised, before_inputs=consumer.get('image_input'),
+                            after_inputs=revised_consumer.get('image_input'))
     if not scopes:
         raise ValueError('repair contains no changed production inputs')
     if set(scopes) - set(matches[0]['targets']):
@@ -2450,6 +2538,10 @@ def draft_authorization_from(loaded: RunView, authority: store.CurrentAuthority,
 COMMAND_HELP = {
     'check': 'Check a task and show its request preview and execution plan without creating a run.',
     'prepare': 'Check a task and publish it as a prepared run with its exact request and execution plan.',
+    'save': 'Save an authored revision from its editable choices, retaining unresolved input when --draft is selected.',
+    'record-save': 'Record the saved authored revision after an interrupted publication.',
+    'deliver': 'Copy this saved authored revision to a local destination, or record actual external presentation or attachment evidence.',
+    'review-authored': 'Record an evidence-backed review of the saved authored artifact against its independent assessment basis.',
     'draft-execution': 'Write the unanswered execution decision file for every operation of a prepared run.',
     'execute': 'Apply the separate execution decisions, then dispatch or hand the exact request to its external host once.',
     'resume': 'Recover the same execution without sending it again where a send has started.',
@@ -2470,7 +2562,7 @@ COMMAND_HELP = {
     'draft-authorization': 'Write an unanswered authorization request for one exact operation intent.',
     'authorize': 'Record a completed authorization request for one exact operation of a run.',
     'capture': 'Record a received result file as a candidate of the run.',
-    'draft-review': 'Write the compact unanswered review form of one candidate.',
+    'draft-review': 'Write the unanswered review form of a saved authored revision or one generated candidate.',
     'review': 'Record a completed review of one candidate.',
     'draft-disposition': 'Write the form that records a candidate as not selected.',
     'disposition': 'Record an explicit decision that a candidate is not selected.',
@@ -2484,7 +2576,7 @@ COMMAND_HELP = {
     'revise': 'Prepare a revised task as a new run under an authorized edit of a reviewed repair.',
     'adoption-intent': 'Show the exact adoption operation that a canonical adoption needs authorized.',
     'adopt': 'Adopt a selected candidate as canon under its own exact authorization.',
-    'complete': 'Complete the work task with its current selection.',
+    'complete': 'Complete the work task with its required authored results or current selected execution result.',
     'impact': 'Compare a run with its current sources and list what each change affects.',
 }
 # One sentence for each option, by destination; a (command, destination) entry is more specific.
@@ -2515,7 +2607,8 @@ OPTION_HELP = {
     'pack_dir': 'Pack directory that receives a catalog adoption.',
     'without_streams': 'Leave stdout.log and stderr.log out of the export.',
     'from_run': 'Saved run of the same work task and production to start from.',
-    'choices': 'Completed choices file from draft-inputs.',
+    'choices': 'Editable choices file from draft-inputs.',
+    'draft': 'Save unfinished authored text with its unresolved choices instead of claiming finished model input.',
     'focus': 'Craft layer to consult.',
     'inspect': 'Craft asset IDs to show in full.',
     'consultation': 'Studio-relative craft consultation report to apply.',
@@ -2534,6 +2627,8 @@ OPTION_HELP = {
     ('authority-import', 'file'): 'Grant file of the work task, or - for stdin.',
     ('authorize', 'file'): 'Completed authorization request file, or - for stdin.',
     ('review', 'file'): 'Completed review file from draft-review, or - for stdin.',
+    ('deliver', 'file'): 'Receipt identifying actual presentation or attachment evidence, or - for stdin.',
+    ('review-authored', 'file'): 'Completed common review form from draft-review, with observed evidence and limitations, or - for stdin.',
     ('select', 'file'): 'Completed selection file from draft-selection, or - for stdin.',
     ('accept', 'file'): 'Completed owner decision from draft-acceptance, or - for stdin; omit to resume the recorded selection.',
     ('selection-intent', 'file'): 'Completed selection file from draft-selection, or - for stdin.',
@@ -2544,7 +2639,7 @@ OPTION_HELP = {
 # Arguments that name one JSON input file and accept - for stdin.
 STDIN_INPUTS = ('decisions_file', 'file', 'request', 'intent', 'approval', 'outcome_file', 'registration_record', 'changes_file')
 # Arguments that name a studio file.
-FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'artifact', 'response_file', 'submission_file')
+FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'choices', 'artifact', 'response_file', 'submission_file')
 
 
 def build_parser():
@@ -2562,7 +2657,7 @@ def build_parser():
     for name in COMMAND_HELP:
         p = sub.add_parser(name, help=COMMAND_HELP[name], description=COMMAND_HELP[name])
         p.add_argument('--root', type=Path, required=name not in {'logs', 'logs-export', 'logs-cleanup'})
-        if name not in {'prepare', 'check', 'authority-import', 'staging-cleanup', 'logs', 'logs-export', 'logs-cleanup', 'status'}:
+        if name not in {'prepare', 'check', 'save', 'authority-import', 'staging-cleanup', 'logs', 'logs-export', 'logs-cleanup', 'status'}:
             p.add_argument('--run', required=True)
         if name in {'status', 'logs', 'logs-export'}:
             p.add_argument('--run')
@@ -2591,11 +2686,18 @@ def build_parser():
             group.add_argument('--before', help='Select completed diagnostic operations created before YYYY-MM-DD.')
             group.add_argument('--operation', help='Select one operation ID for cleanup assessment.')
             p.add_argument('--apply', action='store_true', help='Delete eligible diagnostic logs. Omit for a dry-run plan.')
-        if name in {'check', 'prepare', 'revision-intent', 'revise'}:
+        if name in {'revision-intent', 'revise'}:
             p.add_argument('--task', required=True)
-            if name in {'prepare', 'check'}:
-                from pack_runtime_cli import add_pack_runtime_arguments
-                add_pack_runtime_arguments(p)
+        if name in {'check', 'prepare'}:
+            source = p.add_mutually_exclusive_group(required=True)
+            source.add_argument('--task')
+            source.add_argument('--choices')
+        if name == 'save':
+            p.add_argument('--choices', required=True)
+            p.add_argument('--draft', action='store_true')
+        if name in {'prepare', 'check', 'save'}:
+            from pack_runtime_cli import add_pack_runtime_arguments
+            add_pack_runtime_arguments(p)
         if name in {'handoff', 'handoff-intent'}:
             p.add_argument('--recipient', required=True)
             p.add_argument('--method', required=True, choices=['conversation', 'manual', 'dispatcher'])
@@ -2603,9 +2705,15 @@ def build_parser():
             p.add_argument('--authorization', required=True)
         if name in {'external-intent', 'claim-external'}:
             p.add_argument('--count', type=int, required=True)
-        if name in {'draft-review', 'draft-selection', 'draft-acceptance', 'draft-disposition', 'candidate-status', 'revision-intent', 'revise', 'adopt', 'adoption-intent'}:
+        if name in {'draft-selection', 'draft-acceptance', 'draft-disposition', 'candidate-status', 'revision-intent', 'revise', 'adopt', 'adoption-intent'}:
             p.add_argument('--candidate', required=True)
-        if name in {'authorize', 'review', 'select', 'selection-intent', 'disposition'}:
+        if name == 'draft-review':
+            p.add_argument('--candidate', help='Actual candidate for a generated result; omit for an authored revision.')
+        if name == 'deliver':
+            delivery = p.add_mutually_exclusive_group(required=True)
+            delivery.add_argument('--to', help='Studio-relative local destination; an existing different file is a conflict.')
+            delivery.add_argument('--file', help='Actual external presentation or attachment evidence, or - for stdin.')
+        if name in {'authorize', 'review', 'select', 'selection-intent', 'disposition', 'review-authored'}:
             p.add_argument('--file', required=True)
         if name == 'accept':
             p.add_argument('--file')
@@ -2719,7 +2827,7 @@ def main() -> int:
         if root is not None:
             _studio_arguments(root, args)
             _stdin_inputs(root, args)
-        if name in {'prepare', 'check', 'retarget'}:
+        if name in {'prepare', 'check', 'save', 'retarget'}:
             from pack_runtime_cli import resolve_pack_runtime, has_pack_runtime_arguments
             if has_pack_runtime_arguments(args):
                 from catalog_retrieval import runtime
@@ -2740,7 +2848,26 @@ def main() -> int:
             result = candidate_state(root, args.run, args.candidate)
         elif name == 'check':
             from production_compiler import check_task
-            result = check_task(root, args.task)
+            if args.choices:
+                compiled_choices = production_inputs.compile_choices(root, args.choices)
+                try:
+                    result = compiled_choices.report
+                    if result.get('execution_plan') is not None:
+                        result['execution_plan']['run'] = None
+                finally:
+                    if compiled_choices.directory is not None:
+                        shutil.rmtree(compiled_choices.directory)
+            else:
+                result = check_task(root, args.task)
+        elif name == 'save':
+            result = save(root, args.choices, draft=args.draft)
+        elif name == 'record-save':
+            from production_authored import record_save
+            result = record_save(root, args.run)
+        elif name == 'deliver':
+            result = deliver(root, args.run, args.file, destination=args.to)
+        elif name == 'review-authored':
+            result = review_authored(root, args.run, args.file)
         elif name == 'draft-execution':
             from production_execution import draft_execution
             result = draft_execution(root, args.run, args.grant)
@@ -2771,7 +2898,7 @@ def main() -> int:
             result = draft_outcome(root, args.run)
             _write_new(root, args.out, result)
         elif name == 'prepare':
-            result = prepare(root, args.task)
+            result = prepare(root, args.task, choices=args.choices)
         elif name == 'handoff-intent':
             result = handoff_intent(root, args.run, args.recipient, args.method)
         elif name == 'handoff':

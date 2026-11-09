@@ -190,10 +190,8 @@ class ConsultationTests(unittest.TestCase):
     def test_review_question_reaches_actual_prepared_run(self):
         output = self.apply()
         run = workflow.prepare(self.root, output['task'])['run']
-        import production_fixtures
-        production_fixtures.handoff(self.root, run, 'synthetic reviewer', 'manual')
-        self.write('result.txt', 'One lamp with readable shadow detail.')
-        candidate = workflow.capture(self.root, run, 'result.txt', 'Synthetic local text, not a model image.')
+        _, candidate = self.fixture.candidate(run=run, name='result.txt',
+                                              content='One lamp with readable shadow detail.')
         draft = workflow.draft_review(self.root, run, candidate['sha256'])
         check = next(row for row in draft['checks'] if row['criterion'] == 'lamp')
         basis = workflow.review_basis(self.root, run, candidate['sha256'])
@@ -226,10 +224,8 @@ class ConsultationTests(unittest.TestCase):
 
     def test_review_reads_the_prepared_application_snapshot(self):
         result = self.apply(); run = workflow.prepare(self.root, result['task'])['run']
-        import production_fixtures
-        production_fixtures.handoff(self.root, run, 'synthetic reviewer', 'manual')
-        self.write('result.txt', 'One lamp with readable shadow detail.')
-        candidate = workflow.capture(self.root, run, 'result.txt', 'Synthetic local text.')
+        _, candidate = self.fixture.candidate(run=run, name='result.txt',
+                                              content='One lamp with readable shadow detail.')
         app = c.load(self.root / result['application'])
         app['applications'][0]['review_question'] = 'Changed after preparation.'
         self.write(result['application'], app)

@@ -1,0 +1,177 @@
+# Production authoring
+
+Edit the commission, selected depiction and source use at their owning locations. Save authored text or prepare an image request from those same choices. The author judges meaning; the input owners derive paths, hashes and repeated bindings.
+
+## Assemble authored choices
+
+Use [Craft consultation](craft-consultation.md) while deciding what to write or revise.
+Open the work task before reading or drafting its inputs, using
+`work_ledger.py begin --studio STUDIO --goal TEXT --step TEXT`. Reuse its task ID
+through input authoring and preparation. The input builders and route reader
+save their progress under that task automatically.
+
+### Read the route to completion
+
+Begin with the route, current operation, actual execution kind, applicable features and the target's model or prompt family. Select `--execution authored`, `external` or `dispatcher` from the task. `--operation author` and `save` deliver the applicable authoring contract; `prepare`, `execute`, `review` and `adopt` deliver their complete owning contracts for that execution. Omit the operation to use the route's declared default, shown by `execution_routes.py inspect ROUTE --execution EXECUTION`. Every route read is paged by default, with at most 16,384 source bytes per page. Use `--page-bytes N` to select another source-byte budget:
+
+```bash
+python scripts/execution_routes.py read reference-artifacts --operation author --execution authored --root STUDIO --feature sparse-retrieval --page-bytes 16384
+```
+
+Each page prints its source text and a `reading-actions: ` line containing JSON. While source bytes remain, its `continue` action reads the next page. Its `replay` action reads the delivered page again. Each action contains an `argv` argument array, the same invocation quoted as `command`, and its purpose in `reason`. Execute the complete returned `argv`, or the complete `command` string. Continue until the command prints `reading-key` and the final `reading-record` path.
+
+The action retains the selected environment's Python, the installed script, the absolute reading ledger, the Studio when present, the page budget and the snapshot's exact pack runtime, including its additional discovery roots. The cursor supplies the saved route, operation, execution, features, selected model and prompt family. `--reading-ledger` locates that existing reading for continuation or replay. The initial read gives an explicit `CPB_READS_LEDGER` location priority; otherwise it uses the specified or current Studio's ledger, then the configured home ledger.
+
+The reader delivers the complete bodies for the selected operation, execution, route and specialist features, including their applicable prerequisites and recovery rules. Authored text receives its save, delivery and review contract. An external request receives the native request and host-call contract; dispatcher work receives its package, authentication and transport contract. Their prerequisites, constraints, exceptions and recovery instructions arrive through this same reading; following their links is not a substitute for delivery. It preserves all source bytes across pages and issues neither a reading key nor a reading record until every source range has been delivered. The final source check still verifies the snapshot's document, resource and selected-model hashes. If the source edition changed during reading, begin a new route reading from that edition.
+
+An acquired model definition outside the catalog uses `--model-file FILE` in place of `--model`. A relative file is resolved within the Studio. The reader delivers the same complete model and writing guidance, binds its exact edition, and retains its source for page continuation and fresh-context reading. This source matches `authored.target.model_file` when saving a target-specific prompt.
+
+## Use the delivered knowledge
+
+Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Preserve authored meaning while applying its syntax and target evidence. Inspect complete selected knowledge records for actual construction questions. A selected specification records the depiction; its fields do not prescribe sentence order or independent criteria of success. For character reuse, resolve actual reference coverage and stage targets.
+
+The final `reading-record` is complete when issued. Set `choices.reading.reading_key`
+to that issued key. The input owner resolves the exact document editions, selected
+resource scope and delivered model guidance from the issuance. When authoring a
+task directly, name the emitted file as `task.route_reading`.
+
+Choose the model with `--model MODEL_ID` and its offering with `--service SERVICE_ID`
+when already selected. Without a service, the read delivers that model's complete
+offering guidance for selection. With `prompt-dialect`, `--dialect ID` instead
+selects a known writing family without claiming a selected model. Unknown targets
+use the neutral guidance. Each selected card and writing scope arrives through
+the same complete, paged snapshot. A current operation may use an already delivered
+superset only when the required current source editions and model scope match.
+
+Keep reasons for expression and source use at those actual choices. The delivery
+receipt records which source bytes reached this context; it is not an exercise
+in quoting instructions and does not certify comprehension or artistic quality.
+For a new agent or lost context, read the complete contract for the current work
+again using the status action. A prior delivery record alone supplies no knowledge.
+
+- `inspect-inputs` gathers the current task, authored content, source roles, recorded candidates and unresolved choices.
+- `draft-inputs` creates `choices.json` as the editing source and a separate `context.json` for provenance and the selected starting point. `choices.authoring` holds meaningful task decisions, selectors for editable delivery and selected documents, and reference-use choices. The original files own their content; the context file owns derived provenance.
+- `save --choices FILE` saves an authored revision; `prepare --choices FILE` compiles the current editable sources and prepares a model request. Both use the same input owners. `build-inputs` exports the derived files when a separate input package is wanted; it is not a required step before saving or preparation.
+
+Start a new authored text task without first constructing a production-task file:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --route prompt-only --artifact text --execution authored --out-dir work/first-draft
+python scripts/production_workflow.py save --root STUDIO --choices work/first-draft/choices.json
+```
+
+Between those calls, author the commission's selected depiction, delivery,
+source roles, independent criteria and current knowledge selections. The open
+work task supplies its identity. Select the actual execution kind and route;
+new image work additionally needs its target, rendering and input evidence.
+Unresolved choices stay explicit. `save --draft` preserves them with unfinished text. A completed target-specific prompt and an executable request apply their required input and vocabulary contracts; a saved draft does not certify either.
+
+To edit existing work, draft with `--task FILE` or `--from-run RUN` instead of
+the new-task selectors. Edit the same source files, then save or prepare that draft.
+The saved context identifies its source, so the build can continue from the
+choices file without reconstructing the source command or choosing a new generated output path. Preserve the context
+beside its choices. Inspect the emitted request before preparing or sending it.
+
+| Authored area | Edit here | Builder responsibility |
+| --- | --- | --- |
+| `authoring.task` | Direction, criteria, declared source use and applicable task choices | Bind materialized inputs into the task |
+| `authoring.delivery.file` | Directly editable text, or a JSON document with an optional `field` key/index array; translation notes only for an actual translation | Read the exact selected content and bind its delivered bytes |
+| `authoring.documents` | Selected settings and any required specialist material, inline or `{ "file": "path", "field": ["key"] }` | Read their owning files, materialize derived content and bind task references |
+| `authoring.sources` | Declared text or JSON source content by source ID | Preserve source roles and locators, write the selected body and update its path |
+| `authoring.generation` | Selected service, count, seed, continuity and applicable generation choices | Carry these choices into the declared generation input |
+| `authoring.references` | Ordered source selection, uses, exclusions, subject scope and transport choice | Rebuild the prepared set, attachment order, board placement and content hashes |
+| `authoring.upscale` | Selected source, model, scale, settings, guidance and applicable evidence | Build the upscale declaration and reuse its valid evidence |
+
+These are separate meanings within one editable source. Criteria remain based
+on the commission. A selected plot or other adopted specialist artifact retains its own approval and version; work that does not use it needs no empty substitute. A prompt
+wording edit does not by itself require rewriting the plot or criteria.
+The builder does not infer new approval, source authority or semantic agreement
+from successful file assembly. Existing grants remain subject to their actual
+scope; a new run does not inherit an exact execution authorization or claim.
+
+[Model request evidence](model-evidence.md#the-request-validation-record) states when a task needs an authored request validation record.
+An incomplete selection returns named unresolved fields and leaves the source
+task unchanged. When a canonical external reference needs an actual upload,
+the builder can publish its carriers and input report for that next action,
+without publishing an executable task or provider request.
+An explicit `--task FILE` or `--from-run RUN` can also select the build's source.
+A saved run supplies its captured task and exact delivery, so the operator does
+not copy a task into another editing document. Reassess changed source use and expression at their owning choices. Explicit `task_changes` overlays
+select changed source, depiction, route or review fields; use the current
+`authoring` content for ordinary editing. Authority and task identity retain
+their owners.
+
+For external work, [External request inputs](production-external-inputs.md) owns the native request, media mappings and actual upload evidence.
+
+For identity-bearing work, construct the character's forms, details,
+relationships and performance in the chosen scene from its adopted definition.
+Choose the text and reference views that communicate that depiction through
+the same source and criterion choices. Follow
+[source to input and review coverage](../character-identity-contract.md#source-to-input-and-review-coverage)
+to bind that construction to original identity sources, their scene treatment,
+actual text or reference carriers and independent whole-subject review. The
+authoring context and input report expose the derived inventory, including
+identity references and state-contract owners already selected elsewhere.
+Complete uncovered definitions at those choices. Canonical identity sources
+stay at their owning paths while the authored rendition supplies this scene's
+depiction.
+
+### Resume input authoring
+
+Interruption can occur during authoring, including while an older run exists.
+Inspect the open work task with:
+
+```bash
+python scripts/production_workflow.py inspect-inputs --root STUDIO
+python scripts/production_workflow.py status --root STUDIO
+```
+
+`inspect-inputs` without a source selector reads the task's saved authoring
+state. `status.current_task.authoring`, `studio.py status` and session entry expose the same editing locations and continuation commands. The report names existing
+`choices.json`, its context, published input tasks and reports, partial route
+reading, completed source-delivery records, and the last recorded check when one
+exists. Continue those files and actions after compaction. A source selector
+still performs the ordinary inspection of that task or saved run.
+
+The builders register each output location before publication. Recovery can
+therefore find a directory that was published before its caller returned.
+The reader records committed page ranges and the saved cursor. Recovery offers
+the existing continuation or replay action and preserves completed delivery records. Its separate fresh-context action delivers the complete current knowledge again. Merely inspecting saved state does not issue another key or claim that the present agent read it.
+Unanswered choices remain unanswered, and a saved check is diagnostic history;
+preparation and execution still evaluate their actual current inputs and authority.
+
+`scripts/production_authoring_state.py` owns these discovery pointers under
+`work/tasks/TASK/authoring/`. They identify work owned by that ledger task and
+do not replace its inputs, reading receipts, run records or author decisions.
+Inspection reads the existing files without regenerating them or loading a
+catalog merely to discover a saved path.
+
+The report compares the saved build's source and choices with the editable
+content. A later edit remains pending even when its earlier build has already
+been prepared. Continue the reported working copy; do not treat the older
+run's request as the current draft. An incomplete edit remains visible with
+its diagnostic rather than selecting an older input silently.
+
+The authoring context gathers the work goal, current choices, unresolved
+fields, source roles and paths to original or saved source bytes. Inspect the
+actual documents and images needed for the next judgment. These views preserve
+existing evidence and grant no approval. The older run keeps its own execution
+and result-recovery actions, which remain available independently of editing.
+## Scene preparation and reusable authoring input
+
+Use [Scene Persona Material](scene-persona.md) to preserve a full-reading result for one scoped scene.
+Add `scene-persona` to the task features and name local selectors as `scene_materials: [{"plan": "scene-plan.json", "bundle": "scene-material"}]`.
+Preparation checks the complete source files and deterministic documents, stores their dependencies, and includes the document in `consumer.authoring_materials`.
+The agent interprets the material into the selected depiction's present
+circumstances, visible state, performance and relationships. Supply the
+contextual premises that make those instructions intelligible in the actual
+model input. Complete authoring material remains available to the author;
+its presence in the consumer does not establish what the renderer receives.
+Source definitions, internal keys and review evidence remain in the authoring context.
+Viewpoint limits and exact submitted inputs keep their own boundaries.
+Public material requires an explicit content hash and accepted-by or basis instead of a search for its producer.
+
+For intake of existing source text, use [Source Material](source-material.md).
+For observed host trials, use [Agent Evaluation](agent-evaluation.md); process success is not proof of task completion or expressive quality.
+For recurring failures, use [Repair Analysis](repair-analysis.md) over actual reviews, then the repair and authorization process.
+None of these commands adopts or sends.

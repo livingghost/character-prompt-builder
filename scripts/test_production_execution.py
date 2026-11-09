@@ -57,6 +57,56 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(len(again['runs'][0]['candidates']), 1)
         self.assertEqual(accounting.summary(self.root), recorded)
 
+    def test_managed_batch_projects_prepared_and_captured_child_records(self):
+        from build_batch_plan import project_managed_batch
+        before=project_managed_batch(self.root,[self.run],label='Synthetic child group')
+        self.assertEqual(before['summary']['submission'],{'unclaimed':1})
+        self.assertEqual(before['summary']['captured_candidates'],0)
+        plan=workflow.read_run(self.root,self.run).artifacts['execution-plan.json']
+        self.assertEqual(before['jobs'][0]['model'],plan['model'])
+        self.assertEqual(before['jobs'][0]['transport'],plan['transport'])
+        execution.execute(self.root,self.run,decisions_file=decisions(self.root,self.run))
+        history=store.event_rows(self.root,self.run)
+        with patch.object(transport_synthetic,'send',side_effect=AssertionError('Projection must not send')):
+            report=project_managed_batch(self.root,[self.run])
+        self.assertEqual(report['summary']['submission'],{'acknowledged':1})
+        self.assertEqual(report['summary']['captured_candidates'],1)
+        self.assertEqual(report['summary']['evaluation'],{'unreviewed':1})
+        self.assertEqual(report['summary']['disposition'],{'pending':1})
+        self.assertEqual(report['summary']['current_selections'],0)
+        self.assertEqual(report['jobs'][0]['adoptions'],[])
+        actual=next(row for row in history if row['event']=='candidate')
+        self.assertEqual(report['jobs'][0]['candidates'][0]['captured_files'],actual['data']['files'])
+        self.assertEqual(store.event_rows(self.root,self.run),history)
+
+    def test_managed_batch_preserves_a_failed_attempt_and_an_unstarted_child(self):
+        from build_batch_plan import project_managed_batch
+        another=workflow.prepare(self.root,'task.json')['run']
+        with patch.object(transport_synthetic,'send',side_effect=TimeoutError('Synthetic unknown send outcome')):
+            execution.execute(self.root,self.run,decisions_file=decisions(self.root,self.run))
+        report=project_managed_batch(self.root,[self.run,another])
+        self.assertEqual([row['run'] for row in report['jobs']],[self.run,another])
+        self.assertEqual(report['summary']['submission'],{'outcome_unknown':1,'unclaimed':1})
+        self.assertEqual(report['summary']['captured_candidates'],0)
+        with self.assertRaisesRegex(ValueError,'repeats a child run'):
+            project_managed_batch(self.root,[self.run,self.run])
+
+    def test_managed_batch_cli_retains_every_output_from_one_child(self):
+        from build_batch_plan import main
+        from contextlib import redirect_stdout
+        task=c.load(self.root/'task.json');task['generation']['count']=2
+        fixtures.write(self.root/'two-output-task.json',task)
+        run=workflow.prepare(self.root,'two-output-task.json')['run']
+        execution.execute(self.root,run,decisions_file=decisions(self.root,run))
+        target=self.root/'batch-report.json'
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(main(['project','--root',str(self.root),'--run',run,'--out',str(target)]),0)
+        report=c.load(target)
+        self.assertEqual(report['summary']['captured_candidates'],2)
+        self.assertEqual(report['jobs'][0]['planned_outputs'],2)
+        self.assertEqual(len(report['jobs'][0]['candidates']),2)
+        self.assertEqual(report['summary']['evaluation'],{'unreviewed':2})
+
 
     def test_missing_authority_has_no_execution_claim(self):
         with self.assertRaises(ProductionError) as caught:

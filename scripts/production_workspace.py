@@ -124,17 +124,39 @@ def _sources(loaded) -> list[dict]:
     return sources
 
 
+def _authored(loaded, phase: str) -> dict:
+    """Read the exact authored artifact before its independent assessment basis."""
+    prepared, consumer = loaded.prepared, loaded.consumer
+    revision = prepared['authored_revision']
+    result = {'phase': phase, 'run': prepared['run'], 'execution': 'authored',
+              'artifact': {'path': str(loaded.directory / revision['artifact']['path']),
+                           'sha256': revision['artifact']['sha256'], 'text': consumer['instructions']},
+              'state': revision['state'], 'input_verified': revision['input_verified']}
+    if phase in {'input', 'observe'}:
+        result['instruction'] = ('Read the saved text and describe what it says or calls for, including '
+            'its specific relationships and limits. Preserve that reading before assessing it against '
+            'the task requirements or prior findings.')
+    else:
+        from production_authored import review_basis
+        result.update(review_basis(loaded))
+    return result
+
+
 def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None) -> dict:
     """Return an input, candidate-only observation, or prepared assessment view."""
     if phase not in {'input', 'decision', 'observe', 'review'}:
         raise ValueError('workspace phase must be input, decision, observe or review')
-    if phase in {'observe', 'review'} and candidate is None:
-        raise ValueError('observation and review views require one actual candidate')
     if phase in {'input', 'decision'} and candidate is not None:
         raise ValueError('the input view is scoped to its prepared request')
     root = c._root(root)
     loaded = workflow.read_run(root, run)
     directory, prepared, consumer, rows = loaded
+    if prepared['task']['execution'] == 'authored':
+        if candidate is not None:
+            raise ValueError('an authored workspace reads its saved revision')
+        return _authored(loaded, phase)
+    if phase in {'observe', 'review'} and candidate is None:
+        raise ValueError('observation and review views require one actual candidate')
     result = {'phase': phase, 'run': run}
     if candidate is not None:
         result['candidate'] = _candidate(loaded, candidate)

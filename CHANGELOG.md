@@ -1,5 +1,96 @@
 # Changelog
 
+## 2026.11.09.1
+
+- Develop image-derived and newly imagined depictions through their defining
+  qualities, degree and relationships. Teach focal hierarchy as organizing the
+  necessary features together, with framing, detail and contrast chosen for
+  the work rather than fixed by one treatment.
+- Correct vocabulary descriptions that conflate attention with blur or crop,
+  clothing state with full-body visibility, age with build, and a reciprocal
+  action with a fixed orientation. Keep lexical meanings separate from
+  unsupported model-response claims.
+- Preserve selected proportions and deliberate stylization in muscular-build
+  knowledge. Retain detailed construction at the scope the image requires.
+- Read complete applicable writing guidance at the requested family or exact
+  model scope. Family-oriented tag drafts retain actual dictionary searches;
+  exact-model publication and execution retain their input contracts.
+- Require finished work steps and fully assessed requested reviews before
+  authored work closes. Distinguish unreviewed and partial assessments from
+  complete coverage, including assessments with failed findings.
+- Preserve the authored delivery example's LF bytes on Windows. Isolate the
+  state-aware pilot from personal model-selection preferences and align split
+  operation guidance with its owning contracts.
+
+## 2026.11.08.5
+
+- Develop prompts from supplied images and from new ideas through shared
+  production knowledge, with worked choices for faithful recreation,
+  selective transfer, material construction and intended visual experience.
+- Teach concept-based wording while retaining distinctive design, action and
+  fine detail. Learn reusable construction from paired prompts and outputs
+  within the actual scope of their visual and generation evidence.
+- Add discoverable arm's-length self-portrait and material-defined-form
+  knowledge. Scope the shallow-focus cinematic treatment to its chosen variant.
+- Separate vocabulary meanings and requested appearances from guaranteed model
+  effects and output-size controls, preserving terms and their lexical roles.
+
+## 2026.11.08.4
+
+- Remove the unnecessary tests directory guide and its documentation and release
+  inventory references. Keep the executable suites in their existing locations.
+
+## 2026.11.08.3
+
+- Derive authored prompt grammar from the selected interface and its native
+  text controls. Preserve exact model evidence, JSON prompt surfaces, input
+  limits and required dictionary searches without requiring image execution
+  settings merely to save a prompt.
+- Distinguish a requested finished result from a requested draft. Save and
+  deliver either state truthfully, and complete work from its actual requested
+  outcomes without a separate manual completion step for authored work.
+- Copy saved revisions to local delivery destinations through the owning
+  operation. Preserve actual external presentation and attachment evidence,
+  exact revision binding, conflicting files and recoverable delivery retries.
+- Assess saved text through the shared review contract with the original
+  commission and sources available separately from authored adaptations.
+- Deliver complete guidance for the current operation and execution mode,
+  retaining selected-model knowledge and exact continuation scope. Scope the
+  Generation Package contract to that artifact for both external handoff and
+  dispatcher execution, with automatic inclusion for dispatcher work.
+- Expose current source edits and saved authored outcomes through one work
+  continuation view. Session entry presents that view once and directs changed
+  inputs to their editable source before later use of an older revision.
+
+## 2026.11.08.1
+
+- Compile editable prompt files and selected JSON fields directly through the
+  shared preparation owner. Preserve exact source snapshots and return domain
+  diagnostics to the original editing locations.
+- Save authored drafts and finished revisions as their actual artifacts. Track
+  saving, delivery and independent review separately on the exact revision,
+  retaining unfinished choices without inventing external handoffs or candidates.
+- Apply model input, grammar and real dictionary-search requirements to
+  completed target-specific prompts, including saved binding verification.
+- Select image preparation inputs by the operation and its declared sources.
+  Ordinary requests use their model, rendering intent and controls directly;
+  selected specifications, plots, state and reference evidence keep their own
+  complete validation and approval contracts.
+- Deliver complete operation and selected-model guidance through the existing
+  reading owner. Keep source delivery receipts separate from author judgments
+  and expose current editable files and continuation actions in status.
+- Assign stable reference-use identities at the editing boundary and derive
+  current text quotations and byte ranges from selected actual request surfaces.
+- Acquire first source pins in their source owners, resolve selected state graph
+  roots, derive managed batch projections and selected sheet dimensions, and
+  preserve exact approval and accepted-source ownership during adoption.
+- Keep characterless outputs on the work task and require dependencies by the
+  capabilities used by the operation.
+- Classify revised external requests by their validated text and execution
+  values, retaining the actual scope of an authorized content revision.
+- Use one route-owned entry to operational guidance and selected model cards
+  for saved work, preserving complete specialist knowledge.
+
 ## 2026.11.07.6
 
 - Compile from acquired catalog, model, profile and evidence values. Pass the

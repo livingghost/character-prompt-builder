@@ -41,7 +41,7 @@
       }
     },
     "recording": {
-      "type": "object"
+      "$ref": "authoring/production-task.schema.json#/properties/recording"
     },
     "quantities": {
       "type": "object",
@@ -132,7 +132,8 @@
         "state": {
           "enum": [
             "authorization_required",
-            "configuration_required"
+            "configuration_required",
+            "not_applicable"
           ]
         },
         "executable": {

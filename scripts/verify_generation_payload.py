@@ -297,6 +297,7 @@ def _verify(
     reading_ledgers: list[Path] | None = None,
     target=None,
     input_source=None,
+    execution: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("generation package must be an object")
@@ -312,7 +313,9 @@ def _verify(
     validate_record_content(data["route_reading"])
     if live:
         require_route_reading(data["route_reading"], studio=studio, ledgers=reading_ledgers,
-                              package_root=package_root, routes=GENERATION_ROUTES)
+                              package_root=package_root, routes=GENERATION_ROUTES,
+                              features=[*data['route_reading']['features'], 'generation-package'],
+                              operation='prepare', execution=execution)
     reading_hash = sha256_json(data["route_reading"])
     if data["route_reading_sha256"] != reading_hash or data["generation_contract"].get("route_reading_sha256") != reading_hash:
         raise ValueError("route reading hash mismatch")
@@ -495,6 +498,7 @@ def _verify(
         if model_record is not None:
             require_route_reading(data['route_reading'], studio=studio, ledgers=reading_ledgers,
                 package_root=package_root, routes=GENERATION_ROUTES,
+                operation='prepare', execution=execution, model_record=model_record, service=(offering or {}).get('service'),
                 dialect=model_record.get('prompt_dialect'))
     prompt = payload.get("prompt")
     negative = payload.get("negative_prompt")
@@ -524,8 +528,9 @@ def _verify(
     production_spec = data.get("production_spec")
     from production_spec import require as require_production_spec, require_lineage
 
-    require_production_spec(production_spec)
-    if production_spec.get("target_model") != model:
+    if production_spec is not None:
+        require_production_spec(production_spec)
+    if production_spec is not None and production_spec.get("target_model") != model:
         raise ValueError("package model differs from production specification target_model")
     production_spec_hash = sha256_json(production_spec)
     require_concrete_sha256(production_spec_hash, "computed production_spec_sha256")
@@ -539,16 +544,13 @@ def _verify(
     from prompt_plot import validate_prompt_plot
 
     plot = data.get("plot")
-    if not isinstance(plot, dict):
-        raise ValueError("the package carries no plot")
-    plot_report = validate_prompt_plot(plot)
-    if not plot_report["ok"]:
-        raise ValueError("invalid plot: " + "; ".join(plot_report["errors"]))
-    if not plot_report["approved"]:
-        raise ValueError(
-            "the package plot is not approved: "
-            + ("; ".join(plot_report["approval_errors"]) or "it carries no approved block")
-        )
+    if plot is not None:
+        plot_report = validate_prompt_plot(plot)
+        if not plot_report["ok"]:
+            raise ValueError("invalid plot: " + "; ".join(plot_report["errors"]))
+        if not plot_report["approved"]:
+            raise ValueError("the package plot is not approved: "
+                + ("; ".join(plot_report["approval_errors"]) or "it carries no approved block"))
     from prompt_retrieval import require_generation_retrieval, require_settled_retrieval
     composition_prompt = data.get("composition_prompt")
     if not isinstance(composition_prompt, str) or not composition_prompt.strip():
@@ -565,8 +567,10 @@ def _verify(
             require_final_selection(data['retrieval_record'].get('vocabulary'),
                 prompt=selected_prompt, negative=selected_negative,
                 model_record=model_record, syntax=weighting_syntax)
-    else:
+    elif data.get('retrieval_record') is not None:
         require_settled_retrieval(data.get('retrieval_record'), prompt=composition_prompt, plot=plot)
+    elif model_record.get('prompt_input', {}).get('mode') == 'tag-based':
+        raise ValueError('tag-based input requires its recorded dictionary search')
     retrieval_hash = sha256_json(data["retrieval_record"])
     for location, value in (
         ("retrieval_record_sha256", data.get("retrieval_record_sha256")),
@@ -600,7 +604,8 @@ def _verify(
     ):
         if require_concrete_sha256(value, location) != lineage_hash:
             raise ValueError(f"{location} mismatch")
-    require_lineage(production_spec, state_lineage)
+    if production_spec is not None:
+        require_lineage(production_spec, state_lineage)
 
     from prepare_generation_references import validate_prepared_reference_content
     reference_validator = validate_prepared_reference_set if live else validate_prepared_reference_content
@@ -663,14 +668,15 @@ def _verify(
         raise ValueError(f"unsupported state lineage mode: {lineage_mode!r}")
 
     creative_intent = data.get("creative_intent")
-    if not isinstance(creative_intent, dict):
-        raise ValueError("creative intent must be an object")
-    from revision_contract import require_intent_revision
-    require_intent_revision(creative_intent)
-    if creative_intent.get("production_spec_sha256") != production_spec_hash:
-        raise ValueError("creative intent production-specification hash mismatch")
-    if creative_intent.get("state_lineage_sha256") != lineage_hash:
-        raise ValueError("creative intent state-lineage hash mismatch")
+    if creative_intent is not None:
+        if not isinstance(creative_intent, dict):
+            raise ValueError("creative intent must be an object")
+        from revision_contract import require_intent_revision
+        require_intent_revision(creative_intent)
+        if creative_intent.get("production_spec_sha256") != production_spec_hash:
+            raise ValueError("creative intent production-specification hash mismatch")
+        if creative_intent.get("state_lineage_sha256") != lineage_hash:
+            raise ValueError("creative intent state-lineage hash mismatch")
 
     provenance = payload.get("negative_provenance")
     if not isinstance(provenance, dict):
@@ -701,7 +707,8 @@ def _verify(
         raise ValueError("critical-avoidance integration declaration must be boolean")
 
     from render_contract_lib import verify_contract
-    verify_contract(data["render_contract"], intent=production_spec["render_intent"],
+    verify_contract(data["render_contract"], intent=(production_spec["render_intent"] if production_spec is not None
+                                                   else data['render_contract']['intent']),
                     parameters=parameters, prompt=data["composition_prompt"],
                     record=model_record, offering=offering,
                     reference_count=delivered_reference_count(reference_set))
@@ -778,14 +785,14 @@ def _verify(
 
 def verify(data: dict[str, Any], *, package_root: Path | None = None,
            studio: Path | None = None, reading_ledgers: list[Path] | None = None, snapshot_inputs: bool = False,
-           target=None,input_source=None) -> dict[str, Any]:
+           target=None,input_source=None,execution: str | None = None) -> dict[str, Any]:
     """Verify a current execution input using active sources and reading evidence."""
     from contextlib import nullcontext
     if target is not None and (input_source is None or not hasattr(input_source,'using')):
         raise TypeError('an acquired target requires its explicit runtime source')
     with (input_source.using() if input_source is not None else nullcontext()):
         return _verify(data, package_root=package_root, live=True, studio=studio, snapshot_inputs=snapshot_inputs,
-                       reading_ledgers=reading_ledgers,target=target,input_source=input_source)
+                       reading_ledgers=reading_ledgers,target=target,input_source=input_source,execution=execution)
 
 
 def verify_content(data: dict[str, Any], *, package_root: Path | None = None) -> dict[str, Any]:

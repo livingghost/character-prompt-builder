@@ -583,7 +583,7 @@
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
       "visual_function": "Guide attention from the main visual event to supporting context within one coherent view.",
-      "prompt": "Give the main subject or action the clearest silhouette and strongest local contrast. Arrange a quieter secondary shape along its gesture, gaze, or environmental line, with broad low-detail areas separating the focal groups. Keep the foreground, subject, and setting within one continuous perspective.",
+      "prompt": "Give the main visual event a clear entry point and keep the features and relationships that define it readable together. Use placement, shape grouping, edges, value and contrast to establish that order. Supporting elements carry the context that makes the event intelligible and guide attention through it. Preserve the amount and treatment of detail that serve the intended effect. Keep the depicted scene spatially coherent within one viewpoint.",
       "invariants": [
         "the main visual event has a clear entry point",
         "supporting detail explains the focal event",
@@ -594,9 +594,10 @@
         "Useful for standalone illustration, key art, environmental portraiture, and image-led advertising."
       ],
       "interactions": [
-        "Crop and overlap determine which identity features are visible.",
-        "Selective edges, value grouping, and negative space reinforce the same focal order.",
-        "A hidden detail may require a different viewpoint or a separate view."
+        "A focal event can be a subject, a particular feature, a material state or an interaction between several forms.",
+        "Crop, overlap, relative scale and selective edges can organize emphasis; choose the combination that preserves the intended construction.",
+        "Value grouping and negative space can reinforce the focal order without requiring a blank or blurred setting.",
+        "A feature required for this depiction must be presented through a suitable viewpoint or representation; other surfaces can remain hidden."
       ],
       "misreadings_to_avoid": [
         "all objects receiving equal contrast",

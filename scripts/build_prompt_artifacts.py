@@ -97,7 +97,7 @@ def main() -> int:
                         help="The explicitly selected text grammar for this rendition")
     parser.add_argument("--retrieval-record", type=Path, help="Record of the catalog and prompt-vocabulary lookups behind this prompt")
     parser.add_argument("--retrieval-unavailable", help="Reason retrieval could not be run; refuses --prepare-for-generation")
-    parser.add_argument("--plot", type=Path, help="Optional for drafts; an approved plot is required for generation-ready packaging")
+    parser.add_argument("--plot", type=Path, help="Selected plot; if used for completed input it must be approved")
     parser.add_argument("--overwrite", action="store_true", help="Replace a non-empty output directory that already exists")
     from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
     add_pack_runtime_arguments(parser)
@@ -133,7 +133,7 @@ def main() -> int:
         plot.update({key: plot_report[key] for key in ("beats", "visible_beats", "derived", "source")})
         if plot_report["approval_errors"]:
             raise ValueError("invalid supplied approval: " + "; ".join(plot_report["approval_errors"]))
-    if args.prepare_for_generation and not plot["approved"]:
+    if args.prepare_for_generation and args.plot and not plot["approved"]:
         raise ValueError("generation-ready packaging requires an approved plot")
 
     if args.retrieval_record and args.retrieval_unavailable:
@@ -166,11 +166,12 @@ def main() -> int:
                 f"retrieval was reported unavailable: {reason}"
             )
     else:
-        raise ValueError(
-            "prompt packaging requires a retrieval record: pass --retrieval-record "
-            "(an empty initialized record is valid when no lookup was needed), "
-            "or state why needed retrieval could not run with --retrieval-unavailable"
-        )
+        retrieval={"settled": True, "elements": 0, "adopted": 0, "composed": 0, "unused": 0}
+        if args.prepare_for_generation:
+            from prompt_retrieval import require_generation_retrieval
+            checked=require_generation_retrieval(None,prompt=prompt_text,plot=plot_value,
+                model_record=model_record,negative=negative_text,syntax=args.weighting)
+            input_validation.update(state="model-input-checked",vocabulary_searched=checked['vocabulary_searched'])
 
     if model_record is not None and not args.prepare_for_generation:
         from prompt_vocabulary_selection import require_for_model

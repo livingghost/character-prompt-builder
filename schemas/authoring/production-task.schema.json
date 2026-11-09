@@ -72,7 +72,7 @@
           "minLength": 1
         },
         "translation_notes": {
-          "type": "string",
+          "type": ["string", "null"],
           "minLength": 1
         }
       },
@@ -598,6 +598,12 @@
         "dispatcher"
       ]
     },
+    "authored": {
+      "$ref": "authoring/production-authored-contract.schema.json"
+    },
+    "authored_basis": {
+      "$ref": "authoring/production-authored-basis.schema.json"
+    },
     "scene_materials": {
       "type": "array",
       "items": {
@@ -662,6 +668,8 @@
     "generation": {
       "type": "object",
       "properties": {
+        "model": {"type": "string", "minLength": 1},
+        "render_intent": {"$ref": "render-intent.schema.json"},
         "parameters": {
           "type": "string",
           "minLength": 1
@@ -771,7 +779,7 @@
       "additionalProperties": false
     },
     "recording": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
         "character": {
           "type": "string",
@@ -895,9 +903,14 @@
           "properties": {
             "kind": {"const": "text"},
             "surface": {"enum": ["primary", "negative"]},
-            "quote": {"type": "string", "minLength": 1}
+            "quote": {"type": "string", "minLength": 1},
+            "selection": {"oneOf": [
+              {"type": "object", "properties": {"whole": {"const": true}}, "required": ["whole"], "additionalProperties": false},
+              {"type": "object", "properties": {"text": {"type": "string", "minLength": 1}, "occurrence": {"type": "integer", "minimum": 1}}, "required": ["text"], "additionalProperties": false}
+            ]}
           },
-          "required": ["kind", "surface", "quote"],
+          "required": ["kind", "surface"],
+          "oneOf": [{"required": ["quote"]}, {"required": ["selection"]}],
           "additionalProperties": false
         },
         {
@@ -974,9 +987,6 @@
         ]
       },
       "then": {
-        "required": [
-          "recording"
-        ],
         "oneOf": [
           {
             "required": [
@@ -1024,15 +1034,14 @@
         "properties": {
           "generation": {
             "required": [
-              "parameters",
-              "production_spec",
-              "plot",
-              "retrieval_record",
-              "creative_intent",
               "service",
               "count",
               "seed",
               "continuity"
+            ],
+            "anyOf": [
+              {"required": ["production_spec"]},
+              {"required": ["model", "render_intent"]}
             ]
           }
         }

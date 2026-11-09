@@ -122,7 +122,10 @@ def require_recording(root: Path, prepared: dict) -> None:
     """
     import studio
     from production_compiler import validate_recording
-    recording = prepared['task']['recording']
+    recording = prepared['task'].get('recording')
+    if recording is None:
+        validate_recording(root, prepared['task'], {})
+        return
     try:
         studio.validate_recording_target(root, recording['character'], recording['slot'], writable=True)
     except ValueError as exc:
@@ -185,15 +188,15 @@ def _journal(root: Path, run: str, data: tuple, *, loaded=None):
     directory, prepared, _, _, package, rendered, plan, target, _ = data
     loaded = loaded if loaded is not None else workflow.read_run(root, run)
     artifacts = ArtifactSet(directory, loaded.manifest['files'])
-    recording = prepared['task']['recording']
+    recording = prepared['task'].get('recording')
     operation = 'upscale' if package.get('artifact_type')=='upscale-request' else 'generation'
     if operation == 'upscale':
         companion = 'upscale.references'
     else:
         from build_generation_payload import validate_generation_package_carrier_paths
         companion = validate_generation_package_carrier_paths(package['prepared_reference_set'], package_root=directory)
-    journal = dispatch.RunJournal.create(root, operation=operation, character=recording['character'],
-        slot=recording['slot'], service=plan['service'], transport=plan['transport'], model=plan['model'],
+    journal = dispatch.RunJournal.create(root, operation=operation, character=recording['character'] if recording else None,
+        slot=recording['slot'] if recording else None, service=plan['service'], transport=plan['transport'], model=plan['model'],
         production_run=run, expected=plan['quantities']['outputs'], note='Executed from the sealed production input.',
         offering=dispatch.offering_summary(target['offering'], target['model_id'], target['model']), companion=companion)
     for name in ('package.json', 'consumer.json'):
@@ -646,7 +649,8 @@ def _finish_captured(root: Path, run: str, journal, transport: Any, *, loaded,
     with stage('studio-projection'):
         try:
             recorded = list(journal.document.get('iterations', []))
-            for index, path, response in acquisition['acquired']:
+            projected = acquisition['acquired'] if prepared['task'].get('recording') is not None else []
+            for index, path, response in projected:
                 if index in invalid_upscale:
                     continue
                 found = dispatch.recorded_iteration(root, journal.document['character'], journal.document['slot'],
@@ -981,24 +985,6 @@ def unclaimed_journals(root: Path) -> list[dict]:
     return output
 
 
-def _current_task(root: Path) -> dict | None:
-    """The open work task from the Studio's work ledger, reported rather than raised when unreadable."""
-    import work_ledger
-    try:
-        task = work_ledger.read_current(root)
-    except INSPECTION_ERRORS as exc:
-        return {'task_id': None, 'goal': None, 'next': None, 'production_run': None,
-                'diagnostics': [from_exception(exc, phase='status', file='work/current.json')]}
-    if task is None:
-        return None
-    import production_authoring_state
-    authoring = production_authoring_state.inspect(root, task)
-    return {'task_id': task.get('task_id'), 'goal': task.get('goal'), 'next': task.get('next'),
-            'production_run': task.get('production_run'),
-            'focus': 'authoring' if authoring['pending'] or not task.get('production_run') else 'execution',
-            'next_actions': authoring['next_actions'], 'authoring': authoring}
-
-
 def _logs_by_run(root: Path) -> dict[str, list[str]]:
     from operation_context import list_operations
     buckets: dict[str, list[str]] = {}
@@ -1060,7 +1046,7 @@ def _registration(root: Path, prepared: dict, rows: list[dict]) -> str:
     candidates = [row for row in rows if row['event'] == 'candidate']
     if not candidates:
         return 'unregistered'
-    if prepared['task']['execution'] != 'dispatcher':
+    if prepared['task']['execution'] != 'dispatcher' or prepared['task'].get('recording') is None:
         return 'registered'
     invalid = {index for row in rows if row['event'] == 'dispatch-results' for index in row['data'].get('invalid_output_indices', [])}
     recording = prepared['task']['recording']
@@ -1259,6 +1245,9 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
     identifier = item['run_id']
     loaded = loaded if loaded is not None else workflow.read_run(root, identifier)
     directory, prepared, consumer, rows = loaded
+    if prepared['task']['execution'] == 'authored':
+        from production_authored import status as authored_status
+        return authored_status(root, loaded, logs=logs.get(identifier, []))
     claims = [row for row in rows if row['event'] == 'dispatch-claim']
     external_claims = [row for row in rows if row['event'] == 'external-claim']
     captures = [row for row in rows if row['event'] == 'capture-status']
@@ -1392,9 +1381,13 @@ def status(root: Path, run: str | None = None) -> dict:
 def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime=None) -> dict:
     """Inspect the complete status, receiving an already acquired selected run."""
     import production_workflow as workflow
+    import production_authoring_state
     from production_compiler import inspect_staging, unregistered_publications
     root = Path(root)
-    result = {'ok': True, 'current_task': _current_task(root), 'runs': [], 'diagnostics': [],
+    def read_task_run(identifier):
+        return loaded if loaded is not None and loaded.prepared['run'] == identifier else workflow.read_run(root, identifier)
+    result = {'ok': True, 'current_task': production_authoring_state.current_task(root, read_run=read_task_run),
+              'runs': [], 'diagnostics': [],
               'external_effect': False}
     if run is not None:
         workflow.run_identifier(run)

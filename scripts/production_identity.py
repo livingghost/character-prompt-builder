@@ -74,11 +74,10 @@ def _specification(task: dict, read, package: dict | None) -> dict | None:
 
 def reference_id(row: dict) -> str:
     """Use the owning reference identity, independent of its transport position."""
-    # Match the reference input builder's default logical ID. A source artifact
-    # can be used twice with different subject scopes; its artifact ID alone
-    # cannot distinguish those uses. Explicit image-input IDs take precedence
-    # in context(), where their owning rows are available.
-    return 'reference-' + c.content_id({key: row[key] for key in row if key != 'transport'})[:20]
+    selected=row.get('reference_id') or row['source'].get('reference_id')
+    if selected is None:
+        selected=row.get('binding_id') or row['source'].get('artifact_id')
+    return c.text(selected,'selected reference use id')
 
 
 def _reference_subjects(row: dict, subjects: list[str]) -> tuple[list[str], list[str]]:

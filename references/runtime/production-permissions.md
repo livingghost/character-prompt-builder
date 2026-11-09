@@ -171,7 +171,7 @@ completed or abandoned run with current authority. The source task stays closed;
 its selection and review remain the evidence for that candidate. New production
 decisions and submissions keep their own lifecycle and permissions. Follow
 selection, adoption and completion in
-[Production execution](production-execution.md#select-optionally-adopt-and-finish).
+[Production execution](production-adoption.md#select-optionally-adopt-and-finish).
 The sheet stores the selected immutable image and provenance together; candidates
 and historical selections cannot silently replace the current image.
 

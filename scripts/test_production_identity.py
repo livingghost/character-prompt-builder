@@ -280,12 +280,14 @@ class PreparedIdentityCarrierTests(unittest.TestCase):
         changed = self.task_context(reordered, self.rendered(reordered))[1]
         self.assertEqual([row['id'] for row in changed['references']],
                          list(reversed([row['id'] for row in original['references']])))
-        left = copy.deepcopy(prepared['selected_references'][0])
-        right = copy.deepcopy(left)
-        for row in (left, right):
-            row['source'].pop('reference_id', None)
-            row['source']['artifact_id'] = 'same-accepted-artifact'
-        right['subject_uses'] = [{'subject_id': 'B', 'use': 'identity', 'priority': 0}]
+        selected = reference_inputs.draft(prepared, package_root=self.root / 'first')
+        another_use = copy.deepcopy(selected['additional_references'][0])
+        another_use.pop('id')
+        another_use['subject_uses'] = [{'subject_id': 'B', 'use': 'identity', 'priority': 0}]
+        selected['additional_references'].append(another_use)
+        shared = self.build(selected, 'shared-source')
+        left, right = shared['selected_references'][0], shared['selected_references'][2]
+        self.assertEqual(left['source']['sha256'], right['source']['sha256'])
         self.assertNotEqual(production_identity.reference_id(left), production_identity.reference_id(right))
         moved = copy.deepcopy(left)
         moved['transport']['resolved_path'] = 'elsewhere.png'

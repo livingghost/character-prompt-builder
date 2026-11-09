@@ -19,8 +19,9 @@ Create `story-context-query` using
 [the query schema](../../schemas/authoring/story-context-query.schema.json) and
 [the drafting template](../../templates/story-context-query.json). It
 selects the exact sources, one timeline, an integer `story_order`, a descriptive
-`story_time`, and an authored coverage record. The source bytes are pinned by
-SHA-256. The timeline points to the existing base, event and process records and
+`story_time`, and an authored coverage record. The source owner acquires complete
+selected bytes and records their initial SHA-256 in the author context. Existing
+expected `sha256` values are checked and never silently updated. The timeline points to the existing base, event and process records and
 records evidence for base fields; it is not another editable state history.
 Coverage has `timeline_id`, `start_order`, `through_order` and `basis`. It bounds
 the query inclusively but does not prove that every relevant event was authored.
@@ -98,7 +99,7 @@ failed predicates produce a failing exit, and prevent build publication. Without
 it, diagnostic output may be retained, with `requirements_ok: false`. Content
 agreement and predicate results are reported separately.
 
-Input changes, malformed records, missing source pins, impossible applicability,
+Changed expected source pins, unreadable sources, malformed records, impossible applicability,
 unselected contexts, unsupported array/object selections, conflicting temporal
 operations and output-size limits fail with a diagnostic. Nothing is silently
 truncated. Narrow the selected contexts or references when the output is too large.

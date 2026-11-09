@@ -22,7 +22,7 @@ import os
 import re
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 from package_metadata import PACKAGE_NAME
 import protocol_contract as public_contract
@@ -1505,6 +1505,93 @@ def validate_state_artifact_graph(
     }
 
 
+def acquire_subject_state_graphs(
+    selections: Any, read: Callable[[str], bytes], *,
+    production_spec: dict[str, Any],
+    reference_selection: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Acquire the concrete dependency closure of explicitly selected lineage roots.
+
+    The caller owns path resolution and source capture. Lineages choose exact
+    artifact content; this owner resolves those commitments from the selected
+    inventory and validates the complete graph. It does not infer missing state
+    or promote a nearby artifact merely because its name or type looks suitable.
+    """
+    if not isinstance(selections, dict) or set(selections) != {'lineages', 'artifacts'}:
+        raise ValueError('state graph selection requires lineages and artifacts path arrays')
+    for field in ('lineages', 'artifacts'):
+        values = selections[field]
+        if not isinstance(values, list) or not values or any(
+            not isinstance(value, str) or not value.strip() for value in values
+        ):
+            raise ValueError('state graph selection ' + field + ' must be a nonempty path array')
+        if len(values) != len(set(values)):
+            raise ValueError('state graph selection repeats a ' + field + ' path')
+    if production_spec is None or production_spec.get('state_context', {}).get('mode') != 'state-aware':
+        raise ValueError('state graph acquisition requires its state-aware production specification')
+
+    loaded: dict[str, dict[str, Any]] = {}
+
+    def artifact(path: str, expected_type: str | None = None) -> dict[str, Any]:
+        if path not in loaded:
+            try:
+                value = json.loads(read(path))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ValueError('state graph artifact is not readable JSON: ' + path) from exc
+            if not isinstance(value, dict):
+                raise ValueError('state graph artifact must be an object: ' + path)
+            report = validate_artifact(value)
+            if not report['ok']:
+                raise ValueError('invalid state graph artifact ' + path + ': ' + '; '.join(report['errors']))
+            loaded[path] = value
+        value = loaded[path]
+        if expected_type is not None and value.get('artifact_type') != expected_type:
+            raise ValueError('expected ' + expected_type + ' at ' + path)
+        return value
+
+    roots = [artifact(path, 'state-lineage') for path in selections['lineages']]
+    inventory: dict[tuple[str, str], dict[str, Any]] = {}
+    for path in selections['artifacts']:
+        value = artifact(path)
+        key = (value['artifact_type'], artifact_hash(value))
+        inventory[key] = value
+    graphs = []
+    for path, lineage in zip(selections['lineages'], roots, strict=True):
+        if lineage['mode'] != 'state-aware':
+            raise ValueError('selected lineage must be state-aware: ' + path)
+        graph = {'lineage': lineage}
+        for field, kind in STATE_LINEAGE_ARTIFACT_FIELDS.items():
+            digest = lineage[field]
+            if digest is None:
+                continue
+            value = inventory.get((kind, digest))
+            if value is None:
+                raise ValueError('selected lineage ' + path + ' requires missing ' + kind + ': ' + digest)
+            graph[field.removesuffix('_sha256')] = value
+        graphs.append(graph)
+
+    # Reference selection is a separate authored decision. Before it exists,
+    # graph acquisition still validates every owner, edge, stateful subject and
+    # the selected primary lineage against the actual production specification.
+    if reference_selection is not None:
+        return validate_subject_state_graphs(graphs, production_spec=production_spec,
+                                             reference_selection=reference_selection)
+    subjects = [graph['identity_contract']['character_id'] for graph in graphs]
+    expected = {row['id'] for row in production_spec.get('subjects', []) if 'state_snapshot_ref' in row}
+    if len(subjects) != len(set(subjects)) or set(subjects) != expected:
+        raise ValueError('selected lineage roots must cover every state-aware subject exactly once')
+    primary = production_spec['state_context']['state_lineage_sha256']
+    if sum(lineage['lineage_sha256'] == primary for lineage in roots) != 1:
+        raise ValueError('selected lineage roots must contain the exact primary state lineage')
+    lineages = {subject: graph['lineage']['lineage_sha256']
+                for subject, graph in zip(subjects, graphs, strict=True)}
+    for subject, graph in zip(subjects, graphs, strict=True):
+        report = validate_state_artifact_graph(**graph, production_spec=production_spec, subject_lineages=lineages)
+        if not report['ok']:
+            raise ValueError('invalid state artifact graph for ' + subject + ': ' + '; '.join(report['errors']))
+    return copy.deepcopy(graphs)
+
+
 def validate_subject_state_graphs(
     graphs: Any, *, production_spec: dict[str, Any],
     reference_selection: dict[str, Any] | None,
@@ -1517,9 +1604,11 @@ def validate_subject_state_graphs(
         graphs = []
     if not isinstance(graphs, list):
         raise ValueError('state_graphs must be an array of concrete character graphs')
-    if production_spec['state_context']['mode'] == 'stateless':
+    if production_spec is None or production_spec['state_context']['mode'] == 'stateless':
         if graphs:
             raise ValueError('stateless generation must not supply state_graphs')
+        if state_lineage is not None and state_lineage.get('mode') != 'stateless':
+            raise ValueError('state-aware generation requires its production specification')
         return []
     if not graphs:
         raise ValueError('state-aware generation requires every concrete subject graph; use build_state_generation_package.py')
@@ -2733,6 +2822,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     lineage_cmd.add_argument("--visual-evidence-bundle")
     lineage_cmd.add_argument("--out", required=True)
 
+    graphs_cmd = sub.add_parser("acquire-graphs", help="resolve selected lineage roots to their exact concrete artifacts")
+    graphs_cmd.add_argument("--lineage", action="append", required=True)
+    graphs_cmd.add_argument("--artifact", action="append", required=True)
+    graphs_cmd.add_argument("--production-spec", required=True)
+    graphs_cmd.add_argument("--reference-selection")
+    graphs_cmd.add_argument("--out", required=True)
+
     adapt_cmd = sub.add_parser("propose-environment-adaptations")
     adapt_cmd.add_argument("--state-schema", required=True)
     adapt_cmd.add_argument("--environment-snapshot", required=True)
@@ -2867,6 +2963,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not report["ok"]:
                 raise ValueError("reference bundle plan is invalid: " + "; ".join(report["errors"]))
             print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "acquire-graphs":
+            result = acquire_subject_state_graphs(
+                {'lineages': args.lineage, 'artifacts': args.artifact},
+                lambda path: Path(path).read_bytes(),
+                production_spec=load_json(Path(args.production_spec)),
+                reference_selection=load_json(Path(args.reference_selection)) if args.reference_selection else None,
+            )
+            write_json(Path(args.out), result)
+            print(json.dumps({'ok': True, 'subjects': [row['identity_contract']['character_id'] for row in result],
+                              'output': args.out}, ensure_ascii=False, indent=2))
             return 0
 
         if args.command == "make-lineage":

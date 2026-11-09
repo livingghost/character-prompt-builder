@@ -415,6 +415,14 @@ def validate_transition(records: list[dict] | ReplayState, prepared: dict, run: 
     """Check append and replay against the same accumulated state and indices."""
     import production_workflow as w
     state = _indexed(records, prepared, run)
+    from production_authored import EVENTS as AUTHORED_EVENTS, validate_event
+    if prepared['task']['execution'] == 'authored':
+        if event in AUTHORED_EVENTS or event == 'completion':
+            validate_event(prepared, state.rows, event, data, read_object)
+        elif event in {'handoff', 'candidate', 'selection', 'external-claim', 'dispatch-claim'}:
+            raise ValueError('authored revisions record save, actual delivery and authored review; external results belong to an execution')
+    elif event in AUTHORED_EVENTS:
+        raise ValueError('authored revision events require an authored task')
     adoption = False
     if event == 'authorization':
         request = data['request']
@@ -476,6 +484,10 @@ def validate_transition(records: list[dict] | ReplayState, prepared: dict, run: 
     state.check_execution(event, data)
     closed = state.closed
     if closed is None or adoption:
+        return
+    if closed == 'completion' and event in {'authored-delivery', 'authored-review'}:
+        # A later use of this retained revision records its own actual action;
+        # the earlier completion keeps the exact facts that satisfied it.
         return
     if closed == 'completion' and event == 'disposition' and data['disposition']['disposition'] == 'not_selected':
         # Retiring a retained candidate leaves the completed delivery intact.

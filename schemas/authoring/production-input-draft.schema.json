@@ -12,9 +12,25 @@
   ],
   "properties": {
     "reading": {
-      "type": [
-        "object",
-        "null"
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "reading_key"
+          ],
+          "properties": {
+            "reading_key": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
       ]
     },
     "visual": {
@@ -66,7 +82,6 @@
         "delivery": {
           "type": "object",
           "required": [
-            "content",
             "translation_notes"
           ],
           "additionalProperties": false,
@@ -77,14 +92,112 @@
                 "string",
                 "null"
               ]
+            },
+            "file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "field": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "integer"
+                ]
+              }
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "content"
+              ]
+            },
+            {
+              "required": [
+                "file"
+              ]
+            }
+          ],
+          "description": "Editable prompt file, or an explicit inline value. File paths are relative to the Studio. The compiler reads the exact current bytes."
+        },
+        "documents": {
+          "type": "object",
+          "description": "Select only documents used by the work. A value is its authored content or {file: Studio-relative-path, field: optional JSON path}.",
+          "properties": {
+            "parameters": {
+              "description": "Chosen execution controls, as an object."
+            },
+            "production_spec": {
+              "description": "Selected specialized depiction specification."
+            },
+            "plot": {
+              "description": "Selected approved plot."
+            },
+            "creative_intent": {
+              "description": "Selected creative revision or style decisions."
+            },
+            "retrieval_record": {
+              "description": "Actual search and vocabulary decisions."
+            },
+            "negative": {
+              "description": "Negative text or its editable file."
+            },
+            "integrated_prompt": {
+              "description": "Integrated prompt text or its file."
+            },
+            "native_negative": {
+              "description": "Native negative text or its file."
+            },
+            "state_graphs": {
+              "description": "Selected concrete graph array or lineage and artifact path selection."
             }
           }
         },
-        "documents": {
-          "type": "object"
-        },
         "generation": {
-          "type": "object"
+          "type": "object",
+          "description": "Target selection, rendering intent, quantity, and subject continuity. A selected Production Specification can own model and rendering instead.",
+          "properties": {
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "service": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "seed": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "continuity": {
+              "type": "object",
+              "additionalProperties": {
+                "enum": [
+                  "one-off",
+                  "recurring",
+                  "undecided"
+                ]
+              }
+            },
+            "render_intent": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Chosen render intent. prompt_expression may select the complete editable delivery with {document: delivery}."
+            }
+          }
         },
         "references": {
           "type": [
@@ -101,7 +214,10 @@
         "source_files": {
           "type": "object",
           "description": "Recorded source-file measurements that bind retained upload URLs and selected identity sources to their original bytes. Drafting derives these witnesses; editing selects sources, files and URLs.",
-          "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
         },
         "sources": {
           "type": "object",
@@ -109,8 +225,7 @@
           "additionalProperties": {
             "type": "object",
             "required": [
-              "format",
-              "content"
+              "format"
             ],
             "additionalProperties": false,
             "properties": {
@@ -120,8 +235,33 @@
                   "json"
                 ]
               },
-              "content": {}
-            }
+              "content": {},
+              "file": {
+                "type": "string",
+                "minLength": 1
+              },
+              "field": {
+                "type": "array",
+                "items": {
+                  "type": [
+                    "string",
+                    "integer"
+                  ]
+                }
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "content"
+                ]
+              },
+              {
+                "required": [
+                  "file"
+                ]
+              }
+            ]
           }
         }
       }

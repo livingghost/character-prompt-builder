@@ -579,7 +579,7 @@ class AggregateInputTests(unittest.TestCase):
         self.assertFalse(report['publishable'])
     def test_reading_retrieval_and_parameters_are_not_hidden_by_recording(self):
         self.break_recording();task=c.load(self.root/'task.json')
-        reading=c.load(self.root/task['route_reading']);reading['applied'][0]['quote']='Synthetic unmatched citation.'
+        reading=c.load(self.root/task['route_reading']);reading['documents'][0]['sha256']='0'*64
         self.fixture.write(self.root/task['route_reading'],reading)
         record=c.load(self.root/'retrieval.json');record['settled']=False;self.fixture.write(self.root/'retrieval.json',record)
         parameters=c.load(self.root/'parameters.json');parameters['steps']=-1;self.fixture.write(self.root/'parameters.json',parameters)

@@ -616,11 +616,12 @@ class GenerationContent:
 
 def build_payload(
     *,
+    execution: str,
     model: str,
     prompt: str,
     negative_prompt: str,
     brief: str,
-    creative_intent: dict[str, Any],
+    creative_intent: dict[str, Any] | None = None,
     parameters: dict[str, Any],
     negative_transport: str = "auto",
     critical_avoidance_integrated: bool = False,
@@ -628,6 +629,7 @@ def build_payload(
     native_negative: str = "",
     negative_provenance: dict[str, Any] | None = None,
     production_spec: dict[str, Any] | None = None,
+    render_intent: dict[str, Any] | None = None,
     state_lineage: dict[str, Any] | None = None,
     state_snapshot: dict[str, Any] | None = None,
     state_graphs: list[dict[str, Any]] | None = None,
@@ -648,6 +650,14 @@ def build_payload(
 ) -> dict[str, Any]:
     from route_reading import require_route_reading, GENERATION_ROUTES
     if route_reading is None:raise ValueError('generation requires a route reading')
+    owner = None
+    if production_run is not None:
+        if production_root is None:
+            raise ValueError('production root and run are both required')
+        from production_workflow import assert_current
+        owner = assert_current(production_root, production_run)
+        if execution != owner.prepared['task']['execution']:
+            raise ValueError('package execution differs from its prepared task')
     import runtime_evidence
     from generation_inputs import GenerationInputs
     values={
@@ -663,6 +673,7 @@ def build_payload(
         'native_negative':native_negative,
         'negative_provenance':negative_provenance,
         'production_spec':production_spec,
+        'render_intent':render_intent,
         'state_lineage':state_lineage,
         'state_snapshot':state_snapshot,
         'state_graphs':state_graphs,
@@ -679,6 +690,8 @@ def build_payload(
     with runtime_source.using():
         require_route_reading(route_reading,ledgers=reading_ledgers,studio=production_root,
                              package_root=prepared_reference_root,routes=GENERATION_ROUTES,
+                             features=[*route_reading['features'], 'generation-package'],
+                             operation='prepare',execution=execution,
                              resource_reader=runtime_source.read_resource)
         reader=runtime_evidence.acquisition(input_root or production_root or visual_root or prepared_reference_root,
                                             source=runtime_source)
@@ -688,7 +701,9 @@ def build_payload(
         content=acquire_generation(inputs,prepared_reference_root=prepared_reference_root,visual_root=visual_root,
             production_root=production_root,evidence=reader,visual_continuity=visual_continuity)
     from production_binding import create as create_production_binding, bind_consumer
-    binding=(bind_consumer(production_context,prompt) if production_context is not None else
+    binding=(bind_consumer({'run':production_run,'input_sha256':owner.prepared['input_sha256'],
+                           'consumer':owner.consumer},prompt) if owner is not None else
+             bind_consumer(production_context,prompt) if production_context is not None else
              create_production_binding(production_root if production_run is not None else None,production_run,prompt))
     return content.package(binding)
 
@@ -711,6 +726,7 @@ def acquire_generation(inputs,*,prepared_reference_root:Path|None,visual_root:Pa
     native_negative=values.get('native_negative')
     negative_provenance=values.get('negative_provenance')
     production_spec=values.get('production_spec')
+    render_intent=values['render_intent']
     state_lineage=values.get('state_lineage')
     state_snapshot=values.get('state_snapshot')
     state_graphs=values.get('state_graphs')
@@ -758,7 +774,7 @@ def acquire_generation(inputs,*,prepared_reference_root:Path|None,visual_root:Pa
         raise ValueError(f'model record {model_id!r} is an upscaler; use build_upscale_package.py')
     from prompt_weighting import selected as selected_weighting
     weighting_syntax=selected_weighting(inputs.effective_parameters,
-        inputs.profile['modes'][production_spec['render_intent']['execution_mode']]['prompt_syntax'])
+        inputs.profile['modes'][render_intent['execution_mode']]['prompt_syntax'])
     text_payload=inputs.text
     prompt = text_payload["prompt"]
     negative_prompt = text_payload["negative_prompt"]
@@ -773,8 +789,8 @@ def acquire_generation(inputs,*,prepared_reference_root:Path|None,visual_root:Pa
     negative_hash = sha256_text(negative_prompt)
     native_hash = sha256_text(native_negative)
     from production_spec import require_lineage
-    production_spec = dict(production_spec)
-    if production_spec.get("target_model") != model:
+    production_spec = dict(production_spec) if production_spec is not None else None
+    if production_spec is not None and production_spec.get("target_model") != model:
         raise ValueError("package model differs from production specification target_model")
     production_spec_hash = sha256_json(production_spec)
 
@@ -829,7 +845,8 @@ def acquire_generation(inputs,*,prepared_reference_root:Path|None,visual_root:Pa
     lineage_hash = require_concrete_sha256(
         state_lineage.get("lineage_sha256"), "state_lineage.lineage_sha256"
     )
-    require_lineage(production_spec, state_lineage)
+    if production_spec is not None:
+        require_lineage(production_spec, state_lineage)
 
     reference_selection_hash = reference_set["reference_selection_sha256"]
     prepared_reference_set_hash = require_concrete_sha256(
@@ -841,7 +858,7 @@ def acquire_generation(inputs,*,prepared_reference_root:Path|None,visual_root:Pa
     # when the record's offering points at one. Nothing has been uploaded yet,
     # so media stand in as placeholders and only their number is judged.
     from render_contract_lib import _contract_from_inputs
-    render_contract = _contract_from_inputs(model_record,target.offering,production_spec['render_intent'],
+    render_contract = _contract_from_inputs(model_record,target.offering,render_intent,
         inputs.values['parameters'],inputs.profile,inputs.effective_parameters,inputs.parameter_decisions,
         reference_count=delivered_reference_count(reference_set))
     parameters = render_contract["parameters"]
@@ -851,7 +868,7 @@ def acquire_generation(inputs,*,prepared_reference_root:Path|None,visual_root:Pa
     if offering is not None:
         from model_contract import request_instance,validate_request_schema
         media_counts=generation_media_counts(offering,delivered_reference_count(reference_set),
-            media_role=inputs.profile['modes'][production_spec['render_intent']['execution_mode']]['media'])
+            media_role=inputs.profile['modes'][render_intent['execution_mode']]['media'])
         instance=request_instance(offering,parameters,prompt=selected_prompt,
             negative_prompt=selected_negative if mode in {'separate-field','native-subset'} else None,media_counts=media_counts)
         validate_request_schema(offering,instance,target.parameter_schema)
@@ -893,12 +910,12 @@ def acquire_generation(inputs,*,prepared_reference_root:Path|None,visual_root:Pa
     retrieval_hash = sha256_json(retrieval_record)
     plot_hash = sha256_json(plot)
 
-    if not isinstance(creative_intent, dict):
-        raise ValueError("creative intent must be an object")
-    creative_intent = dict(creative_intent)
-    creative_intent["production_spec_sha256"] = production_spec_hash
-    creative_intent["state_lineage_sha256"] = lineage_hash
-    creative_intent.setdefault("style_family", "")
+    if creative_intent is not None:
+        if not isinstance(creative_intent, dict):
+            raise ValueError("creative intent must be an object")
+        creative_intent = dict(creative_intent)
+        creative_intent["production_spec_sha256"] = production_spec_hash
+        creative_intent["state_lineage_sha256"] = lineage_hash
     selected_instruction = transport_instruction(mode)
     selected_channels = {
         "separate-field": "prompt_plus_negative_fields",
@@ -1357,6 +1374,7 @@ RUN_INPUTS = {
     "plot": "--plot-file",
     "retrieval_record": "--retrieval-record-file",
     "parameters": "--parameters-file",
+    "creative_intent": "--intent-file",
 }
 
 
@@ -1364,7 +1382,7 @@ def run_inputs(directory: Path, prepared: dict[str, Any]) -> dict[str, Any]:
     """The documents the run's task declares, read from the run's own snapshot rather than the live files."""
     import execution_contract
     generation = prepared["task"].get("generation") or {}
-    pinned = {item["path"]: item["sha256"] for item in prepared["dependencies"] if item["space"] == "studio"}
+    pinned = {item["path"]: item["sha256"] for item in prepared["dependencies"] if item["space"] in {"studio", "task-source"}}
     found: dict[str, Any] = {}
     for name in RUN_INPUTS:
         path = generation.get(name)
@@ -1386,7 +1404,7 @@ def generation_inputs(args: argparse.Namespace, root: Path, held: dict[str, Any]
     from production_diagnostics import ProductionError
     chosen: dict[str, Any] = {}
     for name, option in RUN_INPUTS.items():
-        value = getattr(args, option[2:].replace("-", "_"))
+        value = getattr(args, option[2:].replace("-", "_"), None)
         if name in held:
             if value is not None:
                 raise ProductionError("INPUT_CONSISTENCY_ERROR", f"the prepared run holds its {name}, so {option} competes with it",
@@ -1399,8 +1417,7 @@ def generation_inputs(args: argparse.Namespace, root: Path, held: dict[str, Any]
             if not isinstance(chosen[name], dict):
                 raise ValueError(f"{option}: expected a JSON object")
         elif value is None:
-            raise ProductionError("INPUT_SCHEMA_INVALID", f"the prepared run declares no {name}; {option} names it",
-                                  phase="arguments", option=option, required_action=f"Pass {option} FILE.")
+            chosen[name] = None
         else:
             chosen[name] = studio_document(root, value, option)
     return chosen
@@ -1410,7 +1427,7 @@ def production_inputs(
     args: argparse.Namespace,
     *,
     model: str,
-    production_spec: dict[str, Any],
+    production_spec: dict[str, Any] | None,
     prepared_reference_set: dict[str, Any] | None,
     staging_root: Path,
     work_ids: dict[str, str] | None = None,
@@ -1437,11 +1454,11 @@ def production_inputs(
             raise ValueError("--visual-continuity-file already states continuity; drop --continuity, --character and --sheet-panel")
         visual = studio_document(root, args.visual_continuity_file, "--visual-continuity-file")
     else:
-        if not args.continuity:
-            raise ValueError("state each production subject's continuity with --continuity SUBJECT=DECISION")
         from visual_continuity import from_decisions
+        continuity=(_subject_values(args.continuity, "--continuity") if args.continuity else
+                    (prepared['task'].get('generation') or {}).get('continuity',{}))
         visual = from_decisions(
-            _subject_values(args.continuity, "--continuity"), production_spec=production_spec,
+            continuity, production_spec=production_spec,
             prepared=reference_set, root=root, characters=_subject_values(args.character, "--character"),
             work_ids=work_ids, sheet_panel=args.sheet_panel,
         )
@@ -1470,7 +1487,7 @@ def production_inputs(
             raise ValueError(str(exc)) from exc
         transport = transport_contract.load(service["transport"])
         validation = from_offering(model_id, record, offering, service, transport, runtime_evidence.reader(root))
-    return {"root": root, "run": run, "route_reading": reading,
+    return {"root": root, "run": run, "execution": prepared['task']['execution'], "route_reading": reading,
             "visual_continuity": visual, "request_validation": validation}
 
 
@@ -1509,6 +1526,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     brief.add_argument("--brief-file", help="The request as a UTF-8 text file")
     parser.add_argument("--intent-file", help="JSON containing image_promise, chosen_direction, and related notes")
     parser.add_argument("--production-spec-file", help="Reviewed Production Specification JSON, when the run declares none")
+    parser.add_argument("--render-intent-file", help="Rendering intent when neither the run nor a selected specification supplies it")
     parser.add_argument("--plot-file", help="The approved plot this picture was drawn from, when the run declares none")
     parser.add_argument("--retrieval-record-file",
                         help="Settled retrieval record bound to the run's prompt and the plot, when the run declares none")
@@ -1549,9 +1567,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         loaded = prepared_run(root, args.production_run)
         chosen = generation_inputs(args, root, run_inputs(loaded[1], loaded[2]))
         production_spec = chosen["production_spec"]
-        model = args.model or production_spec.get("target_model")
+        selected_generation=loaded[2]['task'].get('generation') or {}
+        model = args.model or (production_spec or {}).get("target_model") or selected_generation.get('model')
         if not isinstance(model, str) or not model.strip():
-            raise ValueError("the production specification names no target_model; pass --model")
+            raise ValueError("the prepared input names no model; pass --model")
+        render_intent=(production_spec or {}).get('render_intent') or selected_generation.get('render_intent')
+        if args.render_intent_file:
+            if render_intent is not None:
+                raise ValueError('the prepared input already supplies render intent')
+            render_intent=studio_document(root,args.render_intent_file,'--render-intent-file')
         brief = studio_text(root, args.brief_file, "--brief-file") if args.brief_file else args.brief
         staging_root, staged_json, _staged_companion_path, final_companion = (
             create_cli_package_staging(output_path)
@@ -1573,6 +1597,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                                     prepared_reference_set=staged_reference_set, staging_root=staging_root,
                                     loaded=loaded)
         payload = build_payload(
+            execution=derived['execution'],
             plot=chosen["plot"],
             retrieval_record=chosen["retrieval_record"],
             request_validation=derived["request_validation"], input_root=derived["root"],
@@ -1587,8 +1612,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_negative=studio_text(root, args.native_negative_file, "--native-negative-file"),
             negative_provenance=studio_document(root, args.negative_provenance_file, "--negative-provenance-file") or {},
             brief=brief,
-            creative_intent=studio_document(root, args.intent_file, "--intent-file") or {},
+            creative_intent=chosen['creative_intent'],
             production_spec=production_spec,
+            render_intent=render_intent,
             state_lineage=state_lineage_input,
             prepared_reference_set=staged_reference_set,
             prepared_reference_root=staging_root,
@@ -1603,7 +1629,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # the exact package contract before creating the output file.
         from verify_generation_payload import verify
 
-        verify(payload, package_root=staging_root, studio=derived["root"])
+        verify(payload, package_root=staging_root, studio=derived["root"], execution=derived['execution'])
         staged_json.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
             encoding="utf-8",

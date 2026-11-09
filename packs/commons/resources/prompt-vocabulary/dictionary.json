@@ -6,19 +6,19 @@
     {
       "id": "quality",
       "name": "Quality",
-      "description": "Terms used to request overall fidelity, resolution, polish, and visual detail.",
+      "description": "Terms naming requested fidelity, polish, detail, or a model's quality vocabulary. A definition describes the intended appearance or scoped usage, not a guaranteed model response. Actual output dimensions are chosen through generation controls.",
       "entries": [
         {
           "term": "4k",
-          "description": "Yields a crisp high resolution image with sharp edges, fine textures, and clean detail across the whole frame. Not a booru tag: on Illustrious and NoobAI checkpoints it carries no learned meaning and acts only on prose-trained models."
+          "description": "A resolution label also used as shorthand for crisp edges, fine textures, and clean detail. In prompt text it does not set actual pixel dimensions. The current Illustrious and NoobAI dialect lists it as inert; that family guidance does not establish its behavior on every checkpoint or other model."
         },
         {
           "term": "8k",
-          "description": "Pushes resolution even higher, rendering razor sharp textures, distinct pores and fibers, and no visible pixelation anywhere. Not a booru tag: on Illustrious and NoobAI checkpoints it carries no learned meaning and acts only on prose-trained models."
+          "description": "A resolution label also used as shorthand for very fine detail, such as distinct pores or fibers where appropriate. In prompt text it does not set actual pixel dimensions or guarantee sharper detail than 4k. The current Illustrious and NoobAI dialect lists it as inert; that family guidance does not establish its behavior on every checkpoint or other model."
         },
         {
           "term": "absurdres",
-          "description": "A corpus size mark for posts of 3200x2400 pixels and up. Its only pull is toward large finished uploads; it does not raise render quality."
+          "description": "A corpus size mark for posts of 3200x2400 pixels and up. It describes source-image dimensions rather than setting generated output dimensions or guaranteeing a particular finish."
         },
         {
           "term": "aesthetic",
@@ -66,7 +66,7 @@
         },
         {
           "term": "best quality",
-          "description": "Sharpens the whole image, enriching color depth, cleaning up edges, and removing any muddy or smudged areas."
+          "description": "A quality-tier label requesting a highly finished image, with goals such as resolved edges, rich color, and clear detail. It appears in the current Illustrious and NoobAI quality vocabulary; its effect depends on the exact checkpoint and prompt context."
         },
         {
           "term": "carefully rendered",
@@ -186,11 +186,11 @@
         },
         {
           "term": "high quality",
-          "description": "Produces a clean well finished image with smooth gradients, accurate edges, and no noise or smearing anywhere. Not a booru tag: on Illustrious and NoobAI checkpoints it carries no learned meaning and acts only on prose-trained models."
+          "description": "An ordinary-language request for a clean, well-finished image, potentially including smooth gradients, resolved edges, and controlled noise. The current Illustrious and NoobAI dialect lists it as inert; that family guidance does not establish its behavior on every checkpoint or other model."
         },
         {
           "term": "high resolution",
-          "description": "A resolution booster that keeps the composition and adds background and fine detail."
+          "description": "A request for high apparent resolution and legible fine detail. The phrase does not set output dimensions, add particular background content, or establish that an existing composition will be preserved."
         },
         {
           "term": "highly detailed",
@@ -202,7 +202,7 @@
         },
         {
           "term": "highres",
-          "description": "A corpus size mark for posts of 1600x1200 pixels and up. Its only pull is toward large finished uploads; it does not raise render quality."
+          "description": "A corpus size mark for posts of 1600x1200 pixels and up. It describes source-image dimensions rather than setting generated output dimensions or guaranteeing a particular finish."
         },
         {
           "term": "hyper detailed",
@@ -238,7 +238,7 @@
         },
         {
           "term": "masterpiece",
-          "description": "Renders gallery grade work with masterful lighting, refined anatomy, balanced color, and a strong sense of accomplished artistry."
+          "description": "An evaluative quality label requesting an accomplished, highly finished work. Refined anatomy, balanced color, or carefully designed lighting are possible goals where relevant, not properties guaranteed by this word. It appears in the current Illustrious and NoobAI quality vocabulary."
         },
         {
           "term": "mid",
@@ -363,7 +363,7 @@
         },
         {
           "term": "stylized",
-          "description": "The opposite of realistic: exaggerated, anime-leaning rendering with larger eyes."
+          "description": "A deliberate treatment that selects, simplifies, or exaggerates form, proportion, color, or rendering. Anime-like features and larger eyes are possible variants, not defining requirements; stylization can coexist with believable anatomy, material, or light."
         },
         {
           "term": "subtle details",
@@ -379,11 +379,11 @@
         },
         {
           "term": "ultra highres",
-          "description": "Raises the resolution sharply so textures stay clean and legible even in tight framing or large scenes."
+          "description": "An emphatic request for high apparent resolution and legible fine texture, including in close views or large scenes. It is not an output-size control or evidence that the selected model will retain more detail."
         },
         {
           "term": "ultra quality",
-          "description": "Delivers top tier finish with pristine edges, rich color, accurate lighting, and texture that survives close inspection."
+          "description": "An emphatic request for a polished finish, potentially including clean edges, rich color, coherent lighting, and resolved texture. The word does not certify those properties in an output."
         },
         {
           "term": "ultra sharp",
@@ -439,7 +439,7 @@
         },
         {
           "term": "incredibly absurdres",
-          "description": "A corpus size mark for posts above 10000 pixels on a side. Its only pull is toward very large finished uploads."
+          "description": "A corpus size mark for posts above 10000 pixels on a side. It describes source-image dimensions rather than setting generated output dimensions or guaranteeing a particular finish."
         }
       ]
     },
@@ -1935,11 +1935,11 @@
         },
         {
           "term": "photorealistic",
-          "description": "Produces an image indistinguishable from a photograph, with true camera optics, natural skin, and physically plausible light."
+          "description": "A photographic appearance, with plausible camera optics, lighting, and subject-appropriate surface detail such as natural skin when skin is present. It can describe an imagined subject rendered as if photographed; the word does not guarantee photographic indistinguishability."
         },
         {
           "term": "photorealistic painting",
-          "description": "Painting indistinguishable from a photograph."
+          "description": "A painting that aims for a photographic appearance through closely observed form, light, color, and surface detail."
         },
         {
           "term": "photorealistic photography",
@@ -1947,7 +1947,7 @@
         },
         {
           "term": "photorealistic render",
-          "description": "3D rendering indistinguishable from photography."
+          "description": "A 3D rendering that aims for a photographic appearance through camera, lighting, geometry, and material response."
         },
         {
           "term": "photoshop",
@@ -2018,7 +2018,7 @@
         },
         {
           "term": "realistic",
-          "description": "Renders the subject with believable real world anatomy, proportion, and lighting instead of stylization."
+          "description": "A naturalistic treatment with believable form, proportion, material, or lighting at the intended scope. It can apply to an illustrated or imagined subject without requiring photography or replacing the subject's chosen design."
         },
         {
           "term": "renaissance painting style",
@@ -3530,11 +3530,11 @@
         },
         {
           "term": "animal focus",
-          "description": "An animal as the main subject; name the species."
+          "description": "An animal as the main subject."
         },
         {
           "term": "armpit focus",
-          "description": "Armpits emphasized suggestively, with arms raised and a suggestive touch."
+          "description": "Compositional emphasis on the armpits."
         },
         {
           "term": "ass",
@@ -3542,7 +3542,7 @@
         },
         {
           "term": "ass focus",
-          "description": "A close rear framing on the buttocks; ass rather than hip for that meaning."
+          "description": "Compositional emphasis on the buttocks."
         },
         {
           "term": "asymmetrical composition",
@@ -3560,7 +3560,7 @@
         },
         {
           "term": "back focus",
-          "description": "Centers attention on the back of the body, shown turned away and rendered in sharp detail."
+          "description": "Compositional emphasis on the back of the body."
         },
         {
           "term": "balanced composition",
@@ -3604,7 +3604,7 @@
         },
         {
           "term": "chest focus",
-          "description": "Draws attention to the chest, rendered sharply while the surroundings soften."
+          "description": "Compositional emphasis on the chest."
         },
         {
           "term": "cinematic framing",
@@ -3629,7 +3629,7 @@
         },
         {
           "term": "close-up",
-          "description": "A tight framing that, undirected, tends to show only the region around the eyes; a backlit look with shadowed face and lit nose is a common side effect.",
+          "description": "A tight framing in which the subject or a selected detail fills much of the image.",
           "opposes": [
             "full body",
             "wide shot"
@@ -3676,15 +3676,15 @@
         },
         {
           "term": "couple focus",
-          "description": "A couple drawn as equal subjects rather than one partner cropped at the edge; occasionally a same-sex pair."
+          "description": "A couple as the main subject."
         },
         {
           "term": "cowboy shot",
-          "description": "Frames the subject from roughly mid-thigh upward; some models may also introduce a cowboy hat."
+          "description": "Frames the subject from roughly mid-thigh upward."
         },
         {
           "term": "cropped arms",
-          "description": "The arms are cut by the frame, usually below the elbow."
+          "description": "The arms are cut by the frame edge."
         },
         {
           "term": "cropped composition",
@@ -3707,7 +3707,7 @@
         },
         {
           "term": "cropped torso",
-          "description": "The torso is cut by the frame edge, showing only the upper body region."
+          "description": "The torso is cut by the frame edge."
         },
         {
           "term": "depth cue",
@@ -3767,11 +3767,11 @@
         },
         {
           "term": "extreme close-up",
-          "description": "Fills the frame with one small region such as a hand or an eye; pair it with the region's own identity tags because unattended details snap back to model defaults at this magnification."
+          "description": "Fills the frame with one small region, such as a hand or an eye."
         },
         {
           "term": "eye focus",
-          "description": "An extreme close-up on one eye, depending on canvas size."
+          "description": "Compositional emphasis on an eye."
         },
         {
           "term": "face",
@@ -3791,7 +3791,7 @@
         },
         {
           "term": "face focus",
-          "description": "Sharpens the face while the rest of the body and background fall into soft blur.",
+          "description": "Compositional emphasis on the face.",
           "aliases": [
             "face_focus"
           ]
@@ -3874,7 +3874,7 @@
         },
         {
           "term": "groin focus",
-          "description": "Framing on the groin area, slightly wider than pussy focus."
+          "description": "Compositional emphasis on the groin area."
         },
         {
           "term": "half body shot",
@@ -3897,7 +3897,7 @@
         },
         {
           "term": "head shot",
-          "description": "Frames the head and shoulders against a simple background, centered and clearly lit."
+          "description": "Frames the head and shoulders."
         },
         {
           "term": "horizon line",
@@ -3947,7 +3947,7 @@
         },
         {
           "term": "leg focus",
-          "description": "Centers attention on the legs, rendered in sharp detail while the rest of the figure recedes."
+          "description": "Compositional emphasis on the legs."
         },
         {
           "term": "loose framing",
@@ -3965,11 +3965,11 @@
         },
         {
           "term": "male focus",
-          "description": "Composition emphasizes the male character, other subjects cropped or backgrounded."
+          "description": "Composition emphasizes the male character."
         },
         {
           "term": "mecha focus",
-          "description": "A mecha as the main subject, tending toward realistic robots."
+          "description": "A mecha as the main subject."
         },
         {
           "term": "minimal background",
@@ -3987,7 +3987,7 @@
         },
         {
           "term": "navel focus",
-          "description": "The navel emphasized, so the midriff is exposed; reliable."
+          "description": "Compositional emphasis on the navel."
         },
         {
           "term": "negative space composition",
@@ -3998,7 +3998,7 @@
         },
         {
           "term": "object focus",
-          "description": "Objects or still life as the main subject; name the objects and add no humans or still life.",
+          "description": "Objects or still life as the main subject.",
           "aliases": [
             "object_focus"
           ]
@@ -4034,7 +4034,7 @@
         },
         {
           "term": "portrait",
-          "description": "Frames the head and upper torso closely, centered, with the attention on the face and expression."
+          "description": "Frames the head and upper torso closely, with attention on the face and expression."
         },
         {
           "term": "portrait orientation",
@@ -4060,7 +4060,7 @@
         },
         {
           "term": "reflection focus",
-          "description": "The mirror or water reflection as the main subject with the body cropped; illustrious-family models often invert this, so name the mirror or water, and upside-down if flipped."
+          "description": "A mirror or water reflection as the main subject."
         },
         {
           "term": "rule of thirds",
@@ -4078,7 +4078,7 @@
         },
         {
           "term": "single focus",
-          "description": "One character as the main subject; couple focus tends to add a partner cropped at the edge."
+          "description": "One character as the main subject."
         },
         {
           "term": "solo",
@@ -4093,7 +4093,7 @@
         },
         {
           "term": "solo focus",
-          "description": "One character emphasized in frame while others are cropped or backgrounded."
+          "description": "One character emphasized relative to other characters in the image."
         },
         {
           "term": "split composition",
@@ -4176,15 +4176,15 @@
         },
         {
           "term": "book focus",
-          "description": "Centers the composition on one or more books, their covers, pages, or stacks filling the frame as the main subject."
+          "description": "One or more books as the main subject."
         },
         {
           "term": "clothes focus",
-          "description": "Makes the garments the subject, shown close up or laid out with the wearer cropped or absent so the eye lands on the clothing."
+          "description": "Garments as the main subject."
         },
         {
           "term": "cloud focus",
-          "description": "Fills the frame with clouds as the main subject, their shapes and lighting dominating over any land or figures."
+          "description": "Clouds as the main subject."
         },
         {
           "term": "creature focus",
@@ -4196,19 +4196,19 @@
         },
         {
           "term": "flower focus",
-          "description": "Fills the frame with flowers as the main subject, blossoms taking the sharp foreground and most of the picture."
+          "description": "Flowers as the main subject."
         },
         {
           "term": "footwear focus",
-          "description": "Centers the picture on shoes or boots, worn or set aside, with the footwear filling the frame as the main subject."
+          "description": "Shoes or boots, worn or set aside, as the main subject."
         },
         {
           "term": "hair focus",
-          "description": "Puts the emphasis on the hair itself, its flow, texture, or style taking the frame over the face and body."
+          "description": "Compositional emphasis on the hair itself."
         },
         {
           "term": "hip focus",
-          "description": "Emphasizes the hips with a pose, crop, or angle that makes their curve the strongest element of the frame."
+          "description": "Compositional emphasis on the hips."
         },
         {
           "term": "kanji focus",
@@ -4216,7 +4216,7 @@
         },
         {
           "term": "monster focus",
-          "description": "Makes a monster the main subject, its bulk and features filling the frame ahead of any human figure."
+          "description": "A monster as the main subject."
         },
         {
           "term": "mountain focus",
@@ -4224,15 +4224,15 @@
         },
         {
           "term": "mouth focus",
-          "description": "Crops in close on the mouth, its lips and teeth rendered in high detail as the main point of the image."
+          "description": "The mouth as the main point of interest."
         },
         {
           "term": "neck focus",
-          "description": "Frames the picture on the neck and throat, cropped or angled to make them the center of attention."
+          "description": "Compositional emphasis on the neck and throat."
         },
         {
           "term": "pectoral focus",
-          "description": "Frames the chest of a muscular male figure up close so the pectorals dominate the picture."
+          "description": "Compositional emphasis on the pectoral muscles, often in a close view."
         },
         {
           "term": "penis focus",
@@ -4240,11 +4240,11 @@
         },
         {
           "term": "plant focus",
-          "description": "Fills the frame with plants as the main subject, foliage and stems taking the foreground over any other element."
+          "description": "Plants as the main subject."
         },
         {
           "term": "sky focus",
-          "description": "Gives most of the frame to the sky, with any ground, objects, or people kept small and low so the sky is the subject."
+          "description": "The sky as the main subject."
         },
         {
           "term": "steppee focus",
@@ -4252,11 +4252,11 @@
         },
         {
           "term": "stomach focus",
-          "description": "Frames the picture on the belly, cropped or angled so the stomach is the main point of interest."
+          "description": "The stomach as the main point of interest."
         },
         {
           "term": "tail focus",
-          "description": "Makes a tail the main subject, its shape and fur or scales filling the frame ahead of the rest of the body."
+          "description": "A tail as the main subject."
         },
         {
           "term": "tree focus",
@@ -4264,7 +4264,7 @@
         },
         {
           "term": "vehicle focus",
-          "description": "Makes a vehicle the main subject of the picture, its body and details filling the frame ahead of any people."
+          "description": "A vehicle as the main subject."
         },
         {
           "term": "weapon focus",
@@ -4272,7 +4272,7 @@
         },
         {
           "term": "wind chime focus",
-          "description": "Makes a hanging wind chime the conspicuous main subject, its glass or metal bell and paper strip filling the frame."
+          "description": "A hanging wind chime as the main subject."
         },
         {
           "term": "arm out of frame",
@@ -4280,19 +4280,19 @@
         },
         {
           "term": "eyes out of frame",
-          "description": "Crops the top of the head so the eyes fall above the frame edge, leaving only the nose, mouth, and lower face visible."
+          "description": "The eyes fall outside the frame edge."
         },
         {
           "term": "foot out of frame",
-          "description": "Shows the body nearly full length but crops one foot past the bottom edge, the knees still inside the frame."
+          "description": "One foot extends beyond the frame edge."
         },
         {
           "term": "knees out of frame",
-          "description": "Frames the body so the thighs and the lower legs are visible but the knees themselves fall outside an edge of the picture."
+          "description": "The knees fall outside the frame edge."
         },
         {
           "term": "out of frame",
-          "description": "Crops a character so only a sliver of them remains visible at the edge of the picture, such as a hand, a shoulder, or a bit of hair."
+          "description": "A character is cropped by the frame edge."
         },
         {
           "term": "split crop",
@@ -4302,8 +4302,6 @@
       "close_scale_terms": [
         "close-up",
         "extreme close-up",
-        "eye focus",
-        "face focus",
         "portrait",
         "tight crop",
         "tight framing",
@@ -4749,12 +4747,9 @@
         "bust",
         "close crop",
         "close shot",
-        "cropped subject",
         "detail shot",
-        "ear focus",
         "extreme close up",
         "face portrait",
-        "head focus",
         "insert shot",
         "macro shot"
       ]
@@ -6154,7 +6149,7 @@
         },
         {
           "term": "mature male",
-          "description": "Clearly adult masculine subject; pairs with bara body typing."
+          "description": "A middle-aged or older male appearance. Body build is specified separately."
         },
         {
           "term": "meerkat",
@@ -10913,7 +10908,7 @@
         },
         {
           "term": "mutual hug",
-          "description": "Two characters hugging face to face."
+          "description": "A reciprocated embrace in which both participants hold the other."
         },
         {
           "term": "neck grab",
@@ -11589,7 +11584,7 @@
         },
         {
           "term": "face-to-face",
-          "description": "Two figures stand or sit facing each other at very close range."
+          "description": "Two figures oriented toward one another, with their faces directed at each other."
         },
         {
           "term": "fireman's carry",
@@ -43918,7 +43913,7 @@
         },
         {
           "term": "bara",
-          "description": "Genre tag for adult male characters drawn with heavy musculature and mature features; steers the whole rendition, not one body part."
+          "description": "A genre or style associated with gay and bisexual male audiences and masculine male appeal. It includes varied body types; specify the intended age, build and activity separately."
         },
         {
           "term": "bare breasts",
@@ -44307,7 +44302,7 @@
         },
         {
           "term": "completely nude",
-          "description": "No clothing remains at all; the whole body including genitals is fully exposed."
+          "description": "Emphasizes the absence of clothing on the body; framing and visible anatomy are separate choices."
         },
         {
           "term": "condom belt",
@@ -44399,7 +44394,11 @@
         },
         {
           "term": "cuddling",
-          "description": "Close affectionate holding without sexual action."
+          "description": "Close holding for affection, comfort or warmth, typically in a non-explicit context.",
+          "aliases": [
+            "cuddle",
+            "snuggle"
+          ]
         },
         {
           "term": "cuffs",
@@ -45491,7 +45490,7 @@
         },
         {
           "term": "muscular man",
-          "description": "A muscular male partner, tending dark-skinned and spreading muscle to the woman."
+          "description": "An adult male figure with a muscular build."
         },
         {
           "term": "mutual masturbation",
@@ -45655,7 +45654,7 @@
         },
         {
           "term": "nude",
-          "description": "The figure is fully unclothed, with the entire bare body visible and no garments worn."
+          "description": "An unclothed body state. Framing and occlusion determine how much of the body is visible."
         },
         {
           "term": "nursing handjob",
@@ -50630,7 +50629,7 @@
         },
         {
           "term": "solo focus",
-          "description": "Several figures, one of them the subject and the rest incidental."
+          "description": "Several characters are present, with the composition emphasizing one of them."
         },
         {
           "term": "still life",

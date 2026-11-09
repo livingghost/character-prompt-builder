@@ -10,39 +10,37 @@ import route_reading as r
 _WORK = tempfile.TemporaryDirectory(prefix='synthetic-reading-')
 
 
-def fixture_reading(*, route: str = 'generation', features: list[str] | None = None,
+def fixture_reading(*, execution: str, route: str = 'generation', features: list[str] | None = None,
                     studio: Path | None = None, ledger: Path | None = None,
-                    dialect: str | None = None) -> dict:
-    """Read full fixture documents, then author a labeled synthetic application of the route's own documents."""
+                    dialect: str | None = None, operation: str | None = None,
+                    model: str | None = None, service: str | None = None,
+                    model_file: Path | None = None) -> dict:
+    """Deliver complete source bytes for a labeled synthetic operation."""
     ledger = ledger or Path(os.environ.get('CPB_READS_LEDGER', str(Path(_WORK.name)/'reads.jsonl')))
     os.environ['CPB_READS_LEDGER'] = str(ledger.absolute())
-    manifest, bodies = r.capture(route, features, dialect=dialect)
+    manifest, _ = r.capture(route, features, dialect=dialect, operation=operation, execution=execution, model=model,
+                            service=service, model_file=model_file)
     key = c.content_id({'fixture': 'synthetic reading', 'manifest': manifest})[:32]
     issued = r.issue(route, features, ledger=ledger, stream=io.StringIO(), key=key,
-                     at='2000-01-01T00:00:00Z', cwd='synthetic-fixture', dialect=dialect)
-    applied = set(c.load(r.ROOT/r.execution_routes.MANIFEST)['routes'][route]['reads'])
-    applications = {'applied': [], 'resource_applied': []}
-    for meta, raw in bodies:
-        if meta['kind'] == 'document' and meta['path'] in applied:
-            candidates = [block for block in r.prose_blocks(raw.decode('utf-8')) if len(block.split()) >= 12]
-            if not candidates:
-                raise ValueError('fixture needs a paragraph quotation in ' + meta['path'])
-            applications['applied'].append({'path':meta['path'], 'quote':candidates[0],
-                'why':'Exercise quotation integrity with synthetic input, not evidence of a real reading session.'})
-        elif meta['kind'] == 'resource' and meta['resource'] == 'prompt-writing-guide':
-            guide = c.decode(raw)
-            candidates = [(i,j,rule) for i,section in enumerate(guide['sections']) if not section.get('dialects')
-                          for j,rule in enumerate(section['rules']) if isinstance(rule,str) and rule.strip()]
-            if not candidates:
-                raise ValueError('synthetic model fixture needs a universal guide rule')
-            i,j,rule=candidates[0]
-            applications['resource_applied'].append({'resource':'prompt-writing-guide','pointer':f'/sections/{i}/rules/{j}',
-                'quote':rule,'why':'Synthetic fixture exercises the complete decoded rule and its source pointer.'})
-    return r.build_record(issued, applications, ledgers=[ledger], dialect=dialect)
+                     at='2000-01-01T00:00:00Z', cwd='synthetic-fixture', dialect=dialect,
+                     operation=operation, execution=execution, model=model, service=service, model_file=model_file)
+    return r.build_record(issued, ledgers=[ledger])
 
 
 def task_reading(root: Path, task: dict) -> dict:
-    record = fixture_reading(route=task['route'], features=task['features'], studio=root)
+    target = task.get('generation') or task.get('upscale') or (task.get('authored') or {}).get('target') or {}
+    model = target.get('model')
+    if model is None and target.get('production_spec'):
+        model = c.load(root / target['production_spec']).get('target_model')
+    if model is None and task.get('route') == 'upscale' and task.get('delivery'):
+        source = root / task['delivery']['path']
+        if source.is_file():
+            model = c.load(source).get('model')
+    record = fixture_reading(route=task['route'], features=task['features'], studio=root,
+                             execution=task['execution'],
+                             operation='author' if task['execution'] == 'authored' else 'prepare',
+                             model=model, service=target.get('service') if model else None,
+                             model_file=root / target['model_file'] if target.get('model_file') else None)
     path = 'work/fixture-reading-' + c.content_id(record) + '.json'
     target = root/path; target.parent.mkdir(parents=True,exist_ok=True)
     target.write_bytes(c.encoded(record))

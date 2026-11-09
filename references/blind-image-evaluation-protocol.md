@@ -6,7 +6,7 @@ This protocol evaluates generated images. It is separate from structural validat
 
 An ordinary production review decides whether one candidate meets its declared
 criteria. Follow
-[Production Execution](runtime/production-execution.md#observe-before-interpreting)
+[Production Execution](runtime/production-review.md#observe-before-interpreting)
 to record direct artifact observations before applying the intended reading.
 A separate observer can receive only the artifact before seeing its brief;
 record that input boundary and its limits. When the producer reviews in the

@@ -10,6 +10,7 @@ from unittest.mock import patch
 import artifact_review as ar
 import evaluation_evidence as ev
 import execution_contract as c
+import production_fixtures
 import production_workflow as w
 import production_workflow_smoke_test as fixtures
 
@@ -23,6 +24,23 @@ class EvidenceToolsTests(unittest.TestCase):
 
     def captured(self):
         return self.fixture.candidate()
+
+    def captured_pair(self):
+        """Receive two actual fixture outputs within one declared host call."""
+        run = self.fixture.prepare()
+        production_fixtures.handoff(self.root, run, 'synthetic evidence host', 'manual')
+        authorization = production_fixtures.grant(self.root, run, w.external_intent(self.root, run, 2))
+        w.claim_external(self.root, run, 2, authorization)
+        paths = ['first.txt', 'second.txt']
+        candidates = []
+        for path, text in zip(paths, ('One lamp.\n', 'A single lamp stands in the room.\n'), strict=True):
+            self.fixture.write(path, text)
+            candidates.append(w.capture(self.root, run, path,
+                'An actual synthetic delegated text result; no model-quality claim.'))
+        self.fixture.write('host-receipt.json', {'synthetic': True, 'status': 'received', 'files': paths})
+        w.receive_external(self.root, run, response_file='host-receipt.json', artifacts=paths, final=True,
+                           reason='The synthetic host returned both declared text results.')
+        return run, candidates
 
     def reviewed(self):
         run, candidate = self.fixture.candidate()
@@ -81,11 +99,11 @@ class EvidenceToolsTests(unittest.TestCase):
         self.assertIn('No candidate has been captured', ar.render(data))
 
     def test_every_candidate_is_visible(self):
-        run, _ = self.captured()
-        (self.root / 'extra.txt').write_text('Different synthetic candidate.', encoding='utf-8')
-        w.capture(self.root, run, 'extra.txt', 'Synthetic candidate, not a model result.')
+        run, candidates = self.captured_pair()
         data, _ = ar.build(self.root, run)
         self.assertEqual(len(data['candidates']), 2)
+        self.assertEqual({row['id'] for row in data['candidates']},
+                         {row['sha256'] for row in candidates})
 
     def test_stale_file_shows_original_saved_bytes(self):
         run, _ = self.captured()
@@ -210,9 +228,7 @@ class EvidenceToolsTests(unittest.TestCase):
             ev.build(self.root, self.save_study(spec))
 
     def test_other_candidate_from_same_run_not_independent(self):
-        run, candidate = self.captured()
-        (self.root / 'other.txt').write_text('Another synthetic candidate.', encoding='utf-8')
-        other = w.capture(self.root, run, 'other.txt', 'Synthetic second candidate.')
+        run, (candidate, other) = self.captured_pair()
         spec = self.study(run, candidate['sha256'])
         spec['trials'].append({**spec['trials'][0], 'id': 'trial-2', 'candidate': other['sha256']})
         with self.assertRaisesRegex(ValueError, 'independent'):

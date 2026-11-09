@@ -466,7 +466,7 @@ def validate(root:Path=ROOT)->dict[str,Any]:
 
     builder=root/'examples/state-aware-pilot/build_example.py'
     pilot_replacement_regression={
-        'ok':False,'unexpected_sentinel_removed':False,'deterministic':False,
+        'ok':False,'unexpected_sentinel_removed':False,'deterministic':False,'preferences_isolated':False,
         'errors':['not run'],
     }
     if not builder.is_file():
@@ -496,13 +496,14 @@ def validate(root:Path=ROOT)->dict[str,Any]:
                 pilot_replacement_regression=json.loads(replacement_proc.stdout)
             except json.JSONDecodeError as exc:
                 pilot_replacement_regression={
-                    'ok':False,'unexpected_sentinel_removed':False,'deterministic':False,
+                    'ok':False,'unexpected_sentinel_removed':False,'deterministic':False,'preferences_isolated':False,
                     'errors':[f'invalid replacement regression JSON: {exc}'],
                 }
             if (
                 pilot_replacement_regression.get('ok') is not True
                 or pilot_replacement_regression.get('unexpected_sentinel_removed') is not True
                 or pilot_replacement_regression.get('deterministic') is not True
+                or pilot_replacement_regression.get('preferences_isolated') is not True
             ):
                 errors.append('state-aware pilot clean-replacement regression did not pass')
 

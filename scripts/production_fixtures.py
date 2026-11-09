@@ -15,10 +15,10 @@ ACTOR = 'SYNTHETIC FIXTURE OPERATOR - NOT USER CONSENT'
 
 def task(root: Path, spec: dict, *, artifact: str = 'text', execution: str = 'authored') -> dict:
     from reading_fixtures import task_reading
-    task_reading(root, spec)
     spec.setdefault('production_id', generate_uuid7())
     spec['artifact'] = artifact
     spec['execution'] = execution
+    task_reading(root, spec)
     spec['direction'] = {'purpose': 'Exercise an explicitly declared synthetic deliverable.',
                          'intended_effect': 'Make no claim of generated artwork or user approval.',
                          'basis': [], 'decisions': [], 'action_slice': None,
@@ -179,13 +179,13 @@ def claim(root: Path, run: str, package: dict, verified: dict, journal: Path, co
 
 
 def prepare_external_delivery(root: Path, prompt: str, *, route: str = 'generation',
-                     artifact: str = 'image', sources: list | None = None) -> str:
+                     artifact: str = 'image', sources: list | None = None, model: str | None = None) -> str:
     """Explicit local test setup; never imported by an operational entrypoint."""
     import work_ledger
     import production_workflow as w
     started = work_ledger.begin(root, 'Synthetic external package construction', ['prepare', 'inspect'])
     (root / 'fixture-delivery.txt').write_text(prompt, encoding='utf-8')
-    spec = {'task_id': started['task_id'], 'route': route, 'features': [],
+    spec = {'task_id': started['task_id'], 'route': route, 'features': ['generation-package'],
             'sources': sources or [], 'delivery': {'path': 'fixture-delivery.txt',
              'translation_notes': 'Exact synthetic test input.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual received fixture bytes.'}],
@@ -193,6 +193,12 @@ def prepare_external_delivery(root: Path, prompt: str, *, route: str = 'generati
     if artifact == 'image':
         external_image_input(root, spec)
     task(root, spec, artifact=artifact, execution='external')
+    if model is not None:
+        from reading_fixtures import fixture_reading
+        reading = fixture_reading(route=route, features=spec['features'], operation='prepare',
+                                  model=model, studio=root, execution='external')
+        spec['route_reading'] = 'fixture-model-reading.json'
+        (root / spec['route_reading']).write_bytes(c.encoded(reading))
     (root / 'fixture-task.json').write_bytes(c.encoded(spec))
     run = w.prepare(root, 'fixture-task.json')['run']
     return run
@@ -210,7 +216,10 @@ def bind_package(root: Path, run: str, package: dict) -> dict:
     value['generation_contract']['visual_continuity_sha256'] = value['visual_continuity_sha256']
     from reading_fixtures import fixture_reading
     from build_generation_payload import sha256_json
-    reading = fixture_reading(route=value['route_reading']['route'], features=value['route_reading']['features'])
+    from production_workflow import assert_current
+    owner = assert_current(root, run)
+    reading = fixture_reading(route=value['route_reading']['route'], features=value['route_reading']['features'],
+                              model=value['model'], service=value['service'], execution=owner.prepared['task']['execution'])
     value['route_reading'] = reading
     value['route_reading_sha256'] = sha256_json(reading)
     value['generation_contract']['route_reading_sha256'] = sha256_json(reading)

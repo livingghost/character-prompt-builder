@@ -47,6 +47,12 @@ initialize it with `python scripts/prompt_retrieval.py lookups.json --init` when
 needed. A conversation-only prompt can use temporary files without creating a
 Studio.
 
+A family-oriented tag draft with no selected checkpoint uses the family's
+declared vocabulary scope, the active dictionary and the actual `Search`
+commands below. Inspect the returned definitions and read back the complete
+rendition under that family's grammar. This supplies searched wording for the
+draft; model-bound saving or preparation uses the exact-model path that follows.
+
 ```bash
 python scripts/prompt_retrieval.py lookups.json --search-vocabulary \
   --model MODEL_ID --prompt-file prompt.txt --negative-file negative.txt \

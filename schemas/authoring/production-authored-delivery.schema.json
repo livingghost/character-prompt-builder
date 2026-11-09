@@ -1,0 +1,25 @@
+{
+  "title": "Observed authored artifact presentation or handoff",
+  "description": "External delivery evidence identifies the actual presented text or attached artifact. Local delivery uses deliver --to and records the completed copy directly. Either route retains the saved draft or finished state; the owner computes digests and infers no receiving or reading acknowledgment.",
+  "type": "object",
+  "properties": {
+    "recipient": {"type": "string", "minLength": 1},
+    "channel": {"type": "string", "minLength": 1},
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "field": {"$ref": "authoring/production-authored-contract.schema.json#/$defs/field"}
+      },
+      "required": ["path"],
+      "additionalProperties": false
+    },
+    "artifact": {
+      "description": "The actual file supplied to an attachment adapter. Omit when the evidence text itself is the presented artifact.",
+      "type": "string", "minLength": 1
+    },
+    "note": {"type": "string", "minLength": 1}
+  },
+  "required": ["recipient", "channel", "evidence", "note"],
+  "additionalProperties": false
+}

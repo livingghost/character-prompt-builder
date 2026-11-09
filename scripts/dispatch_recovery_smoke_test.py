@@ -580,7 +580,7 @@ class SecondServiceTests(unittest.TestCase):
         cases.write(self.root/'validation.json',validation)
         retrieval=c.load(self.root/'retrieval.json');retrieval['pack_state']=catalog.fingerprint;cases.write(self.root/'retrieval.json',retrieval)
         task=c.load(self.root/'task.json');task['generation'].update(service='second-fixture',count=2)
-        cases.write(self.root/'reading.json',fixture_reading(route='generation',studio=self.root,ledger=self.root/'work/reads.jsonl'))
+        cases.write(self.root/'reading.json',fixture_reading(route='generation',studio=self.root,ledger=self.root/'work/reads.jsonl',model=model['id'],service='second-fixture', execution='dispatcher'))
         cases.write(self.root/'task.json',task)
         self.run=workflow.prepare(self.root,'task.json')['run'];self.decisions=decisions(self.root,self.run)
         service_auth.set_value(self.root, 'second-fixture', 'SYNTHETIC-LOOPBACK-KEY')

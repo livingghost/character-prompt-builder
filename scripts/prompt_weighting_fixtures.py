@@ -45,7 +45,7 @@ def refresh(case: dict) -> None:
     base.write(root / 'validation.json', fixture_validation(root, MODEL, reference_mode='authored-rendition', service='synthetic'))
     dialect = model.get('prompt_dialect')
     base.write(root / 'reading.json', fixture_reading(route='generation', studio=root,
-               ledger=root / 'work/reads.jsonl', dialect=dialect))
+               ledger=root / 'work/reads.jsonl', model=MODEL, service='synthetic', execution='dispatcher'))
 
 
 def create(root: Path, runtime_root: Path, *, prompt: str = PROMPT, negative: str = NEGATIVE,

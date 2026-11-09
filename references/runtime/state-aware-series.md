@@ -1,6 +1,6 @@
 # State-Aware Series Runtime
 
-Use this document for recurring characters, temporal continuity, visible consequences of off-screen events, rendered identity references from other scenes, or an arriving shot-request. For a one-off image with no continuity state, use a stateless Production Specification and skip this document.
+Use this document for recurring characters, temporal continuity, visible consequences of off-screen events, rendered identity references from other scenes, or an arriving shot-request. A one-off image with no continuity state uses the ordinary image route and does not require these state artifacts.
 
 ## Contents
 
@@ -78,7 +78,7 @@ For every localized identity detail, use the subject's own left and right, ancho
 
 ## Scene Production Specification
 
-Use `templates/production-spec-template.json`, `templates/performance-language-template.json`, [Production Specification](../production-specification.md), and [Performance Language Specification](../performance-language-specification.md). `protocols/shared-state/templates/state-lineage.template.json` is the stateless starter; it carries placeholder hashes, so finalize it before use. For a continuity graph, start from `protocols/shared-state/templates/state-lineage-state-aware.template.json`, fill each node hash with the hash of the reviewed artifact it names, then finalize it. A state-aware subject references its Identity Contract, State Snapshot, and Visual State Projection; the specification references the sealed State Lineage and Scene Context.
+Use `templates/production-spec-template.json`, `templates/performance-language-template.json`, [Production Specification](../production-specification.md), and [Performance Language Specification](../performance-language-specification.md). `state_protocol.py make-lineage` acquires selected artifact paths and derives their hashes, or finalizes a stateless lineage with `--mode stateless`. Select actual reviewed nodes for a continuity graph; do not calculate and copy their hashes. A state-aware subject references its Identity Contract, State Snapshot, and Visual State Projection; the specification references the sealed State Lineage and Scene Context.
 
 Use only consequential modules. Fine controls may cover identity projection, proportions, head and facial construction, hair and regional covering maps, current physical state, wardrobe layers and condition, inventory, torso and support geometry, separate left/right hand and leg chains, coordinated performance channels, gaze target and head rotation, relationship distance and contact, environmental response, depth, camera, crop, lighting, and selected rendering knowledge.
 
@@ -187,21 +187,29 @@ when no order is authored. `--limit` is an explicit logical selection limit;
 there is no fixed aesthetic quota.
 
 The Production Specification's subjects with `state_snapshot_ref` are its
-state-aware cast. Other subjects can remain stateless. Supply `state_graphs` as
-one JSON array through `generation.state_graphs` or `--state-graphs-file`:
+state-aware cast. Other subjects can remain stateless. In production authoring,
+`authoring.documents.state_graphs` accepts selected lineage roots and an explicit
+inventory of artifact paths:
 
 ```json
-[{"lineage": {"artifact_type": "state-lineage", "...": "complete finalized artifact"},
-  "species_profile": {}, "individual_morphology": {}, "identity_contract": {},
-  "state_snapshot": {}, "scene_context": {}, "visual_projection": {},
-  "asset_render_spec": {}}]
+{"lineages": ["state/selected-lineage.json"],
+ "artifacts": ["state/species.json", "state/individual.json", "state/identity.json",
+               "state/snapshot.json", "state/context.json", "state/projection.json", "state/render.json"]}
 ```
 
-This shape illustration abbreviates artifact contents; every node must contain
-its complete validated artifact. Add `era_contract`, `form_contract`,
-`appearance_variant`, `visual_authority` or `visual_evidence_bundle` when the
-graph declares them. The executable state-aware pilot writes a complete
-`generated/state-graphs.json` example.
+The selected lineages already own their node commitments. The state owner
+resolves their exact dependency closure from the supplied files, including
+optional era, form, appearance and visual authority nodes when declared. A
+missing or changed node fails with its required type and hash; no nearby file is
+substituted and no state is inferred. Unused inventory nodes do not enter the
+graph. Paths follow the authoring input's source resolution.
+
+For an explicit compiled file outside authoring, use `state_protocol.py
+acquire-graphs` with repeated `--lineage` and `--artifact`, `--production-spec`,
+optional `--reference-selection`, and `--out state-graphs.json`. The output is the
+complete validated graph array accepted by `generation.state_graphs` or
+`--state-graphs-file`. A complete authored array is also accepted. The executable
+state-aware pilot writes `generated/state-graphs.json`.
 
 The builder checks every graph's schema, hash, ownership, chronology, morphology
 and projection edges. Graphs cover the state-aware subjects exactly once and
@@ -269,4 +277,6 @@ contrasts and departures under actual creator decisions.
 
 ## Artifact evidence and completion
 
-For a saved deliverable, continue through [Production Execution](production-execution.md). Preserve this document's own interpretation, retrieval, approval and adoption boundaries. Prepare the exact inputs, capture the real output, bind review and selection to it, then complete and close the work task. `scripts/production_workflow.py status`, `impact` and `resume` recheck dependencies and artifact bytes. A progress checkbox, a search hit or a newly created image is not production completion or canonical adoption.
+Complete the operation actually commissioned under [Production workflow](production-workflow.md), preserving this document's interpretation, retrieval, authority and adoption boundaries. An authored plan, prompt or design uses [Authored storage](production-authored-storage.md): save its exact revision and perform delivery or review when requested. Model execution instead prepares its exact input, captures the actual result and binds review and selection to that result. Canonical adoption records its own decision and destination.
+
+`production_workflow.py status`, `impact` and `resume` expose current dependencies, artifact integrity and the next action. Close the owning work task when its requested result is complete. A search hit, saved revision, generated image and adoption each establish their own scope.

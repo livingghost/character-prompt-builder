@@ -10,8 +10,9 @@ python scripts/story_context_smoke_test.py
 Choose a new output directory. The script authors synthetic state with two
 concurrent activities, an unresolved commitment and different knowledge for two
 entities. It queries order 15 between changes, selects one scoped depiction and
-a persona period plus creator intent, then prepares, hands off, records, reviews,
-selects and completes a handwritten output. The full command log is saved.
+a persona period plus creator intent, then saves an authored sentence, records
+its actual local output-stream presentation, reviews it against the selected
+moment, and finishes the owning work task. The full command log is saved.
 
 This is a test scenario, not a genre, cast or event template. `inputs/` contains
 the same input records for direct inspection. Query fields for activities and

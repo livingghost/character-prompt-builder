@@ -1,0 +1,52 @@
+{
+  "title": "Authored artifact obligations and selected prompt surfaces",
+  "type": "object",
+  "properties": {
+    "completion_state": {
+      "description": "Whether the commissioned authored result may remain a draft or must be finished.",
+      "enum": ["draft", "finished"],
+      "default": "finished"
+    },
+    "requirements": {
+      "description": "The commissioned results, each recorded on this exact revision. Saving alone requires only save.",
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"enum": ["save", "delivery", "review"]}
+    },
+    "target": {
+      "type": ["object", "null"],
+      "properties": {
+        "model": {"type": "string", "minLength": 1},
+        "model_file": {"type": "string", "minLength": 1},
+        "service": {"type": "string", "minLength": 1},
+        "execution_mode": {"enum": ["text-to-image", "image-to-image", "reference-guided", "instruction-edit", "upscale"]},
+        "parameters": {"description": "Native values resolved by the selected interface's execution profile.", "type": "object"},
+        "syntax": {"description": "An assertion of the grammar resolved from the selected interface and native controls.", "enum": ["literal", "compel", "sdEmbeds"]},
+        "vocabulary_record": {"type": "string", "minLength": 1}
+      },
+      "oneOf": [
+        {"type": "null"},
+        {"type": "object", "required": ["model"], "not": {"required": ["model_file"]}},
+        {"type": "object", "required": ["model_file"], "not": {"required": ["model"]}}
+      ],
+      "additionalProperties": false
+    },
+    "prompt_field": {"$ref": "#/$defs/field"},
+    "negative": {
+      "type": ["object", "null"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "field": {"$ref": "#/$defs/field"}
+      },
+      "required": ["path"],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "field": {
+      "description": "JSON keys and array indices selecting the actual text; omit to use the entire UTF-8 file.",
+      "type": "array",
+      "items": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 0}]}
+    }
+  }
+}

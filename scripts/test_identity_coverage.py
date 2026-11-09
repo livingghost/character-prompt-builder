@@ -169,6 +169,39 @@ class IdentityCoverageTests(unittest.TestCase):
         self.text('The authoring note said Keep the conditional relationship but it did not reach this request.')
         self.assert_code('IDENTITY_CARRIER_MISSING')
 
+    def test_whole_text_selection_follows_the_actual_edited_surface(self):
+        self.obligation['carriers']=[{'kind':'text','surface':'primary','selection':{'whole':True}}]
+        before=self.compile()['bindings'][0]['carriers'][0]
+        changed='The preserved conditional relationship now occupies the whole revised prompt.'
+        self.text(changed)
+        after=self.compile()['bindings'][0]['carriers'][0]
+        self.assertEqual(after['quote'],changed)
+        self.assertEqual(after['ranges'],[[0,len(changed.encode('utf-8'))]])
+        self.assertNotEqual(before['surface_sha256'],after['surface_sha256'])
+
+    def test_partial_selection_requires_unique_text_or_an_explicit_occurrence(self):
+        text='Keep the conditional relationship. Keep the conditional relationship.'
+        self.text(text)
+        carrier={'kind':'text','surface':'primary','selection':{'text':'Keep the conditional relationship.'}}
+        self.obligation['carriers']=[carrier]
+        self.assert_code('IDENTITY_CARRIER_MISSING')
+        carrier['selection']['occurrence']=2
+        actual=self.compile()['bindings'][0]['carriers'][0]
+        self.assertEqual(actual['ranges'],[[35,69]])
+        carrier['selection']['occurrence']=3
+        self.assert_code('IDENTITY_CARRIER_MISSING')
+
+    def test_partial_ranges_index_the_exact_utf8_bytes(self):
+        prefix='Moir\u00e9. '
+        phrase='Keep the conditional relationship.'
+        self.text(prefix+phrase)
+        self.obligation['carriers']=[{'kind':'text','surface':'primary','selection':{'text':phrase}}]
+        actual=self.compile()['bindings'][0]['carriers'][0]
+        raw=(prefix+phrase).encode('utf-8')
+        start,end=actual['ranges'][0]
+        self.assertEqual(start,len(prefix.encode('utf-8')))
+        self.assertEqual(raw[start:end],phrase.encode('utf-8'))
+
     def test_absent_surface_changed_surface_hash_and_empty_active_carriers_fail(self):
         for change, code in [
                 (lambda: self.context['text'].clear(), 'IDENTITY_CARRIER_MISSING'),

@@ -253,7 +253,29 @@
           "composition-image-type-hierarchy"
         ]
       }
+    },
+    {
+      "name": "subject-held-camera",
+      "mode": "search",
+      "query": "portrait photographed with the subject holding the camera",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "camera-arm-length-self-portrait"
+        ]
+      }
+    },
+    {
+      "name": "material-keeps-identity",
+      "mode": "search",
+      "query": "recognizable figure made from smoke",
+      "limit": 8,
+      "assert": {
+        "must_include": [
+          "rendering-material-defined-form"
+        ]
+      }
     }
   ],
-  "case_count": 23
+  "case_count": 25
 }

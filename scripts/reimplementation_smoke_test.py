@@ -36,11 +36,11 @@ class SceneIntegration(unittest.TestCase):
         create(self.root)
         started = work_ledger.begin(self.root, 'Synthetic authoring integration', ['prepare', 'deliver'])
         (self.root/'delivery.txt').write_text('The traveller rests one hand on the doorframe and waits.', encoding='utf-8')
-        self.spec = {'task_id':started['task_id'], 'route':'performance','features':['scene-persona'],
+        self.spec = {'task_id':started['task_id'], 'route':'performance','features':['scene-persona'], 'execution':'external',
             'sources':[], 'delivery':{'path':'delivery.txt','translation_notes':'No private source copying.'},
             'criteria':[{'id':'scope','strength':'hard','text':'Use only the prepared scope.'}], 'world_views':[],
             'scene_materials':[{'plan':'scene-plan.json','bundle':'scene-material'}]}
-        fixture.task(self.root, self.spec)
+        fixture.task(self.root, self.spec, execution='external')
         self.write_task()
 
     def write_task(self):
@@ -85,7 +85,9 @@ class SceneIntegration(unittest.TestCase):
             self.prepare()
 
     def test_an_image_task_refuses_a_text_material(self):
-        fixture.task(self.root, self.spec, artifact='image'); self.write_task()
+        fixture.task(self.root, self.spec, artifact='image', execution='external')
+        fixture.external_image_input(self.root,self.spec)
+        self.write_task()
         with self.compilation_error('prepared for text, and a task that makes image widens its scope'):
             self.prepare()
 

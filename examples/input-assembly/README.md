@@ -13,8 +13,8 @@ python examples/input-assembly/build_example.py --check
 ```
 
 [The recorded summary](report.json) contains fields from actual command output.
-The example uses fixed synthetic reading applications through the fixture helper.
-Real operators read the selected sources and write their own quotations and reasons.
+The fixture helper delivers complete sources for this synthetic export.
+A real operator reads the applicable complete contract and applies it to the work.
 
 ## Run the input helpers
 
@@ -24,10 +24,10 @@ preparation, authorization and sending as separate operations:
 
 ```bash
 python scripts/production_workflow.py draft-inputs --root STUDIO --route prompt-only --artifact text --execution authored --out-dir work/first-draft
-python scripts/production_workflow.py build-inputs --root STUDIO --choices work/first-draft/choices.json --out-dir work/first-inputs
+python scripts/production_workflow.py save --root STUDIO --choices work/first-draft/choices.json
 ```
 
-Edit the choices between those calls. The open work task supplies the task ID.
+Edit the direct text files and choices between those calls. `save --draft` preserves unfinished work. Use `prepare --choices` for image input. `build-inputs` exports derived files when that separate output is wanted. The open work task supplies the task ID.
 Select the route, artifact and execution appropriate to the requested work;
 the example above creates authored text. To reopen an existing task instead:
 
@@ -46,12 +46,9 @@ run; it does not reinterpret an existing draft as new unbound work.
 Use a new output directory for each construction.
 A failed build preserves existing output directories and the authored task.
 
-## Reading choices
+## Source delivery
 
-Use the `reading_key` issued by the completed route read. Write the selected document applications in `choices.reading.applied` and the guide-rule applications in `choices.reading.resource_applied`, with their exact quotations and reasons. These choices are their editing source; `build-inputs` writes the completed reading record and binds its path into the generated task.
-A draft from `--from-run` supplies the earlier key and applications for current assessment. Replace them only when the present work needs a different completed reading or application.
-`snapshot_id` can be null when the issued record remains valid without the delivery snapshot.
-The builder resolves the document hashes from the issued record. A directly authored task instead uses the completed record as its `route_reading`, as described in [Production execution](../../references/runtime/production-execution.md#apply-the-completed-reading).
+Use the `reading_key` issued after the complete route, operation and specialist read. The compiler derives the source-delivery record and binds it into the task; the author supplies no quotations or hashes as proof of understanding. A draft from `--from-run` retains the earlier issued source scope. Its record can serve current work only when the required documents, model, offering and family are covered at the exact editions. A fresh context reads the full applicable knowledge even when that earlier record remains valid. See [Production authoring](../../references/runtime/production-authoring.md#use-the-delivered-knowledge).
 
 ## Input choices
 
@@ -60,8 +57,8 @@ The builder resolves the document hashes from the issued record. A directly auth
 | Field | Authored content |
 | --- | --- |
 | `task` | Direction, criteria, source roles and other applicable task choices |
-| `delivery` | Exact `content` and its `translation_notes` |
-| `documents` | The selected production specification, plot, parameters, retrieval record, negative text and other production document bodies |
+| `delivery` | Exact text through `{file, field?}` or inline `content`; `translation_notes` only for a translation |
+| `documents` | Only selected specialist bodies; editable text can use `{file, field?}` selectors |
 | `sources` | Text or JSON source bodies keyed by their declared source ID, with `content` and `format` |
 | `generation` | Service, count, seed, continuity decisions and other declared generation choices |
 | `references` | Ordered reference choices, source authority, uses and transport choice |
@@ -161,10 +158,7 @@ python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN 
 python scripts/production_workflow.py build-inputs --root STUDIO --choices work/send-draft/choices.json --out-dir work/send-inputs
 ```
 
-The author reassesses copied reading applications for the present work. A fresh
-operator reads the applicable instructions; a saved key supplies provenance,
-not understanding. Change `reading` when the selected route, features or model
-family needs another completed reading.
+A fresh operator reads the complete applicable instructions. The saved key supplies source-delivery evidence. Change `reading` when the current operation, feature or target needs another completed reading. Use `--task-id` to reopen the source run under another active work task.
 
 Ordinary edits use the restored `authoring` content. `task_changes` is an
 explicit overlay for fields intentionally changed for this deliverable,

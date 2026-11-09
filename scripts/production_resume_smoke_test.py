@@ -355,9 +355,7 @@ class AuthoringContinuationTests(unittest.TestCase):
         self.choices_path = drafted['choices_file']
         self.choices = c.load(self.root / self.choices_path)
         reading = c.load(self.root / self.task['route_reading'])
-        self.choices['reading'].update(reading_key=reading['reading_key'], applied=reading['applied'])
-        if 'resource_applied' in reading:
-            self.choices['reading']['resource_applied'] = reading['resource_applied']
+        self.choices['reading']['reading_key'] = reading['reading_key']
         fixtures.write(self.root / self.choices_path, self.choices)
         built = self.inputs.build_inputs(self.root, 'task.json', self.choices_path, 'built')
         self.assertTrue(built['ok'], built)
@@ -366,7 +364,7 @@ class AuthoringContinuationTests(unittest.TestCase):
     def test_prepared_input_context_keeps_the_commission_choices_and_source_locations(self):
         report = status(self.root)
         current = report['current_task']
-        self.assertEqual(current['focus'], 'execution')
+        self.assertEqual(current['focus'], 'authored')
         context = current['authoring']['context']
         self.assertEqual(context['work']['goal'], 'Continue the synthetic written depiction.')
         self.assertEqual(context['input']['choices'], self.choices)
@@ -387,14 +385,14 @@ class AuthoringContinuationTests(unittest.TestCase):
         current = report['current_task']
         self.assertEqual(current['focus'], 'authoring')
         self.assertEqual(current['production_run'], self.run)
-        self.assertEqual(current['next_actions'][0]['command'], 'build-inputs')
+        self.assertEqual(current['next_actions'][0]['command'], 'save')
         context = current['authoring']['context']['input']
         self.assertTrue(context['changed_since_build'])
         self.assertEqual(context['task_content']['direction']['purpose'],
                          self.choices['task_changes']['direction']['purpose'])
         self.assertEqual(context['prepared_run'], self.run)
         lines = '\n'.join(session_entry_points.authoring_lines(self.root))
-        self.assertLess(lines.index(str(self.root / self.choices_path)), lines.index('Existing production run'))
+        self.assertLess(lines.index(str(self.root / self.choices_path)), lines.index('Saved authored revision: ' + self.run))
         self.assertEqual((self.root / 'built/production-task.json').read_bytes(), before)
         self.assertEqual(store.event_rows(self.root, self.run), events)
 
@@ -422,7 +420,7 @@ class AuthoringContinuationTests(unittest.TestCase):
         self.assertEqual(source['source_run_file']['run'], self.run)
         self.assertTrue(Path(source['source_run_file']['path']).is_file())
         lines = '\n'.join(session_entry_points.authoring_lines(self.root))
-        self.assertLess(lines.index(str(self.root / drafted['choices_file'])), lines.index('Existing production run'))
+        self.assertLess(lines.index(str(self.root / drafted['choices_file'])), lines.index('Saved authored revision: ' + self.run))
 
 
 class InitialAuthoringContinuationTests(unittest.TestCase):
@@ -444,51 +442,52 @@ class InitialAuthoringContinuationTests(unittest.TestCase):
         choices['reading'] = copy.deepcopy(self.choices['reading'])
         choices['authoring']['task']['direction'] = copy.deepcopy(self.task['direction'])
         choices['authoring']['task']['criteria'] = copy.deepcopy(self.task['criteria'])
-        choices['authoring']['delivery'] = {'content': 'A quiet courtyard under a clear sky.',
-                                           'translation_notes': 'Authored synthetic text.'}
+        delivery = choices['authoring']['delivery']
+        fixtures.write(self.root / delivery['file'], 'A quiet courtyard under a clear sky.')
         fixtures.write(self.root / drafted['choices_file'], choices)
         return drafted, choices
 
-    def test_initial_choices_provide_a_real_build_command_and_current_context(self):
+    def test_initial_choices_provide_a_real_save_command_and_current_context(self):
         drafted, choices = self.initial()
         report = self.inputs.inspect_inputs(self.root)
         self.assertEqual(report['diagnostics'], [])
         action = report['next_actions'][0]
-        self.assertEqual(action['command'], 'build-inputs')
+        self.assertEqual(action['command'], 'save')
         self.assertNotIn('--from-run', action['argv'])
         self.assertNotIn(None, action['argv'])
         self.assertEqual(report['context']['input']['choices'], choices)
         run = subprocess.run(action['argv'], capture_output=True, text=True, encoding='utf-8', check=False)
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        built = json.loads(run.stdout)
-        self.assertTrue(built['ok'])
-        task = c.load(self.root / built['inputs']['production-task']['path'])
+        saved = json.loads(run.stdout)
+        self.assertTrue(saved['saved'])
+        task = workflow.read_run(self.root, saved['run']).prepared['task']
         self.assertEqual(task['task_id'], self.work['task_id'])
         self.assertEqual(task['criteria'], self.task['criteria'])
-        self.assertEqual((self.root / task['delivery']['path']).read_text(encoding='utf-8'),
-                         choices['authoring']['delivery']['content'])
+        self.assertEqual(Path(saved['artifact']).read_bytes(),
+                         (self.root / choices['authoring']['delivery']['file']).read_bytes())
+        self.assertFalse(self.inputs.inspect_inputs(self.root)['pending'])
 
-    def test_reediting_initial_source_keeps_the_published_input_and_builds_again(self):
+    def test_reediting_initial_text_preserves_the_saved_revision_and_saves_again(self):
         drafted, choices = self.initial()
-        built = self.inputs.build_inputs(self.root, None, drafted['choices_file'], 'built-initial')
-        self.assertTrue(built['ok'], built)
-        published = self.root / built['inputs']['production-task']['path']
-        before = published.read_bytes()
-        choices['authoring']['delivery']['content'] = 'The same quiet courtyard after a light rain.'
-        fixtures.write(self.root / drafted['choices_file'], choices)
+        saved = workflow.save(self.root, drafted['choices_file'])
+        original = Path(saved['artifact'])
+        before = original.read_bytes()
+        edited = self.root / choices['authoring']['delivery']['file']
+        edited.write_text('The same quiet courtyard after a light rain.', encoding='utf-8')
         report = self.inputs.inspect_inputs(self.root)
         self.assertTrue(report['context']['input']['changed_since_build'])
         self.assertEqual(report['context']['input']['task_content']['criteria'], self.task['criteria'])
+        self.assertTrue(report['pending'])
         action = report['next_actions'][0]
-        self.assertEqual(action['command'], 'build-inputs')
+        self.assertEqual(action['command'], 'save')
         self.assertNotIn('--from-run', action['argv'])
         run = subprocess.run(action['argv'], capture_output=True, text=True, encoding='utf-8', check=False)
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        self.assertEqual(published.read_bytes(), before)
-        rebuilt = json.loads(run.stdout)
-        task = c.load(self.root / rebuilt['inputs']['production-task']['path'])
-        self.assertEqual((self.root / task['delivery']['path']).read_text(encoding='utf-8'),
-                         choices['authoring']['delivery']['content'])
+        self.assertEqual(original.read_bytes(), before)
+        revised = json.loads(run.stdout)
+        self.assertNotEqual(saved['run'], revised['run'])
+        self.assertEqual(Path(revised['artifact']).read_bytes(), edited.read_bytes())
+        self.assertFalse(self.inputs.inspect_inputs(self.root)['pending'])
 
     def test_unpublished_initial_draft_restarts_with_its_route_and_task(self):
         with patch.object(self.inputs, '_publish', side_effect=OSError('Synthetic draft interruption.')):
@@ -509,7 +508,7 @@ class InitialAuthoringContinuationTests(unittest.TestCase):
 
 
 class AuthoredResumeTests(unittest.TestCase):
-    def test_text_work_has_handoff_and_capture_not_generation_requirements(self):
+    def test_saved_text_resumes_at_requested_completion(self):
         import work_ledger
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);task_id=work_ledger.begin(root,'Synthetic prose',['write'])['task_id']
@@ -519,9 +518,14 @@ class AuthoredResumeTests(unittest.TestCase):
                   'criteria':[{'id':'text','strength':'hard','text':'A sentence exists.'}],'world_views':[]}
             production_fixtures.task(root,task);fixtures.write(root/'task.json',task)
             run=workflow.prepare(root,'task.json')['run']
-            self.assertEqual(checked(execution.resume(root,run))['runs'][0]['next_action']['command'],'handoff')
-            production_fixtures.handoff(root,run,'synthetic author','manual')
-            self.assertEqual(checked(execution.resume(root,run))['runs'][0]['next_action']['command'],'capture')
+            shown=checked(execution.resume(root,run))['runs'][0]
+            self.assertEqual(shown['next_action']['command'],'finish')
+            self.assertEqual(shown['authored']['state'],'finished')
+            self.assertIsNotNone(shown['authored']['saved'])
+            work_ledger.step_done(root,1)
+            work_ledger.finish(root,run)
+            self.assertEqual(checked(execution.resume(root,run))['runs'][0]['task_disposition'],'completed')
+            self.assertIsNone(work_ledger.read_current(root))
             self.assertFalse((workflow.run_dir(root,run)/'generation-package.json').exists())
             self.assertEqual(accounting.all_states(root),[])
 

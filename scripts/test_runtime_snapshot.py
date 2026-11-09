@@ -175,8 +175,9 @@ class RuntimeMembershipTests(unittest.TestCase):
         c.atomic(directory/'snapshot.json',c.encoded(payload),replace=True)
         descriptor['sha256']=c.content_id(payload)
         skill=self.base/'synthetic-skill'
-        manifest={'routes':{'synthetic':{'features':['prompt-dialect'],'reads':['guide.md'],'stages':[]}},
-                  'features':{'prompt-dialect':{'reads':[],'source_roles':[]}},'always_read':[]}
+        manifest={'routes':{'synthetic':{'default_operation':'prepare','features':['prompt-dialect'],'reads':['guide.md'],'stages':[]}},
+                  'features':{'prompt-dialect':{'reads':[],'source_roles':[]}},
+                  'operation_contexts':{'prepare':{'reads':[], 'executions':{'dispatcher':[]}}}}
         inputs={'config/execution-routes.json':c.encoded(manifest),'guide.md':b'Complete synthetic route.\n'}
         for path,raw in inputs.items():c.atomic(skill/path,raw)
         sources=LiveSourceRead(self.root,skill,[{'space':'skill','path':path} for path in inputs])
@@ -186,7 +187,7 @@ class RuntimeMembershipTests(unittest.TestCase):
             removed.unlink()
             with patch.object(c,'read',side_effect=AssertionError('route reopened acquired bytes')), \
                     patch.object(route_reading,'_live_resource_reader',side_effect=AssertionError('route rebuilt a catalogue')):
-                reading,bodies=route_reading.capture('synthetic',root=skill,
+                reading,bodies=route_reading.capture('synthetic',execution='dispatcher',root=skill,
                     resource_reader=owned.read_resource,read_source=sources.skill_bytes)
             self.assertEqual(reading['resources']['prompt-writing-guide']['status'],'present')
             self.assertEqual(len(bodies),3)
@@ -797,7 +798,7 @@ class ForcedReadBoundaryTests(unittest.TestCase):
             source = root / 'synthetic.txt'
             source.write_bytes(b'original synthetic source')
             prepared = {'envelope_sha256': 'e' * 64, 'route_reading': {},
-                        'task': {'route': 'synthetic', 'features': []},
+                        'task': {'route': 'synthetic', 'features': [], 'execution': 'authored'},
                         'dependencies': [{'space': 'studio', 'path': source.name, 'sha256': c.sha256_file(source)}]}
             loaded = RunSnapshot(root, prepared, {}, [])
             with runtime_snapshot.public_call(), patch.object(workflow, 'read_run', return_value=loaded), \

@@ -70,6 +70,8 @@ def validate_prompt_retrieval_record(value: Any) -> dict[str, Any]:
             errors.append("context must bind prompt_sha256 and plot_content_sha256")
         else:
             for key, digest in context.items():
+                if key == 'plot_content_sha256' and digest is None:
+                    continue
                 if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
                     errors.append(f"context.{key} must be a SHA-256 digest")
     if value.get("settled") is True and context is None:
@@ -182,23 +184,24 @@ def initialize_record(path: Path) -> dict[str, Any]:
     return value
 
 
-def retrieval_context(prompt: str, plot: dict[str, Any]) -> dict[str, str]:
+def retrieval_context(prompt: str, plot: dict[str, Any] | None) -> dict[str, str | None]:
     from prompt_plot import content_sha256
     return {
         "prompt_sha256": hashlib.sha256(prompt.strip().encode("utf-8")).hexdigest(),
-        "plot_content_sha256": content_sha256(plot),
+        "plot_content_sha256": content_sha256(plot) if plot is not None else None,
     }
 
 
-def settle_retrieval_record(value: Any, *, prompt: str, plot: dict[str, Any]) -> dict[str, Any]:
+def settle_retrieval_record(value: Any, *, prompt: str, plot: dict[str, Any] | None = None) -> dict[str, Any]:
     """Explicit authoring operation; never called implicitly by generation."""
     report = validate_prompt_retrieval_record(value)
     if not report["ok"]:
         raise ValueError("invalid retrieval record: " + "; ".join(report["errors"]))
     from prompt_plot import validate_prompt_plot
-    plot_report = validate_prompt_plot(plot)
-    if not plot_report["ok"]:
-        raise ValueError("invalid retrieval plot: " + "; ".join(plot_report["errors"]))
+    if plot is not None:
+        plot_report = validate_prompt_plot(plot)
+        if not plot_report["ok"]:
+            raise ValueError("invalid retrieval plot: " + "; ".join(plot_report["errors"]))
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("retrieval needs a non-empty authored prompt")
     result = json.loads(json.dumps(value))
@@ -289,7 +292,7 @@ def mark_outcome(value: Any, element: str, *, adopted: str | Sequence[str] = (),
     return value
 
 
-def require_settled_retrieval(value: Any, *, prompt: str, plot: dict[str, Any]) -> dict[str, Any]:
+def require_settled_retrieval(value: Any, *, prompt: str, plot: dict[str, Any] | None = None) -> dict[str, Any]:
     """Check an authored record's binding, including immutable past artifacts.
 
     This checks construction provenance, not eligibility for a new model request.
@@ -304,9 +307,14 @@ def require_settled_retrieval(value: Any, *, prompt: str, plot: dict[str, Any]) 
     return report
 
 
-def require_generation_retrieval(value: Any, *, prompt: str, plot: dict[str, Any],
+def require_generation_retrieval(value: Any, *, prompt: str, plot: dict[str, Any] | None = None,
                                  model_record: dict, negative: str = '',
                                  syntax: str = 'literal') -> dict[str, Any]:
+    if value is None:
+        from model_prompt_input import resolve_prompt_input
+        if resolve_prompt_input(model_record)['mode'] == 'tag-based':
+            raise ValueError('tag-based input requires dictionary search and vocabulary selection for the current prompt')
+        return {'ok': True, 'vocabulary_searched': False}
     report = require_settled_retrieval(value, prompt=prompt, plot=plot)
     from prompt_vocabulary_selection import require_for_model
     selection = require_for_model(value, prompt=prompt, negative=negative,
@@ -415,8 +423,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.adopted or args.composed is not None or args.reason is not None or args.unused is not None:
             raise ValueError("--adopted, --composed, --reason and --unused require --element")
         if args.settle:
-            if not args.prompt_file or not args.plot_file or not args.out:
-                raise ValueError("--settle requires --prompt-file, --plot-file and --out")
+            if not args.prompt_file or not args.out:
+                raise ValueError("--settle requires --prompt-file and --out; include --plot-file when a plot is selected")
             if value.get('vocabulary') is not None and not (args.model or args.model_file):
                 raise ValueError('settling model-bound vocabulary requires --model or --model-file')
             if args.model or args.model_file:
@@ -426,7 +434,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     negative=args.negative_file.read_text(encoding='utf-8') if args.negative_file else '',
                     model_record=model, syntax=args.weighting)
             value = settle_retrieval_record(value, prompt=args.prompt_file.read_text(encoding="utf-8"),
-                                            plot=json.loads(args.plot_file.read_text(encoding="utf-8")))
+                                            plot=json.loads(args.plot_file.read_text(encoding="utf-8")) if args.plot_file else None)
             from pack_manager import atomic_write_json
             atomic_write_json(args.out, value)
         elif any((args.prompt_file, args.plot_file, args.out)):

@@ -91,8 +91,8 @@ def generation_from_inputs(content,consumer:dict,*,seed:int|None,count:int,resou
     reading=fields['route_reading']
     if fields['state_lineage']['mode']=='state-aware' and reading['route']!='state-series' and 'state-series' not in reading['features']:
         raise ValueError('state-aware generation requires the state-series reading')
-    from route_reading import require_model_applications
-    require_model_applications(reading,dialect=target.model.get('prompt_dialect'),resource_reader=resource_reader)
+    from route_reading import require_model_reading
+    require_model_reading(reading,model_record=target.model,service=target.offering['service'],resource_reader=resource_reader)
     verified=copy.deepcopy(content.forwarding)
     forwarding=verified['host_forwarding']
     selected=forwarding['selected_transport'];rendition=selected['rendition']

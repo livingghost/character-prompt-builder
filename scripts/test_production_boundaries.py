@@ -271,6 +271,8 @@ class BoundaryTests(unittest.TestCase):
         task['execution'] = 'external'
         task['generation'] = {'production_spec': task['generation']['production_spec']}
         fixture.external_image_input(self.root, task)
+        from reading_fixtures import task_reading
+        task_reading(self.root, task)
         f.write(self.root / 'task.json', task)
         run = workflow.prepare(self.root, 'task.json')['run']
         fixture.handoff(self.root, run, 'synthetic external host', 'manual')

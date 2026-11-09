@@ -107,7 +107,6 @@
   },
   "required": [
     "proposal_id",
-    "index_sha256",
     "claims",
     "unresolved"
   ],

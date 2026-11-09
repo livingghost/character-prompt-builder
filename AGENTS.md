@@ -47,11 +47,19 @@ step. `ready` exits 1 until the author settles each `decide:` line it prints.
 reports what the state file settles and says so where it cannot answer, because
 discovery reads every record in every root and that is the runtime's work.
 
+Saved work obtains linked runtime guidance and selected-model knowledge through
+the route reader under [Continue the requested operation](#continue-the-requested-operation-in-its-studio).
+Read the complete selected material. Conversation-only answers read applicable
+documents directly, without a route or Studio. Reuse complete current material
+already delivered in this context; a fresh context reads the necessary material
+again.
+
 ## Choose rendering and inspect model controls
 
-Image work reads `references/runtime/render-contract.md`.
-Run `python scripts/render_contract.py presets` to inspect finish choices, then record who chose the intent and why.
-Run `python scripts/render_contract.py model --model MODEL_ID` for a catalog target's complete guidance card.
+Image work includes feature `render-contract` for `references/runtime/render-contract.md` in that read.
+Use `python scripts/render_contract.py presets` when choosing a finish, then record who chose the intent and why.
+The selected-model route read supplies the complete guidance card, including input contracts, use-case advice and author preferences.
+`python scripts/render_contract.py model --model MODEL_ID` serves independent model inspection; production uses the card delivered with its selected route.
 An external target absent from the catalog uses acquired provider evidence and the ordinary external execution branch.
 Existing-image edits also require an exact semantic edit binding.
 Shared image inputs bind each subject's reference uses and the exact external request.
@@ -59,45 +67,63 @@ Interpret source records into a depiction that the model can resolve from its ac
 Develop what is present, what happens and how its parts relate. Use constraints to refine that intended construction.
 Keep internal identifiers, source paths and production commentary in their owning records.
 Apply scoped model use-case guidance and current author selection preferences.
-The Production Specification owns dispatcher `render_intent`; external tasks retain it as an applied source.
+The editable `render_intent` binds the chosen prompt span. A selected Production Specification can own it; an ordinary delivery can own it directly. External tasks retain it as an applied source.
 Preparation shows the complete request. Dispatcher packages seal resolved controls; external bindings pin the authored request and evidence.
 
-## Where character work lives, and how a dispatcher result is made
+## Continue the requested operation in its Studio
 
-```
+```sh
 python scripts/studio.py init --out STUDIO --studio-id <id> --title "<title>"
-python scripts/studio.py character add <character-id> --studio STUDIO
-python scripts/production_workflow.py draft-inputs --root STUDIO --route <route> --artifact <artifact> --execution <execution> --out-dir work/draft
-python scripts/production_workflow.py build-inputs --root STUDIO --choices work/draft/choices.json --out-dir work/inputs
-python scripts/production_workflow.py check --root STUDIO --task <task.json>
-python scripts/production_workflow.py prepare --root STUDIO --task <task.json>
-python scripts/production_workflow.py draft-execution --root STUDIO --run <run-id> --grant <grant-id> --out <decisions.json>
-python scripts/production_workflow.py execute --root STUDIO --run <run-id> --decisions-file <decisions.json>
-python scripts/production_workflow.py resume --root STUDIO --run <run-id>
 python scripts/production_workflow.py status --root STUDIO
+python scripts/execution_routes.py read <route> --operation <operation> --execution <execution> --root STUDIO
+python scripts/production_workflow.py draft-inputs --root STUDIO --route <route> --artifact <artifact> --execution <execution> --out-dir work/draft
 ```
 
-`references/runtime/studio.md` defines the studio, its iterations and its
-candidates, and `references/runtime/production-execution.md` defines the run.
-`scripts/session_entry_points.py` prints the studio the working directory
-belongs to and its open task first; when it reports none, `init` comes before
-any sheet or generation work.
+Open the work task before drafting. Register a character only when the work has
+an owning character; authored text and an ordinary image need no placeholder.
+Select `author`, `save`, `prepare`, `execute`, `review` or `adopt` for the current
+operation and take `authored`, `external` or `dispatcher` from the task's execution
+kind. Add the applicable specialist features. Include `--model MODEL`
+and the selected `--service SERVICE`, `--model-file FILE` for an acquired model,
+or `--dialect ID` for family-only work. The reader delivers the complete operation
+and execution contract and selected knowledge. Continue every page to its delivery record.
+An earlier source-delivery record alone does not supply knowledge to a new context.
 
-Open the work task before drafting. New authoring and a draft from an existing
-task or run use the same editable choices: task decisions, delivery text,
-selected documents, controls and reference uses. The input builder writes the
-related files and their bindings, preserving independent judgment and authority.
-Prepare the task it returns; do not hand-edit generated artifacts for a normal
-content change. The task declares the character, slot and model inputs. `check` runs every check
-of `prepare` and creates no run. Preparation publishes the verified Generation
-Package, exact request and execution plan together. The author fills the drafted
-decision file from the actual approval. Execution checks current authority,
-claims the execution, performs the declared handoff and records every returned
-image. `resume` recovers the same execution, and `status` shows each
-run's next command and actual submission and image records. `variant` prepares changed
-input, and `repeat` prepares another run of the same input. A request is
-checked against the offering's attributed parameter contract before anything is
-sent. The pack identifies an acquired schema or an authored supported scope.
+Edit the draft's files and authored choices. Task direction, independent criteria,
+source use, expression and controls stay with their responsible author. The
+compiler derives bindings, reference positions and file hashes:
+
+```sh
+python scripts/production_workflow.py save --root STUDIO --choices work/draft/choices.json
+python scripts/production_workflow.py prepare --root STUDIO --choices work/draft/choices.json
+```
+
+Use the operation requested: `save` records authored text, while `prepare` makes
+an inspectable model request. `save --draft` preserves unfinished choices.
+Completed target-specific text uses the model's grammar and actual dictionary
+search for a tag target, including when no image is generated. `check --choices`
+is an optional diagnostic, and `build-inputs` exports the derived inputs when
+that separate output is needed. Ordinary descriptive preparation needs no unused
+plot, specification, creative-intent or retrieval placeholders. A selected
+specialist document still follows its full contract.
+
+[Studio Runtime](references/runtime/studio.md) owns the workspace and candidates.
+[Production workflow](references/runtime/production-workflow.md) locates each
+complete operation contract. The status and session-entry reports expose the
+current source files, partial reading and next action. After a content edit,
+compile those source files again; previous saved revisions and prepared inputs
+remain intact. `draft-inputs --from-run` restores a captured revision, with
+`--task-id` when reopening it under another active work task.
+
+For dispatcher generation, preparation publishes the verified Generation Package,
+exact request and execution plan together. The author's actual authorization
+supplies the decisions for `draft-execution` and `execute`. Execution checks that
+authority, claims the operation, performs its handoff and records returned media.
+`resume` recovers that same operation after interruption. `status` exposes its
+submission, media and actual next command. `variant` prepares changed input;
+`repeat` prepares another run of the same input. Offering-attributed parameter
+contracts constrain the request before anything is sent.
+
 The offering's service ID selects its Studio authentication configuration. [Studio authentication](references/runtime/studio-authentication.md)
 owns one entry per service in the Studio's private `credentials.json`:
 `api_key` holds its saved value, or `api_key_env` names its runtime environment
@@ -116,14 +142,14 @@ it. The value is supplied separately to the transport and sent only to its
 accepted host. Local key availability and submission authority are separate
 checks.
 
-External host tools use the same `check`, `prepare`, review and capture owners.
-Follow Production Execution's compact `draft-execution` and `execute` decisions,
+External host tools use the same preparation, review and capture owners.
+Follow the execution contract's `draft-execution` and `execute` decisions,
 then invoke the returned host request once. `receive-external` takes the actual
 response and images, derives their records and settles that call. `task.image_input` binds original images,
 their uses and the exact provider request. `task.semantic_edit` owns requested
 changes, preservation and review of an existing image.
-For a further external trial, derive inputs with `draft-inputs --from-run` and
-`build-inputs`, edit only changed choices, then prepare the emitted task.
+For a further external trial, restore sources with `draft-inputs --from-run`,
+edit the chosen changes, then use `prepare --choices` on that draft.
 Use `status` or `resume` after interruption and recover the existing host result.
 During authoring, `inspect-inputs --root STUDIO` locates the open work task's
 saved choices, published inputs and partial route reading, including new edits

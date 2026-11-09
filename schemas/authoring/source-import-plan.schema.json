@@ -50,8 +50,7 @@
           "source_id",
           "path",
           "role",
-          "encoding",
-          "sha256"
+          "encoding"
         ],
         "additionalProperties": false
       },

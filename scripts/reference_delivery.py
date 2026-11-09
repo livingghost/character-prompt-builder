@@ -46,6 +46,10 @@ def validate_subject_uses(value: Any, *, subject_ids: set[str] | None = None,
 def validate_reference_subjects(references: Sequence[Mapping[str, Any]],
                                 production_spec: Mapping[str, Any]) -> None:
     """Resolve every authored subject name against this image's actual cast."""
+    if production_spec is None:
+        for reference in references:
+            validate_subject_uses(reference.get('subject_uses', []))
+        return
     subjects = production_spec.get('subjects')
     if not isinstance(subjects, list):
         raise ValueError('reference subject checks require Production Specification subjects')
@@ -57,7 +61,7 @@ def validate_reference_subjects(references: Sequence[Mapping[str, Any]],
 def validate_reference_selection_subjects(selection: Mapping[str, Any] | None,
                                           production_spec: Mapping[str, Any]) -> None:
     """Match each independent reference state to its actual scene subject."""
-    if production_spec['state_context']['mode'] == 'stateless':
+    if production_spec is None or production_spec['state_context']['mode'] == 'stateless':
         if selection is not None:
             raise ValueError('stateless generation must use a null reference-selection origin')
         return

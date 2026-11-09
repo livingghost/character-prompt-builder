@@ -181,7 +181,7 @@ also use `task.semantic_edit` for the source and requested changes and
 preservation, following [Semantic instruction editing](semantic-instruction-edit.md).
 New scenes use their individual character references directly.
 
-Run `production_workflow.py check` and `prepare` with the current task. Inspect
+Prepare the current editable choices with `production_workflow.py prepare --choices FILE`. Use `check` only when a separate diagnostic is needed; it uses the same compiler. Inspect
 the complete request and reference correspondence. Execute through the
 existing dispatcher or external handoff, claim, host call, capture and
 settlement path in [Production Execution](production-execution.md). A saved

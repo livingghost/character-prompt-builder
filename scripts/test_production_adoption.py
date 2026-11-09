@@ -87,6 +87,41 @@ class AdoptionTests(unittest.TestCase):
         intent=workflow.adoption_intent(self.root,self.run,self.candidate,'robot',self.row['iteration_id'],self.approval)
         return fixture.grant(self.root,self.run,intent)
 
+    def test_approval_draft_derives_the_exact_existing_subject_without_approval(self):
+        self.select();before=store.event_rows(self.root,self.run)
+        draft=adoption_workflow.draft_approval(self.root,'robot',self.row['iteration_id'],scope='sheet',influence='identity')
+        self.assertEqual({key:draft[key] for key in ('character','iteration_id','slot','image_sha256')},
+                         {key:self.approval[key] for key in ('character','iteration_id','slot','image_sha256')})
+        self.assertIsNone(draft['by']);self.assertIsNone(draft['at'])
+        with self.assertRaises(ValueError):adoption_workflow.validate_approval(draft,'robot',self.row)
+        self.assertEqual(store.event_rows(self.root,self.run),before)
+
+    def test_managed_batch_keeps_review_selection_and_adoption_separate(self):
+        from build_batch_plan import project_managed_batch
+        reviewed=project_managed_batch(self.root,[self.run])
+        self.assertEqual(reviewed['summary']['evaluation'],{'conforming':1})
+        self.assertEqual(reviewed['summary']['current_selections'],0)
+        self.select()
+        selected=project_managed_batch(self.root,[self.run])
+        self.assertEqual(selected['summary']['current_selections'],1)
+        self.assertEqual(selected['jobs'][0]['adoptions'],[])
+        self.adopt(self.authorize_adoption())
+        adopted=project_managed_batch(self.root,[self.run])
+        self.assertEqual(len(adopted['jobs'][0]['adoptions']),1)
+        self.assertEqual(adopted['summary']['captured_candidates'],1)
+
+    def test_catalog_draft_derives_the_selected_registration_record_hash(self):
+        from revision_contract import digest
+        self.select()
+        record={'id':'adopted-test-character','label':'Adopted fixture','curation_status':'curated',
+            'category':'species','prompt':'a fictional test character','domains':['shared'],'tags':['fixture','character'],
+            'search_terms':[{'phrase':'adopted test character','facet':'species','weight':1.0,'source':'author'}],
+            'scaffold':{'family':'direct-geometry-required','confidence':'fallback'}}
+        draft=adoption_workflow.draft_approval(self.root,'robot',self.row['iteration_id'],scope='catalog',
+                                             influence='identity',registration_record=record)
+        self.assertEqual(draft['registration_record_sha256'],digest(record))
+        self.assertIsNone(draft['by']);self.assertIsNone(draft['at'])
+
     def adopt(self,token):
         return workflow.adopt(self.root,self.run,self.candidate,'robot',self.row['iteration_id'],'approval.json',token)
 

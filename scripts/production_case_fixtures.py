@@ -160,7 +160,7 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
     if not with_authority:task['authority']=None
     # Stable issuer ledger belongs to this studio so another CLI can verify it.
     from reading_fixtures import fixture_reading
-    reading=fixture_reading(route='generation',studio=root,ledger=root/'work/reads.jsonl')
+    reading=fixture_reading(route='generation',studio=root,ledger=root/'work/reads.jsonl',model=MODEL_ID,service='synthetic', execution='dispatcher')
     write(root/'reading.json',reading);task['route_reading']='reading.json';write(root/'task.json',task)
     return {'root':root,'task':task,'settings':settings,'pack':pack,'model':MODEL_ID}
 
@@ -214,7 +214,7 @@ def alternate_task(root: Path, *, steps: int = 22) -> str:
     write(root/'retarget/retrieval.json',record)
     validation=fixture_validation(root,ALTERNATE_MODEL_ID,reference_mode='authored-rendition',service='synthetic')
     write(root/'retarget/validation.json',validation)
-    reading=fixture_reading(route=task['route'],features=task['features'],studio=root,ledger=root/'work/reads.jsonl')
+    reading=fixture_reading(route=task['route'],features=task['features'],studio=root,ledger=root/'work/reads.jsonl',model=ALTERNATE_MODEL_ID,service='synthetic', execution=task['execution'])
     write(root/'retarget/reading.json',reading)
     task['route_reading']='retarget/reading.json'
     task['generation'].update(production_spec='retarget/spec.json',parameters='retarget/parameters.json',
@@ -243,7 +243,7 @@ def upscale_task(root:Path,*,source:str='upscale/source.png',scale:int=2)->str:
     validation=fixture_validation(root,UPSCALE_MODEL_ID,reference_mode='authored-rendition',service='synthetic')
     request=upscale_request(root,root/source,UPSCALE_MODEL_ID,scale,{},None,request_validation=validation,render_intent=intent('','upscale'))
     write(root/'upscale/input.json',request)
-    reading=fixture_reading(route='upscale',studio=root,ledger=root/'work/reads.jsonl')
+    reading=fixture_reading(route='upscale',studio=root,ledger=root/'work/reads.jsonl',model=UPSCALE_MODEL_ID,service='synthetic', execution='dispatcher')
     write(root/'upscale/reading.json',reading);task['route_reading']='upscale/reading.json'
     write(root/'upscale/task.json',task)
     return 'upscale/task.json'
@@ -260,7 +260,7 @@ def alternate_upscale_task(root:Path,*,source:str='upscale/source.png',scale:int
     request=upscale_request(root,root/source,ALTERNATE_UPSCALE_MODEL_ID,scale,{},None,request_validation=validation,render_intent=intent('','upscale'))
     write(root/'upscale/alternate-input.json',request)
     task['delivery']['path']='upscale/alternate-input.json'
-    reading=fixture_reading(route='upscale',studio=root,ledger=root/'work/reads.jsonl')
+    reading=fixture_reading(route='upscale',studio=root,ledger=root/'work/reads.jsonl',model=ALTERNATE_UPSCALE_MODEL_ID,service='synthetic', execution='dispatcher')
     write(root/'upscale/alternate-reading.json',reading);task['route_reading']='upscale/alternate-reading.json'
     write(root/'upscale/alternate-task.json',task)
     return 'upscale/alternate-task.json'

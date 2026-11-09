@@ -166,9 +166,135 @@ The master prompt can be the final portable text; it does not require a second
 artifact or a preliminary attribute list. Exact parser grammar may change
 syntax, never the situation or meaning it is meant to communicate.
 
+### Form a prompt from an image
+
+Read the image as a particular visual construction. Understand what gives its
+forms, materials, performance or arrangement their effect, including the degree
+of the qualities that carry that reading. Follow how the relevant parts belong
+together: contact, separation, support, repetition or contrast can be the
+substance of the picture. A close gesture can carry an encounter; a broad
+continuous horizon can carry a landscape; the way a surface bends and catches
+light can carry a material study. Recognize useful concepts such as a
+self-portrait at arm's length, a cutaway or translucent glass, and develop them
+with the visible choices that make this instance recognizable. Subject and
+style labels help name the picture; the selected proportions, state, action
+and treatment give those labels their particular realization.
+
+The requested use determines what to carry. Recreating the image calls for its
+recognizable whole, including distinctive small design choices, arrangement,
+action and treatment. Extracting its lighting, transferring its pose or using
+its character design assigns a narrower contribution. An unmentioned feature
+is not automatically incidental in a recreation. A source's successful
+solution also need not become a requirement for a new picture borrowing only
+its atmosphere. Preserve the declared contribution at its full specificity.
+
+Separate a visible property from an explanation of how it might have arisen.
+A glass object can be recognized through its edges, transmitted colors and
+reflections without the image establishing an exact lens or light rig. A
+specific reflection matters when reproducing that composition; a glass
+material concept can carry ordinary reflection behavior in a new arrangement.
+Describe uncertain material or hidden construction through what is supported
+instead of inventing manufacturing details, anatomy or an artist attribution.
+
+Write the resulting depiction for the actual input. If the image is only an
+authoring source, its necessary contribution must be expressed in text. If it
+will be delivered, assign its role and use text for the requested realization
+and changes. An inferred prompt is a candidate way to obtain the appearance;
+pixels do not reveal the original words, conditioning or editing history.
+When an actual prompt is available, compare its selected concepts with the
+visible result. A feature absent from the text may be an ordinary completion,
+another input's contribution or a later change. Do not turn that uncertainty
+into a claim that the feature needs a separate instruction.
+
+### Form a prompt from an idea
+
+Give the intended experience a concrete visual proposal. An idea such as
+"an inviting workshop" leaves useful choices: an open workbench prepared for
+a visitor, people sharing tools, or a warmly occupied room seen from its
+entrance. Choose a construction that serves the brief, then develop that
+picture. Listing every familiar sign of invitation would mix different
+solutions. A detailed brief may already select the construction and leave
+only its rendition to be authored.
+
+Use production knowledge to connect the desired effect to suitable means.
+An informal self-portrait relates the subject to the camera; an interrupted
+activity relates attention to unfinished work; a cutaway reveals concealed
+structure; transmitted light can make colored glass luminous; broad flat
+shapes can make a poster legible at a glance. These are usable visual
+relationships, not mandatory recipes. A cinematic scene can use deep focus
+when an event in the background matters. A precious object can be presented
+with bright quiet lighting or dramatic dark surroundings. Select the variant
+whose consequences fit this picture.
+
+Develop the selected construction through the qualities and relationships that
+carry its effect. A form's proportions, a material's appearance, a participant's
+response, the arrangement of a setting or the correspondence between pieces of
+information can organize the whole picture. Give those choices their intended
+degree and compose the surrounding parts so they sustain that reading. A
+smoke-bodied creature needs recognizable form and dissolution to coexist; an
+object advertisement needs its identifying design and material response to
+work together; an explanatory image needs its comparison or mechanism to be
+understood. Placement and presentation follow from what must be encountered
+together. Familiar concepts can carry ordinary construction while distinctive
+design, action or comparison receives the needed specificity. Detailed ornament,
+unusual anatomy, an exact inscription or a particular hand-object action can
+carry the whole commission. Keep that precision even when other parts remain
+open.
+
+Search by the effect or construction still needed, as well as by a known term.
+Knowledge can supply a useful concept the author did not yet know to name.
+Choose from its meaning, scope and alternatives, then express the selected
+picture in the target's language. A concept's familiar associations help
+construction; they do not override an explicit design. No image source,
+catalog match, intermediate caption or separate planning form is required
+when the idea and available knowledge already support the depiction.
+
 ### Worked depictions
 
 These are independent synthetic examples of authoring choices, not templates.
+
+**Appearance to language.** Suppose an authoring photograph shows an amber
+glass perfume bottle, a ribbed stopper, a narrow cream label and an illuminated
+amber patch on the table behind it. For a recreation, a suitable instruction
+is:
+
+> A studio product photograph of an amber glass perfume bottle with a ribbed
+> stopper and a narrow cream label. Warm light passes through the bottle and
+> casts an amber patch behind it on the pale tabletop. Keep the bottle's
+> silhouette and label clear against the quiet background.
+
+The material, transmitted light and their relationship describe the effect.
+The distinctive stopper and label remain explicit. An exact recreation may
+also need their shape, proportions and placement from the actual image. If
+the commission borrows only the luminous-glass treatment for a different
+product, the stopper and label do not transfer. Neither use establishes an
+unseen lamp model or a numerical lighting angle.
+
+**Idea to language.** A brief asks for a welcoming illustration of a guardian
+made of living smoke. One direction is strength conveyed by a broad stable
+form, with an open greeting and soft dissolution at its edges:
+
+> A powerful guardian made of living smoke offers an open hand in welcome.
+> Its broad central form remains recognizable while smoke curls away from
+> the outer contours. A calm expression and an eye-level encounter make its
+> strength reassuring. Use a richly colored fantasy illustration with clear
+> large forms and soft atmospheric edges.
+
+The material concept supplies possibilities for wisps and gradients. The
+central form and greeting specify what those possibilities must support.
+Individual wisps need no fixed paths unless their design is commissioned.
+An ominous guardian would call for a different performance and presentation,
+not simply more smoke detail. This wording is an authored possibility, not
+evidence that an unspecified model will render it successfully.
+
+**A relationship as the subject.** A brief asks for a diagram explaining how
+two meshed gears reverse the direction of rotation. A suitable depiction shows
+their engaging teeth and the opposite rotation arrows together. The contact
+and corresponding arrows carry the explanation; merely making the larger gear
+more prominent leaves the mechanism unexplained. In a flat diagram, proximity,
+alignment and consistent symbols organize this relationship. It needs no
+physical camera. Tooth count or precise dimensions remain explicit when those
+are part of the requested explanation.
 
 **Situation.** The request is a quietly comic kitchen illustration of an
 absorbed cook missing milk boiling over. A possible prompt is:
@@ -358,7 +484,7 @@ leakage, broken contacts and anatomy against their own declared criteria.
 
 An owner's decision to use a particular reviewed candidate despite a recorded
 departure or uncertainty belongs in the selection's `owner_acceptance`, under
-[Production execution](production-execution.md#select-optionally-adopt-and-finish).
+[Production execution](production-adoption.md#select-optionally-adopt-and-finish).
 It leaves the criteria and observed verdicts intact. It neither establishes a
 new allowed range for future work nor changes canonical identity.
 
@@ -396,7 +522,7 @@ and negative text, controls and actual media. Understand the activity, state,
 design or experience they form together. Read all applicable instructions;
 do not silently omit an awkward clause or borrow a missing premise from the
 author's conversation. For a returned image, observe the artifact first under
-[Production execution](production-execution.md#observe-before-interpreting).
+[Production execution](production-review.md#observe-before-interpreting).
 Textual intent is not evidence that the image rendered it.
 
 Compare that picture with the commission. Explain what the viewer can
@@ -492,7 +618,7 @@ reviewed targets. It binds the new input to an `edit` authorization and creates
 a linked run through `revise`; previous successful checks and selection do not
 transfer. Preserve candidates and evidence. State and source drift follow
 [State Write-back and Drift Routing](../state-writeback-routing.md).
-[Production execution](production-execution.md) owns commands and evidence;
+[Production review](production-review.md#review-repair-and-a-new-run) owns these commands and evidence;
 [Production permissions](production-permissions.md) owns independent authority.
 
 ## A failure must leave an actionable record

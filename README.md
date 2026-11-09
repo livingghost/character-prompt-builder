@@ -103,7 +103,8 @@ python scripts/protocol_exchange.py verify --root ../cpb-authoring-demo --bundle
 ```
 <!-- end-readme-example -->
 
-Run a synthetic text task from approval to completion, with one hash-linked record per event:
+Save a synthetic authored sentence, present its exact bytes through a local output stream,
+record its review, and complete the requested work:
 
 <!-- readme-example: production-lifecycle -->
 ```sh

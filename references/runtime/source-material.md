@@ -9,7 +9,7 @@ The authoring agent reads the supplied text and decides the meaningful segments 
 Keep the original unchanged. Choose a separate output directory in the studio. Read `schemas/authoring/source-import-plan.schema.json` when authoring the plan. It contains:
 
 - `material_id`, `purpose`, and `unresolved` items;
-- `documents`: unique `source_id`, studio-relative `path`, `role` (`primary-source` or `external-reference`), explicit `encoding`, and complete-file `sha256`;
+- `documents`: unique `source_id`, studio-relative `path`, `role` (`primary-source` or `external-reference`), and explicit `encoding`; an existing expected complete-file `sha256` may also be supplied;
 - `segments`: `segment_id`, `source_id`, inclusive `start_line` and `end_line`, authored `label`, and `completion` (`complete`, `partial`, or `unknown`).
 
 `primary-source` is the author's imported work. `external-reference` remains a distinct reference, never silently promoted into the author's own source. No external reference is required.
@@ -20,11 +20,11 @@ python scripts/source_material.py ingest --root STUDIO --plan import-plan.json -
 python scripts/source_material.py verify --root STUDIO --bundle sources/material
 ```
 
-`inspect` returns complete-file hashes and decoded line counts, not extraction or proof of reading. Copy those hashes only after identifying the exact originals. The output holds `index.json`, `index.md` and exact original bytes at content-addressed paths in `sources/`. Supported encodings are explicit; decoding failure is not repaired by guessing or replacing characters. Partial and unknown segments remain so. No missing material is invented. Overlapping spans are allowed when authored analysis needs them.
+`ingest` acquires the exact selected bytes and derives their first hashes. An existing expected hash is checked and a changed source is rejected; it is never silently repinned. `inspect` is optional when line counts or source diagnostics are useful, not a hash-copying step or proof of reading. The output holds `index.json`, `index.md` and exact original bytes at content-addressed paths in `sources/`. Published evidence retains its own pins even when the working source later changes. Supported encodings are explicit; decoding failure is not repaired by guessing or replacing characters. Partial and unknown segments remain so. No missing material is invented. Overlapping spans are allowed when authored analysis needs them.
 
 ## 2. Propose, do not adopt
 
-Read the whole relevant source, author extraction candidates, and use `schemas/authoring/source-claims-plan.schema.json`. The plan has `proposal_id`, `index_sha256`, `claims` and `unresolved`. Each claim has:
+Read the whole relevant source, author extraction candidates, and use `schemas/authoring/source-claims-plan.schema.json`. The plan has `proposal_id`, `claims` and `unresolved`. The selected archive supplies its exact index hash; an optional expected `index_sha256` is enforced when already recorded. Each claim has:
 
 - `claim_id`, `subject_ids` (possibly empty), `text`, and `proposed_use`;
 - `epistemic_status`: `source-statement`, `attributed-report`, `observation`, `inference`, or `unknown`;

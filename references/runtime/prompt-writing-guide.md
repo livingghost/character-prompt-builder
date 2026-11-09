@@ -13,11 +13,12 @@ Use this runtime when a final prompt is rendered as portable text or for a named
 - prompt-length pressure
 - controlled comparison of one term
 
-For a named target, adapt the selected depiction to one exact interface and
-adapter. Catalog targets use their active model records; external generation or
-editing may use acquired provider evidence while recording a missing catalog
-definition. A portable prompt uses interface-neutral guidance and preserves the
-depiction until a target is selected.
+Resolve the rendition at the scope requested. An exact model or interface uses
+its active record and one adapter; an external target can use acquired provider
+evidence while recording a missing catalog definition. A family-oriented text
+draft uses the applicable family guidance and keeps checkpoint and execution
+choices open. A portable prompt uses interface-neutral guidance. Preserve the
+depiction through each of these scopes.
 
 ## Resolve the active guide
 
@@ -42,21 +43,35 @@ It returns:
 A descriptive record uses its declared natural-language or structured-caption
 forms. An unresolved record remains unresolved; absence of a tag family does
 not establish prose input. A `none` record has no text prompt surface.
-`--list` names available families; `--dialect <id>` inspects a family's guidance
-without resolving a model or its search obligation. For an unknown external
+`--list` names available families; `--dialect <id>` supplies a family's guidance
+for inspection or a family-oriented text draft. A requested tag rendition still
+uses the actual dictionary search described in [Vocabulary](prompt-vocabulary.md).
+Family guidance establishes no individual model's input contract or execution
+readiness. For an unknown external
 target, omit `--model` from route reading and retain interface-neutral wording
 until acquired evidence establishes the input contract. Reading a family
-section does not authorize its syntax.
+section supplies no unsupported parser syntax.
 
 Add a family by adding a dialect entry with its sources; the scripts stay unchanged. Its regression test is `scripts/prompt_dialect_smoke_test.py`. `schemas/prompt-dialect.schema.json` validates the dialect resource, and `schemas/prompt-writing-guide.schema.json` validates the guide.
 
-Resolve the guide on its own through the same explicit pack state when only its rules are wanted:
+Read the complete `guide.universal` and `guide.dialect` sections returned by the
+resolver before writing the final model-facing rendition. The `withheld` list
+identifies sections for other families and needs
+no further read for this rendition. The selected model report also supplies its
+guidance card; catalog execution fields need inspection when the requested
+handoff or execution uses them. Reuse complete applicable guidance already read
+in the current context.
+
+Resolve the guide on its own through the same explicit pack state when its
+resource is needed for direct inspection:
 
 ```bash
 python scripts/pack_cli.py resource prompt-writing-guide
 ```
 
-Read the complete resolved guide before writing the final model-facing rendition. When no enabled pack binds a guide, continue under the selected adapter and exact model or provider evidence.
+When reading the resource directly, read its universal sections and the complete
+sections belonging to the selected family. When no enabled pack binds a guide,
+continue under the selected adapter and exact model or provider evidence.
 
 ## Interface rendition
 
@@ -66,9 +81,11 @@ meaning into the actual interface, including during revision. Interface
 evidence can expose a wording problem or a consequential limitation; resolve
 the affected question within that same direction and authorized scope.
 
-For a named target, select the exact interface, its catalog record or acquired
-external contract, and one adapter. A portable rendition keeps
-interface-neutral wording while the target remains open. For a catalog target,
+For an exact target, select the interface, its catalog record or acquired
+external contract, and one adapter. A family-oriented draft uses that family's
+supported common wording; model-specific recommendations stay with an exact
+selection. A portable rendition keeps interface-neutral wording while the
+target remains open. For a catalog target,
 resolve service weighting through [Explicit Prompt Weighting](prompt-weighting.md)
 and its family through `scripts/prompt_dialect.py --model <model-id>`.
 An external target uses only parser behavior its evidence supports. Rules for
@@ -122,10 +139,40 @@ or uncertainty in the delivered input when they change the intended depiction
 or how the receiving model should use its references.
 
 Use the direct name of an activity, state or relationship when it carries the
-intended meaning. Add wording for a meaningful distinction, an explicit fine
-requirement or an evidenced target weakness. Preserve the relationships through
-prose or supported tags; ordinary construction does not require an inventory of
-body parts, camera measurements or source features.
+intended meaning. A useful concept can carry a connected visual construction:
+`selfie` relates subject and camera, `foreshortening` relates near and far form,
+and `translucent glass` relates a material to transmitted light. Understand that
+construction before choosing its wording. A familiar term can be more suitable
+than a detailed physical explanation, while a broad label can leave the central
+action unresolved. "Holding a tool" does not preserve "passing a tool to a
+colleague." Keep the latter relationship through a phrase or supported tag
+combination when one dictionary entry cannot express it.
+
+Select concepts for the desired appearance, then retain its distinguishing
+choices. A glass bird, a bird inside a glass vessel and a bird-shaped reflection
+require different constructions despite sharing nouns. Material, viewpoint,
+performance and finish words can work together; they are not independent
+slots to maximize. Add wording for a meaningful distinction, an explicit fine
+requirement or an evidenced target weakness. A faithful recreation can require
+many such distinctions. Ordinary consequences of a selected concept need no
+separate clause unless the intended result depends on controlling them.
+
+Keep each word's contribution at its own scope while combining it with the
+others. Clothing state and visible extent are different choices. An emphasized
+feature can remain in a detailed surrounding scene; emphasis does not select
+one depth-of-field treatment. A reciprocated action specifies the participants'
+involvement, while their exact orientation is a staging choice. Develop the
+combination that carries the picture, including a needed relation or degree
+when a compact term leaves it open.
+
+Use the dictionary to discover related concepts as well as canonical spellings
+and close synonyms. Read the definitions and their modifier scope before
+selecting a candidate. A lexical definition explains a word; a model-scoped
+observation supports a claim about its response. Neither a dictionary entry nor
+a successful sample proves that a term is a universal quality control. Quality
+labels, artist or style identifiers, embeddings and parser syntax retain their
+actual scope. Translate the visual function when moving between interfaces;
+do not preserve an unexplained token merely because it occurred in a source.
 
 For a corrective rendition, state the selected replacement or remaining quality
 before refining its boundaries. Carry its necessary premises and the preserved

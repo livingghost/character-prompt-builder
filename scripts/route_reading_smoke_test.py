@@ -28,9 +28,11 @@ class ReadingTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root/'config').mkdir()
         (self.root/'notes').mkdir()
-        self.manifest = {'always_read': ['notes/always.md'], 'routes': {
-            'development': {'features': [], 'reads': ['notes/work.md'], 'stages': []},
-            'generation': {'features': [], 'reads': ['notes/work.md'], 'stages': []}},
+        self.manifest = {'operation_contexts': {name: {'reads': ['notes/always.md'],
+            'executions': {mode: [] for mode in r.execution_routes.EXECUTIONS}}
+            for name in r.execution_routes.OPERATIONS}, 'routes': {
+            'development': {'default_operation':'author', 'features': [], 'reads': ['notes/work.md'], 'stages': []},
+            'generation': {'default_operation':'prepare', 'features': [], 'reads': ['notes/work.md'], 'stages': []}},
             'features': {'extra': {'reads': ['notes/extra.md'], 'source_roles': []}}}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         # Bytes, not text: the read delivers exact bytes on every platform.
@@ -41,18 +43,14 @@ class ReadingTests(unittest.TestCase):
         self.ledger = self.root/'work/reads.jsonl'
     def issued(self, route='generation', features=None):
         return r.issue(route, features, root=self.root, ledger=self.ledger,
-                       key='1'*32, at='2000-01-01T00:00:00Z', stream=io.StringIO())
+                       key='1'*32, at='2000-01-01T00:00:00Z', stream=io.StringIO(), execution='dispatcher')
     def record(self, route='generation', features=None):
-        issued=self.issued(route,features)
-        applied=[{'path':x['path'],'quote':PARAGRAPH,'why':'Apply the explicitly selected source to this synthetic operation.'}
-                 for x in issued['row']['documents'] if x['path'] not in self.manifest['always_read']]
-        apps={'applied':applied,'resource_applied':[]}
-        return r.build_record(issued,apps,root=self.root,ledgers=[self.ledger])
+        return r.build_record(self.issued(route, features), root=self.root, ledgers=[self.ledger])
     def verify(self, record):
         return r.require_route_reading(record,root=self.root,ledgers=[self.ledger],routes={'generation'})
     def test_full_text_and_key(self):
         stream=io.StringIO()
-        issued=r.issue('generation',root=self.root,ledger=self.ledger,stream=stream)
+        issued=r.issue('generation',root=self.root,ledger=self.ledger,stream=stream, execution='dispatcher')
         out=stream.getvalue()
         self.assertEqual(['notes/always.md','notes/work.md'],[x['path'] for x in issued['row']['documents']])
         for name in ('notes/always.md','notes/work.md'):
@@ -71,12 +69,12 @@ class ReadingTests(unittest.TestCase):
                                       assets_by_canonical_record={}, diagnostics=diagnostics,
                                       warnings=(line,))
         with patch('catalog_retrieval.runtime.load_pack_catalog', return_value=catalog(other)):
-            manifest, _ = r.capture('generation', ['prompt-dialect'], root=self.root)
+            manifest, _ = r.capture('generation', ['prompt-dialect'], root=self.root, execution='dispatcher')
         self.assertEqual(manifest['resources'], {'prompt-writing-guide': {'status': 'unavailable'},
                                                  'prompt-dialects': {'status': 'unavailable'}})
         with patch('catalog_retrieval.runtime.load_pack_catalog', return_value=catalog(other, failed)):
             with self.assertRaisesRegex(ValueError, '^warning: pack pack-b is invalid'):
-                r.capture('generation', ['prompt-dialect'], root=self.root)
+                r.capture('generation', ['prompt-dialect'], root=self.root, execution='dispatcher')
     def test_skill_names_every_route_and_feature(self):
         # The agent picks ROUTE and --feature from the list SKILL.md carries.
         self.assertEqual(r.execution_routes.unnamed(self.manifest,'route `generation`, feature `extra`'),['development'])
@@ -89,46 +87,69 @@ class ReadingTests(unittest.TestCase):
                   if species & set(entry['reads'])}
         self.assertEqual(carriers,{'body-plan'})
         self.assertEqual(manifest['features']['recurring-identity']['reads'],['references/character-identity-contract.md'])
-    def test_a_route_reads_only_what_its_tasks_use(self):
-        manifest=c.load(r.ROOT/r.execution_routes.MANIFEST)
-        self.assertIn('references/runtime/production-workflow.md', manifest['always_read'])
-        prompt_only=r.execution_routes.resolve('prompt-only')
-        self.assertEqual([x['path'] for x in prompt_only['reads']],
-                         manifest['always_read']+['references/runtime/prompt-only-core.md','references/runtime/render-contract.md'])
-        self.assertEqual(r.execution_routes.resolve('repose')['features'],['prompt-dialect','reference-delivery','render-contract','studio'])
-    def test_draft_holds_the_read_and_no_application(self):
-        issued=self.issued()
-        draft=r.draft_record(issued)
-        self.assertEqual((draft['route'],draft['features'],draft['reading_key'],draft['documents'],draft['resources']),
-                         ('generation',[],issued['reading_key'],issued['row']['documents'],{}))
-        self.assertEqual((draft['applied'],draft['resource_applied']),([],[]))
-        self.verify(draft)
-        draft['applied'].append({'path':'notes/work.md','quote':None,'why':None})
-        with self.assertRaisesRegex(ValueError,'notes/work.md: quotation'):self.verify(draft)
-        draft['applied'][0].update(quote=PARAGRAPH,why='Apply the selected source to this synthetic operation.')
-        self.verify(draft)
-    def test_only_the_documents_the_author_applies_carry_quotations(self):
-        self.manifest['routes']['generation']['features']=['extra']
-        (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
-        issued=self.issued()
-        self.assertEqual([x['path'] for x in issued['row']['documents']],['notes/always.md','notes/work.md','notes/extra.md'])
-        record=r.draft_record(issued)
-        record['applied'].append({'path':'notes/extra.md','quote':PARAGRAPH,'why':'Synthetic application of one read document.'})
+    def test_a_route_reads_its_complete_operation_and_specialists(self):
+        manifest = c.load(r.ROOT/r.execution_routes.MANIFEST)
+        authored = r.execution_routes.resolve('prompt-only', execution='authored')
+        expected = manifest['operation_contexts']['author']['reads'] + manifest['routes']['prompt-only']['reads']
+        expected += manifest['operation_contexts']['author']['executions']['authored']
+        expected += manifest['features']['render-contract']['reads']
+        self.assertEqual({row['path'] for row in authored['reads']}, set(expected))
+        self.assertEqual(authored['operation'], 'author')
+        prepared = r.execution_routes.resolve('repose', execution='dispatcher')
+        self.assertEqual(prepared['operation'], 'prepare')
+        self.assertEqual(prepared['features'], ['generation-package','prompt-dialect','reference-delivery','render-contract','studio'])
+        package = 'references/runtime/generation-package.md'
+        self.assertIn(package, {row['path'] for row in prepared['reads']})
+        external = r.execution_routes.resolve('generation', execution='external', operation='execute')
+        paths = {row['path'] for row in external['reads']}
+        self.assertIn('references/runtime/production-external-execution.md', paths)
+        self.assertNotIn('references/runtime/production-dispatch.md', paths)
+        self.assertNotIn(package, paths)
+        packaged = r.execution_routes.resolve('generation', ['generation-package'], execution='external')
+        self.assertIn(package, {row['path'] for row in packaged['reads']})
+        self.assertNotIn('references/runtime/production-dispatch.md', {row['path'] for row in packaged['reads']})
+    def test_package_reading_requires_its_complete_artifact_contract(self):
+        plain = r.issue('generation', execution='external', ledger=self.ledger, stream=io.StringIO())
+        record = r.build_record(plain, ledgers=[self.ledger])
+        with self.assertRaisesRegex(ValueError, 'features do not cover'):
+            r.require_route_reading(record, execution='external', operation='prepare',
+                features=['generation-package'], ledgers=[self.ledger])
+        selected = r.issue('generation', ['generation-package'], execution='external',
+                           ledger=self.ledger, stream=io.StringIO())
+        record = r.build_record(selected, ledgers=[self.ledger])
+        r.require_route_reading(record, execution='external', operation='prepare',
+            features=['generation-package'], ledgers=[self.ledger])
+        with self.assertRaisesRegex(ValueError, 'documents do not cover'):
+            r.require_route_reading(record, execution='dispatcher', operation='execute',
+                features=['generation-package'], ledgers=[self.ledger])
+    def test_delivery_record_is_complete_at_issuance(self):
+        issued = self.issued()
+        record = r.draft_record(issued)
+        self.assertEqual(set(record), r.MANIFEST_FIELDS | {'reading_key'})
+        self.assertEqual(record['documents'], issued['row']['documents'])
+        self.assertEqual(record['operation'], 'prepare')
         self.verify(record)
-        record['applied'][0]['quote']='The operator preserves the selected source.'
-        with self.assertRaisesRegex(ValueError,'twelve words of paragraph text.*: notes/extra.md'):self.verify(record)
-    def test_draft_is_written_once(self):
-        issued=self.issued()
-        path=r.write_draft(issued,self.ledger)
-        self.assertEqual(path,self.root/'work/readings'/('generation-'+issued['row']['key_sha256'][:16]+'.json'))
-        filled=c.load(path);filled['applied'].append({'path':'notes/work.md','quote':PARAGRAPH,'why':'Synthetic application.'})
-        path.write_text(json.dumps(filled), encoding="utf-8")
-        self.assertEqual(r.write_draft(issued,self.ledger),path)
-        self.assertEqual(c.load(path),filled)
+    def test_delivered_feature_superset_covers_current_selected_features(self):
+        record = self.record(features=['extra'])
+        r.require_route_reading(record, root=self.root, ledgers=[self.ledger], features=[])
+        narrow = r.issue('generation', root=self.root, ledger=self.ledger, stream=io.StringIO(), execution='dispatcher')
+        with self.assertRaisesRegex(ValueError, 'features do not cover'):
+            r.require_route_reading(r.draft_record(narrow), root=self.root, ledgers=[self.ledger], features=['extra'])
+    def test_delivery_record_is_published_from_its_issuance(self):
+        issued = self.issued()
+        path = r.write_draft(issued, self.ledger)
+        original = path.read_bytes()
+        self.assertEqual(r.write_draft(issued, self.ledger), path)
+        self.assertEqual(path.read_bytes(), original)
+        changed = c.load(path); changed['documents'][0]['sha256'] = '0' * 64
+        path.write_bytes(c.encoded(changed))
+        with self.assertRaisesRegex(ValueError, 'differs from its issuance'):
+            r.write_draft(issued, self.ledger)
     def test_cli_default_pages_complete_bodies_before_issuing_a_draft(self):
         env={k:v for k,v in os.environ.items() if k!='CPB_READS_LEDGER'}
         state=self.root/'runtime'
         argv=[sys.executable,str(r.ROOT/'scripts/execution_routes.py'),'read','development',
+              '--execution','authored',
               '--root',str(self.root),'--state-file',str(state/'state.json'),
               '--cache-dir',str(state/'cache'),'--managed-root',str(state/'managed')]
         ledger=self.root/'work/reads.jsonl'
@@ -163,32 +184,43 @@ class ReadingTests(unittest.TestCase):
         last=output.rstrip().splitlines()[-1]
         self.assertTrue(last.startswith('reading-record: work/readings/development-'),last)
         draft=c.load(self.root/last.split(': ',1)[1])
-        self.assertEqual((draft['route'],draft['applied'],draft['resource_applied']),('development',[],[]))
+        self.assertEqual((draft['route'],draft['operation']),('development','author'))
         for document in draft['documents']:
             body=(r.ROOT/document['path']).read_bytes()
             self.assertEqual(delivered[('document',document['path'])],body)
             self.assertEqual(document['sha256'],c.digest(body))
         r.require_route_reading(draft,root=r.ROOT,ledgers=[ledger])
 
-    def test_normal_routes_deliver_policy_and_complete_execution_bodies(self):
-        required={'references/runtime/production-workflow.md',
-                  'references/runtime/production-direction.md',
-                  'references/runtime/production-permissions.md',
-                  'references/runtime/production-execution.md'}
-        manifest=c.load(r.ROOT/r.execution_routes.MANIFEST)
-        self.assertTrue(required <= set(manifest['always_read']))
-        _,bodies=r.capture('prompt-only')
-        received={meta['path']:raw for meta,raw in bodies if meta['kind']=='document'}
-        for name in required:
-            self.assertEqual(received[name],(r.ROOT/name).read_bytes())
-        execution=received['references/runtime/production-execution.md'].decode('utf-8')
-        for heading,body in (
-                ('## Digests','Canonical JSON sorts object keys'),
-                ('## Exit codes','Warnings and `CHECK_NOT_PERFORMED` do not choose the status.'),
-                ('### Unpublished staging and interrupted publication','It keeps the current authority and imports no grant from the recovered input.'),
-                ('## Diagnostic codes','`GRANT_SCOPE_EXCEEDED`')):
-            self.assertIn(heading,execution)
-            self.assertIn(body,execution)
+    def test_each_operation_delivers_its_complete_contract(self):
+        required = {
+            ('author', 'authored'): {'references/runtime/production-authoring.md', 'references/runtime/production-authored-storage.md',
+                       'references/runtime/production-direction.md'},
+            ('prepare', 'dispatcher'): {'references/runtime/production-preparation.md', 'references/runtime/production-diagnostics.md'},
+            ('prepare', 'external'): {'references/runtime/production-image-inputs.md', 'references/runtime/production-external-inputs.md'},
+            ('execute', 'dispatcher'): {'references/runtime/production-dispatch.md', 'references/runtime/production-permissions.md',
+                                       'references/runtime/production-request-execution.md', 'references/runtime/production-recovery.md'},
+            ('execute', 'external'): {'references/runtime/production-external-execution.md', 'references/runtime/production-permissions.md',
+                                     'references/runtime/production-request-execution.md', 'references/runtime/production-recovery.md'},
+            ('review', 'external'): {'references/runtime/production-review.md'},
+            ('review', 'authored'): {'references/runtime/production-authored-storage.md'},
+            ('adopt', 'dispatcher'): {'references/runtime/production-adoption.md', 'references/runtime/production-permissions.md'},
+        }
+        for (operation, execution), names in required.items():
+            with self.subTest(operation=operation, execution=execution):
+                manifest, bodies = r.capture('development', operation=operation, execution=execution)
+                received = {meta['path']: raw for meta, raw in bodies if meta['kind'] == 'document'}
+                self.assertEqual(manifest['execution'], execution)
+                for name in names:
+                    self.assertEqual(received[name], (r.ROOT/name).read_bytes())
+                for name, body in received.items():
+                    self.assertEqual(body, (r.ROOT/name).read_bytes())
+                if execution != 'dispatcher':
+                    self.assertNotIn('references/runtime/production-dispatch.md', received)
+        _, bodies = r.capture('prompt-only', operation='author', execution='authored')
+        received = {meta['path'] for meta, _ in bodies}
+        self.assertNotIn('references/runtime/production-dispatch.md', received)
+        self.assertNotIn('references/runtime/production-adoption.md', received)
+        self.assertNotIn('references/runtime/production-external-inputs.md', received)
 
     def cli_read(self, argv, *, cwd, environment):
         run = subprocess.run(argv, cwd=cwd, env=environment, capture_output=True,
@@ -231,7 +263,7 @@ class ReadingTests(unittest.TestCase):
             path = studio / path
         record = c.load(path)
         r.require_route_reading(record, root=r.ROOT, ledgers=[ledger], routes={'development'})
-        self.assertEqual((record['applied'], record['resource_applied']), ([], []))
+        self.assertEqual(record['operation'], 'author')
         return path, record
 
     def exercise_cli_paged_actions(self, *, explicit):
@@ -248,7 +280,7 @@ class ReadingTests(unittest.TestCase):
         environment.update(CPB_HOME=str(home), PATH='', PYTHONDONTWRITEBYTECODE='1')
         page_bytes = 8192
         base = [sys.executable, str(r.ROOT / 'scripts/execution_routes.py'), 'read']
-        start = [*base, 'development', '--page-bytes', str(page_bytes)]
+        start = [*base, 'development', '--execution', 'authored', '--page-bytes', str(page_bytes)]
         roots = []
         if explicit:
             selected = self.root / 'selected runtime with spaces'
@@ -282,7 +314,7 @@ class ReadingTests(unittest.TestCase):
         snapshot_path = ledger.parent / 'reading-snapshots' / cursor.split(':')[0] / 'snapshot.json'
         snapshot_bytes = snapshot_path.read_bytes()
         snapshot = json.loads(snapshot_bytes)
-        self.assertEqual(set(snapshot), {'manifest', 'root', 'runtime', 'task_id', 'nonce', 'bodies'})
+        self.assertEqual(set(snapshot), {'manifest', 'root', 'runtime', 'task_id', 'model_file', 'nonce', 'bodies'})
         self.assertIsNone(snapshot['task_id'])
         self.assertEqual(snapshot['runtime'], {
             'state_file': runtime['--state-file'], 'cache_dir': runtime['--cache-dir'],
@@ -352,7 +384,7 @@ class ReadingTests(unittest.TestCase):
         for words in cases:
             with self.subTest(words=words):
                 args, parser = self.read_args(*words)
-                with patch.object(r, '_model_family') as lookup, contextlib.redirect_stderr(io.StringIO()):
+                with patch.object(r, '_selected_model') as lookup, contextlib.redirect_stderr(io.StringIO()):
                     with self.assertRaises((ValueError, SystemExit)):
                         r.read_command(args, parser)
                 lookup.assert_not_called()
@@ -395,33 +427,27 @@ class ReadingTests(unittest.TestCase):
                                               'prompt-dialects':named('prompt-dialects','resources/dialects.json')},
                                    pack_roots={'synthetic-pack':pack})
         return patch('catalog_retrieval.runtime.load_pack_catalog',return_value=catalog),guide
-    def family_record(self,dialect,section):
-        stream=io.StringIO()
-        issued=r.issue('generation',['prompt-dialect'],root=self.root,ledger=self.ledger,stream=stream,dialect=dialect)
-        record=r.draft_record(issued)
-        record['applied'].append({'path':'notes/work.md','quote':PARAGRAPH,'why':'Synthetic application.'})
-        record['resource_applied'].append({'resource':'prompt-writing-guide','pointer':f'/sections/{section}/rules/0',
-                                           'why':'Synthetic rule application.','quote':self.guide['sections'][section]['rules'][0]})
-        return record,stream.getvalue()
-    def test_model_family_reading_withholds_other_family_sections(self):
-        catalog,self.guide=self.family_catalog()
+    def family_record(self, dialect, section):
+        stream = io.StringIO()
+        issued = r.issue('generation', ['prompt-dialect'], root=self.root, ledger=self.ledger,
+                         stream=stream, dialect=dialect, execution='dispatcher')
+        return r.draft_record(issued), stream.getvalue()
+    def test_model_family_reading_preserves_the_complete_selected_scope(self):
+        catalog, self.guide = self.family_catalog()
         with catalog:
-            record,out=self.family_record('family-a',1)
-            self.assertIn(self.guide['sections'][1]['rules'][0],out)
-            self.assertNotIn(self.guide['sections'][2]['rules'][0],out)
-            self.assertIn('"id": "second",\n      "dialects": [\n        "family-b"\n      ]\n    }',out)
-            self.assertEqual({x['dialect'] for x in record['resources'].values()},{'family-a'})
-            r.require_route_reading(record,root=self.root,ledgers=[self.ledger],dialect='family-a')
-            with self.assertRaisesRegex(ValueError,'read the route again with --model'):
-                r.require_route_reading(record,root=self.root,ledgers=[self.ledger],dialect='family-b')
-            withheld,_=self.family_record('family-a',2)
-            with self.assertRaisesRegex(ValueError,'guide pointer has no rule'):
-                r.require_route_reading(withheld,root=self.root,ledgers=[self.ledger])
-            universal,out=self.family_record(None,0)
-            self.assertNotIn(self.guide['sections'][1]['rules'][0],out)
-            r.require_route_reading(universal,root=self.root,ledgers=[self.ledger],dialect=None)
-            with self.assertRaisesRegex(ValueError,'read the route again'):
-                r.require_route_reading(universal,root=self.root,ledgers=[self.ledger],dialect='family-a')
+            record, out = self.family_record('family-a', 1)
+            self.assertIn(self.guide['sections'][0]['rules'][0], out)
+            self.assertIn(self.guide['sections'][1]['rules'][0], out)
+            self.assertNotIn(self.guide['sections'][2]['rules'][0], out)
+            self.assertEqual({row['dialect'] for row in record['resources'].values()}, {'family-a'})
+            r.require_route_reading(record, root=self.root, ledgers=[self.ledger], dialect='family-a')
+            with self.assertRaisesRegex(ValueError, 'read the current model'):
+                r.require_route_reading(record, root=self.root, ledgers=[self.ledger], dialect='family-b')
+            universal, out = self.family_record(None, 0)
+            self.assertNotIn(self.guide['sections'][1]['rules'][0], out)
+            r.require_route_reading(universal, root=self.root, ledgers=[self.ledger], dialect=None)
+            with self.assertRaisesRegex(ValueError, 'read the current model'):
+                r.require_route_reading(universal, root=self.root, ledgers=[self.ledger], dialect='family-a')
     def read_command_to_completion(self,args,parser):
         result=r.read_command(args,parser)
         while 'issued' not in result:
@@ -445,7 +471,7 @@ class ReadingTests(unittest.TestCase):
         with catalog:
             stream=io.StringIO()
             result=r.read_page(route='generation',features=['prompt-dialect'],page_bytes=300,dialect='family-a',
-                               root=self.root,ledger=self.ledger,stream=stream)
+                               root=self.root,ledger=self.ledger,stream=stream, execution='dispatcher')
             while 'issued' not in result:
                 result=r.read_page(cursor=result['cursor'],page_bytes=300,root=self.root,ledger=self.ledger,stream=stream)
         self.assertNotIn(self.guide['sections'][2]['rules'][0],stream.getvalue())
@@ -455,12 +481,12 @@ class ReadingTests(unittest.TestCase):
         catalog,self.guide=self.family_catalog()
         parser=argparse.ArgumentParser();r.add_read_arguments(parser)
         state=self.root/'runtime'
-        args=parser.parse_args(['generation','--root',str(self.root),'--model','synthetic-model',
+        args=parser.parse_args(['generation','--execution','dispatcher','--root',str(self.root),'--model','synthetic-model',
                                 '--state-file',str(state/'state.json'),'--cache-dir',str(state/'cache'),
                                 '--managed-root',str(state/'managed')])
         out=io.StringIO()
         from model_prompt_input_fixtures import prompt_input
-        record=('synthetic-model',{'prompt_dialect':'family-b',
+        record=('synthetic-model',{'id':'synthetic-model','prompt_dialect':'family-b',
                 'prompt_input':prompt_input('tag-based',vocabularies=('synthetic',))})
         with (catalog,patch.object(prepare_generation_references,'resolve_model_record',return_value=record),
               patch.dict(os.environ),contextlib.redirect_stdout(out)):
@@ -469,11 +495,125 @@ class ReadingTests(unittest.TestCase):
         self.assertNotIn(self.guide['sections'][1]['rules'][0],out.getvalue())
         draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
         self.assertEqual({x['dialect'] for x in draft['resources'].values()},{'family-b'})
+        self.assertEqual(draft['model']['id'], 'synthetic-model')
+        self.assertEqual(draft['model']['record_sha256'], c.content_id(record[1]))
+
+    def test_selected_model_and_service_guidance_cannot_change_under_a_receipt(self):
+        from model_prompt_input_fixtures import prompt_input
+        model = {'id': 'synthetic-renderer',
+                 'prompt_input': prompt_input('descriptive'),
+                 'offerings': [{'service': 'interface-a', 'model_identifier': 'render-a'},
+                               {'service': 'interface-b', 'model_identifier': 'render-b'}]}
+        with patch.object(r, '_selected_model', return_value=(model['id'], model)):
+            output = io.StringIO()
+            issued = r.issue('generation', root=self.root, ledger=self.ledger,
+                             model=model['id'], service='interface-a', stream=output, execution='dispatcher')
+        record = r.draft_record(issued)
+        self.assertIn('render-a', output.getvalue())
+        self.assertNotIn('render-b', output.getvalue())
+        r.require_model_reading(record, model_record=model, service='interface-a', resource_reader=lambda name: None)
+        with self.assertRaisesRegex(ValueError, 'different service'):
+            r.require_model_reading(record, model_record=model, service='interface-b', resource_reader=lambda name: None)
+        changed = copy.deepcopy(model); changed['recommended_positive_prompt'] = 'A changed recommendation.'
+        with self.assertRaisesRegex(ValueError, 'model edition'):
+            r.require_model_reading(record, model_record=changed, service='interface-a', resource_reader=lambda name: None)
+
+    def test_complete_model_guidance_covers_a_selected_offering(self):
+        from model_prompt_input_fixtures import prompt_input
+        model = {'id': 'synthetic-options',
+                 'prompt_input': prompt_input('descriptive'),
+                 'offerings': [{'service': 'interface-a', 'model_identifier': 'render-a'},
+                               {'service': 'interface-b', 'model_identifier': 'render-b'}]}
+        with patch.object(r, '_selected_model', return_value=(model['id'], model)):
+            issued = r.issue('generation', root=self.root, ledger=self.ledger,
+                             model=model['id'], stream=io.StringIO(), execution='dispatcher')
+        record = r.draft_record(issued)
+        r.require_model_reading(record, model_record=model, service='interface-b', resource_reader=lambda name: None)
+        self.assertIsNone(record['model']['service'])
+
+    def test_acquired_model_file_retains_its_complete_scope_across_pages(self):
+        from model_prompt_input_fixtures import prompt_input
+        model = {'id': 'synthetic-acquired', 'prompt_input': prompt_input('descriptive'),
+                 'recommended_positive_prompt': 'A complete acquired instruction.'}
+        source = self.root / 'acquired-model.json'
+        source.write_bytes(c.encoded(model))
+        stream = io.StringIO()
+        result = r.read_page(route='generation', root=self.root, ledger=self.ledger,
+                             model_file=source, page_bytes=200, stream=stream, execution='dispatcher')
+        while 'issued' not in result:
+            result = r.read_page(cursor=result['cursor'], root=self.root, ledger=self.ledger,
+                                 page_bytes=200, stream=stream)
+        record = r.draft_record(result['issued'])
+        r.require_model_reading(record, model_record=model, resource_reader=lambda name: None)
+        self.assertIn(model['recommended_positive_prompt'], stream.getvalue())
+        self.assertEqual(record['model']['record_sha256'], c.content_id(model))
+
+    def test_direct_issue_retains_acquired_model_file_and_record(self):
+        from model_prompt_input_fixtures import prompt_input
+        model = {'id': 'synthetic-direct-model', 'prompt_input': prompt_input('descriptive'),
+                 'recommended_positive_prompt': 'Retain this complete acquired model recommendation.',
+                 'offerings': [{'service': 'selected-host', 'model_identifier': 'selected-renderer'},
+                               {'service': 'other-host', 'model_identifier': 'other-renderer'}]}
+        source = self.root / 'direct-model.json'
+        source.write_bytes(c.encoded(model))
+        for selected in ({'model_file': source}, {'model_record': model}):
+            with self.subTest(source=next(iter(selected))):
+                output = io.StringIO()
+                issued = r.issue('generation', root=self.root, ledger=self.ledger,
+                                 execution='external', service='selected-host', stream=output, **selected)
+                record = r.draft_record(issued)
+                self.assertEqual(record['execution'], 'external')
+                self.assertEqual(record['model']['record_sha256'], c.content_id(model))
+                self.assertEqual(record['model']['service'], 'selected-host')
+                self.assertIn(model['recommended_positive_prompt'], output.getvalue())
+                self.assertIn('selected-renderer', output.getvalue())
+                self.assertNotIn('other-renderer', output.getvalue())
+                r.require_model_reading(record, model_record=model, service='selected-host',
+                                        resource_reader=lambda name: None)
+
+    def test_direct_issue_rechecks_the_actual_acquired_model_source(self):
+        from model_prompt_input_fixtures import prompt_input
+        model = {'id': 'synthetic-changing-model', 'prompt_input': prompt_input('descriptive')}
+        source = self.root / 'changing-model.json'
+        source.write_bytes(c.encoded(model))
+        class SourceChange(io.StringIO):
+            def flush(sink):
+                changed = {**model, 'recommended_positive_prompt': 'A different source edition.'}
+                source.write_bytes(c.encoded(changed))
+                super().flush()
+        with self.assertRaisesRegex(ValueError, 'reading sources changed'):
+            r.issue('generation', execution='external', root=self.root, ledger=self.ledger,
+                    model_file=source, stream=SourceChange())
+        self.assertFalse(self.ledger.exists())
+
+    def test_studio_status_shares_partial_reading_and_fresh_context_actions(self):
+        import studio
+        import work_ledger
+        import production_authoring_state
+        studio_root = self.root / 'studio'
+        studio.init(studio_root, 'reading-continuation', 'Reading continuation')
+        work_ledger.begin(studio_root, 'Save an authored description.', ['Compose'])
+        result = r.read_page(route='development', studio=studio_root, root=self.root, ledger=self.ledger,
+                             page_bytes=100, stream=io.StringIO(), execution='authored')
+        rendered = studio.status(studio_root)
+        self.assertIn('Resume route reading:', rendered)
+        self.assertIn('--continue', rendered)
+        while 'issued' not in result:
+            result = r.read_page(cursor=result['cursor'], studio=studio_root, root=self.root, ledger=self.ledger,
+                                 page_bytes=1000000, stream=io.StringIO())
+        r.write_draft(result['issued'], self.ledger, studio=studio_root, snapshot=result['snapshot'])
+        report = production_authoring_state.inspect(studio_root)
+        selected = next(row for row in report['readings'] if row['current'])
+        self.assertEqual(selected['state'], 'recorded')
+        self.assertEqual(selected['next_actions'], [])
+        self.assertIn('--operation', selected['fresh_context_action']['argv'])
+        self.assertIn('Read the complete contract for a new context:', studio.status(studio_root))
     def read_args(self,*words):
         import argparse
         parser=argparse.ArgumentParser();r.add_read_arguments(parser)
         state=self.root/'runtime'
-        return parser.parse_args([*words,'--root',str(self.root),'--state-file',str(state/'state.json'),
+        scope = [] if '--continue' in words or '--replay' in words else ['--execution', 'authored' if 'development' in words else 'dispatcher']
+        return parser.parse_args([*words,*scope,'--root',str(self.root),'--state-file',str(state/'state.json'),
                                   '--cache-dir',str(state/'cache'),'--managed-root',str(state/'managed')]),parser
     def test_read_command_takes_a_prompt_family_without_a_model_record(self):
         import contextlib
@@ -506,7 +646,7 @@ class ReadingTests(unittest.TestCase):
                          'instead with --dialect ID: family-a, family-b')
     def test_a_model_needs_the_prompt_dialect_feature(self):
         with self.assertRaisesRegex(ValueError,'add --feature prompt-dialect'):
-            r.capture('generation',root=self.root,dialect='family-a')
+            r.capture('generation',root=self.root,dialect='family-a', execution='dispatcher')
     def test_ledger_has_only_key_hash(self):
         issued=self.issued()
         self.assertNotIn(issued['reading_key'],self.ledger.read_text(encoding='utf-8'))
@@ -519,7 +659,7 @@ class ReadingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'documents'): self.verify(record)
     def test_unrelated_issuance_preserves_record(self):
         record=self.record(); before=c.content_id(record)
-        r.issue('development',root=self.root,ledger=self.ledger,stream=io.StringIO())
+        r.issue('development',root=self.root,ledger=self.ledger,stream=io.StringIO(), execution='authored')
         self.verify(record); self.assertEqual(before,c.content_id(record))
     def test_route_is_not_inferred(self):
         record=self.record('development')
@@ -527,53 +667,46 @@ class ReadingTests(unittest.TestCase):
     def test_feature_mismatch(self):
         record=self.record();record['features']=['extra']
         with self.assertRaises(ValueError): self.verify(record)
-    def test_a_reading_that_applies_nothing_verifies(self):
-        record=self.record();record['applied']=[]
-        self.verify(record)
-    def test_wrong_quote(self):
-        record=self.record();record['applied'][0]['quote']=PARAGRAPH.replace('operator','reader')
-        with self.assertRaisesRegex(ValueError,'paragraph'): self.verify(record)
-    def test_quote_across_a_line_break_matches_and_is_kept_as_written(self):
-        words=PARAGRAPH.split(' ')
-        (self.root/'notes/work.md').write_bytes(('# Work\n\n'+' '.join(words[:7])+'\n'+' '.join(words[7:])+'\n').encode())
-        quote=' '.join(words[:4])+'\n  '+' '.join(words[4:])
-        issued=self.issued()
-        apps={'applied':[{'path':'notes/work.md','quote':quote,'why':'Synthetic quotation wrapped differently from the source.'}],
-              'resource_applied':[]}
-        record=r.build_record(issued,apps,root=self.root,ledgers=[self.ledger])
-        self.assertEqual(record['applied'][0]['quote'],quote)
-        self.verify(record)
-    def test_raw_markdown_links_and_emphasis_survive_application_building(self):
-        paragraph = ('The operator preserves the [selected source](source.md) and records the '
-                     '**explicit decision** before performing the requested operation.')
-        (self.root/'notes/work.md').write_bytes(('# Work\n\n' + paragraph + '\n').encode('utf-8'))
-        issued = self.issued()
-        apps = {'applied': [{'path': 'notes/work.md', 'quote': paragraph,
-                            'why': 'Use the selected source and its explicit decision.'}], 'resource_applied': []}
-        record = r.build_record(issued, apps, root=self.root, ledgers=[self.ledger])
-        self.assertEqual(record['applied'][0]['quote'], paragraph)
-        self.verify(record)
-        record['applied'][0]['quote'] = paragraph.replace('[selected source](source.md)', 'selected source')
-        with self.assertRaisesRegex(ValueError, 'preserving raw Markdown'):
+    def test_equivalent_operation_coverage_reuses_actual_delivery(self):
+        issued = r.issue('development', operation='author', root=self.root, ledger=self.ledger, stream=io.StringIO(), execution='authored')
+        record = r.draft_record(issued)
+        row = r.require_route_reading(record, root=self.root, ledgers=[self.ledger], operation='save')
+        self.assertEqual(row['operation'], 'author')
+    def test_current_operation_requires_its_complete_contract(self):
+        self.manifest['operation_contexts']['execute']['reads'].append('notes/execute.md')
+        (self.root/'notes/execute.md').write_bytes(b'# Execute\n\nThe send and recovery contract.\n')
+        (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        record = self.record()
+        with self.assertRaisesRegex(ValueError, 'current operation'):
+            r.require_route_reading(record, root=self.root, ledgers=[self.ledger], operation='execute')
+        issued = r.issue('generation', operation='execute', root=self.root, ledger=self.ledger, stream=io.StringIO(), execution='dispatcher')
+        r.require_route_reading(r.draft_record(issued), root=self.root, ledgers=[self.ledger], operation='execute')
+    def test_operation_metadata_cannot_be_reassigned_to_another_delivery(self):
+        record = self.record(); record['operation'] = 'author'
+        with self.assertRaisesRegex(ValueError, 'issuance'):
             self.verify(record)
-    def test_short_quote(self):
-        record=self.record();record['applied'][0]['quote']='The operator'
-        with self.assertRaisesRegex(ValueError,'twelve'): self.verify(record)
-    def test_heading_is_not_prose(self):
-        (self.root/'notes/work.md').write_text('# '+PARAGRAPH+'\n', encoding='utf-8')
-        issued=self.issued()
-        apps={'applied':[{'path':'notes/work.md','quote':PARAGRAPH,'why':'Synthetic'}],'resource_applied':[]}
-        with self.assertRaisesRegex(ValueError,'paragraph'):r.build_record(issued,apps,root=self.root,ledgers=[self.ledger])
-    def test_fenced_text_is_not_prose(self):
-        self.assertEqual(r.prose_blocks('```text\n'+PARAGRAPH+'\n```\n'),[])
-    def test_table_and_setext_are_not_prose(self):
-        self.assertEqual(r.prose_blocks(PARAGRAPH+'\n========\n\n| '+PARAGRAPH+' | Value |\n| --- | --- |\n| a | b |'),[])
-    def test_unrelated_reason_is_not_scored(self):
-        record=self.record();record['applied'][0]['why']='Unrelated assertion.'
-        self.verify(record)
-    def test_nonempty_reason_required(self):
-        record=self.record();record['applied'][0]['why']=' '
-        with self.assertRaisesRegex(ValueError,'reason'):self.verify(record)
+    def test_execution_coverage_uses_required_sources_and_preserves_issuance(self):
+        for name in r.execution_routes.OPERATIONS:
+            self.manifest['operation_contexts'][name]['executions']['dispatcher'] = ['notes/dispatcher.md']
+        (self.root/'notes/dispatcher.md').write_bytes(b'# Dispatcher\n\nRetain exact transport and authentication recovery.\n')
+        (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        issued = r.issue('generation', execution='external', root=self.root, ledger=self.ledger, stream=io.StringIO())
+        record = r.draft_record(issued)
+        with self.assertRaisesRegex(ValueError, 'current operation and execution'):
+            r.require_route_reading(record, root=self.root, ledgers=[self.ledger], execution='dispatcher')
+        complete = self.record()
+        row = r.require_route_reading(complete, root=self.root, ledgers=[self.ledger], execution='external')
+        self.assertEqual(row['execution'], 'dispatcher')
+        changed = copy.deepcopy(complete); changed['execution'] = 'external'
+        with self.assertRaisesRegex(ValueError, 'documents|issuance'):
+            self.verify(changed)
+    def test_markdown_and_nonprose_are_delivered_as_complete_source_bytes(self):
+        raw = b'# Heading\n\n| field | value |\n| --- | --- |\n| A | **B** |\n\n```text\nliteral [link](source.md)\n```\n'
+        (self.root/'notes/work.md').write_bytes(raw)
+        stream = io.StringIO()
+        issued = r.issue('generation', root=self.root, ledger=self.ledger, stream=stream, execution='dispatcher')
+        self.assertIn(raw.decode('utf-8'), stream.getvalue())
+        self.verify(r.draft_record(issued))
     def test_corrupt_ledger_is_not_ignored(self):
         record=self.record();self.ledger.write_bytes(self.ledger.read_bytes()+b'{')
         with self.assertRaisesRegex(ValueError,'incomplete'):self.verify(record)
@@ -584,12 +717,12 @@ class ReadingTests(unittest.TestCase):
     def test_output_failure_prevents_key(self):
         class Broken(io.StringIO):
             def flush(self): raise OSError('synthetic sink closed')
-        with self.assertRaises(OSError):r.issue('generation',root=self.root,ledger=self.ledger,stream=Broken())
+        with self.assertRaises(OSError):r.issue('generation',root=self.root,ledger=self.ledger,stream=Broken(), execution='dispatcher')
         self.assertFalse(self.ledger.exists())
     def test_unicode_paging_is_lossless(self):
         raw=(PARAGRAPH+' café\n').encode()
         (self.root/'notes/work.md').write_bytes(raw)
-        stream=io.StringIO();result=r.read_page(route='generation',page_bytes=13,root=self.root,ledger=self.ledger,stream=stream)
+        stream=io.StringIO();result=r.read_page(route='generation',page_bytes=13,root=self.root,ledger=self.ledger,stream=stream, execution='dispatcher')
         ranges=list(result['delivered'])
         while result['remaining_bytes']:
             self.assertNotIn('issued',result)
@@ -603,26 +736,26 @@ class ReadingTests(unittest.TestCase):
             for chunk in chunks:chunk.decode('utf-8')
         self.assertIn('issued',result)
     def test_replay_then_continue(self):
-        first=r.read_page(route='generation',page_bytes=23,root=self.root,ledger=self.ledger,stream=io.StringIO())
+        first=r.read_page(route='generation',page_bytes=23,root=self.root,ledger=self.ledger,stream=io.StringIO(), execution='dispatcher')
         replay=r.read_page(cursor=first['cursor'],replay=True,page_bytes=8,root=self.root,ledger=self.ledger,stream=io.StringIO())
         self.assertEqual(replay['delivered'][0]['start'],0)
         self.assertGreater(replay['remaining_bytes'],first['remaining_bytes'])
     def test_cursor_cannot_skip(self):
-        result=r.read_page(route='generation',page_bytes=23,root=self.root,ledger=self.ledger,stream=io.StringIO())
+        result=r.read_page(route='generation',page_bytes=23,root=self.root,ledger=self.ledger,stream=io.StringIO(), execution='dispatcher')
         with self.assertRaises(ValueError):r.read_page(cursor=result['snapshot']+':'+('0'*64),root=self.root,ledger=self.ledger,stream=io.StringIO())
         self.assertFalse(self.ledger.exists())
     def test_final_replay_issues_new_key(self):
-        result=r.read_page(route='generation',root=self.root,ledger=self.ledger,stream=io.StringIO())
+        result=r.read_page(route='generation',root=self.root,ledger=self.ledger,stream=io.StringIO(), execution='dispatcher')
         new=r.read_page(cursor=result['cursor'],replay=True,root=self.root,ledger=self.ledger,stream=io.StringIO())
         self.assertNotEqual(result['issued']['reading_key'],new['issued']['reading_key'])
     def test_stale_snapshot_never_issues(self):
-        result=r.read_page(route='generation',page_bytes=13,root=self.root,ledger=self.ledger,stream=io.StringIO())
+        result=r.read_page(route='generation',page_bytes=13,root=self.root,ledger=self.ledger,stream=io.StringIO(), execution='dispatcher')
         (self.root/'notes/work.md').write_text(PARAGRAPH+' New source.', encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'changed'):
             r.read_page(cursor=result['cursor'],page_bytes=10000,root=self.root,ledger=self.ledger,stream=io.StringIO())
         self.assertFalse(self.ledger.exists())
     def test_invalid_page_budget(self):
-        with self.assertRaises(ValueError):r.read_page(route='generation',page_bytes=0,root=self.root,ledger=self.ledger)
+        with self.assertRaises(ValueError):r.read_page(route='generation',page_bytes=0,root=self.root,ledger=self.ledger, execution='dispatcher')
 
 if __name__=='__main__':
     import stdio_utf8

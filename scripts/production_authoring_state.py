@@ -20,6 +20,26 @@ def active_task_id(root: Path | None) -> str | None:
     return task['task_id'] if task is not None else None
 
 
+def current_task(root: Path, *, task: dict | None = None, report: dict | None = None,
+                 read_run=None) -> dict | None:
+    """Expose one continuation from the current work and its actual saved state."""
+    import work_ledger
+    from production_diagnostics import from_exception
+    try:
+        task = work_ledger.read_current(root) if task is None else task
+    except READ_ERRORS as exc:
+        return {'task_id': None, 'goal': None, 'next': None, 'production_run': None,
+                'diagnostics': [from_exception(exc, phase='status', file='work/current.json')]}
+    if task is None:
+        return None
+    authoring = inspect(root, task, read_run=read_run) if report is None else report
+    focus = ('authoring' if authoring['pending'] or not task.get('production_run') else
+             'authored' if authoring['saved'] is not None else 'execution')
+    return {'task_id': task.get('task_id'), 'goal': task.get('goal'), 'next': task.get('next'),
+            'production_run': task.get('production_run'), 'focus': focus,
+            'next_actions': authoring['next_actions'], 'authoring': authoring}
+
+
 def _directory(root: Path, task_id: str) -> Path:
     import work_ledger
     return work_ledger.task_path(root, task_id).parent / 'authoring'
@@ -93,6 +113,9 @@ def remember_reading(root: Path | None, ledger: Path, snapshot_id: str, snapshot
         _remember(root, snapshot['task_id'], 'route-reading', snapshot_id,
                   {'ledger': str(ledger.absolute()), 'snapshot': snapshot_id, 'page_bytes': page_bytes,
                    'route': snapshot['manifest']['route'], 'features': snapshot['manifest']['features'],
+                   'operation': snapshot['manifest']['operation'],
+                   'execution': snapshot['manifest']['execution'], 'model': snapshot['manifest']['model'],
+                   'model_file': snapshot['model_file'],
                    'dialect': route_reading.bound_dialect(snapshot['manifest']),
                    'skill_root': snapshot['root'], 'runtime': snapshot['runtime']})
 
@@ -127,10 +150,27 @@ def _runtime_basis(values: dict | None) -> dict | None:
     return result
 
 
-def _scope(task: dict) -> dict:
+def _scope(task: dict, *, root: Path, choices: dict | None = None) -> dict:
     import execution_routes
-    resolved = execution_routes.resolve(task['route'], task['features'])
-    return {'route': resolved['route'], 'features': resolved['features']}
+    operation = 'author' if task.get('execution') == 'authored' else 'prepare'
+    resolved = execution_routes.resolve(task['route'], task['features'], operation=operation,
+                                        execution=task['execution'])
+    authored = (choices or {}).get('authoring') or {}
+    target = (authored.get('generation') or authored.get('upscale') or task.get('generation')
+              or task.get('upscale') or (task.get('authored') or {}).get('target') or {})
+    model = target.get('model')
+    specification = (authored.get('documents') or {}).get('production_spec')
+    if model is None and isinstance(specification, dict):
+        model = specification.get('target_model')
+    if model is None and target.get('model_file'):
+        model = c.load(c.local(root, target['model_file'])).get('id')
+    if model is None and target.get('production_spec'):
+        path = c.local(root, target['production_spec'], exists=False)
+        if path.is_file():
+            model = c.load(path).get('target_model')
+    return {'route': resolved['route'], 'operation': operation, 'execution': task['execution'],
+            'features': resolved['features'],
+            'documents': resolved['reads'], 'model': model, 'service': target.get('service')}
 
 
 def _source_arguments(details: dict, *, initial_task: dict | None = None) -> list[str]:
@@ -143,22 +183,6 @@ def _source_arguments(details: dict, *, initial_task: dict | None = None) -> lis
     return ['--route', initial_task['route'], '--artifact', initial_task['artifact'],
             '--execution', initial_task['execution'], '--task-id', initial_task['task_id'],
             *[part for feature in initial_task['features'] for part in ('--feature', feature)]]
-
-
-def _build_action(root: Path, row: dict, choices: str, basis: dict) -> dict:
-    details = row['details']
-    original = Path(details['directory'])
-    target = (original.with_name(original.name + '-built-' + c.content_id(basis)[:12])
-              if row['kind'] == 'draft-inputs' else original)
-    candidate = target
-    number = 2
-    while c.local(root, candidate.as_posix(), exists=False).exists():
-        candidate = target.with_name(target.name + '-' + str(number))
-        number += 1
-    source = _source_arguments(details)
-    return _action(root, 'build-inputs', *source, '--choices', choices, '--out-dir', candidate.as_posix(),
-                   *_arguments(details['runtime_arguments'] or {}),
-                   reason='Build from the saved choices and source into this unused directory after assessing the authored judgments.')
 
 
 def _problem(path: str, exc: BaseException) -> dict:
@@ -204,7 +228,7 @@ def _input_location(root: Path, row: dict) -> tuple[Path, dict]:
     return directory, result
 
 
-def _input(root: Path, row: dict, *, include_working: bool = True, run_cache: dict | None = None) -> dict:
+def _input(root: Path, row: dict, *, include_working: bool = True, read_run=None) -> dict:
     details = row['details']
     directory, result = _input_location(root, row)
     task_path = directory / 'production-task.json'
@@ -216,7 +240,7 @@ def _input(root: Path, row: dict, *, include_working: bool = True, run_cache: di
             raise ValueError('saved production task belongs to another work task')
         result.update(state='built', task=task_path.relative_to(root).as_posix(),
                       report=report_path.relative_to(root).as_posix(),
-                      route_scope=_scope(task), task_sha256=c.content_id(task),
+                      route_scope=_scope(task, root=root), task_sha256=c.content_id(task),
                       assembly_basis={'task': report['derived_from']['task'],
                                       'choices': report['derived_from']['choices'],
                                       'runtime_arguments': _runtime_basis(details['runtime_arguments'])},
@@ -233,7 +257,7 @@ def _input(root: Path, row: dict, *, include_working: bool = True, run_cache: di
         # older materialized task as the continuation of current authoring.
         choices = c.local(root, details['choices'], exists=False) if details['choices'] else None
         if include_working and choices is not None and choices.is_file():
-            working = _authored_input(root, row, run_cache=run_cache)
+            working = _authored_input(root, row, read_run=read_run)
             source_basis = working.get('assembly_basis')
             choices_changed = (source_basis is None or
                 source_basis['choices'] != result['assembly_basis']['choices'])
@@ -245,10 +269,10 @@ def _input(root: Path, row: dict, *, include_working: bool = True, run_cache: di
                 if working.get('route_scope') is not None:
                     result['route_scope'] = working['route_scope']
         return result
-    return _authored_input(root, row, run_cache=run_cache)
+    return _authored_input(root, row, read_run=read_run)
 
 
-def _authored_input(root: Path, row: dict, *, run_cache: dict | None = None) -> dict:
+def _authored_input(root: Path, row: dict, *, read_run=None) -> dict:
     details = row['details']
     directory, result = _input_location(root, row)
     choices = directory / 'choices.json' if row['kind'] == 'draft-inputs' else (
@@ -267,13 +291,13 @@ def _authored_input(root: Path, row: dict, *, run_cache: dict | None = None) -> 
             task = c.decode(raw)
             task_basis = {'path': details['source_task'], 'sha256': c.digest(raw)}
         elif details['source_run']:
-            _, prepared, _, _ = _run(root, details['source_run'], run_cache)
+            _, prepared, _, _ = read_run(details['source_run'])
             task = prepared['task']
             task_basis = {'run': details['source_run'], 'input_sha256': prepared['input_sha256']}
         elif context is not None and choices is not None:
             from production_inputs import _choice_source, InputEvidence
             task, task_basis, _, _, _ = _choice_source(
-                root, choices.relative_to(root).as_posix(), InputEvidence(root))
+                root, choices.relative_to(root).as_posix(), InputEvidence(root), read_run=read_run)
         elif row['kind'] == 'draft-inputs' and not directory.exists() and details.get('initial_task'):
             task = details['initial_task']
             task_basis = {'initial': True, 'task_id': task['task_id']}
@@ -289,23 +313,32 @@ def _authored_input(root: Path, row: dict, *, run_cache: dict | None = None) -> 
         import production_inputs
         result.update(state='choices', choices=choices.relative_to(root).as_posix())
         result['next_actions'] = [{'command': 'edit-choices', 'path': str(choices),
-                                  'reason': 'Continue the saved choices and assess their declared applications.'}]
+                                  'reason': 'Continue the editable source files and unresolved choices.'}]
         try:
-            selected = production_inputs.read_choices(c.load(choices))
-            chosen = production_inputs._chosen_task(task, selected) if task is not None else None
-            result['unresolved'] = (production_inputs._unresolved(selected, chosen) if chosen is not None
-                                    else production_inputs._missing(selected))
+            view = production_inputs.authoring_view(root, result['choices'],
+                task_path=details['source_task'], from_run=details['source_run'], read_run=read_run)
+            selected = view['resolved_choices']
+            chosen = view['task']
+            result['unresolved'] = view['unresolved']
+            result['editable_locations'] = view['source_map']
             if chosen is not None:
-                result['route_scope'] = _scope(chosen)
+                result['route_scope'] = _scope(chosen, root=root, choices=selected)
         except READ_ERRORS as exc:
             result['unresolved'] = [{'field': 'choices', 'code': 'authored-input-unreadable',
                                     'path': result['choices'], 'message': str(exc)}]
             return result
         result['assembly_basis'] = {'task': task_basis,
-            'choices': {'path': result['choices'], 'sha256': c.sha256_file(choices)},
+            'choices': view['choices_ref'],
             'runtime_arguments': _runtime_basis(details['runtime_arguments'])}
         if not result['unresolved'] and result['source_available']:
-            result['next_actions'] = [_build_action(root, row, result['choices'], result['assembly_basis'])]
+            command = 'save' if chosen.get('execution') == 'authored' else 'prepare'
+            result['next_actions'] = [_action(root, command, '--choices', result['choices'],
+                *_arguments(details['runtime_arguments'] or {}),
+                reason='Compile the current editable sources and ' + ('save their authored revision.' if command == 'save' else 'prepare their exact model input.'))]
+        elif chosen is not None and chosen.get('execution') == 'authored':
+            result['next_actions'].append(_action(root, 'save', '--choices', result['choices'], '--draft',
+                *_arguments(details['runtime_arguments'] or {}),
+                reason='Save the unfinished authored revision with these unresolved choices.'))
     else:
         result['state'] = 'unpublished'
         if row['kind'] == 'draft-inputs' and not directory.exists() and result['source_available']:
@@ -328,13 +361,22 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
     folder = c.local(ledger.parent, 'reading-snapshots/' +
                      route_reading._hex(details['snapshot'], 64, 'reading snapshot'), exists=False)
     base = {'snapshot': details['snapshot'], 'ledger': details['ledger'], 'created_at': row['created_at'],
-            'route': details['route'], 'features': details['features'], 'next_actions': []}
+            'route': details['route'], 'operation': details['operation'],
+            'execution': details['execution'], 'model': details['model'],
+            'features': details['features'], 'next_actions': []}
     def restart(reason):
         argv = python_argv(Path(details['skill_root']) / 'scripts/execution_routes.py', 'read', details['route'],
-                           '--root', str(root.absolute()), '--page-bytes', str(details['page_bytes']))
+                           '--operation', details['operation'], '--execution', details['execution'],
+                           '--root', str(root.absolute()),
+                           '--page-bytes', str(details['page_bytes']))
         for feature in details['features']:
             argv.extend(('--feature', feature))
-        if details['dialect'] is not None:
+        if details['model'] is not None:
+            argv.extend(('--model-file', details['model_file']) if details['model_file'] is not None
+                        else ('--model', details['model']['id']))
+            if details['model']['service'] is not None:
+                argv.extend(('--service', details['model']['service']))
+        elif details['dialect'] is not None:
             argv.extend(('--dialect', details['dialect']))
         runtime = route_reading._runtime_context(details['runtime'])
         if runtime is not None:
@@ -347,6 +389,7 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
     snapshot = c.load(folder / 'snapshot.json')
     if c.content_id(snapshot) != details['snapshot'] or snapshot.get('task_id') != row['task_id']:
         raise ValueError('reading snapshot differs from its saved task pointer')
+    base['documents'] = snapshot['manifest']['documents']
     total = sum(item['size'] for item in snapshot['bodies'])
     pages = []
     for path in (folder / 'pages').glob('*.json'):
@@ -374,10 +417,11 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
             record = c.load(Path(path))
             route_reading.validate_record_content(record)
             if any(record[key] != snapshot['manifest'][key]
-                   for key in ('route', 'features', 'documents', 'resources')):
+                   for key in route_reading.MANIFEST_FIELDS):
                 raise ValueError('saved reading record differs from its snapshot')
             route_reading._find_row(record, [ledger])
-        result.update(state='recorded', records=present)
+        fresh = restart('Deliver the complete current contract when this agent or context has not read it.')
+        result.update(state='recorded', records=present, fresh_context_action=fresh['next_actions'][0])
         return result
     cursors = [(start, end, page) for start, end, page in pages if end == reach]
     if not cursors:
@@ -417,11 +461,11 @@ def _last_check(root: Path, task_id: str) -> dict | None:
             'meaning': 'Saved diagnostic result only; current inputs and execution authority are checked by their owning commands.'}
 
 
-def _source_links(root: Path, task: dict, *, source_run: str | None, run_cache: dict) -> list[dict]:
+def _source_links(root: Path, task: dict, *, source_run: str | None, read_run) -> list[dict]:
     """Keep each source's authored role and both current and saved locations."""
     directory, dependencies = None, {}
     if source_run is not None:
-        directory, prepared, _, _ = _run(root, source_run, run_cache)
+        directory, prepared, _, _ = read_run(source_run)
         dependencies = {item['path']: item for item in prepared['dependencies'] if item['space'] != 'skill'}
     result = []
     for source in task.get('sources', []):
@@ -443,7 +487,7 @@ def _source_links(root: Path, task: dict, *, source_run: str | None, run_cache: 
     return result
 
 
-def _context(root: Path, task: dict, selected: dict | None, *, run_cache: dict) -> dict:
+def _context(root: Path, task: dict, selected: dict | None, *, read_run) -> dict:
     """Gather the active judgment and its evidence without changing any artifact."""
     import work_ledger
     result = {'work': {key: task.get(key) for key in
@@ -460,7 +504,8 @@ def _context(root: Path, task: dict, selected: dict | None, *, run_cache: dict) 
                'choices_file': str(root / row['choices']) if row.get('choices') else None,
                'published_task': str(root / selected['task']) if selected.get('task') else None,
                'prepared_run': selected.get('prepared_run'),
-               'changed_since_build': bool(selected.get('working_copy'))}
+               'changed_since_build': bool(selected.get('working_copy') or selected.get('changed_since_save')),
+               'editable_locations': row.get('editable_locations', {})}
     result['input'] = current
     choices = None
     if row.get('choices'):
@@ -475,7 +520,7 @@ def _context(root: Path, task: dict, selected: dict | None, *, run_cache: dict) 
         if row.get('source_task'):
             source = c.load(c.local(root, row['source_task']))
         elif row.get('source_run'):
-            _, prepared, _, _ = _run(root, row['source_run'], run_cache)
+            _, prepared, _, _ = read_run(row['source_run'])
             source = prepared['task']
     except READ_ERRORS as exc:
         current['source_diagnostic'] = str(exc)
@@ -492,23 +537,24 @@ def _context(root: Path, task: dict, selected: dict | None, *, run_cache: dict) 
     if source is not None:
         current['task_content'] = source
         try:
-            current['sources'] = _source_links(root, source, source_run=row.get('source_run'), run_cache=run_cache)
+            current['sources'] = _source_links(root, source, source_run=row.get('source_run'), read_run=read_run)
         except READ_ERRORS as exc:
             current['sources_diagnostic'] = str(exc)
     current['instruction'] = ('Continue the selected choices and resolve the named judgments. '
         'Use the source locations to inspect their actual contents. The published task and existing run '
-        'retain the input that was built or prepared; the next build materializes current choices.')
+        'retain their exact input; saving or preparation compiles the current editable sources.')
     return result
 
 
-def inspect(root: Path, task: dict | None = None) -> dict:
+def inspect(root: Path, task: dict | None = None, *, read_run=None) -> dict:
     """Describe saved work for this ledger task, without producing inputs, keys or permissions."""
     import work_ledger
     root = Path(root).absolute()
     task = work_ledger.read_current(root) if task is None else task
     result = {'state': 'authoring-state', 'task_id': task['task_id'] if task else None,
               'inputs': [], 'readings': [], 'last_check': None, 'diagnostics': [],
-              'next_actions': [], 'pending': False, 'context': None, 'external_effect': False}
+              'next_actions': [], 'pending': False, 'context': None, 'saved': None,
+              'external_effect': False}
     if task is None:
         return result
     try:
@@ -518,11 +564,13 @@ def inspect(root: Path, task: dict | None = None) -> dict:
         result['diagnostics'].append(_problem('work/tasks/' + task['task_id'] + '/authoring', exc))
     latest_input = max((row for row in records if row['kind'] in {'draft-inputs', 'build-inputs'}),
                        key=lambda row: row['created_at'], default=None)
-    run_cache = {}
+    if read_run is None:
+        run_cache = {}
+        read_run = lambda identifier: _run(root, identifier, run_cache)
     for row in records:
         try:
             if row['kind'] in {'draft-inputs', 'build-inputs'}:
-                result['inputs'].append(_input(root, row, include_working=row is latest_input, run_cache=run_cache))
+                result['inputs'].append(_input(root, row, include_working=row is latest_input, read_run=read_run))
             elif row['kind'] == 'route-reading':
                 result['readings'].append(_reading(root, row, records))
             elif row['kind'] == 'reading-record' and row['details']['snapshot'] is None:
@@ -532,6 +580,9 @@ def inspect(root: Path, task: dict | None = None) -> dict:
                 route_reading.validate_record_content(value)
                 route_reading._find_row(value, [Path(row['details']['ledger'])])
                 result['readings'].append({'state': 'recorded', 'route': value['route'],
+                                           'operation': value['operation'], 'model': value['model'],
+                                           'execution': value['execution'],
+                                           'documents': value['documents'],
                                            'features': value['features'], 'created_at': row['created_at'],
                                            'records': [str(path)], 'remaining_bytes': 0, 'next_actions': []})
         except READ_ERRORS as exc:
@@ -547,12 +598,33 @@ def inspect(root: Path, task: dict | None = None) -> dict:
             row.update(assembled_task=prior['task'], next_actions=[])
     if task.get('production_run'):
         try:
-            _, prepared, _, _ = _run(root, task['production_run'], run_cache)
+            loaded = read_run(task['production_run'])
+            _, prepared, _, _ = loaded
+            if prepared['task']['execution'] == 'authored':
+                import production_authored
+                saved = production_authored.status(root, loaded)
+                result['saved'] = {'run': saved['run'], 'task_id': saved['task_id'],
+                    'task_disposition': saved['task_disposition'],
+                    'authored': saved['authored'], 'next_action': saved['next_action']}
+                if (saved['task_disposition'] == 'completed'
+                        and task.get('work_state') in {'active', 'suspended'}):
+                    result['saved']['next_action'] = {'command': 'finish',
+                        'argv': python_argv(ROOT / 'scripts/work_ledger.py', 'finish',
+                            '--studio', str(root), '--run', saved['run']),
+                        'reason': 'The authored revision is complete; close its owning work task after resolving its open author questions.'}
             for row in result['inputs']:
                 if (row['state'] == 'built' and row['task'] == prepared['task_path']
                         and row['task_sha256'] == c.content_id(prepared['task'])):
                     row['prepared_run'] = task['production_run']
                     if not row.get('working_copy'):
+                        row['next_actions'] = []
+                current = row.get('working_copy', row)
+                source = (current.get('assembly_basis') or {}).get('choices')
+                saved = (prepared.get('authoring') or {}).get('choices_ref')
+                if source is not None and saved is not None and source['path'] == saved['path']:
+                    row['prepared_run'] = task['production_run']
+                    row['changed_since_save'] = source != saved
+                    if source == saved and not current['unresolved']:
                         row['next_actions'] = []
         except READ_ERRORS as exc:
             result['diagnostics'].append(_problem('production/' + task['production_run'], exc))
@@ -560,10 +632,15 @@ def inspect(root: Path, task: dict | None = None) -> dict:
     selected_input = max(candidates, key=lambda row: row['created_at'], default=None)
     scope = (selected_input or {}).get('route_scope')
     applicable = [row for row in result['readings']
-                  if scope is None or (row['route'] == scope['route'] and row['features'] == scope['features'])]
+                  if scope is None or (row['route'] == scope['route'] and set(scope['features']) <= set(row['features'])
+                     and row['execution'] == scope['execution']
+                     and all(item in row.get('documents', []) for item in scope['documents'])
+                     and (not row['model'] or (row['model']['id'] == scope['model']
+                          and (row['model']['service'] is None or row['model']['service'] == scope['service']))))]
     selected_reading = max(applicable, key=lambda row: row['created_at'], default=None)
     result['pending'] = bool(selected_input and
-                             (not selected_input.get('prepared_run') or selected_input.get('working_copy')))
+                             (not selected_input.get('prepared_run') or selected_input.get('working_copy')
+                              or selected_input.get('changed_since_save') or selected_input['unresolved']))
     for row in result['inputs']:
         row['current'] = row is selected_input
         if row['current']:
@@ -576,15 +653,23 @@ def inspect(root: Path, task: dict | None = None) -> dict:
             result['next_actions'] = row['next_actions'] + result['next_actions']
     if selected_reading and selected_reading['next_actions']:
         result['pending'] = True
+    if result['saved'] is not None:
+        result['saved']['working_changes'] = bool(selected_input and
+            (selected_input.get('working_copy') or selected_input.get('changed_since_save')))
+        if not result['pending'] and not result['next_actions'] and result['saved']['next_action']:
+            action = dict(result['saved']['next_action'])
+            if action.get('argv'):
+                action['shown'] = shown(action['argv'])
+            result['next_actions'] = [action]
     try:
-        result['context'] = _context(root, task, selected_input, run_cache=run_cache)
+        result['context'] = _context(root, task, selected_input, read_run=read_run)
     except READ_ERRORS as exc:
         result['diagnostics'].append(_problem('current authoring context', exc))
     return result
 
 
-def session_lines(root: Path, task: dict, *, report: dict | None = None) -> list[str]:
-    report = inspect(root, task) if report is None else report
+def session_lines(root: Path, task: dict, *, report: dict | None = None, read_run=None) -> list[str]:
+    report = inspect(root, task, read_run=read_run) if report is None else report
     lines = []
     for saved in (item for item in report['inputs'] if item['current']):
         row = saved.get('working_copy', saved)
@@ -604,11 +689,24 @@ def session_lines(root: Path, task: dict, *, report: dict | None = None) -> list
                 lines.append('Continue authoring: ' + action['shown'])
     for row in (item for item in report['readings'] if item['current']):
         if row['state'] == 'recorded':
-            lines.extend('Saved reading applications: ' + path for path in row['records'])
+            lines.extend('Saved source delivery: ' + path for path in row['records'])
+            if row.get('fresh_context_action'):
+                lines.append('Read the complete contract for a new context: ' + row['fresh_context_action']['command'])
         elif row['next_actions']:
             if row['state'] == 'unpublished':
                 lines.append('Saved reading attempt: ' + row['snapshot'] + '; ' + row['publication_diagnostic'])
             lines.append('Resume route reading: ' + row['next_actions'][0]['command'])
+    if report['saved'] is not None:
+        saved = report['saved']
+        revision = saved['authored']
+        lines.append('Saved authored revision: ' + saved['run'] + '; state: ' + revision['state'] +
+                     '; artifact: ' + revision['artifact'])
+        if revision['missing']:
+            lines.append('Requested results still pending: ' + ', '.join(revision['missing']))
+        if not report['pending']:
+            for action in report['next_actions']:
+                if action.get('argv'):
+                    lines.append('Continue saved work: ' + shown(action['argv']))
     if report['last_check']:
         check = report['last_check']
         lines.append('Last check of ' + str(root / check['task']) + ': exit code ' +

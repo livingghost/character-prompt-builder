@@ -246,7 +246,7 @@ class CompilationInputsTests(unittest.TestCase):
             return evidence
 
         with patch.object(runtime_evidence,'acquisition',side_effect=change_live_schema):
-            package=builder.build_payload(model=model['id'],prompt=fixtures.PROMPT,negative_prompt='',brief='',
+            package=builder.build_payload(execution=self.case['task']['execution'],model=model['id'],prompt=fixtures.PROMPT,negative_prompt='',brief='',
                 creative_intent=c.load(self.root/'creative-intent.json'),parameters=c.load(self.root/'parameters.json'),
                 production_spec=specification,plot=c.load(self.root/'plot.json'),
                 retrieval_record=c.load(self.root/'retrieval.json'),visual_continuity=visual,

@@ -36,6 +36,7 @@ from state_protocol import (
 
 def build_package(
     *,
+    execution: str,
     model: str,
     prompt: str,
     negative_prompt: str,
@@ -85,6 +86,7 @@ def build_package(
     primary = next(graph for graph in state_graphs if graph['lineage']['lineage_sha256'] == primary_hash)
 
     payload = build_payload(
+        execution=execution,
         plot=plot,
         retrieval_record=retrieval_record,
         request_validation=request_validation, input_root=input_root,
@@ -111,7 +113,8 @@ def build_package(
         production_root=production_root,
         production_run=production_run,
     )
-    verification = verify_package(payload, package_root=prepared_reference_root, studio=visual_root or production_root or prepared_reference_root)
+    verification = verify_package(payload, package_root=prepared_reference_root,
+        studio=visual_root or production_root or prepared_reference_root, execution=execution)
     if verification.get("verified") is not True:
         raise ValueError(
             "generated package failed verification: "
@@ -125,10 +128,11 @@ def verify_package(
     *,
     package_root: Path | None = None,
     studio: Path | None = None,
+    execution: str | None = None,
 ) -> dict[str, Any]:
     from verify_generation_payload import verify
 
-    return verify(payload, package_root=package_root, studio=studio)
+    return verify(payload, package_root=package_root, studio=studio, execution=execution)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -214,6 +218,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                                     prepared_reference_set=staged_reference_set, staging_root=staging_root,
                                     work_ids=work_ids, loaded=loaded)
         payload = build_package(
+            execution=derived['execution'],
             model=model,
             prompt=loaded[3]["instructions"],
             negative_prompt=studio_text(root, args.negative_file, "--negative-file"),
@@ -221,7 +226,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_negative=studio_text(root, args.native_negative_file, "--native-negative-file"),
             negative_provenance=graph("--negative-provenance-file") or {},
             brief=brief,
-            creative_intent=graph("--intent-file") or {},
+            creative_intent=chosen['creative_intent'],
             production_spec=production_spec,
             plot=chosen["plot"],
             retrieval_record=chosen["retrieval_record"],

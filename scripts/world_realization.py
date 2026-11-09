@@ -6,7 +6,7 @@
     python scripts/world_realization.py verify --root STUDIO --plan plan.json --bundle DIR
     python scripts/world_realization.py impact --root STUDIO --plan plan.json
 
-Only current local, hash-pinned inputs are read. No network, rendering, implicit
+Selected local inputs are acquired and pinned; existing pins are checked. No network, rendering, implicit
 state propagation, approval, semantic inference or source writes.
 See references/runtime/world-realization.md for the contract and review limits.
 """
@@ -139,7 +139,10 @@ def source_inventory(root: Path, plan: dict[str, Any], *, strict: bool) -> tuple
             raw = read_bytes(local_path(root, source['path']))
             total += len(raw)
             digest = hashlib.sha256(raw).hexdigest()
-            row.update(actual_sha256=digest, size_bytes=len(raw), matches=digest == source['sha256'])
+            expected = source.get('sha256')
+            row.update(sha256=digest if expected is None else expected,
+                       actual_sha256=digest, size_bytes=len(raw),
+                       matches=expected is None or digest == expected)
             if not row['matches'] and strict:
                 raise ValueError(f'source fingerprint changed: {source["source_id"]}')
             blobs[source['source_id']] = raw

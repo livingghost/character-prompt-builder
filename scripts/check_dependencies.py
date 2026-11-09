@@ -36,6 +36,7 @@ REQUIREMENT_RE = re.compile(
 with PYPROJECT.open("rb") as _project_stream:
     IMPORT_NAMES = tomllib.load(_project_stream)["tool"]["character-prompt-builder"]["imports"]
 FFPROBE_ENABLES = "measured audio and video streams in temporal production evidence"
+CAPABILITIES = ('sheet', 'temporal-media')
 REPORT_FIELDS = ("ok", "python", "definition", "dependencies", "errors")
 HAS_PIP = "import importlib.util, sys; sys.exit(importlib.util.find_spec('pip') is None)"
 SHEET_TEXT = "\u4e2d\u6587 \u65e5\u672c\u8a9e \u3042\u30a2 \ud55c\uad6d\uc5b4"
@@ -365,10 +366,26 @@ def _packages(project_path: Path) -> dict[str, Any]:
     }
 
 
-def check(project_path: Path = PYPROJECT, *, sheet_text: Sequence[str] = ()) -> dict[str, Any]:
-    """Verify the complete environment against the project at the requested path."""
-    report = with_sheet_fonts(_packages(project_path), (SHEET_TEXT, *sheet_text))
-    return with_ffprobe(report)
+def selected_capabilities(capabilities: Sequence[str], sheet_text: Sequence[str]) -> tuple[str, ...]:
+    """Resolve external requirements from the operations this invocation uses."""
+    selected = set(capabilities)
+    if selected - set(CAPABILITIES):
+        raise ValueError('unknown dependency capability: ' + ', '.join(sorted(selected - set(CAPABILITIES))))
+    if sheet_text:
+        selected.add('sheet')
+    return tuple(sorted(selected))
+
+
+def check(project_path: Path = PYPROJECT, *, sheet_text: Sequence[str] = (),
+          capabilities: Sequence[str] = ()) -> dict[str, Any]:
+    """Verify locked packages and the selected operations' external requirements."""
+    selected = selected_capabilities(capabilities, sheet_text)
+    report = {**_packages(project_path), 'capabilities': list(selected)}
+    if 'sheet' in selected:
+        report = with_sheet_fonts(report, (SHEET_TEXT, *sheet_text))
+    if 'temporal-media' in selected:
+        report = with_ffprobe(report)
+    return report
 
 
 def _failed_report(error: str) -> dict[str, Any]:
@@ -381,9 +398,12 @@ def _failed_report(error: str) -> dict[str, Any]:
     }
 
 
-def check_in(python: str, *, sheet_text: Sequence[str] = ()) -> dict[str, Any]:
+def check_in(python: str, *, sheet_text: Sequence[str] = (),
+             capabilities: Sequence[str] = ()) -> dict[str, Any]:
     """Run this check in a new process of the interpreter at python and return its report."""
     command = [python, str(Path(__file__).resolve())]
+    for capability in selected_capabilities(capabilities, sheet_text):
+        command.extend(('--capability', capability))
     for text in sheet_text:
         command.append("--sheet-text=" + text)
     try:
@@ -393,6 +413,7 @@ def check_in(python: str, *, sheet_text: Sequence[str] = ()) -> dict[str, Any]:
     try:
         report = json.loads(completed.stdout)
         result = {field: report[field] for field in REPORT_FIELDS}
+        result['capabilities'] = list(selected_capabilities(capabilities, sheet_text))
         if "ffprobe" in report:
             result["ffprobe"] = report["ffprobe"]
         if "sheet_fonts" in report:
@@ -412,23 +433,23 @@ def check_environment(
     fresh: bool = False,
     plan: tuple[list[list[str]], str | None] | None = None,
     sheet_text: Sequence[str] = (),
+    capabilities: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Return the complete Python, package, font and FFmpeg environment report.
+    """Return the package and selected capability environment report.
 
     The report describes the Python running this check, or the one in the virtual
     environment at venv. fresh checks the running Python in a new process, which sees
     packages installed after this process imported its modules.
     """
 
+    selected = selected_capabilities(capabilities, sheet_text)
     python = sys.executable if venv is None else str(environment_python(venv))
     if venv is None and not fresh:
-        report = check(sheet_text=sheet_text) if sheet_text else check()
+        report = check(sheet_text=sheet_text, capabilities=selected)
     elif venv is not None and not is_environment(venv):
         report = _failed_report(f"{venv} holds no virtual environment")
     else:
-        report = check_in(python, sheet_text=sheet_text) if sheet_text else check_in(python)
-    if "ffprobe" not in report:
-        report = with_ffprobe(report)
+        report = check_in(python, sheet_text=sheet_text, capabilities=selected)
     dependencies = report.get("dependencies") or []
     missing = sorted(
         str(row.get("distribution"))
@@ -444,12 +465,15 @@ def check_environment(
     )
     commands, note = install_plan(venv) if plan is None else plan
     check_arguments = []
+    for capability in selected:
+        check_arguments.extend(('--capability', capability))
     for text in sheet_text:
         check_arguments.append("--sheet-text=" + text)
     if venv is not None:
         check_arguments.extend(("--venv", str(venv)))
     return {
         **report,
+        'capabilities': list(selected),
         "executable": python,
         "check_command": shown(python_argv(Path(__file__), *check_arguments)),
         **({"venv_command": shown(commands[0])} if len(commands) > 1 else {}),
@@ -520,6 +544,10 @@ def run_commands(commands: Sequence[Sequence[str]]) -> tuple[list[str], str | No
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument(
+        '--capability', action='append', default=[], choices=CAPABILITIES,
+        help='include external requirements for this operation; repeat for several capabilities',
+    )
+    parser.add_argument(
         "--venv",
         metavar="DIR",
         help="check the virtual environment at DIR; the printed commands create it when absent and install into it",
@@ -546,14 +574,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--yes confirms --install; pass both")
     venv = Path(os.path.abspath(args.venv)) if args.venv else None
     plan = install_plan(venv)
-    report = check_environment(venv, plan=plan, sheet_text=args.sheet_text)
+    report = check_environment(venv, plan=plan, sheet_text=args.sheet_text, capabilities=args.capability)
     commands = pending_commands(report, plan) if args.install else []
     refusal = confirmation(commands, yes=args.yes) if commands else None
     if refusal:
         report["errors"].append(refusal)
     elif commands:
         ran, failure = run_commands(commands)
-        report = {**check_environment(venv, fresh=True, sheet_text=args.sheet_text), "install_ran": ran}
+        report = {**check_environment(venv, fresh=True, sheet_text=args.sheet_text,
+                                     capabilities=args.capability), "install_ran": ran}
         if failure:
             report["ok"] = False
             report["errors"].append(failure)

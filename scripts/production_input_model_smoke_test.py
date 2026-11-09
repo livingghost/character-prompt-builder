@@ -32,8 +32,7 @@ class ModelInputTests(unittest.TestCase):
         visual = copy.deepcopy(self.package['visual_continuity'])
         visual['basis'].pop('sha256')
         visual.update(production_spec='production-spec.json', prepared_reference_set='prepared-references.json')
-        self.choices = {'reading': {'snapshot_id': None, 'reading_key': reading['reading_key'],
-                                   'applied': reading['applied'], 'resource_applied': reading['resource_applied']},
+        self.choices = {'reading': {'reading_key': reading['reading_key']},
                         'visual': visual,
                         'validation': {'mode': validation['mode'], 'model': self.package['model'],
                             'target': self.target, 'service_profiles': 'services.json',
@@ -191,8 +190,7 @@ class ObservedPackInputTests(unittest.TestCase):
         self.target = {'service': selected['service'], 'model_identifier': selected['model_identifier'], 'operation': 'generate'}
         reading = c.load(self.root / self.case['task']['route_reading'])
         policy = c.load(self.root / 'validation.json')['execution_policy']['path']
-        self.choices = {'reading': {'snapshot_id': None, 'reading_key': reading['reading_key'],
-                                   'applied': reading['applied'], 'resource_applied': reading['resource_applied']},
+        self.choices = {'reading': {'reading_key': reading['reading_key']},
                         'visual': None, 'task_changes': {}, 'external': None,
                         'validation': {'mode': 'target-schema', 'model': cases.MODEL_ID, 'target': self.target,
                             'service_profiles': None, 'contract': self.selector, 'evidence': self.selector,
