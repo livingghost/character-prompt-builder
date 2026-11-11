@@ -436,8 +436,8 @@ def regressions(tmp: Path, source: Path, check) -> None:
     tampered = [dict(row) for row in studio.read_iterations(again_home)]
     tampered[0]["acceptances"] = [{"at": "2026-01-01T00:00:00Z", "supersedes": "it-0099"}]
     studio.write_iterations(again_home, tampered)
-    check("an acceptance that names no iteration of its slot is reported",
-          any("not another iteration of slot 'base'" in error for error in validate_studio.validate(again)),
+    check("an acceptance that names no acceptance in its historical slot is reported",
+          any("has no acceptance in slot 'base'" in error for error in validate_studio.validate(again)),
           validate_studio.validate(again))
 
     # A character id names one directory on every system.

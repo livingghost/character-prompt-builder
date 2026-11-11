@@ -6,8 +6,10 @@ from contextlib import contextmanager
 import copy
 import errno
 import json
+import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -177,6 +179,128 @@ class ProjectionTests(unittest.TestCase):
         self.assertTrue(current['ok']);self.assertFalse(current['written'])
         self.assertEqual(self.output.read_bytes(),before)
 
+    def test_unchanged_publication_reuses_the_display_without_compiling_the_ledger(self):
+        first=story.refresh(self.root);self.assertTrue(first['ok'])
+        before=self.output.read_bytes()
+        with patch.object(story,'build_model',side_effect=AssertionError('unchanged inputs rebuilt the ledger')):
+            current=story.refresh(self.root)
+        self.assertEqual(current,{**first,'written':False})
+        self.assertEqual(self.output.read_bytes(),before)
+
+    def test_same_size_and_timestamp_source_change_rebuilds_the_display(self):
+        first=story.refresh(self.root)
+        path=self.root/'state/world-state-base.json';stat=path.stat();raw=path.read_bytes()
+        changed=raw.replace(b'unassigned',b'reassigned');self.assertNotEqual(raw,changed)
+        self.assertEqual(len(raw),len(changed));path.write_bytes(changed)
+        os.utime(path,ns=(stat.st_atime_ns,stat.st_mtime_ns))
+        with patch.object(story,'build_model',wraps=story.build_model) as build:
+            current=story.refresh(self.root)
+        self.assertEqual(build.call_count,1);self.assertTrue(current['written'])
+        self.assertNotEqual(first['projection_id'],current['projection_id'])
+        self.assertEqual(data_from_html(self.output)['base']['characters']['C01']['social_role_state']['occupation'],'reassigned')
+
+    def test_reuse_observes_missing_evidence_reappearance_and_deletion(self):
+        path=self.root/'decision.txt';raw=path.read_bytes();path.unlink()
+        first=story.refresh(self.root);self.assertTrue(first['ok'])
+        with patch.object(story,'build_model',side_effect=AssertionError('unchanged absence rebuilt the ledger')):
+            self.assertFalse(story.refresh(self.root)['written'])
+        for exists in (True,False):
+            if exists:path.write_bytes(raw)
+            else:path.unlink()
+            with patch.object(story,'build_model',wraps=story.build_model) as build:
+                self.assertTrue(story.refresh(self.root)['written'])
+            self.assertEqual(build.call_count,1)
+            status=data_from_html(self.output)['events'][0]['references'][0]['status']
+            self.assertEqual(status,'local' if exists else 'unavailable')
+
+    def test_reuse_observes_scene_collection_membership(self):
+        root=self.root.parent/'story';fixture=setup_story(root)
+        self.assertTrue(story.refresh(root)['ok'])
+        path=root/'narrative/scenes/additional.json'
+        for exists in (True,False):
+            if exists:c.atomic_write_json(path,fixture['scenes'][0])
+            else:path.unlink()
+            with patch.object(story,'build_model',wraps=story.build_model) as build:
+                self.assertTrue(story.refresh(root)['written'])
+            self.assertEqual(build.call_count,1)
+            model=data_from_html(root/story.OUTPUT)
+            members=next(row['members'] for row in model['source_collections'] if row['path']=='narrative/scenes')
+            self.assertEqual('narrative/scenes/additional.json' in members,exists)
+
+    def test_reuse_binds_the_exact_selection_schema_and_renderer_contents(self):
+        installation=self.root.parent/'renderer';installation.mkdir()
+        shutil.copytree(story.ROOT/'templates',installation/'templates')
+        schema=Path('schemas/authoring/story-timeline-view.schema.json')
+        (installation/schema).parent.mkdir(parents=True)
+        shutil.copyfile(story.ROOT/schema,installation/schema)
+        with patch.object(story,'ROOT',installation):
+            self.assertTrue(story.refresh(self.root)['ok'])
+            selected=view('picked',7)
+            with patch.object(story,'build_model',wraps=story.build_model) as build:
+                self.assertTrue(story.refresh(self.root,selection=selected)['written'])
+            self.assertEqual(build.call_count,1)
+            self.assertEqual(data_from_html(self.output)['views'][0]['view'],selected)
+            for path in (installation/schema,installation/'templates/story-flow.css'):
+                path.write_bytes(path.read_bytes()+b'\n')
+                with patch.object(story,'build_model',wraps=story.build_model) as build:
+                    self.assertTrue(story.refresh(self.root,selection=selected)['written'])
+                self.assertEqual(build.call_count,1)
+            with patch.object(story,'build_model',side_effect=AssertionError('unchanged renderer rebuilt the ledger')):
+                self.assertFalse(story.refresh(self.root,selection=selected)['written'])
+
+    def test_missing_or_damaged_owned_publication_rebuilds_from_the_sources(self):
+        for damage in ('receipt-missing','receipt-truncated','receipt-fields','html-missing','html-content'):
+            with self.subTest(damage=damage):
+                first=story.refresh(self.root);self.assertTrue(first['ok'])
+                status=self.output.with_suffix('.status.json')
+                if damage=='receipt-missing':status.unlink()
+                elif damage=='receipt-truncated':status.write_bytes(b'{')
+                elif damage=='receipt-fields':
+                    value=c.load(status);value['inputs']=[];c.atomic_write_json(status,value)
+                elif damage=='html-missing':self.output.unlink()
+                else:self.output.write_bytes(self.output.read_bytes()+b'\xffcorrupted display bytes')
+                with patch.object(story,'build_model',wraps=story.build_model) as build:
+                    repaired=story.refresh(self.root)
+                self.assertEqual(build.call_count,1);self.assertTrue(repaired['written'])
+                self.assertEqual(data_from_html(self.output)['projection_id'],first['projection_id'])
+
+    def test_template_change_during_render_cannot_publish_an_inaccurate_implementation_identity(self):
+        installation=self.root.parent/'renderer';installation.mkdir()
+        shutil.copytree(story.ROOT/'templates',installation/'templates')
+        schema=Path('schemas/authoring/story-timeline-view.schema.json')
+        (installation/schema).parent.mkdir(parents=True)
+        shutil.copyfile(story.ROOT/schema,installation/schema)
+        with patch.object(story,'ROOT',installation):
+            first=story.refresh(self.root);self.assertTrue(first['ok'])
+            conf=self.config();conf['views'][0]['label']='A changed view';self.save_config(conf)
+            original=story.render_html
+            path=installation/'templates/story-flow.css'
+            def change(model,generated,**kwargs):
+                path.write_bytes(path.read_bytes()+b'\n.changed-template{color:red}\n')
+                rendered=original(model,generated,**kwargs)
+                self.assertNotIn('.changed-template{color:red}',rendered)
+                return rendered
+            with patch.object(story,'render_html',side_effect=change):
+                result=story.refresh(self.root)
+            self.assertFalse(result['ok'])
+            self.assertIn('implementation changed during projection',result['message'])
+            previous=data_from_html(self.output.with_suffix('.last-good.html'))
+            self.assertEqual(previous['projection_id'],first['projection_id'])
+            self.assertTrue(story.refresh(self.root)['written'])
+
+    def test_source_change_during_reuse_is_rebuilt_before_returning_current(self):
+        self.assertTrue(story.refresh(self.root)['ok'])
+        original=story.Inputs.recheck;calls=[]
+        path=self.root/'decision.txt'
+        def change(inputs):
+            calls.append(True)
+            if len(calls)==1:path.write_bytes(b'Changed synthetic evidence during cache acquisition.\n')
+            original(inputs)
+        with patch.object(story.Inputs,'recheck',change),patch.object(story,'build_model',wraps=story.build_model) as build:
+            current=story.refresh(self.root)
+        self.assertTrue(current['ok']);self.assertTrue(current['written']);self.assertEqual(build.call_count,1)
+        self.assertEqual(data_from_html(self.output)['events'][0]['references'][0]['sha256'],c.sha256_file(path))
+
     def test_publication_rechecks_a_competing_completed_projection(self):
         self.assertTrue(story.refresh(self.root)['ok'])
         conf=self.config();conf['views'][0]['label']='Changed projection';self.save_config(conf)
@@ -308,8 +432,8 @@ class ProjectionTests(unittest.TestCase):
 
     def test_changed_source_during_build_is_not_published_as_current(self):
         story.refresh(self.root);original=story.render_html
-        def change(model,generated):
-            write_events(self.root,[event('NEW',100,'new')]);return original(model,generated)
+        def change(model,generated,**kwargs):
+            write_events(self.root,[event('NEW',100,'new')]);return original(model,generated,**kwargs)
         conf=self.config();conf['views'][0]['label']='changed';self.save_config(conf)
         with patch.object(story,'render_html',side_effect=change):result=story.refresh(self.root)
         self.assertFalse(result['ok']);self.assertIn('changed during projection',result['message'])
@@ -349,8 +473,8 @@ class ProjectionTests(unittest.TestCase):
                 conf=c.load(root/story.CONFIG);conf['views'][0]['label']='A new authored view label'
                 c.atomic_write_json(root/story.CONFIG,conf)
                 original=story.render_html
-                def repair(model,generated):
-                    path.unlink();c.atomic(path,raw);return original(model,generated)
+                def repair(model,generated,**kwargs):
+                    path.unlink();c.atomic(path,raw);return original(model,generated,**kwargs)
                 with patch.object(story,'render_html',side_effect=repair):result=story.refresh(root)
                 self.assertFalse(result['ok'],result);self.assertIn(name,result['message'])
                 previous=(root/story.OUTPUT).with_suffix('.last-good.html')
@@ -383,10 +507,10 @@ class ProjectionTests(unittest.TestCase):
         c.atomic_write_json(path,value)
         ledger=(root/'state/events.jsonl').read_bytes()
         original=story.render_html
-        def change(model,generated):
+        def change(model,generated,**kwargs):
             value['proposition']='A source changed during publication.'
             c.atomic_write_json(path,value)
-            return original(model,generated)
+            return original(model,generated,**kwargs)
         with patch.object(story,'render_html',side_effect=change):result=story.refresh(root)
         self.assertFalse(result['ok'])
         self.assertIn('story input changed during projection: story/narrative/scenes/gate-plot.json',result['message'])
@@ -406,9 +530,9 @@ class ProjectionTests(unittest.TestCase):
                     value=fixture['scenes'][0];value['proposition']='A revised source before publication.'
                     c.atomic_write_json(root/(prefix+'narrative/scenes/gate-plot.json'),value)
                     original=story.render_html
-                    def change(model,generated):
+                    def change(model,generated,**kwargs):
                         c.atomic_write_json(alternate,fixture['narrative'] if source=='narrative' else fixture['scenes'][1])
-                        return original(model,generated)
+                        return original(model,generated,**kwargs)
                     with patch.object(story,'render_html',side_effect=change):result=story.refresh(root)
                     self.assertFalse(result['ok'],result)
                     expected={'narrative':'input appeared','new-scene':'collection changed',
@@ -581,8 +705,8 @@ class ArtworkTests(unittest.TestCase):
                 self.assertEqual(failed['scene_artwork'][0]['status'],'unavailable')
                 self.assertIsNone(failed['scene_artwork'][0]['href'])
                 original=story.render_html
-                def repair(model,generated):
-                    path.unlink();c.atomic(path,raw);return original(model,generated)
+                def repair(model,generated,**kwargs):
+                    path.unlink();c.atomic(path,raw);return original(model,generated,**kwargs)
                 with patch.object(story,'render_html',side_effect=repair):result=story.refresh(self.root)
                 self.assertFalse(result['ok'],result);self.assertIn(name,result['message'])
                 self.assertEqual(data_from_html((self.root/story.OUTPUT).with_suffix('.last-good.html'))['projection_id'],first['projection_id'])

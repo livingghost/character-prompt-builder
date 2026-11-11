@@ -116,10 +116,13 @@ def capture(root: Path) -> BuilderInputs:
     validation result. A later operation observes additions, edits and removals.
     """
     root = Path(root).resolve()
+    root_depth = len(root.parts)
     files = []
     for family in ("scripts", *DATA_DIRECTORIES):
         for path in _regular_files(root / family, root):
-            relative = path.relative_to(root).as_posix()
+            # The owned traversal yields descendants of this resolved root.
+            # Slice their components without rebuilding every ancestor per file.
+            relative = "/".join(path.parts[root_depth:])
             if relative in DERIVED_INVENTORIES:
                 continue
             if family == "scripts":

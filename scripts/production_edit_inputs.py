@@ -1,6 +1,7 @@
-"""Start an instruction edit of an adopted Studio image as ordinary editable choices.
+"""Start an instruction edit of an accepted Studio image as ordinary editable choices.
 
-The adopted slot supplies its exact Studio source with its adoption evidence.
+The selected slot supplies its exact acceptance or sheet-artwork evidence.
+Canonical identity, when applicable, remains a separately verified reference.
 The Production run that produced the image supplies its Production
 Specification, controls and validation selection where they still apply. The
 author decides what changes, what stays, the instruction text, the criteria and
@@ -16,11 +17,12 @@ import execution_contract as c
 from production_diagnostics import ProductionError
 
 FEATURES = ('semantic-instruction-edit', 'instruction-edit')
-# The reference and task-source ID of the adopted image in the draft.
+# The reference and task-source ID of the accepted image in the draft.
 SOURCE_ID = 'edit-source'
+IDENTITY_SOURCE_ID = 'edit-identity'
 PLAN_FILE = 'edit-plan.json'
-GUIDE = {'document_path': 'references/runtime/semantic-instruction-edit.md#start-from-the-adopted-image'}
-STEPS = ['Prepare the requested edit of the adopted image.', 'Assess the edited image against its edit plan.']
+GUIDE = {'document_path': 'references/runtime/semantic-instruction-edit.md#start-from-the-accepted-image'}
+STEPS = ['Prepare the requested edit of the accepted image.', 'Assess the edited image against its edit plan.']
 DRAFT = ('scripts/production_workflow.py draft-inputs --root STUDIO --route generation --execution dispatcher '
          '(or external) --edit-character CHARACTER --edit-slot SLOT --out-dir NEW_DIRECTORY')
 
@@ -34,57 +36,87 @@ def require_arguments(*, character: str | None, slot: str | None, initial: bool,
                       artifact: str | None, execution: str | None, upscale: dict) -> None:
     """Refuse a selector combination that does not start one edit draft."""
     if character is None or slot is None:
-        raise _refuse('An adopted image is selected by its Studio character and slot together.',
+        raise _refuse('An accepted image is selected by its Studio character and slot together.',
                       'Give both --edit-character and --edit-slot: ' + DRAFT + '.')
     if not initial:
-        raise _refuse('An edit of an adopted image starts a new draft; --task and --from-run reopen existing work.',
+        raise _refuse('An edit of an accepted image starts a new draft; --task and --from-run reopen existing work.',
                       'Omit --task and --from-run: ' + DRAFT + '. To revise an earlier edit, reopen its run with '
                       'draft-inputs --from-run RUN instead.')
     if route != 'generation':
-        raise _refuse('An edit of an adopted image uses the generation route.',
+        raise _refuse('An edit of an accepted image uses the generation route.',
                       'Select --route generation: ' + DRAFT + '.', route=route)
     if execution not in {'dispatcher', 'external'}:
-        raise _refuse('An edit of an adopted image needs its execution kind.',
+        raise _refuse('An edit of an accepted image needs its execution kind.',
                       'Add --execution dispatcher for a catalog offering that this Studio sends, or --execution '
                       'external for a host call that the agent performs and records: ' + DRAFT + '.',
                       execution=execution)
     if artifact not in {None, 'image'}:
-        raise _refuse('An edit of an adopted image produces an image.', 'Omit --artifact or select --artifact image.',
+        raise _refuse('An edit of an accepted image produces an image.', 'Omit --artifact or select --artifact image.',
                       artifact=artifact)
     chosen = sorted(name for name, value in upscale.items() if value is not None)
     if chosen:
         raise _refuse('--' + ', --'.join(chosen) + ' select a dispatcher upscale, not an edit.',
                       'Omit ' + ', '.join('--' + name for name in chosen) + ' from the edit draft. An enlargement '
-                      'of the adopted image is a separate draft with --route upscale.', options=chosen)
+                      'of the accepted image is a separate draft with --route upscale.', options=chosen)
 
 
 def select(root: Path, character: str, slot: str) -> dict:
-    """The adopted image: its Studio source, identity adoption and producing Production run."""
+    """Select actual slot acceptance; separately retain an exact applicable identity adoption.
+
+    A sheet-native artifact with no Studio iteration keeps its sheet proof.
+    The two source kinds are selected from the owning records, never by trying
+    a weaker source after canonical evidence fails validation.
+    """
     import sheet_artifacts as fills
+    import studio
     import studio_reference
     try:
-        source = studio_reference.current_source(root, character, slot)
-        proof = studio_reference.validate_source(source)
+        read = studio_reference.reference_reads().studio(root)
+        accepted = [row for row in read.adoption_rows(character)
+                    if studio.placement_slot(row) == slot and row.get('status') == 'accepted']
+        identity = identity_source = None
+        if accepted:
+            source = studio_reference.current_accepted_source(root, character, slot, read=read)
+            proof = studio_reference.validate_source(source, read=read)
+            production = proof['production']
+            origin = ({'kind': 'production', 'run': production['run'],
+                       'candidate': production['candidate']['sha256']} if production else {})
+            current = read.sheet(character)['slots'].get(slot, {}).get('current')
+            if current is not None and current['artifact']['image']['sha256'] == source['sha256']:
+                sheet_root = read.home(character) / 'sheet'
+                provenance = fills.verify_artifact(current['artifact'], sheet_root, cache=read.artifacts)
+                if (provenance.get('origin') or {}).get('iteration_id') == source['iteration_id']:
+                    canonical = studio_reference.current_source(root, character, slot, read=read)
+                    canonical_proof = studio_reference.validate_source(canonical, read=read)
+                    identity = copy.deepcopy(canonical_proof.get('identity'))
+                    if identity is not None:
+                        identity_source = canonical
+        else:
+            source = studio_reference.current_source(root, character, slot, read=read)
+            proof = studio_reference.validate_source(source, read=read)
+            sheet_root = root / PurePosixPath(source['sheet']).parent
+            provenance = fills.verify_artifact(proof['acceptance']['artifact'], sheet_root, cache=read.artifacts)
+            origin = provenance.get('origin') or {}
+            identity = copy.deepcopy(proof.get('identity'))
+            identity_source = source if identity is not None else None
     except ProductionError:
         raise
     except (ValueError, OSError, KeyError, TypeError) as exc:
         raise ProductionError('INPUT_CONSISTENCY_ERROR', 'Studio character ' + str(character) + ', slot ' +
-            str(slot) + ' has no current adopted image to edit: ' + str(exc), phase='authoring',
+            str(slot) + ' has no verifiable current accepted image to edit: ' + str(exc), phase='authoring',
             guidance={'document_path': 'references/runtime/studio-canon-references.md#choose-the-current-source-and-its-influence'},
             required_action='Select a character and slot whose current artwork is accepted; '
                 'scripts/studio.py status --studio STUDIO lists each character\'s slots and their accepted images. '
-                'Accept or adopt the intended image through its own workflow before editing it.',
+                'Accept the intended Studio iteration, or select the current sheet artwork. '
+                'Repair any reported evidence damage through its owning workflow before editing it.',
             character=character, slot=slot) from exc
-    sheet_root = root / PurePosixPath(source['sheet']).parent
-    provenance = fills.verify_artifact(proof['acceptance']['artifact'], sheet_root)
-    origin = provenance.get('origin') or {}
     try:
         path = Path(source['resolved_path']).resolve().relative_to(root.resolve()).as_posix()
     except ValueError as exc:
-        raise _refuse('The adopted image lies outside this Studio: ' + source['resolved_path'] + '.',
-                      'Run draft-inputs with --root naming the Studio that holds the adopted image.') from exc
+        raise _refuse('The accepted image lies outside this Studio: ' + source['resolved_path'] + '.',
+                      'Run draft-inputs with --root naming the Studio that holds the accepted image.') from exc
     return {'character': character, 'slot': slot, 'source': source, 'path': path,
-            'identity': copy.deepcopy(proof.get('identity')),
+            'identity': identity, 'identity_source': copy.deepcopy(identity_source),
             'origin': ({'run': origin['run'], 'candidate': origin.get('candidate')}
                        if origin.get('kind') == 'production' and origin.get('run') else None)}
 
@@ -101,10 +133,10 @@ def features(edit: dict, selected: list[str] | None) -> list[str]:
 
 
 def _origin(root: Path, edit: dict, reader) -> dict:
-    """The applicable documents and controls of the run that produced the adopted image."""
+    """The applicable documents and controls of the run that produced the accepted image."""
     import production_authoring as authoring
     import production_inputs
-    empty = {'task': None, 'saved': None, 'production_spec': None, 'parameters': None, 'model': None,
+    empty = {'task': None, 'saved': None, 'production_spec': None, 'parameters': None, 'references': None, 'model': None,
              'service': None}
     if edit['origin'] is None:
         return empty
@@ -112,7 +144,7 @@ def _origin(root: Path, edit: dict, reader) -> dict:
     task = saved['task']
     generation = task.get('generation') or {}
     result = {**empty, 'task': task, 'saved': saved}
-    for field in ('production_spec', 'parameters'):
+    for field in ('production_spec', 'parameters', 'references'):
         if generation.get(field):
             result[field] = c.decode(authoring.source_bytes(root, generation[field], reader, saved))
     specification = result['production_spec']
@@ -153,13 +185,30 @@ def _subject(edit: dict, origin: dict) -> str | None:
     return subjects[0] if len(subjects) == 1 else None
 
 
-def reference_choices(edit: dict, subject: str | None) -> dict:
-    """The adopted image as the scene reference, with the identity use its adoption grants."""
+def reference_choices(edit: dict, subject: str | None, origin: dict) -> dict:
+    """The accepted scene and independently adopted identity references, with explicit subject uses."""
     row = {'id': SOURCE_ID, 'role': 'scene', 'source': copy.deepcopy(edit['source'])}
-    if edit['identity'] is not None and subject is not None:
-        row['subject_uses'] = [{'subject_id': subject, 'use': 'identity', 'priority': 0}]
+    additional = [row]
+    if edit['identity_source'] is not None and subject is not None:
+        additional.append({'id': IDENTITY_SOURCE_ID, 'role': 'identity',
+            'source': copy.deepcopy(edit['identity_source']),
+            'subject_uses': [{'subject_id': subject, 'use': 'identity', 'priority': 0}]})
+    # Retain independently selected, stateless Studio identity uses for every
+    # participant. State-scoped references keep their separate graph owner.
+    for previous in (origin['references'] or {}).get('selected_references', []):
+        if previous['source'].get('kind') != 'studio-artifact' or 'subject_id' in previous:
+            continue
+        uses = [copy.deepcopy(use) for use in previous.get('subject_uses', []) if use['use'] == 'identity']
+        if not uses:
+            continue
+        same = next((item for item in additional if item['source'] == previous['source'] and item['role'] == 'identity'), None)
+        if same is not None:
+            same['subject_uses'].extend(use for use in uses if use not in same['subject_uses'])
+        else:
+            additional.append({'id': 'edit-identity-' + str(len(additional)), 'role': 'identity',
+                'source': copy.deepcopy(previous['source']), 'subject_uses': uses})
     return {'transport_mode': 'multi-image', 'max_side': 1536, 'reference_use_plan': None,
-            'reference_selection': None, 'additional_references': [row], 'image_input': None,
+            'reference_selection': None, 'additional_references': additional, 'image_input': None,
             'zero_reference_reason': None, 'source_files': {}}
 
 
@@ -176,6 +225,7 @@ def apply(root: Path, edit: dict, choices: dict, task: dict, out_dir: str, *, re
     authored = choices['authoring']
     owned = authored['task']
     dispatcher = task['execution'] == 'dispatcher'
+    edit['execution'] = task['execution']
     origin = _origin(root, edit, reader)
     edit['origin_target'] = {'model': origin['model'], 'service': origin['service']}
     subject = _subject(edit, origin)
@@ -186,7 +236,12 @@ def apply(root: Path, edit: dict, choices: dict, task: dict, out_dir: str, *, re
     specification = _specification(origin['production_spec'])
     if specification is not None:
         authored['documents']['production_spec'] = specification
-    references = reference_choices(edit, subject)
+    references = reference_choices(edit, subject, origin)
+    if any(use['use'] == 'identity' for row in references['additional_references']
+           for use in row.get('subject_uses', [])):
+        for selected_task in (task, owned):
+            if 'recurring-identity' not in selected_task['features']:
+                selected_task['features'].append('recurring-identity')
     if dispatcher:
         generation = authored['generation']
         generation.update(model=origin['model'], service=origin['service'])
@@ -194,11 +249,16 @@ def apply(root: Path, edit: dict, choices: dict, task: dict, out_dir: str, *, re
             generation['render_intent'] = {'artifact_type': 'render-intent', 'execution_mode': 'instruction-edit'}
         if origin['parameters'] is not None:
             authored['documents']['parameters'] = copy.deepcopy(origin['parameters'])
+        original_generation = (origin['task'] or {}).get('generation') or {}
+        generation['continuity'] = copy.deepcopy(original_generation.get('continuity') or {})
         identity = edit['identity'] or {}
         if subject is not None and identity.get('continuity') in {'recurring', 'one-off', 'undecided'}:
-            generation['continuity'] = {subject: identity['continuity']}
+            generation['continuity'][subject] = identity['continuity']
+        subject_map = copy.deepcopy(((origin['task'] or {}).get('recording') or {}).get('subject_map') or {})
+        if subject is not None:
+            subject_map[subject] = edit['character']
         owned['recording'] = {'character': edit['character'], 'slot': None,
-            'subject_map': {subject: edit['character']} if subject is not None else {},
+            'subject_map': subject_map,
             'sheet_panel': None, 'role': None}
         # The mirrored image input: the prepared Studio source supplies its rows.
         references['image_input'] = {}
@@ -209,7 +269,8 @@ def apply(root: Path, edit: dict, choices: dict, task: dict, out_dir: str, *, re
     else:
         import production_external_inputs
         external = production_external_inputs.template()
-        external['image_input'] = {'artifact_type': 'image-input-plan', 'references': [{'id': SOURCE_ID}],
+        external['image_input'] = {'artifact_type': 'image-input-plan',
+                                   'references': [{'id': row['id']} for row in references['additional_references']],
                                    'external_request': None}
         external['reference_delivery'] = {'target_model': None, 'choices': references}
         choices['external'] = external
@@ -231,10 +292,15 @@ def reopen(root: Path, task: dict, choices: dict, out_dir: str, *, reader, saved
 
 
 def report(edit: dict) -> dict:
-    """The selected adopted image and the run it came from, as the draft reports them."""
-    return {'character': edit['character'], 'slot': edit['slot'], 'path': edit['path'],
+    """The selected source and its independently authored recording destination."""
+    result = {'character': edit['character'], 'slot': edit['slot'], 'path': edit['path'],
             'source': copy.deepcopy(edit['source']), 'origin': copy.deepcopy(edit['origin']),
-            'identity': copy.deepcopy(edit['identity'])}
+            'identity': copy.deepcopy(edit['identity']), 'identity_source': copy.deepcopy(edit['identity_source'])}
+    if edit.get('execution') == 'dispatcher':
+        result['recording_destination'] = {'field': 'authoring.task.recording.slot', 'selected': None,
+            'meaning': 'Choose the result destination independently. The source slot is not changed by drafting or generation; '
+                       'acceptance applies to the destination that records the result.'}
+    return result
 
 
 def target(edit: dict) -> dict | None:

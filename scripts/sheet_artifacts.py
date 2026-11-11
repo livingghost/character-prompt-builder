@@ -24,6 +24,7 @@ from studio_activity import mutation
 KINDS = frozenset({'generation', 'upscale', 'crop', 'resize', 'composite', 'shared'})
 STORE = '.fills/artifacts'
 APPROVALS = '.fills/approvals'
+WITHDRAWALS = '.fills/withdrawals'
 SourceReader = Callable[[Path, str, Callable[[], bytes]], bytes]
 
 
@@ -43,7 +44,7 @@ class _ReaderIdentity:
 
 
 def empty_slot(*, fill_policy: str = 'auto') -> dict:
-    return {'current': None, 'candidates': [], 'history': [], 'fill_policy': fill_policy}
+    return {'current': None, 'candidates': [], 'history': [], 'withdrawals': [], 'fill_policy': fill_policy}
 
 
 def current_artifact(slot: Mapping[str, Any] | None) -> dict | None:
@@ -470,6 +471,216 @@ def _validate_decision(decision: dict, sidecar: Path, evidence_root: Path) -> by
     return raw
 
 
+def withdrawn_acceptance(slot: Mapping[str, Any] | None, accepted: Mapping[str, Any]) -> dict | None:
+    """Find the authored withdrawal of this exact acceptance, not matching pixels."""
+    target = c.content_id(accepted)
+    matches = [entry for entry in (slot or {}).get('withdrawals', [])
+               if entry['acceptance_sha256'] == target]
+    if len(matches) > 1:
+        raise ValueError('an exact sheet acceptance has more than one withdrawal')
+    return matches[0] if matches else None
+
+
+def _withdrawal_decision(decision: Any, sidecar: Path | None = None) -> None:
+    c.exact(decision, {'artifact_type', 'sheet', 'slot', 'artifact_id', 'acceptance_sha256',
+                       'adoption_decision_sha256', 'by', 'at', 'reason', 'evidence'}, 'sheet withdrawal')
+    if decision['artifact_type'] != 'sheet-withdrawal-decision':
+        raise ValueError('withdrawal requires a sheet-withdrawal-decision')
+    c.text(decision['sheet'], 'withdrawal sheet')
+    if sidecar is not None and decision['sheet'] != str(sidecar.resolve()):
+        raise ValueError('withdrawal is scoped to another sheet')
+    for key in ('slot', 'by', 'at', 'reason'):
+        c.text(decision[key], 'withdrawal ' + key)
+    for key in ('artifact_id', 'acceptance_sha256', 'adoption_decision_sha256'):
+        c.sha(decision[key])
+    try:
+        stamp = datetime.fromisoformat(decision['at'].replace('Z', '+00:00'))
+    except (ValueError, AttributeError) as exc:
+        raise ValueError('withdrawal requires an actual ISO timestamp') from exc
+    if stamp.tzinfo is None:
+        raise ValueError('withdrawal time must include a timezone')
+    c.exact(decision['evidence'], {'path', 'sha256', 'locator'}, 'withdrawal evidence')
+    c.text(decision['evidence']['path'], 'withdrawal evidence path')
+    c.text(decision['evidence']['locator'], 'withdrawal evidence locator')
+    c.sha(decision['evidence']['sha256'])
+
+
+def verify_withdrawal(withdrawal: Any, sheet_root: Path, slot_id: str, accepted: Mapping[str, Any], *,
+                      cache: dict | None = None, read_source: SourceReader | None = None) -> dict:
+    """Verify a retained withdrawal and its exact historical adoption evidence."""
+    path, expected = sheet_root / 'sheet-data.json', None
+    try:
+        c.exact(withdrawal, {'acceptance_sha256', 'decision'}, 'sheet withdrawal receipt')
+        if withdrawal['acceptance_sha256'] != c.content_id(accepted):
+            raise ValueError('withdrawal differs from its exact historical acceptance')
+        verify_acceptance(accepted, sheet_root, slot_id, cache=cache, read_source=read_source)
+        record = withdrawal['decision']
+        c.exact(record, {'decision_sha256', 'decision_path', 'evidence_path', 'evidence_sha256'}, 'withdrawal evidence receipt')
+        path, expected = sheet_root / record['decision_path'], record['decision_sha256']
+        decision = c.decode(_source_bytes(sheet_root, record['decision_path'], read_source=read_source))
+        _withdrawal_decision(decision)
+        if (c.content_id(decision) != record['decision_sha256'] or decision['slot'] != slot_id
+                or decision['acceptance_sha256'] != withdrawal['acceptance_sha256']
+                or decision['artifact_id'] != accepted['artifact']['artifact_id']
+                or decision['adoption_decision_sha256'] != accepted['approval']['decision_sha256']):
+            raise ValueError('withdrawal decision differs from its exact adoption')
+        path, expected = sheet_root / record['evidence_path'], record['evidence_sha256']
+        _source_bytes(sheet_root, record['evidence_path'], record['evidence_sha256'], read_source=read_source)
+        if decision['evidence']['sha256'] != record['evidence_sha256']:
+            raise ValueError('withdrawal differs from its saved author evidence')
+        return decision
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        from production_diagnostics import ProductionError
+        raise ProductionError('ADOPTION_WITHDRAWAL_CORRUPT',
+            'The retained withdrawal or its exact adoption evidence cannot be verified: ' + str(exc),
+            phase='adoption-integrity', file=str(path), slot=slot_id,
+            **({'expected': expected} if expected is not None else {}),
+            required_action=('Restore the named immutable withdrawal decision, evidence or historical acceptance '
+                'from a verified Studio copy, matching expected when supplied. Preserve the original approval and '
+                'withdrawal; do not overwrite history or create a new adoption to conceal missing evidence.')) from exc
+
+
+def _withdrawable(sidecar: Path, slot_id: str, accepted: dict) -> None:
+    """Verify the completed adoption being ended, independently of later acceptance."""
+    verify_acceptance(accepted, sidecar.parent, slot_id)
+    provenance = verify_artifact(accepted['artifact'], sidecar.parent)
+    if (provenance.get('origin') or {}).get('iteration_id') is not None:
+        import adoption_workflow as adoption
+        import studio
+        import studio_reference
+        root = studio.require_studio(sidecar.parent)
+        origin = provenance['origin']
+        character, iteration = origin['character'], origin['iteration_id']
+        read = studio.StudioRead(root)
+        if sidecar.resolve() != read.home(character) / 'sheet/sheet-data.json':
+            raise ValueError('the adoption being withdrawn belongs to another Studio character')
+        row = studio._find(read.placed_iterations(character), iteration)
+        journal = read.journal(character, iteration)
+        loaded = read.run(row['production']['run']) if row.get('production') is not None else None
+        if loaded is not None:
+            adoption.require_journal_agreement(journal, character, iteration, row['production'], loaded.rows)
+        approval = adoption.validate_approval(journal.get('approval'), character, row)
+        if (approval['slot'] != slot_id or approval['image_sha256'] != accepted['artifact']['image']['sha256']
+                or journal.get('status') != {'sheet': 'sheet-bound', 'catalog': 'catalog-registered'}[approval['scope']]
+                or journal.get('next_action') is not None):
+            raise ValueError('the Studio adoption being withdrawn is incomplete or names different artwork')
+        decision = studio_reference._decision(accepted, sidecar.parent, str(sidecar.resolve()), slot_id,
+                                               cache=read.artifacts)
+        if decision != journal.get('sheet_decision') or accepted != (journal.get('sheet_binding') or {}).get('current'):
+            raise ValueError('the sheet adoption being withdrawn differs from its completed Studio decision')
+        initial = adoption.validate_approval(c.load(_file(sidecar.parent, accepted['approval']['evidence_path'])),
+                                             character, row)
+        if initial != approval and not (initial['scope'] == 'sheet' and approval['scope'] == 'catalog'
+                                        and initial['influence'] == approval['influence']):
+            raise ValueError('the Studio adoption being withdrawn differs from its original sheet approval')
+        if origin.get('kind') == 'production' or row.get('production') is not None:
+            if origin.get('kind') != 'production' or row.get('production') != {
+                    'run': origin.get('run'), 'candidate': origin.get('candidate')}:
+                raise ValueError('the sheet adoption being withdrawn differs from its Production candidate')
+            _production_decision(provenance, decision, sidecar, loaded=loaded)
+            if decision['basis']['approval'] != initial:
+                raise ValueError('the sheet adoption being withdrawn differs from its original approval evidence')
+            adoption.require_production_claim(root, character, row, initial, decision['basis']['claim'], read=read)
+            adoption.require_production_claim(root, character, row, approval, journal.get('production_claim'), read=read)
+            claims, results = adoption.recorded_adoptions(loaded.rows, character, iteration)
+            if not any(result['data']['claim'] == journal['production_claim'] for result in results):
+                from production_diagnostics import ProductionError
+                raise ProductionError('ADOPTION_RESULT_MISSING',
+                    'The run records no completed result for the Studio adoption being withdrawn.',
+                    phase='adoption-integrity', expected=approval['image_sha256'], claim=journal['production_claim'],
+                    required_action=adoption.result_action(character, iteration, row['production'],
+                                                           claims[journal['production_claim']]))
+
+
+def draft_withdrawal(sidecar: Path, slot_id: str, *, evidence_path: str | None = None,
+                     evidence_locator: str | None = None, evidence_root: Path | None = None) -> dict:
+    """Bind current adoption and selected evidence bytes without inventing an author decision."""
+    slot = _read(sidecar)['slots'].get(slot_id)
+    accepted = (slot or {}).get('current')
+    if accepted is None:
+        raise ValueError('withdrawal requires a current adopted image in the selected slot')
+    _withdrawable(sidecar, slot_id, accepted)
+    evidence = {'path': '', 'sha256': '', 'locator': ''}
+    if any(value is not None for value in (evidence_path, evidence_locator, evidence_root)):
+        if any(value is None for value in (evidence_path, evidence_locator, evidence_root)):
+            raise ValueError('select withdrawal evidence with evidence path, locator and evidence root together')
+        c.text(evidence_path, 'withdrawal evidence path')
+        c.text(evidence_locator, 'withdrawal evidence locator')
+        evidence = {'path': evidence_path, 'sha256': c.sha256_file(c.local(evidence_root, evidence_path)),
+                    'locator': evidence_locator}
+    return {'artifact_type': 'sheet-withdrawal-decision', 'sheet': str(sidecar.resolve()), 'slot': slot_id,
+            'artifact_id': accepted['artifact']['artifact_id'], 'acceptance_sha256': c.content_id(accepted),
+            'adoption_decision_sha256': accepted['approval']['decision_sha256'],
+            'by': '', 'at': '', 'reason': '', 'evidence': evidence}
+
+
+def _withdrawal_result(sidecar: Path, decision: dict, receipt: dict, *, repeated: bool) -> dict:
+    """A retry republishes derived views from the retained decision, without changing canon."""
+    import studio_activity as activity
+    projection = activity.changed(sidecar, 'sheet-adoption-withdrawn', revision=c.content_id(decision),
+        details={'slot': decision['slot'], 'artifact_id': decision['artifact_id'],
+                 'acceptance_sha256': decision['acceptance_sha256'], 'by': decision['by'],
+                 'at': decision['at'], 'reason': decision['reason']})
+    return {'ok': True, 'withdrawn': True, 'already_withdrawn': repeated,
+            'withdrawal': receipt, 'projection': projection}
+
+
+@mutation
+def withdraw(sidecar: Path, decision: dict, *, evidence_root: Path) -> dict:
+    """End one exact canonical adoption, preserving its approval, artifact and history."""
+    _withdrawal_decision(decision, sidecar)
+    state = _read(sidecar)
+    slot = state['slots'].get(decision['slot'])
+    if slot is None:
+        raise ValueError('withdrawal names an unknown slot')
+    decision_sha = c.content_id(decision)
+    repeated = next((entry for entry in slot.get('withdrawals', [])
+                     if entry['decision']['decision_sha256'] == decision_sha), None)
+    if repeated is not None:
+        accepted = next((entry for entry in slot['history']
+                         if c.content_id(entry) == repeated['acceptance_sha256']), None)
+        if accepted is None:
+            raise ValueError('withdrawal has lost its historical acceptance')
+        verify_withdrawal(repeated, sidecar.parent, decision['slot'], accepted)
+        return _withdrawal_result(sidecar, decision, repeated, repeated=True)
+    evidence = c.read(c.local(evidence_root, decision['evidence']['path']))
+    if c.digest(evidence) != decision['evidence']['sha256']:
+        raise ValueError('withdrawal evidence bytes changed; restore the approved bytes or draft a new decision with the actual evidence')
+    accepted = slot['current']
+    if accepted is None or c.content_id(accepted) != decision['acceptance_sha256']:
+        raise ValueError('current adoption changed after the withdrawal was drafted; inspect it and draft a new withdrawal if intended')
+    _withdrawable(sidecar, decision['slot'], accepted)
+    if (accepted['artifact']['artifact_id'] != decision['artifact_id']
+            or accepted['approval']['decision_sha256'] != decision['adoption_decision_sha256']):
+        raise ValueError('withdrawal names another artwork or adoption decision')
+    folder = _safe_directory(sidecar.parent, f'{WITHDRAWALS}/{decision_sha}')
+    for name, raw in [('decision.json', c.encoded(decision)), ('evidence', evidence)]:
+        target = c.local(folder, name, exists=False)
+        try:
+            c.atomic(target, raw)
+        except FileExistsError:
+            if c.read(target) != raw:
+                raise ValueError('immutable withdrawal evidence changed') from None
+    receipt = {'acceptance_sha256': decision['acceptance_sha256'],
+               'decision': {'decision_sha256': decision_sha,
+                            'decision_path': f'{WITHDRAWALS}/{decision_sha}/decision.json',
+                            'evidence_path': f'{WITHDRAWALS}/{decision_sha}/evidence',
+                            'evidence_sha256': c.digest(evidence)}}
+    with sheet_lock(sidecar):
+        state = _read(sidecar)
+        slot = state['slots'][decision['slot']]
+        repeated = next((entry for entry in slot.get('withdrawals', [])
+                         if entry['decision']['decision_sha256'] == decision_sha), None)
+        if repeated is None:
+            if slot['current'] != accepted:
+                raise ValueError('current adoption changed while withdrawal evidence was checked; inspect it and draft a new withdrawal if intended')
+            slot['history'].append(copy.deepcopy(accepted))
+            slot.setdefault('withdrawals', []).append(receipt)
+            slot['current'] = None
+            _write(sidecar, state)
+    return _withdrawal_result(sidecar, decision, receipt, repeated=repeated is not None)
+
+
 def _production_decision(provenance: dict, decision: dict, sidecar: Path, *, loaded=None) -> None:
     """A Production candidate is adopted only under its own recorded adopt claim."""
     origin = provenance.get('origin') or {}
@@ -499,6 +710,9 @@ def adopt(sidecar: Path, decision: dict, *, evidence_root: Path, loaded=None) ->
     if before is None:
         raise ValueError('adoption names an unknown slot')
     decision_sha = c.content_id(decision)
+    if any(entry['approval']['decision_sha256'] == decision_sha
+           and withdrawn_acceptance(before, entry) is not None for entry in before['history']):
+        raise ValueError('this adoption was withdrawn; draft a new adoption with the actual new approval')
     current = before['current']
     if current is not None and current['approval']['decision_sha256'] == decision_sha:
         return {'adopted': True, 'already_adopted': True, 'current': current}
@@ -528,6 +742,9 @@ def adopt(sidecar: Path, decision: dict, *, evidence_root: Path, loaded=None) ->
         if slot is None:
             raise ValueError('adoption names an unknown slot')
         current = slot['current']
+        if any(entry['approval']['decision_sha256'] == decision_sha
+               and withdrawn_acceptance(slot, entry) is not None for entry in slot['history']):
+            raise ValueError('this adoption was withdrawn; draft a new adoption with the actual new approval')
         if current is not None and current['approval']['decision_sha256'] == decision_sha:
             return {'adopted': True, 'already_adopted': True, 'current': current}
         current_id = current['artifact']['artifact_id'] if current else None
@@ -620,7 +837,7 @@ def from_iteration(root: Path, character: str, row: dict, *, read=None, run_view
     artifact = publish(sheet, image, kind=kind, recipe=recipe, sources=sources,
                        package=package, origin=origin, attachments=attachments,
                        model_record=model_record)
-    register_candidates(sheet / 'sheet-data.json', [(row['slot'], artifact)])
+    register_candidates(sheet / 'sheet-data.json', [(studio.placement_slot(row), artifact)])
     return artifact
 
 

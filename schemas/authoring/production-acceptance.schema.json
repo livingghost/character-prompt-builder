@@ -9,6 +9,7 @@
     "review": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "scope": {"enum": ["delivery-only", "studio-slot"]},
     "authority_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "expected_placement": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "expected_slot": {
       "anyOf": [
         {"type": "null"},
@@ -69,8 +70,8 @@
   "allOf": [
     {
       "if": {"properties": {"scope": {"const": "studio-slot"}}},
-      "then": {"required": ["expected_slot"]},
-      "else": {"not": {"required": ["expected_slot"]}}
+      "then": {"required": ["expected_slot", "expected_placement"]},
+      "else": {"not": {"anyOf": [{"required": ["expected_slot"]}, {"required": ["expected_placement"]}]}}
     }
   ]
 }

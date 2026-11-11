@@ -119,7 +119,7 @@
     },
     {
       "schema": "shared-state/prepared-generation-reference.schema.json",
-      "sha256": "cc4e10eb956f8c6fef5569af56a0678a893f4054da964efd62c3d43cff9d3d85"
+      "sha256": "8cd75fa7b0460a2217a10146db3417baec71beca225d1481536eb00170f75464"
     },
     {
       "schema": "shared-state/prepared-reference-set.schema.json",
@@ -684,5 +684,5 @@
     "path": "scripts/protocol_contract.py",
     "sha256": "8cc7be004c10df1c8303860bb573da2404fb0f4c4afdfaf59324d834957a9d2e"
   },
-  "contract_set_sha256": "7cf687d6f1c5937f71ef54f4d846d252ae082d0598c77b67e6164c9473c44f3c"
+  "contract_set_sha256": "21f724df1dd00da24bf17835fdb826a865e8118ded84fcaefd7d464716930366"
 }

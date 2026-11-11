@@ -166,6 +166,32 @@ python scripts/sheet_workflow.py status --sheet SHEET_JSON --disposition not_sel
 
 `reoffer` adds the exact historical artifact ID to candidates without reimporting, changing provenance or adopting it. A new actual decision can accept it; history retains both earlier selections. Production-origin artifacts continue through Production review/selection/adoption, never a local bypass. Their `not_selected` status is projected from the run's formal disposition; keeping their bytes in candidates is not a request to present them as undecided again.
 
+### End a current adoption
+
+Use `sheet_workflow.py draft-withdrawal --sheet SHEET_JSON --slot SLOT
+--evidence-path AUTHOR_EVIDENCE --evidence-locator LOCATOR --evidence-root
+EVIDENCE_DIR --out DECISION.json` to bind the exact current adoption. The tool
+derives the hash of the selected evidence file; its path is relative to the
+evidence root. Supply the actual `by`, `at` and `reason`, then apply the decision
+with `sheet_workflow.py withdraw --sheet
+SHEET_JSON --decision-file DECISION.json --evidence-root EVIDENCE_DIR`.
+[Adoption Workflow](adoption-workflow.md#withdraw-current-canonical-reuse)
+defines the evidence and the later re-adoption procedure.
+
+Withdrawal moves the exact acceptance to history and appends immutable evidence
+of the decision. It leaves the artwork and original approval intact, clears
+current canonical reuse, and does not choose a replacement. It preserves Studio
+acceptance and Production disposition; exported files and registered packs keep
+their own scope. Repeating the withdrawal cannot remove a newer adoption.
+
+`status` reports `canonical_status` independently of Production `disposition`:
+`current` is the live adoption, `candidate` is an offered image, `history` is an
+earlier adoption, and `withdrawn` means the last adoption of that artifact was
+explicitly ended. `withdrawals` gives the exact receipt and the author, time,
+reason and evidence from each ending decision. An artifact adopted again is
+`current` and still carries its earlier withdrawal history. `availability` and
+`diagnostics` report damaged evidence without inventing a different decision.
+
 ## Large histories and local diagnostics
 
 `status` supports `--slot`, `--state-filter current|candidate|history`, `--disposition`, `--limit` (1..500), `--offset` and `--metadata-only`. Results are sorted by recorded/publication time descending. Only the requested page has its image files verified; unavailable entries include diagnostics. Small provenance metadata may be read to sort/filter the collection. `--metadata-only` is a display optimization and never qualifies an image for reference use or adoption.

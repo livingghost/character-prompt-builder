@@ -233,6 +233,149 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertFalse(self.index()['ok']); self.assertTrue(validate_studio(self.root))
         with self.assertRaisesRegex(ValueError,'incomplete'): adoption.supplied_selection(self.root,'C01')
 
+    def test_withdrawal_ends_superseded_import_adoption_without_changing_newer_acceptance(self):
+        import execution_contract as contract
+        import sheet_artifacts as fills
+        import studio_placement
+        import studio_reference
+        from production_diagnostics import ProductionError
+        from sheet_artifacts_smoke_test import withdrawal_decision
+        old = self.iteration(slot='scene.destination')
+        adoption.adopt(self.root, 'C01', old['iteration_id'], self.approval(old, influence='environment'))
+        source = studio_reference.current_source(self.root, 'C01', old['slot'])
+        sheet = self.home / 'sheet/sheet-data.json'
+        original = contract.load(sheet)['slots'][old['slot']]['current']
+        newer = self.iteration('red', slot=old['slot'])
+        studio.accept(self.root, 'C01', newer['iteration_id'])
+        moving = self.iteration('green', slot='scene.source')
+        studio.accept(self.root, 'C01', moving['iteration_id'])
+        with self.assertRaisesRegex(ValueError, 'incomplete or no longer accepted'):
+            studio_reference.validate_source(source)
+        with self.assertRaises(ProductionError) as caught:
+            studio_placement.draft(self.root, 'C01', moving['iteration_id'], old['slot'])
+        self.assertEqual(caught.exception.diagnostic.code, 'PLACEMENT_SOURCE_ADOPTED')
+        recorded = (self.home / 'iterations.jsonl').read_bytes()
+        accepted = studio.acceptance_state(self.root, 'C01', old['slot'])
+        ending = withdrawal_decision(sheet, old['slot'])
+        fills.withdraw(sheet, ending, evidence_root=sheet.parent)
+        self.assertEqual((self.home / 'iterations.jsonl').read_bytes(), recorded)
+        self.assertEqual(studio.acceptance_state(self.root, 'C01', old['slot']), accepted)
+        slot = contract.load(sheet)['slots'][old['slot']]
+        self.assertIsNone(slot['current'])
+        self.assertEqual(slot['history'][-1], original)
+        fills.verify_withdrawal(slot['withdrawals'][-1], sheet.parent, old['slot'], original)
+        move = studio_placement.draft(self.root, 'C01', moving['iteration_id'], old['slot'])
+        move.update(by='Synthetic curator', at='2026-11-11T08:00:00Z',
+                    reason='Synthetic destination correction after ending its prior canonical scope.')
+        studio_placement.reassign(self.root, move)
+        self.assertEqual(studio.acceptance_state(self.root, 'C01', old['slot'])['iteration_id'], moving['iteration_id'])
+
+    def test_withdrawal_refuses_a_sheet_binding_whose_imported_adoption_is_incomplete(self):
+        import execution_contract as contract
+        import sheet_artifacts as fills
+        row = self.iteration(slot='scene.pending')
+        original_write = adoption.atomic_write_json
+        def interrupt(path, value):
+            if value.get('status') == 'sheet-bound':
+                raise OSError('Synthetic interruption before recording completed Studio adoption.')
+            return original_write(path, value)
+        with patch.object(adoption, 'atomic_write_json', side_effect=interrupt):
+            with self.assertRaises(OSError):
+                adoption.adopt(self.root, 'C01', row['iteration_id'], self.approval(row, influence='environment'))
+        sheet = self.home / 'sheet/sheet-data.json'
+        before = sheet.read_bytes()
+        self.assertIsNotNone(contract.load(sheet)['slots'][row['slot']]['current'])
+        with self.assertRaisesRegex(ValueError, 'adoption being withdrawn is incomplete'):
+            fills.draft_withdrawal(sheet, row['slot'])
+        self.assertEqual(sheet.read_bytes(), before)
+
+    def test_withdrawal_retains_slot_acceptance_and_new_approval_reuses_the_same_iteration(self):
+        import execution_contract as contract
+        import sheet_artifacts as fills
+        import studio_reference
+        from sheet_artifacts_smoke_test import withdrawal_decision
+        row = self.iteration(slot='scene.arrival')
+        approval = self.approval(row, influence='environment')
+        original = adoption.adopt(self.root, 'C01', row['iteration_id'], approval)
+        sheet = self.home / 'sheet/sheet-data.json'
+        source = studio_reference.current_source(self.root, 'C01', row['slot'])
+        iterations = (self.home / 'iterations.jsonl').read_bytes()
+        ending = withdrawal_decision(sheet, row['slot'])
+        fills.withdraw(sheet, ending, evidence_root=sheet.parent)
+        self.assertEqual((self.home / 'iterations.jsonl').read_bytes(), iterations)
+        index = self.index()
+        self.assertTrue(index['ok'], index['errors'])
+        self.assertEqual(index['bindings'][0]['status'], 'withdrawn')
+        self.assertEqual(index['bindings'][0]['next_action'], 'adopt-with-sheet-scope')
+        self.assertEqual(adoption.supplied_selection(self.root, 'C01'), [])
+        self.assertFalse(validate_studio(self.root))
+        with self.assertRaisesRegex(ValueError, 'withdrawn'):
+            adoption.adopt(self.root, 'C01', row['iteration_id'], approval)
+        renewed = {**approval, 'at': '2026-11-11T00:00:00Z', 'note': 'Synthetic new approval after withdrawal.'}
+        result = adoption.adopt(self.root, 'C01', row['iteration_id'], renewed)
+        retained = result['previous_adoption']
+        self.assertEqual(contract.sha256_file(self.root / retained['path']), retained['sha256'])
+        self.assertEqual(contract.load(self.root / retained['path']), {key: value for key, value in original.items() if key != 'ok'})
+        new_source = studio_reference.current_source(self.root, 'C01', row['slot'])
+        self.assertEqual(new_source['artifact_id'], source['artifact_id'])
+        self.assertNotEqual(new_source['acceptance_sha256'], source['acceptance_sha256'])
+        self.assertEqual(len(studio.read_iterations(self.home)), 1)
+        self.assertEqual(len(list((self.home / 'adoptions/approvals').glob('*.json'))), 2)
+        fills.withdraw(sheet, ending, evidence_root=sheet.parent)
+        self.assertEqual(studio_reference.current_source(self.root, 'C01', row['slot']), new_source)
+
+    def test_withdrawal_then_reassignment_adopts_retained_artwork_at_its_new_slot(self):
+        import execution_contract as contract
+        import sheet_artifacts as fills
+        import studio_placement
+        import studio_reference
+        from sheet_artifacts_smoke_test import withdrawal_decision
+        row = self.iteration(slot='scene.recorded')
+        approval = self.approval(row, influence='environment')
+        original = adoption.adopt(self.root, 'C01', row['iteration_id'], approval)
+        sheet = self.home / 'sheet/sheet-data.json'
+        ending = withdrawal_decision(sheet, row['slot'])
+        fills.withdraw(sheet, ending, evidence_root=sheet.parent)
+        move = studio_placement.draft(self.root, 'C01', row['iteration_id'], 'scene.corrected')
+        move.update(by='Synthetic placement author', at='2026-11-11T01:00:00Z',
+                    reason='Synthetic author corrects the scene destination without another generation.')
+        studio_placement.reassign(self.root, move)
+        renewed = adoption.draft_approval(self.root, 'C01', row['iteration_id'], scope='sheet', influence='environment')
+        self.assertEqual(renewed['slot'], 'scene.corrected')
+        renewed.update(by=approval['by'], at='2026-11-11T02:00:00Z', note='Synthetic adoption at the corrected destination.')
+        result = adoption.adopt(self.root, 'C01', row['iteration_id'], renewed)
+        source = studio_reference.current_source(self.root, 'C01', 'scene.corrected')
+        self.assertEqual(source['sha256'], row['result']['sha256'])
+        self.assertIsNone(contract.load(sheet)['slots']['scene.recorded']['current'])
+        self.assertEqual(studio.read_iteration_records(self.home)[0]['slot'], 'scene.recorded')
+        self.assertEqual(contract.load(self.root / result['previous_adoption']['path']),
+                         {key: value for key, value in original.items() if key != 'ok'})
+        self.assertTrue(self.index()['ok'], self.index()['errors'])
+
+    def test_interrupted_fresh_adoption_after_withdrawal_resumes_its_new_approval(self):
+        import execution_contract as contract
+        import sheet_artifacts as fills
+        from sheet_artifacts_smoke_test import withdrawal_decision
+        row = self.iteration(slot='scene.return')
+        original_approval = self.approval(row, influence='environment')
+        original = adoption.adopt(self.root, 'C01', row['iteration_id'], original_approval)
+        sheet = self.home / 'sheet/sheet-data.json'
+        fills.withdraw(sheet, withdrawal_decision(sheet, row['slot']), evidence_root=sheet.parent)
+        renewed = {**original_approval, 'at': '2026-11-11T06:00:00Z', 'note': 'Synthetic new approval resumes separately.'}
+        with patch.object(adoption, '_bind_sheet', side_effect=OSError('Synthetic interruption before the new binding.')):
+            with self.assertRaises(OSError):
+                adoption.adopt(self.root, 'C01', row['iteration_id'], renewed)
+        self.assertFalse(self.index()['ok'])
+        result = adoption.adopt(self.root, 'C01', row['iteration_id'], renewed)
+        self.assertTrue(self.index()['ok'], self.index()['errors'])
+        self.assertEqual(result['approval'], renewed)
+        self.assertEqual(contract.load(self.root / result['previous_adoption']['path']),
+                         {key: value for key, value in original.items() if key != 'ok'})
+        slot = contract.load(sheet)['slots'][row['slot']]
+        self.assertEqual(len(slot['history']), 1)
+        self.assertEqual(len(slot['withdrawals']), 1)
+        self.assertEqual(len(studio.read_iterations(self.home)), 1)
+
     def test_same_image_in_another_iteration_needs_its_own_adoption(self):
         import studio_reference
         old = self.iteration(slot='outfit.front')

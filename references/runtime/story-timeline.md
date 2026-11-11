@@ -338,7 +338,7 @@ series cannot be silently ignored during publication. Already open pages show
 their printed input revision until reloaded; reloading the page refreshes
 the view, not the source files or the story itself.
 
-The output contains its observed inputs, renderer identity and generated time.
+The output contains its observed inputs, implementation identity and generated time.
 An input records present bytes with their actual hash, absence, or an access
 failure without a content hash. Optional input reads allow absence; they still
 report access failures. Each path is observed once under each read contract during model
@@ -358,6 +358,28 @@ or the identity of a refused filesystem entry. A repaired, removed or newly
 unreadable source changes its observation and prevents publication of the old
 model. Repeating an unchanged sync keeps the same page and does not duplicate
 its activity event.
+
+An unchanged page is reused before compiling the ledger or resolving its views.
+This reuse checks the exact HTML and embedded model against the publication
+receipt, the selected configuration and viewpoint, current installed builder
+sources and schemas, every observed input's actual bytes or refusal, and scene
+collection membership. It does not substitute timestamps, file sizes or an
+event sequence for content equality. Added and removed sources and changes in
+the alternative story location therefore invalidate reuse, including changes
+made outside the Studio commands. The installed source check covers dynamically
+selected schemas and renderer templates; it does not scan the user's packs or
+other workspaces.
+
+The view schema and HTML templates are read from that acquired implementation.
+Publication rechecks the installed source identity alongside the Studio inputs,
+so an implementation edit during rendering cannot publish a page with an
+earlier fingerprint describing later template bytes.
+
+Missing or damaged derived publication data is rebuilt from those sources.
+An unrelated file at an output or receipt path remains protected. Reuse is
+local to this display: a cached page supplies no event-validation result,
+adoption approval or permission to a generation or canonical change. Those
+operations acquire and verify their own current evidence.
 Projection actions enter the operator activity journal, never `state/events.jsonl`.
 
 An unreadable scene, referenced context, local evidence or declared artwork can

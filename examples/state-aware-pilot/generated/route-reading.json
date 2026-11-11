@@ -10,15 +10,15 @@
     },
     {
       "path": "references/runtime/production-authoring.md",
-      "sha256": "39917a951ded8e88079bb155e4d1ba012f6dbe6205562b371ddbb6f1fbfc10ff"
+      "sha256": "cf172c956c02684ac38ac3074bc6eba25be8cae0729c9dc64d016a1c2ffea468"
     },
     {
       "path": "references/runtime/production-preparation.md",
-      "sha256": "ac3ab47d194d727799544310dd2f554a81a7b05f8fa68be5b2a16b792c858fb7"
+      "sha256": "47110093bca324e974f8cbb134a05bbfcce0b277c747e241f6ab533934d9a68d"
     },
     {
       "path": "references/runtime/production-diagnostics.md",
-      "sha256": "8c2e8f7d502027dc3f89ae7b007689e188422fa48784932f9d8c267c3b576871"
+      "sha256": "23d2519d6d7d4e6cf041b76cd423916c7c66a2cad3cefe80e275dd330862c295"
     },
     {
       "path": "references/runtime/production-permissions.md",
@@ -34,11 +34,11 @@
     },
     {
       "path": "references/runtime/story-timeline.md",
-      "sha256": "7c18f6deb35d756cb0afc56f29cf7ec356c6f7ef4bd4fa2d5a79572cd9cf74d8"
+      "sha256": "98c3f7d4266495d6a437ff0358b562b457db01cc291a4caec9e3ae2fc3061eb4"
     },
     {
       "path": "references/runtime/studio-canon-references.md",
-      "sha256": "c24fd8b9aff750eae3e949fd0dac777d14e62bf76f6f41099775279a9f0b7814"
+      "sha256": "aa4c721001cd3ba48283e5d80e89d445f613308ddc64e4f78785b8c86a0c5b08"
     },
     {
       "path": "references/runtime/generation-package.md",
@@ -62,7 +62,11 @@
     },
     {
       "path": "references/runtime/studio.md",
-      "sha256": "85852a43db5ff0ccad1ba029706e7aa5be13eeff091a8ea59ee7ec40b0114167"
+      "sha256": "4dbbe0f61e2faf35db344a66e9a88c6c800e29b1117e8fbf2423513d7312c370"
+    },
+    {
+      "path": "references/runtime/studio-placement.md",
+      "sha256": "b50f62d43342eee04f946d35e0985d9c99f30519cabfcfedf4368912dc006417"
     },
     {
       "path": "references/runtime/world-realization.md",
@@ -102,5 +106,5 @@
     }
   },
   "route": "state-series",
-  "reading_key": "4f01474fe3af2b2a57c853d75451b704"
+  "reading_key": "bc471192a7b10c6048ca9cbe49ec2422"
 }

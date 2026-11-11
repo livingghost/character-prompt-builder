@@ -94,6 +94,44 @@ class ReviewCase(unittest.TestCase):
 
 
 class ReviewTests(ReviewCase):
+    def test_current_status_rechecks_changed_run_without_a_dirty_receipt(self):
+        import production_compiler
+        path = workflow.run_dir(self.root, self.run)/'consumer.json'
+        path.write_bytes(path.read_bytes() + b' ')
+        with patch.object(production_compiler, 'acquire_publication', wraps=production_compiler.acquire_publication) as acquire:
+            text = studio.status(self.root)
+        self.assertEqual(acquire.call_count, 1)
+        self.assertIn('artwork problem robot/' + self.iteration, text)
+        self.assertEqual(c.load(self.root/'gallery.json')['entries'][0]['availability'], 'unavailable')
+
+    def test_status_retains_closed_history_and_sync_rechecks_its_actual_source(self):
+        import studio_activity
+        import work_ledger
+        self.record_review([('output', 'pass'), ('palette', 'pass')])
+        self.select()
+        studio.accept(self.root, 'robot', self.iteration)
+        workflow.complete(self.root, self.run)
+        for step in work_ledger.read_current(self.root)['steps']:
+            work_ledger.step_done(self.root, step['n'])
+        work_ledger.finish(self.root, self.run)
+        original = self.row(self.candidate)
+        current = studio.iterate(self.root, 'robot', original['slot'], self.root/original['result']['path'],
+            package=None, request=None, response=None, note='Independent current synthetic import.')
+        studio.accept(self.root, 'robot', current['iteration_id'])
+        path = workflow.run_dir(self.root, self.run)/'consumer.json'
+        path.write_bytes(path.read_bytes() + b' ')
+        with patch.object(workflow, 'read_run', wraps=workflow.read_run) as read_run:
+            text = studio.status(self.root)
+        read_run.assert_not_called()
+        self.assertIn('retained historical displays', text)
+        history = next(row for row in c.load(self.root/'gallery.json')['entries'] if row['iteration_id'] == self.iteration)
+        self.assertEqual(history['availability'], 'present')
+        with patch.object(workflow, 'read_run', wraps=workflow.read_run) as read_run:
+            self.assertTrue(studio_activity.refresh(self.root)['ok'])
+        self.assertEqual([call.args[1] for call in read_run.call_args_list], [self.run])
+        history = next(row for row in c.load(self.root/'gallery.json')['entries'] if row['iteration_id'] == self.iteration)
+        self.assertEqual(history['availability'], 'unavailable')
+
     def test_compact_answers_use_the_complete_prepared_review_basis(self):
         draft = workflow.draft_review(self.root, self.run, self.candidate)
         basis = workflow.review_basis(self.root, self.run, self.candidate)
@@ -896,6 +934,12 @@ class GalleryIsolationTests(ReviewCase):
         self.second = workflow.prepare(self.root, 'task.json')['run']
         result = execution.execute(self.root, self.second, decisions_file=decisions(self.root, self.second))
         self.assertTrue(result['execution_completed'], result.get('warnings'))
+
+    def test_recipe_verifies_selected_run_without_projecting_other_candidates(self):
+        with patch.object(workflow, 'read_run', wraps=workflow.read_run) as read_run:
+            recipe = studio.recipe(self.root, 'robot', 'candidate', iteration=self.iteration)
+        self.assertEqual(recipe['iteration_id'], self.iteration)
+        self.assertEqual([call.args[1] for call in read_run.call_args_list], [self.run])
 
     def test_one_bad_run_marks_only_its_own_rows(self):
         candidate = workflow.find(store.event_rows(self.root, self.run), 'candidate', self.candidate)

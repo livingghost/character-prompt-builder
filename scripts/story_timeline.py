@@ -24,6 +24,7 @@ from typing import Any, Callable, Sequence
 from urllib.parse import quote, urlsplit
 
 import execution_contract as c
+from builder_inputs import BuilderInputs, capture as capture_implementation
 from protocol_contract import canonical_json, parse_json, validate_against_schema
 from state_ledger import Ledger
 
@@ -181,6 +182,43 @@ class Inputs:
                 change = 'appeared' if observed.fact['status'] == 'missing' and current.fact['status'] == 'present' else 'changed'
                 raise ValueError('story input ' + change + ' during projection: ' + name)
 
+    def matches(self, facts: list[dict], collections: list[dict]) -> bool:
+        """Acquire a saved display's complete dependencies under their own boundaries.
+
+        Matching contents can reuse a derived picture of the ledger. This
+        reader supplies no event, adoption or permission evidence to another
+        operation. Missing and failed sources remain observations to compare.
+        """
+        if not isinstance(facts, list) or not isinstance(collections, list):
+            return False
+        for fact in facts:
+            name = _literal_path(fact['path'])
+            contract = fact.get('read_contract')
+            try:
+                if contract is None:
+                    self.read(name, optional=True)
+                else:
+                    c.exact(contract, {'kind', 'root', 'relative'}, 'story input access')
+                    if contract['kind'] != 'sheet':
+                        return False
+                    from sheet_artifacts import _source_bytes
+                    boundary = _path(self.root, contract['root'], exists=False)
+                    if (boundary / contract['relative']).relative_to(self.root).as_posix() != name:
+                        return False
+                    _source_bytes(boundary, contract['relative'], read_source=self.read_sheet)
+            except (ValueError, OSError, KeyError, TypeError):
+                # The same observed refusal may support the same diagnostic
+                # display. A refusal before observation leaves a mismatch.
+                pass
+        for collection in collections:
+            c.exact(collection, {'path', 'members'}, 'story source collection')
+            if self.collection(collection['path']) != collection['members']:
+                return False
+        return self.facts() == facts and self.collection_facts() == collections
+
+    def collection_facts(self) -> list[dict]:
+        return [{'path': name, 'members': members} for name, members in sorted(self.collections.items())]
+
 
 def _events(raw: bytes) -> tuple[list[dict], list[int]]:
     rows, lines = [], []
@@ -197,13 +235,13 @@ def _events(raw: bytes) -> tuple[list[dict], list[int]]:
     return rows, lines
 
 
-def _config(inputs: Inputs, name: str) -> dict:
+def _config(inputs: Inputs, name: str, implementation: BuilderInputs) -> dict:
     value = inputs.json(name, optional=name == CONFIG)
     if value is None:
         value = copy.deepcopy(DEFAULT)
         if inputs.read('state/processes.json', optional=True) is not None:
             value['processes'] = 'state/processes.json'
-    schema = parse_json((ROOT / 'schemas/authoring/story-timeline-view.schema.json').read_text(encoding='utf-8'))
+    schema = parse_json(implementation.read_bytes('schemas/authoring/story-timeline-view.schema.json').decode('utf-8'))
     errors = validate_against_schema(value, schema)
     if errors:
         raise ValueError('invalid story-timeline-view: ' + '; '.join(errors))
@@ -293,13 +331,15 @@ def _fields(value: Any, prefix: str = '') -> list[dict]:
     return [{'path': prefix, 'value': value}]
 
 
-def build_model(root: Path, output: Path, *, config_path: str = CONFIG, selection: dict | None = None) -> tuple[dict, Inputs]:
+def build_model(root: Path, output: Path, *, config_path: str = CONFIG, selection: dict | None = None,
+                implementation: BuilderInputs | None = None) -> tuple[dict, Inputs]:
     # Canonicalize spelling first: a Windows 8.3 or junction-spelled root must
     # match the resolved paths the dependency readers return.
     root = root.resolve(strict=True)
     output = output.resolve()
+    implementation = implementation or capture_implementation(ROOT)
     inputs = Inputs(root, output)
-    config = _config(inputs, config_path)
+    config = _config(inputs, config_path, implementation)
     narrative_sources = story_flow.read_sources(inputs)
     inputs.read(config['base_state'], optional=True)
     inputs.read(config['events'], optional=True)
@@ -366,16 +406,14 @@ def build_model(root: Path, output: Path, *, config_path: str = CONFIG, selectio
         'scene_artwork': images, 'diagnostics': diagnostics, 'coverage': audit['coverage'],
         'ok': not any(row['severity'] == 'error' for row in diagnostics),
         'inputs': inputs.facts(),
-        'source_collections': [{'path': name, 'members': members} for name, members in sorted(inputs.collections.items())],
+        'source_collections': inputs.collection_facts(),
         'semantics': {'axis': 'effective_order', 'text_labels': ['effective_from', 'recorded_at', 'disclosed_at', 'story_time'],
             'supersession': 'whole earlier event, from the strictly later editorial revision order; earlier snapshots retain it',
             'scene_local': 'only the explicit selected scene; no inferred scene duration',
             'normal_changes': 'later state changes need no supersedes link',
             'disclosure': 'recorded separately; no untyped label is compared as a date'},
-        'renderer_sha256': c.content_id({name: c.sha256_file(ROOT / name) for name in
-            ('scripts/story_timeline.py', 'scripts/story_flow.py', 'scripts/state_ledger.py', 'scripts/temporal_state.py',
-             'scripts/narrative.py', 'scripts/scene_plot.py', 'templates/story-timeline.html',
-             'templates/story-flow.js', 'templates/story-flow.css', 'templates/story-graph.js', 'templates/story-graph.css')})}
+        'implementation_sha256': implementation.fingerprint,
+        'publication_request': {'config_path': config_path, 'selection': copy.deepcopy(selection)}}
     payload['flow'] = story_flow.build(payload, narrative_sources)
     # Story drafting/link notices supplement, but do not redefine ledger validity.
     # A structurally valid state is not a verdict on dramatic or semantic coherence.
@@ -383,12 +421,17 @@ def build_model(root: Path, output: Path, *, config_path: str = CONFIG, selectio
     return payload, inputs
 
 
-def render_html(model: dict, generated_at: str) -> str:
-    template = (ROOT / 'templates/story-timeline.html').read_text(encoding='utf-8')
-    template = template.replace('/*CPB_FLOW_CSS*/', (ROOT / 'templates/story-flow.css').read_text(encoding='utf-8'))
-    template = template.replace('/*CPB_FLOW_JS*/', (ROOT / 'templates/story-flow.js').read_text(encoding='utf-8'))
-    template = template.replace('/*CPB_GRAPH_CSS*/', (ROOT / 'templates/story-graph.css').read_text(encoding='utf-8'))
-    template = template.replace('/*CPB_GRAPH_JS*/', (ROOT / 'templates/story-graph.js').read_text(encoding='utf-8'))
+def render_html(model: dict, generated_at: str, *, implementation: BuilderInputs | None = None) -> str:
+    implementation = implementation or capture_implementation(ROOT)
+    if implementation.fingerprint != model['implementation_sha256']:
+        raise ValueError('story implementation changed after the model was built')
+    def text(name: str) -> str:
+        return implementation.read_bytes('templates/' + name).decode('utf-8')
+    template = text('story-timeline.html')
+    template = template.replace('/*CPB_FLOW_CSS*/', text('story-flow.css'))
+    template = template.replace('/*CPB_FLOW_JS*/', text('story-flow.js'))
+    template = template.replace('/*CPB_GRAPH_CSS*/', text('story-graph.css'))
+    template = template.replace('/*CPB_GRAPH_JS*/', text('story-graph.js'))
     # JSON inside a script data block must not be able to terminate that block.
     data = json.dumps({**model, 'generated_at': generated_at}, ensure_ascii=False, allow_nan=False,
                       separators=(',', ':')).replace('&', '\\u0026').replace('<', '\\u003c').replace('>', '\\u003e').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029')
@@ -406,14 +449,22 @@ def _publication_target(root: Path, out: Path | None) -> Path:
     path = _path(root, relative, exists=False)
     if path.suffix.lower() != '.html':
         raise ValueError('timeline output must end in .html')
-    if path.exists() and MARKER not in c.read(path).decode('utf-8')[:200]:
+    if path.exists() and MARKER.encode('ascii') not in c.read(path)[:200]:
         raise ValueError('refusing to replace a file not owned by the story timeline: ' + relative)
     previous = path.with_suffix('.last-good.html')
-    if previous.exists() and MARKER not in c.read(previous).decode('utf-8')[:200]:
+    if previous.exists() and MARKER.encode('ascii') not in c.read(previous)[:200]:
         raise ValueError('last-good path is not owned by the story timeline')
     status = path.with_suffix('.status.json')
     if status.exists():
-        value = c.load(status)
+        try:
+            value = c.load(status)
+        except ValueError:
+            # A truncated derived receipt is repairable when its companion
+            # still establishes this publisher's ownership. An unrelated
+            # readable document is never treated as a cache entry.
+            if path.exists() and MARKER.encode('ascii') in c.read(path)[:200]:
+                return path
+            raise
         if not isinstance(value, dict) or value.get('artifact_type') != 'story-timeline-publication' or value.get('output') != relative:
             raise ValueError('publication status path is not owned by the story timeline')
     return path
@@ -447,17 +498,71 @@ def _failure(root: Path, output: Path, exc: Exception) -> dict:
     return result
 
 
-def _current_publication(output: Path, projection_id: str) -> dict | None:
-    """Read a complete matching publication without acquiring a writer lock."""
-    status = output.with_suffix('.status.json')
+def _receipt(root: Path, output: Path, model: dict, generated: str, raw: bytes) -> dict:
+    return {'artifact_type': 'story-timeline-publication', 'ok': True, 'status': 'current',
+            'ledger_ok': model['ok'], 'written': True, 'output': output.relative_to(root).as_posix(),
+            'projection_id': model['projection_id'], 'generated_at': generated, 'html_sha256': c.digest(raw),
+            'inputs': model['inputs'], 'source_collections': model['source_collections'],
+            'implementation_sha256': model['implementation_sha256'],
+            'publication_request': model['publication_request'],
+            'events': len(model['events']), 'views': len(model['views']),
+            'diagnostics': dict(Counter(row['severity'] for row in model['diagnostics']))}
+
+
+def _read_publication(root: Path, output: Path) -> tuple[dict, dict] | None:
+    """Read a complete owned display; malformed derived data is a cache miss."""
     try:
-        old = c.load(status) if status.exists() else {}
-    except (ValueError, OSError):
-        old = {}
-    if (old.get('status') == 'current' and old.get('projection_id') == projection_id
-            and output.is_file() and c.sha256_file(output) == old.get('html_sha256')):
-        return {**old, 'written': False}
-    return None
+        old = c.load(output.with_suffix('.status.json'))
+        if old.get('status') != 'current':
+            return None
+        raw = c.read(output)
+        if c.digest(raw) != old['html_sha256']:
+            return None
+        matched = re.search(r'<script id="timeline-data" type="application/json">(.*?)</script>',
+                            raw.decode('utf-8'), re.S)
+        if matched is None:
+            return None
+        model = parse_json(matched.group(1))
+        generated = model.pop('generated_at')
+        identity = model.pop('projection_id')
+        if c.content_id(model) != identity:
+            return None
+        model['projection_id'] = identity
+        if old != _receipt(root, output, model, generated, raw):
+            return None
+        return old, model
+    except (ValueError, OSError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def _current_publication(root: Path, output: Path, projection_id: str) -> dict | None:
+    """Read a complete matching publication without acquiring a writer lock."""
+    current = _read_publication(root, output)
+    return {**current[0], 'written': False} if current and current[0]['projection_id'] == projection_id else None
+
+
+def _reuse_publication(root: Path, output: Path, request: dict, implementation: BuilderInputs) -> dict | None:
+    current = _read_publication(root, output)
+    if current is None:
+        return None
+    receipt, model = current
+    if (model['implementation_sha256'] != implementation.fingerprint
+            or model['publication_request'] != request):
+        return None
+    inputs = Inputs(root, output)
+    try:
+        if not inputs.matches(model['inputs'], model['source_collections']):
+            return None
+        inputs.recheck()
+        _require_implementation(implementation)
+    except (ValueError, OSError, KeyError, TypeError, AttributeError):
+        return None
+    return {**receipt, 'written': False}
+
+
+def _require_implementation(implementation: BuilderInputs) -> None:
+    if capture_implementation(ROOT).fingerprint != implementation.fingerprint:
+        raise ValueError('story implementation changed during projection')
 
 
 def _publish_failure(root: Path, output: Path, exc: Exception) -> dict:
@@ -477,13 +582,20 @@ def refresh(root: Path, *, out: Path | None = None, config_path: str = CONFIG,
     output = _publication_target(root, out)
     owner = output.parent / ('.' + output.stem + '.publication')
     try:
-        model, inputs = build_model(root, output, config_path=config_path, selection=selection)
-        current = _current_publication(output, model['projection_id'])
+        implementation = capture_implementation(ROOT)
+        request = {'config_path': config_path, 'selection': copy.deepcopy(selection)}
+        current = _reuse_publication(root, output, request, implementation)
+        if current is not None:
+            return current
+        model, inputs = build_model(root, output, config_path=config_path, selection=selection,
+                                    implementation=implementation)
+        current = _current_publication(root, output, model['projection_id'])
         inputs.recheck()
+        _require_implementation(implementation)
         if current is not None:
             return current
         generated = _now()
-        raw = render_html(model, generated).encode('utf-8')
+        raw = render_html(model, generated, implementation=implementation).encode('utf-8')
     except (ValueError, OSError, KeyError, TypeError) as exc:
         with c.lock(owner):
             _publication_target(root, output)
@@ -494,17 +606,14 @@ def refresh(root: Path, *, out: Path | None = None, config_path: str = CONFIG,
         # or waited. Recheck ownership, its receipt and the observed inputs.
         _publication_target(root, output)
         try:
-            current = _current_publication(output, model['projection_id'])
+            current = _current_publication(root, output, model['projection_id'])
             inputs.recheck()
+            _require_implementation(implementation)
             if current is not None:
                 return current
             # One atomic document contains its data and all resolved states.
             c.atomic(output, raw, replace=True)
-            result = {'artifact_type': 'story-timeline-publication', 'ok': True, 'status': 'current', 'ledger_ok': model['ok'], 'written': True,
-                'output': output.relative_to(root).as_posix(), 'projection_id': model['projection_id'],
-                'generated_at': generated, 'html_sha256': c.digest(raw), 'inputs': model['inputs'],
-                'events': len(model['events']), 'views': len(model['views']),
-                'diagnostics': dict(Counter(row['severity'] for row in model['diagnostics']))}
+            result = _receipt(root, output, model, generated, raw)
             c.atomic_write_json(output.with_suffix('.status.json'), result)
             from studio_activity import event
             event(root, 'story-timeline-refreshed', result['output'], revision=model['projection_id'],

@@ -216,6 +216,19 @@ evidence that remain meaningful under the current design; reassess their actual
 applicability when the selected inputs or target change. Do not invalidate
 otherwise applicable work solely because it originated before the change.
 
+Keep generation provenance and later curation decisions separate. Placement or
+canonical withdrawal retains the exact result and historical completion; it
+records its own authored target and evidence. A retry of an earlier decision
+must not restore state that a later decision replaced. Follow the owning read
+and mutation boundaries in [Agent workflow design](references/maintenance/agent-workflow-design.md).
+
+Scope ordinary navigation and display updates to the current or affected work.
+Keep explicit historical inspection and repair available. Reuse a derived
+display only under its complete content-dependency contract; it supplies no
+permission or validation result to an effect boundary. Author meaningful
+adoption choices once and derive their operation bindings without requiring
+manual hashes or intermediate authorization documents.
+
 Preserve necessary requirements, authored knowledge and the material needed for
 judgment under [Writing for a reader](#writing-for-a-reader). Update producers,
 validators, templates and fixtures together when their contract changes.

@@ -631,13 +631,19 @@ def upscale_result_package(run: RunJournal, index: int, output: Path, *, loaded=
     return run.write(path.name, package)
 
 
-def recorded_iteration(root: Path, character: str, slot: str, paths: tuple[Path, Path, Path]) -> str | None:
-    """The iteration already holding this result, request and response, if a recording finished before."""
+def recorded_iteration(root: Path, character: str, origin: dict, paths: tuple[Path, Path, Path]) -> str | None:
+    """Recover this exact captured output independently of its current placement."""
     wanted = [studio.sha256_file(path) for path in paths]
-    for row in studio.read_iterations(studio.character_dir(root, character)):
-        if row.get("slot") == slot and [(row.get(key) or {}).get("sha256") for key in ("result", "request", "response")] == wanted:
-            return row["iteration_id"]
-    return None
+    rows = [row for row in studio.read_iterations(studio.character_dir(root, character), project=False)
+            if row.get('production') == origin]
+    if not rows:
+        return None
+    if len(rows) != 1:
+        raise ValueError('the captured Production candidate has more than one Studio iteration')
+    row = rows[0]
+    if [(row.get(key) or {}).get('sha256') for key in ('result', 'request', 'response')] != wanted:
+        raise ValueError('the captured Production iteration differs from its retained result, request or response')
+    return row['iteration_id']
 
 
 def write_preview_outputs(args: argparse.Namespace, root: Path, rendered: dict, validation: dict) -> None:

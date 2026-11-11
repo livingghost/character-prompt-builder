@@ -146,7 +146,8 @@ def validate_sidecar(
         row_ids = [row.get("row_id") for row in rows if isinstance(row, Mapping)]
         if len(row_ids) != len(set(row_ids)):
             raise ValueError(f"tables.{table_id} contains duplicate row_id values")
-    from sheet_artifacts import verify_artifact, verify_acceptance
+    from sheet_artifacts import verify_artifact, verify_acceptance, verify_withdrawal
+    from execution_contract import content_id
     for slot_id, slot in value['slots'].items():
         candidate_ids = [item['artifact_id'] for item in slot['candidates']]
         if len(candidate_ids) != len(set(candidate_ids)):
@@ -154,6 +155,15 @@ def validate_sidecar(
         current = slot['current']
         if current is not None and current['artifact']['artifact_id'] in candidate_ids:
             raise ValueError(f'slots.{slot_id} current artwork must not also be a candidate')
+        historical = {content_id(accepted): accepted for accepted in slot['history']}
+        withdrawn = set()
+        for withdrawal in slot.get('withdrawals', []):
+            target = withdrawal['acceptance_sha256']
+            if target not in historical or target in withdrawn:
+                raise ValueError(f'slots.{slot_id} withdrawal must name one exact historical acceptance only once')
+            if current is not None and target == content_id(current):
+                raise ValueError(f'slots.{slot_id} current adoption was withdrawn; a new approval is required')
+            withdrawn.add(target)
         if verify_files:
             if sheet_root is None:
                 raise ValueError('verify_files requires sheet_root')
@@ -161,6 +171,9 @@ def validate_sidecar(
                 verify_artifact(item, sheet_root)
             for accepted in [*slot['history'], *([current] if current is not None else [])]:
                 verify_acceptance(accepted, sheet_root, slot_id)
+            for withdrawal in slot.get('withdrawals', []):
+                verify_withdrawal(withdrawal, sheet_root, slot_id,
+                                  historical[withdrawal['acceptance_sha256']])
     return json.loads(json.dumps(value, ensure_ascii=False))
 
 

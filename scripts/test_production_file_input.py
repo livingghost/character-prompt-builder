@@ -192,12 +192,6 @@ class WorkflowStandardInputTests(unittest.TestCase):
         held=f'production/runs/{self.run}/objects/{c.digest(raw)}'
         self.assertEqual({held},{item['path'] for row in receipts for item in row['data']['files'] if item['purpose']=='authorization-request'})
 
-    def test_standard_input_feeds_one_input_per_call(self):
-        result=self.cli('adoption-intent','--root',str(self.root),'--run',self.run,'--candidate','synthetic','--character','robot',
-                        '--iteration','synthetic','--approval','-','--registration-record','-',stdin=b'{}',code=2)
-        self.assertEqual(result['diagnostics'][0]['code'],'INPUT_SCHEMA_INVALID')
-        self.assertIn('--approval, --registration-record',result['diagnostics'][0]['message'])
-
     def test_logs_without_a_root_read_the_configuration_directory(self):
         self.cli('new-production-id')
         listed=self.cli('logs')

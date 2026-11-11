@@ -29,11 +29,9 @@ class StudioExecutionTests(unittest.TestCase):
         self.run = workflow.prepare(self.root, self.task)['run']
 
     def withdraw(self):
-        value = c.load(self.sheet)
-        slot = value['slots'][self.case.row['slot']]
-        slot['history'].append(slot['current']); slot['current'] = None
-        value['sheet_status'] = __import__('character_sheet').sheet_status(value)
-        c.atomic_write_json(self.sheet, value)
+        from sheet_artifacts_smoke_test import withdrawal_decision
+        decision = withdrawal_decision(self.sheet, self.case.row['slot'])
+        fills.withdraw(self.sheet, decision, evidence_root=self.sheet.parent)
 
     def test_preparation_pins_the_exact_acceptance_and_portable_proof(self):
         directory, prepared, _, _ = workflow.load_run(self.root, self.run)

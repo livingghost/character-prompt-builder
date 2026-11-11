@@ -12,7 +12,7 @@ It has no edit source unless an existing scene is actually being edited.
 
 ## Contents
 
-- [Start from the adopted image](#start-from-the-adopted-image)
+- [Start from the accepted image](#start-from-the-accepted-image)
 - [Resolve the intended change](#resolve-the-intended-change)
 - [Answer the draft and prepare](#answer-the-draft-and-prepare)
 - [Author and bind the task](#author-and-bind-the-task)
@@ -22,14 +22,15 @@ It has no edit source unless an existing scene is actually being edited.
 - [Execute through an external host](#execute-through-an-external-host)
 - [Review and transferable findings](#review-and-transferable-findings)
 
-## Start from the adopted image
+## Start from the accepted image
 
 An accepted Studio image is edited through the ordinary editable workflow:
 `draft-inputs` creates the choices, the author answers them, and
 `prepare --choices` compiles the request. Select the image by its Studio
-character and slot. The draft keeps the image's Studio adoption evidence, so
-the prepared request carries the exact accepted artwork and its approval
-rather than an unrestricted copy of its pixels.
+character and slot. A Studio slot acceptance is sufficient for a scene edit;
+the image does not need to be adopted into the character sheet. The draft pins
+its iteration, image bytes and exact acceptance receipt. An applicable canonical
+identity remains an independently verified adopted reference.
 
 ```sh
 python scripts/production_workflow.py draft-inputs --root STUDIO --route generation --execution dispatcher \
@@ -43,25 +44,36 @@ open task, omit it and the draft uses that task. `--model MODEL_ID` and
 image. `--feature` adds specialist features. `scripts/studio.py status --studio
 STUDIO` lists each character's slots and their accepted images. A slot without
 a current accepted image is refused, and a refused command opens no work.
+The draft's `edit_source.source.kind` states the evidence it selected:
+`studio-accepted-image` for the Studio slot's current accepted iteration, or
+`studio-artifact` for current sheet artwork without a Studio iteration. Damaged
+canonical evidence is reported at its owner; it is not converted to a plain file.
 `--source-image`, `--source-run`, `--source-candidate`, `--scale` and
 `--purpose` belong to the upscale draft and are refused here.
 
-The draft selects what follows from the adopted image and its owners:
+The draft selects what follows from the accepted image and its owners:
 
 - features `semantic-instruction-edit` and `instruction-edit`, artifact `image`,
   and the applied task source `edit-source` with role `accepted-source` at the
-  adopted image's Studio path;
-- the adopted image as the scene reference `edit-source`. Its source is the
-  `studio-artifact` object that `scripts/studio_reference.py source` writes for
-  the slot, as [Studio canon references](studio-canon-references.md#choose-the-current-source-and-its-influence)
-  describes: the character, sheet, slot, artifact, acceptance and proof hashes,
-  and the image path and hash. An identity adoption also gives it the subject use
-  `{"subject_id": SUBJECT, "use": "identity", "priority": 0}`;
-- for `dispatcher`, that reference in `authoring.references.additional_references`
+  accepted image's retained Studio path;
+- the image as the scene reference `edit-source`. A `studio-accepted-image`
+  source names the Studio, character, current slot, immutable iteration, image,
+  acceptance and proof hashes. Its proof retains the original recording slot
+  and producing run and selection when present. The command
+  `scripts/studio_reference.py accepted-source` writes this source explicitly,
+  as [Studio reference sources](studio-canon-references.md#choose-the-current-source-and-its-influence)
+  describes. It grants no canonical identity authority;
+- when that exact iteration also has a current verified identity adoption, the
+  separate `edit-identity` reference with its `studio-artifact` proof and subject
+  use `{"subject_id": SUBJECT, "use": "identity", "priority": 0}`. The source
+  run's independently selected stateless Studio identity references retain their
+  exact source and subject assignments. State-scoped references retain their own
+  graph and eligibility requirements;
+- for `dispatcher`, those references in `authoring.references.additional_references`
   with the mirrored `authoring.references.image_input: {}`. Preparation writes
   the image input from the prepared Studio source. For `external`, the same
-  reference in `external.reference_delivery.choices` and its row
-  `{"id": "edit-source"}` in `external.image_input.references`;
+  references in `external.reference_delivery.choices` and their IDs in
+  `external.image_input.references`;
 - the editable plan `edit-plan.json` in the draft directory, selected by
   `task_changes.semantic_edit`, with `source: "edit-source"` and
   `required_reference_roles: ["scene"]`;
@@ -71,16 +83,18 @@ The draft selects what follows from the adopted image and its owners:
   `parameters` and its `validation` selection. A rendering declaration of that
   specification stays selected; its `prompt_expression` spans named the earlier
   prompt, so they are null until the edit instruction states the finish;
-- for `dispatcher`, the subject's continuity decision from the identity
-  adoption (`recurring`) in `authoring.generation.continuity`, and
-  `authoring.task.recording` with the Studio character and the subject mapped
-  to it in `subject_map`. Without an identity adoption, the subject's
-  continuity stays unanswered at `authoring.generation.continuity.SUBJECT`.
+- for `dispatcher`, the original run's explicit continuity decisions and
+  subject mappings, including every participant of a multi-subject scene.
+  An applicable identity adoption supplies that subject's actual continuity
+  decision. Missing decisions stay unanswered at
+  `authoring.generation.continuity.SUBJECT`; accepting a scene does not decide
+  that its participants are canonical recurring characters.
 
 An adoption with identity influence makes the image the identity of a recurring
-Studio character. The draft then also selects `recurring-identity`, which
+Studio character. The draft selects `recurring-identity` for that separate
+adoption or for an original canonical identity reference that it carries, which
 delivers the [character identity contract](../character-identity-contract.md#source-to-input-and-review-coverage).
-The reference becomes the identity source `reference:edit-source`, and the
+An identity adoption of the edited image becomes `reference:edit-identity`, and the
 draft reports its uncovered identity and the missing whole-subject review.
 Select `--feature recurring-identity` yourself when the edit also applies the
 character's adopted identity definition, such as its design or identity
@@ -95,8 +109,8 @@ role, the passage of the prompt that states the finish, and each identity
 binding's reason. The draft reports each as an `unresolved` entry with its
 repair. In a synthetic Studio whose fixture author adopted a robot image as the
 identity of slot `base.front`, with no work task open, this command printed the
-output below. It is trimmed to `state`, `edit_source` without its `source`
-object, and the field and reason of each entry (the code and gaps of the
+output below. It is trimmed to `state`, selected `edit_source` fields,
+and the field and reason of each entry (the code and gaps of the
 identity entries); every entry also carries its message, repair and guidance:
 
 ```sh
@@ -108,7 +122,7 @@ python scripts/production_workflow.py draft-inputs --root STUDIO --route generat
 ```json
 {"state": "draft",
  "edit_source": {"character": "robot", "slot": "base.front",
-   "path": "characters/robot/sheet/.fills/artifacts/075f68c2dcd587995afa2c4a8a36b9bb79327231b506abb6735906dbb70e24ec/image.png",
+   "path": "characters/robot/iterations/it-0001/result.png",
    "origin": {"run": "01a1c9be-bd50-71c9-aa7b-59beb427419b",
               "candidate": "622fb0ce160306df39e214eab667f9f524fa857d2e0a8c3312a056d6ffcc0f2c"},
    "identity": {"character_id": "robot", "continuity": "recurring"}},
@@ -127,7 +141,7 @@ python scripts/production_workflow.py draft-inputs --root STUDIO --route generat
   {"field": "task_changes.semantic_edit.review_criteria", "reason": "authored-choice-required"},
   {"field": "authoring.delivery.content", "reason": "authored-choice-required"},
   {"field": "authoring.task.criteria", "code": "IDENTITY_COVERAGE_INCOMPLETE",
-   "gaps": {"uncovered": [{"source": "reference:edit-source", "pointer": "", "subject_ids": ["robot"]}]}},
+   "gaps": {"uncovered": [{"source": "reference:edit-identity", "pointer": "", "subject_ids": ["robot"]}]}},
   {"field": "authoring.task.criteria", "code": "IDENTITY_COVERAGE_INCOMPLETE",
    "gaps": {"missing_whole_reviews": ["robot"]}}]}
 ```
@@ -152,13 +166,13 @@ preparation derive.
 ## Resolve the intended change
 
 Read the selected source at its original resolution. For an accepted Studio
-image, retain its adoption evidence through the canonical prepared reference
+image, retain its acceptance and any selected adoption evidence through the prepared reference
 set; the draft above selects it that way. Inspect accepted design references
 when identity, anatomy or scale matters. Select references that answer the
 current edit. A source pose, outfit or background remains scene state unless
 its declared scope gives it authority. The scene reference's `subject_uses`
 are that scope: add the uses that the edit keeps from the source image, such as
-`pose-camera`, beside the identity use, and assign each to its Production
+`pose-camera`, and assign each to its Production
 Specification subject.
 
 Declare the changed target and the properties that must remain fixed. Write
@@ -199,9 +213,9 @@ Work through every reported entry in the draft directory:
    independent criteria to `authoring.task.criteria`: one for the requested
    change and one for each preserved property whose result matters. For a
    recurring character, add the `identity_bindings` that cover
-   `reference:edit-source` (its source, `subject_ids`, selector `""`, treatment,
+   `reference:edit-identity` (its source, `subject_ids`, selector `""`, treatment,
    reason and the reference carrier `{"kind": "reference", "reference":
-   "edit-source", "use": "identity"}`) and a hard whole-subject criterion whose
+   "edit-identity", "use": "identity"}`) and a hard whole-subject criterion whose
    `identity_review` names the subject, as the identity contract describes.
 5. Set `authoring.documents.production_spec.render_intent.prompt_expression` to
    the passage of `prompt.txt` that states the retained finish, or remove the
@@ -210,10 +224,17 @@ Work through every reported entry in the draft directory:
    fields, such as `image_promise`, `source_brief` and `scene`, to the edited
    result.
 6. For `dispatcher`, set `authoring.task.recording.slot`, `sheet_panel` and
-   `role`. A slot of the character sheet records the result as a new candidate
-   of that slot (with `sheet_panel: true`); it stays separate from the adopted
-   image until the author accepts it. Another slot, such as `candidate`, with
-   `sheet_panel: false`, keeps it out of the sheet.
+   `role`. Choose the destination independently of the source: use the source
+   slot for a replacement candidate, or another slot for a deliberate new result.
+   Generation creates a candidate; acceptance applies to its recorded destination.
+   A panel declared by the resolved character-sheet layout, including its explicit
+   aliases and state panels, uses `sheet_panel: true` and exactly one production
+   subject mapped to the owning character. An ordinary scene slot uses
+   `sheet_panel: false`, even when its artwork has been adopted or retained in
+   `sheet-data.json`. Preserve all production subjects and every recurring
+   subject's mapping and identity references. Criteria do not replace subject
+   declarations. Later placement changes use the recorded
+   [Studio placement operation](studio-placement.md), preserving the original run.
 7. For `external`, set `target.operation`, the native `external.request`, its
    `external.media_slots` and the field paths of
    `external.image_input.external_request`, as
@@ -228,8 +249,9 @@ python scripts/production_workflow.py prepare --root STUDIO --choices work/edit/
 
 A dispatcher draft whose entries are answered prepares in one step. Its
 prepared reference set holds the Studio source, so the request seal carries the
-image's adoption evidence and the package's visual continuity names the
-adopted identity image. An external draft first needs the actual upload of
+image's exact acceptance evidence and any separately selected canonical proofs;
+the package's visual continuity names each adopted identity image. An external
+draft first needs the actual upload of
 the prepared scene carrier: `build-inputs --choices work/edit/choices.json
 --out-dir NEW_DIRECTORY` publishes the carrier and reports it as
 `provider-upload-required`. Upload that file through the service's actual
@@ -240,8 +262,9 @@ The prepared scene reference delivers the image from a carrier under the run's
 inputs, not from its Studio path. The edit binding therefore matches the
 task's applied `accepted-source` by the SHA-256 of its file against the scene
 reference's bytes. Preparation and every later upload or send check that the
-slot's current adoption is still the selected one; a replaced or withdrawn
-adoption stops new work with `STUDIO_REFERENCE_CHANGED`, as
+source's current acceptance is still the selected one. A changed Studio slot
+acceptance stops new work, and a replaced or withdrawn canonical adoption stops
+work that uses its independent identity reference, with `STUDIO_REFERENCE_CHANGED`, as
 [Studio canon references](studio-canon-references.md#preserve-current-acceptance-and-recorded-recovery)
 describes, and a new draft selects the current image.
 

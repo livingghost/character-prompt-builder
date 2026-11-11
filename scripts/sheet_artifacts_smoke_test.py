@@ -47,6 +47,17 @@ def accepted(sheet: Path, *, slot='canon.primary', marker='source', color=(40,10
     return artifact
 
 
+def withdrawal_decision(sheet: Path, slot: str = 'canon.primary') -> dict:
+    evidence = sheet.parent / 'synthetic-withdrawal.txt'
+    if not evidence.exists():
+        c.atomic(evidence, b'Synthetic author ends this exact canonical scope. Not real user consent.\n')
+    data = fills.draft_withdrawal(sheet, slot, evidence_path=evidence.name,
+                                 evidence_locator='whole', evidence_root=sheet.parent)
+    data.update(by='synthetic author', at='2026-10-09T00:00:00Z',
+        reason='Synthetic author retains the image while ending its current reference scope.')
+    return data
+
+
 class SheetArtifactTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -62,6 +73,192 @@ class SheetArtifactTests(unittest.TestCase):
         self.assertIsNone(state['slots']['canon.primary']['current'])
         self.assertEqual(state['sheet_status'], 'identity-ready')
         self.assertEqual(fills.accepted_sha256(state), before)
+
+    def test_withdrawal_preserves_exact_acceptance_and_evidence_and_retries_once(self):
+        artifact = accepted(self.sheet)
+        before = c.load(self.sheet)['slots']['canon.primary']['current']
+        original_files = {path: c.read(path) for path in self.sheet.parent.glob('.fills/approvals/**/*') if path.is_file()}
+        choice = withdrawal_decision(self.sheet)
+        result = fills.withdraw(self.sheet, choice, evidence_root=self.sheet.parent)
+        repeated = fills.withdraw(self.sheet, choice, evidence_root=self.sheet.parent)
+        self.assertTrue(repeated['already_withdrawn'])
+        self.assertEqual(repeated['withdrawal'], result['withdrawal'])
+        slot = c.load(self.sheet)['slots']['canon.primary']
+        self.assertIsNone(slot['current'])
+        self.assertEqual(slot['history'], [before])
+        self.assertEqual(len(slot['withdrawals']), 1)
+        self.assertEqual(fills.verify_withdrawal(slot['withdrawals'][0], self.sheet.parent, 'canon.primary', before), choice)
+        self.assertEqual({path: c.read(path) for path in original_files}, original_files)
+        fills.verify_artifact(artifact, self.sheet.parent)
+        validate_sidecar(c.load(self.sheet), sheet_root=self.sheet.parent, verify_files=True)
+
+    def test_old_withdrawal_retry_cannot_remove_a_new_adoption_of_the_same_artifact(self):
+        artifact = accepted(self.sheet)
+        old = c.load(self.sheet)['slots']['canon.primary']['current']
+        old_decision = c.load(self.sheet.parent / old['approval']['decision_path'])
+        ending = withdrawal_decision(self.sheet)
+        fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        fills.reoffer(self.sheet, 'canon.primary', artifact['artifact_id'])
+        with self.assertRaisesRegex(ValueError, 'withdrawn'):
+            fills.adopt(self.sheet, old_decision, evidence_root=self.sheet.parent)
+        renewed = decision(self.sheet, 'canon.primary', artifact)
+        renewed.update(at='2026-10-10T00:00:00Z', reason='Synthetic author makes a new adoption of the same retained artwork.')
+        fills.adopt(self.sheet, renewed, evidence_root=self.sheet.parent)
+        current = c.load(self.sheet)['slots']['canon.primary']['current']
+        self.assertNotEqual(c.content_id(current), c.content_id(old))
+        fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        self.assertEqual(c.load(self.sheet)['slots']['canon.primary']['current'], current)
+
+    def test_withdrawal_retry_uses_saved_evidence_after_original_is_removed(self):
+        accepted(self.sheet)
+        ending = withdrawal_decision(self.sheet)
+        first = fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        (self.sheet.parent / ending['evidence']['path']).unlink()
+        repeated = fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        self.assertTrue(repeated['already_withdrawn'])
+        self.assertEqual(first['withdrawal'], repeated['withdrawal'])
+
+    def test_withdrawal_retry_recovers_notification_after_the_canonical_change_committed(self):
+        import studio_activity
+        accepted(self.sheet)
+        ending = withdrawal_decision(self.sheet)
+        with patch.object(studio_activity, 'changed', side_effect=OSError('Synthetic interruption after canonical commit.')):
+            with self.assertRaises(OSError):
+                fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        self.assertIsNone(c.load(self.sheet)['slots']['canon.primary']['current'])
+        first_retry = fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        second_retry = fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        self.assertTrue(first_retry['already_withdrawn'])
+        self.assertTrue(second_retry['already_withdrawn'])
+        events, errors = studio_activity.read_events(studio_activity.scope(self.sheet))
+        self.assertEqual(errors, [])
+        self.assertEqual(sum(event['event'] == 'sheet-adoption-withdrawn' for event in events), 1)
+        self.assertEqual(len(c.load(self.sheet)['slots']['canon.primary']['withdrawals']), 1)
+
+    def test_withdrawal_history_verifies_in_a_copied_sheet_without_the_origin(self):
+        import shutil
+        accepted(self.sheet)
+        fills.withdraw(self.sheet, withdrawal_decision(self.sheet), evidence_root=self.sheet.parent)
+        copied = self.root / 'copied'
+        shutil.copytree(self.sheet.parent, copied)
+        shutil.rmtree(self.sheet.parent)
+        validate_sidecar(c.load(copied / 'sheet-data.json'), sheet_root=copied, verify_files=True)
+        from sheet_inventory import status
+        row = status(copied / 'sheet-data.json')['entries'][0]
+        self.assertEqual(row['canonical_status'], 'withdrawn')
+        self.assertEqual(row['availability'], 'verified')
+
+    def test_withdrawal_conflicts_with_another_decision_even_for_identical_pixels(self):
+        artifact = accepted(self.sheet)
+        ending = withdrawal_decision(self.sheet)
+        accepted(self.sheet, marker='same-pixels-new-provenance')
+        self.assertEqual(c.load(self.sheet)['slots']['canon.primary']['current']['artifact']['image']['sha256'],
+                         artifact['image']['sha256'])
+        before = c.read(self.sheet)
+        with self.assertRaisesRegex(ValueError, 'changed after'):
+            fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        self.assertEqual(c.read(self.sheet), before)
+
+    def test_withdrawal_rechecks_the_exact_target_after_evidence_io(self):
+        accepted(self.sheet)
+        ending = withdrawal_decision(self.sheet)
+        original = fills._safe_directory
+        replaced = []
+        def replace_during_evidence(root, relative):
+            result = original(root, relative)
+            if relative.startswith(fills.WITHDRAWALS) and not replaced:
+                replaced.append(True)
+                accepted(self.sheet, marker='interleaved', color=(90, 70, 30))
+            return result
+        with patch.object(fills, '_safe_directory', side_effect=replace_during_evidence):
+            with self.assertRaisesRegex(ValueError, 'changed while'):
+                fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        slot = c.load(self.sheet)['slots']['canon.primary']
+        self.assertEqual(slot['withdrawals'], [])
+        self.assertIsNotNone(slot['current'])
+
+    def test_withdrawal_evidence_corruption_is_reported_by_validation_and_inventory(self):
+        accepted(self.sheet)
+        result = fills.withdraw(self.sheet, withdrawal_decision(self.sheet), evidence_root=self.sheet.parent)
+        path = self.sheet.parent / result['withdrawal']['decision']['evidence_path']
+        path.write_bytes(b'Changed synthetic withdrawal evidence.')
+        with self.assertRaisesRegex(ValueError, 'hash mismatch'):
+            validate_sidecar(c.load(self.sheet), sheet_root=self.sheet.parent, verify_files=True)
+        from sheet_inventory import status
+        row = status(self.sheet)['entries'][0]
+        self.assertEqual(row['canonical_status'], 'withdrawn')
+        self.assertEqual(row['availability'], 'unavailable')
+        import contextlib
+        import json
+        import sheet_workflow
+        ending = self.sheet.parent / result['withdrawal']['decision']['decision_path']
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = sheet_workflow.main(['withdraw', '--sheet', str(self.sheet), '--decision-file', str(ending),
+                                       '--evidence-root', str(self.sheet.parent)])
+        self.assertEqual(code, 2)
+        diagnostic = json.loads(output.getvalue())['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'ADOPTION_WITHDRAWAL_CORRUPT')
+        self.assertEqual(diagnostic['file'], str(path))
+        self.assertIn('verified Studio copy', diagnostic['required_action'])
+
+    def test_withdrawal_cli_drafts_only_and_records_the_authored_decision(self):
+        import contextlib
+        import json
+        import sheet_workflow
+        accepted(self.sheet)
+        target = self.sheet.parent / 'withdrawal.json'
+        before = c.read(self.sheet)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = sheet_workflow.main(['draft-withdrawal', '--sheet', str(self.sheet), '--slot', 'canon.primary',
+                                       '--out', str(target)])
+        self.assertEqual(code, 0)
+        self.assertEqual(c.read(self.sheet), before)
+        self.assertEqual(c.load(target)['by'], '')
+        authored = c.load(target)
+        authored.update(by='Synthetic owner', at='2026-11-11T07:00:00Z', reason='Synthetic authority ends this adoption.')
+        c.atomic_write_json(target, authored)
+        evidence = self.sheet.parent / 'selected-authority.txt'
+        c.atomic(evidence, b'Synthetic authority for this withdrawal only. Not user consent.\n')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = sheet_workflow.main(['draft-withdrawal', '--sheet', str(self.sheet), '--slot', 'canon.primary',
+                '--out', str(target), '--evidence-path', evidence.name, '--evidence-locator', 'whole instruction',
+                '--evidence-root', str(self.sheet.parent)])
+        self.assertEqual(code, 0, output.getvalue())
+        pinned = c.load(target)
+        self.assertEqual(pinned['by'], authored['by'])
+        self.assertEqual(pinned['evidence'], {'path': evidence.name, 'locator': 'whole instruction',
+                                             'sha256': c.sha256_file(evidence)})
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = sheet_workflow.main(['withdraw', '--sheet', str(self.sheet), '--decision-file', str(target),
+                                       '--evidence-root', str(self.sheet.parent)])
+        self.assertEqual(code, 0, output.getvalue())
+        self.assertTrue(json.loads(output.getvalue())['withdrawn'])
+
+    def test_selected_withdrawal_evidence_cannot_be_silently_repinned(self):
+        import contextlib
+        import sheet_workflow
+        accepted(self.sheet)
+        ending = withdrawal_decision(self.sheet)
+        target = self.sheet.parent / 'withdrawal.json'
+        c.atomic_write_json(target, ending)
+        original_draft, original_sheet = c.read(target), c.read(self.sheet)
+        evidence = self.sheet.parent / ending['evidence']['path']
+        evidence.write_bytes(b'A different synthetic authority statement, not the pinned decision.\n')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = sheet_workflow.main(['draft-withdrawal', '--sheet', str(self.sheet), '--slot', 'canon.primary',
+                '--out', str(target), '--evidence-path', evidence.name, '--evidence-locator', ending['evidence']['locator'],
+                '--evidence-root', str(self.sheet.parent)])
+        self.assertEqual(code, 2)
+        self.assertIn('already pins different evidence', output.getvalue())
+        self.assertEqual(c.read(target), original_draft)
+        with self.assertRaisesRegex(ValueError, 'evidence bytes changed'):
+            fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        self.assertEqual(c.read(self.sheet), original_sheet)
 
     def test_reject_candidate_removes_it_with_a_reason_and_keeps_the_bytes(self):
         artifact = make_artifact(self.sheet, marker='reject-me')

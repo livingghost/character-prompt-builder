@@ -479,11 +479,16 @@ class StudioSceneTests(unittest.TestCase):
         (self.root / 'selection.json').write_bytes(c.encoded(fixture.selection(self.root, run, chosen)))
         workflow.select(self.root, run, 'selection.json')
         studio.accept(self.root, 'robot', 'it-0001')
+        import studio_placement
+        placement = studio_placement.draft(self.root, 'robot', 'it-0001', 'scene.material')
+        placement.update(by=fixture.ACTOR, at='2026-11-11T00:00:00Z',
+                         reason='Synthetic usage view follows the current authored placement.')
+        studio_placement.reassign(self.root, placement)
         with (self.root / 'characters/robot/iterations.jsonl').open('a', encoding='utf-8', newline='\n') as log:
             log.write('{"damaged": \n')
         row = scene.impact(self.root)['scenes'][0]
         self.assertEqual(row['runs'], [{'run': run, 'selection_recorded': True}])
-        self.assertEqual(row['iterations'], [{'character': 'robot', 'slot': 'candidate', 'iteration_id': 'it-0001',
+        self.assertEqual(row['iterations'], [{'character': 'robot', 'slot': 'scene.material', 'iteration_id': 'it-0001',
                                               'status': 'accepted', 'accepted': True}])
 
 

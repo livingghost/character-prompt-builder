@@ -523,7 +523,7 @@
                 },
                 "additional_references": {
                   "type": "array",
-                  "description": "Direct sources in delivery order. A source is a supplied-file selector, or a studio-artifact source that scripts/studio_reference.py source writes for a current adopted slot; preparation verifies its adoption.",
+                  "description": "Direct sources in delivery order. A source is a supplied-file selector, a studio-artifact source for current adopted artwork, or a studio-accepted-image source for the slot's current accepted iteration. Preparation verifies the exact adoption or acceptance; an accepted image grants no canonical identity authority.",
                   "items": {
                     "type": "object",
                     "additionalProperties": false,

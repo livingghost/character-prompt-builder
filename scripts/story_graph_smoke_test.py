@@ -90,14 +90,24 @@ class ProjectionTests(unittest.TestCase):
         self.assertIn('id="flow-list-column" hidden', html)
 
     def test_graph_assets_participate_in_projection_identity(self):
-        first = self.model()['renderer_sha256']
-        from unittest.mock import patch
-        original = c.sha256_file
-        def changed(path):
-            return '0'*64 if Path(path).name == 'story-graph.js' else original(path)
-        with patch.object(c, 'sha256_file', side_effect=changed):
-            second = self.model()['renderer_sha256']
-        self.assertNotEqual(first, second)
+        from builder_inputs import BuilderInputs, FileInput
+        implementation = timeline.capture_implementation(ROOT)
+        first = timeline.build_model(self.root, self.root / timeline.OUTPUT,
+                                     implementation=implementation)[0]
+        marker = b'\n/* Synthetic captured graph asset revision. */\n'
+        for asset in ('templates/story-graph.js', 'templates/story-graph.css'):
+            with self.subTest(asset=asset):
+                changed = BuilderInputs(implementation.root, tuple(
+                    FileInput(item.path, item.content + marker) if item.path == asset else item
+                    for item in implementation.files))
+                second = timeline.build_model(self.root, self.root / timeline.OUTPUT,
+                                              implementation=changed)[0]
+                self.assertNotEqual(first['implementation_sha256'], second['implementation_sha256'])
+                self.assertNotEqual(first['projection_id'], second['projection_id'])
+                self.assertEqual(first['flow'], second['flow'])
+                html = timeline.render_html(second, '2000-01-01T00:00:00Z', implementation=changed)
+                self.assertIn(marker.decode('utf-8'), html)
+                self.assertNotIn(marker, implementation.read_bytes(asset))
 
     def test_declared_cause_cycle_stays_recorded_for_layout_annotation(self):
         rows = self.fixture['events']; rows[0]['cause'] = {'type':'event','reference':'C'}

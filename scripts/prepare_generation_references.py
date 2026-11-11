@@ -520,14 +520,14 @@ def _validate_source(source: Any, field: str, *, context: _ReferenceContext | No
         return _validate_pack_source(source, field, context=context)
     if kind == "supplied-file":
         return _validate_supplied_source(source, field, context=context)
-    if kind == "studio-artifact":
+    if kind in {'studio-artifact', 'studio-accepted-image'}:
         from studio_reference import validate_source
         validate_source(source, active=context.active, source_archive=context.source_archive, reads=context.reads)
         path = context.path(source, field)
         if sha256_file(path) != source['sha256'] or detect_image_media_type(path) != source['media_type']:
             raise ValueError(field + ' Studio source image bytes differ')
         return copy.deepcopy(dict(source))
-    raise ValueError(f"{field}.kind must name an explicit pack, supplied-file or Studio artifact")
+    raise ValueError(f"{field}.kind must name an explicit pack, supplied file, adopted Studio artwork or accepted Studio image")
 
 
 @runtime_snapshot.operation
@@ -1724,7 +1724,7 @@ def _preflight_selection_item(raw: Any, index: int) -> tuple[str, dict[str, Any]
         normalized = _validate_pack_source(source, f"{field}.source")
     elif source.get("kind") == "supplied-file":
         normalized = _prepare_supplied_source(source, f"{field}.source")
-    elif source.get("kind") == "studio-artifact":
+    elif source.get("kind") in {'studio-artifact', 'studio-accepted-image'}:
         normalized = _validate_source(source, f"{field}.source")
     else:
         raise ValueError(f"{field}.source.kind must name a supported reference source")
@@ -1887,7 +1887,7 @@ def _direct_reference_preflight(selections: Any) -> list[tuple[str, dict[str, An
         raise ValueError('selection input must be a JSON array')
     for index, raw in enumerate(selections):
         source = raw.get('source') if isinstance(raw, Mapping) else None
-        if not isinstance(source, Mapping) or source.get('kind') not in {'supplied-file', 'studio-artifact'}:
+        if not isinstance(source, Mapping) or source.get('kind') not in {'supplied-file', 'studio-artifact', 'studio-accepted-image'}:
             raise ValueError(f'selection[{index}] must be a supplied-file or committed Studio source; '
                              'active pack artifacts require an explicit Reference Use Plan executed by reference_runtime.py')
     return [_preflight_selection_item(raw, index) for index, raw in enumerate(selections)]

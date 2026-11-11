@@ -858,10 +858,14 @@ def _finish_captured(root: Path, run: str, journal, transport: Any, *, loaded,
         try:
             recorded = list(journal.document.get('iterations', []))
             projected = acquisition['acquired'] if prepared['task'].get('recording') is not None else []
+            captured_rows = workflow.read_run(root, run).rows
             for index, path, response in projected:
                 if index in invalid_upscale:
                     continue
-                found = dispatch.recorded_iteration(root, journal.document['character'], journal.document['slot'],
+                exact = [item for item in captured_rows if item['event'] == 'candidate' and item['data'].get('output_index') == index]
+                if len(exact) != 1:
+                    raise ValueError('the captured output index has no unique Production candidate')
+                found = dispatch.recorded_iteration(root, journal.document['character'], {'run': run, 'candidate': exact[0]['sha256']},
                                                      (path, journal.path / 'request.json', response))
                 if found is None:
                     row = studio.iterate(root, journal.document['character'], journal.document['slot'], path,
@@ -1563,6 +1567,7 @@ def _draft_action(root: Path, run: str, kind: str, *, candidate: str | None = No
                             authority_sha256=basis.get('authority'))
             if scope == 'studio-slot':
                 expected['expected_slot'] = basis['expected_slot']
+                expected['expected_placement'] = basis['expected_placement']
     elif kind == 'outcome':
         expected['claim'] = basis['claim']
     review_guidance = (' Review only the commissioned criteria; measured output can establish technical requirements. '
@@ -1623,10 +1628,12 @@ def _acceptance_action(root: Path, run: str, candidate: dict, prepared: dict,
     import production_permissions
     import production_acceptance
     expected_slot = None
+    expected_placement = None
     if scope == 'studio-slot':
         try:
-            target, _ = production_acceptance._target(root, run, candidate['candidate'],
+            target, iteration = production_acceptance._target(root, run, candidate['candidate'],
                                                      loaded=(None, prepared, None, rows))
+            expected_placement = iteration['placement']['sha256']
             expected_slot = production_acceptance.slot_state(root, target['character'], target['slot'])
         except INSPECTION_ERRORS as exc:
             diagnostic = from_exception(exc, phase='acceptance')
@@ -1638,7 +1645,7 @@ def _acceptance_action(root: Path, run: str, candidate: dict, prepared: dict,
               if not item['missing']]
     saved = []
     for grant in grants:
-        basis = {'review': candidate['review'], 'expected_slot': expected_slot,
+        basis = {'review': candidate['review'], 'expected_slot': expected_slot, 'expected_placement': expected_placement,
                  'authority': production_acceptance.authority_basis(authority, grant)}
         action = _draft_action(root, run, 'acceptance', candidate=candidate['candidate'], grant=grant,
             scope=scope, basis=basis, prepared=prepared, existing_only=True)
@@ -1649,7 +1656,7 @@ def _acceptance_action(root: Path, run: str, candidate: dict, prepared: dict,
         action = _choose_drafts(root, run, 'acceptance', saved)
     else:
         grant = grants[0] if len(grants) == 1 else None
-        basis = {'review': candidate['review'], 'expected_slot': expected_slot}
+        basis = {'review': candidate['review'], 'expected_slot': expected_slot, 'expected_placement': expected_placement}
         if grant is not None:
             basis['authority'] = production_acceptance.authority_basis(authority, grant)
         action = _draft_action(root, run, 'acceptance', candidate=candidate['candidate'], grant=grant,
@@ -1784,12 +1791,13 @@ def _registration(root: Path, prepared: dict, rows: list[dict]) -> str:
         # The destination is gone. The run keeps the captured bytes as candidates; nothing shows them.
         return 'unregistered'
     try:
-        shown = {(row.get('result') or {}).get('sha256') for row in studio.read_iterations(studio.character_dir(root, recording['character']))
-                 if row.get('slot') == recording['slot']}
+        shown = {(row.get('production') or {}).get('candidate'): (row.get('result') or {}).get('sha256')
+                 for row in studio.read_iterations(studio.character_dir(root, recording['character']), project=False)
+                 if (row.get('production') or {}).get('run') == prepared['run']}
     except INSPECTION_ERRORS:
         return 'projection-missing'
-    wanted = {row['data']['files'][0]['sha256'] for row in candidates if row['data'].get('output_index') not in invalid}
-    return 'registered' if wanted <= shown else 'projection-missing'
+    wanted = {row['sha256']: row['data']['files'][0]['sha256'] for row in candidates if row['data'].get('output_index') not in invalid}
+    return 'registered' if all(shown.get(key) == value for key, value in wanted.items()) else 'projection-missing'
 
 
 def _unknown_outcome_action(root: Path, run: str, rows: list[dict]) -> dict:
@@ -2125,6 +2133,9 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         'execution': None if execution_state is None else {'execution_id': execution_state['execution_id'], 'status': execution_state['status']},
         'journal': claims[-1]['data']['journal'] if claims else None,
         'logs': logs.get(identifier, [])}
+    if selected_by_id:
+        from production_adoption import saved_actions
+        report['adoption_actions'] = saved_actions(root, loaded)
     import production_permissions
     plan = loaded.artifacts['execution-plan.json']
     selections = None

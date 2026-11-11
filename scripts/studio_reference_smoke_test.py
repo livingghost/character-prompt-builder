@@ -98,9 +98,8 @@ class StudioSourceTests(unittest.TestCase):
             sr.validate_source(self.source)
 
     def test_withdrawn_acceptance_is_rejected(self):
-        state = c.load(self.sheet); state['slots']['canon.primary']['current'] = None
-        from character_sheet import sheet_status
-        state['sheet_status'] = sheet_status(state); c.atomic_write_json(self.sheet, state)
+        from sheet_artifacts_smoke_test import withdrawal_decision
+        fills.withdraw(self.sheet, withdrawal_decision(self.sheet), evidence_root=self.sheet.parent)
         with self.assertRaisesRegex(ValueError, 'no current accepted'):
             sr.validate_source(self.source)
 
@@ -207,6 +206,101 @@ class StudioSourceTests(unittest.TestCase):
         diagnostic = json.loads(printed.getvalue())['diagnostics'][0]
         self.assertEqual((diagnostic['code'], diagnostic['required_action']), ('OUTPUT_ALREADY_EXISTS', 'Choose a new --out.'))
         self.assertEqual(c.load(target),self.source)
+
+
+class AcceptedStudioImageTests(unittest.TestCase):
+    """Ordinary slot acceptance is sufficient scene evidence and never invents canon."""
+
+    def setUp(self):
+        import production_fixtures
+        from transport_synthetic import _png
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.enterContext(production_fixtures.scratch_home(self.base / 'home'))
+        self.root = studio.init(self.base / 'studio', 'accepted-scenes', 'Synthetic accepted scenes')
+        studio.add_character(self.root, 'robot', 'general')
+        self.image = self.base / 'scene.png'; self.image.write_bytes(_png(32, 32, bytes((45, 100, 130))))
+        self.row = self.add_image('episode.opening')
+        studio.accept(self.root, 'robot', self.row['iteration_id'])
+        self.source = sr.current_accepted_source(self.root, 'robot', 'episode.opening')
+
+    def add_image(self, slot):
+        return studio.iterate(self.root, 'robot', slot, self.image, package=None, request=None,
+                              response=None, note='Synthetic accepted scene fixture.')
+
+    def test_scene_source_keeps_exact_acceptance_without_declaring_a_sheet_panel(self):
+        from prepare_generation_references import validate_committed_source
+        from visual_continuity import declared_sheet_slots
+        proof = sr.validate_source(self.source)
+        self.assertEqual(self.source['kind'], 'studio-accepted-image')
+        self.assertEqual(self.source['iteration_id'], self.row['iteration_id'])
+        self.assertEqual(self.source['sha256'], self.row['result']['sha256'])
+        self.assertEqual(self.source['acceptance_sha256'], c.content_id(proof['acceptance']))
+        self.assertIsNone(proof['production'])
+        self.assertEqual(proof['provenance'], 'external-import')
+        self.assertEqual(validate_committed_source(self.source), self.source)
+        self.assertNotIn('episode.opening', declared_sheet_slots(self.root, 'robot'))
+        self.assertNotIn('episode.opening', studio.StudioRead(self.root).sheet('robot')['slots'])
+        with self.assertRaisesRegex(ValueError, 'no canonical identity authority'):
+            sr.identity_source(self.source, root=self.root, character_id='robot')
+
+    def test_candidate_or_another_owner_cannot_replace_current_acceptance(self):
+        self.add_image('waiting')
+        with self.assertRaisesRegex(ValueError, 'currently accepted'):
+            sr.current_accepted_source(self.root, 'robot', 'waiting')
+        for field, value in [('studio_id', 'other'), ('slot', 'waiting'), ('iteration_id', 'it-9999')]:
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                sr.validate_source({**self.source, field: value})
+
+    def test_new_acceptance_of_identical_pixels_changes_the_source(self):
+        replacement = self.add_image('episode.opening')
+        studio.accept(self.root, 'robot', replacement['iteration_id'])
+        current = sr.current_accepted_source(self.root, 'robot', 'episode.opening')
+        self.assertEqual(current['sha256'], self.source['sha256'])
+        self.assertNotEqual(current['proof_sha256'], self.source['proof_sha256'])
+        with self.assertRaisesRegex(ValueError, 'no longer matches'):
+            sr.validate_source(self.source)
+
+    def test_accepted_copy_and_retained_source_are_both_verified(self):
+        proof = sr.validate_source(self.source)
+        (self.root / proof['accepted_path']).write_bytes(b'changed accepted copy')
+        with self.assertRaisesRegex(ValueError, 'recorded bytes'):
+            sr.validate_source(self.source)
+
+    def test_recorded_proof_survives_replacement_and_original_studio_deletion(self):
+        companion = self.base / 'request.references'
+        sr.archive_source(self.source, companion)
+        before = {path.relative_to(companion): path.read_bytes() for path in companion.rglob('*') if path.is_file()}
+        sr.archive_source(self.source, companion)
+        self.assertEqual(before, {path.relative_to(companion): path.read_bytes() for path in companion.rglob('*') if path.is_file()})
+        replacement = self.add_image('episode.opening')
+        studio.accept(self.root, 'robot', replacement['iteration_id'])
+        shutil.rmtree(self.root)
+        proof = sr.validate_source(self.source, active=False, source_archive=companion / 'sources')
+        self.assertEqual(proof['iteration_id'], self.row['iteration_id'])
+        (companion / 'sources' / self.source['sha256']).write_bytes(b'changed recorded source')
+        with self.assertRaisesRegex(ValueError, 'bytes changed'):
+            sr.validate_source(self.source, active=False, source_archive=companion / 'sources')
+
+    def test_unrelated_acceptance_does_not_change_selected_scene(self):
+        another = self.add_image('episode.other')
+        studio.accept(self.root, 'robot', another['iteration_id'])
+        self.assertEqual(sr.current_accepted_source(self.root, 'robot', 'episode.opening'), self.source)
+
+    def test_imported_scene_cannot_claim_a_production_selection_without_origin(self):
+        proof = copy.deepcopy(sr.validate_source(self.source))
+        proof['acceptance']['production_selection'] = '1' * 64
+        with self.assertRaisesRegex(ValueError, 'without Production origin'):
+            sr._accepted_proof(proof)
+
+    def test_cli_returns_explicit_accepted_scene_source(self):
+        import contextlib, io
+        target = self.base / 'scene-source.json'
+        with contextlib.redirect_stdout(io.StringIO()):
+            status = sr.main(['--studio', str(self.root), '--character', 'robot', '--slot', 'episode.opening',
+                              'accepted-source', '--out', str(target)])
+        self.assertEqual(status, 0)
+        self.assertEqual(c.load(target), self.source)
 
 
 class ProductionStudioSourceTests(unittest.TestCase):
@@ -350,6 +444,11 @@ class ProductionStudioSourceTests(unittest.TestCase):
         self.assertEqual(diagnostic['file'], 'characters/robot/adoptions/' + self.row['iteration_id'] + '.json')
         self.assertIn('production_workflow.py adopt --run ' + self.run, diagnostic['required_action'])
         self.assertFalse(target.exists())
+        import production_edit_inputs
+        from production_diagnostics import ProductionError
+        with self.assertRaises(ProductionError) as caught:
+            production_edit_inputs.select(self.root, 'robot', 'base.front')
+        self.assertEqual(caught.exception.diagnostic.code, 'ADOPTION_RECORD_CORRUPT')
 
     def test_catalog_reference_waits_for_its_completed_result_and_resumes_same_claim(self):
         import production_workflow as workflow

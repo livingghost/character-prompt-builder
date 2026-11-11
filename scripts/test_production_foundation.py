@@ -1329,7 +1329,13 @@ class RecordingDestinationTests(unittest.TestCase):
         import production_execution as execution
         import execution_lifecycle as accounting
         sheet=self.home/'sheet/sheet-data.json';original=sheet.read_bytes()
-        document=c.load(sheet);document['slots']['candidate']={'current':None,'candidates':[],'history':[]}
+        # A new declared panel changes the destination's production contract;
+        # merely registering an ordinary scene does not declare a panel.
+        profile=c.load(Path(__file__).resolve().parents[1]/'templates/character-sheet-layout.general.json')
+        profile['rows'][0]['boxes'][0]['aliases']=['candidate']
+        profile_path=self.root/'revised-sheet-profile.json'
+        self.fixtures.write(profile_path,profile)
+        document=c.load(sheet);document['fields']['field.sheet_layout_profile']=str(profile_path)
         self.fixtures.write(sheet,document)
         with self.assertRaises(ProductionError) as caught:
             execution.execute(self.root,self.run,decisions_file=self.decisions)

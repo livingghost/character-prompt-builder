@@ -179,6 +179,36 @@ class StatusViewTests(unittest.TestCase):
         self.assertTrue((self.root / acceptance).is_file())
         self.assertTrue((self.root / selection).is_file())
 
+    def test_custom_slot_acceptance_tracks_placement_without_overwriting_prior_draft(self):
+        import studio_placement
+        run, candidate = self.captured()
+        self.review(run, candidate)
+        previous, current = 'work/first-slot-acceptance.json', 'work/moved-slot-acceptance.json'
+        self.cli('draft-acceptance', '--root', str(self.root), '--run', run,
+                 '--candidate', candidate, '--scope', 'studio-slot', '--out', previous)
+        original = (self.root / previous).read_bytes()
+        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        self.assertEqual((action['command'], action['draft']), ('accept', previous))
+
+        placement = studio_placement.draft(self.root, 'robot', 'it-0001', 'scene.delivery')
+        placement.update(by='Synthetic fixture curator', at='2026-11-11T00:00:00Z',
+                         reason='Retain this fixture image under the authored scene destination.')
+        studio_placement.reassign(self.root, placement)
+        report = self.cli('status', '--root', str(self.root), '--run', run)
+        action = report['runs'][0]['next_action']
+        self.assertEqual(action['command'], 'draft-acceptance')
+        self.assertNotEqual(action['draft'], previous)
+        self.assertTrue(all(item.get('draft') != previous for item in action.get('alternatives', [])))
+        self.assertIn(previous, [item['path'] for item in report['current_task']['authoring']['decision_drafts']])
+
+        self.cli('draft-acceptance', '--root', str(self.root), '--run', run,
+                 '--candidate', candidate, '--scope', 'studio-slot', '--out', current)
+        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        self.assertEqual((action['command'], action['draft']), ('accept', current))
+        self.assertNotEqual(c.load(self.root / previous)['expected_placement'],
+                            c.load(self.root / current)['expected_placement'])
+        self.assertEqual((self.root / previous).read_bytes(), original)
+
     def test_custom_outcome_continues_original_claim_without_another_send(self):
         run = workflow.prepare(self.root, 'task.json')['run']
         with patch.object(transport_synthetic, 'send', side_effect=TimeoutError('Synthetic unanswered send')) as send:

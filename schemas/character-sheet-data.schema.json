@@ -114,6 +114,13 @@
               "$ref": "#/$defs/acceptance"
             }
           },
+          "withdrawals": {
+            "type": "array",
+            "description": "Authored endings of exact historical adoptions. They preserve earlier evidence and do not retract Studio acceptance or registered packs.",
+            "items": {
+              "$ref": "#/$defs/withdrawal"
+            }
+          },
           "fill_policy": {
             "enum": [
               "auto",
@@ -205,6 +212,20 @@
             }
           },
           "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "withdrawal": {
+      "type": "object",
+      "required": ["acceptance_sha256", "decision"],
+      "properties": {
+        "acceptance_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decision": {
+          "$ref": "#/$defs/acceptance/properties/approval"
         }
       },
       "additionalProperties": false

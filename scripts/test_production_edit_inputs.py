@@ -1,7 +1,8 @@
-"""An instruction edit of an adopted Studio image starts from one editable draft.
+"""An instruction edit of an accepted Studio image starts from one editable draft.
 
 `draft-inputs --edit-character --edit-slot` selects the accepted image with its
-adoption evidence and the applicable choices of the run that produced it. The
+acceptance evidence and the applicable choices of the run that produced it. An
+independently adopted identity retains its canonical proof. The
 draft names every edit requirement at once; once the synthetic fixture author
 answers them, `prepare --choices` prepares the dispatcher or external request
 without hand-written derived records. No provider is contacted, and no image
@@ -24,6 +25,7 @@ import production_workflow as workflow
 import work_ledger
 from production_diagnostics import DEFAULT_ACTION, ProductionError
 from test_production_choice_reports import ChoiceReports
+from test_production_review import ReviewCase
 
 GOAL = 'Replace the plain background of the adopted robot image with a pale green wall.'
 PROMPT = ('Edit the supplied image: replace the plain background behind the robot with a pale green wall. '
@@ -44,6 +46,8 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         cls.addClassCleanup(runtime.configure_pack_runtime, None)
         cls.case = cases.adopted_case(base / 'studio', base / 'runtime')
         cls.root = cls.case['root']
+        import studio_reference
+        cls.case['accepted_source'] = studio_reference.current_accepted_source(cls.root, 'robot', 'base.front')
 
     def setUp(self):
         from catalog_retrieval import runtime
@@ -79,9 +83,9 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
              'text': 'Compare the whole robot with the complete adopted base.front image: identity, shape, colors, '
                      'pose and framing match within the visible scene.',
              'identity_review': ['robot'],
-             'identity_bindings': [{'source': 'reference:edit-source', 'subject_ids': ['robot'], 'selectors': [''],
+             'identity_bindings': [{'source': 'reference:edit-identity', 'subject_ids': ['robot'], 'selectors': [''],
                  'treatment': 'preserve', 'reason': 'The edit keeps the adopted robot; only the background changes.',
-                 'carriers': [{'kind': 'reference', 'reference': 'edit-source', 'use': 'identity'}],
+                 'carriers': [{'kind': 'reference', 'reference': 'edit-identity', 'use': 'identity'}],
                  'variation': None}]}]
         if task['execution'] == 'dispatcher':
             task['recording'].update(slot='edit.background', sheet_panel=False, role='background-edit')
@@ -108,7 +112,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
     def assert_draft_prefill(self, result: dict) -> dict:
         choices = result['choices']
         authored = choices['authoring']
-        source = self.case['source']
+        source = self.case['accepted_source']
         self.assertEqual(authored['task']['features'],
                          ['semantic-instruction-edit', 'instruction-edit', 'recurring-identity'])
         self.assertEqual(authored['task']['artifact'], 'image')
@@ -140,7 +144,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         identity = {next(iter(row['gaps'])): row['gaps'] for row in result['unresolved']
                     if row['code'] == 'IDENTITY_COVERAGE_INCOMPLETE'}
         self.assertEqual(identity['uncovered']['uncovered'],
-                         [{'source': 'reference:edit-source', 'pointer': '', 'subject_ids': ['robot']}])
+                         [{'source': 'reference:edit-identity', 'pointer': '', 'subject_ids': ['robot']}])
         self.assertEqual(identity['missing_whole_reviews']['missing_whole_reviews'], ['robot'])
 
     def test_dispatcher_edit_draft_names_every_requirement_and_prepares_after_they_are_answered(self):
@@ -149,9 +153,10 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         authored = choices['authoring']
         references = authored['references']
         self.assertEqual(references['image_input'], {})
-        self.assertEqual([(row['id'], row['role'], row['source'], row['subject_uses'])
+        self.assertEqual([(row['id'], row['role'], row['source'], row.get('subject_uses', []))
                           for row in references['additional_references']],
-                         [('edit-source', 'scene', self.case['source'],
+                         [('edit-source', 'scene', self.case['accepted_source'], []),
+                          ('edit-identity', 'identity', self.case['source'],
                            [{'subject_id': 'robot', 'use': 'identity', 'priority': 0}])])
         self.assertEqual(authored['generation']['continuity'], {'robot': 'recurring'})
         self.assertEqual(authored['task']['recording'], {'character': 'robot', 'slot': None,
@@ -186,7 +191,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         self.assertEqual((scene['id'], scene['role'], scene['sha256']), ('edit-source', 'scene', self.case['source']['sha256']))
         self.assertNotEqual(scene['file'], snapshot['task']['sources'][0]['path'])
         selected = consumer['image_input']['prepared_reference_set']['selected_references'][0]
-        self.assertEqual(selected['source'], self.case['source'])
+        self.assertEqual(selected['source'], self.case['accepted_source'])
         package = c.load(Path(prepared['package']))
         robot = package['visual_continuity']['subjects']['robot']
         self.assertEqual((robot['continuity'], robot['studio_character']), ('recurring', 'robot'))
@@ -197,7 +202,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         self.assertEqual(again['unresolved'], [])
         reopened = again['choices']
         self.assertEqual(reopened['authoring']['references']['image_input'], {})
-        self.assertEqual(reopened['authoring']['references']['additional_references'][0]['source'], self.case['source'])
+        self.assertEqual(reopened['authoring']['references']['additional_references'][0]['source'], self.case['accepted_source'])
         self.assertEqual(reopened['task_changes']['semantic_edit'], 'work/edit-dispatcher-again/edit-plan.json')
         self.assertEqual(c.load(self.root / reopened['task_changes']['semantic_edit']),
                          c.load(self.root / choices['task_changes']['semantic_edit']))
@@ -210,10 +215,11 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         choices = self.assert_draft_prefill(result)
         external = choices['external']
         self.assertEqual(external['image_input'], {'artifact_type': 'image-input-plan',
-            'references': [{'id': 'edit-source'}], 'external_request': None})
+            'references': [{'id': 'edit-source'}, {'id': 'edit-identity'}], 'external_request': None})
         delivery = external['reference_delivery']['choices']
         self.assertEqual([(row['id'], row['role'], row['source']) for row in delivery['additional_references']],
-                         [('edit-source', 'scene', self.case['source'])])
+                         [('edit-source', 'scene', self.case['accepted_source']),
+                          ('edit-identity', 'identity', self.case['source'])])
         self.assertNotIn('recording', choices['authoring']['task'])
         self.assert_reports_together(result, {
             'reading.reading_key', 'target.operation', 'authoring.task.direction.purpose',
@@ -224,7 +230,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         choices = self.answer(result)
         built = production_inputs.build_inputs(self.root, None, result['choices_file'], 'work/edit-external-carriers')
         self.assertEqual(built['request_state'], 'reference-upload-required', built)
-        self.assertEqual([row['reason'] for row in built['unresolved']], ['provider-upload-required'], built)
+        self.assertEqual([row['reason'] for row in built['unresolved']], ['provider-upload-required'] * 2, built)
         carrier = built['unresolved'][0]['carrier']
         self.assertEqual(carrier['sha256'], self.case['source']['sha256'])
         c.atomic(self.root / 'work/upload-receipt.json', c.encoded({'synthetic': True, 'media': 'synthetic-robot-front',
@@ -238,7 +244,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         consumer = workflow.load_run(self.root, prepared['run'])[2]
         self.assertEqual(consumer['semantic_edit']['source'], 'edit-source')
         bound = consumer['image_input']
-        self.assertEqual(bound['prepared_reference_set']['selected_references'][0]['source'], self.case['source'])
+        self.assertEqual(bound['prepared_reference_set']['selected_references'][0]['source'], self.case['accepted_source'])
         self.assertEqual(bound['external_request']['request']['inputs']['references'], ['synthetic-robot-front'])
         self.assertEqual(bound['external_request']['request']['prompt'], PROMPT)
 
@@ -312,6 +318,200 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
             production_inputs.draft_inputs(self.root, 'task.json', 'work/refused-task', edit_character='robot',
                                            edit_slot='base.front', route='generation', execution='dispatcher')
         self.assertIn('--from-run', caught.exception.diagnostic.required_action)
+
+
+class AcceptedSceneEditTests(ReviewCase):
+    """A two-subject scene remains editable before and after separate scene adoption."""
+
+    def configure_task(self, task):
+        import studio
+        studio.add_character(self.root, 'partner', 'general')
+        specification = c.load(self.root / 'spec.json')
+        partner = copy.deepcopy(specification['subjects'][0]); partner['id'] = 'partner'
+        specification['subjects'].append(partner)
+        cases.write(self.root / 'spec.json', specification)
+        task['generation']['continuity'] = {'robot': 'one-off', 'partner': 'one-off'}
+        task['recording'].update(slot='episode.opening', sheet_panel=False,
+                                 subject_map={'robot': 'robot', 'partner': 'partner'})
+
+    def setUp(self):
+        from catalog_retrieval import runtime
+        home = tempfile.TemporaryDirectory(); self.addCleanup(home.cleanup)
+        self.enterContext(fixture.scratch_home(Path(home.name)))
+        self.addCleanup(runtime.configure_pack_runtime, None)
+        super().setUp()
+        self.record_review([('output', 'pass'), ('palette', 'pass')])
+        self.select()
+        import studio
+        studio.accept(self.root, 'robot', self.iteration)
+
+    def answered_draft(self, destination, directory):
+        from reading_fixtures import fixture_reading
+        result = production_inputs.draft_inputs(self.root, None, directory, route='generation',
+            execution='dispatcher', edit_character='robot', edit_slot='episode.opening')
+        choices = result['choices']; authored = choices['authoring']; task = authored['task']
+        self.assertEqual(result['edit_source']['source']['kind'], 'studio-accepted-image')
+        self.assertIsNone(result['edit_source']['identity'])
+        self.assertEqual(task['recording']['subject_map'], {'robot': 'robot', 'partner': 'partner'})
+        self.assertEqual(authored['generation']['continuity'], {'robot': 'one-off', 'partner': 'one-off'})
+        self.assertEqual([row['id'] for row in authored['documents']['production_spec']['subjects']], ['robot', 'partner'])
+        reading = fixture_reading(route='generation', features=task['features'], studio=self.root,
+            ledger=self.root / 'work/reads.jsonl', execution='dispatcher', model=cases.MODEL_ID, service='synthetic')
+        choices['reading']['reading_key'] = reading['reading_key']
+        prompt = ('Edit the supplied scene: make the backdrop pale green. Preserve both robots, their positions, '
+                  'the camera framing and the flat graphic finish.')
+        cases.write(self.root / authored['delivery']['file'], prompt)
+        task['direction'].update(purpose='Change the two-subject scene backdrop.',
+                                 intended_effect='Both existing participants remain in the edited scene.')
+        task['criteria'] = [
+            {'id': 'backdrop', 'strength': 'hard', 'evidence': 'image', 'text': 'The backdrop is pale green.'},
+            {'id': 'participants', 'strength': 'hard', 'evidence': 'image',
+             'text': 'Both source robots, their positions, camera framing and flat graphic finish remain unchanged.'}]
+        task['recording'].update(slot=destination, sheet_panel=False, role='scene-edit')
+        authored['documents']['production_spec']['render_intent']['prompt_expression'] = 'flat graphic finish'
+        plan = c.load(self.root / choices['task_changes']['semantic_edit'])
+        plan['edit'].update(target='scene backdrop', change='make the backdrop pale green',
+                            preserve=['both source robots', 'subject positions', 'camera framing', 'flat graphic finish'])
+        plan['review_criteria'] = ['backdrop', 'participants']
+        cases.write(self.root / choices['task_changes']['semantic_edit'], plan)
+        cases.write(self.root / result['choices_file'], choices)
+        return result
+
+    def test_same_slot_and_deliberate_new_slot_preserve_both_subjects_without_sheet_adoption(self):
+        import studio
+        self.assertNotIn('episode.opening', studio.StudioRead(self.root).sheet('robot')['slots'])
+        for destination in ('episode.opening', 'episode.alternate'):
+            with self.subTest(destination=destination):
+                draft = self.answered_draft(destination, 'work/' + destination)
+                result = workflow.prepare(self.root, choices=draft['choices_file'])
+                self.assertTrue(result['ok'], result)
+                loaded = workflow.load_run(self.root, result['run'])
+                self.assertEqual(loaded[1]['task']['recording']['slot'], destination)
+                self.assertEqual(loaded[2]['semantic_edit']['source'], 'edit-source')
+                package = c.load(Path(result['package']))
+                self.assertEqual(set(package['visual_continuity']['subjects']), {'robot', 'partner'})
+                self.assertEqual(package['visual_continuity']['purpose'], 'image')
+                self.assertEqual(studio.acceptance_state(self.root, 'robot', 'episode.opening')['iteration_id'], self.iteration)
+
+    def test_an_adopted_scene_does_not_become_a_single_subject_panel(self):
+        import adoption_workflow
+        approval = adoption_workflow.draft_approval(self.root, 'robot', self.iteration, scope='sheet', influence='environment')
+        approval.update(by=fixture.ACTOR, at='2000-01-01T00:00:00Z', note='Synthetic adoption of the whole two-subject scene.')
+        cases.write(self.root / 'scene-approval.json', approval)
+        token = fixture.grant(self.root, self.run, workflow.adoption_intent(
+            self.root, self.run, self.candidate, 'robot', self.iteration, approval))
+        workflow.adopt(self.root, self.run, self.candidate, 'robot', self.iteration, 'scene-approval.json', token)
+        draft = self.answered_draft('episode.opening', 'work/adopted-scene-edit')
+        result = workflow.prepare(self.root, choices=draft['choices_file'])
+        self.assertTrue(result['ok'], result)
+        package = c.load(Path(result['package']))
+        self.assertEqual(set(package['visual_continuity']['subjects']), {'robot', 'partner'})
+
+    def test_acceptance_change_during_upload_stops_before_a_new_send(self):
+        import production_execution as execution
+        import production_store as store
+        import studio
+        import studio_reference
+        import transport_synthetic as transport
+        from test_production_execution import decisions
+
+        draft = self.answered_draft('episode.alternate', 'work/send-boundary')
+        prepared = workflow.prepare(self.root, choices=draft['choices_file'])
+        run = prepared['run']
+        approved = decisions(self.root, run)
+        source = draft['edit_source']['source']
+        original_upload = transport.upload_media
+
+        def replace_acceptance(*args, **kwargs):
+            uploaded = original_upload(*args, **kwargs)
+            replacement = studio.iterate(self.root, 'robot', 'episode.opening', Path(source['resolved_path']),
+                package=None, request=None, response=None, note='Synthetic replacement with identical source bytes.')
+            studio.accept(self.root, 'robot', replacement['iteration_id'])
+            return uploaded
+
+        with patch.object(transport, 'upload_media', side_effect=replace_acceptance), \
+             patch.object(transport, 'send', side_effect=AssertionError('A stale accepted scene must not be sent')) as send:
+            with self.assertRaisesRegex(ValueError, 'STUDIO_REFERENCE_CHANGED'):
+                execution.execute(self.root, run, decisions_file=approved)
+        self.assertEqual(send.call_count, 0)
+        operations = [row['data']['operation'] for row in store.event_rows(self.root, run)
+                      if row['event'] == 'external-step']
+        self.assertEqual(operations, ['upload'])
+        directory, saved, _, _ = workflow.load_run(self.root, run)
+        self.assertIn(source, saved['studio_reference_sources'])
+        proof = next(directory.glob('package.*.references/studio/' + source['proof_sha256'] + '/proof.json'))
+        studio_reference.validate_source(source, active=False, source_archive=proof.parent.parent.parent / 'sources')
+
+    def test_accepted_scene_reference_preparation_is_independent_of_prompt_form(self):
+        import pack_manager
+        import studio_reference
+        from model_prompt_input_fixtures import prompt_input
+        from prepare_generation_references import prepare_references
+        from catalog_retrieval import runtime
+        models = c.load(self.case['pack'] / 'records/models.json')
+        tagged = copy.deepcopy(models['records'][0]); tagged['id'] = 'cpb-synthetic-tags'
+        tagged['label'] = 'Synthetic tagged reference fixture'; tagged['aliases'] = ['synthetic tagged fixture']
+        tagged['prompt_input'] = prompt_input('tag-based', vocabularies=('danbooru',))
+        tagged['prompt_dialect'] = 'fixture-family'
+        models['records'].append(tagged)
+        cases.write(self.case['pack'] / 'records/models.json', models)
+        pack_manager.write_lock(self.case['pack']); runtime.configure_pack_runtime(self.case['settings'])
+        source = studio_reference.current_accepted_source(self.root, 'robot', 'episode.opening')
+        for model in (cases.MODEL_ID, tagged['id']):
+            with self.subTest(model=model):
+                references = prepare_references([{'role': 'scene', 'source': source}], model=model,
+                    output_dir=self.root / 'work' / model)
+                self.assertEqual(references['selected_references'][0]['source'], source)
+
+
+class InheritedIdentityEditTests(unittest.TestCase):
+    def test_scene_edit_carries_exact_identity_reference_scope_and_guidance(self):
+        import production_execution as execution
+        import studio
+        import studio_reference_fixtures as reference_fixtures
+        from prepare_generation_references import prepare_references
+        from test_production_execution import decisions
+
+        case = reference_fixtures.adopted_case(self)
+        root = case.root
+        task, canonical = reference_fixtures.reference_task(case)
+        run = workflow.prepare(root, task)['run']
+        output = execution.execute(root, run, decisions_file=decisions(root, run))
+        candidate = output['runs'][0]['candidates'][0]
+        review = workflow.draft_review(root, run, candidate)
+        review.update(reviewer=fixture.ACTOR, observations=[{
+            'evidence': 'candidate', 'locator': {'kind': 'whole'},
+            'observation': 'The local synthetic PNG is captured.',
+            'interpretation': 'Protocol fixture only.', 'limitations': ['No visual quality or user approval.']}],
+            conclusion='Synthetic reference scene is selected.')
+        for check in review['checks']:
+            check.update(verdict='pass', observation_indices=[0], reason='Explicit synthetic fixture assessment.')
+        cases.write(root / 'inherited-review.json', review)
+        workflow.review(root, run, 'inherited-review.json')
+        selection = workflow.draft_selection(root, run, candidate)
+        selection['reason'] = 'Synthetic acceptance of a scene that uses an independently adopted identity.'
+        fixture.selection(root, run, selection)
+        cases.write(root / 'inherited-selection.json', selection)
+        workflow.select(root, run, 'inherited-selection.json')
+        iteration = next(row for row in studio.StudioRead(root).iterations('robot')
+                         if (row.get('production') or {}).get('candidate') == candidate)
+        studio.accept(root, 'robot', iteration['iteration_id'])
+
+        result = production_inputs.draft_inputs(root, None, 'work/inherited-edit', route='generation',
+            execution='dispatcher', edit_character='robot', edit_slot='scene.result')
+        authored = result['choices']['authoring']
+        self.assertIsNone(result['edit_source']['identity'])
+        self.assertEqual(result['edit_source']['source']['kind'], 'studio-accepted-image')
+        self.assertIn('recurring-identity', authored['task']['features'])
+        self.assertEqual(authored['task']['recording']['subject_map'], {'C01': 'robot'})
+        self.assertEqual(authored['generation']['continuity'], {'C01': 'recurring'})
+        selected = authored['references']['additional_references']
+        self.assertEqual(selected[1]['source'], canonical)
+        self.assertEqual(selected[1]['subject_uses'], [{'subject_id': 'C01', 'use': 'identity', 'priority': 0}])
+        rebuilt = prepare_references([{key: value for key, value in row.items() if key != 'id'} for row in selected],
+            model=cases.MODEL_ID, output_dir=root / 'work/inherited-reference-check')
+        original = c.load(root / 'studio-references.json')['selected_references'][0]
+        self.assertEqual(rebuilt['selected_references'][1]['authority'], original['authority'])
 
 
 if __name__ == '__main__':

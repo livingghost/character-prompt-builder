@@ -600,21 +600,40 @@ def material_runs(root: Path) -> dict[str, list[dict]]:
 def material_iterations(root: Path) -> dict[str, list[dict]]:
     """The studio iterations whose Generation Package used each material, by its content hash.
 
-    Only what exists is read, and a damaged row or package is skipped.
+    A damaged line or package does not hide readable usage. One Studio read
+    supplies placement events and Production records for this navigation view;
+    it is not an acceptance or canonical-authority check.
     """
     used: dict[str, list[dict]] = {}
     characters = root / 'characters'
     if not characters.is_dir():
         return used
-    for log in sorted(characters.glob('*/iterations.jsonl')):
+    import studio
+    try:
+        read = studio.StudioRead(root)
+    except (ValueError, OSError, KeyError, TypeError, UnicodeError):
+        return used
+    for character in read.characters:
         try:
-            lines = log.read_text(encoding='utf-8').splitlines()
-        except (OSError, UnicodeError):
+            lines = (read.home(character) / 'iterations.jsonl').read_text(encoding='utf-8').splitlines()
+        except (ValueError, OSError, KeyError, TypeError, UnicodeError):
             continue
+        import studio_placement
+        rows = []
         for line in lines:
             try:
-                from studio import project_iterations
-                row = project_iterations(log.parent, [json.loads(line)])[0]
+                row = json.loads(line)
+                studio_placement.initial(row)
+                rows.append(row)
+            except (ValueError, KeyError, TypeError, AttributeError):
+                continue
+        try:
+            placed = studio_placement.project(character, rows, read.placement_records(character))
+            rows = studio.project_production_decisions(placed, read=read)
+        except (ValueError, OSError, KeyError, TypeError):
+            continue
+        for row in rows:
+            try:
                 package = m.decode(m.read(m.local(root, row['package']['path'])))
                 materials = package['production_binding']['consumer']['authoring_materials']
                 hashes = {item['content_sha256'] for item in materials}
@@ -622,7 +641,7 @@ def material_iterations(root: Path) -> dict[str, list[dict]]:
                 continue
             for digest in sorted(hashes):
                 used.setdefault(digest, []).append({
-                    'character': row.get('character', log.parent.name), 'slot': row.get('slot'),
+                    'character': row.get('character', character), 'slot': studio.placement_slot(row),
                     'iteration_id': row.get('iteration_id'), 'status': row.get('status'),
                     'accepted': row.get('status') == 'accepted'})
     return used

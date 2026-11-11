@@ -125,6 +125,106 @@ class AdoptionTests(unittest.TestCase):
     def adopt(self,token):
         return workflow.adopt(self.root,self.run,self.candidate,'robot',self.row['iteration_id'],'approval.json',token)
 
+    def withdraw_adoption(self):
+        import sheet_artifacts as fills
+        from sheet_artifacts_smoke_test import withdrawal_decision
+        sheet = studio.character_home(self.root, 'robot') / 'sheet/sheet-data.json'
+        choice = withdrawal_decision(sheet, studio.placement_slot(self.row))
+        return fills.withdraw(sheet, choice, evidence_root=sheet.parent)
+
+    def test_withdrawal_preserves_production_selection_acceptance_and_historical_completion(self):
+        self.select()
+        self.adopt(self.authorize_adoption())
+        self.select_adoption()
+        completed = workflow.complete(self.root, self.run)
+        rows = store.event_rows(self.root, self.run)
+        iterations = (studio.character_home(self.root, 'robot') / 'iterations.jsonl').read_bytes()
+        source = studio_reference.current_source(self.root, 'robot', self.row['slot'])
+        self.withdraw_adoption()
+        self.assertEqual(store.event_rows(self.root, self.run), rows)
+        self.assertEqual((studio.character_home(self.root, 'robot') / 'iterations.jsonl').read_bytes(), iterations)
+        self.assertEqual(workflow.verify_completion(self.root, self.run, self.task['task_id']), completed)
+        with self.assertRaisesRegex(ValueError, 'no current accepted'):
+            studio_reference.validate_source(source)
+        index = adoption_workflow.reference_index(self.root, 'robot')
+        self.assertTrue(index['ok'], index['errors'])
+        self.assertEqual(index['bindings'][0]['status'], 'withdrawn')
+        self.assertIsNone(index['bindings'][0]['image_path'])
+
+    def test_withdrawal_of_superseded_production_adoption_preserves_its_completed_evidence(self):
+        self.select()
+        self.adopt(self.authorize_adoption())
+        self.select_adoption()
+        completed = workflow.complete(self.root, self.run)
+        records = store.event_rows(self.root, self.run)
+        home = studio.character_home(self.root, 'robot')
+        journal = home / 'adoptions' / (self.row['iteration_id'] + '.json')
+        original_journal = journal.read_bytes()
+        source = studio_reference.current_source(self.root, 'robot', self.row['slot'])
+        replacement = studio.iterate(self.root, 'robot', self.row['slot'], self.root / self.row['result']['path'],
+            package=None, request=None, response=None, note='Synthetic later acceptance has its own import origin.')
+        studio.accept(self.root, 'robot', replacement['iteration_id'])
+        accepted = studio.acceptance_state(self.root, 'robot', self.row['slot'])
+        iterations = (home / 'iterations.jsonl').read_bytes()
+        with self.assertRaisesRegex(ValueError, 'incomplete or no longer accepted'):
+            studio_reference.validate_source(source)
+        self.withdraw_adoption()
+        self.assertEqual(studio.acceptance_state(self.root, 'robot', self.row['slot']), accepted)
+        self.assertEqual((home / 'iterations.jsonl').read_bytes(), iterations)
+        self.assertEqual(journal.read_bytes(), original_journal)
+        self.assertEqual(store.event_rows(self.root, self.run), records)
+        self.assertEqual(workflow.verify_completion(self.root, self.run, self.task['task_id']), completed)
+
+    def test_new_approval_after_withdrawal_retains_old_result_and_old_retry_cannot_restore_it(self):
+        self.select()
+        original_token = self.authorize_adoption()
+        original_result = self.adopt(original_token)
+        original_rows = store.event_rows(self.root, self.run)
+        old_source = studio_reference.current_source(self.root, 'robot', self.row['slot'])
+        self.withdraw_adoption()
+        new_approval = {**self.approval, 'at': '2026-11-11T03:00:00Z',
+                        'note': 'Synthetic author makes a new canonical decision after withdrawal.'}
+        f.write(self.root / 'new-approval.json', new_approval)
+        intent = workflow.adoption_intent(self.root, self.run, self.candidate, 'robot', self.row['iteration_id'], new_approval)
+        token = fixture.grant(self.root, self.run, intent)
+        workflow.adopt(self.root, self.run, self.candidate, 'robot', self.row['iteration_id'], 'new-approval.json', token)
+        new_source = studio_reference.current_source(self.root, 'robot', self.row['slot'])
+        self.assertEqual(new_source['artifact_id'], old_source['artifact_id'])
+        self.assertNotEqual(new_source['acceptance_sha256'], old_source['acceptance_sha256'])
+        rows = store.event_rows(self.root, self.run)
+        self.assertEqual(rows[:len(original_rows)], original_rows)
+        self.assertEqual(sum(row['event'] == 'adoption-result' for row in rows), 2)
+        self.assertEqual(self.adopt(original_token), original_result)
+        self.assertEqual(studio_reference.current_source(self.root, 'robot', self.row['slot']), new_source)
+        self.assertEqual(len(studio.read_iterations(studio.character_home(self.root, 'robot'))), 1)
+
+    def test_withdrawal_then_placement_correction_uses_a_new_adoption_of_the_same_candidate(self):
+        import studio_placement
+        self.select()
+        self.adopt(self.authorize_adoption())
+        original = store.event_rows(self.root, self.run)
+        self.withdraw_adoption()
+        move = studio_placement.draft(self.root, 'robot', self.row['iteration_id'], 'canon.corrected')
+        move.update(by=fixture.ACTOR, at='2026-11-11T04:00:00Z',
+                    reason='Synthetic author corrects placement while preserving the original recorded slot.')
+        studio_placement.reassign(self.root, move)
+        approval = adoption_workflow.draft_approval(self.root, 'robot', self.row['iteration_id'],
+                                                   scope='sheet', influence='identity')
+        approval.update(by=fixture.ACTOR, at='2026-11-11T05:00:00Z',
+                        continuity_decision=self.approval['continuity_decision'])
+        self.assertEqual(approval['slot'], 'canon.corrected')
+        f.write(self.root / 'corrected-approval.json', approval)
+        intent = workflow.adoption_intent(self.root, self.run, self.candidate, 'robot', self.row['iteration_id'], approval)
+        token = fixture.grant(self.root, self.run, intent)
+        workflow.adopt(self.root, self.run, self.candidate, 'robot', self.row['iteration_id'], 'corrected-approval.json', token)
+        source = studio_reference.current_source(self.root, 'robot', 'canon.corrected')
+        self.assertEqual(source['sha256'], self.row['result']['sha256'])
+        self.assertEqual(studio.read_iteration_records(studio.character_home(self.root, 'robot'))[0]['slot'], self.row['slot'])
+        self.assertEqual(store.event_rows(self.root, self.run)[:len(original)], original)
+        self.select_adoption()
+        completed = workflow.complete(self.root, self.run)
+        self.assertEqual(workflow.verify_completion(self.root, self.run, self.task['task_id']), completed)
+
     def close_selected(self,kind):
         self.select()
         studio.accept(self.root,'robot',self.row['iteration_id'])
@@ -509,6 +609,11 @@ class AdoptionTests(unittest.TestCase):
             studio_reference.current_source(self.root, 'robot', 'base.front')
         self.assertEqual((current.exception.diagnostic.code, current.exception.diagnostic.required_action),
                          ('ADOPTION_RESULT_MISSING', action))
+        import sheet_artifacts as fills
+        with self.assertRaises(ProductionError) as withdrawal:
+            fills.draft_withdrawal(studio.character_home(self.root, 'robot') / 'sheet/sheet-data.json', 'base.front')
+        self.assertEqual((withdrawal.exception.diagnostic.code, withdrawal.exception.diagnostic.required_action),
+                         ('ADOPTION_RESULT_MISSING', action))
         binding = adoption_workflow.reference_index(self.root, 'robot')['bindings'][0]
         self.assertEqual((binding['next_action'], binding['adoption']['diagnostics'][-1]['required_action']),
                          ('record-adoption-result', action))
@@ -599,8 +704,9 @@ class AdoptionTests(unittest.TestCase):
     def assert_names_adopt(self, error, token, code, approval='approval.json'):
         diagnostic = error.diagnostic
         self.assertEqual(diagnostic.code, code)
-        for part in ('production_workflow.py adopt --run ' + self.run, '--candidate ' + self.candidate,
-                     '--iteration ' + self.row['iteration_id'], '--approval ' + approval, '--authorization ' + token):
+        claim = next(row for row in store.event_rows(self.root, self.run)
+                     if row['event'] == 'adoption-claim' and token in row['data']['authorizations'])
+        for part in ('production_workflow.py adopt --run ' + self.run, '--claim ' + claim['sha256']):
             self.assertIn(part, diagnostic.required_action)
 
     def assert_names_restoring_adopt(self, error, token, approval='approval.json'):
@@ -673,7 +779,9 @@ class AdoptionTests(unittest.TestCase):
         studio.accept(self.root, 'robot', imported['iteration_id'])
         path.write_bytes(path.read_bytes()[:40])
         errors = adoption_workflow.reference_index(self.root, 'robot')['errors']
-        self.assertTrue(any(path.name in error and '--authorization ' + token in error for error in errors), errors)
+        claim = next(row for row in store.event_rows(self.root, self.run)
+                     if row['event'] == 'adoption-claim' and token in row['data']['authorizations'])
+        self.assertTrue(any(path.name in error and '--claim ' + claim['sha256'] in error for error in errors), errors)
         with patch.object(adoption_workflow, 'adopt', side_effect=AssertionError('The owner adoption must not run again')):
             self.assertEqual(self.adopt(token), record)
         self.assertEqual(c.load(path), {key: value for key, value in record['data']['result'].items() if key != 'ok'})
@@ -707,7 +815,7 @@ class AdoptionTests(unittest.TestCase):
             studio_reference.current_source(self.root, 'robot', 'base.front')
         self.assert_names_restoring_adopt(caught.exception, catalog_token, 'catalog-approval.json')
         self.assertIn('earlier adoption', caught.exception.diagnostic.message)
-        self.assertIn('--pack-dir', caught.exception.diagnostic.required_action)
+        self.assertIn('pack runtime arguments', caught.exception.diagnostic.required_action)
         self.assertEqual(adoption_workflow.reference_index(self.root, 'robot')['bindings'][0]['next_action'],
                          'repair-reference')
         with patch.object(adoption_workflow, 'adopt', side_effect=AssertionError('The owner adoption must not run again')):
@@ -775,8 +883,10 @@ class AdoptionTests(unittest.TestCase):
         self.assertFalse(path.exists())
         with self.assertRaises(ProductionError) as caught:
             studio_reference.current_source(self.root, 'robot', 'base.front')
-        self.assertIn('--authorization ' + catalog_token, caught.exception.diagnostic.required_action)
-        self.assertIn('--pack-dir', caught.exception.diagnostic.required_action)
+        claim = next(row for row in store.event_rows(self.root, self.run)
+                     if row['event'] == 'adoption-claim' and catalog_token in row['data']['authorizations'])
+        self.assertIn('--claim ' + claim['sha256'], caught.exception.diagnostic.required_action)
+        self.assertIn('pack runtime arguments', caught.exception.diagnostic.required_action)
         with patch.object(adoption_workflow, 'adopt', side_effect=AssertionError('The owner adoption must not run again')):
             self.assertEqual(promote(), promoted)
         self.assertEqual(c.load(path), later)

@@ -666,7 +666,7 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
                 blobs[c.digest(raw)]=raw
         prepared['dependencies']=sorted(known.values(),key=lambda d:(d['space'],d['path']))
         studio_sources=[copy.deepcopy(row['source']) for row in reference_set['selected_references']
-                        if row['source']['kind']=='studio-artifact']
+                        if row['source']['kind'] in {'studio-artifact', 'studio-accepted-image'}]
         if studio_sources:prepared['studio_reference_sources']=studio_sources
     with stage('request-compilation'):
         media=None
@@ -720,7 +720,8 @@ def _external_reference_evidence(prepared: dict, consumer: dict, directory: Path
             known[('evidence', relative)] = dependency('evidence', relative, raw)
             blobs[carrier['sha256']] = raw
     sources = {c.content_id(row['source']): copy.deepcopy(row['source'])
-               for row in canonical.get('selected_references', []) if row['source']['kind'] == 'studio-artifact'}
+               for row in canonical.get('selected_references', [])
+               if row['source']['kind'] in {'studio-artifact', 'studio-accepted-image'}}
     if sources:
         from studio_reference import archive_source
         companion = directory / 'image-input.references'

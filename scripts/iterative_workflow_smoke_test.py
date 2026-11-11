@@ -322,6 +322,146 @@ class StudioIterationTests(unittest.TestCase):
         self.assertIn('work-note', (self.root/'work/activity/timeline.md').read_text(encoding='utf-8'))
         self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
 
+    def three_characters(self):
+        self.import_image('first')
+        for character in ('owl', 'fox'):
+            studio.add_character(self.root, character, '')
+            studio.iterate(self.root, character, 'base.front', self.root.parent/'first.png',
+                package=None, request=None, response=None, note='Synthetic ' + character)
+        self.assertTrue(activity.refresh(self.root)['ok'])
+
+    def test_artwork_mutation_projects_only_its_structural_character_scope(self):
+        import adoption_workflow
+        self.three_characters()
+        original = studio.StudioRead.iterations
+        with (patch.object(studio.StudioRead, 'iterations', autospec=True, side_effect=original) as rows,
+              patch.object(adoption_workflow, '_reference_index', wraps=adoption_workflow._reference_index) as references):
+            self.import_image('second')
+        self.assertEqual([call.args[1] for call in rows.call_args_list], ['robot'])
+        self.assertEqual([call.args[1] for call in references.call_args_list], ['robot'])
+        self.assertEqual({entry['character'] for entry in c.load(self.root/'gallery.json')['entries']}, {'robot', 'owl', 'fox'})
+        self.assertIsNone(studio.gallery_stale(self.root))
+
+    def test_status_observes_manual_current_iteration_and_image_changes(self):
+        row = self.import_image('current')
+        home = self.root/'characters/robot'
+        records = studio.read_iteration_records(home)
+        records[0]['note'] = 'Observed manual source edit without an activity event.'
+        studio.write_iterations(home, records)
+        self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
+        text = studio.status(self.root)
+        self.assertIn(records[0]['note'], text)
+        self.assertEqual(c.load(self.root/'gallery.json')['entries'][0]['note'], records[0]['note'])
+        (self.root/row['result']['path']).write_bytes(b'Damaged current image')
+        text = studio.status(self.root)
+        self.assertIn('recorded image bytes changed', text)
+        self.assertEqual(c.load(self.root/'gallery.json')['entries'][0]['availability'], 'unavailable')
+
+    def test_status_observes_current_sheet_approval_and_sidecar_without_dirty_receipts(self):
+        accepted(self.sheet, marker='current')
+        state = c.load(self.sheet)
+        approval = state['slots']['canon.primary']['current']['approval']
+        path = self.sheet.parent/approval['decision_path']
+        value = c.load(path)
+        value['reason'] = 'Changed outside the approval owner.'
+        c.atomic_write_json(path, value)
+        self.assertFalse((self.root/'work/activity/projections-pending.json').exists())
+        self.assertIn('sheet approval differs', studio.status(self.root))
+        self.assertEqual(c.load(self.root/'gallery.json')['entries'][0]['availability'], 'unavailable')
+        self.sheet.write_bytes(b'not a sheet sidecar')
+        self.assertIn('artwork problem robot:', studio.status(self.root))
+        self.assertTrue(c.load(self.root/'gallery.json')['diagnostics'])
+
+    def test_scoped_refresh_repairs_deleted_and_damaged_owned_output_completely(self):
+        self.three_characters()
+        entries = c.load(self.root/'gallery.json')['entries']
+        owl = next(entry for entry in entries if entry['character'] == 'owl')
+        path = studio_gallery.detail_file(self.root/'gallery.html', owl['entry_id'])
+        original = studio.StudioRead.iterations
+        for damage in ('deleted', 'changed', 'assets-deleted'):
+            with self.subTest(damage=damage):
+                if damage == 'deleted':
+                    path.unlink()
+                elif damage == 'assets-deleted':
+                    shutil.rmtree(self.root/'gallery.assets')
+                else:
+                    path.write_bytes(b'Changed generated detail')
+                with patch.object(studio.StudioRead, 'iterations', autospec=True, side_effect=original) as rows:
+                    result = activity.changed(self.sheet, 'synthetic-owner-change', revision=damage)
+                self.assertTrue(result['ok'], result)
+                self.assertEqual({call.args[1] for call in rows.call_args_list}, {'robot', 'owl', 'fox'})
+                self.assertIsNone(studio.gallery_stale(self.root))
+
+    def test_scoped_refresh_refuses_foreign_gallery_ownership(self):
+        self.import_image('current')
+        owner = self.root/'gallery.assets/owner.json'
+        foreign = {'kind': 'another-project-output', 'studio_id': 'another-project', 'view': 'gallery.html'}
+        c.atomic_write_json(owner, foreign)
+        result = activity.changed(self.sheet, 'synthetic-owner-change', revision='foreign')
+        self.assertFalse(result['ok'])
+        self.assertEqual(c.load(owner), foreign)
+        self.assertTrue(list((self.root/'work/activity/dirty/gallery').glob('*')))
+
+    def test_ownerless_foreign_gallery_output_is_not_overwritten(self):
+        self.import_image('current')
+        shutil.rmtree(self.root/'gallery.assets')
+        (self.root/'gallery.json').unlink()
+        page = self.root/'gallery.html'
+        page.write_text('An unrelated authored page.', encoding='utf-8')
+        result = activity.changed(self.sheet, 'synthetic-owner-change', revision='foreign-page')
+        self.assertFalse(result['ok'])
+        self.assertEqual(page.read_text(encoding='utf-8'), 'An unrelated authored page.')
+
+    def test_concurrent_scoped_receipt_retains_its_character_for_next_publication(self):
+        self.three_characters()
+        activity.event(self.root, 'synthetic-change', 'robot', revision='first',
+                       views={'gallery'}, characters={'robot'})
+        original_publish = studio.write_gallery
+        original_rows = studio.StudioRead.iterations
+        def concurrent(root, *args, **kwargs):
+            result = original_publish(root, *args, **kwargs)
+            activity.event(root, 'synthetic-change', 'owl', revision='later',
+                           views={'gallery'}, characters={'owl'})
+            return result
+        with patch.object(studio, 'write_gallery', side_effect=concurrent):
+            self.assertTrue(activity.refresh(self.root, views={'gallery'}, scoped=True)['ok'])
+        pending = list((self.root/'work/activity/dirty/gallery').glob('*'))
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(c.load(pending[0]), {'characters': ['owl']})
+        with patch.object(studio.StudioRead, 'iterations', autospec=True, side_effect=original_rows) as rows:
+            self.assertTrue(activity.refresh(self.root, views={'gallery'}, scoped=True)['ok'])
+        self.assertEqual([call.args[1] for call in rows.call_args_list], ['owl'])
+        self.assertFalse(list((self.root/'work/activity/dirty/gallery').glob('*')))
+
+    def test_failed_event_queue_retains_exact_character_scope(self):
+        self.three_characters()
+        with patch.object(activity, 'event', side_effect=OSError('Synthetic receipt failure')):
+            pending = activity.changed(self.sheet, 'synthetic-change', revision='queued')
+        self.assertTrue(pending['retry_receipt_saved'])
+        original = studio.StudioRead.iterations
+        with patch.object(studio.StudioRead, 'iterations', autospec=True, side_effect=original) as rows:
+            self.assertTrue(activity.refresh(self.root, scoped=True)['ok'])
+        self.assertEqual([call.args[1] for call in rows.call_args_list], ['robot'])
+
+    def test_one_reference_output_failure_does_not_skip_healthy_characters(self):
+        self.three_characters()
+        paths = {character: self.root/'characters'/character/'sheet/active-references.json'
+                 for character in ('robot', 'owl', 'fox')}
+        for path in paths.values():
+            path.unlink()
+        original = c.atomic_write_json
+        def blocked(path, *args, **kwargs):
+            if path == paths['robot']:
+                raise OSError('Synthetic one-character output failure')
+            return original(path, *args, **kwargs)
+        with patch.object(c, 'atomic_write_json', side_effect=blocked):
+            report = activity.refresh(self.root, views={'active-references'})
+        self.assertFalse(report['ok'])
+        self.assertFalse(paths['robot'].exists())
+        self.assertTrue(paths['owl'].is_file())
+        self.assertTrue(paths['fox'].is_file())
+        self.assertTrue(list((self.root/'work/activity/dirty/active-references').glob('*')))
+
     def test_outer_operation_reports_deferred_display_failure(self):
         image = make_artifact(self.sheet)
         with patch.object(studio, 'write_gallery', side_effect=OSError('synthetic deferred failure')) as gallery:

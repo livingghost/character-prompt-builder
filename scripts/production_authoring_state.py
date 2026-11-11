@@ -11,7 +11,7 @@ from cli_invocation import python_argv, shown
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'scripts/production_workflow.py'
 READ_ERRORS = (OSError, ValueError, TypeError, KeyError, IndexError)
-DECISION_KINDS = frozenset({'execution', 'review', 'selection', 'acceptance', 'outcome'})
+DECISION_KINDS = frozenset({'execution', 'review', 'selection', 'acceptance', 'adoption', 'outcome'})
 _ANY_CONTEXT = object()
 
 
@@ -930,18 +930,22 @@ def inspect(root: Path, task: dict | None = None, *, read_run=None, choices: str
             branches[identity] = row
     candidates = list(branches.values())
     # Prepared choices remain history even when another branch became the
-    # task's latest run. Check every registered source rather than treating an
-    # older publication as new unsaved work.
+    # task's latest run. Compare those publications only when an editable
+    # choices source needs that history; unrelated runs do not inform an
+    # authoring view with no such source.
     import production_store
     publications = []
-    for saved_run in production_store.runs(root, task_id=task['task_id']):
-        try:
-            prepared = read_run(saved_run['run_id']).prepared
-            publication = prepared.get('authoring') or {}
-            if publication.get('choices_ref') is not None:
-                publications.append((saved_run['run_id'], publication['choices_ref']))
-        except READ_ERRORS as exc:
-            result['diagnostics'].append(_problem('production/' + saved_run['run_id'], exc))
+    has_choice_sources = any((row.get('working_copy', row).get('assembly_basis') or {}).get('choices')
+                             is not None for row in candidates)
+    if has_choice_sources:
+        for saved_run in production_store.runs(root, task_id=task['task_id']):
+            try:
+                prepared = read_run(saved_run['run_id']).prepared
+                publication = prepared.get('authoring') or {}
+                if publication.get('choices_ref') is not None:
+                    publications.append((saved_run['run_id'], publication['choices_ref']))
+            except READ_ERRORS as exc:
+                result['diagnostics'].append(_problem('production/' + saved_run['run_id'], exc))
     for row in candidates:
         current = row.get('working_copy', row)
         source = (current.get('assembly_basis') or {}).get('choices')

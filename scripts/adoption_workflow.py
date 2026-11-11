@@ -62,6 +62,36 @@ def _journal_path(home: Path, iteration: str) -> Path:
     return path
 
 
+def _preserve_record(home: Path, kind: str, value: dict) -> dict:
+    """Publish one immutable approval or prior adoption journal by its content."""
+    import execution_contract as contract
+    relative = f'adoptions/{kind}/{contract.content_id(value)}.json'
+    path = contract.local(home, relative, exists=False)
+    raw = contract.encoded(value)
+    try:
+        contract.atomic(path, raw)
+    except FileExistsError:
+        if contract.read(path) != raw:
+            raise ValueError('immutable adoption evidence changed: ' + relative) from None
+    return {'path': path.relative_to(home.parent.parent).as_posix(), 'sha256': contract.digest(raw)}
+
+
+def journal_withdrawal(read: studio.StudioRead, character: str, journal: dict) -> dict | None:
+    """Resolve the authored ending of this journal's exact sheet adoption."""
+    import sheet_artifacts as fills
+    accepted = (journal.get('sheet_binding') or {}).get('current')
+    if accepted is None:
+        return None
+    slot_id = journal['approval']['slot']
+    slot = read.sheet(character)['slots'].get(slot_id)
+    record = fills.withdrawn_acceptance(slot, accepted)
+    if record is None:
+        return None
+    decision = fills.verify_withdrawal(record, read.home(character) / 'sheet', slot_id, accepted,
+                                       cache=read.artifacts)
+    return {'receipt': copy.deepcopy(record), 'decision': decision}
+
+
 def journal_problem(value: Any) -> str | None:
     """What makes a decoded adoption journal unusable, or None when it is well-formed.
 
@@ -180,11 +210,7 @@ def _adopt_command(character: str, iteration: str, origin: dict[str, str], claim
     """The production_workflow.py adopt command of one recorded adoption claim, and whether it is a catalog adoption."""
     from cli_invocation import shown
     payload = claim["data"]["intent"]["payload"]
-    arguments = ["production_workflow.py", "adopt", "--run", origin["run"], "--candidate", payload["candidate"],
-                 "--character", character, "--iteration", iteration, "--approval", claim["data"]["files"][0]["path"],
-                 "--authorization", claim["data"]["authorizations"][0]]
-    if payload["pack_dir"] is not None:
-        arguments += ["--registration-record", "RECORD", "--pack-dir", payload["pack_dir"]]
+    arguments = ["production_workflow.py", "adopt", "--run", origin["run"], "--claim", claim['sha256']]
     return shown(arguments), payload["pack_dir"] is not None
 
 
@@ -195,12 +221,13 @@ def restore_action(character: str, iteration: str, origin: dict[str, str] | None
     `rows` are the events of the iteration's Production run, or None when that run cannot be read.
     """
     if origin is None:
-        return ("An imported iteration keeps its adoption record only in this file, so no command writes it again; "
-                "restore the file from a copy of this Studio.")
+        return ("The current imported adoption has no recorded Production result that can restore this journal; "
+                "restore the named file from a verified Studio copy. Earlier retained adoptions do not establish "
+                "the current decision.")
     if rows is None:
-        return (f"Once run {origin['run']} can be read, repeat the completed adoption of {iteration} with "
-                f"production_workflow.py adopt for that run and candidate {origin['candidate']}, with the approval and "
-                "authorization of that adoption. It writes this record again from the adoption result the run "
+        return (f"Once run {origin['run']} can be read, find the latest completed adoption claim of {iteration} "
+                f"and use production_workflow.py adopt --run {origin['run']} --claim CLAIM. "
+                "It writes this record again from the adoption result the run "
                 "recorded and does not adopt the image again.")
     claims, results = recorded_adoptions(rows, character, iteration)
     if not results:
@@ -209,7 +236,7 @@ def restore_action(character: str, iteration: str, origin: dict[str, str] | None
     command, catalog = _adopt_command(character, iteration, origin, claims[results[-1]["data"]["claim"]])
     return ("Repeat the completed adoption with " + command + ". It writes this record again from the "
             "adoption result the run recorded and does not adopt the image again."
-            + (" RECORD is the registration record file of that catalog adoption." if catalog else ""))
+            + (" Supply the catalog adoption's pack runtime arguments." if catalog else ""))
 
 
 def result_action(character: str, iteration: str, origin: dict[str, str], claim: dict[str, Any]) -> str:
@@ -221,19 +248,19 @@ def result_action(character: str, iteration: str, origin: dict[str, str], claim:
     command, catalog = _adopt_command(character, iteration, origin, claim)
     return ("Repeat that adoption with " + command + ". It finishes the adoption under that claim and records its "
             "result in the run; it starts no other adoption and adds no iteration."
-            + (" RECORD is the registration record file of that catalog adoption; give the pack runtime "
-               "arguments it was adopted with." if catalog else ""))
+            + (" Give the pack runtime arguments of that catalog adoption." if catalog else ""))
 
 
 def validate_approval(value: Any, character: str, row: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("adoption requires an explicit approval object")
     required = {"scope", "influence", "character", "iteration_id", "slot", "image_sha256", "by", "at"}
-    if required - set(value) or set(value) - required - {"note", "license", "registration_record_sha256", "continuity_decision"}:
-        raise ValueError("approval fields must be scope, influence, character, iteration_id, slot, image_sha256, by, at; optional note, license, registration_record_sha256 and continuity_decision")
+    if required - set(value) or set(value) - required - {"note", "license", "registration_record_sha256", "continuity_decision", "source_state", "authority_sha256"}:
+        raise ValueError("approval fields must be scope, influence, character, iteration_id, slot, image_sha256, by, at; optional note, license, registration_record_sha256, continuity_decision, source_state and authority_sha256")
     if value["scope"] not in SCOPES or value["influence"] not in INFLUENCES:
         raise ValueError("unknown adoption scope or influence")
-    expected = {"character": character, "iteration_id": row["iteration_id"], "slot": row["slot"],
+    slot = studio.placement_slot(row)
+    expected = {"character": character, "iteration_id": row["iteration_id"], "slot": slot,
                 "image_sha256": row["result"]["sha256"]}
     for key, item in expected.items():
         if value.get(key) != item:
@@ -242,9 +269,52 @@ def validate_approval(value: Any, character: str, row: dict[str, Any]) -> dict[s
         raise ValueError("approval requires who approved and the actual UTC approval timestamp")
     if "license" in value and (not isinstance(value["license"], str) or not value["license"].strip()):
         raise ValueError("license must be a nonempty explicit license identifier")
-    if value["influence"] != "identity" and row["slot"].startswith(("base.", "canon.")):
+    if value["influence"] != "identity" and slot.startswith(("base.", "canon.")):
         raise ValueError("base/canon identity slots cannot be replaced by outfit or scene references")
+    if 'source_state' in value:
+        import execution_contract as contract
+        contract.exact(value['source_state'], {'placement', 'slot_acceptance', 'adoption'}, 'adoption source state')
+        contract.sha(value['source_state']['placement'])
+        receipt = value['source_state']['slot_acceptance']
+        if receipt is not None:
+            contract.exact(receipt, {'iteration_id', 'image_sha256', 'acceptance_sha256'}, 'adoption slot receipt')
+            contract.text(receipt['iteration_id'], 'accepted iteration')
+            contract.sha(receipt['image_sha256'])
+            contract.sha(receipt['acceptance_sha256'])
+        if value['source_state']['adoption'] is not None:
+            contract.sha(value['source_state']['adoption'])
+    if 'authority_sha256' in value:
+        import execution_contract as contract
+        contract.sha(value['authority_sha256'])
     return copy.deepcopy(value)
+
+
+def _check_source_state(root: Path, character: str, row: dict, approval: dict, read: studio.StudioRead,
+                        journal: dict | None, production_claim: str | None) -> None:
+    """Bind a new authored destination; a pending owner may retain its own effects."""
+    expected = approval.get('source_state')
+    if expected is None:
+        return
+    import execution_contract as contract
+    from production_diagnostics import ProductionError
+    slot = studio.placement_slot(row)
+    accepted = studio.acceptance_state(root, character, slot, read=read)
+    current = (read.sheet(character)['slots'].get(slot) or {}).get('current')
+    actual = {'placement': row['placement']['sha256'], 'slot_acceptance': accepted,
+              'adoption': None if current is None else contract.content_id(current)}
+    own = (journal is not None and journal['approval'] == approval
+           and production_claim is not None and journal.get('production_claim') == production_claim)
+    same_slot = actual['slot_acceptance'] == expected['slot_acceptance'] or (
+        own and accepted is not None and accepted['iteration_id'] == row['iteration_id'])
+    same_adoption = actual['adoption'] == expected['adoption'] or (
+        own and current is not None and journal.get('sheet_decision') is not None
+        and current['approval']['decision_sha256'] == contract.content_id(journal['sheet_decision']))
+    if actual['placement'] != expected['placement'] or not same_slot or not same_adoption:
+        raise ProductionError('ADOPTION_DECISION_CHANGED',
+            'The adoption destination changed after the author decision.', phase='adoption',
+            expected=expected, actual=actual,
+            required_action='Inspect the current Studio destination and use draft-adoption for a new decision. '
+                            'A saved adoption never replaces a later placement or canonical choice.')
 
 
 def validate_registration_record(record: Any) -> dict[str, Any]:
@@ -269,10 +339,11 @@ def draft_approval(root: Path, character: str, iteration: str, *, scope: str, in
     read = studio.StudioRead(root)
     row = studio._find(read.iterations(character), iteration)
     require_adoption_source(root, character, row, read=read)
-    if influence != 'identity' and row['slot'].startswith(('base.', 'canon.')):
+    slot = studio.placement_slot(row)
+    if influence != 'identity' and slot.startswith(('base.', 'canon.')):
         raise ValueError('base/canon identity slots cannot be replaced by outfit or scene references')
     result = {'scope': scope, 'influence': influence, 'character': character,
-              'iteration_id': row['iteration_id'], 'slot': row['slot'],
+              'iteration_id': row['iteration_id'], 'slot': slot,
               'image_sha256': row['result']['sha256'], 'by': None, 'at': None}
     if scope == 'catalog':
         result['registration_record_sha256'] = digest(validate_registration_record(registration_record))
@@ -287,25 +358,23 @@ def _bind_sheet(root: Path, home: Path, row: dict[str, Any], approval: dict, jou
     sheet = home / 'sheet'
     sidecar_path = sheet / 'sheet-data.json'
     artifact = fills.from_iteration(root, row['character'], row, read=read)
+    slot_id = studio.placement_slot(row)
     # The adoption journal pins expected_current before its first bind. Retrying
     # does not replace a different selection made after that author decision.
     decision = journal.get('sheet_decision')
     if decision is None:
-        decision = fills.draft_adoption(sidecar_path, row['slot'], artifact['artifact_id'])
-        evidence_file = _journal_path(home, row['iteration_id']).with_suffix('.approval.json')
-        if evidence_file.exists() and studio.read_json(evidence_file) != approval:
-            raise ValueError('recorded adoption approval differs from its immutable evidence')
-        if not evidence_file.exists(): atomic_write_json(evidence_file, approval)
+        decision = fills.draft_adoption(sidecar_path, slot_id, artifact['artifact_id'])
+        evidence = _preserve_record(home, 'approvals', approval)
         decision.update(by=approval['by'], at=approval['at'],
             reason=approval.get('note') or 'Explicit author approval for the named Studio iteration.',
-            evidence={'path': evidence_file.relative_to(root).as_posix(), 'sha256': studio.sha256_file(evidence_file), 'locator': 'whole approval'})
+            evidence={**evidence, 'locator': 'whole approval'})
         if row.get('production'):
             decision['basis'] = {'kind': 'production', 'claim': journal['production_claim'], 'approval': approval}
         journal['sheet_decision'] = decision
         atomic_write_json(_journal_path(home, row['iteration_id']), journal)
     fills.adopt(sidecar_path, decision, evidence_root=root,
                 loaded=read.run(row['production']['run']) if read and row.get('production') else None)
-    return studio.read_json(sidecar_path)['slots'][row['slot']]
+    return studio.read_json(sidecar_path)['slots'][slot_id]
 
 
 def _registration(root: Path, row: dict[str, Any], journal: dict[str, Any], record: dict[str, Any], target: Path) -> dict[str, Any]:
@@ -416,10 +485,13 @@ def require_production_claim(root: Path, character: str, row: dict[str, Any], ap
     if request['actor'] != approval['by']:
         raise ValueError('adoption approver differs from the recorded authorized actor')
     if require_current:
-        workflow._permission(root, prepared, rows, tokens[0], **recorded['data']['intent'])
+        from execution_lifecycle import current_adoption_authorization
+        token, reassessed = current_adoption_authorization(rows, recorded)
+        current = workflow._permission(root, prepared, rows, token, **recorded['data']['intent'])
+        from production_adoption import require_approval_authority
+        require_approval_authority(root, prepared, approval, current, reassessed=reassessed, claim=claim)
         if not any(event['event'] == 'operation-start'
                    and event['data'].get('claim') == claim
-                   and event['data'].get('authorization_sha256') == tokens[0]
                    and event['data'].get('effect') == 'local-action' for event in rows):
             raise ValueError('the Production adoption claim has no recorded local operation boundary')
 
@@ -437,7 +509,7 @@ def require_adoption_source(root: Path, character: str, row: dict[str, Any], *,
         raise ValueError('record a new candidate before adopting a rejected or superseded iteration')
     if not row.get('result'):
         raise ValueError('iteration has no result')
-    studio.validate_recording_target(root, character, row['slot'], read=read)
+    studio.validate_recording_target(root, character, studio.placement_slot(row), read=read)
     origin = row.get('production')
     if origin is not None:
         import production_workflow as workflow
@@ -504,7 +576,7 @@ def preflight(root: Path, character: str, iteration: str, approval: Any, *,
     root = studio.require_studio(root).resolve()
     read = read or studio.StudioRead(root)
     home = read.home(character)
-    row = studio._find(read.iterations(character), iteration)
+    row = read.iteration(character, iteration)
     origin = row.get('production')
     if expected_production is not None and origin != expected_production:
         action = ('Use studio.py accept for slot acceptance or adoption_workflow.py adopt for sheet/catalog adoption.'
@@ -534,11 +606,29 @@ def preflight(root: Path, character: str, iteration: str, approval: Any, *,
         raise ValueError('registration arguments require catalog scope')
     path = _journal_path(home, iteration)
     rows = read.run(origin['run']).rows if origin is not None else None
+    journal = None
     if path.exists() or (rows is not None and recorded_adoptions(rows, character, iteration)[1]):
         journal = read.journal(character, iteration)
         if origin is not None:
             require_journal_agreement(journal, character, iteration, origin, rows)
         prior = journal['approval']
+        withdrawal = journal_withdrawal(read, character, journal)
+        if withdrawal is not None:
+            if prior == confirmed:
+                action = (f'Use production_workflow.py draft-adoption --run {origin["run"]} '
+                          f'--candidate {origin["candidate"]} --scope {confirmed["scope"]} '
+                          f'--influence {confirmed["influence"]} --out NEW-DECISION.json, record the actual '
+                          'new decision and apply it with adopt --file NEW-DECISION.json.' if origin else
+                          'Draft a new approval with adoption_workflow.py --studio STUDIO --character '
+                          + character + ' draft --iteration ' + iteration
+                          + ' --scope ' + confirmed['scope'] + ' --influence ' + confirmed['influence']
+                          + ' --out APPROVAL.json, record the actual new approval, and adopt under its own authority.')
+                raise ProductionError('INPUT_CONSISTENCY_ERROR',
+                    'This exact canonical adoption was withdrawn; an earlier approval cannot restore it.',
+                    phase='adoption', character=character, iteration=iteration,
+                    required_action=action)
+            _check_source_state(root, character, row, confirmed, read, journal, production_claim)
+            return row, confirmed
         promotion = (prior['scope'] == 'sheet' and confirmed['scope'] == 'catalog'
                      and all(prior[key] == confirmed[key]
                              for key in ('character', 'iteration_id', 'slot', 'image_sha256', 'influence')))
@@ -549,12 +639,13 @@ def preflight(root: Path, character: str, iteration: str, approval: Any, *,
         decision = journal.get('sheet_decision')
         if decision is not None:
             import execution_contract as contract
-            slot = read.sheet(character)['slots'][row['slot']]
+            slot = read.sheet(character)['slots'][studio.placement_slot(row)]
             current = slot['current']
             current_id = current['artifact']['artifact_id'] if current else None
             applied = current is not None and current['approval']['decision_sha256'] == contract.content_id(decision)
             if not applied and current_id != decision['expected_current']:
                 raise ValueError('current artwork changed after the adoption decision was drafted')
+    _check_source_state(root, character, row, confirmed, read, journal, production_claim)
     return row, confirmed
 
 
@@ -563,8 +654,9 @@ def adopt(root: Path, character: str, iteration: str, approval: Any, *,
           registration_record: dict[str, Any] | None = None, pack_dir: Path | None = None,
           settings: Any = None, production_claim: str | None = None) -> dict[str, Any]:
     root = studio.require_studio(root).resolve()
-    with studio.recording_lock(root, character=character):
-        home = studio.character_dir(root, character)
+    home = studio.character_dir(root, character)
+    import execution_contract as contract
+    with studio.recording_lock(root, character=character), contract.lock(home / 'sheet'):
         raw = studio._find(studio.read_iteration_records(home), iteration)
         origin = raw.get('production')
         from contextlib import nullcontext
@@ -579,10 +671,9 @@ def adopt(root: Path, character: str, iteration: str, approval: Any, *,
                 require_production_claim(root, character, raw, approval, production_claim)
                 _, _, _, records = workflow.read_run(root, origin['run'])
                 claim = workflow.find(records, 'adoption-claim', production_claim)
-                token = claim['data']['authorizations'][0]
+                token, _ = lifecycle.current_adoption_authorization(records, claim)
                 if not any(record['event'] == 'operation-start'
                            and record['data'].get('claim') == production_claim
-                           and record['data'].get('authorization_sha256') == token
                            and record['data'].get('effect') == 'local-action' for record in records):
                     lifecycle.begin(root, origin['run'], token, effect='local-action', claim=production_claim)
             # Starting changes the run revision. Carry the newly loaded values
@@ -591,16 +682,22 @@ def adopt(root: Path, character: str, iteration: str, approval: Any, *,
             row, confirmed = preflight(root, character, iteration, approval,
                 registration_record=registration_record, pack_dir=pack_dir, settings=settings,
                 production_claim=production_claim, require_claim=True, read=read)
-            studio.validate_recording_target(root, character, row['slot'], writable=True, read=read)
+            studio.validate_recording_target(root, character, studio.placement_slot(row), writable=True, read=read)
         path = _journal_path(home, iteration)
         journal = studio.read_json(path) if path.exists() else {
             "artifact_type": "studio-adoption", "approval": confirmed, "status": "pending",
             "next_action": "accept-candidate", "registration": None,
         }
+        _preserve_record(home, 'approvals', confirmed)
+        if journal['approval'] != confirmed and journal_withdrawal(read, character, journal) is not None:
+            previous = _preserve_record(home, 'history', journal)
+            journal = {'artifact_type': 'studio-adoption', 'approval': confirmed, 'status': 'pending',
+                       'next_action': 'accept-candidate', 'registration': None, 'previous_adoption': previous}
         # Promotion from sheet to catalog requires a new explicit catalog approval.
         if journal["approval"] != confirmed:
             if journal["approval"]["scope"] == "sheet" and confirmed["scope"] == "catalog" and all(
                 journal["approval"][k] == confirmed[k] for k in ("character", "iteration_id", "slot", "image_sha256", "influence")):
+                journal['previous_adoption'] = _preserve_record(home, 'history', journal)
                 journal["previous_approval"] = journal["approval"]
                 journal["approval"] = confirmed
             else:
@@ -731,7 +828,7 @@ def _reference_index(root: Path, character: str, *, read: studio.StudioRead) -> 
     sheet = home / "sheet"
     sidecar = read.sheet(character)
     rows = read.adoption_rows(character)
-    accepted = {row["slot"]: row for row in rows if row.get("status") == "accepted"}
+    accepted = {studio.placement_slot(row): row for row in rows if row.get("status") == "accepted"}
     errors: list[str] = []
     pending: list[dict[str, Any]] = []
     accepted_ids = {row["iteration_id"] for row in accepted.values()}
@@ -776,6 +873,12 @@ def _reference_index(root: Path, character: str, *, read: studio.StudioRead) -> 
             except ProductionError as exc:
                 damaged = from_exception(exc, phase='adoption-integrity')
         readiness = adoption_readiness(root, character, row, read=read)
+        withdrawal = None
+        if journal is not None:
+            try:
+                withdrawal = journal_withdrawal(read, character, journal)
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                damaged = from_exception(exc, phase='adoption-integrity')
         bound = current_artifact(sidecar["slots"].get(slot))
         has_binding = bool(bound and bound.get("image"))
         expected_origin = {'kind': 'production' if row.get('production') else 'external-import',
@@ -783,7 +886,7 @@ def _reference_index(root: Path, character: str, *, read: studio.StudioRead) -> 
                            **(row.get('production') or {})}
         bound_here = (has_binding and bound["image"]["sha256"] == row["result"]["sha256"]
                       and origin == expected_origin)
-        state = "sheet-bound" if bound_here else "candidate-accepted"
+        state = "sheet-bound" if bound_here else ("withdrawn" if withdrawal is not None else "candidate-accepted")
         if has_binding and not bound_here:
             errors.append(f"{slot}: latest accepted image is not bound to the sheet; resume adoption of {row['iteration_id']}")
         if journal and journal.get("next_action"):
@@ -821,7 +924,7 @@ def _reference_index(root: Path, character: str, *, read: studio.StudioRead) -> 
                            else 'repair-reference')
         elif bound_here:
             next_action = None if readiness['source_ready'] else readiness['next_action']
-        elif journal:
+        elif journal and withdrawal is None:
             next_action = 'repair-reference'
             errors.append(f"{slot}: the recorded adoption no longer has its sheet binding")
         else:
@@ -831,7 +934,8 @@ def _reference_index(root: Path, character: str, *, read: studio.StudioRead) -> 
                          "image_path": str((sheet / bound["image"]["path"]).resolve()) if bound_here else None,
                          "influence": journal["approval"]["influence"] if journal else None,
                          "registration": journal.get("registration") if journal else None,
-                         "adoption": readiness, "next_action": next_action})
+                         "adoption": readiness, "next_action": next_action,
+                         "withdrawal": withdrawal})
     return {"artifact_type": "studio-reference-index", "ok": not errors, "character": character,
             "bindings": bindings, "pending_adoptions": pending, "errors": errors}
 
@@ -901,7 +1005,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--character", required=True)
     add_pack_runtime_arguments(parser)
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("status")
+    sub.add_parser("status", help='report candidate-accepted, sheet-bound, catalog-registered, withdrawn or unavailable canonical scope',
+                   description='A withdrawn canonical scope retains Studio acceptance and its historical approval. A new adoption requires a new approval.')
     draft_parser = sub.add_parser('draft', help='bind the selected adoption subject for an actual approval')
     draft_parser.add_argument('--iteration', required=True)
     draft_parser.add_argument('--scope', required=True, choices=SCOPES)

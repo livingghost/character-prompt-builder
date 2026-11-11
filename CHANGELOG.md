@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026.11.11.6
+
+- Author a canonical adoption in one draft and apply that decision directly.
+  Derive approval, exact operation intent, authorization and recovery bindings
+  from the selected result and actual grant. Retain author judgments, current
+  placement checks and completed evidence without manual digest transcription.
+- Keep Studio navigation focused on current artwork and pending work. Publish
+  artwork updates for affected characters and repair deferred displays without
+  rebuilding unrelated story history; explicit sync retains complete repair.
+- Reuse a story timeline publication after checking its actual input contents,
+  discovered source membership, request and implementation. Rebuild when those
+  dependencies or the owned display change; display reuse grants no authority.
+- Avoid opening unrelated Production publications when the current authoring
+  view has no editable choices to compare with that history.
+
+## 2026.11.11.4
+
+- Correct a retained iteration's destination through authored, append-only
+  Studio reassignment. Preserve generation inputs, image bytes, reviews and
+  historical completion; recover acceptance and display updates without a new
+  generation or restoring an obsolete placement.
+- Edit Studio-accepted images with exact acceptance evidence without requiring
+  canonical adoption. Keep scene-source use distinct from separately adopted
+  identity, with current-source checks before new effects and archived proof
+  for recorded recovery.
+- Apply single-subject panel constraints to declared render-profile panels and
+  their aliases. Registering or adopting an ordinary scene does not turn it
+  into a sheet panel; multi-subject scene continuity stays complete.
+- Withdraw an exact canonical adoption with retained author evidence and
+  history. Preserve Studio acceptance and prior results, and allow a fresh
+  adoption decision after withdrawal or placement correction.
+
 ## 2026.11.11.3
 
 - Start instruction edits from accepted Studio images with

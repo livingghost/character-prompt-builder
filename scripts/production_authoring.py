@@ -351,12 +351,15 @@ RECORDING_GUIDE = {'document_path': 'references/runtime/studio.md#production-own
 RECORDING_FIELDS = {
     'slot': ('so the result has no Studio slot to be recorded in.',
              'Set authoring.task.recording.slot to the slot of Studio character {character} that records the '
-             'result. A slot of its character sheet (scripts/studio.py status lists them) records it as a new '
-             'candidate of that slot, which stays separate from the slot\'s accepted image until the author accepts '
-             'it; another slot, such as candidate, keeps it out of the sheet.'),
+             'result. This is its initial destination; a candidate does not replace accepted artwork. Choose '
+             'the intended scene or declared sheet panel, including the source slot for an edit that belongs '
+             'there. A deliberate alternate destination is also valid. Correct an already recorded result '
+             'through studio.py draft-reassignment and reassign; keep its generation evidence unchanged.'),
     'sheet_panel': ('so the recording does not state whether the result is a sheet panel.',
-                    'Set authoring.task.recording.sheet_panel to true when authoring.task.recording.slot is a slot '
-                    'of the character sheet, and to false for any other slot.'),
+                    'Set authoring.task.recording.sheet_panel to true for a single-subject panel declared by '
+                    'the character sheet render profile, and to false for an ordinary scene. A stored or '
+                    'adopted scene reference does not by itself declare a sheet panel. Preserve every '
+                    'production subject and its applicable continuity mapping.'),
     'role': ('so the recording does not say what the result is for.',
              'Set authoring.task.recording.role to a short label of what the recorded image is for.'),
 }

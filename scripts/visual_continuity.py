@@ -169,6 +169,12 @@ def _studio_read(root: Path, read: StudioRead | None) -> StudioRead:
 
 
 def declared_sheet_slots(root: Path, character: str, *, read: StudioRead | None = None) -> set[str]:
+    """Panel declarations come from the resolved layout, not its artwork registry.
+
+    The sheet can also retain adopted scenes and other artwork. Registering or
+    adopting those images does not turn their storage keys into single-subject
+    panels. Resolved state panels and their explicit aliases remain declarations.
+    """
     import studio
     from character_sheet_render.profiles import select_profile_path, load_profile
     from character_sheet_render.resolution import resolve_state_panels
@@ -179,10 +185,8 @@ def declared_sheet_slots(root: Path, character: str, *, read: StudioRead | None 
     profile_path, _ = select_profile_path(sheet, None, sheet_dir=path.parent)
     profile = load_profile(profile_path)
     profile, _ = resolve_state_panels(profile, sheet)
-    slots = set(sheet['slots'])
-    slots.update(box['slot_id'] for row in profile['rows'] for box in row['boxes']
-                 if isinstance(box.get('slot_id'), str))
-    return slots
+    return {slot for row in profile['rows'] for box in row['boxes']
+            for slot in (box.get('slot_id'), *box.get('aliases', [])) if isinstance(slot, str)}
 
 
 def _decision(root: Path, value: Any, *, character_id: str | None = None) -> dict:

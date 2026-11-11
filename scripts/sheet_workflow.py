@@ -27,11 +27,17 @@ def parser() -> argparse.ArgumentParser:
             sub.add_argument('--grant', help='Draft exact decisions under this grant; never approve them')
             sub.add_argument('--decisions-file', help='Studio-relative JSON mapping request IDs to completed execution decisions')
             sub.add_argument('--unreceived-only', action='store_true', help='Recover missing results without repeating completed submissions')
-    for name in ('status', 'import', 'draft-adoption', 'adopt', 'crop', 'share', 'apply-edit', 'reoffer', 'reject'):
-        sub = commands.add_parser(name)
+    for name in ('status', 'import', 'draft-adoption', 'adopt', 'draft-withdrawal', 'withdraw',
+                 'crop', 'share', 'apply-edit', 'reoffer', 'reject'):
+        help_text = {'draft-withdrawal': 'bind the exact current adoption for an authored withdrawal',
+                     'withdraw': 'end one exact sheet adoption; retain Studio acceptance, artwork and history'}.get(name)
+        sub = commands.add_parser(name, help=help_text)
         sub.add_argument('--sheet', type=Path, required=True, help='The selected sheet-data.json')
-        if name in {'import', 'draft-adoption', 'reoffer', 'reject'}: sub.add_argument('--slot', required=True)
+        if name in {'import', 'draft-adoption', 'draft-withdrawal', 'reoffer', 'reject'}: sub.add_argument('--slot', required=True)
         if name == 'status':
+            sub.description = ('Inspect exact sheet artwork and evidence. canonical_status is current for the live adoption, '
+                'candidate for an offered image, history for an earlier adoption, or withdrawn when the last adoption '
+                'of that artifact was explicitly ended. Production disposition remains a separate decision.')
             sub.add_argument('--slot')
             sub.add_argument('--state-filter', choices=('current', 'candidate', 'history'))
             sub.add_argument('--disposition')
@@ -53,7 +59,12 @@ def parser() -> argparse.ArgumentParser:
         elif name == 'draft-adoption':
             sub.add_argument('--artifact', required=True)
             sub.add_argument('--out', type=Path)
-        elif name == 'adopt':
+        elif name == 'draft-withdrawal':
+            sub.add_argument('--out', type=Path, help='Authored decision file; by, at and reason remain unanswered')
+            sub.add_argument('--evidence-path', help='Selected author evidence path relative to --evidence-root; the tool derives its SHA-256')
+            sub.add_argument('--evidence-locator', help='The passage or instruction that records the actual withdrawal authority')
+            sub.add_argument('--evidence-root', type=Path, help='Root of the selected evidence; supply all three evidence options together')
+        elif name in {'adopt', 'withdraw'}:
             sub.add_argument('--decision-file', type=Path, required=True)
             sub.add_argument('--evidence-root', type=Path, required=True)
         elif name == 'crop':
@@ -107,19 +118,32 @@ def main(argv: list[str] | None = None) -> int:
             artifact = fills.publish(args.sheet.parent, args.image, kind=kind, recipe={}, package=args.package,
                                      origin={'kind': 'external-import', 'note': c.text(args.note, 'import note')})
             result = fills.register_candidates(args.sheet, [(args.slot, artifact)])
-        elif args.command == 'draft-adoption':
-            result = fills.draft_adoption(args.sheet, args.slot, args.artifact)
-            target = args.out or args.sheet.parent / '.fills/drafts/adoption' / (c.content_id(result) + '.json')
+        elif args.command in {'draft-adoption', 'draft-withdrawal'}:
+            adoption = args.command == 'draft-adoption'
+            result = (fills.draft_adoption(args.sheet, args.slot, args.artifact) if adoption
+                      else fills.draft_withdrawal(args.sheet, args.slot, evidence_path=args.evidence_path,
+                           evidence_locator=args.evidence_locator, evidence_root=args.evidence_root))
+            kind = 'adoption' if adoption else 'withdrawal'
+            target = args.out or args.sheet.parent / ('.fills/drafts/' + kind) / (c.content_id(result) + '.json')
             if target.exists():
                 held = c.load(target)
-                for key in ('sheet', 'slot', 'artifact_id', 'expected_current'):
-                    if held.get(key) != result[key]: raise ValueError('adoption draft destination belongs to another decision')
+                keys = ('sheet', 'slot', 'artifact_id', 'expected_current') if adoption else (
+                    'sheet', 'slot', 'artifact_id', 'acceptance_sha256', 'adoption_decision_sha256')
+                for key in keys:
+                    if held.get(key) != result[key]: raise ValueError(kind + ' draft destination belongs to another decision')
+                if not adoption and args.evidence_path is not None and held.get('evidence') != result['evidence']:
+                    if any((held.get('evidence') or {}).values()):
+                        raise ValueError('withdrawal draft already pins different evidence; inspect it and choose a new --out for a new decision')
+                    held['evidence'] = result['evidence']
+                    c.atomic(target, c.encoded(held), replace=True)
                 result = held
             else:
                 c.atomic(target, c.encoded(result))
             result = {**result, 'draft_file': str(target)}
         elif args.command == 'adopt':
             result = fills.adopt(args.sheet, c.load(args.decision_file), evidence_root=args.evidence_root)
+        elif args.command == 'withdraw':
+            result = fills.withdraw(args.sheet, c.load(args.decision_file), evidence_root=args.evidence_root)
         elif args.command == 'crop':
             result = fills.crop(args.sheet, args.source_slot, args.target_slot, args.rectangle, scale=args.local_scale)
         elif args.command == 'share':
@@ -149,7 +173,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return result.get('exit_code', 2 if result.get('ok') is False else 0)
     except (ValueError, OSError, KeyError, TypeError) as exc:
-        print(json.dumps({'ok': False, 'error': str(exc)}, ensure_ascii=False))
+        result = {'ok': False, 'error': str(exc)}
+        from production_diagnostics import ProductionError
+        if isinstance(exc, ProductionError):
+            result['diagnostics'] = [exc.diagnostic.as_dict()]
+        print(json.dumps(result, ensure_ascii=False))
         return 2
 
 

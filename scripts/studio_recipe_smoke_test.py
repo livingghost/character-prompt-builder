@@ -69,9 +69,11 @@ class RecipeTests(unittest.TestCase):
             studio.recipe(self.root, 'subject-a', 'base.front', iteration='it-9999')
 
     def test_duplicate_selector_is_rejected(self):
+        from production_diagnostics import ProductionError
         studio.write_iterations(self.home, [self.row, copy.deepcopy(self.row)])
-        with self.assertRaisesRegex(ValueError, 'exactly one'):
+        with self.assertRaises(ProductionError) as caught:
             self.read()
+        self.assertEqual(caught.exception.diagnostic.code, 'PLACEMENT_RECORD_CORRUPT')
 
     def test_missing_request_is_reported_without_inventing_settings(self):
         row = copy.deepcopy(self.row)

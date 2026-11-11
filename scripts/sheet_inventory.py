@@ -35,6 +35,20 @@ def entries(sidecar: Path, *, state: dict | None = None) -> list[dict]:
             art = slot['current']['artifact']
             row = found.setdefault(art['artifact_id'], {'artifact': art, 'acceptances': []})
             row['state'] = 'current'; row['acceptances'].append(slot['current']['approval'])
+        for value in found.values():
+            value['withdrawals'] = []
+            value['canonical_status'] = value['state']
+        for receipt in slot.get('withdrawals', []):
+            accepted = next(item for item in slot['history'] if c.content_id(item) == receipt['acceptance_sha256'])
+            row = found[accepted['artifact']['artifact_id']]
+            try:
+                record = receipt['decision']
+                decision = c.load(fills._file(sidecar.parent, record['decision_path'], record['decision_sha256']))
+                row['withdrawals'].append({'receipt': copy.deepcopy(receipt), 'decision': decision})
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                row['withdrawals'].append({'receipt': copy.deepcopy(receipt), 'diagnostic': str(exc)})
+            if row['state'] == 'history' and row['acceptances'][-1] == accepted['approval']:
+                row['canonical_status'] = 'withdrawn'
         for identifier, value in found.items():
             row = {'slot': slot_id, 'artifact_id': identifier, **copy.deepcopy(value),
                    'recorded_at': None, 'origin': {}, 'availability': 'unchecked', 'diagnostics': []}
@@ -113,6 +127,11 @@ def status(sidecar: Path, *, slot: str | None = None, state_filter: str | None =
             fills.verify_artifact(row['artifact'], sidecar.parent, cache=verified)
             if row['state'] == 'current':
                 fills.verify_acceptance(state['slots'][row['slot']]['current'], sidecar.parent, row['slot'], cache=verified)
+            for withdrawal in row['withdrawals']:
+                receipt = withdrawal['receipt']
+                accepted = next(item for item in state['slots'][row['slot']]['history']
+                                if c.content_id(item) == receipt['acceptance_sha256'])
+                fills.verify_withdrawal(receipt, sidecar.parent, row['slot'], accepted, cache=verified)
             if row['availability'] != 'unavailable':
                 row['availability'] = 'verified'
         except (ValueError, OSError, KeyError, TypeError) as exc:

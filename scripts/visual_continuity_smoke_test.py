@@ -66,6 +66,49 @@ class SubjectTests(unittest.TestCase):
         self.assertIn('studio_reference.py',diagnostic['required_action'])
         self.assertIn('recording.subject_map',diagnostic['required_action'])
 
+class PanelDeclarationTests(unittest.TestCase):
+    def setUp(self):
+        import studio
+        import production_fixtures
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.enterContext(production_fixtures.scratch_home(self.base / 'home'))
+        self.root = studio.init(self.base / 'studio', 'panel-declarations', 'Synthetic panel declarations')
+        studio.add_character(self.root, 'robot', 'general')
+        studio.add_character(self.root, 'partner', 'general')
+        self.sheet = self.root / 'characters/robot/sheet/sheet-data.json'
+
+    def test_registered_and_adopted_scenes_keep_all_production_subjects(self):
+        import production_compiler
+        from prepare_generation_references import empty_stateless_reference_set
+        from sheet_artifacts_smoke_test import accepted
+        before = v.declared_sheet_slots(self.root, 'robot')
+        accepted(self.sheet, slot='episode.opening')
+        self.assertEqual(v.declared_sheet_slots(self.root, 'robot'), before)
+        task = {'recording': {'character': 'robot', 'slot': 'episode.opening', 'sheet_panel': False,
+                             'subject_map': {'A': 'robot', 'B': 'partner'}, 'role': 'scene'}}
+        specification = {'subjects': [{'id': 'A'}, {'id': 'B'}]}
+        production_compiler.validate_recording(self.root, task, specification)
+        prepared = empty_stateless_reference_set()
+        visual = v.from_decisions({'A': 'one-off', 'B': 'one-off'}, production_spec=specification,
+                                 prepared=prepared, root=self.root, characters=task['recording']['subject_map'])
+        v.require(visual, production_spec=specification, prepared=prepared, root=self.root,
+                  recording_character='robot', recording_slot='episode.opening')
+        self.assertEqual(set(visual['subjects']), {'A', 'B'})
+        with self.assertRaisesRegex(ValueError, 'single-subject sheet-panel'):
+            v.require(visual, production_spec=specification, prepared=prepared, root=self.root,
+                      recording_character='robot', recording_slot='canon.primary')
+
+    def test_explicit_profile_alias_is_a_panel_regardless_of_its_name(self):
+        profile = c.load(v.ROOT / 'templates/character-sheet-layout.general.json')
+        profile['rows'][0]['boxes'][0]['aliases'] = ['episode.canonical']
+        path = self.root / 'profile.json'; path.write_bytes(c.encoded(profile))
+        state = c.load(self.sheet)
+        state['fields']['field.sheet_layout_profile'] = str(path)
+        self.sheet.write_bytes(c.encoded(state))
+        self.assertIn('episode.canonical', v.declared_sheet_slots(self.root, 'robot'))
+
+
 class DecisionTests(unittest.TestCase):
     """Stated decisions become a recorded basis and the same record a person would write."""
     def setUp(self):

@@ -35,19 +35,20 @@ def _target(root: Path, run: str, candidate: str, *, loaded: tuple | None = None
             'Slot acceptance needs an image run with its existing Studio recording.',
             phase='acceptance', run=run, candidate=candidate,
             required_action='Use draft-acceptance --scope delivery-only for delivery without a Studio slot.')
-    home = studio.character_home(root, recording['character'])
     origin = {'run': run, 'candidate': candidate}
-    matches = [row for row in studio.read_iterations(home, project=False) if row.get('production') == origin]
+    read = studio.StudioRead(root)
+    matches = [row for row in read.placed_iterations(recording['character']) if row.get('production') == origin]
     if len(matches) != 1:
         raise ProductionError('STUDIO_CANDIDATE_REQUIRED',
             'The exact Production candidate needs its one existing Studio iteration.',
             phase='acceptance', run=run, candidate=candidate,
             required_action='Resume the existing run to recover its recorded candidate; do not import its image again.')
     row = matches[0]
-    target = {'character': recording['character'], 'iteration_id': row['iteration_id'], 'slot': recording['slot']}
-    if row.get('character') != target['character'] or row.get('slot') != target['slot']:
+    recorded = {'character': recording['character'], 'iteration_id': row['iteration_id'], 'slot': recording['slot']}
+    if row.get('character') != recorded['character'] or row.get('slot') != recorded['slot']:
         raise ProductionError('SLOT_ACCEPTANCE_MISMATCH', 'The iteration differs from its prepared recording destination.',
-                              phase='acceptance', run=run, expected=target)
+                              phase='acceptance', run=run, expected=recorded)
+    target = {**recorded, 'slot': studio.placement_slot(row)}
     result = row.get('result')
     expected = chosen['data']['files'][0]['sha256']
     if not result or result.get('sha256') != expected:
@@ -111,7 +112,8 @@ def draft(root: Path, run: str, candidate: str, grant: str | None = None, *, sco
                                  for item in authority.document['stop_conditions']],
             'owner_acceptance': None}
     if scope == 'studio-slot':
-        target, _ = _target(root, run, candidate, loaded=loaded)
+        target, row = _target(root, run, candidate, loaded=loaded)
+        result['expected_placement'] = row['placement']['sha256']
         result['expected_slot'] = slot_state(root, target['character'], target['slot'])
     return result
 
@@ -140,7 +142,11 @@ def _expand(root: Path, run: str, decisions: dict, loaded: tuple) -> tuple[dict,
                 f'--run {run} --file FILE.'))
     target = None
     if decisions['scope'] == 'studio-slot':
-        target, _ = _target(root, run, decisions['candidate'], loaded=loaded)
+        target, row = _target(root, run, decisions['candidate'], loaded=loaded)
+        if decisions['expected_placement'] != row['placement']['sha256']:
+            raise ProductionError('PLACEMENT_CONFLICT', 'The candidate moved after this acceptance decision was drafted.',
+                phase='placement', run=run, expected=decisions['expected_placement'], actual=row['placement']['sha256'],
+                required_action='Inspect the current placement and draft-acceptance again for its actual destination.')
         current = slot_state(root, target['character'], target['slot'])
         if decisions['expected_slot'] != current:
             raise ProductionError('SLOT_ACCEPTANCE_CONFLICT', 'The slot changed after this acceptance decision was drafted.',
@@ -176,7 +182,11 @@ def _expand(root: Path, run: str, decisions: dict, loaded: tuple) -> tuple[dict,
 def _receipt(root: Path, run: str, selection: dict, *, require_current: bool) -> dict:
     import studio
     chosen = selection['data']['selection']
-    row = validate_slot(root, run, chosen['candidate'], chosen['slot'])
+    current_target, row = _target(root, run, chosen['candidate'])
+    recorded_target = chosen['slot']
+    if any(recorded_target[key] != current_target[key] for key in ('character', 'iteration_id')):
+        raise ProductionError('SLOT_ACCEPTANCE_MISMATCH', 'The recorded acceptance names another iteration.',
+                              phase='acceptance', run=run, expected=current_target)
     entries = [item for item in row.get('acceptances', []) if item.get('production_selection') == selection['sha256']]
     if len(entries) != 1:
         if not entries and require_current:
@@ -189,8 +199,18 @@ def _receipt(root: Path, run: str, selection: dict, *, require_current: bool) ->
             phase='acceptance', run=run,
             required_action='Resume the same acceptance with production_workflow.py accept --run ' + run + '.')
     receipt = entries[0]
-    c.exact(receipt, {'at', 'supersedes', 'production_selection'}, 'Studio acceptance receipt')
+    allowed = {'at', 'supersedes', 'production_selection', 'slot'}
+    if set(receipt) - allowed or not {'at', 'supersedes', 'production_selection'} <= set(receipt):
+        raise ValueError('Studio Production acceptance receipt has invalid fields')
+    if studio.acceptance_receipt_slot(row, receipt) != chosen['slot']['slot']:
+        raise ProductionError('SLOT_ACCEPTANCE_MISMATCH', 'The retained receipt belongs to another slot.',
+                              phase='acceptance', run=run, expected=chosen['slot'])
     if require_current:
+        if current_target != chosen['slot']:
+            raise ProductionError('PLACEMENT_CONFLICT', 'The selected candidate now belongs to another current slot.',
+                phase='placement', run=run, expected=chosen['slot'], actual=current_target,
+                required_action='Inspect the current placement and record a new explicit slot selection. '
+                                'Recovery does not move the result back to an earlier slot.')
         current = slot_state(root, chosen['slot']['character'], chosen['slot']['slot'])
         expected = {'iteration_id': row['iteration_id'], 'image_sha256': row['result']['sha256'],
                     'acceptance_sha256': c.content_id(receipt)}

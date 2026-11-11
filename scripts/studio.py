@@ -62,6 +62,7 @@ from studio_activity import timestamp as now, mutation
 import runtime_snapshot
 from execution_contract import atomic_write_json as write_json, sha256_file  # noqa: E402
 from owned_json import freeze, mutable
+from studio_placement import slot as placement_slot, receipt_slot as acceptance_receipt_slot
 
 MANIFEST = "studio.json"
 STUDIO_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]+$")
@@ -269,8 +270,12 @@ class StudioRead:
         self.document = {}
         self.characters = []
         self._raw: dict[str, list[dict]] = {}
+        self._placed: dict[str, list[dict]] = {}
+        self._placement_records: dict[str, list[dict]] = {}
         self._adoption_rows: dict[str, list[dict]] = {}
         self._iterations: dict[str, list[dict]] = {}
+        self._current_iterations: dict[str, list[dict]] = {}
+        self._iteration_views: dict[tuple[str, str], dict] = {}
         self._sheets: dict[str, dict] = {}
         self._runs: dict[str, tuple | BaseException] = {}
         self._references: dict[str, dict | BaseException] = {}
@@ -278,7 +283,9 @@ class StudioRead:
         self._packages: dict[tuple[str, str], tuple[Path, dict]] = {}
         self._verified_packages: set[tuple[str, str]] = set()
         self._current_references: dict[tuple[str, str], tuple[dict, dict]] = {}
+        self._accepted_references: dict[tuple[str, str], tuple[dict, dict]] = {}
         self.artifacts: dict = {}
+        self.gallery_diagnostics: list[dict] = []
         self.document = freeze(manifest(self.root))
         self.characters = freeze([str(entry.get('id')) for entry in self.document.get('characters') or []
                                   if isinstance(entry, dict)])
@@ -304,10 +311,53 @@ class StudioRead:
                 self.home(character), self.raw_iterations(character), read=self))
         return self._iterations[character]
 
+    def current_iterations(self, character: str) -> list[dict]:
+        """Check current artwork and waiting candidates without replaying closed history.
+
+        Superseded and rejected rows remain in the inventory as their stored
+        adoption state. Explicit gallery/sync and effect owners request the
+        complete iteration projection when that history is their subject.
+        """
+        if character in self._iterations:
+            return self._iterations[character]
+        if character not in self._current_iterations:
+            rows = self.adoption_rows(character)
+            active = [row for row in rows if row.get('status') not in {'superseded', 'rejected'}]
+            projected = {row['iteration_id']: row for row in project_production_decisions(active, read=self)}
+            self._current_iterations[character] = freeze([
+                projected.get(row['iteration_id'], row) for row in rows])
+        return self._current_iterations[character]
+
+    def iteration(self, character: str, identifier: str) -> dict:
+        """Verify one explicitly selected image without opening unrelated runs."""
+        if character in self._iterations:
+            return _find(self._iterations[character], identifier)
+        key = character, identifier
+        if key not in self._iteration_views:
+            row = _find(self.placed_iterations(character), identifier)
+            self._iteration_views[key] = freeze(project_production_decisions([row], read=self)[0])
+        return self._iteration_views[key]
+
+    def placement_records(self, character: str) -> list[dict]:
+        """Acquire and verify this character's append-only placement decisions once."""
+        if character not in self._placement_records:
+            import production_store
+            import studio_placement
+            self._placement_records[character] = freeze(production_store.event_rows(self.root, studio_placement.scope(character)))
+        return self._placement_records[character]
+
+    def placed_iterations(self, character: str) -> list[dict]:
+        """Share current curation while keeping each row's recorded slot intact."""
+        if character not in self._placed:
+            import studio_placement
+            self._placed[character] = freeze(studio_placement.project(character,
+                self.raw_iterations(character), self.placement_records(character)))
+        return self._placed[character]
+
     def adoption_rows(self, character: str) -> list[dict]:
         """Read the stored adoption axis without projecting unrelated Production runs."""
         if character not in self._adoption_rows:
-            rows = copy.deepcopy(self.raw_iterations(character))
+            rows = copy.deepcopy(self.placed_iterations(character))
             for row in rows:
                 if row.get('production') is not None:
                     adoption = row.get('adoption_status', 'none')
@@ -380,6 +430,14 @@ class StudioRead:
         source, proof = self.current_reference_view(character, slot)
         return mutable(source), mutable(proof)
 
+    def accepted_reference_view(self, character: str, slot: str) -> tuple[dict, dict]:
+        """Share the exact accepted-result proof with semantic image consumers."""
+        key = character, slot
+        if key not in self._accepted_references:
+            from studio_reference import _load_accepted
+            self._accepted_references[key] = freeze(_load_accepted(self.root, character, slot, read=self))
+        return self._accepted_references[key]
+
     def reference_index(self, character: str) -> dict:
         if character not in self._references:
             from adoption_workflow import _reference_index
@@ -417,8 +475,9 @@ def read_iteration_records(home: Path) -> list[dict[str, Any]]:
 
 def read_iterations(home: Path, *, project: bool = True) -> list[dict[str, Any]]:
     """Read stored rows and, when requested, their Production display projection."""
-    rows = read_iteration_records(home)
-    return project_iterations(home, rows) if project else rows
+    if not project:
+        return read_iteration_records(home)
+    return mutable(StudioRead(home.parent.parent).iterations(home.name))
 
 
 def project_iterations(home: Path, rows: list[dict[str, Any]], *, read: StudioRead | None = None) -> list[dict[str, Any]]:
@@ -429,8 +488,24 @@ def project_iterations(home: Path, rows: list[dict[str, Any]], *, read: StudioRe
     from the run, with `decision_kind` naming whether that reason belongs to a
     selection or a disposition.
     """
-    rows = copy.deepcopy(rows)
     root = home.parent.parent
+    owner = read or StudioRead(root)
+    if read is None:
+        import studio_placement
+        rows = studio_placement.project(home.name, rows, owner.placement_records(home.name))
+    else:
+        rows = owner.placed_iterations(home.name)
+    return project_production_decisions(rows, read=owner)
+
+
+def project_production_decisions(rows: list[dict], *, read: StudioRead) -> list[dict]:
+    """Project formal decisions over acquired placed rows, sharing their run reader.
+
+    Navigation can supply the readable subset of a damaged journal. Effect
+    boundaries still acquire the complete strict Studio iteration view.
+    """
+    rows = copy.deepcopy(rows)
+    root, owner = read.root, read
     # Each run is read and verified once; a run that cannot be read marks only its own rows.
     runs: dict[str, tuple | BaseException] = {}
     for row in rows:
@@ -443,7 +518,7 @@ def project_iterations(home: Path, rows: list[dict[str, Any]], *, read: StudioRe
             from production_workflow import candidate_state, read_run
             if origin["run"] not in runs:
                 try:
-                    runs[origin["run"]] = read.run(origin["run"]) if read else read_run(root, origin["run"])
+                    runs[origin["run"]] = owner.run(origin["run"])
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     runs[origin["run"]] = exc
             loaded = runs[origin["run"]]
@@ -474,6 +549,7 @@ def write_iterations(home: Path, rows: list[dict[str, Any]]) -> None:
     stored = []
     for row in rows:
         item = copy.deepcopy(row)
+        item.pop('placement', None)
         if item.get("production") is not None:
             status = item.pop("status", None)
             item["adoption_status"] = status if status in {"accepted", "superseded"} else item.get("adoption_status", "none")
@@ -666,7 +742,8 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
                    "answer": answer}, package_companion)
     if layout is not None:
         check_request_layout(layout, read_json(Path(request)) if request is not None else None)
-    rows = read_iterations(home)
+    read = StudioRead(root)
+    rows = mutable(read.adoption_rows(character))
     origin = None
     document = read_json(package) if package is not None else None
     binding = document.get("production_binding") if isinstance(document, dict) else None
@@ -685,7 +762,7 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
         origin = {"run": binding["run"], "candidate": matches[0]["sha256"]}
         existing = [row for row in rows if row.get("production") == origin]
         if existing:
-            return existing[0]
+            return mutable(read.iteration(character, existing[0]['iteration_id']))
     iteration_id = next_iteration_id(home, rows)
     kept_answer = _keep_answer(root, home, rows, iteration_id, answer, response) if answer is not None else None
     row: dict[str, Any] = {
@@ -744,7 +821,7 @@ def _record_iteration(root: Path, character: str, slot: str, result: Path, *, pa
                      revision=execution_contract.content_id(row),
                      details={'character':character, 'slot':slot, 'iteration_id':iteration_id,
                               'received_at':row['at'], 'run':(origin or {}).get('run'), 'result':row['result']['path']})
-    result = _find(read_iterations(home), iteration_id)
+    result = mutable(StudioRead(root).iteration(character, iteration_id))
     return result if projection.get('ok') else {**result, 'projection_warning': projection}
 
 
@@ -993,25 +1070,17 @@ def accept(root: Path, character: str, iteration_id: str, *, production_selectio
         return _record_accept(root, character, iteration_id, production_selection=production_selection)
 
 
-def acceptance_state(root: Path, character: str, slot: str) -> dict[str, Any] | None:
+def acceptance_state(root: Path, character: str, slot: str, *, read: StudioRead | None = None) -> dict[str, Any] | None:
     """Identify the recorded current acceptance, independently of an interrupted file copy.
 
     The receipt guards a replacement. Its retained image and the accepted copy
     are verified when the effect is applied or confirmed. Reading the ledger
     here permits recovery after the copy succeeded but its ledger save did not.
     """
-    rows = read_iterations(character_home(root, character), project=False)
-    accepted = [row for row in rows if row.get('slot') == slot
-                and (row.get('adoption_status') if row.get('production') is not None else row.get('status')) == 'accepted']
-    if len(accepted) > 1:
-        raise ValueError('the Studio records more than one current acceptance for this slot')
-    if not accepted:
-        return None
-    row = accepted[0]
-    if not row.get('result') or not row.get('acceptances'):
-        raise ValueError('the accepted iteration has no retained image or acceptance receipt')
-    return {'iteration_id': row['iteration_id'], 'image_sha256': row['result']['sha256'],
-            'acceptance_sha256': execution_contract.content_id(row['acceptances'][-1])}
+    import studio_placement
+    read = read or StudioRead(root)
+    read.require_root(root)
+    return studio_placement.acceptance(read.placed_iterations(character), slot)
 
 
 def verify_accepted_file(root: Path, row: dict[str, Any]) -> None:
@@ -1030,8 +1099,10 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
     root = root.resolve()
     read = read or StudioRead(root)
     home = read.home(character)
-    rows = copy.deepcopy(read.iterations(character))
-    row = _find(rows, iteration_id)
+    rows = mutable(read.adoption_rows(character))
+    row = mutable(read.iteration(character, iteration_id))
+    rows = [row if item['iteration_id'] == iteration_id else item for item in rows]
+    target_slot = placement_slot(row)
     if row.get("production_diagnostic"):
         raise ValueError("The Production candidate cannot be verified; repair its evidence before adoption")
     selection = None
@@ -1068,7 +1139,7 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
             from production_diagnostics import ProductionError
             expected = {'iteration_id': iteration_id, 'image_sha256': row['result']['sha256'],
                         'acceptance_sha256': execution_contract.content_id(saved[0])}
-            if len(saved) != 1 or acceptance_state(root, character, row['slot']) != expected:
+            if len(saved) != 1 or acceptance_state(root, character, acceptance_receipt_slot(row, saved[0])) != expected:
                 raise ProductionError('SLOT_ACCEPTANCE_CONFLICT', 'A later acceptance replaced this operation.',
                     phase='acceptance', run=origin['run'],
                     required_action='Inspect the newer acceptance; retry does not restore an older slot decision.')
@@ -1077,8 +1148,13 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
         if selection['data']['selection']['scope'] == 'studio-slot':
             from production_acceptance import validate_slot
             from production_diagnostics import ProductionError
+            from studio_placement import initial
+            if selection['data'].get('placement_state', initial(row)['sha256']) != row['placement']['sha256']:
+                raise ProductionError('PLACEMENT_CONFLICT', 'The candidate moved after this exact selection.',
+                    phase='placement', run=origin['run'],
+                    required_action='Inspect the current destination and record a new explicit slot selection.')
             validate_slot(root, origin['run'], origin['candidate'], selection['data']['selection']['slot'])
-            current = acceptance_state(root, character, row['slot'])
+            current = acceptance_state(root, character, target_slot)
             if 'slot_state' not in selection['data'] or current != selection['data']['slot_state']:
                 raise ProductionError('SLOT_ACCEPTANCE_CONFLICT', 'The slot changed after this exact selection.',
                     phase='acceptance', run=origin['run'], expected=selection['data'].get('slot_state'), actual=current,
@@ -1097,9 +1173,10 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
         raise ValueError(f"the result file of {iteration_id} differs from its recorded bytes")
     replaced = None
     for other in rows:
-        if other is not row and other.get("slot") == row["slot"] and other.get("status") == "accepted":
+        if other is not row and placement_slot(other) == target_slot and other.get("status") == "accepted":
             other["status"] = "superseded"
             other["superseded_by"] = iteration_id
+            other["superseded_in"] = target_slot
             # The copy under accepted/ belongs to the slot, not to the row: it is
             # about to be replaced or removed, so it is no longer this row's image.
             # The iteration keeps its own copy under iterations/.
@@ -1109,25 +1186,26 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
     # its list with what it replaced, so the slot's history is never rewritten.
     row["status"] = "accepted"
     row.pop("superseded_by", None)
-    receipt = {"at": now(), "supersedes": replaced}
+    row.pop("superseded_in", None)
+    receipt = {"at": now(), "supersedes": replaced, "slot": target_slot}
     if production_selection is not None:
         receipt['production_selection'] = production_selection
     row["acceptances"] = [*(row.get("acceptances") or []), receipt]
-    target = home / "accepted" / f"{row['slot']}{source.suffix}"
+    target = home / "accepted" / f"{target_slot}{source.suffix}"
     # The new copy is in place before a stale one is removed, so the slot is
     # never without an accepted image.
     execution_contract.atomic(target, image, replace=True)
     # Only the copies of this slot: with slots 'base' and 'base.front' side by
     # side, 'base.front.png' has the stem 'base.front' and is not 'base' output.
-    for stale in (home / "accepted").glob(f"{row['slot']}.*"):
-        if stale.is_file() and stale.stem == row["slot"] and stale != target:
+    for stale in (home / "accepted").glob(f"{target_slot}.*"):
+        if stale.is_file() and stale.stem == target_slot and stale != target:
             stale.unlink()
     row["accepted_path"] = target.relative_to(root).as_posix()
     write_iterations(home, rows)
     import studio_activity as activity
     projection = activity.changed(home / 'iterations.jsonl', 'iteration-'+row['status'], subject=character+'/'+iteration_id,
                      revision=execution_contract.content_id(row),
-                     details={'character':character, 'slot':row['slot'], 'iteration_id':iteration_id,
+                     details={'character':character, 'slot':target_slot, 'recorded_slot':row['slot'], 'iteration_id':iteration_id,
                               'status':row['status']})
     return row if projection.get('ok') else {**row, 'projection_warning': projection}
 
@@ -1140,8 +1218,10 @@ def reject(root: Path, character: str, iteration_id: str, reason: str, *, actor:
 
 def _record_reject(root: Path, character: str, iteration_id: str, reason: str, *, actor: str) -> dict[str, Any]:
     home = character_home(root, character)
-    rows = read_iterations(home)
-    row = _find(rows, iteration_id)
+    read = StudioRead(root)
+    rows = mutable(read.adoption_rows(character))
+    row = mutable(read.iteration(character, iteration_id))
+    rows = [row if item['iteration_id'] == iteration_id else item for item in rows]
     if not reason.strip() or not actor.strip():
         raise ValueError("rejecting an iteration requires the actual actor and reason")
     if row.get("production_diagnostic"):
@@ -1154,7 +1234,7 @@ def _record_reject(root: Path, character: str, iteration_id: str, reason: str, *
         decision = workflow.draft_disposition(root, origin["run"], origin["candidate"])
         decision.update(actor=actor, reason=reason, review=row.get("review_ref"))
         receipt = workflow.disposition_value(root, origin["run"], decision)
-        result = _find(read_iterations(home), iteration_id)
+        result = mutable(StudioRead(root).iteration(character, iteration_id))
         result["production_decision"] = receipt["sha256"]
         if "projection_warning" in receipt:
             result["projection_warning"] = receipt["projection_warning"]
@@ -1164,13 +1244,14 @@ def _record_reject(root: Path, character: str, iteration_id: str, reason: str, *
     row["actor"] = actor
     row["status"] = "rejected"
     row.pop("superseded_by", None)
+    row.pop("superseded_in", None)
     row["rejected_at"] = now()
     row["reason"] = reason.strip()
     write_iterations(home, rows)
     import studio_activity as activity
     projection = activity.changed(home / 'iterations.jsonl', 'iteration-'+row['status'], subject=character+'/'+iteration_id,
                      revision=execution_contract.content_id(row),
-                     details={'character':character, 'slot':row['slot'], 'iteration_id':iteration_id,
+                     details={'character':character, 'slot':placement_slot(row), 'recorded_slot':row['slot'], 'iteration_id':iteration_id,
                               'status':row['status']})
     return row if projection.get('ok') else {**row, 'projection_warning': projection}
 
@@ -1180,9 +1261,10 @@ def recipe(root: Path, character: str, slot: str, *, iteration: str | None = Non
     evidence = execution_contract
 
     home = validate_recording_target(root, character, slot, writable=False)
-    rows = read_iterations(home)
+    read = StudioRead(root)
+    rows = read.adoption_rows(character)
     if iteration is None:
-        matches = [row for row in rows if row.get("slot") == slot and row.get("status") == "accepted"]
+        matches = [row for row in rows if placement_slot(row) == slot and row.get("status") == "accepted"]
         if not matches:
             raise ValueError(f"no accepted iteration for slot {slot!r} of {character!r}")
     else:
@@ -1191,8 +1273,8 @@ def recipe(root: Path, character: str, slot: str, *, iteration: str | None = Non
             raise ValueError(f"no iteration {iteration!r} for {character!r}")
     if len(matches) != 1:
         raise ValueError("recipe selector must identify exactly one recorded iteration")
-    row = matches[0]
-    if row.get("slot") != slot or row.get("character") != character:
+    row = mutable(read.iteration(character, matches[0]['iteration_id']))
+    if placement_slot(row) != slot or row.get("character") != character:
         raise ValueError("recipe iteration does not match the selected character and slot")
     # The Studio keeps the request and its evidence itself, so a Production
     # candidate whose run cannot be read still has a readable recipe; the
@@ -1233,6 +1315,8 @@ def recipe(root: Path, character: str, slot: str, *, iteration: str | None = Non
     return {
         "character": character,
         "slot": slot,
+        "recorded_slot": row['slot'],
+        "placement": copy.deepcopy(row.get('placement')),
         "iteration_id": row["iteration_id"],
         "source_status": row["status"],
         "production_diagnostic": diagnostic,
@@ -1299,10 +1383,13 @@ def sent_text(sent: Any, layout: Any) -> dict[str, Any]:
             "settings": settings, "media": media}
 
 
-def gallery_index(root: Path, *, read: StudioRead | None = None) -> dict[str, Any]:
+def gallery_index(root: Path, *, read: StudioRead | None = None,
+                  characters: set[str] | None = None, current_only: bool = False,
+                  full_characters: set[str] | None = None) -> dict[str, Any]:
     """All recorded artwork, newest first, including local sheet candidates and history."""
     from studio_gallery import build_index
-    return build_index(root, read=read)
+    return build_index(root, read=read, characters=characters, current_only=current_only,
+                       full_characters=full_characters)
 
 
 def gallery_stale(root: Path) -> str | None:
@@ -1311,7 +1398,9 @@ def gallery_stale(root: Path) -> str | None:
     return stale(root)
 
 
-def write_gallery(root: Path, out: Path | None = None, *, read: StudioRead | None = None) -> tuple[Path, Path]:
+def write_gallery(root: Path, out: Path | None = None, *, read: StudioRead | None = None,
+                  characters: set[str] | None = None, current_only: bool = False,
+                  full_characters: set[str] | None = None) -> tuple[Path, Path]:
     """Refresh the complete inventory and offline browser view from recorded artwork.
 
     The gallery owner publishes only changed generated bytes. An explicit output
@@ -1322,7 +1411,10 @@ def write_gallery(root: Path, out: Path | None = None, *, read: StudioRead | Non
     with activity.publication(activity.artwork_owner(root, out)) as admitted:
         if admitted:
             read = activity.publication_read(root, read)
-        return publish(root, gallery_index(root, read=read), out)
+        if out is not None:
+            characters, current_only = None, False
+        return publish(root, gallery_index(root, read=read, characters=characters,
+            current_only=current_only, full_characters=full_characters), out)
 
 
 # What a session reads first.
@@ -1337,8 +1429,8 @@ REFERENCE_STATES = {
 REFERENCE_NEXT = {
     "adopt-with-sheet-scope": "adopt it with adoption_workflow.py to use it as a reference",
     "record-generation-package": "use studio.py attach-package to record the original package and its attribution evidence",
-    "adopt-production-candidate": "use production_workflow.py adoption-intent and adopt with separate adoption authorization",
-    "record-adoption-result": "repeat production_workflow.py adopt with the same candidate, approval and authorization to record its result",
+    "adopt-production-candidate": "use production_workflow.py draft-adoption, fill the actual adoption decision, then adopt --file",
+    "record-adoption-result": "repeat production_workflow.py adopt --run RUN --claim CLAIM to finish the retained adoption",
     "inspect-production-selection": "inspect the Production selection and review diagnostics before adoption",
     "repair-reference": "inspect the reference diagnostic and restore the required retained evidence",
     "accept-candidate": "adoption stopped before accepting the image; repeat the adoption command",
@@ -1356,20 +1448,24 @@ def _count(number: int, word: str) -> str:
 def status(root: Path, *, current_work: dict | None = None) -> str:
     import studio_activity as activity
     read = StudioRead(root)
-    projection = activity.refresh(root, read=read)
+    projection = activity.refresh(root, read=read, current_only=True)
     document = read.document
-    lines = [f"studio {document.get('studio_id')}: {document.get('title')} ({root})", work_ledger.show(root)]
+    lines = [f"studio {document.get('studio_id')}: {document.get('title')} ({root})", work_ledger.show(root),
+             'current slots and waiting candidates checked; retained historical displays: studio.py sync for a full source check']
     import production_authoring_state
     current = current_work if current_work is not None else production_authoring_state.current_task(root, read_run=read.run)
     if current is not None and current.get('authoring') is not None:
         lines.extend(production_authoring_state.session_lines(root, current, report=current['authoring']))
     if not projection.get('ok'):
         lines.append("display/log refresh pending; committed work retained: " + projection['message'])
+    for item in read.gallery_diagnostics:
+        owner = item.get('entry_id') or item.get('character') or 'studio'
+        lines.append('artwork problem ' + str(owner) + ': ' + str(item.get('message')))
     for entry in document.get("characters") or []:
         character = entry.get("id")
         home = root / "characters" / str(character)
-        rows = read.iterations(str(character)) if home.is_dir() else []
-        accepted = {row["slot"]: row for row in rows if row.get("status") == "accepted"}
+        rows = read.current_iterations(str(character)) if home.is_dir() else []
+        accepted = {placement_slot(row): row for row in rows if row.get("status") == "accepted"}
         # A Production candidate its run did not select is not waiting for a decision.
         candidates = [row for row in rows if row.get("status") == "candidate" and row.get("disposition") != "not_selected"]
         lines.append(f"character {character}: {_count(len(rows), 'generated image')}, "
@@ -1378,9 +1474,11 @@ def status(root: Path, *, current_work: dict | None = None) -> str:
             seed = row.get("seed")
             model = (row.get("service") or {}).get("model_identifier")
             lines.append(f"  accepted {slot}: {row['iteration_id']}, seed {'not recorded' if seed is None else seed}"
-                         + (f", model {model}" if model else ""))
+                         + (f", model {model}" if model else "")
+                         + (f", recorded in {row['slot']}" if slot != row['slot'] else ""))
         for row in candidates[-5:]:
-            lines.append(f"  candidate {row['iteration_id']} for {row.get('slot')}: {row.get('note') or 'no note'}")
+            lines.append(f"  candidate {row['iteration_id']} for {placement_slot(row)}: {row.get('note') or 'no note'}"
+                         + (f"; recorded in {row['slot']}" if placement_slot(row) != row['slot'] else ""))
         try:
             reference_state = read.reference_index(str(character))
             for item in reference_state["bindings"]:
@@ -1390,7 +1488,7 @@ def status(root: Path, *, current_work: dict | None = None) -> str:
                 action = REFERENCE_NEXT.get(step, 'next: ' + str(step)) if step else None
                 if readiness.get('owner') == 'production' and step in {
                         'accept-candidate', 'bind-sheet', 'register-pack', 'activate-pack'}:
-                    action = 'adoption is pending; repeat production_workflow.py adopt for this exact run and candidate'
+                    action = 'adoption is pending; repeat production_workflow.py adopt --run RUN --claim CLAIM for this retained adoption claim'
                 lines.append(f"  {item['slot']} as a reference: {state}"
                              + (f"; {action}" if action else ""))
                 for diagnostic in readiness.get('diagnostics', []):
@@ -1463,7 +1561,10 @@ def main(argv: list[str] | None = None) -> int:
     init_parser.add_argument("--default-creative-latitude", default="directed")
     init_parser.add_argument("--default-interaction-mode", default="balanced")
     init_parser.add_argument("--default-style-family", help="a selected project style-family preference (default: unselected)")
-    commands.add_parser("status", help="the open task, and every character's slots and candidates", parents=[after])
+    commands.add_parser("status", help="check the open task, current slots and waiting candidates; sync checks historical displays",
+                       description="Verify current slots, waiting candidates and canonical references. Repair their displays; "
+                       "retain historical gallery entries from the last publication. Use sync for a full historical source check.",
+                       parents=[after])
     auth_parser = commands.add_parser("credentials", help="manage one saved API key or environment source per service", parents=[after])
     auth_commands = auth_parser.add_subparsers(dest="auth_command", required=True)
     auth_prepare = auth_commands.add_parser("prepare", parents=[after],
@@ -1513,6 +1614,15 @@ def main(argv: list[str] | None = None) -> int:
     accept_parser = commands.add_parser("accept", help="accept an iteration for its slot; the previous one is superseded", parents=[after])
     accept_parser.add_argument("--character", required=True)
     accept_parser.add_argument("--iteration", required=True)
+    placement_draft = commands.add_parser('draft-reassignment', parents=[after],
+        help='draft an exact source/destination correction for one retained iteration')
+    placement_draft.add_argument('--character', required=True)
+    placement_draft.add_argument('--iteration', required=True)
+    placement_draft.add_argument('--slot', required=True, help='the intended current destination; original recording stays unchanged')
+    placement_draft.add_argument('--out', type=Path, required=True, help='new authored decision file; fill by, at and reason')
+    placement_apply = commands.add_parser('reassign', parents=[after],
+        help='apply or recover an authored placement; transfer slot acceptance, require canonical withdrawal first')
+    placement_apply.add_argument('--file', type=Path, required=True, help='the exact studio-reassignment decision; retry the same file after interruption')
     reject_parser = commands.add_parser("reject", help="record that an iteration is not used, with the reason; a Production candidate's run records it as not selected", parents=[after])
     reject_parser.add_argument("--character", required=True)
     reject_parser.add_argument("--iteration", required=True)
@@ -1522,7 +1632,7 @@ def main(argv: list[str] | None = None) -> int:
     recipe_parser.add_argument("--character", required=True)
     recipe_parser.add_argument("--slot", required=True)
     recipe_parser.add_argument("--iteration", help="read this recorded iteration without accepting it")
-    commands.add_parser("sync", help="rebuild the gallery and chronological activity log from their records", parents=[after])
+    commands.add_parser("sync", help="check all historical sources and repair gallery, references and timelines", parents=[after])
     gallery_parser = commands.add_parser("gallery", help="write gallery.html and gallery.json: every image in order with prompt, model, settings, and seed", parents=[after])
     gallery_parser.add_argument("--out", type=Path, help="Where to write the HTML (default: <studio>/gallery.html); the JSON goes beside it")
     args = parser.parse_args(argv)
@@ -1565,6 +1675,14 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(row, ensure_ascii=False, indent=2))
         elif args.command == "accept":
             print(json.dumps(accept(root, args.character, args.iteration), ensure_ascii=False, indent=2))
+        elif args.command == 'draft-reassignment':
+            import studio_placement
+            decision = studio_placement.draft(root, args.character, args.iteration, args.slot)
+            execution_contract.atomic(args.out, execution_contract.encoded(decision))
+            print(json.dumps({'ok': True, 'file': str(args.out), 'decision': decision}, ensure_ascii=False, indent=2))
+        elif args.command == 'reassign':
+            import studio_placement
+            print(json.dumps(studio_placement.reassign(root, read_json(args.file)), ensure_ascii=False, indent=2))
         elif args.command == "reject":
             print(json.dumps(reject(root, args.character, args.iteration, args.reason, actor=args.actor), ensure_ascii=False, indent=2))
         elif args.command == "recipe":
@@ -1578,9 +1696,10 @@ def main(argv: list[str] | None = None) -> int:
             html_path, json_path = write_gallery(root, args.out)
             print(f"wrote {html_path} and {json_path}")
     except (ValueError, OSError) as exc:
-        if args.command == "credentials":
+        if args.command in {"credentials", 'draft-reassignment', 'reassign'}:
             from production_diagnostics import ProductionError, exit_code, from_exception
-            diagnostic = _operation_context.safe_value(from_exception(exc, phase="credential-management"),
+            phase = 'credential-management' if args.command == 'credentials' else 'placement'
+            diagnostic = _operation_context.safe_value(from_exception(exc, phase=phase),
                 secrets=_operation_context.current().secrets if _operation_context.current() else ())
             print(json.dumps({"ok": False, "diagnostics": [diagnostic]}, ensure_ascii=False, indent=2))
             print("error: " + diagnostic["message"], file=sys.stderr)

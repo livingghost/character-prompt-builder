@@ -34,6 +34,9 @@
             },
             {
               "$ref": "#/$defs/studio-artifact-source"
+            },
+            {
+              "$ref": "#/$defs/studio-accepted-image-source"
             }
           ]
         },
@@ -417,6 +420,31 @@
       },
       "additionalProperties": false,
       "description": "One exact current Studio acceptance. The package preserves its approval and transitive artwork evidence separately from current-selection verification."
+    },
+    "studio-accepted-image-source": {
+      "type": "object",
+      "required": [
+        "kind", "studio_root", "studio_id", "character", "slot", "iteration_id",
+        "acceptance_sha256", "proof_sha256", "resolved_path", "media_type", "sha256"
+      ],
+      "properties": {
+        "kind": {"const": "studio-accepted-image"},
+        "studio_root": {"type": "string", "minLength": 1},
+        "studio_id": {"type": "string", "minLength": 1},
+        "character": {
+          "type": "string", "minLength": 1,
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$"
+        },
+        "slot": {"$ref": "#/$defs/identifier"},
+        "iteration_id": {"type": "string", "pattern": "^it-[0-9]+$"},
+        "acceptance_sha256": {"$ref": "#/$defs/sha256"},
+        "proof_sha256": {"$ref": "#/$defs/sha256"},
+        "resolved_path": {"$ref": "#/$defs/resolved-path"},
+        "media_type": {"enum": ["image/png", "image/jpeg", "image/webp"]},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false,
+      "description": "One exact current Studio slot acceptance, retaining the iteration, image and acceptance proof. It grants no canonical identity or sheet adoption; a separate adopted reference supplies that authority."
     },
     "subject-uses": {
       "type": "array",

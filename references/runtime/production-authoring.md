@@ -167,16 +167,19 @@ To change depicted content of an accepted Studio image, select the image by its
 Studio character and slot:
 
 ```bash
-python scripts/production_workflow.py draft-inputs --root STUDIO --route generation --execution dispatcher --edit-character CHARACTER --edit-slot SLOT --new-task "Replace the background of the adopted image." --out-dir work/edit
+python scripts/production_workflow.py draft-inputs --root STUDIO --route generation --execution dispatcher --edit-character CHARACTER --edit-slot SLOT --new-task "Replace the background of the accepted image." --out-dir work/edit
 ```
 
 Use `--execution external` for a host call. The draft selects the image with
-its adoption evidence as the scene reference and the applied `accepted-source`,
+its exact slot acceptance as the scene reference and the applied `accepted-source`,
 writes an editable edit plan beside the choices and carries the applicable
 Production Specification, controls and validation selection of the run that
-produced the image. What changes and stays, the instruction text, criteria and
-recording slot remain unanswered and are reported together. Follow
-[Semantic instruction editing](semantic-instruction-edit.md#start-from-the-adopted-image)
+produced the image, including every subject and its explicit mapping. Sheet
+adoption is not required; an applicable adopted identity keeps its separate
+canonical proof. What changes and stays, the instruction text, criteria and
+result destination remain unanswered and are reported together. The result may
+use the source slot or a deliberately different slot. Follow
+[Semantic instruction editing](semantic-instruction-edit.md#start-from-the-accepted-image)
 for the complete flow.
 
 When the target differs from the source run's prepared request, the next action

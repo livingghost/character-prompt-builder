@@ -29,7 +29,7 @@ diagnostic whose producer knows the repair, such as `ADOPTION_PACKAGE_REQUIRED`
 or `ADOPTION_RECORD_CORRUPT`, names it in `required_action`.
 
 An externally imported iteration uses this workflow for sheet or catalog
-adoption. Production `adoption-intent` diagnoses that ownership before recording
+adoption. Production `draft-adoption` diagnoses that ownership before recording
 an adoption claim. Inspect the iteration's actual provenance and choose its
 owner; a Production candidate retains its original run and iteration through
 acceptance and adoption.
@@ -82,7 +82,7 @@ follows the accepted iteration's own adoption evidence and approved influence,
 including when another iteration retains identical image bytes. `references`
 exports that exact supplied-file selection in the reference preparer's own format.
 
-Completion states are `candidate-accepted`, `sheet-bound`, and `catalog-registered`. The durable `adoptions/<iteration>.json` records `next_action` and a failure when a step cannot finish. Repeat the same command with the same approval and destination to resume; it is idempotent and adds no image iteration. A pending pre-acceptance operation is visible too. The operating system releases the recording lock when a process ends, even a killed one, so repeat the approved command and leave `.cpb.lock` in place.
+Adoption progress states are `candidate-accepted`, `sheet-bound`, and `catalog-registered`. The durable `adoptions/<iteration>.json` records `next_action` and a failure when a step cannot finish. Repeat the same command with the same approval and destination to resume; it is idempotent and adds no image iteration. A pending pre-acceptance operation is visible too. The operating system releases the recording lock when a process ends, even a killed one, so repeat the approved command and leave `.cpb.lock` in place. A later authored withdrawal stays in the sheet history and does not rewrite that completed adoption record.
 
 `status` uses the same source checks as adoption preflight. Each binding's
 `adoption` view names its owner, Production origin when present, `source_ready`
@@ -96,14 +96,87 @@ make `validate_studio.py` fail.
 
 If the sheet or catalog write finished before Production recorded its result,
 status reports `record-adoption-result` and reference export remains blocked.
-Repeat `production_workflow.py adopt` with the same candidate, approval and
-authorization to finish that claim; the binding's `ADOPTION_RESULT_MISSING`
+Repeat `production_workflow.py adopt --run RUN --claim CLAIM` to finish that
+retained operation; the binding's `ADOPTION_RESULT_MISSING`
 diagnostic gives that exact command. The active-reference view refreshes from
 the committed result; `studio.py sync` can rebuild it after a display failure.
 
 The adoption owner carries one parsed Studio read model through source eligibility, the exact Production claim and sheet preparation. It records journal progress and canonical files before requesting a display update. The outer Production operation commits its result before the single shared refresh, so an intermediate sheet bind does not publish a reference that still lacks its Production result. `studio_activity` owns publication of `active-references.json`; the adoption journal and sheet sidecar remain authoritative. A failed refresh reports retained committed work and a repair action instead of undoing the adoption.
 
 `studio status` and `validate_studio.py` report stale sheet bindings and incomplete adoption. Accepting a new image through a plain `studio accept` while an older image is bound leaves status incomplete; resolve adoption before preparing the next run. Preparation and the package builder check each subject recorded under a Studio character. They refuse an incomplete adoption, and a package without the character's current adopted identity image among its prepared references. First-generation work, before any identity is adopted, is permitted.
+
+### Withdraw current canonical reuse
+
+To stop using one current sheet image as a canonical reference, record a sheet
+withdrawal. The Studio's accepted iteration and Production selection stay in
+place. The image, package, original approval and completed run remain available.
+The author decides who withdraws the adoption, when, why and what evidence records
+that decision; the draft derives the exact sheet, slot, artifact and acceptance.
+
+```sh
+python scripts/sheet_workflow.py draft-withdrawal \
+  --sheet STUDIO/characters/C01/sheet/sheet-data.json --slot scene.arrival \
+  --evidence-path AUTHOR_EVIDENCE --evidence-locator "withdrawal instruction" \
+  --evidence-root EVIDENCE_DIR \
+  --out withdrawal.json
+```
+
+Select the actual author evidence with a path relative to `--evidence-root` and
+a meaningful locator within that file. The tool measures the selected bytes and
+records their SHA-256; do not calculate or edit that derived value. Fill `by`,
+`at` and `reason` in the draft. `at` is the actual timezone-aware decision time.
+Then apply the actual decision:
+
+```sh
+python scripts/sheet_workflow.py withdraw \
+  --sheet STUDIO/characters/C01/sheet/sheet-data.json \
+  --decision-file withdrawal.json --evidence-root EVIDENCE_DIR
+```
+
+If the evidence has not yet been selected, omit all three evidence options to
+create an incomplete draft. Rerun `draft-withdrawal` with those options and the
+same `--out` to fill its unresolved evidence while preserving authored fields.
+The command refuses to replace evidence already pinned in that file. A changed
+evidence choice requires a new draft file and a new actual decision.
+
+The operation stores immutable withdrawal evidence, retains the exact former
+acceptance in history, and clears only that slot's current canonical adoption.
+It compares the complete acceptance and original decision, including when a
+later adoption uses identical pixels. A changed target requires inspecting the
+new current adoption and drafting a new withdrawal if that is still intended.
+Repeating an applied withdrawal returns its receipt without clearing a newer
+adoption. No historical image automatically becomes current.
+
+A later Studio acceptance can supersede the iteration while its earlier sheet
+adoption remains in place. Withdraw that exact completed adoption to end its
+canonical scope; the newer Studio acceptance stays unchanged. Withdrawal
+verifies the retained approval and completed adoption evidence. An interrupted
+adoption still needs its recorded adoption command to finish, including its
+Production result when applicable, before withdrawal can proceed.
+
+`adoption_workflow.py status` reports `withdrawn` with the ending decision and a
+next action for a new adoption. Its other binding states are
+`candidate-accepted` for Studio acceptance without a current matching canonical
+binding, `sheet-bound` for completed sheet reuse, `catalog-registered` for
+completed sheet and catalog reuse, and `unavailable` when the accepted reference
+cannot be verified. A deliberate withdrawal is a complete canonical state; a
+missing or damaged binding without that decision remains a repair problem.
+
+To adopt the retained iteration again, draft a new approval through the same
+adoption workflow and record the actual new decision. The draft uses its current
+Studio placement. If the author also wants a slot correction, withdraw the live
+adoption first, use the Studio reassignment operation, and then draft the new
+adoption at that destination. A Production candidate keeps its original run,
+candidate, image and review and needs its own new adoption authorization. An
+earlier completed adoption command only recovers its historical receipt; it does
+not restore withdrawn canon. Each approval and replaced adoption journal is
+retained under its content hash.
+
+Withdrawal ends this sheet adoption's live reference scope. It does not revoke
+an exported file or a separately registered, locked pack, and it does not change
+authored identity or story-state contracts. Those uses keep their own authority.
+Already prepared `studio-artifact` references become stale for a new send;
+recovery of an already returned result uses its recorded proof archive.
 
 ## Register an image for mixed pack references
 

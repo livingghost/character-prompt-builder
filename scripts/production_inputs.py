@@ -649,7 +649,7 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                 'Give both --source-run RUN and --source-candidate CANDIDATE with --route upscale.')
         if not initial or route != 'upscale' or source_image is not None:
             raise _upscale_refusal('--source-run and --source-candidate select the image of a new upscale draft.',
-                'Use them with --route upscale, without --task, --from-run or --source-image. To edit an adopted '
+                'Use them with --route upscale, without --task, --from-run or --source-image. To edit an accepted '
                 'image instead, select it with --edit-character CHARACTER --edit-slot SLOT and --route generation.')
         if execution not in {None, 'dispatcher'}:
             raise _upscale_refusal('A captured image is enlarged by a dispatcher upscale.',
@@ -1582,22 +1582,24 @@ def add_arguments(subparsers) -> None:
             parser.add_argument('--edit-character', metavar='CHARACTER',
                 help='Start an instruction edit of the accepted image of this Studio character, with --edit-slot, '
                      '--route generation and --execution dispatcher or external. The draft selects the image with '
-                     'its adoption evidence and leaves the edit, prompt and criteria for the author.')
+                     'its acceptance evidence and any separately adopted identity; leaves the edit, prompt, criteria '
+                     'and recording destination for the author. Sheet adoption is not required for scene editing.')
             parser.add_argument('--edit-slot', metavar='SLOT',
-                help='The slot of --edit-character whose current accepted image is edited.')
+                help='The source slot of --edit-character whose current accepted image is edited. '
+                     'Choose the result destination independently in authoring.task.recording.slot.')
             parser.add_argument('--model',help='Select the canonical model in a new or reopened draft.')
             parser.add_argument('--service',help='Select the offering service in a new or reopened draft.')
             parser.add_argument('--route', help='Initial production route; no prebuilt task is needed.')
             parser.add_argument('--artifact', dest='artifact_kind',
                 choices=('text', 'json', 'image', 'video', 'audio', 'binary'),
-                help='Initial output kind; defaults to image for upscale and for an edit of an adopted image, otherwise '
+                help='Initial output kind; defaults to image for upscale and for an edit of an accepted image, otherwise '
                      'text. Existing tasks retain their kind.')
             parser.add_argument('--execution', choices=('authored', 'external', 'dispatcher'),
                 help='Initial execution method; defaults to dispatcher for upscale, otherwise authored. An edit of an '
-                     'adopted image selects dispatcher or external. Existing tasks retain their method.')
+                     'accepted image selects dispatcher or external. Existing tasks retain their method.')
             parser.add_argument('--task-id', help='Existing work task ID; defaults to the open work task.')
             parser.add_argument('--new-task', metavar='GOAL',
-                help='Open a new work task for this selected saved source, captured upscale image or adopted image to '
+                help='Open a new work task for this selected saved source, captured upscale image or accepted image to '
                      'edit; preserves the earlier task and completion.')
             parser.add_argument('--feature', action='append', dest='features',
                 help='Feature applied to an initial task; repeat for several features.')

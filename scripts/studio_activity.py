@@ -94,6 +94,34 @@ def _dirty_receipts(root: Path, view: str) -> list[Path]:
             if not path.name.startswith(c.TEMPORARY_PREFIX)]
 
 
+def _character_scope(value) -> set[str] | None:
+    import studio
+    if value is None:
+        return None
+    if not isinstance(value, (set, frozenset, list, tuple)) or any(not studio.valid_character_id(item) for item in value):
+        raise ValueError('artwork scope must contain character identifiers')
+    return set(value)
+
+
+def _receipt_characters(paths: list[Path]) -> set[str] | None:
+    """Union exact producer scopes; an unscoped receipt requests the complete view."""
+    selected: set[str] = set()
+    complete = False
+    for path in paths:
+        raw = c.read(path)
+        if not raw:
+            complete = True
+            continue
+        value = c.decode(raw)
+        c.exact(value, {'characters'}, 'artwork projection receipt')
+        names = _character_scope(value['characters'])
+        if names is None:
+            complete = True
+        else:
+            selected.update(names)
+    return None if complete else selected
+
+
 def _failed_view(root: Path, view: str) -> None:
     """A failed explicit refresh needs recovery even without an earlier event."""
     try:
@@ -144,7 +172,7 @@ def operation(root: Path):
             finally:
                 if update.views:
                     try:
-                        result = refresh(root, views=update.views)
+                        result = refresh(root, views=update.views, scoped=True)
                     except (ValueError, OSError, KeyError, TypeError) as exc:
                         result = {'ok': False, 'code': 'PROJECTION_REFRESH_PENDING',
                                   'message': str(exc), 'committed_state_retained': True,
@@ -203,10 +231,12 @@ def scope(path: Path) -> Path:
 
 
 def event(root: Path, kind: str, subject: str, *, revision: str | None = None,
-          details: dict[str, Any] | None = None, at: str | None = None, views=None) -> dict:
+          details: dict[str, Any] | None = None, at: str | None = None, views=None,
+          characters: set[str] | None = None) -> dict:
     """Append an immutable, redacted event; an explicit revision makes retries idempotent."""
     from operation_context import current_operation_id, safe_value, known_secrets
     root = root.resolve()
+    characters = _character_scope(characters)
     identity = c.content_id({'kind': kind, 'subject': subject, 'revision': revision}) if revision else uuid.uuid4().hex
     target = c.local(root, f'work/activity/events/{identity[:2]}/{identity}.json', exists=False)
     if target.exists():
@@ -227,7 +257,9 @@ def event(root: Path, kind: str, subject: str, *, revision: str | None = None,
         if view not in ALL_VIEWS:
             raise ValueError('unknown Studio projection: ' + str(view))
         try:
-            c.atomic(root / 'work/activity/dirty' / view / receipt, b'')
+            raw = (c.encoded({'characters': sorted(characters)})
+                   if characters is not None and view in {'gallery', 'active-references'} else b'')
+            c.atomic(root / 'work/activity/dirty' / view / receipt, raw)
         except FileExistsError:
             pass
     dirty = root / 'work/activity/projections-pending.json'
@@ -277,7 +309,8 @@ def _write_timeline(root: Path) -> dict:
 
 
 @runtime_snapshot.operation
-def refresh(root: Path, *, read=None, views=None) -> dict:
+def refresh(root: Path, *, read=None, views=None, scoped: bool = False,
+            current_only: bool = False) -> dict:
     """Rebuild independent displays; one unavailable view cannot undo committed work."""
     import studio
     root = root.resolve()
@@ -288,13 +321,16 @@ def refresh(root: Path, *, read=None, views=None) -> dict:
     for queued in sorted((root / 'work/activity/pending-events').glob('*.json')):
         try:
             pending_event = c.load(queued)
-            c.exact(pending_event, {'kind', 'subject', 'revision', 'details', 'at'}, 'pending activity receipt')
+            required = {'kind', 'subject', 'revision', 'details', 'at'}
+            c.exact(pending_event, required | ({'characters'} if 'characters' in pending_event else set()),
+                    'pending activity receipt')
             for key in ('kind', 'subject', 'revision', 'at'):
                 c.text(pending_event[key], 'pending activity ' + key)
             if chronological(pending_event['at']) == float('-inf') or not isinstance(pending_event['details'], dict):
                 raise ValueError('pending activity receipt has invalid time or details')
             event(root, pending_event['kind'], pending_event['subject'], revision=pending_event['revision'],
-                  details=pending_event['details'], at=pending_event['at'], views=ALL_VIEWS)
+                  details=pending_event['details'], at=pending_event['at'], views=ALL_VIEWS,
+                  characters=_character_scope(pending_event.get('characters')))
             queued.unlink(missing_ok=True)
         except FileNotFoundError:
             # A competing repair completed this immutable receipt first.
@@ -326,17 +362,28 @@ def refresh(root: Path, *, read=None, views=None) -> dict:
             if read is not None:
                 if 'gallery' in artwork:
                     try:
-                        studio.write_gallery(root, read=read)
+                        affected = _receipt_characters(dirty['gallery']) if scoped or current_only else None
+                        studio.write_gallery(root, read=read,
+                            characters=affected if scoped and not current_only else None,
+                            current_only=current_only and affected is not None,
+                            full_characters=affected)
                     except (ValueError, OSError, KeyError, TypeError) as exc:
                         projection_errors.append({'projection': 'gallery', 'message': str(exc)})
                 if 'active-references' in artwork:
-                    for character in read.characters:
-                        try:
-                            reference_view = studio.character_dir(root, character) / 'sheet/active-references.json'
-                            c.atomic_write_json(reference_view, read.reference_index(character))
-                        except (ValueError, OSError, KeyError, TypeError) as exc:
-                            projection_errors.append({'projection': 'active-references', 'character': character,
-                                                      'message': str(exc)})
+                    try:
+                        affected = _receipt_characters(dirty['active-references']) if scoped and not current_only else None
+                    except (ValueError, OSError, KeyError, TypeError) as exc:
+                        projection_errors.append({'projection': 'active-references', 'message': str(exc)})
+                    else:
+                        for character in read.characters:
+                            if affected is not None and character not in affected:
+                                continue
+                            try:
+                                reference_view = studio.character_dir(root, character) / 'sheet/active-references.json'
+                                c.atomic_write_json(reference_view, read.reference_index(character))
+                            except (ValueError, OSError, KeyError, TypeError) as exc:
+                                projection_errors.append({'projection': 'active-references', 'character': character,
+                                                          'message': str(exc)})
             for view, paths in dirty.items():
                 _acknowledge(root, view, paths, projection_errors)
 
@@ -405,8 +452,17 @@ def _warn_operation(warning: dict) -> None:
 
 
 def changed(path: Path, kind: str, *, subject: str | None = None, revision: str | None = None,
-            details: dict | None = None, refresh_views: bool = True, views=None) -> dict:
+            details: dict | None = None, refresh_views: bool = True, views=None,
+            characters: set[str] | None = None) -> dict:
     root = scope(path)
+    if characters is None:
+        try:
+            relative = path.resolve().relative_to(root).parts
+        except ValueError:
+            relative = ()
+        if len(relative) >= 2 and relative[0] == 'characters':
+            characters = {relative[1]}
+    characters = _character_scope(characters)
     runtime_snapshot.invalidate_studio(root)
     selected = set(ALL_VIEWS if views is None else views)
     update = (_UPDATES.get() or {}).get(str(root.resolve()))
@@ -421,11 +477,14 @@ def changed(path: Path, kind: str, *, subject: str | None = None, revision: str 
     redacted = safe_value(details or {}, secrets=known_secrets())
     recorded_at = timestamp()
     try:
-        event(root, kind, name, revision=revision, details=redacted, at=recorded_at, views=selected)
+        event(root, kind, name, revision=revision, details=redacted, at=recorded_at, views=selected,
+              characters=characters)
     except (ValueError, OSError, KeyError, TypeError) as exc:
         warning = {'ok': False, 'code': 'ACTIVITY_RECORD_PENDING', 'message': str(exc),
                    'committed_state_retained': True, 'retry': 'studio.py sync', 'retry_receipt_saved': False}
         pending = {'kind': kind, 'subject': name, 'revision': revision, 'details': redacted, 'at': recorded_at}
+        if characters is not None:
+            pending['characters'] = sorted(characters)
         try:
             c.atomic_write_json(root / 'work/activity/pending-events' / (c.content_id(pending) + '.json'), pending)
             warning['retry_receipt_saved'] = True
@@ -445,4 +504,4 @@ def changed(path: Path, kind: str, *, subject: str | None = None, revision: str 
         receipt = {'ok': True, 'projection_pending': True}
         update.receipts.append(receipt)
         return receipt
-    return refresh(root, views=selected)
+    return refresh(root, views=selected, scoped=True)

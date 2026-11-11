@@ -33,7 +33,7 @@ from owned_json import mutable
 ROOT = Path(__file__).resolve().parents[1]
 EVENTS = {'authorization', 'handoff', 'external-claim', 'dispatch-claim',
           'dispatch-results', 'candidate', 'review', 'selection', 'edit',
-          'adoption-claim', 'adoption-result', 'image-edit-claim', 'image-edit-output', 'completion',
+          'adoption-claim', 'adoption-authority', 'adoption-result', 'image-edit-claim', 'image-edit-output', 'completion',
           'disposition', 'handoff-ready', 'capture-status', 'execution-outcome', 'abandoned',
           'slot-acceptance', 'cleanup-observation', 'authored-save', 'authored-delivery', 'authored-review'} | lifecycle.EVENTS
 
@@ -824,8 +824,11 @@ def _current_source_inputs(root: Path, run: str, prepared: dict, *, force: bool 
         except (ValueError, OSError, KeyError, TypeError) as exc:
             failures.append(ProductionError('STUDIO_REFERENCE_CHANGED',
                 'The exact accepted Studio reference is no longer current or verifiable.',
-                phase='source-freshness', run=run, file=source['sheet'], expected=source['proof_sha256'],
-                character=source['character'], slot=source['slot'], artifact_id=source['artifact_id'],
+                phase='source-freshness', run=run,
+                file=source.get('sheet') or 'characters/' + source['character'] + '/iterations.jsonl',
+                expected=source['proof_sha256'], character=source['character'], slot=source['slot'],
+                **({'artifact_id': source['artifact_id']} if source['kind'] == 'studio-artifact' else
+                   {'iteration_id': source['iteration_id']}),
                 required_action='Select the current accepted artwork and prepare a new approved request; resume a sent run to recover its recorded result.',
                 cause=str(exc)))
     return sources,fixed,tuple(proofs),failures,notices
@@ -1823,7 +1826,7 @@ def _studio_accepted(root: Path, prepared: dict, run: str, candidate: str) -> li
     character = (prepared['task'].get('recording') or {}).get('character')
     if not (root / studio.MANIFEST).is_file() or not studio.valid_character_id(character):
         return []
-    rows = studio.read_iterations(studio.character_dir(root, character), project=False)
+    rows = studio.StudioRead(root).placed_iterations(character)
     return [row['iteration_id'] for row in rows
             if row.get('production') == {'run': run, 'candidate': candidate} and row.get('adoption_status') == 'accepted']
 
@@ -1835,9 +1838,14 @@ def _refresh_studio_projection(root: Path, receipt: dict) -> dict:
     from execution_contract import content_id
     if not (root / studio.MANIFEST).is_file():
         return receipt
+    run = receipt.get('run')
+    recording = (read_run(root, run).prepared['task'].get('recording') if run else None)
+    character = (recording or {}).get('character')
     projection = activity.changed(root, 'production-decision',
                                   subject=str(receipt.get('run') or receipt.get('candidate') or 'production'),
-                                  revision=content_id(receipt), details=receipt)
+                                  revision=content_id(receipt), details=receipt,
+                                  characters=({character} if studio.valid_character_id(character) else
+                                              set() if run and recording is None else None))
     return receipt if projection.get('ok') else {**receipt, 'projection_warning': projection}
 
 
@@ -1935,13 +1943,19 @@ def select_value(root: Path, run: str, data: dict, *, files: list[dict] | None =
                     raise ValueError('delivery-only selection cannot claim canonical adoption')
             elif data['scope'] == 'studio-slot':
                 import production_acceptance
-                production_acceptance.validate_slot(root, run, data['candidate'], data['slot'],
-                                                    loaded=(directory, prepared, None, rows))
+                iteration = production_acceptance.validate_slot(root, run, data['candidate'], data['slot'],
+                                                                loaded=(directory, prepared, None, rows))
+                effect['placement_state'] = iteration['placement']['sha256']
                 effect['slot_state'] = production_acceptance.slot_state(root, data['slot']['character'], data['slot']['slot'])
             else:
                 if data['adoption'] is None:
                     raise ValueError('Studio adoption requires its owned receipt')
-                for path in confirm_studio_adoption(root, data['adoption'], candidate['data']['files'][0]['sha256'], rows):
+                import studio
+                studio_read = studio.StudioRead(root)
+                paths = confirm_studio_adoption(root, data['adoption'], candidate['data']['files'][0]['sha256'],
+                                               rows, read=studio_read)
+                effect['studio_placement'] = mutable(studio_read.placement_records(data['adoption']['character']))
+                for path in paths:
                     files.append(file_record(root, directory, path.relative_to(root).as_posix()))
             row = lifecycle.commit_effect(root, run, 'selection', effect,
                                           [data['authorization']], effect='local-action')
@@ -2511,14 +2525,17 @@ def _studio_adoption_result(selector: dict, target: str, rows: list[dict], owner
         approval = adoption_workflow.validate_approval(owner['approval'], character, iteration)
     except (ValueError, KeyError, TypeError) as exc:
         approved = {key: owner['approval'][key] for key in ('slot', 'image_sha256')}
-        actual = {'slot': iteration.get('slot'), 'image_sha256': (iteration.get('result') or {}).get('sha256')}
+        from studio import placement_slot
+        actual = {'slot': placement_slot(iteration), 'image_sha256': (iteration.get('result') or {}).get('sha256')}
         raise ProductionError('ADOPTION_RECORD_CORRUPT',
             'The Studio iteration names another slot or image than its recorded adoption approved.',
             phase='adoption-integrity', file=f'characters/{character}/iterations.jsonl', expected=approved, actual=actual,
-            required_action=saved or (f'This adoption record and the adoption result of its run agree; the line of {iteration_id} '
-                             f'in characters/{character}/iterations.jsonl does not, with the slot and image in actual '
-                             'instead of the approved ones in expected. No command rewrites the slot or image of a '
-                             'recorded iteration: correct that line to the approved values.'),
+            required_action=saved or (f'Inspect the current placement of {iteration_id} with studio.py status and its '
+                             'retained adoption decision. Restore corrupted original evidence in '
+                             f'characters/{character}/iterations.jsonl from a verified Studio copy. '
+                             'For a legitimate new destination, withdraw the earlier current adoption, use '
+                             'studio.py draft-reassignment and reassign, then obtain a fresh destination adoption approval. '
+                             'Do not rewrite the original iteration slot or image.'),
             cause=str(exc)) from exc
     accepted = iteration.get('adoption_status') if iteration.get('production') else iteration.get('status')
     if (approval['image_sha256'] != target or approval['scope'] != selector['scope']
@@ -2530,6 +2547,7 @@ def _studio_adoption_result(selector: dict, target: str, rows: list[dict], owner
 def _recorded_studio_adoption(run: str, selection: dict, rows: list[dict], read_object) -> dict:
     """Verify only the immutable evidence captured by this adoption selection."""
     import sheet_artifacts
+    import studio_placement
     from character_sheet import validate_sidecar
     chosen = selection['data']['selection']
     if chosen['scope'] != 'studio-adoption':
@@ -2561,6 +2579,12 @@ def _recorded_studio_adoption(run: str, selection: dict, rows: list[dict], read_
     home = Path('characters') / selector['character']
     owner = c.decode(saved((home / 'adoptions' / (selector['iteration_id'] + '.json')).as_posix()))
     iterations = [c.decode(line) for line in saved((home / 'iterations.jsonl').as_posix()).splitlines() if line.strip()]
+    # The initial destination is part of each immutable origin. Retain the
+    # character's exact placement chain alongside the selection so historical
+    # verification never substitutes the current store's later decisions.
+    placements = selection['data'].get('studio_placement', [])
+    store.validate_event_chain(placements, studio_placement.scope(selector['character']))
+    iterations = studio_placement.project(selector['character'], iterations, placements)
     matches = [row for row in iterations if row['iteration_id'] == selector['iteration_id']]
     if len(matches) != 1 or matches[0].get('production') != {'run': run, 'candidate': chosen['candidate']}:
         raise ValueError('saved Studio iteration differs from its selected Production candidate')
@@ -2579,11 +2603,12 @@ def _recorded_studio_adoption(run: str, selection: dict, rows: list[dict], read_
     saved(iteration['accepted_path'], target)
     sheet = home / 'sheet'
     sidecar = validate_sidecar(c.decode(saved((sheet / 'sheet-data.json').as_posix())), verify_files=False)
-    accepted = sidecar['slots'][iteration['slot']]['current']
+    destination = studio_placement.slot(iteration)
+    accepted = sidecar['slots'][destination]['current']
     if (accepted is None or accepted['artifact']['image']['sha256'] != target
             or owner['sheet_binding']['current'] != accepted):
         raise ValueError('saved sheet adoption differs from its selected image')
-    sheet_artifacts.verify_acceptance(accepted, sheet, iteration['slot'],
+    sheet_artifacts.verify_acceptance(accepted, sheet, destination,
         read_source=lambda base, relative, load: saved((base / relative).as_posix()))
     decision = c.decode(saved((sheet / accepted['approval']['decision_path']).as_posix()))
     if decision != owner['sheet_decision']:
@@ -2607,7 +2632,8 @@ def verify_studio_adoption_receipt(root: Path, run: str, selection: dict, *, row
     return _recorded_studio_adoption(run, selection, rows, held.evidence.read)
 
 
-def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, rows: list[dict]) -> list[Path]:
+def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, rows: list[dict], *,
+                           read=None) -> list[Path]:
     """Confirm the Studio adoption a selection cites and return the files that bind it.
 
     The run must record the completed Production adoption of that iteration
@@ -2617,7 +2643,8 @@ def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, ro
     c.exact(selector,{'character','iteration_id','scope'},'Studio adoption selector')
     for value in selector.values(): c.text(value,'adoption field')
     home=studio.character_dir(root,selector['character'])
-    read = studio.StudioRead(root)
+    read = read or studio.StudioRead(root)
+    read.require_root(root)
     owner_path=home/'adoptions'/f"{selector['iteration_id']}.json"
     owner=read.journal(selector['character'], selector['iteration_id'])
     row=studio._find(read.iterations(selector['character']),selector['iteration_id'])
@@ -2636,11 +2663,14 @@ def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, ro
     if row.get('accepted_path'): paths.append(c.local(root,row['accepted_path']))
     import sheet_artifacts
     sidecar = read.sheet(selector['character'])
-    accepted = sidecar['slots'][row['slot']]['current']
+    destination = studio.placement_slot(row)
+    accepted = sidecar['slots'][destination]['current']
+    if accepted is None:
+        raise ValueError('the selected canonical adoption is no longer current; adopt the intended image before selecting that scope')
     def retained(base: Path, relative: str, load) -> bytes:
         paths.append(base / relative)
         return load()
-    sheet_artifacts.verify_acceptance(accepted, home / 'sheet', row['slot'], read_source=retained)
+    sheet_artifacts.verify_acceptance(accepted, home / 'sheet', destination, read_source=retained)
     return sorted(set(paths))
 
 
@@ -2648,14 +2678,14 @@ def confirm_studio_adoption(root: Path, selector: dict[str,Any], target: str, ro
 @runtime_snapshot.operation
 def adoption_intent(root: Path, run: str, candidate: str, character: str, iteration: str,
                     approval: dict, *, registration_record: dict | None = None,
-                    pack_dir: Path | None = None) -> dict:
+                    pack_dir: Path | None = None, production_claim: str | None = None) -> dict:
     _, _, _, rows = read_run(root, run)
     chosen = find(rows, 'candidate', candidate)
     reviewed = latest_review(rows, candidate)
     from adoption_workflow import preflight
     preflight(root, character, iteration, approval, expected_production={'run': run, 'candidate': candidate},
               expected_image=chosen['data']['files'][0]['sha256'],
-              registration_record=registration_record, pack_dir=pack_dir)
+              registration_record=registration_record, pack_dir=pack_dir, production_claim=production_claim)
     return _adoption_operation(reviewed['sha256'], candidate, character, iteration, approval,
                                registration_record=registration_record, pack_dir=pack_dir)
 
@@ -2703,7 +2733,13 @@ def _adopt(root: Path, run: str, candidate: str, character: str, iteration: str,
         directory, prepared, _, rows = read_run(root, run)
         item = file_record(root, directory, approval_file)
         approval = c.decode(c.object_read(directory, item['sha256']))
-        prior = [r for r in rows if r['event'] == 'adoption-claim' and authorization in r['data']['authorizations']]
+        reassessed_claims = {r['data']['claim'] for r in rows if r['event'] == 'adoption-authority'
+                            and r['data']['authorization'] == authorization}
+        prior = [r for r in rows if r['event'] == 'adoption-claim' and
+                 (authorization in r['data']['authorizations'] or r['sha256'] in reassessed_claims)]
+        reassessed = None
+        if prior:
+            authorization, reassessed = lifecycle.current_adoption_authorization(rows, prior[0])
         repeated = bool(prior) and prior[0]['data']['files'] == [item] and any(
             r['event'] == 'adoption-result' and r['data']['claim'] == prior[0]['sha256'] for r in rows)
         if repeated:
@@ -2711,12 +2747,17 @@ def _adopt(root: Path, run: str, candidate: str, character: str, iteration: str,
                                          approval, registration_record=registration_record, pack_dir=pack_dir)
         else:
             intent = adoption_intent(root, run, candidate, character, iteration, approval,
-                                     registration_record=registration_record, pack_dir=pack_dir)
+                                     registration_record=registration_record, pack_dir=pack_dir,
+                                     production_claim=prior[0]['sha256'] if prior else None)
         require_selected(prepared, rows, candidate, run=run)
         request = _permission(root, prepared, rows, authorization, **intent)
-        if request['actor'] != approval['by']:
+        if reassessed is None and request['actor'] != approval['by']:
             raise ValueError('adoption approver differs from the authorized actor')
-        data = {'intent': intent, 'files': [item], 'authorizations': [authorization]}
+        from production_adoption import require_approval_authority
+        require_approval_authority(root, prepared, approval, request, reassessed=reassessed,
+                                   claim=prior[0]['sha256'] if prior else None)
+        data = {'intent': intent, 'files': [item],
+                'authorizations': prior[0]['data']['authorizations'] if prior else [authorization]}
         if prior and prior[0]['data'] != data:
             raise ValueError('adoption authorization is already used for different work')
         claim = append_record(directory, prepared, rows, 'adoption-claim', data)
@@ -2811,8 +2852,8 @@ COMMAND_HELP = {
     'select': 'Record an authorized selection of a reviewed candidate.',
     'revision-intent': 'Show the exact edit operation that a reviewed repair needs authorized.',
     'revise': 'Prepare a revised task as a new run under an authorized edit of a reviewed repair, or return that run once it exists.',
-    'adoption-intent': 'Show the exact adoption operation that a canonical adoption needs authorized.',
-    'adopt': 'Adopt a selected candidate as canon under its own exact authorization.',
+    'draft-adoption': 'Write one unanswered canonical-use decision, or reassess an existing claim under current authority.',
+    'adopt': 'Apply one authored adoption decision, or recover its exact recorded claim.',
     'complete': 'Complete the work task with its required authored results or current selected execution result.',
     'impact': 'Compare a run with its current sources and list what each change affects.',
 }
@@ -2873,7 +2914,6 @@ OPTION_HELP = {
     'repair': 'ID of the repair in the latest review of the candidate.',
     'character': 'Studio character ID.',
     'iteration': 'Studio iteration ID of the candidate.',
-    'approval': 'Adoption approval file, or - for stdin.',
     'registration_record': 'Catalog registration record of a catalog adoption, or - for stdin.',
     'pack_dir': 'Pack directory that receives a catalog adoption.',
     'without_streams': 'Leave stdout.log and stderr.log out of the export.',
@@ -2902,13 +2942,18 @@ OPTION_HELP = {
     ('review-authored', 'file'): 'Completed common review form from draft-review, with observed evidence and limitations, or - for stdin.',
     ('select', 'file'): 'Completed selection file from draft-selection, or - for stdin.',
     ('accept', 'file'): 'Completed owner decision from draft-acceptance, or - for stdin; omit to resume the recorded selection.',
+    ('adopt', 'file'): 'Completed canonical-use decision from draft-adoption, or - for stdin; derives approval and exact authorization.',
+    ('adopt', 'claim'): 'Exact adoption claim to recover from retained approval and evidence; no new adoption decision is made.',
+    ('draft-adoption', 'influence'): 'Required with --candidate: intended reusable influence. A --claim keeps its recorded influence.',
+    ('draft-adoption', 'scope'): 'Destination for --candidate (default sheet); catalog also publishes the chosen record in a pack. A --claim keeps its scope.',
+    ('draft-adoption', 'claim'): 'Retained adoption claim to reassess under current authority without changing its approval or destination.',
     ('selection-intent', 'file'): 'Completed selection file from draft-selection, or - for stdin.',
     ('disposition', 'file'): 'Completed disposition file from draft-disposition, or - for stdin.',
     ('revise', 'task'): 'Studio-relative revised task JSON file; a file only, not stdin.',
     ('revision-intent', 'task'): 'Studio-relative revised task JSON file; a file only, not stdin.',
 }
 # Arguments that name one JSON input file and accept - for stdin.
-STDIN_INPUTS = ('decisions_file', 'file', 'request', 'intent', 'approval', 'outcome_file', 'registration_record', 'changes_file')
+STDIN_INPUTS = ('decisions_file', 'file', 'request', 'intent', 'outcome_file', 'registration_record', 'changes_file')
 # Arguments that name a studio file.
 FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'choices', 'artifact', 'response_file', 'submission_file')
 
@@ -2955,9 +3000,9 @@ def build_parser():
                            help='Seconds --watch keeps asking in all, after which it returns the run as a plain resume '
                                 f'leaves it; {WATCH_LIMIT_SECONDS} when left out.')
         if name in {'draft-outcome', 'draft-execution', 'logs-export', 'draft-review', 'draft-selection',
-                    'draft-authorization', 'draft-disposition', 'draft-acceptance'}:
+                    'draft-authorization', 'draft-disposition', 'draft-acceptance', 'draft-adoption'}:
             p.add_argument('--out', required=True)
-        if name in {'draft-execution', 'draft-authorization', 'draft-acceptance'}:
+        if name in {'draft-execution', 'draft-authorization', 'draft-acceptance', 'draft-adoption'}:
             p.add_argument('--grant', required=name == 'draft-authorization')
         if name == 'draft-acceptance':
             p.add_argument('--scope', choices=['delivery-only', 'studio-slot'], default='delivery-only',
@@ -2993,11 +3038,11 @@ def build_parser():
         if name in {'handoff', 'handoff-intent'}:
             p.add_argument('--recipient', required=True)
             p.add_argument('--method', required=True, choices=['conversation', 'manual', 'dispatcher'])
-        if name in {'handoff', 'claim-external', 'revise', 'adopt'}:
+        if name in {'handoff', 'claim-external', 'revise'}:
             p.add_argument('--authorization', required=True)
         if name in {'external-intent', 'claim-external'}:
             p.add_argument('--count', type=int, required=True)
-        if name in {'draft-selection', 'draft-acceptance', 'draft-disposition', 'candidate-status', 'revision-intent', 'revise', 'adopt', 'adoption-intent'}:
+        if name in {'draft-selection', 'draft-acceptance', 'draft-disposition', 'candidate-status', 'revision-intent', 'revise'}:
             p.add_argument('--candidate', required=True)
         if name == 'draft-review':
             p.add_argument('--candidate', help='Actual candidate for a generated result; omit for an authored revision.')
@@ -3009,6 +3054,10 @@ def build_parser():
             p.add_argument('--file', required=True)
         if name == 'accept':
             p.add_argument('--file')
+        if name == 'adopt':
+            chosen = p.add_mutually_exclusive_group(required=True)
+            chosen.add_argument('--file')
+            chosen.add_argument('--claim')
         if name == 'capture':
             p.add_argument('--artifact', required=True)
             p.add_argument('--note', required=True)
@@ -3031,12 +3080,16 @@ def build_parser():
             p.add_argument('--intent', required=True)
         if name in {'revision-intent', 'revise'}:
             p.add_argument('--repair', required=True)
-        if name in {'adopt', 'adoption-intent'}:
-            p.add_argument('--character', required=True)
-            p.add_argument('--iteration', required=True)
-            p.add_argument('--approval', required=True)
+        if name == 'draft-adoption':
+            from adoption_workflow import INFLUENCES
+            chosen = p.add_mutually_exclusive_group(required=True)
+            chosen.add_argument('--candidate')
+            chosen.add_argument('--claim')
+            p.add_argument('--scope', choices=['sheet', 'catalog'])
+            p.add_argument('--influence', choices=INFLUENCES)
             p.add_argument('--registration-record')
             p.add_argument('--pack-dir', type=Path)
+        if name == 'adopt':
             from pack_runtime_cli import add_pack_runtime_arguments
             add_pack_runtime_arguments(p)
     for command, child in sub.choices.items():
@@ -3096,7 +3149,12 @@ def _write_decision_draft(root: Path, run: str, kind: str, out: str, value: dict
         basis = {'review': value['review'], 'replaces': value['replaces']}
     elif kind == 'acceptance':
         basis = {'review': value['review'], 'expected_slot': value.get('expected_slot'),
+                 'expected_placement': value.get('expected_placement'),
                  'authority': value['authority_sha256']}
+        grant, scope = value['grant'], value['scope']
+    elif kind == 'adoption':
+        from production_adoption import decision_basis
+        basis = decision_basis(value)
         grant, scope = value['grant'], value['scope']
     elif kind == 'outcome':
         basis = {'claim': value['claim']}
@@ -3283,17 +3341,26 @@ def main() -> int:
             result = revision_intent(root, args.run, args.task, args.candidate, args.repair)
         elif name == 'revise':
             result = revise(root, args.run, args.task, args.candidate, args.repair, args.authorization)
-        elif name in {'adopt', 'adoption-intent'}:
-            approval = c.load(c.local(root, args.approval))
-            registration = c.load(c.local(root, args.registration_record)) if args.registration_record else None
-            if name == 'adoption-intent':
-                result = adoption_intent(root, args.run, args.candidate, args.character, args.iteration, approval,
-                                         registration_record=registration, pack_dir=args.pack_dir)
+        elif name == 'draft-adoption':
+            import production_adoption
+            if args.claim is not None:
+                if any(value is not None for value in (args.scope, args.influence, args.registration_record, args.pack_dir)):
+                    raise ValueError('claim reassessment retains its scope, influence, catalog record and destination')
+                result = production_adoption.draft_reassessment(root, args.run, args.claim, grant=args.grant)
             else:
-                from pack_runtime_cli import resolve_pack_runtime
-                runtime = resolve_pack_runtime(parser, args) if approval['scope'] == 'catalog' else None
-                result = adopt(root, args.run, args.candidate, args.character, args.iteration, args.approval, args.authorization,
-                               registration_record=registration, pack_dir=args.pack_dir, settings=runtime.settings if runtime else None)
+                if args.influence is None:
+                    raise ValueError('a new adoption needs its intended --influence')
+                result = production_adoption.draft(root, args.run, args.candidate, scope=args.scope or 'sheet',
+                    influence=args.influence, grant=args.grant, registration_file=args.registration_record,
+                    pack_dir=args.pack_dir)
+            _write_decision_draft(root, args.run, 'adoption', args.out, result, candidate=result['candidate'])
+        elif name == 'adopt':
+            import production_adoption
+            from pack_runtime_cli import resolve_pack_runtime
+            selected_scope = production_adoption.scope(root, args.run, decision_file=args.file, claim_id=args.claim)
+            runtime = resolve_pack_runtime(parser, args) if selected_scope == 'catalog' else None
+            result = production_adoption.apply(root, args.run, decision_file=args.file, claim_id=args.claim,
+                settings=runtime.settings if runtime else None)
         elif name == 'complete':
             result = complete(root, args.run)
         elif name == 'impact':

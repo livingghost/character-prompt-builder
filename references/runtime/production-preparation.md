@@ -32,8 +32,8 @@ Each call may name `-` for one of these JSON options, which then reads standard 
 
 - `--decisions-file` of `execute` and `--outcome-file` of `resume`;
 - `--changes-file` of `variant` and `--intent` of `draft-authorization`;
-- `--file` of `authorize`, `review`, `disposition`, `selection-intent`, `select`, `accept` and `authority-import`;
-- `--approval` and `--registration-record` of `adoption-intent` and `adopt`.
+- `--file` of `authorize`, `review`, `disposition`, `selection-intent`, `select`, `accept`, `adopt` and `authority-import`;
+- `--registration-record` of `draft-adoption`.
 
 Except for `--changes-file`, the bytes read are kept as `production/runs/RUN/objects/SHA256`, and that path is the recorded evidence.
 `authority-import` keeps them as `production/objects/SHA256`.

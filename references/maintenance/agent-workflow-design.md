@@ -42,6 +42,12 @@ Carry inherited identity and state requirements through later requests, while
 keeping selected methods open within the task's authority. Judge a rendition
 by the required result it provides and the source meaning it preserves.
 
+An authored adoption decision selects its exact result, intended canonical
+scope and applicable authority once. The runtime derives the corresponding
+approval, operation intent, authorization binding and recovery claim. Keep
+actual author judgments and grant conditions in that editable decision;
+generated hashes and intermediate records require no manual transcription.
+
 ## One editable source across a task
 
 Initial creation, revision and resumption use the same authored contract.
@@ -79,6 +85,15 @@ rewrite the earlier completion. Several model or prompt trials may coexist,
 and the agent must be able to name each editable branch without a latest-file
 heuristic silently choosing one. These are shared lifecycle properties rather
 than a fixed list of supported rework scenarios.
+
+Separate a result's generation provenance from later curation. A prepared
+recording destination describes the original generation; a later placement,
+acceptance or canonical withdrawal is an authored decision with its own exact
+target and retained evidence. Resolve current placement through one owning read
+model. Verify historical completion against the decision and destination it
+actually recorded. Retrying that historical operation must not undo a newer
+decision. Recovery identifies a captured result by its exact origin, including
+the output identity when equal image bytes occur more than once.
 
 Moving between generation, editing and enlargement preserves the selected
 source bytes and provenance at their relevant scope. A changed operation
@@ -265,6 +280,16 @@ A display refresh owns derived files, not permission or the authoritative
 record. Nested mutations mark affected views; the outer operation publishes
 them once, retains concurrent dirty receipts and reports a repair warning if
 publication fails after the formal effect committed.
+
+Writers identify the affected view and subject scope. Routine navigation
+verifies the current facts it reports and explains that scope; a complete
+historical audit or display repair has an explicit operation. A generated
+display may reuse its publication only under an explicit dependency contract
+covering actual source content, relevant discovery results and its producing
+implementation. File timestamps and event sequence numbers alone do not prove
+that those inputs are unchanged. Missing or damaged owned display data is
+rebuildable. A display cache never supplies an authority decision, a run's
+verified publication or an effect-boundary validation result.
 
 ## Interruption and external effects
 

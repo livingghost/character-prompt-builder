@@ -284,7 +284,8 @@
     },
     "studio": {
       "reads": [
-        "references/runtime/studio.md"
+        "references/runtime/studio.md",
+        "references/runtime/studio-placement.md"
       ],
       "source_roles": []
     },
@@ -800,6 +801,7 @@
     "scripts/test_production_cli.py",
     "scripts/test_production_review.py",
     "scripts/test_production_adoption.py",
+    "scripts/test_production_adoption_decisions.py",
     "scripts/test_production_boundaries.py",
     "scripts/test_production_retarget.py",
     "scripts/test_production_file_input.py",
@@ -834,15 +836,15 @@
       "command": "python scripts/production_workflow.py revise --help",
       "effect": "create a child run bound to the specific reviewed repair"
     },
-    "adoption-intent": {
-      "owner": "scripts/production_workflow.py:adoption_intent",
-      "command": "python scripts/production_workflow.py adoption-intent --help",
-      "effect": "bind exact canonical owner operation"
+    "draft-adoption": {
+      "owner": "scripts/production_adoption.py:draft",
+      "command": "python scripts/production_workflow.py draft-adoption --help",
+      "effect": "write one unanswered canonical-use decision or a current-authority reassessment for an exact retained claim"
     },
     "adopt": {
-      "owner": "scripts/production_workflow.py:adopt",
+      "owner": "scripts/production_adoption.py:apply",
       "command": "python scripts/production_workflow.py adopt --help",
-      "effect": "invoke the owner under separate authority"
+      "effect": "apply one authored decision with derived exact authority, or recover the retained claim without repeating its local effect"
     },
     "impact": {
       "owner": "scripts/production_workflow.py:impact",

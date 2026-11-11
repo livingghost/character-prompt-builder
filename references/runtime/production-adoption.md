@@ -202,7 +202,10 @@ those retained bytes, with its own exact current authority.
 
 1. Use the run's existing current selection. For an open run without one,
    select the candidate with `scope: delivery-only`.
-2. Run `adoption-intent`, then `adopt` under its own `adopt` authorization; the Studio accepts the iteration in this step. `adopt` refuses a candidate that is not the run's current selection (`SELECTION_REQUIRED`).
+2. Run `draft-adoption`, author its actual judgments, then apply that one file
+   with `adopt --file`. The operation derives the exact intent, approval and
+   authorization and accepts the existing iteration. It refuses a candidate
+   that is not the run's current selection (`SELECTION_REQUIRED`).
 3. For an open run, optionally select the same candidate with
    `scope: studio-adoption`, citing the adoption record and retaining any
    applicable owner acceptance. It needs the run's own adoption result. When
@@ -220,43 +223,113 @@ Use `authority-import` for an actual change in the authority declaration.
 A candidate without a valid current selection needs that decision before the
 production task closes; closing a task supplies no missing review or selection.
 
-Retry an interrupted adoption with the same exact approval, authorization and
-destination. A subsequent catalog registration uses a new catalog approval and
-authorization while retaining the initial sheet decision. A registration that
+```text
+python scripts/production_workflow.py draft-adoption --root STUDIO --run RUN --candidate CANDIDATE --scope sheet --influence identity --out decisions/adoption.json
+python scripts/production_workflow.py adopt --root STUDIO --run RUN --file decisions/adoption.json
+```
+
+The draft follows [`production-adoption.schema.json`](../../schemas/authoring/production-adoption.schema.json).
+It derives the existing character, iteration, effective slot, image, selection,
+review, destination state and applicable grant. It includes the authority's
+actual stop-condition text. Fill `at` from the actual approval time, `reason`
+from the approved use, and each `stop_assessments` entry from its evidence.
+`clear: false` and an empty `evidence` are unanswered assessments; the operation
+does not grant permission or clear them automatically. If multiple current
+grants apply, select the actual one with `--grant`. The recorded actor comes
+from that grant. An undecided identity also needs an actual
+`continuity_decision`: choose the character and continuity and identify the
+decision's source with `basis.path` and `basis.locator`. The operation derives
+its content hash, actor and time, and retains those source bytes with the
+claim. The formal approval refers to that immutable evidence; later editing
+the authoring source does not erase the adopted image's proof. Use `license`
+only when applicable.
+
+The image and destination pins are generated facts, not fields to transcribe
+or update by hand. A changed selection, review, placement, accepted image,
+canonical binding or applicable authority requires a fresh draft after
+inspection (`ADOPTION_DECISION_CHANGED`). Keep earlier drafts as evidence and
+carry forward only judgments that the current evidence still supports.
+`status --run RUN` exposes saved adoption branches, including a custom draft
+path, and their applicable next action.
+
+For catalog scope, `draft-adoption` also takes `--registration-record RECORD`
+and `--pack-dir DESTINATION`. It derives both hashes of the selected catalog
+record and pins the destination. Apply with the pack runtime arguments shown
+by `adopt --help`. The committed claim retains a canonical copy of the catalog
+record, so recovery does not depend on the authoring file remaining in place.
+
+Retry an interrupted adoption with the same decision file, or use the
+`adopt --run RUN --claim CLAIM` command returned by the operation or diagnostic.
+The claim retains its exact approval, intent, authorization and evidence;
+recovery still checks the current grant and selection. A subsequent catalog
+registration uses a fresh catalog draft and decision while retaining the
+initial sheet decision. A registration that
 stopped after writing its pack keeps that pack when it resumes, because the
 pack's adoption receipt names the same approval and Studio. Completion verification
 uses the adoption evidence captured for its selected scope; a later registration
 or ordinary replacement does not rewrite what the earlier run completed.
+
+If the applicable authority changes after an adoption claim commits, its old
+assessments cannot authorize further effects. Reassess that retained claim:
+
+```text
+python scripts/production_workflow.py draft-adoption --root STUDIO --run RUN --claim CLAIM --out decisions/adoption-assessment.json
+python scripts/production_workflow.py adopt --root STUDIO --run RUN --file decisions/adoption-assessment.json
+```
+
+This draft shows the exact retained `approval` and asks for the current grant,
+`reason` and actual stop assessments. It does not change the approved image,
+scope, influence, destination or original approver. Leave the generated claim
+and approval fields as they are; assess each current condition from its actual
+evidence. Apply appends a fresh authorization and an `adoption-authority` link
+to the same claim. It keeps the original local operation boundary, partially
+applied Studio work and any already-written catalog pack. A changed stop
+condition is never cleared by its earlier assessment. The selected current
+grant must cover that exact use. Its authorization names the operator making
+the current assessments, including an authorized replacement operator; the
+original canonical approval retains its original author.
+Reassessment of a completed claim permits only recovery of its retained
+evidence; it cannot rewrite the completed adoption or reinstate a withdrawn use.
+Status lists retained claims even when their authoring drafts were edited or
+removed. Use the provided claim action to recover; do not create a second
+adoption to work around an interrupted first one.
+
+A `studio-adoption` selection retains the placement decisions in effect when
+it captures the Studio evidence. Its historical verification replays that saved
+chain over the saved iteration records. Later reassignment or withdrawal does
+not change the destination that earlier completion actually approved. Use
+[Studio placement](studio-placement.md) to correct the current destination and
+[canonical withdrawal](adoption-workflow.md#withdraw-current-canonical-reuse) to end
+the current canonical use before moving adopted work.
 
 The Studio keeps each adoption's record in
 `characters/CHARACTER/adoptions/ITERATION.json`, and the run keeps the same
 content as the result of that adoption. The record agrees with the run when it
 is the latest adoption result the run records for the iteration, or when a
 later adoption claim of the iteration wrote it and that claim has no result yet.
-Repeating a completed `adopt` with the same approval and authorization adopts
+Repeating a completed `adopt` with the same decision file or claim adopts
 nothing again: it returns the recorded result, and when the record is missing,
 unreadable, malformed or disagrees with the run, it writes the record again
 from the latest result. A record that agrees is left as it is; a later adoption
 of another candidate writes its own record. The repetition needs the run's
 current selection of the candidate and a current grant, as the adoption did;
 the Studio eligibility checks that come before an adoption do not apply to it.
+Recovery of a completed claim restores its recorded evidence only. It does
+not reinstate a withdrawn canonical binding or replace a later adoption.
 
 A reader of a current or pending adoption that finds the record missing,
 malformed or in disagreement with the run reports `ADOPTION_RECORD_CORRUPT`
 with the `adopt` command of the latest completed adoption in `required_action`:
-`studio_reference.py`, status, `adoption-intent`, a new or resumed `adopt` and a
+`studio_reference.py`, status, `draft-adoption`, a new or resumed `adopt` and a
 `studio-adoption` selection. A later adoption continues from the record, so
-once the run records an adoption result, `adoption-intent` and `adopt` refuse a
+once the run records an adoption result, `draft-adoption` and a new adoption refuse a
 missing record in the same way and change nothing until it is written again.
 Once it is, a catalog registration that stopped before the record was lost
 resumes with its own `adopt` command.
 
-`adoption-intent` and `adopt` take `--candidate`, `--character`, `--iteration` and `--approval`.
-`adopt` also takes `--authorization`, the event digest of its adopt authorization.
-A catalog adoption adds `--registration-record`, `--pack-dir` and the same explicit pack runtime arguments as the owner.
 An imported iteration belongs to `studio.py accept` for slot acceptance and
 `adoption_workflow.py adopt` for sheet or catalog adoption. Production
-`adoption-intent` identifies that ownership before creating an adoption claim.
+`draft-adoption` identifies that ownership before creating an adoption claim.
 
 A run has at most one current selection:
 

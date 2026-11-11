@@ -22,6 +22,7 @@ import production_store as store
 import production_workflow as workflow
 import studio
 import studio_activity
+import studio_placement as placement
 import validate_studio
 import test_production_review as review_cases
 import transport_synthetic
@@ -30,6 +31,46 @@ from production_diagnostics import ProductionError
 
 
 class AcceptanceTests(review_cases.ReviewCase):
+    def move(self, destination):
+        value = placement.draft(self.root, 'robot', self.iteration, destination)
+        value.update(by='Synthetic curator', at='2026-11-11T00:00:00Z',
+                     reason='Synthetic destination correction preserving original production.')
+        return placement.reassign(self.root, value)
+
+    def test_reassignment_accepts_current_destination_and_preserves_original_input(self):
+        original = workflow.read_run(self.root, self.run).prepared
+        self.move('scene.corrected')
+        self.author_choice(discrepancy=False)
+        result = self.accept()
+        self.assertEqual(result['slot']['slot'], 'scene.corrected')
+        self.assertEqual(workflow.read_run(self.root, self.run).prepared, original)
+        row = self.row(self.candidate)
+        self.assertEqual(row['slot'], 'candidate')
+        self.assertEqual(studio.placement_slot(row), 'scene.corrected')
+        self.assertEqual(validate_studio.validate(self.root), [])
+
+    def test_completed_acceptance_keeps_historical_receipt_after_reassignment(self):
+        self.author_choice(discrepancy=False)
+        result = self.accept()
+        completion = result['completion']
+        prior = copy.deepcopy(self.row(self.candidate)['acceptances'][0])
+        self.move('scene.corrected')
+        self.assertEqual(self.row(self.candidate)['acceptances'][0], prior)
+        task = workflow.read_run(self.root, self.run).prepared['task']['task_id']
+        self.assertEqual(workflow.verify_completion(self.root, self.run, task)['sha256'], completion)
+        resumed = self.accept(supplied=False)
+        self.assertEqual(resumed['completion'], completion)
+        self.assertEqual(studio.placement_slot(self.row(self.candidate)), 'scene.corrected')
+        self.assertEqual(validate_studio.validate(self.root), [])
+
+    def test_acceptance_draft_pins_placement_even_when_both_slots_are_empty(self):
+        self.author_choice(discrepancy=False)
+        self.move('scene.corrected')
+        with self.assertRaises(ProductionError) as caught:
+            self.accept()
+        self.assertEqual(caught.exception.diagnostic.code, 'PLACEMENT_CONFLICT')
+        self.assertIsNone(studio.acceptance_state(self.root, 'robot', 'scene.corrected'))
+
     def author_choice(self, *, discrepancy: bool = True) -> tuple[dict, dict]:
         review = self.record_review([('output', 'pass'), ('palette', 'fail' if discrepancy else 'pass')])
         decisions = acceptance.draft(self.root, self.run, self.candidate, 'fixture-grant', scope='studio-slot')
@@ -716,6 +757,34 @@ class TextAcceptanceTests(unittest.TestCase):
         recovered = acceptance.accept(self.root, self.run)
         self.assertEqual(recovered['completion'], result['completion'])
         self.assertTrue(recovered['work']['finished'])
+
+
+class PlacementCaptureTests(review_cases.ReviewCase):
+    """Two distinct provider outputs may contain exactly the same pixels."""
+    count = 2
+
+    def setUp(self):
+        image = transport_synthetic._png(32, 32, bytes((40, 100, 170)))
+        with patch.object(transport_synthetic, '_png', return_value=image):
+            super().setUp()
+
+    def test_reassigned_equal_byte_output_is_recovered_by_candidate_identity(self):
+        first, second = (self.row(candidate) for candidate in self.candidates)
+        self.assertEqual(first['result']['sha256'], second['result']['sha256'])
+        decision = placement.draft(self.root, 'robot', second['iteration_id'], 'scene.second')
+        decision.update(by='Synthetic curator', at='2026-11-11T00:00:00Z',
+                        reason='Only the second output belongs to this synthetic scene.')
+        placement.reassign(self.root, decision)
+        before = {row['iteration_id']: row['production'] for row in studio.read_iterations(self.home)}
+        self.assertEqual(execution.status(self.root, self.run)['runs'][0]['registration'], 'registered')
+        with patch.object(transport_synthetic, 'send', side_effect=AssertionError('Recovery must not generate')):
+            recovered = execution.resume(self.root, self.run)
+        self.assertTrue(recovered['execution_completed'])
+        after = studio.read_iterations(self.home)
+        self.assertEqual({row['iteration_id']: row['production'] for row in after}, before)
+        self.assertEqual(studio.placement_slot(self.row(self.candidates[0])), 'candidate')
+        self.assertEqual(studio.placement_slot(self.row(self.candidates[1])), 'scene.second')
+        self.assertEqual(validate_studio.validate(self.root), [])
 
 
 if __name__ == '__main__':

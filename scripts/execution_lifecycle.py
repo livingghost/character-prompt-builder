@@ -70,7 +70,7 @@ class ReplayState:
     owner retains this value internally, alongside its verified event history.
     """
     __slots__ = ('prepared', 'run', 'rows', 'executions', '_events', '_latest', '_reviews',
-                 '_decisions', '_adoption_tokens', '_operation_tokens', '_operation_starts',
+                 '_decisions', '_adoption_tokens', '_adoption_authorities', '_adoption_starts',
                  '_adoption_results', '_steps', '_delete_indices', '_delete_limits', '_send_steps',
                  '_failed_uploads', '_execution_authorizations', 'closed', '_sealed')
 
@@ -95,8 +95,8 @@ class ReplayState:
         self._reviews: dict[str, dict] = {}
         self._decisions: dict[str, dict] = {}
         self._adoption_tokens: set[str] = set()
-        self._operation_tokens: set[str] = set()
-        self._operation_starts: dict[tuple[str, str | None], int] = {}
+        self._adoption_authorities: dict[str, dict] = {}
+        self._adoption_starts: dict[str, int] = {}
         self._adoption_results: set[str] = set()
         self._steps: dict[str, dict[str, dict]] = {}
         self._delete_indices: dict[str, set[int]] = {}
@@ -322,11 +322,15 @@ class ReplayState:
             self._decisions[data[event]['candidate']] = row
         elif event == 'adoption-claim':
             self._adoption_tokens.update(data['authorizations'])
+        elif event == 'adoption-authority':
+            self._adoption_tokens.add(data['authorization'])
+            self._adoption_authorities[data['claim']] = row
         elif event == 'operation-start':
-            token = data['authorization_sha256']
-            self._operation_tokens.add(token)
-            key = (token, data['claim'])
-            self._operation_starts[key] = self._operation_starts.get(key, 0) + 1
+            claim = data['claim']
+            authorization = self._events.get(('authorization', data['authorization_sha256']))
+            if (authorization is not None and authorization['data']['request']['operation'] == 'adopt'
+                    and ('adoption-claim', claim) in self._events):
+                self._adoption_starts[claim] = self._adoption_starts.get(claim, 0) + 1
         elif event == 'adoption-result':
             self._adoption_results.add(data['claim'])
 
@@ -371,6 +375,37 @@ def by_authorization(records: list[dict] | ReplayState, prepared: dict, run: str
 
 def claim_owns(record: dict, token: str) -> bool:
     return record['event'] in CLAIM_EVENTS and token in record['data'].get('authorizations', [])
+
+
+def current_adoption_authorization(records: list[dict] | ReplayState,
+                                  claim: dict) -> tuple[str, str | None]:
+    """Resolve a claim's explicit authority history without changing its approval.
+
+    The owning effect still checks the returned authorization against current
+    grants. An authority link supplies its own assessment basis; the original
+    authorization keeps the basis already recorded in the approval.
+    """
+    if claim.get('event') != 'adoption-claim':
+        raise ValueError('adoption authority needs its recorded adoption claim')
+    identifier = c.sha(claim['sha256'])
+    if isinstance(records, EventHistory):
+        records = records.lifecycle
+    if isinstance(records, ReplayState):
+        recorded = records.find('adoption-claim', identifier)
+        latest = records._adoption_authorities.get(identifier)
+    else:
+        found = [row for row in records if row['event'] == 'adoption-claim' and row['sha256'] == identifier]
+        if len(found) != 1:
+            raise ValueError('adoption authority needs its one recorded claim')
+        recorded = found[0]
+        linked = [row for row in records if row['event'] == 'adoption-authority'
+                  and row['data']['claim'] == identifier]
+        latest = linked[-1] if linked else None
+    if recorded != claim:
+        raise ValueError('adoption authority claim differs from its recorded content')
+    if latest is not None:
+        return latest['data']['authorization'], latest['data']['authority_sha256']
+    return claim['data']['authorizations'][0], None
 
 
 def require_operation(records: list[dict] | ReplayState, prepared: dict, run: str,
@@ -491,6 +526,23 @@ def validate_transition(records: list[dict] | ReplayState, prepared: dict, run: 
             raise ValueError('an adoption authorization owns only one claim')
         _adoption_approval(state, request, intent['payload'], c.decode(read_object(data['files'][0]['sha256'])))
         adoption = True
+    elif event == 'adoption-authority':
+        c.exact(data, {'claim', 'authorization', 'authority_sha256'}, 'adoption authority')
+        for key in data:
+            c.sha(data[key])
+        claim = state.find('adoption-claim', data['claim'])
+        authorization = state.find('authorization', data['authorization'])
+        request = authorization['data']['request']
+        intent = claim['data']['intent']
+        if intent != {key: request[key] for key in ('operation', 'targets', 'payload')}:
+            raise ValueError('adoption authority differs from the claim\'s exact intent')
+        if data['authorization'] in state._adoption_tokens:
+            raise ValueError('an adoption authorization belongs to only one claim or reassessment')
+        previous = state._adoption_authorities.get(data['claim'], claim)
+        if authorization['sequence'] <= previous['sequence']:
+            raise ValueError('adoption reassessment needs a fresh authorization after its preceding claim or assessment')
+        require_operation(state, prepared, run, **intent)
+        adoption = True
     elif event == 'operation-start':
         c.exact(data, {'authorization_sha256', 'effect', 'claim'}, 'operation start')
         token = data['authorization_sha256']
@@ -502,17 +554,20 @@ def validate_transition(records: list[dict] | ReplayState, prepared: dict, run: 
         if request['operation'] == 'adopt':
             c.sha(data['claim'])
             claim = state.find('adoption-claim', data['claim'])
-            if data['effect'] != 'local-action' or not claim_owns(claim, token):
+            current, _ = current_adoption_authorization(state, claim)
+            if data['effect'] != 'local-action' or token != current:
                 raise ValueError('adoption start needs its exact prior claim and local effect')
-            if token in state._operation_tokens:
+            if state._adoption_starts.get(data['claim'], 0):
                 raise ValueError('an adoption claim starts only once')
             adoption = True
+        elif ('adoption-claim', data['claim']) in state._events:
+            raise ValueError('an adoption claim starts only under its adoption authorization')
     elif event == 'adoption-result':
         c.exact(data, {'claim', 'result'}, 'adoption result')
         c.sha(data['claim'])
         claim = state.find('adoption-claim', data['claim'])
         token = claim['data']['authorizations'][0]
-        if state._operation_starts.get((token, data['claim']), 0) != 1 or data['claim'] in state._adoption_results:
+        if state._adoption_starts.get(data['claim'], 0) != 1 or data['claim'] in state._adoption_results:
             raise ValueError('adoption result needs its unique prior start and no previous result')
         request = state.find('authorization', token)['data']['request']
         payload, result = claim['data']['intent']['payload'], data['result']

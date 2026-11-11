@@ -24,6 +24,7 @@ EXECUTION_CODES = frozenset({
     'UPSCALE_OUTPUT_CONTRACT_MISMATCH', 'STUDIO_PROJECTION_FAILED', 'ARTIFACT_PUBLISH_FAILED',
     'LOG_WRITE_FAILED', 'EXECUTION_STOPPED', 'WORK_PROJECTION_FAILED',
     'PROVIDER_OUTPUT_CHANGED', 'TRANSPORT_IMPLEMENTATION_CHANGED',
+    'PLACEMENT_PROJECTION_PENDING',
 })
 # Every other code is an input defect: a declared input, a stored record or an argument needs correcting.
 EXIT_CODES = {**{code: EXIT_WAITING for code in WAITING_CODES}, **{code: EXIT_EXECUTION for code in EXECUTION_CODES}}
@@ -66,6 +67,9 @@ PHASE_DOCUMENTS = {
     'dependency-preflight': 'DEPENDENCIES.md#environment-check-and-installation',
     'runtime-resolution': 'references/runtime/production-preparation.md#prepare-one-complete-input',
     'recording-validation': 'references/runtime/studio.md#production-owned-candidates',
+    'placement': 'references/runtime/studio-placement.md',
+    'adoption-integrity': 'references/runtime/adoption-workflow.md',
+    'adoption': 'references/runtime/production-adoption.md#adopt-the-selected-image-as-a-reusable-reference',
     'package-compilation': 'references/runtime/production-preparation.md#prepare-one-complete-input',
     'request-compilation': 'references/runtime/render-contract.md#resolve-and-inspect-the-exact-input',
     'execution-plan': 'references/runtime/production-request-execution.md#execute-the-prepared-request',

@@ -11,7 +11,7 @@ What it refuses:
 - a character id that ends in a dot or differs from another only by case;
 - an iteration whose files are missing or whose hashes moved;
 - a slot with two accepted iterations, or an accepted iteration without its accepted copy;
-- an acceptance history that names an iteration of another slot;
+- an acceptance history without the named replacement's acceptance in that historical slot;
 - an imported iteration without external-import provenance, or a rejection that names no actor;
 - a Production candidate row that stores a judgment field, or whose run cannot be read;
 - a Production candidate a dispatcher run recorded for this studio with no row here;
@@ -41,7 +41,7 @@ MANIFEST_FIELDS = {
 ITERATION_FIELDS = {
     "iteration_id", "at", "character", "slot", "status", "acceptances", "result", "package", "request",
     "request_layout", "response", "answer", "service", "seed", "note", "accepted_path", "superseded_by", "rejected_at",
-    "reason", "actor", "provenance", "production", "adoption_status", "package_attachment",
+    "reason", "actor", "provenance", "production", "adoption_status", "package_attachment", "superseded_in",
 }
 
 
@@ -94,7 +94,16 @@ def check_history(root: Path, rows: list[dict[str, Any]], character: str, errors
     """
     import execution_contract as contract
     import production_workflow as workflow
-    slots = {str(row.get("iteration_id")): row.get("slot") for row in rows}
+    by_id = {str(row.get("iteration_id")): row for row in rows}
+    def accepted_in(iteration, slot):
+        other = by_id.get(str(iteration))
+        return other is not None and any(studio.acceptance_receipt_slot(other, item) == slot
+                                        for item in other.get('acceptances', []) if isinstance(item, dict))
+    read = studio.StudioRead(root)
+    import studio_placement
+    placements = {studio_placement.transferred_receipt(item['data']['decision'])['placement']: item['data']['decision']
+                  for item in read.placement_records(character)
+                  if studio_placement.transferred_receipt(item['data']['decision']) is not None}
     runs: dict[str, tuple | BaseException] = {}
     for number, row in enumerate(rows, 1):
         label = f"characters/{character}/iterations.jsonl:{number}"
@@ -104,11 +113,19 @@ def check_history(root: Path, rows: list[dict[str, Any]], character: str, errors
             continue
         selections: set[str] = set()
         for acceptance in acceptances:
-            if not isinstance(acceptance, dict) or set(acceptance) not in (
-                    {"at", "supersedes"}, {"at", "supersedes", "production_selection"}) \
+            if not isinstance(acceptance, dict) or not {"at", "supersedes"} <= set(acceptance) \
+                    or set(acceptance) - {'at', 'supersedes', 'production_selection', 'slot', 'placement'} \
                     or not isinstance(acceptance.get("at"), str):
-                errors.append(f"{label}: an acceptance needs at and supersedes, with an optional exact production_selection")
+                errors.append(f"{label}: an acceptance needs at and supersedes, with its slot and exact decision evidence")
                 continue
+            target_slot = studio.acceptance_receipt_slot(row, acceptance)
+            if not isinstance(target_slot, str) or not studio.SLOT.fullmatch(target_slot):
+                errors.append(f'{label}: an acceptance has an invalid target slot')
+            if 'placement' in acceptance:
+                decision = placements.get(acceptance['placement'])
+                if decision is None or decision['origin']['iteration_id'] != row['iteration_id'] \
+                        or studio_placement.transferred_receipt(decision) != acceptance:
+                    errors.append(f'{label}: acceptance transfer has no exact recorded placement decision')
             if 'production_selection' in acceptance:
                 try:
                     selection_id = contract.sha(acceptance['production_selection'])
@@ -132,14 +149,14 @@ def check_history(root: Path, rows: list[dict[str, Any]], character: str, errors
                     if selected['candidate'] != origin['candidate'] \
                             or candidate['data']['files'][0]['sha256'] != row['result']['sha256']:
                         raise ValueError('production_selection does not belong to this iteration\'s candidate and image')
-                    target = {'character': character, 'iteration_id': row['iteration_id'], 'slot': row['slot']}
+                    target = {'character': character, 'iteration_id': row['iteration_id'], 'slot': target_slot}
                     if selected['slot'] is not None and selected['slot'] != target:
                         raise ValueError('production_selection names another Studio destination')
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     errors.append(f'{label}: invalid Production acceptance receipt: {exc}')
             replaced = acceptance["supersedes"]
-            if replaced is not None and (replaced == row.get("iteration_id") or slots.get(str(replaced)) != row.get("slot")):
-                errors.append(f"{label}: supersedes {replaced!r}, which is not another iteration of slot {row.get('slot')!r}")
+            if replaced is not None and (replaced == row.get("iteration_id") or not accepted_in(replaced, target_slot)):
+                errors.append(f"{label}: supersedes {replaced!r}, which has no acceptance in slot {target_slot!r}")
         status = row.get("status")
         if status == "candidate" and acceptances:
             errors.append(f"{label}: a candidate has never been accepted, and lists acceptances")
@@ -147,8 +164,9 @@ def check_history(root: Path, rows: list[dict[str, Any]], character: str, errors
             errors.append(f"{label}: {status} and no acceptance is recorded")
         by = row.get("superseded_by")
         if status == "superseded":
-            if by == row.get("iteration_id") or slots.get(str(by)) != row.get("slot"):
-                errors.append(f"{label}: superseded by {by!r}, which is not another iteration of slot {row.get('slot')!r}")
+            target_slot = row.get('superseded_in', row['slot'])
+            if by == row.get("iteration_id") or not accepted_in(by, target_slot):
+                errors.append(f"{label}: superseded by {by!r}, which has no acceptance in slot {target_slot!r}")
         elif "superseded_by" in row:
             errors.append(f"{label}: superseded_by is recorded on an iteration that is {status}")
 
@@ -304,9 +322,12 @@ def validate(root: Path) -> list[str]:
             check_answer(root, row, label, errors)
             check_layout(root, row, label, errors)
             if row.get("status") == "accepted":
-                if row["slot"] in accepted_slots:
-                    errors.append(f"{label}: slot {row['slot']!r} is accepted twice ({accepted_slots[row['slot']]} and {row.get('iteration_id')})")
-                accepted_slots[row["slot"]] = str(row.get("iteration_id"))
+                target_slot = studio.placement_slot(row)
+                if target_slot in accepted_slots:
+                    errors.append(f"{label}: slot {target_slot!r} is accepted twice ({accepted_slots[target_slot]} and {row.get('iteration_id')})")
+                accepted_slots[target_slot] = str(row.get("iteration_id"))
+                if not row.get('acceptances') or studio.acceptance_receipt_slot(row, row['acceptances'][-1]) != target_slot:
+                    errors.append(f'{label}: current acceptance receipt belongs to another placement')
                 copy = row.get("accepted_path")
                 if not copy or not (root / str(copy)).is_file():
                     errors.append(f"{label}: accepted and its copy under accepted/ is missing")

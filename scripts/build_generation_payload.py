@@ -1137,7 +1137,7 @@ def materialize_cli_reference_bundle(
     if validated['reference_use_plan'] is not None:
         sources.extend(item['source'] for item in validated['reference_use_plan']['reference_items'])
     for source in sources:
-        if source.get('kind') == 'studio-artifact':
+        if source.get('kind') in {'studio-artifact', 'studio-accepted-image'}:
             from studio_reference import archive_source
             archived = archive_source(source, staging_root / companion_name)
             if artifacts is not None:

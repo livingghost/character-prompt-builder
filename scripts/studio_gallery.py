@@ -28,33 +28,67 @@ def utc_day(value: str | None) -> str:
         return ''
 
 
-def build_index(root: Path, *, read=None) -> dict:
+def build_index(root: Path, *, read=None, characters: set[str] | None = None,
+                current_only: bool = False, full_characters: set[str] | None = None) -> dict:
     import studio
     import sheet_inventory
-    document = read.document if read else studio.manifest(root)
+    import sheet_artifacts
+    read = read or studio.StudioRead(root)
+    document = read.document
+    retained = retained_index(root, document) if characters is not None or current_only else None
+    # Only a complete owned publication can supply unchanged display entries.
+    # Missing or damaged generated output requires a complete repair.
+    if retained is None:
+        characters, current_only = None, False
+    previous = {entry['entry_id']: entry for entry in (retained or {}).get('entries', [])}
     entries, diagnostics = [], []
     for info in document.get('characters') or []:
         if not isinstance(info, dict):
             continue
         character = str(info.get('id'))
+        if characters is not None and character not in characters:
+            entries.extend(copy.deepcopy(entry) for entry in previous.values() if entry.get('character') == character)
+            diagnostics.extend(copy.deepcopy(item) for item in retained['diagnostics'] if item.get('character') == character)
+            continue
+        current = current_only and character not in (full_characters or set())
         home = studio.character_dir(root, character)
         if not home.is_dir():
             diagnostics.append({'character': character, 'message': 'character directory is missing'})
             continue
         try:
-            rows = read.iterations(character) if read else studio.read_iterations(home)
+            rows = read.current_iterations(character) if current else read.iterations(character)
+            source_hashes = {row['iteration_id']: c.content_id(row) for row in read.placed_iterations(character)}
         except (ValueError, OSError, KeyError, TypeError) as exc:
             diagnostics.append({'character': character, 'message': str(exc)})
             rows = []
         by_iteration = {}
         for row in rows:
+            identifier = character + '/' + str(row.get('iteration_id'))
+            held = previous.get(identifier)
+            if current and row.get('status') in {'superseded', 'rejected'}:
+                if held is not None and held.get('source_sha256') == source_hashes[row['iteration_id']]:
+                    entry = copy.deepcopy(held)
+                    # Current sheet membership is observed below even when the
+                    # retained generation details belong to closed history.
+                    entry.update(sheet_state=None, canonical_status=None, withdrawals=[], artifact_id=None)
+                    entry['diagnostics'] = copy.deepcopy(entry['generation_diagnostics'])
+                    if not entry['diagnostics'] and not entry.get('production_diagnostic'):
+                        entry['availability'] = 'present'
+                    entries.append(entry); by_iteration[row['iteration_id']] = entry
+                    continue
+                row = read.iteration(character, row['iteration_id'])
             errors = []
             def read_link(key):
                 item = row.get(key)
                 if not item:
                     return None
                 try:
-                    return c.load(c.local(root, item['path']))
+                    if key == 'package':
+                        return read._package(item)[1]
+                    raw = c.read(c.local(root, item['path']))
+                    if c.digest(raw) != item['sha256']:
+                        raise ValueError('recorded ' + key + ' bytes changed')
+                    return c.decode(raw)
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     errors.append({'file': item.get('path'), 'message': str(exc)})
                     return None
@@ -62,10 +96,11 @@ def build_index(root: Path, *, read=None) -> dict:
             service = row.get('service') or {}
             payload = package.get('generation_payload') or {} if isinstance(package, dict) else {}
             model = service.get('model') or (payload.get('model') or package.get('upscaler_model') if isinstance(package, dict) else None)
-            entry = {'entry_id': character + '/' + str(row.get('iteration_id')),
+            entry = {'entry_id': identifier, 'source_sha256': source_hashes[row['iteration_id']],
                      'character': character, 'iteration_id': row.get('iteration_id'), 'kind': 'generation',
                      'model_record': model, 'dialect': service.get('dialect'), 'at': row.get('at'),
-                     'time_basis': 'output-received-or-imported', 'slot': row.get('slot'), 'status': row.get('status'),
+                     'time_basis': 'output-received-or-imported', 'slot': studio.placement_slot(row),
+                     'recorded_slot': row.get('slot'), 'placement': row.get('placement'), 'status': row.get('status'),
                      'production': row.get('production'), 'evaluation': row.get('evaluation'), 'disposition': row.get('disposition'),
                      'selection_basis': row.get('selection_basis'), 'owner_acceptance': row.get('owner_acceptance'),
                      'unassessed_criteria': row.get('unassessed_criteria'), 'production_diagnostic': row.get('production_diagnostic'),
@@ -77,22 +112,40 @@ def build_index(root: Path, *, read=None) -> dict:
                      'request': (row.get('request') or {}).get('path'), 'response': (row.get('response') or {}).get('path'),
                      'note': row.get('note'), 'reason': row.get('reason'),
                      'decision_kind': row.get('decision_kind') if row.get('production') else ('rejection' if row.get('status') == 'rejected' else None),
-                     'diagnostics': errors, 'sheet_state': None, 'artifact_id': None}
-            _availability(root, entry)
+                     'diagnostics': errors, 'sheet_state': None, 'canonical_status': None,
+                     'withdrawals': [], 'artifact_id': None}
+            if row.get('status') == 'accepted':
+                try:
+                    studio.verify_accepted_file(root, row)
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    errors.append({'message': str(exc)})
+            _availability(root, entry, verify=True)
+            entry['generation_diagnostics'] = copy.deepcopy(entry['diagnostics'])
             entries.append(entry); by_iteration[row.get('iteration_id')] = entry
         sidecar = home / 'sheet/sheet-data.json'
         if not sidecar.is_file():
             continue
         try:
-            artwork = sheet_inventory.entries(sidecar, state=read.sheet(character) if read else None)
+            state = read.sheet(character)
+            artwork = sheet_inventory.entries(sidecar, state=state)
         except (ValueError, OSError, KeyError, TypeError) as exc:
             diagnostics.append({'character': character, 'file': str(sidecar.relative_to(root)), 'message': str(exc)})
             continue
         for item in artwork:
+            if item['state'] == 'current':
+                try:
+                    sheet_artifacts.verify_acceptance(state['slots'][item['slot']]['current'],
+                        sidecar.parent, item['slot'], cache=read.artifacts)
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    item['diagnostics'].append(str(exc))
             origin = item['origin']
             generated = by_iteration.get(origin.get('iteration_id')) if origin.get('character') == character else None
             if generated is not None and generated['slot'] == item['slot']:
-                generated.update(sheet_state=item['state'], artifact_id=item['artifact_id'])
+                generated.update(sheet_state=item['state'], artifact_id=item['artifact_id'],
+                                 canonical_status=item.get('canonical_status'), withdrawals=item.get('withdrawals') or [])
+                generated['diagnostics'].extend({'message': text} for text in item['diagnostics'])
+                if generated['diagnostics']:
+                    generated['availability'] = 'unavailable'
                 # Sheet selection is the current artwork for this panel, even
                 # when its source iteration's acceptance axis is independent.
                 continue
@@ -103,7 +156,9 @@ def build_index(root: Path, *, read=None) -> dict:
                      'artifact_id': item['artifact_id'], 'kind': item.get('kind', art['provenance']['kind']),
                      'at': item['recorded_at'], 'time_basis': 'artifact-published', 'slot': item['slot'],
                      'status': {'current':'accepted', 'candidate':'candidate', 'history':'superseded'}[item['state']],
-                     'sheet_state': item['state'], 'production': origin if origin.get('kind') == 'production' else None,
+                     'sheet_state': item['state'], 'canonical_status': item.get('canonical_status'),
+                     'withdrawals': item.get('withdrawals') or [],
+                     'production': origin if origin.get('kind') == 'production' else None,
                      'evaluation': None, 'disposition': None, 'selection_basis': None, 'owner_acceptance': None,
                      'unassessed_criteria': [], 'selection_diagnostics': [],
                      'acceptances': [], 'superseded_by': None, 'service': None, 'model_record': (item.get('recipe') or {}).get('model'),
@@ -112,7 +167,7 @@ def build_index(root: Path, *, read=None) -> dict:
                      'result_sha256': art['image']['sha256'], 'package': None, 'note': 'Exact source artwork and edit recipe are kept in provenance.',
                      'reason': None, 'decision_kind': None, 'diagnostics': [{'message': text} for text in item['diagnostics']],
                      'provenance': (sidecar.parent / art['provenance']['path']).relative_to(root).as_posix()}
-            _availability(root, entry)
+            _availability(root, entry, verify=not current or item['state'] != 'history')
             entries.append(entry)
     # Natural sequence breaks ties without making it-10 appear older than it-2.
     def key(entry):
@@ -121,19 +176,28 @@ def build_index(root: Path, *, read=None) -> dict:
     entries.sort(key=key, reverse=True)
     payload = {'studio_id': document.get('studio_id'), 'title': document.get('title'),
                'order': 'recorded_at_desc', 'entries': entries, 'diagnostics': diagnostics}
+    read.gallery_diagnostics = copy.deepcopy(diagnostics)
+    for entry in entries:
+        if entry.get('status') in {'superseded', 'rejected'} and entry.get('sheet_state') != 'current':
+            continue
+        for item in [entry.get('production_diagnostic'), *(entry.get('diagnostics') or [])]:
+            if item:
+                read.gallery_diagnostics.append({'entry_id': entry['entry_id'], **copy.deepcopy(item)})
     return {**payload, 'revision': c.content_id(payload), 'generated_at': timestamp()}
 
 
-def _availability(root: Path, entry: dict) -> None:
+def _availability(root: Path, entry: dict, *, verify: bool = False) -> None:
     try:
         if not entry['result']:
             raise ValueError('no result was recorded')
-        c.local(root, entry['result'])
+        image = c.local(root, entry['result'])
+        if verify and c.sha256_file(image) != entry['result_sha256']:
+            raise ValueError('recorded image bytes changed')
         entry['availability'] = 'present'
     except (ValueError, OSError, TypeError) as exc:
         entry['availability'] = 'unavailable'
         entry['diagnostics'].append({'message': str(exc)})
-    # Presence is a display hint, not a replacement for hash verification before use.
+    # Display checks never replace the selected-source proof required before use.
     if entry['diagnostics'] or entry.get('production_diagnostic'):
         entry['availability'] = 'unavailable'
 
@@ -182,7 +246,10 @@ def _history(entry: dict) -> str:
     parts = [f"received / published {_escape(entry.get('at'))}"]
     for acceptance in entry.get("acceptances") or []:
         replaced = acceptance.get("supersedes") if isinstance(acceptance, dict) else None
-        parts.append(f"accepted {_escape((acceptance or {}).get('at'))}" + (f" in place of {_escape(replaced)}" if replaced else ""))
+        slot = acceptance.get('slot') if isinstance(acceptance, dict) else None
+        parts.append(f"accepted {_escape((acceptance or {}).get('at'))}"
+                     + (f" in {_escape(slot)}" if slot else "")
+                     + (f" in place of {_escape(replaced)}" if replaced else ""))
     if entry.get("superseded_by"):
         parts.append(f"superseded by {_escape(entry['superseded_by'])}")
     return "; ".join(parts)
@@ -218,7 +285,11 @@ def render_entry(entry: dict) -> str:
         _fact("disposition", entry.get("disposition"), None),
         _fact("selection basis", entry.get("selection_basis"), None),
         _fact("unassessed", ", ".join(entry.get("unassessed_criteria") or []), None),
+        _fact("canonical adoption", entry.get("canonical_status"), None),
     ) if fact)
+    placement = ('<p>Recorded in ' + _escape(entry['recorded_slot'])
+                 + '; currently placed in ' + _escape(entry.get('slot')) + '.</p>'
+                 if entry.get('recorded_slot') and entry['recorded_slot'] != entry.get('slot') else '')
     diagnostics = "".join(
         f'<p class="diagnostic">{_escape(item.get("code"))}: {_escape(item.get("message"))}</p>'
         for item in [entry.get("production_diagnostic"), *(entry.get("selection_diagnostics") or []), *(entry.get("diagnostics") or [])] if item)
@@ -241,6 +312,7 @@ def render_entry(entry: dict) -> str:
   <div class="facts">
     <h2>{_escape(entry.get('character'))} / {_escape(entry.get('slot'))} / {_escape(entry.get('iteration_id'))} <span class="status">{_escape(entry.get('status'))}</span></h2>
     <p class="when">{_history(entry)}</p>
+    {placement}
     <p>{origin}</p><p>{record}</p>
     {('<p>' + judged + '</p>') if judged else ''}
     {diagnostics}
@@ -379,6 +451,21 @@ def _card(entry: dict, root: Path, html_path: Path) -> dict:
     }
 
 
+def _published_pair(html_path: Path, json_path: Path, studio_id: str) -> bool:
+    """Recognize this output's generated pair when its assets directory is missing."""
+    try:
+        held = c.load(json_path)
+        if (not isinstance(held, dict) or held.get('studio_id') != studio_id
+                or held.get('order') != 'recorded_at_desc' or not isinstance(held.get('entries'), list)
+                or held.get('revision') != c.content_id({key: value for key, value in held.items()
+                                                       if key not in {'revision', 'generated_at'}})):
+            return False
+        marker = '<meta name="cpb-gallery-revision" content="' + held['revision'] + '">'
+        return marker in c.read(html_path).decode('utf-8')
+    except (ValueError, OSError, TypeError, KeyError):
+        return False
+
+
 def publish(root: Path, index: dict, out: Path | None = None) -> tuple[Path, Path]:
     """Publish an offline view, replacing only changed generated bytes.
 
@@ -401,6 +488,8 @@ def publish(root: Path, index: dict, out: Path | None = None) -> tuple[Path, Pat
             raise ValueError(f'gallery assets belong to another output: {assets}')
     elif assets.exists() and any(assets.iterdir()):
         raise ValueError(f'gallery assets directory has no generated ownership record: {assets}')
+    elif (html_path.exists() or json_path.exists()) and not _published_pair(html_path, json_path, index.get('studio_id')):
+        raise ValueError(f'gallery output exists without this view\'s generated ownership: {html_path}')
     assets.mkdir(parents=True, exist_ok=True)
     _write_changed(owner_path, _json_bytes(owner))
     previous = {}
@@ -468,8 +557,32 @@ def stale(root: Path) -> str | None:
         if (not isinstance(held, dict) or {key: value for key, value in held.items() if key != 'generated_at'}
                 != {key: value for key, value in expected.items() if key != 'generated_at'}):
             return 'gallery.json does not list what the artwork records hold'
-        marker = '<meta name="cpb-gallery-revision" content="' + expected['revision'] + '">'
-        if marker not in c.read(html_path).decode('utf-8'):
+        return _output_problem(root, held)
+    except (ValueError, OSError, TypeError, KeyError) as exc:
+        return f'gallery projection cannot be read: {exc}'
+
+
+def retained_index(root: Path, document: dict) -> dict | None:
+    """Read a verified generated display, never a cached source or authority proof."""
+    try:
+        held = c.load(root / 'gallery.json')
+        if (not isinstance(held, dict) or held.get('studio_id') != document.get('studio_id')
+                or held.get('title') != document.get('title') or not isinstance(held.get('entries'), list)
+                or not isinstance(held.get('diagnostics'), list)
+                or held.get('revision') != c.content_id({key: value for key, value in held.items()
+                                                       if key not in {'revision', 'generated_at'}})
+                or _output_problem(root, held) is not None):
+            return None
+        return held
+    except (ValueError, OSError, TypeError, KeyError):
+        return None
+
+
+def _output_problem(root: Path, expected: dict) -> str | None:
+    """Check the actual owned output bytes without opening formal source history."""
+    html_path = root / 'gallery.html'
+    try:
+        if c.read(html_path) != _shell(expected, root, html_path).encode('utf-8'):
             return 'gallery.html does not match the recorded gallery revision; run studio.py sync'
         assets = asset_dir(html_path)
         owner = {'kind': 'studio-gallery-projection', 'studio_id': expected.get('studio_id'), 'view': html_path.name}

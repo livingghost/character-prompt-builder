@@ -136,6 +136,19 @@ class RegisteredRuntimeContinuationTests(unittest.TestCase):
         self.assertEqual(result['unresolved'], [], result)
         return result['choices_file']
 
+    def test_authoring_without_editable_choices_does_not_acquire_unrelated_runs(self):
+        earlier = workflow.prepare(self.root, self.task_path)['run']
+        current = workflow.prepare(self.root, self.task_path)['run']
+        observed = []
+        def acquire(identifier):
+            observed.append(identifier)
+            return workflow.read_run(self.root, identifier)
+        report = authoring.inspect(self.root, read_run=acquire)
+        self.assertEqual(report['inputs'], [])
+        self.assertEqual(report['diagnostics'], [])
+        self.assertEqual(set(observed), {current})
+        self.assertNotIn(earlier, observed)
+
     def test_fresh_default_status_resolves_the_prepared_drafts_registered_model(self):
         choices_path = self.draft()
         saved = workflow.prepare(self.root, choices=choices_path)
