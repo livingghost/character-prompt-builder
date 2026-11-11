@@ -142,6 +142,30 @@ def draft_decision(rendered: dict, *, actor: str | None) -> dict:
     return {'case': None, 'assessments': [], 'principal_approval': None, 'rendition_review': review}
 
 
+def delegation_template(prepared: dict, operations: list[dict], authority: dict | None) -> dict | None:
+    """Expose the exact scope shape; its source and permission are still unanswered."""
+    if prepared['task']['execution'] != 'dispatcher':
+        return None
+    intent = next((item for item in operations if item['operation'] == 'submit'), None)
+    if intent is None:
+        return None
+    rendered = intent['payload']['request_contract']
+    case = request_scope.build_case(rendered, identifier='exact-request',
+        productions=[prepared['task']['production_id']], variations={}, review_criteria=[])
+    sources = []
+    if authority is not None:
+        sources.append({**copy.deepcopy(authority['evidence']), 'role': 'current-authority-evidence'})
+        for grant in authority['grants']:
+            if grant['request_scope'] is not None:
+                sources.append({**copy.deepcopy(grant['request_scope']['plan']),
+                                'role': 'current-delegation-source', 'grant': grant['id']})
+    return {'state': 'unapproved', 'request_sha256': rendered['request_sha256'],
+        'schema': str(Path(__file__).resolve().parents[1] / 'schemas/authoring/request-scope.schema.json'),
+        'scope': {'plan': {'path': None, 'locator': None}, 'cases': [case]},
+        'source_candidates': sources,
+        'instruction': 'Use this shape only when the actual issuer delegated these operations. Select the real instruction path and locator; the runtime derives its digest. Fixed fields describe this prepared request. Broaden variations or add review criteria only where the instruction grants that scope. This template creates no authority and selects no grant or case.'}
+
+
 def draft_external_decision(binding: dict, *, actor: str | None) -> dict:
     """Use the exact external image binding as the identity of the input under review."""
     import image_input
@@ -189,19 +213,30 @@ def check_external_authorization(consumer: dict, request: dict, grant: dict) -> 
         actor=request['actor'], binding_ids=['reference:' + str(index) for index in range(1, len(binding['references']) + 1)])
 
 
+# The repair when a recorded authorization cites a reading that no saved bytes hold.
+UNSAVED_AUTHORIZATION_EVIDENCE = (
+    'A recorded authorization is not corrected in place, and using it reads only the readings saved with it and with '
+    'the current authority. Record a new authorization of the prepared operation, which saves each reading it cites: '
+    'run draft-execution --run {run} --out FILE, fill FILE from the actual approval or delegation, then run '
+    'execute --run {run} --decisions-file FILE.')
+
+
 class EvidenceWitnesses:
     """Readings of approval and scope sources, keyed by path and SHA-256.
 
     A growing source such as a work ledger keeps every reading a record cites,
     so a later append never invalidates an earlier capture. While authorizing,
     a cited reading that no snapshot holds is captured once from the current
-    file. While consuming a receipt, only saved bytes count.
+    file. While consuming a receipt, only saved bytes count; `authorization`
+    names the receipt's event.
     """
 
-    def __init__(self, root: Path, items: list[tuple[str, bytes]], *, live: bool, run: str | None = None):
+    def __init__(self, root: Path, items: list[tuple[str, bytes]], *, live: bool, run: str | None = None,
+                 authorization: str | None = None):
         self.root = root
         self.live = live
         self.run = run
+        self.authorization = authorization
         self.items = {(path, c.digest(raw)): raw for path, raw in items}
         self.read: dict[tuple[str, str], str] = {}
 
@@ -215,9 +250,12 @@ class EvidenceWitnesses:
         key = (ref['path'], ref['sha256'])
         if key not in self.items:
             if not self.live:
-                raise production_store.evidence_error(
-                    'EVIDENCE_SNAPSHOT_MISSING', 'The authorization record holds no saved bytes for this cited evidence.',
-                    file=ref['path'], expected=ref['sha256'], run=self.run)
+                raise ProductionError(
+                    'EVIDENCE_SNAPSHOT_MISSING',
+                    'Neither the authorization record nor the current authority holds a saved reading of this '
+                    'evidence, which the authorization cites.',
+                    phase='authorization', file=ref['path'], run=self.run, event=self.authorization,
+                    expected=ref['sha256'], required_action=UNSAVED_AUTHORIZATION_EVIDENCE.format(run=self.run))
             raw = production_store.stable_bytes(self.root, ref['path'])
             actual = c.digest(raw)
             if actual != ref['sha256']:
@@ -231,13 +269,15 @@ class EvidenceWitnesses:
 
 def check_authorization(root: Path, prepared: dict, request: dict, grant: dict, *,
                         authority: CurrentAuthority,
-                        recorded: list[tuple[str, bytes]] | None = None) -> tuple[dict, list[dict]]:
+                        recorded: list[tuple[str, bytes]] | None = None,
+                        authorization: str | None = None) -> tuple[dict, list[dict]]:
     """Check scope and the supplied review; leave semantic judgments with the actor.
 
-    `recorded` holds the bytes saved with an authorization receipt. Without it,
-    the check runs at authorization and captures each cited reading once.
-    Returns the scope assessment and every evidence reading it used, with
-    path, SHA-256, locator, purpose and the verified bytes under `raw`.
+    `recorded` holds the bytes saved with the authorization receipt whose event
+    `authorization` names. Without it, the check runs at authorization and
+    captures each cited reading once. Returns the scope assessment and every
+    evidence reading it used, with path, SHA-256, locator, purpose and the
+    verified bytes under `raw`.
     """
     if authority.task_id != prepared['task']['task_id']:
         raise ValueError('current authority belongs to another work task')
@@ -255,7 +295,8 @@ def check_authorization(root: Path, prepared: dict, request: dict, grant: dict, 
         c.exact(principal, {'request_sha256', 'principal', 'evidence'}, 'exact request approval')
     import production_store
     items = [(item['path'], item['raw']) for item in production_store.captured_authority_inputs(authority)]
-    reader = EvidenceWitnesses(root, items + list(recorded or []), live=recorded is None, run=prepared.get('run'))
+    reader = EvidenceWitnesses(root, items + list(recorded or []), live=recorded is None, run=prepared.get('run'),
+                               authorization=authorization)
     request_scope.verify_sources(grant['request_scope'], principal, reader)
     scoped = request_scope.assess(
         grant['request_scope'],

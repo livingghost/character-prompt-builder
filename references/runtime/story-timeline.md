@@ -387,6 +387,58 @@ Replay work grows with selected/checkpoint queries and their applicable history;
 large diagnostic histories can still take time. No history is truncated or silently
 removed to make a view appear successful.
 
+## Diagnostic codes
+
+`story_timeline.py` prints `"ok": false` with one of these codes and exits 1:
+
+- `STORY_TIMELINE_INPUT_INVALID`: the Studio, a selection argument or an input
+  that the command reads cannot be used; `message` names it. Correct it and run
+  the command again.
+- `STORY_TIMELINE_UPDATE_FAILED`: a refresh could not build or publish the page,
+  which becomes the unavailable view described above. `status:
+  "publication-failed"` means that even this view could not be written. Repair
+  the named input, then run `studio.py sync`, or the same `story_timeline.py --out`
+  command for a custom view.
+
+A current page and `--inspect` keep these link warnings in the projection's
+`diagnostics`:
+
+- `SCENE_ARTWORK_UNAVAILABLE`: a `scene_artwork` mapping names a character, sheet
+  or accepted artwork that cannot be read or verified. A slot without accepted
+  artwork is shown as not adopted instead.
+- `EVIDENCE_UNAVAILABLE`: an event's local evidence file is missing or differs
+  from its declared hash, or its path or URL is refused.
+
+The source notices of Flow are warnings in `flow.diagnostics`:
+
+- `FLOW_NARRATIVE_UNAVAILABLE`: the narrative source cannot be selected or read.
+- `FLOW_NARRATIVE_INVALID`: the narrative fails its validation; `message` lists
+  the errors.
+- `FLOW_SCENE_REVIEW`: a scene source needs review. It cannot be read or is
+  invalid, was written against another narrative revision, names a chapter or
+  cast member that the narrative does not declare, or links a scene context
+  that cannot be used.
+- `FLOW_SCENE_ID_AMBIGUOUS`: several scene sources share one scene ID, and none
+  is chosen.
+- `FLOW_CAUSE_UNRESOLVED`: an explicit `cause` of type `event` names a missing,
+  ambiguous or self-referential event, or one in another timeline.
+
+Ledger inspection reports these errors. `story_timeline.py` and `validate-ledger`
+then exit 1, and a written page records `"ledger_ok":false`:
+
+- `WORLD_BASE_INVALID`: the base state, one of its buckets or an entity state
+  is not an object, or a value cannot be written as canonical JSON.
+- `TEMPORAL_INPUT_INVALID`: the events or processes break the
+  [validation boundary](../state-event-ledger.md#validation-boundary) of the
+  ledger, for example with a duplicate ID, a missing reference or an invalid
+  order relationship.
+- `SUPERSESSION_CYCLE`: `supersedes_event_ids` form a cycle; `event_ids` lists it.
+- `TEMPORAL_CONFLICT`: unordered events at one story order write the same state
+  or interfere with each other's preconditions; `event_ids`, `conflicts` and
+  `paths` name them.
+- `STATE_RESOLUTION_FAILED`: resolving a selected view failed for another
+  reason; its query and `message` name it.
+
 ## Synthetic example and tests
 
 ```bash

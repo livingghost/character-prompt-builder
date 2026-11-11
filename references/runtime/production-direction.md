@@ -688,7 +688,7 @@ leakage, broken contacts and anatomy against their own declared criteria.
 
 An owner's decision to use a particular reviewed candidate despite a recorded
 departure or uncertainty belongs in the selection's `owner_acceptance`, under
-[Production execution](production-adoption.md#select-optionally-adopt-and-finish).
+[Production execution](production-adoption.md#select-a-reviewed-result-and-finish).
 It leaves the criteria and observed verdicts intact. It neither establishes a
 new allowed range for future work nor changes canonical identity.
 

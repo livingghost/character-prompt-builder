@@ -25,8 +25,11 @@ def command(root, name, *args, expected=0):
 
 def build():
     with tempfile.TemporaryDirectory(prefix='synthetic-input-example-') as directory:
-        root = Path(directory)
-        task = {'task_id': 'synthetic-input-example', 'route': 'development', 'features': [],
+        import studio
+        import work_ledger
+        root = studio.init(Path(directory), 'synthetic-input-example', 'Synthetic input assembly')
+        work = work_ledger.begin(root, 'Assemble the authored synthetic text.', ['Author the input.'])
+        task = {'task_id': work['task_id'], 'route': 'development', 'features': [],
                 'sources': [], 'route_reading': 'reading.json',
                 'delivery': {'path': 'delivery.txt',
                              'translation_notes': 'Retain the authored synthetic local text.'},
@@ -62,7 +65,8 @@ def build():
                 'incomplete_output_published': False, 'built_state': result['state'],
                 'input_names': sorted(result['inputs']), 'file_hashes_match': correct,
                 'original_task_preserved': True, 'execution_ready': result['execution_ready'],
-                'external_effect': result['external_effect'], 'production_created': (root / 'production').exists()}
+                'external_effect': result['external_effect'],
+                'production_created': (root / 'production/records.sqlite3').exists()}
 
 
 def main():

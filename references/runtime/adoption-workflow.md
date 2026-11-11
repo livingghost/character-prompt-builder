@@ -15,11 +15,18 @@ truthful.
 
 ## Input and scope
 
-Use `python scripts/adoption_workflow.py --help` and `adopt --help`. `adoption_workflow.py adopt` serves imported iterations. For a Production candidate it refuses and names `production_workflow.py adopt`, in the order [Studio Runtime](studio.md#selection-adoption-and-withdrawal) gives (synthetic, trimmed, exit 1):
+Use `python scripts/adoption_workflow.py --help` and `adopt --help`. `adoption_workflow.py adopt` serves imported iterations. For a Production candidate it refuses and names `production_workflow.py adopt`, in the order [Studio Runtime](studio.md#selection-adoption-and-withdrawal) gives (synthetic, trimmed, exit 2):
 
 ```json
-{"ok": false, "errors": ["it-0001 is a Production candidate; adopt it with production_workflow.py adopt under its own adopt authorization"]}
+{"ok": false, "diagnostics": [{"code": "INPUT_CONSISTENCY_ERROR", "severity": "error", "phase": "adoption",
+  "message": "it-0001 is a Production candidate; adopt it with production_workflow.py adopt under its own adopt authorization",
+  "required_action": "Correct the declared input and retry the operation."}]}
 ```
+
+Every failure of this command prints that form, with the exit status its codes
+select in [Production diagnostics](production-diagnostics.md#exit-codes). A
+diagnostic whose producer knows the repair, such as `ADOPTION_PACKAGE_REQUIRED`
+or `ADOPTION_RECORD_CORRUPT`, names it in `required_action`.
 
 An externally imported iteration uses this workflow for sheet or catalog
 adoption. Production `adoption-intent` diagnoses that ownership before recording
@@ -90,7 +97,8 @@ make `validate_studio.py` fail.
 If the sheet or catalog write finished before Production recorded its result,
 status reports `record-adoption-result` and reference export remains blocked.
 Repeat `production_workflow.py adopt` with the same candidate, approval and
-authorization to finish that claim. The active-reference view refreshes from
+authorization to finish that claim; the binding's `ADOPTION_RESULT_MISSING`
+diagnostic gives that exact command. The active-reference view refreshes from
 the committed result; `studio.py sync` can rebuild it after a display failure.
 
 The adoption owner carries one parsed Studio read model through source eligibility, the exact Production claim and sheet preparation. It records journal progress and canonical files before requesting a display update. The outer Production operation commits its result before the single shared refresh, so an intermediate sheet bind does not publish a reference that still lacks its Production result. `studio_activity` owns publication of `active-references.json`; the adoption journal and sheet sidecar remain authoritative. A failed refresh reports retained committed work and a repair action instead of undoing the adoption.
@@ -151,7 +159,7 @@ The local `studio-adoption-receipt` is distinct from the story-state `adoption-r
 
 ## Failures and regression
 
-Unknown characters/iterations, wrong hashes, altered sources, symlinks, invalid module records, mismatched approval, unsupported influence, competing pack IDs, incomplete registration and stale identity sources block the operation. An existing registration destination is accepted only when its locked pack and approval belong to this exact adoption; otherwise it is never overwritten. A failed registration retains the completed sheet binding and reports the remaining step, not complete adoption.
+Unknown characters/iterations, wrong hashes, altered sources, symlinks, invalid module records, mismatched approval, unsupported influence, competing pack IDs, incomplete registration and stale identity sources block the operation. An existing registration destination is accepted only when its locked pack and approval belong to this exact adoption: its adoption receipt names this approval, this Studio and the pack's own ID. Otherwise it is never overwritten. A failed registration retains the completed sheet binding and reports the remaining step, not complete adoption.
 
 Run `python scripts/feature_workflow_smoke_test.py`. It covers:
 

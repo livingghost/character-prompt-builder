@@ -97,7 +97,7 @@ def publish(args) -> dict:
         current={p.relative_to(pack).as_posix():c.digest(c.read(p)) for p in sorted(pack.rglob('*')) if p.is_file()}
         if current!=original:raise ValueError('source pack changed while preparing the evidence')
         if destination.exists():raise FileExistsError('pack destination already exists')
-        c.publish_directory(staging,destination);c.fsync_dir(destination.parent)
+        c.publish_directory(staging,destination);c.flush_published(destination)
     return {'ok':True,'pack':str(destination),'release':args.release,'target':target,'evidence':result,
             'lock_sha256':c.content_id(lock),'activation_required':True,'external_effect':False}
 

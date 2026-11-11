@@ -227,6 +227,8 @@ class Inventory(unittest.TestCase):
         commands = [run_checks.display(argv) for _, argv in self.commands]
         self.assertIn("cd scripts && python -m unittest test_production_cli", commands)
         self.assertIn("python examples/render-contract/build_example.py --check", commands)
+        # An example script with another name runs the same way when it offers --check.
+        self.assertIn("python examples/production-execution/repair_example.py --check", commands)
 
     def test_the_pack_runtime_is_prepared_before_the_commands_that_read_it(self):
         readers = [label for label, argv in self.commands if run_checks.needs_runtime(argv)]

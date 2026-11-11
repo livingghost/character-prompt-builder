@@ -11,6 +11,7 @@ from pathlib import Path
 import tempfile
 
 import execution_contract as c
+from production_diagnostics import choice_required
 
 DOCUMENTS = frozenset({'parameters', 'production_spec', 'plot', 'retrieval_record',
     'creative_intent', 'negative', 'integrated_prompt', 'native_negative',
@@ -20,12 +21,33 @@ TEXT_DOCUMENTS = frozenset({'negative', 'integrated_prompt', 'native_negative'})
 TEXT_SOURCE_SUFFIXES = frozenset({'.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.tsv'})
 GENERATED_TASK_FIELDS = frozenset({'delivery', 'generation', 'route_reading', 'image_input', 'authored_basis'})
 AUTHORING_SPACES = frozenset({'studio', 'task-source'})
+# The sections that explain each authored choice this module reports.
+EDITING_GUIDE = {'document_path': 'references/runtime/production-authoring.md#use-the-delivered-knowledge'}
+DIRECTION_GUIDE = {'document_path': 'references/runtime/production-direction.md#record-the-production-direction'}
+UPSCALE_GUIDE = {'document_path': 'references/adapters/upscale.md#prepare-the-exact-input'}
+RENDER_GUIDE = {'document_path': 'references/runtime/render-contract.md#select-the-operation-and-optional-rendering-declaration'}
+PLOT_GUIDE = {'document_path': 'references/runtime/prompt-only-core.md#specialized-prompt-artifact-export'}
+IDENTITY_GUIDE = {'document_path': 'references/character-identity-contract.md#source-to-input-and-review-coverage'}
+GRAPH_GUIDE = {'document_path': 'references/runtime/state-aware-series.md#authority-graph'}
+UPLOAD_GUIDE = {'document_path': 'references/runtime/reference-delivery.md#upload-the-selected-media-for-one-generation'}
+APPROVAL = '{"by": APPROVER, "at": RFC3339_UTC_TIME}'
 
 
 class UnresolvedChoice(ValueError):
-    def __init__(self, field: str, message: str):
+    """An edited choice that conflicts with its owner and needs the author's current judgment.
+
+    The raising owner states what conflicts, the repair and the section that explains it.
+    """
+
+    def __init__(self, field: str, message: str, *, required_action: str, guidance: dict[str, str]):
         super().__init__(message)
         self.field = field
+        self.required_action = required_action
+        self.guidance = guidance
+
+    def as_unresolved(self) -> dict:
+        return choice_required(self.field, 'current-judgment-required', str(self), self.required_action,
+                               self.guidance)
 
 
 def seed(root: Path, *, route: str, artifact: str, execution: str,
@@ -164,7 +186,11 @@ def read_editable(authored: dict, reader) -> tuple[dict, dict, list[dict]]:
                 raise ValueError('selected text field must contain a string')
             return result
         except (OSError,ValueError,KeyError,TypeError,IndexError) as exc:
-            missing.append({'field':field,'file':path,'code':'editable-source-unavailable','message':str(exc)})
+            missing.append({'field':field,'file':path,'code':'INPUT_UNREADABLE','cause':str(exc),
+                'message':'The editable file that '+field+' selects cannot be read as selected.',
+                'required_action':'Make '+path+' a readable file holding the selected content, or change '+
+                    field+'.file (and '+field+'.field for a JSON selection) to the file and value to use.',
+                'guidance':dict(EDITING_GUIDE)})
             return None
     delivery=value['delivery']
     if 'file' in delivery:
@@ -188,6 +214,59 @@ def execution_dispatcher(task: dict) -> bool:
     return task.get('execution') == 'dispatcher'
 
 
+def select_upscale(root: Path, authored: dict, out_dir: str, *,
+                   source_image: Path | None = None, scale: float | None = None,
+                   purpose: str | None = None) -> tuple[dict[str, bytes], dict | None]:
+    """Apply actual source and scale choices without inventing art direction."""
+    from production_binding import normalize_upscale_factor
+    from production_evidence import inspect
+    task = authored['task']
+    if task.get('route') != 'upscale' or task.get('execution') != 'dispatcher':
+        if any(value is not None for value in (source_image, scale, purpose)):
+            raise ValueError('source-image, scale and purpose select dispatcher upscale inputs')
+        return {}, None
+    upscale = authored['upscale']
+    files, selected = {}, None
+    if scale is not None:
+        upscale['scale_factor'] = normalize_upscale_factor(scale)
+    if purpose is not None:
+        purpose = c.text(purpose, 'upscale purpose')
+        for field in ('purpose', 'intended_effect'):
+            if not task['direction'].get(field):
+                task['direction'][field] = purpose
+        if not task.get('criteria'):
+            task['criteria'] = [{'id': 'requested-result', 'text': purpose,
+                                 'strength': 'hard', 'evidence': 'image'}]
+    if source_image is not None:
+        source = Path(source_image)
+        if not source.is_absolute():
+            source = c.local(root, source.as_posix())
+        raw = c.read(source)
+        measured = inspect(raw, 'image')
+        if measured['format'] == 'SVG':
+            raise ValueError('upscale source must be an existing raster image')
+        digest = c.digest(raw)
+        try:
+            path = source.resolve().relative_to(root.resolve()).as_posix()
+            c.local(root, path)
+        except ValueError:
+            filename = 'source.' + measured['format'].lower()
+            path = (Path(out_dir) / filename).as_posix()
+            files[filename] = raw
+        upscale['source'] = path
+        authored['source_files'][path] = digest
+        if not any(row['path'] == path for row in task.get('sources', [])):
+            identifiers = {row['id'] for row in task.get('sources', [])}
+            identifier = 'upscale-source'
+            if identifier in identifiers:
+                identifier += '-' + digest[:12]
+            task.setdefault('sources', []).append({'id': identifier, 'path': path,
+                'role': 'reference', 'disposition': 'applied', 'locator': 'whole image',
+                'reason': 'The selected image is the source of this enlargement.'})
+        selected = {'path': path, 'sha256': digest, **measured}
+    return files, selected
+
+
 def chosen_task(base: dict, authored: dict | None) -> dict:
     if authored is None:
         return copy.deepcopy(base)
@@ -208,12 +287,63 @@ def chosen_task(base: dict, authored: dict | None) -> dict:
     return result
 
 
+# What each empty authored field needs, the value to give it and the section that explains it.
+MODES = 'text-to-image, image-to-image, reference-guided or instruction-edit, as the selected offering supports'
+CARD = 'scripts/render_contract.py model --model MODEL_ID --service SERVICE'
+AUTHORED_FIELDS = {
+    'task.direction.purpose': (
+        'so the task states no purpose.',
+        'Set authoring.task.direction.purpose to what this work is for, stated from the commission.',
+        DIRECTION_GUIDE),
+    'task.direction.intended_effect': (
+        'so the task states no intended effect.',
+        'Set authoring.task.direction.intended_effect to the effect the result is meant to have, from the '
+        'commission; it states an intention, not an observed response.', DIRECTION_GUIDE),
+    'task.criteria': (
+        'so the result has no review criterion.',
+        'Add each requirement of the commissioned result to authoring.task.criteria as {"id": ID, "strength": '
+        '"hard" or "advisory", "text": REQUIREMENT, "evidence": "artifact", "text", "image", "motion" or '
+        '"audio"}, written from the commission independently of the prompt.', DIRECTION_GUIDE),
+    'delivery.content': (
+        'so there is no text to deliver.',
+        'Write the delivered text into the file that authoring.delivery.file names (its selected field for '
+        'JSON), or set authoring.delivery.content to it.', EDITING_GUIDE),
+    'upscale.source': (
+        'so no image is selected for enlargement.',
+        'Draft the enlargement with scripts/production_workflow.py draft-inputs --route upscale --source-image '
+        'IMAGE (or --source-run RUN --source-candidate CANDIDATE) into a new --out-dir, which selects the image '
+        'and declares it as a task source; an image already declared in authoring.task.sources is selected by '
+        'setting authoring.upscale.source to its Studio path.', UPSCALE_GUIDE),
+    'upscale.scale_factor': (
+        'so no enlargement factor is selected.',
+        'Set authoring.upscale.scale_factor to the requested factor, one that the model\'s '
+        'supported_scale_factors or its offering\'s scale control accepts, as ' + CARD + ' shows them.',
+        UPSCALE_GUIDE),
+    'upscale.render_intent': (
+        'so the upscale declares no operation.',
+        'Set authoring.upscale.render_intent to {"artifact_type": "render-intent", "execution_mode": "upscale"}.',
+        RENDER_GUIDE),
+    'generation.render_intent': (
+        'and no Production Specification in authoring.documents owns the render intent.',
+        'Set authoring.generation.render_intent to {"artifact_type": "render-intent", "execution_mode": MODE} '
+        'with the operation this request performs (' + MODES + '), or to a complete declaration that '
+        'scripts/render_contract.py intent --mode MODE writes.', RENDER_GUIDE),
+    'generation.render_intent.execution_mode': (
+        'so the render intent names no operation.',
+        'Set authoring.generation.render_intent.execution_mode to the operation this request performs (' +
+        MODES + '), one of the modes that ' + CARD + ' lists.', RENDER_GUIDE),
+}
+
+
 def unresolved(authored: dict | None, task: dict) -> list[dict]:
     if authored is None:
         return []
     result = []
-    def missing(field, code='authored-choice-required'):
-        result.append({'field': 'authoring.' + field, 'code': code})
+    def missing(field):
+        consequence, required_action, owner = AUTHORED_FIELDS[field]
+        empty = 'is null' if field.startswith(('upscale.', 'generation.')) else 'is empty'
+        result.append(choice_required('authoring.' + field, 'authored-choice-required',
+            'authoring.' + field + ' ' + empty + ', ' + consequence, required_action, owner))
     for key in ('purpose', 'intended_effect'):
         if not (task.get('direction') or {}).get(key):
             missing('task.direction.' + key)
@@ -236,7 +366,11 @@ def unresolved(authored: dict | None, task: dict) -> list[dict]:
                     missing('generation.render_intent.execution_mode')
             plot = authored['documents'].get('plot')
             if isinstance(plot, dict) and plot.get('approved') is None:
-                missing('documents.plot.approved', 'plot-approval-required')
+                result.append(choice_required('authoring.documents.plot.approved', 'plot-approval-required',
+                    'authoring.documents.plot.approved is null, so the selected plot has no approval.',
+                    'After the author approves this plot, set authoring.documents.plot.approved to ' + APPROVAL +
+                    '; the builder adds its content_sha256. Remove plot from authoring.documents when this work '
+                    'does not use one.', PLOT_GUIDE))
     return result
 
 
@@ -276,7 +410,11 @@ def _approved_plot(value: dict, previous: dict | None) -> dict:
         if old_choice == new_choice:
             result['approved'] = copy.deepcopy(previous_approval)
             if prompt_plot.content_sha256(result) != prompt_plot.content_sha256(previous):
-                raise UnresolvedChoice('authoring.documents.plot.approved', 'changed plot content needs its actual approval; previous approval covers the saved plot only')
+                raise UnresolvedChoice('authoring.documents.plot.approved',
+                    'changed plot content needs its actual approval; previous approval covers the saved plot only',
+                    required_action='After the author approves the changed plot, replace '
+                        'authoring.documents.plot.approved with that approval, ' + APPROVAL + ', or restore the '
+                        'plot content that the earlier approval covers.', guidance=PLOT_GUIDE)
             return result
     result['approved']['content_sha256'] = prompt_plot.content_sha256(result)
     return result
@@ -303,8 +441,12 @@ def _upload_sources(task: dict, witnesses: dict, carriers: set[str], reader) -> 
         selected = {'path': path, 'sha256': previous} if previous is not None else reader.select(path)
         reader.read(selected)
         if selected['sha256'] not in carriers:
-            raise UnresolvedChoice(f'authoring.task.upload_sources.{index}.file',
-                'select the exact prepared carrier file made available at this URL')
+            field = f'authoring.task.upload_sources.{index}.file'
+            raise UnresolvedChoice(field,
+                path + ' is not a media carrier that this preparation produces, so its URL binds no input.',
+                required_action='Set ' + field + ' to the Studio path of the prepared carrier file whose exact '
+                    'bytes are hosted at its url, or remove that upload_sources entry when no prepared carrier is '
+                    'hosted there.', guidance=UPLOAD_GUIDE)
         from request_contract import validate_upload_source
         validate_upload_source({'kind': 'url', 'url': source['url']})
         retained.append(copy.deepcopy(source))
@@ -326,15 +468,23 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
             witness = authored['source_files'].get(source['path'])
             if witness is not None and c.digest(raw) != witness:
                 raise UnresolvedChoice('authoring.task.sources',
-                    'Identity source changed since these choices were drafted: ' + source['path'] +
-                    '. Read the current owning source and draft its current scope and criteria again.')
+                    'Identity source changed since these choices were drafted: ' + source['path'] + '.',
+                    required_action='Read the current ' + source['path'] + ', then draft these choices again from '
+                        'their task or run with scripts/production_workflow.py draft-inputs into a new --out-dir and '
+                        'reassess its identity scope and criteria in authoring.task.sources and '
+                        'authoring.task.criteria; restoring the bytes this draft measured also resolves it.',
+                    guidance=IDENTITY_GUIDE)
             if selected is not None:
                 same = (selected.get('content') == c.decode(raw) if selected.get('format') == 'json'
                         else selected.get('content') == raw.decode('utf-8'))
                 if not same:
-                    raise UnresolvedChoice('authoring.sources.' + source['id'],
-                        'Revise identity in its owning source and authority workflow before selecting it; '
-                        'an editable production copy cannot redefine that source.')
+                    field = 'authoring.sources.' + source['id']
+                    raise UnresolvedChoice(field,
+                        field + ' edits an identity source, and an editable production copy cannot redefine '
+                        'its owning source.',
+                        required_action='Remove ' + field + ' or restore it to the current content of ' +
+                            source['path'] + '; revise the identity itself in that owning source through its '
+                            'adoption workflow, then draft again.', guidance=IDENTITY_GUIDE)
             continue
         if selected is None:
             continue
@@ -366,11 +516,14 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
         for graph in documents['state_graphs']:
             subject = graph['identity_contract']['character_id']
             before = previous.get(subject)
-            if before is not None and any(before.get(node) != graph.get(node) for node in IDENTITY_NODES):
+            changed = [node for node in IDENTITY_NODES if before is not None and before.get(node) != graph.get(node)]
+            if changed:
                 raise UnresolvedChoice('authoring.documents.state_graphs',
-                    'An existing identity, morphology, Era, Form or Appearance owner changed inside an editable '
-                    'scene graph. Select the current approved graph from its owning workflow and draft again; '
-                    'scene authoring cannot adopt a replacement identity.')
+                    'The owner nodes ' + ', '.join(changed) + ' of subject ' + str(subject) + ' changed inside an '
+                    'editable scene graph; scene authoring cannot adopt a replacement identity.',
+                    required_action='Restore ' + ', '.join(changed) + ' of subject ' + str(subject) + ' in '
+                        'authoring.documents.state_graphs to the selected graph, or select the current approved '
+                        'graph from its owning workflow and draft again.', guidance=GRAPH_GUIDE)
     plot = documents.get('plot')
     if plot is not None:
         original = old_generation.get('plot')
@@ -421,12 +574,16 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
             carriers.add(prepared['single_board']['sha256'])
         elif prepared['transport_mode'] == 'multi-image':
             carriers.update(row['transport']['sha256'] for row in prepared['selected_references'])
-    elif 'references' in generation:
-        generation.pop('references')
+    elif execution_dispatcher(task) and task['route'] != 'upscale':
+        generation.pop('references', None)
+        # Image-input is the compiled projection of the selected references,
+        # not a second editable selection that can survive their removal.
+        result.pop('image_input', None)
     if visual_choices is not None:
         import visual_continuity
         if prepared is None:
-            raise ValueError('visual continuity needs the selected prepared references')
+            from prepare_generation_references import empty_stateless_reference_set
+            prepared = empty_stateless_reference_set()
         visual = visual_continuity.build_record(visual_choices,
             production_spec=documents.get('production_spec'), prepared=prepared, root=root)
         reader.basis(visual['basis'])

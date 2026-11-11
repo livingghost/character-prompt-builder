@@ -25,7 +25,7 @@ from model_prompt_input_fixtures import prompt_input
 
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_CHECKS = 67
+EXPECTED_CHECKS = 70
 
 
 def load_core_models() -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -223,6 +223,16 @@ def main() -> int:
         "upscaler fixtures declare supported scales and settings",
         all(record.get("supported_scale_factors") and record.get("upscale_settings") for record in upscalers),
     )
+    native_only = {**upscalers[0], "native_scale_factor": 4}
+    native_only.pop("supported_scale_factors")
+    check("native network scale preserves unknown API factors",
+        validate_model_record(native_only) == []
+        and validate_model_record({**native_only, "supported_scale_factors": None}) == [])
+    check("native scale and API factors are independent declarations",
+        validate_model_record({**native_only, "supported_scale_factors": [2, 4]}) == [])
+    check("native network factors are finite positive numeric evidence",
+        all(any("native_scale_factor" in error for error in validate_model_record(
+            {**native_only, "native_scale_factor": value})) for value in (True, 0, -1, float('inf'), float('nan'))))
 
     tag_list = fixtures["fixture-tag-list-generator"]
     merged_positive, merged_negative, audit = apply_prompt_recommendations(

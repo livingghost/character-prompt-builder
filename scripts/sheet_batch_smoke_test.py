@@ -126,6 +126,45 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(actual['steps'],parameters['steps'])
         self.assertEqual(c.load(self.root/'parameters.json'),parameters)
 
+    def reference_stage(self) -> dict:
+        """A second-stage panel whose request uploads the accepted anchor, prepared and awaiting approval."""
+        from sheet_artifacts_smoke_test import accepted
+        spec = c.load(self.root / 'spec.json')
+        spec['render_intent']['execution_mode'] = 'reference-guided'
+        fixtures.write(self.root / 'spec.json', spec)
+        task = c.load(self.root / 'task.json')
+        task['recording']['slot'] = 'canon.side'
+        fixtures.write(self.root / 'side-task.json', task)
+        self.manifest['requests'].append({'request_id':'canon.side', 'resolved_slot_id':'canon.side',
+            'result_file':'side.png','target':{'generation_w':32,'generation_h':32},
+            'generation_stage':2,'required_accepted_reference_results':['canon.primary']})
+        self.plan['panels'] = [{'request_id':'canon.side','task':'side-task.json',
+                               'references':[{'slot':'canon.primary','artifact_id':None,'role':'identity'}]}]
+        fixtures.write(self.root / 'panel-fill-requests.json', self.manifest)
+        fixtures.write(self.root / 'batch-plan.json', self.plan)
+        (self.root / 'batch.json').unlink(); batch.initialize(self.root, 'batch-plan.json', 'batch.json')
+        accepted(self.sheet, size=(32,32))
+        entry = batch.advance(self.root, 'batch.json', grant='fixture-grant')['panels']['canon.side']
+        self.assertEqual(entry['status'], 'approval-required', entry)
+        return entry
+
+    def test_unknown_upload_blocks_the_panel_with_its_diagnostic(self):
+        entry = self.reference_stage()
+        approved = fixtures.fill_decisions(self.root, entry['run'], 'side-approved.json')
+        with patch.object(transport_synthetic, 'upload_media', side_effect=TimeoutError('synthetic upload timeout')) as upload, \
+                patch.object(transport_synthetic, 'send', side_effect=AssertionError('no send after an unknown upload')):
+            first = batch.advance(self.root, 'batch.json', decisions={'canon.side': approved})
+            second = batch.advance(self.root, 'batch.json')
+            self.assertEqual(upload.call_count, 1)
+        for result in (first, second):
+            panel = result['panels']['canon.side']
+            self.assertEqual((result['outcome'], result['exit_code']), ('blocked', 4))
+            self.assertEqual((panel['status'], panel['diagnostic']['code']), ('blocked', 'REMOTE_OUTCOME_UNKNOWN'))
+            self.assertEqual(panel['diagnostic']['steps'], ['upload:0'])
+            self.assertEqual(panel['diagnostic']['next_action']['argv'][-3:], ['--from', entry['run'], '--prepare'])
+        self.assertEqual(c.load(self.root / 'batch.json')['panels']['canon.side']['diagnostic'],
+                         second['panels']['canon.side']['diagnostic'])
+
     def test_reference_stage_pins_one_accepted_anchor_and_copies_companion(self):
         from sheet_artifacts_smoke_test import accepted
         spec = c.load(self.root / 'spec.json')

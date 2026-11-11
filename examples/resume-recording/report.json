@@ -7,7 +7,7 @@
     "integrity": "intact",
     "next_action": {
       "command": "prepare",
-      "reason": "Review the source change and prepare a variant for the current creative scope."
+      "reason": "This file was edited after the run was prepared. If the edit is intended, run prepare on the current files to make a new run; status --run gives the exact command. To keep this run, restore the file to its prepared content."
     },
     "readiness": "blocked",
     "submission": "unclaimed",

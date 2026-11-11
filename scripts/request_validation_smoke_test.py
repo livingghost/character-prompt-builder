@@ -287,6 +287,32 @@ class OfferingSchemaTests(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostic.code,'VALIDATION_EVIDENCE_REQUIRED')
         self.assertEqual(caught.exception.diagnostic.pointer,'$.validation')
 
+    def test_readiness_keeps_profile_service_evidence_and_exact_check_separate(self):
+        target = self.acquired_target()
+        ready = rv.target_readiness(target, self.current_choices())
+        self.assertEqual(ready['parameter_profile']['status'], 'required')
+        self.assertEqual(ready['service_operation']['status'], 'available')
+        self.assertEqual(ready['validation_evidence']['status'], 'catalog-schema')
+        self.assertEqual(ready['request_check']['status'], 'not-performed')
+        catalog_only = rv.model_readiness(target.model, target.offering)
+        self.assertEqual(catalog_only['service_operation']['status'], 'not-acquired')
+        self.assertEqual(catalog_only['request_check']['status'], 'not-performed')
+
+    def test_explicit_evidence_supplies_validation_without_a_default_schema(self):
+        offering = {key: value for key, value in self.offering.items() if key != 'schema_snapshot'}
+        target = self.acquired_target(offering=offering)
+        ready = rv.target_readiness(target, self.current_choices())
+        self.assertIn('VALIDATION_EVIDENCE_REQUIRED', [row['code'] for row in ready['unresolved']])
+        selected = {**self.current_choices(), 'contract': '@pack/p/schema.json', 'evidence': '@pack/p/schema.json'}
+        ready = rv.target_readiness(target, selected)
+        self.assertEqual(ready['validation_evidence']['status'], 'selected')
+        self.assertNotIn('VALIDATION_EVIDENCE_REQUIRED', [row['code'] for row in ready['unresolved']])
+        acquired, _ = rv.acquire_target_choices(selected, target, self.reader)
+        ready = rv.target_readiness(target, selected, acquired)
+        self.assertEqual(ready['validation_evidence']['status'], 'acquired')
+        self.assertEqual(ready['request_check']['status'], 'not-performed')
+        self.assertEqual(acquired.record['target'], self.target)
+
     def test_explicit_evidence_is_checked_against_the_current_target(self):
         choices={**self.current_choices(),'contract':'@pack/p/schema.json','evidence':'@pack/p/schema.json'}
         with self.assertRaisesRegex(ValueError,'model_identifier'):

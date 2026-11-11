@@ -106,6 +106,21 @@ A synthetic export with `--without-streams`, trimmed:
  "incomplete_operations": [], "omissions": []}
 ```
 
+A destination that something else holds, at the start or once the export is built, stays untouched and is reported as `OUTPUT_ALREADY_EXISTS`; choose a new `--out`.
+`ARTIFACT_PUBLISH_FAILED` states in `published` whether the export is at `--out`:
+
+- `published: false`: nothing is at `--out`. The directory that holds `--out`, or the export's staging beside it, could not be created or written, or the rename into place was refused. `actual` holds the error number; correct its cause and run `logs-export` again.
+- `published: true`: the export is complete at `--out`, and only the flush of the directory that holds it failed. Use the export; a crash before the operating system writes that directory can still lose it. Windows makes no directory flush, so only other systems report this.
+
+A synthetic export whose directory flush was made to fail, trimmed:
+
+```json
+{"ok": false, "diagnostics": [{"code": "ARTIFACT_PUBLISH_FAILED", "phase": "logs-export", "file": "C:\\...\\studio\\diagnostics",
+  "message": "The diagnostic export is complete at its destination, but the directory that holds it could not be flushed to disk.",
+  "required_action": "Use the export at --out; it is complete. If it is missing after a crash or power loss, run logs-export again.",
+  "published": true, "actual": {"errno": 5, "winerror": null}}]}
+```
+
 Logs stay local and are never uploaded automatically.
 
 `logs-cleanup` is a dry run until `--apply` is given.
@@ -132,6 +147,23 @@ A synthetic dry run, trimmed; the protected operation is the cleanup itself:
  "protected": [{"operation_id": "1992fec6-bf3d-4d6e-8107-9da778655a89", "eligible": false, "run": null,
                 "reason": "active-operation"}],
  "deleted": [], "formal_artifacts_deleted": false}
+```
+
+`--apply` removes an eligible operation in two steps.
+It renames the directory to `.removing-OPERATION-ID` beside it, which takes the operation out of `logs` and `logs-export` at once, and then deletes the renamed directory.
+A day directory that the removal leaves empty is removed too; one that still holds anything stays.
+A refused rename, such as one met while another program holds one of its files open on Windows, leaves the operation whole and eligible.
+When either step fails, the call stops: `LOG_WRITE_FAILED` names the path that remains, and its `deleted` lists the operations that the call removed before the failure. Release the path and run `logs-cleanup --apply` again.
+What a failed deletion leaves is listed as `removal-interrupted`. `--operation` with its ID or any `--before` date selects it, and `--apply` removes it while it holds only owned log files.
+A remainder that gained another file or a link stays protected as `unowned-or-missing-content`.
+A synthetic dry run after a deletion that was made to fail, trimmed:
+
+```json
+{"ok": true, "apply": false, "selector": {"before": "2001-01-01", "operation": null},
+ "candidates": [{"operation_id": "b4fca86d-23a8-473d-8fd9-c3339498b263",
+                 "path": "C:\\...\\studio\\logs\\operations\\2000-01-01\\.removing-b4fca86d-23a8-473d-8fd9-c3339498b263",
+                 "eligible": true, "reason": "removal-interrupted"}],
+ "protected": [], "deleted": [], "formal_artifacts_deleted": false}
 ```
 
 Cleanup never removes formal requests, responses, candidates, reviews or other Production evidence.

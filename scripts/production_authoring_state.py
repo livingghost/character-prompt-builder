@@ -11,6 +11,8 @@ from cli_invocation import python_argv, shown
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'scripts/production_workflow.py'
 READ_ERRORS = (OSError, ValueError, TypeError, KeyError, IndexError)
+DECISION_KINDS = frozenset({'execution', 'review', 'selection', 'acceptance', 'outcome'})
+_ANY_CONTEXT = object()
 
 
 def active_task_id(root: Path | None) -> str | None:
@@ -72,7 +74,8 @@ def _remember(root: Path, task_id: str | None, kind: str, identity: str, details
 
 def remember_inputs(root: Path, task: dict, kind: str, out_dir: str, *,
                     task_path: str | None, from_run: str | None, choices_path: str | None = None,
-                    runtime_arguments: dict | None = None, context_sha256: str | None = None) -> None:
+                    runtime_arguments: dict | None = None, context_sha256: str | None = None,
+                    input_arguments: dict | None = None, publication: dict | None = None) -> None:
     if active_task_id(root) != task['task_id']:
         return
     if kind not in {'draft-inputs', 'build-inputs'}:
@@ -82,9 +85,103 @@ def remember_inputs(root: Path, task: dict, kind: str, out_dir: str, *,
                'choices': choices_path, 'runtime_arguments': runtime_arguments}
     if context_sha256 is not None:
         details['context_sha256'] = c.sha(context_sha256)
+    if publication is not None:
+        details['publication'] = publication
     if kind == 'draft-inputs' and task_path is None and from_run is None:
         details['initial_task'] = task
+        if input_arguments:
+            details['input_arguments'] = input_arguments
     _remember(root, task['task_id'], kind, out_dir, details)
+
+
+def published_draft(root: Path, task: dict, out_dir: str) -> None:
+    """Record that a registered draft published its directory.
+
+    A registration without this mark was interrupted before publication and
+    is resumed. Once the mark exists, removing the directory withdraws the
+    draft from the work task.
+    """
+    if active_task_id(root) != task['task_id']:
+        return
+    path = _directory(root, task['task_id']) / ('draft-inputs-' + c.content_id(out_dir) + '.json')
+    value = c.load(path)
+    value['details'] = {**value['details'], 'directory_published': True}
+    c.atomic(path, c.encoded(value), replace=True)
+
+
+def _withdrawn(root: Path, row: dict) -> bool:
+    """Whether the author removed the directory of a published draft."""
+    details = row['details']
+    return (row['kind'] == 'draft-inputs' and details.get('directory_published') is True
+            and not c.local(root, details['directory'], exists=False).exists())
+
+
+def input_publication(root: Path, task_id: str, task_path: str) -> dict | None:
+    """Read the exact registered export boundary without trusting a neighboring report."""
+    folder = Path(task_path).parent.as_posix()
+    pointer = _directory(root, task_id) / ('build-inputs-' + c.content_id(folder) + '.json')
+    pointer = c.local(root, pointer.relative_to(root).as_posix(), exists=False)
+    if not pointer.is_file():
+        return None
+    value = c.load(pointer)
+    c.exact(value, {'artifact_type', 'task_id', 'kind', 'created_at', 'operation_id', 'details'},
+            'input publication pointer')
+    if (value['artifact_type'] != 'production-authoring-pointer' or value['task_id'] != task_id
+            or value['kind'] != 'build-inputs' or value['details']['directory'] != folder):
+        raise ValueError('input publication differs from its registered owner')
+    publication = value['details'].get('publication')
+    if publication is None or publication.get('task') != task_path:
+        raise ValueError('the input export has no registered complete publication; rebuild from its editable choices')
+    return publication
+
+
+def remember_decision_draft(root: Path, task_id: str, run: str, kind: str, path: str,
+                            *, context: dict | None = None) -> None:
+    """Remember the producer's target and basis without copying editable answers."""
+    from production_binding import studio_file
+    if kind not in DECISION_KINDS:
+        raise ValueError('unknown decision draft kind')
+    path = studio_file(root, path, option='--out', exists=False).relative_to(root).as_posix()
+    details = {'run': run, 'path': path}
+    if context is not None:
+        details['context'] = context
+    identity = run + ':' + path + (':' + c.content_id(context) if context is not None else '')
+    _remember(root, task_id, kind + '-draft', identity, details)
+
+
+def decision_drafts(root: Path, task_id: str, *, kind: str | None = None, run: str | None = None,
+                    context: object = _ANY_CONTEXT, records: list[dict] | None = None) -> list[dict]:
+    """Resolve producer-owned draft locations without reading their unfinished answers."""
+    if kind is not None and kind not in DECISION_KINDS:
+        raise ValueError('unknown decision draft kind')
+    rows = _records(root, task_id, []) if records is None else records
+    result = []
+    for row in rows:
+        decision_kind = row['kind'].removesuffix('-draft')
+        if decision_kind not in DECISION_KINDS or (kind is not None and decision_kind != kind):
+            continue
+        details = row['details']
+        c.exact(details, {'run', 'path'} | ({'context'} if 'context' in details else set()),
+                'decision draft pointer')
+        if run is not None and details['run'] != run:
+            continue
+        if context is not _ANY_CONTEXT and details.get('context') != context:
+            continue
+        path = c.local(root, details['path'], exists=False)
+        result.append({**details, 'kind': decision_kind, 'available': path.is_file(),
+                       'created_at': row['created_at']})
+    return result
+
+
+def decision_file_state(root: Path, path: str, expected: dict, *, required: set[str] = frozenset()) -> str:
+    """Inspect ownership fields only; unfinished answers never choose their own target."""
+    try:
+        value = c.load(c.local(root, path))
+    except READ_ERRORS:
+        return 'unfinished'
+    if not isinstance(value, dict) or not (expected.keys() | required) <= value.keys():
+        return 'unfinished'
+    return 'current' if all(value[key] == expected[key] for key in expected) else 'other-target'
 
 
 def _input_registration(root: Path, task_id: str, out_dir: str) -> dict | None:
@@ -156,7 +253,7 @@ def require_input_context(root: Path, task_id: str, out_dir: str, raw: bytes, *,
     """Check the registered location and exact context independently of identity judgment."""
     try:
         _directory(root, task_id)
-    except ValueError as exc:
+    except (ValueError, TypeError) as exc:
         if not required:
             return None
         raise input_context_error(root, task_id, out_dir, code='AUTHORING_DRAFT_UNREGISTERED',
@@ -213,8 +310,14 @@ def _action(root: Path, command: str, *arguments: str, reason: str) -> dict:
 
 
 def _arguments(values: dict) -> list[str]:
-    return [part for name, value in values.items() for item in (value if isinstance(value, list) else [value])
-            for part in ('--' + name, str(item))]
+    result = []
+    for name, value in values.items():
+        if value is True:
+            result.append('--' + name)
+        elif value is not None and value is not False:
+            for item in value if isinstance(value, list) else [value]:
+                result.extend(('--' + name, str(item)))
+    return result
 
 
 def _runtime_basis(values: dict | None) -> dict | None:
@@ -281,7 +384,8 @@ def _source_arguments(details: dict, *, initial_task: dict | None = None) -> lis
         return []
     return ['--route', initial_task['route'], '--artifact', initial_task['artifact'],
             '--execution', initial_task['execution'], '--task-id', initial_task['task_id'],
-            *[part for feature in initial_task['features'] for part in ('--feature', feature)]]
+            *[part for feature in initial_task['features'] for part in ('--feature', feature)],
+            *_arguments(details.get('input_arguments') or {})]
 
 
 def _problem(path: str, exc: BaseException) -> dict:
@@ -307,7 +411,8 @@ def _records(root: Path, task_id: str, diagnostics: list) -> list[dict]:
                     'authoring pointer')
             if value['artifact_type'] != 'production-authoring-pointer' or value['task_id'] != task_id:
                 raise ValueError('authoring pointer belongs to another work task')
-            if value['kind'] not in {'draft-inputs', 'build-inputs', 'route-reading', 'reading-record'}:
+            if value['kind'] not in ({'draft-inputs', 'build-inputs', 'route-reading', 'reading-record'}
+                                     | {kind + '-draft' for kind in DECISION_KINDS}):
                 raise ValueError('unknown authoring pointer kind')
             c.text(value['created_at'], 'authoring pointer time')
             if not isinstance(value['details'], dict):
@@ -344,12 +449,15 @@ def _input(root: Path, row: dict, *, include_working: bool = True, read_run=None
                                       'choices': report['derived_from']['choices'],
                                       'runtime_arguments': _runtime_basis(details['runtime_arguments'])},
                       assessment_required=report.get('assessment_required', []))
-        selected = next((action for action in report['next_actions'] if action['operation'] == 'prepare'), None)
+        selected = next((action for action in report['next_actions']
+                         if action['operation'] in {'prepare', 'retarget', 'save'}), None)
         if selected is None:
             raise ValueError('saved input report has no preparation action')
         arguments = {key: value for key, value in selected['args'].items() if key != 'root'}
-        result['next_actions'] = [_action(root, 'prepare', *_arguments(arguments),
-                                          reason='Prepare the saved built task and its current inputs.')]
+        result['next_actions'] = [_action(root, selected['operation'], *_arguments(arguments),
+                                          reason=selected.get('reason', 'Prepare the saved built task and its current inputs.'))]
+        if selected.get('requires_author_input'):
+            result['next_actions'][0]['requires_author_input'] = True
         # The published directory is immutable. Its editable source may have
         # changed since publication, including after this task was prepared.
         # Keep both states visible and resume those choices before offering the
@@ -421,7 +529,10 @@ def _authored_input(root: Path, row: dict, *, read_run=None) -> dict:
         task_basis = context['derived_from']['task'] if context is not None else None
         result.update(source_available=False, source_diagnostic=str(exc))
     if task is not None and task.get('task_id') != row['task_id']:
-        raise ValueError('saved input source belongs to another work task')
+        if context is None or context.get('task_binding') != {'task_id': row['task_id']}:
+            raise ValueError('saved input source belongs to another work task')
+        from production_inputs import _bind_task
+        task = _bind_task(task, row['task_id'])
     if choices is not None and choices.is_file():
         import production_inputs
         result.update(state='choices', choices=choices.relative_to(root).as_posix())
@@ -451,10 +562,8 @@ def _authored_input(root: Path, row: dict, *, read_run=None) -> dict:
             'choices': view['choices_ref'],
             'runtime_arguments': _runtime_basis(details['runtime_arguments'])}
         if not result['unresolved'] and result['source_available']:
-            command = 'save' if chosen.get('execution') == 'authored' else 'prepare'
-            result['next_actions'] = [_action(root, command, '--choices', result['choices'],
-                *_arguments(details['runtime_arguments'] or {}),
-                reason='Compile the current editable sources and ' + ('save their authored revision.' if command == 'save' else 'prepare their exact model input.'))]
+            result['next_actions'] = [production_inputs.continuation_action(root, chosen, result['choices'],
+                details['runtime_arguments'], view['source_run'], view['target_identity'])]
         elif chosen is not None and chosen.get('execution') == 'authored':
             result['next_actions'].append(_action(root, 'save', '--choices', result['choices'], '--draft',
                 *_arguments(details['runtime_arguments'] or {}),
@@ -487,6 +596,7 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
     def restart(reason):
         argv = python_argv(Path(details['skill_root']) / 'scripts/execution_routes.py', 'read', details['route'],
                            '--operation', details['operation'], '--execution', details['execution'],
+                           '--reading-ledger', details['ledger'],
                            '--root', str(c._root(root)),
                            '--page-bytes', str(details['page_bytes']))
         for feature in details['features']:
@@ -527,6 +637,9 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
         reach = max(reach, end)
     result = {**base,
               'delivered_bytes': reach, 'remaining_bytes': total - reach,
+              'required_bytes': sum(item['size'] for item in snapshot['required_bodies']),
+              'reused_bytes': sum(item['body']['size'] for item in snapshot['reused_bodies']),
+              'same_context_required': bool(snapshot['context_keys']),
               'source_freshness': 'not-rechecked',
               'next_actions': []}
     saved = [item['details']['path'] for item in records if item['kind'] == 'reading-record'
@@ -551,7 +664,9 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
     actions = route_reading._reading_actions(result, ledger=ledger, studio=root,
                                             page_bytes=details['page_bytes'])
     result.update(state='partial' if reach < total else 'delivered', actions=actions)
-    result['next_actions'] = [actions['continue'] if 'continue' in actions else actions['replay']]
+    result['next_actions'] = [actions['continue'] or actions['replay']]
+    result['fresh_context_action'] = restart(
+        'Read the complete current contract after a context change; saved receipts and pages do not establish retained knowledge.')['next_actions'][0]
     if reach == total:
         result['assessment_required'] = ['No saved reading record is available. Replaying the final page is an explicit reading action.']
     return result
@@ -650,6 +765,10 @@ def _context(root: Path, task: dict, selected: dict | None, *, read_run) -> dict
         if choices is not None:
             import production_inputs
             try:
+                if row.get('context'):
+                    context = c.load(c.local(root, row['context']))
+                    if context.get('task_binding') == {'task_id': task['task_id']}:
+                        source = production_inputs._bind_task(source, task['task_id'])
                 source = production_inputs._chosen_task(source, choices)
             except READ_ERRORS as exc:
                 current['task_diagnostic'] = str(exc)
@@ -666,14 +785,15 @@ def _context(root: Path, task: dict, selected: dict | None, *, read_run) -> dict
     return result
 
 
-def inspect(root: Path, task: dict | None = None, *, read_run=None) -> dict:
+def inspect(root: Path, task: dict | None = None, *, read_run=None, choices: str | None = None) -> dict:
     """Describe saved work for this ledger task, without producing inputs, keys or permissions."""
     import work_ledger
     root = c._root(root)
     task = work_ledger.read_current(root) if task is None else task
     result = {'state': 'authoring-state', 'task_id': task['task_id'] if task else None,
-              'inputs': [], 'readings': [], 'last_check': None, 'diagnostics': [],
+              'inputs': [], 'readings': [], 'decision_drafts': [], 'last_check': None, 'diagnostics': [],
               'next_actions': [], 'pending': False, 'context': None, 'saved': None,
+              'selection_required': False, 'input_options': [],
               'external_effect': False}
     if task is None:
         return result
@@ -682,15 +802,23 @@ def inspect(root: Path, task: dict | None = None, *, read_run=None) -> dict:
     except READ_ERRORS as exc:
         records = []
         result['diagnostics'].append(_problem('work/tasks/' + task['task_id'] + '/authoring', exc))
-    latest_input = max((row for row in records if row['kind'] in {'draft-inputs', 'build-inputs'}),
-                       key=lambda row: row['created_at'], default=None)
+    try:
+        result['decision_drafts'] = decision_drafts(root, task['task_id'], records=records)
+    except READ_ERRORS as exc:
+        result['diagnostics'].append(_problem('decision draft locations', exc))
     if read_run is None:
         run_cache = {}
         read_run = lambda identifier: _run(root, identifier, run_cache)
+    # Several drafts reopened from one run share that run's observation here.
+    from production_inputs import SourceRuns
+    if not isinstance(read_run, SourceRuns):
+        read_run = SourceRuns(read_run)
     for row in records:
         try:
             if row['kind'] in {'draft-inputs', 'build-inputs'}:
-                result['inputs'].append(_input(root, row, include_working=row is latest_input, read_run=read_run))
+                # A published draft whose directory the author removed is no longer a branch of this work.
+                if not _withdrawn(root, row):
+                    result['inputs'].append(_input(root, row, include_working=True, read_run=read_run))
             elif row['kind'] == 'route-reading':
                 result['readings'].append(_reading(root, row, records))
             elif row['kind'] == 'reading-record' and row['details']['snapshot'] is None:
@@ -748,8 +876,72 @@ def inspect(root: Path, task: dict | None = None, *, read_run=None) -> dict:
                         row['next_actions'] = []
         except READ_ERRORS as exc:
             result['diagnostics'].append(_problem('production/' + task['production_run'], exc))
-    candidates = [row for row in result['inputs'] if not row.get('assembled_task')]
-    selected_input = max(candidates, key=lambda row: row['created_at'], default=None)
+    branches = {}
+    for row in result['inputs']:
+        if row.get('assembled_task'):
+            continue
+        current = row.get('working_copy', row)
+        identity = ('choices', current['choices']) if current.get('choices') else ('directory', row['directory'])
+        previous = branches.get(identity)
+        # Several immutable exports of the same editor are one editable
+        # branch. Prefer that editor's own pointer, then its latest export.
+        priority = (row['kind'] == 'draft-inputs', row['created_at'])
+        if previous is None or priority > (previous['kind'] == 'draft-inputs', previous['created_at']):
+            branches[identity] = row
+    candidates = list(branches.values())
+    # Prepared choices remain history even when another branch became the
+    # task's latest run. Check every registered source rather than treating an
+    # older publication as new unsaved work.
+    import production_store
+    publications = []
+    for saved_run in production_store.runs(root, task_id=task['task_id']):
+        try:
+            prepared = read_run(saved_run['run_id']).prepared
+            publication = prepared.get('authoring') or {}
+            if publication.get('choices_ref') is not None:
+                publications.append((saved_run['run_id'], publication['choices_ref']))
+        except READ_ERRORS as exc:
+            result['diagnostics'].append(_problem('production/' + saved_run['run_id'], exc))
+    for row in candidates:
+        current = row.get('working_copy', row)
+        source = (current.get('assembly_basis') or {}).get('choices')
+        matches = [run for run, ref in publications if source == ref]
+        if matches and not current['unresolved']:
+            row['prepared_runs'] = matches
+            row.setdefault('prepared_run', matches[-1])
+            row['changed_since_save'] = False
+            if not row.get('working_copy'):
+                row['next_actions'] = []
+    def pending(row):
+        return bool(not row.get('prepared_run') or row.get('working_copy')
+                    or row.get('changed_since_save') or row['unresolved'])
+    pending_inputs = [row for row in candidates if pending(row)]
+    if choices is not None:
+        selected = [row for row in candidates if row.get('working_copy', row).get('choices') == choices]
+        if len(selected) != 1:
+            raise ValueError('select one registered editable choices path shown by inspect-inputs')
+        selected_input = selected[0]
+    elif len(pending_inputs) == 1:
+        selected_input = pending_inputs[0]
+    elif len(pending_inputs) > 1:
+        selected_input = None
+        result['selection_required'] = True
+        for row in pending_inputs:
+            current = row.get('working_copy', row)
+            path = current.get('choices')
+            if path is not None:
+                action = _action(root, 'inspect-inputs', '--choices', path,
+                    reason='Continue this explicitly selected editable branch.')
+            else:
+                action = next(iter(current['next_actions']), _action(root, 'inspect-inputs',
+                    reason='Inspect this unfinished input publication.'))
+            result['input_options'].append({'choices': path, 'directory': row['directory'],
+                'source_run': row.get('source_run'), 'unresolved': current['unresolved'], 'action': action})
+            result['next_actions'].append(action)
+    else:
+        selected_input = next((row for row in candidates if row.get('prepared_run') == task.get('production_run')), None)
+        if selected_input is None and len(candidates) == 1:
+            selected_input = candidates[0]
     scope = (selected_input or {}).get('route_scope')
     applicable = [row for row in result['readings']
                   if scope is None or (row['route'] == scope['route'] and set(scope['features']) <= set(row['features'])
@@ -757,10 +949,8 @@ def inspect(root: Path, task: dict | None = None, *, read_run=None) -> dict:
                      and all(item in row.get('documents', []) for item in scope['documents'])
                      and (not row['model'] or (row['model']['id'] == scope['model']
                           and (row['model']['service'] is None or row['model']['service'] == scope['service']))))]
-    selected_reading = max(applicable, key=lambda row: row['created_at'], default=None)
-    result['pending'] = bool(selected_input and
-                             (not selected_input.get('prepared_run') or selected_input.get('working_copy')
-                              or selected_input.get('changed_since_save') or selected_input['unresolved']))
+    selected_reading = None if result['selection_required'] else max(applicable, key=lambda row: row['created_at'], default=None)
+    result['pending'] = result['selection_required'] or bool(selected_input and pending(selected_input))
     for row in result['inputs']:
         row['current'] = row is selected_input
         if row['current']:
@@ -791,6 +981,10 @@ def inspect(root: Path, task: dict | None = None, *, read_run=None) -> dict:
 def session_lines(root: Path, task: dict, *, report: dict | None = None, read_run=None) -> list[str]:
     report = inspect(root, task, read_run=read_run) if report is None else report
     lines = []
+    if report.get('selection_required'):
+        lines.append('Several editable branches are pending. Select the intended branch before continuing:')
+        for option in report['input_options']:
+            lines.append((option['choices'] or option['directory']) + ': ' + option['action']['shown'])
     for saved in (item for item in report['inputs'] if item['current']):
         row = saved.get('working_copy', saved)
         if saved.get('working_copy'):

@@ -15,15 +15,28 @@ from typing import Any
 import execution_contract as c
 import image_input
 import request_contract as rc
+from production_diagnostics import choice_required
 
 FIELDS = frozenset({'image_input', 'request', 'media_slots', 'source_files', 'source_uploads', 'reference_delivery'})
 REQUEST_FIELDS = ('model_field', 'prompt_field', 'negative_field', 'count_field', 'operation_field')
+# The section that explains the editable request, its media choices and their upload evidence.
+REQUEST_GUIDE = {'document_path': 'references/runtime/production-external-inputs.md#edit-the-request-and-media-choices'}
 
 
 def template() -> dict:
     """Leave the model, native interface and real evidence explicitly unselected."""
     return {'image_input': None, 'request': None, 'media_slots': [],
             'source_files': {}, 'source_uploads': [], 'reference_delivery': None}
+
+
+def plan_required() -> dict:
+    """The unanswered image-input plan of an external request."""
+    return choice_required('external.image_input', 'selection-required',
+        'external.image_input is null, so this external request selects no image-input plan.',
+        'Set external to {"image_input": PATH} naming an existing image-input plan file, or write the editable '
+        'plan at external.image_input: its references (id, role, file, use_for, do_not_transfer and transport) '
+        'and its external_request (prompt_field, model_field, operation_field, count_field and count); '
+        'choices.target supplies its model.', REQUEST_GUIDE)
 
 
 def unresolved(selection: Any) -> list[dict]:
@@ -37,23 +50,41 @@ def unresolved(selection: Any) -> list[dict]:
     c.exact(selection, set(FIELDS), 'external input choices')
     result = []
 
-    def required(value, field):
+    def required(value, field, message, required_action):
         if value is None:
-            result.append({'field': 'external.' + field, 'code': 'selection-required'})
+            result.append(choice_required('external.' + field, 'selection-required', message, required_action,
+                                          REQUEST_GUIDE))
 
     plan = selection['image_input']
-    required(plan, 'image_input')
-    required(selection['request'], 'request')
+    if plan is None:
+        result.append(plan_required())
+    required(selection['request'], 'request', 'external.request is null, so the native request controls are '
+             'not selected.', 'Set external.request to the provider\'s native request object or array with its '
+             'independent controls; the builder writes its prompt, model, operation, count and media fields '
+             'from the delivery, choices.target and the image-input plan.')
     if plan is not None and not isinstance(plan, dict):
         raise ValueError('external image_input must contain the selected plan')
     if isinstance(plan, dict):
-        required(plan.get('external_request'), 'image_input.external_request')
+        required(plan.get('external_request'), 'image_input.external_request',
+                 'external.image_input.external_request is null, so the plan names no request fields.',
+                 'Set external.image_input.external_request to the request field paths of the saved request: '
+                 'prompt_field, model_field or model_identity, operation_field, count_field, negative_field for '
+                 'tag input, the expected count and an optional acquired schema.')
         for index, row in enumerate(plan.get('references', []) if selection['reference_delivery'] is None else []):
             transport = row.get('transport')
-            required(transport, f'image_input.references.{index}.transport')
+            field = f'image_input.references.{index}.transport'
+            required(transport, field, f'external.{field} is null, so reference {index} has no upload.',
+                     "Upload the reference file through the service's actual upload operation and keep its saved "
+                     f'response, then set external.{field} to {{"value": RETURNED_MEDIA_VALUE, "evidence": '
+                     '{"path": SAVED_RESPONSE_FILE, "locator": SECTION}}; add "field" when the request has more '
+                     'than one media array.')
             if isinstance(transport, dict):
-                for key in ('value', 'evidence'):
-                    required(transport.get(key), f'image_input.references.{index}.transport.{key}')
+                required(transport.get('value'), field + '.value', f'external.{field}.value is null.',
+                         f'Set external.{field}.value to the media value that the provider returned for the '
+                         'uploaded reference file.')
+                required(transport.get('evidence'), field + '.evidence', f'external.{field}.evidence is null.',
+                         f'Set external.{field}.evidence to {{"path": SAVED_RESPONSE_FILE, "locator": SECTION}}: '
+                         'the saved upload response that returned the transport value.')
     return result
 
 
@@ -522,7 +553,7 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
             transport = copy.deepcopy(transports.get(identifier))
             reason = None
             if transport is None or any(transport.get(key) is None for key in ('value', 'evidence')):
-                reason = 'Select the actual uploaded carrier, provider media value and upload evidence.'
+                reason = 'has no recorded upload: its provider media value or upload evidence is missing.'
             else:
                 required = {'value', 'evidence'}
                 optional = {'field', 'uploaded_file'}
@@ -532,16 +563,16 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
                 if selected_file is None and not canonical:
                     selected_file = reference['file']
                 if selected_file is None:
-                    reason = 'Select the file actually uploaded for this prepared carrier.'
+                    reason = 'names no uploaded_file, so the upload of its prepared carrier is not identified.'
                 else:
                     try:
                         uploaded = uploaded_hash(selected_file)
                     except (FileNotFoundError, OSError) as exc:
                         raise ValueError('selected uploaded carrier is unavailable: ' + selected_file) from exc
                     if uploaded != carrier['sha256']:
-                        reason = 'The prepared carrier changed. Select its actual upload file, value and evidence.'
+                        reason = 'has a prepared carrier that changed since its recorded upload.'
                     elif not evidence_matches(transport, carrier):
-                        reason = 'The retained upload evidence does not match the carrier and provider media value. Select actual evidence for this upload.'
+                        reason = 'has upload evidence that does not match its carrier and provider media value.'
             if reason is not None and canonical:
                 shared = shared_transport(carrier)
                 if shared is not None:
@@ -553,9 +584,14 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
                 measured(transport['evidence'])
                 rows.append({'reference': identifier, **transport})
             if reason is not None:
-                pending.append({'field': 'external.image_input.references.' + identifier + '.transport',
-                    'code': 'provider-upload-required', 'message': reason,
-                    'carrier': {key: carrier[key] for key in ('path', 'sha256', 'media_type')}})
+                pending.append(choice_required('external.image_input.references.' + identifier + '.transport',
+                    'provider-upload-required', 'Reference "' + identifier + '" ' + reason,
+                    'Upload ' + carrier['path'] + " through the service's actual upload operation and keep its "
+                    'saved response, then set the transport of reference "' + identifier + '" in '
+                    'external.image_input.references to {"value": RETURNED_MEDIA_VALUE, "evidence": {"path": '
+                    'SAVED_RESPONSE_FILE, "locator": SECTION}, "uploaded_file": UPLOADED_FILE}, naming the file '
+                    'actually uploaded, and prepare the same choices again.',
+                    REQUEST_GUIDE, carrier={key: carrier[key] for key in ('path', 'sha256', 'media_type')}))
         if pending:
             image_input._model_contract(plan['model'])
             return files, {'source': source, 'state': 'reference-upload-required',

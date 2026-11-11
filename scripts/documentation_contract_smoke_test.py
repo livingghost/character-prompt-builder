@@ -2,6 +2,8 @@
 """Regression tests for the lean SKILL router and routed documentation contract."""
 from __future__ import annotations
 
+import ast
+from collections import defaultdict
 import concurrent.futures
 import functools
 import html
@@ -31,6 +33,7 @@ from validate import (
     _skill_word_count,
     check_english_content,
     check_skill_documentation_contract,
+    markdown_anchor_slugs,
     newest_changelog_release,
 )
 from package_metadata import load_package_metadata
@@ -474,13 +477,13 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn("Saved work reads", gate)
         self.assertIn(route_command, gate)
         self.assertEqual(1, skill.count(route_command))
-        for marker in ("--operation", "reading-actions.continue", "reading-record", "--model-file"):
+        for marker in ("--operation", "actions.continue", "reading.record", "--model-file"):
             self.assertIn(marker, gate)
 
         sequence = skill.partition("## Common runtime sequence")[2].partition("\n## ")[0]
         owner = "references/runtime/production-workflow.md"
         self.assertIn(f"]({owner})", sequence)
-        self.assertIn("for every image deliverable", sequence)
+        self.assertIn("for images", sequence)
         workflow = (ROOT / owner).read_text(encoding="utf-8")
         self.assertIn("For saved work, initialize or reopen its Studio and work task.", workflow)
         self.assertIn("## Open the current work", workflow)
@@ -489,13 +492,13 @@ class DocumentationContractSmokeTest(unittest.TestCase):
     def test_paged_reading_guidance_matches_the_continuation_cli(self) -> None:
         document = (ROOT / "references/runtime/production-authoring.md").read_text(encoding="utf-8")
         reading = document.partition("### Read the route to completion")[2].partition("\n### ")[0]
-        for marker in ("reading-actions", "`argv`", "`command`", "`reason`", "`continue`", "`replay`",
-                       "--reading-ledger", "CPB_READS_LEDGER", "reading-record"):
+        for marker in ("actions.continue", "`argv`", "`command`", "`reason`", "`body`", "`null`",
+                       "--reading-ledger", "CPB_READS_LEDGER", "reading.record", "--known-reading"):
             self.assertIn(marker, reading)
         run = subprocess.run([sys.executable, str(ROOT / "scripts/execution_routes.py"), "read", "--help"],
                              cwd=self.root, env=UNPAINTED, capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        for option in ("--page-bytes", "--continue", "--replay", "--reading-ledger"):
+        for option in ("--page-bytes", "--continue", "--replay", "--reading-ledger", "--known-reading"):
             self.assertIn(option, run.stdout)
 
     def test_pack_quickstart_registration_example_runs_in_its_selected_runtime(self) -> None:
@@ -947,6 +950,294 @@ class DocumentedCommandTests(unittest.TestCase):
             [],
             [f"{document}: {command}: {problem}" for document, command in commands for problem in problems[command]],
         )
+
+
+DIAGNOSTICS_DOCUMENT = ROOT / "references/runtime/production-diagnostics.md"
+DIAGNOSTIC_CODE = re.compile(r"[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+")
+# A row of the code table, and a row of the exit status table with its example codes.
+CODE_ROW = re.compile(r"^\| `([A-Z][A-Z0-9_]*)` \| (.+) \|$", re.M)
+EXIT_ROW = re.compile(r"^\| (\d+) \| [^|]+ \| (.+) \|$", re.M)
+SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+
+
+def script_module(path: Path) -> str:
+    """The name a script below scripts/ is imported by."""
+    parts = path.relative_to(ROOT / "scripts").with_suffix("").parts
+    return ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
+
+
+class DiagnosticCodeFlow:
+    """The diagnostic codes that string literals of the scripts become, and where.
+
+    A literal becomes a code when it reaches the code of a diagnostic: the first
+    argument or `code` keyword of `ProductionError` or `Diagnostic` (kind
+    "raise"), or the `code` key, keyword, attribute or item of another record
+    (kind "record"). It reaches it directly, as a branch of a conditional
+    expression or of `or`, as the default of `.get`, through an assignment or a
+    parameter default, or as the argument of a function or class that passes
+    that parameter on to such a position, followed until no further one appears.
+    A call is bound the way Python binds its name: a function or class of an
+    enclosing scope or of the module, an imported one, or `module.name`.
+    """
+
+    def __init__(self, paths: list[Path]) -> None:
+        self.modules = {script_module(path): ast.parse(path.read_text(encoding="utf-8")) for path in paths}
+        self.imports = {name: self._imports(tree) for name, tree in self.modules.items()}
+        self.sites = {name: list(self._sites(tree)) for name, tree in self.modules.items()}
+        self._values: dict[tuple[str, ast.AST | None], dict[str, list[ast.expr]]] = {}
+        diagnostic = self._defined(self.modules["production_diagnostics"], "Diagnostic")
+        self.forwards: dict[ast.AST, dict[str, str]] = {diagnostic: {"code": "raise"}}
+        self.codes: dict[str, set[tuple[str, str]]] = {}
+        while self._propagate():
+            pass
+
+    @staticmethod
+    def _imports(tree: ast.Module) -> dict[str, tuple[str, ...]]:
+        table: dict[str, tuple[str, ...]] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    table[alias.asname or alias.name.split(".")[0]] = (
+                        "module", alias.name if alias.asname else alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+                for alias in node.names:
+                    table[alias.asname or alias.name] = ("name", node.module, alias.name)
+        return table
+
+    @staticmethod
+    def _sites(tree: ast.Module):
+        """Every call, record display and assignment, with the scopes that enclose it."""
+        stack: list[tuple[ast.AST, tuple[ast.AST, ...]]] = [(tree, ())]
+        while stack:
+            node, scopes = stack.pop()
+            if isinstance(node, (ast.Call, ast.Dict, ast.Assign)):
+                yield node, scopes
+            inner = scopes + (node,) if isinstance(node, SCOPES) else scopes
+            stack.extend((child, inner) for child in ast.iter_child_nodes(node))
+
+    @staticmethod
+    def _defined(owner: ast.AST, name: str) -> ast.AST | None:
+        return next((child for child in ast.iter_child_nodes(owner)
+                     if isinstance(child, SCOPES) and child.name == name), None)
+
+    def _resolve(self, module: str, scopes: tuple[ast.AST, ...], function: ast.expr) -> ast.AST | None:
+        if isinstance(function, ast.Name):
+            for scope in reversed(scopes):
+                found = None if isinstance(scope, ast.ClassDef) else self._defined(scope, function.id)
+                if found is not None:
+                    return found
+            found = self._defined(self.modules[module], function.id)
+            if found is not None:
+                return found
+            imported = self.imports[module].get(function.id)
+            if imported and imported[0] == "name" and imported[1] in self.modules:
+                return self._defined(self.modules[imported[1]], imported[2])
+        elif isinstance(function, ast.Attribute) and isinstance(function.value, ast.Name):
+            imported = self.imports[module].get(function.value.id)
+            if imported and imported[0] == "module" and imported[1] in self.modules:
+                return self._defined(self.modules[imported[1]], function.attr)
+        return None
+
+    @staticmethod
+    def _positional(callee: ast.AST) -> list[str]:
+        """The parameters a call binds by position, in order."""
+        if isinstance(callee, ast.ClassDef):
+            init = next((child for child in callee.body
+                         if isinstance(child, ast.FunctionDef) and child.name == "__init__"), None)
+            if init is None:
+                # A dataclass binds its annotated fields in order.
+                return [child.target.id for child in callee.body
+                        if isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name)]
+            return [argument.arg for argument in init.args.posonlyargs + init.args.args][1:]
+        return [argument.arg for argument in callee.args.posonlyargs + callee.args.args]
+
+    @staticmethod
+    def _argument(call: ast.Call, positional: list[str], name: str) -> ast.expr | None:
+        if name in positional:
+            index = positional.index(name)
+            if index < len(call.args) and not any(isinstance(item, ast.Starred) for item in call.args[:index + 1]):
+                return call.args[index]
+        return next((keyword.value for keyword in call.keywords if keyword.arg == name), None)
+
+    def _assigned(self, module: str, function: ast.AST | None) -> dict[str, list[ast.expr]]:
+        """What each name of a function, or of the module itself, is assigned, with parameter defaults."""
+        key = (module, function)
+        if key not in self._values:
+            values: dict[str, list[ast.expr]] = defaultdict(list)
+            owner = self.modules[module] if function is None else function
+            nodes = ast.iter_child_nodes(owner) if function is None else ast.walk(owner)
+            for node in nodes:
+                if isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            values[target.id].append(node.value)
+            if function is not None:
+                arguments = function.args
+                positional = arguments.posonlyargs + arguments.args
+                for argument, default in zip(reversed(positional), reversed(arguments.defaults)):
+                    values[argument.arg].append(default)
+                for argument, default in zip(arguments.kwonlyargs, arguments.kw_defaults):
+                    if default is not None:
+                        values[argument.arg].append(default)
+            self._values[key] = values
+        return self._values[key]
+
+    @classmethod
+    def _branches(cls, expression: ast.expr) -> list[ast.expr]:
+        """The expressions a code expression takes its value from."""
+        if isinstance(expression, ast.IfExp):
+            return cls._branches(expression.body) + cls._branches(expression.orelse)
+        if isinstance(expression, ast.BoolOp):
+            return [branch for value in expression.values for branch in cls._branches(value)]
+        if (isinstance(expression, ast.Call) and isinstance(expression.func, ast.Attribute)
+                and expression.func.attr == "get" and len(expression.args) == 2):
+            return cls._branches(expression.args[1])
+        return [expression]
+
+    def _literals(self, module: str, function: ast.AST | None, expression: ast.expr,
+                  seen: frozenset[str] = frozenset()) -> set[str]:
+        found: set[str] = set()
+        for branch in self._branches(expression):
+            if isinstance(branch, ast.Constant) and isinstance(branch.value, str):
+                found.add(branch.value)
+            elif isinstance(branch, ast.Name) and branch.id not in seen:
+                values = self._assigned(module, function).get(branch.id) or self._assigned(module, None).get(branch.id, [])
+                for value in values:
+                    found |= self._literals(module, function, value, seen | {branch.id})
+        return found
+
+    def _code_expressions(self, module: str, scopes: tuple[ast.AST, ...], node: ast.AST):
+        """The expressions this node places in a diagnostic code, with the kind of that code."""
+        if isinstance(node, ast.Call):
+            callee = self._resolve(module, scopes, node.func)
+            for name, kind in list(self.forwards.get(callee, {}).items()):
+                expression = self._argument(node, self._positional(callee), name)
+                if expression is not None:
+                    yield expression, kind
+            if isinstance(node.func, ast.Name) and node.func.id == "dict":
+                yield from ((keyword.value, "record") for keyword in node.keywords if keyword.arg == "code")
+        elif isinstance(node, ast.Dict):
+            yield from ((value, "record") for key, value in zip(node.keys, node.values)
+                        if isinstance(key, ast.Constant) and key.value == "code")
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if (isinstance(target, ast.Attribute) and target.attr == "code") or (
+                        isinstance(target, ast.Subscript) and isinstance(target.slice, ast.Constant)
+                        and target.slice.value == "code"):
+                    yield node.value, "record"
+
+    def _propagate(self) -> bool:
+        """Collect the codes once with the known forwarding parameters; report whether new ones appeared."""
+        changed = False
+        self.codes = defaultdict(set)
+        for module, sites in self.sites.items():
+            for node, scopes in sites:
+                functions = [scope for scope in scopes if not isinstance(scope, ast.ClassDef)]
+                function = functions[-1] if functions else None
+                for expression, kind in self._code_expressions(module, scopes, node):
+                    for value in self._literals(module, function, expression):
+                        if DIAGNOSTIC_CODE.fullmatch(value):
+                            self.codes[value].add((module, kind))
+                    if function is None:
+                        continue
+                    # A constructor's parameters belong to the class that a call names.
+                    position = scopes.index(function)
+                    owner = (scopes[position - 1] if function.name == "__init__" and position
+                             and isinstance(scopes[position - 1], ast.ClassDef) else function)
+                    arguments = function.args
+                    parameters = {argument.arg for argument in
+                                  arguments.posonlyargs + arguments.args + arguments.kwonlyargs}
+                    for branch in self._branches(expression):
+                        if isinstance(branch, ast.Name) and branch.id in parameters:
+                            known = self.forwards.setdefault(owner, {})
+                            before = known.get(branch.id)
+                            after = "raise" if "raise" in (before, kind) else "record"
+                            if before != after:
+                                known[branch.id] = after
+                                changed = True
+        return changed
+
+
+class DiagnosticDocumentationTests(unittest.TestCase):
+    """Each diagnostic leads to an existing section, and the code table matches the codes the scripts raise.
+
+    Production scripts are the modules a prepared run pins: the import closure
+    of the production commands that `production_workflow.implementation_closure`
+    computes and `config/implementation-files.json` records. Every code they
+    raise through `ProductionError` or `Diagnostic` has a row, and every row
+    names a code that some script produces, as a raised diagnostic or as the
+    `code` of another record.
+    """
+
+    maxDiff = None
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import production_workflow
+        scripts = sorted(path for path in (ROOT / "scripts").rglob("*.py")
+                         if not path.name.startswith("test_") and not path.name.endswith("_test.py"))
+        cls.flow = DiagnosticCodeFlow(scripts)
+        cls.production = {script_module(ROOT / path) for path in production_workflow.implementation_closure()
+                          if path.endswith(".py")}
+        cls.rows = CODE_ROW.findall(DIAGNOSTICS_DOCUMENT.read_text(encoding="utf-8"))
+
+    def test_diagnostic_guidance_names_existing_documents_and_sections(self) -> None:
+        from production_diagnostics import PHASE_DOCUMENTS, PHASE_SCHEMAS
+        declared = [(f"phase {phase}", target) for phase, target in PHASE_DOCUMENTS.items()]
+        for module in sorted(self.production):
+            for node in ast.walk(self.flow.modules[module]):
+                if isinstance(node, ast.Dict):
+                    declared += [(f"{module}.py line {value.lineno}", value.value)
+                                 for key, value in zip(node.keys, node.values)
+                                 if isinstance(key, ast.Constant) and key.value == "document_path"
+                                 and isinstance(value, ast.Constant) and isinstance(value.value, str)]
+        problems = []
+        for owner, target in declared:
+            path, _, anchor = target.partition("#")
+            document = ROOT / path
+            if not document.is_file():
+                problems.append(f"{owner}: no document {path}")
+            elif anchor and anchor not in markdown_anchor_slugs(document):
+                problems.append(f"{owner}: no section #{anchor} in {path}")
+        problems += [f"phase {phase}: no schema {schema}" for phase, schema in PHASE_SCHEMAS.items()
+                     if not (ROOT / schema).is_file()]
+        problems += [f"phase {phase}: guidance names a schema only beside a document" for phase in PHASE_SCHEMAS
+                     if phase not in PHASE_DOCUMENTS]
+        self.assertEqual([], problems)
+
+    def test_code_table_lists_each_code_production_raises_and_only_produced_codes(self) -> None:
+        documented = [code for code, _ in self.rows]
+        self.assertEqual([], sorted({code for code in documented if documented.count(code) > 1}), "repeated rows")
+        raised = {code for code, sources in self.flow.codes.items()
+                  if any(module in self.production and kind == "raise" for module, kind in sources)}
+        self.assertEqual([], sorted(raised - set(documented)), "codes a production script raises without a row")
+        self.assertEqual([], sorted(set(documented) - set(self.flow.codes)), "rows that name a code no script produces")
+
+    def test_authored_choice_reasons_match_their_schema_and_code_table_row(self) -> None:
+        import production_diagnostics
+        reasons = set(getattr(production_diagnostics, "CHOICE_REASONS", ()))
+        self.assertTrue(reasons, "production_diagnostics.CHOICE_REASONS names no reason")
+        schema = json.loads((ROOT / "schemas/authoring/production-compilation-report.schema.json")
+                            .read_text(encoding="utf-8"))
+        self.assertEqual(set(schema["$defs"].get("choice_reason", {}).get("enum", [])), reasons)
+        row = dict(self.rows).get("AUTHORED_CHOICE_REQUIRED", "")
+        named = {term for term in re.findall(r"`([a-z]+(?:-[a-z]+)+)`", row) if term.endswith("-required")}
+        self.assertEqual(named, reasons, "reasons the AUTHORED_CHOICE_REQUIRED row names")
+
+    def test_code_table_states_the_exit_status_each_code_selects(self) -> None:
+        from production_diagnostics import EXIT_INPUT, exit_code
+        problems = []
+        for code, text in self.rows:
+            stated = re.match(r"Exit (\d+)\b", text)
+            expected = exit_code(code)
+            if expected != EXIT_INPUT and (stated is None or int(stated.group(1)) != expected):
+                problems.append(f"{code}: its row begins with Exit {expected}")
+            elif expected == EXIT_INPUT and stated is not None:
+                problems.append(f"{code}: exits {EXIT_INPUT}, not {stated.group(1)}")
+        for status, examples in EXIT_ROW.findall(DIAGNOSTICS_DOCUMENT.read_text(encoding="utf-8")):
+            problems += [f"exit {status}: the example {code} exits {exit_code(code)}"
+                         for code in re.findall(r"`([A-Z][A-Z0-9_]*)`", examples) if exit_code(code) != int(status)]
+        self.assertEqual([], problems)
 
 
 if __name__ == "__main__":

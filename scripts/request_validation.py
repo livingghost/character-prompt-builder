@@ -17,6 +17,72 @@ FIELDS={'mode','target','service_execution_sha256','offering_contract_sha256','t
 CHOICE_FIELDS=frozenset({'mode','contract','evidence','execution_policy'})
 
 
+def model_readiness(model, offering=None, *, service=None, transport=None,
+                    choices=None, validation=None)->dict:
+    """Describe available execution inputs without claiming a request was checked.
+
+    This is a pure view of acquired values. A catalog declaration, an authored
+    evidence selector and a validated evidence record describe different stages;
+    none establishes authorization, provider acceptance or output quality.
+    """
+    owner=offering if offering is not None else model
+    profile=owner.get('execution_profile')
+    operation_kind=model.get('operation_kind') or 'generation'
+    operations=getattr(transport,'OPERATIONS',{}) if transport is not None else {}
+    operation=operations.get(operation_kind) if isinstance(operations,dict) else None
+    if offering is None:
+        service_status='unselected'
+    elif service is None or transport is None:
+        service_status='not-acquired'
+    elif operation is not None and operation in service.get('operations',{}):
+        service_status='available'
+    else:
+        service_status='unsupported'
+    selected=choices or {}
+    record=getattr(validation,'record',validation)
+    contract=selected.get('contract')
+    evidence=selected.get('evidence')
+    mode=selected.get('mode','target-schema')
+    snapshot=(offering or {}).get('schema_snapshot')
+    if record is not None:
+        evidence_status='acquired'
+        mode=record['mode'];contract=record['contract'];evidence=record['evidence']
+    elif contract and evidence and mode in MODES:
+        evidence_status='selected'
+    elif mode=='target-schema' and contract is None and evidence is None and snapshot:
+        evidence_status='catalog-schema'
+    else:
+        evidence_status='required'
+    unresolved=[]
+    if profile is None:
+        unresolved.append({'field':'target','code':'EXECUTION_PROFILE_REQUIRED',
+            'message':'The selected interface has no parameter execution profile.',
+            'required_action':'Acquire the exact interface controls and author its execution profile before dispatcher preparation.'})
+    if service_status=='unsupported':
+        unresolved.append({'field':'target.service','code':'SERVICE_OPERATION_REQUIRED',
+            'message':'The selected service and transport do not expose this model operation.',
+            'required_action':'Select a service with an acquired transport for the requested operation.'})
+    if evidence_status=='required':
+        unresolved.append({'field':'validation','code':'VALIDATION_EVIDENCE_REQUIRED',
+            'message':'Select request evidence for this exact model and service.',
+            'required_action':'Select a current target schema, a bounded probe, or an adopted observed profile in validation.'})
+    return {'parameter_profile':{'status':'available' if profile is not None else 'required',
+                'modes':sorted((profile or {}).get('modes',{}))},
+            'service_operation':{'status':service_status,'operation_kind':operation_kind,
+                'service':(offering or {}).get('service'),'operation':operation},
+            'validation_evidence':{'status':evidence_status,'mode':mode,'contract':mutable(contract),
+                'evidence':mutable(evidence),'schema_snapshot':snapshot},
+            'request_check':{'status':'not-performed',
+                'reason':'Prepare the exact authored request to check its controls and selected evidence.'},
+            'unresolved':unresolved}
+
+
+def target_readiness(target, choices=None, validation=None)->dict:
+    """Use the compilation's acquired target for the same readiness view."""
+    return model_readiness(target.model,target.offering,service=target.service,
+        transport=target.transport,choices=choices,validation=validation)
+
+
 def _ref(ref:Any)->None:
     c.exact(ref,{'path','sha256'},'validation evidence reference');c.text(ref['path'],'evidence path');c.sha(ref['sha256'])
 

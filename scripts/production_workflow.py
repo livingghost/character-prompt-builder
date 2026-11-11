@@ -245,7 +245,7 @@ def implementation_files() -> list[str]:
         raise ValueError(f'{IMPLEMENTATION_INDEX} must list file paths and module digests; run scripts/rebuild_metadata.py')
     if sorted(sources) != sorted(path for path in files if path.endswith('.py')):
         raise ValueError(f'{IMPLEMENTATION_INDEX} does not record a digest for each listed module; run scripts/rebuild_metadata.py')
-    rebuild = 'Run scripts/rebuild_metadata.py so the index matches the installation, then prepare again.'
+    rebuild = 'Run scripts/rebuild_metadata.py so the index matches the installation, then run the same command again.'
     for path, expected in sorted(sources.items()):
         try:
             actual = c.file_digest(ROOT, path)[0]
@@ -303,10 +303,36 @@ def freshness_error(dependency: dict, actual: str | None, *, run: str | None, ph
             required_action='Prepare the task again with the current installation; the creative input is unchanged.')
     if actual is None:
         return ProductionError('SOURCE_CHANGED', 'A live creative source is unavailable.', phase=phase,
-                               file=dependency['path'], run=run, expected=dependency.get('selection_sha256', dependency['sha256']), actual=None)
+                               file=dependency['path'], run=run, expected=dependency.get('selection_sha256', dependency['sha256']), actual=None,
+                               required_action='Restore the file at this path to keep this run. If another file replaces it, select '
+                                               'that file in the choices or the task, then run prepare to make a new run.')
     return ProductionError('SOURCE_CHANGED', 'A live creative source changed after preparation.', phase=phase,
                            file=dependency['path'], run=run, expected=dependency.get('selection_sha256', dependency['sha256']), actual=actual,
-                           required_action='Review the source change and prepare a variant for the current creative scope.')
+                           required_action='This file was edited after the run was prepared. If the edit is intended, run prepare '
+                                           'on the current files to make a new run; status --run gives the exact command. '
+                                           'To keep this run, restore the file to its prepared content.')
+
+
+def implementation_error(changed: list[tuple], *, run: str | None) -> ProductionError:
+    """One finding for a run's changed installation, naming every changed file.
+
+    One update of the installation changes many pinned files together and has
+    one remedy. `file`, `expected` and `actual` name the first changed file;
+    `changed_files` lists all of them in dependency order.
+    """
+    first, actual, cause = changed[0]
+    error = freshness_error(first, actual, run=run)
+    error.__cause__ = cause
+    if len(changed) == 1:
+        return error
+    files = [{'path': dependency['path'],
+              'expected': dependency.get('selection_sha256', dependency['sha256']), 'actual': current}
+             for dependency, current, _ in changed]
+    return ProductionError('IMPLEMENTATION_CHANGED',
+        f'{len(files)} files of the installed implementation changed or are unavailable after preparation.',
+        phase='implementation', file=first['path'], run=run,
+        expected=files[0]['expected'], actual=actual, changed_files=files,
+        required_action='Prepare the task again with the current installation; the creative input is unchanged.')
 
 
 def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = None,
@@ -351,7 +377,8 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
         issuance = checked['route-reading']
     else:
         issuance = route_reading.require_route_reading(reading, studio=root, routes={task['route']},
-                                                       features=task['features'], execution=task['execution'])
+            features=task['features'], execution=task['execution'],
+            operation='author' if task['execution'] == 'authored' else 'prepare')
     for source in task['sources']:
         add(root, source['path'])
     for source in (task.get('authored_basis') or {}).get('sources', []):
@@ -374,16 +401,13 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
     elif task.get('authority') is not None:
         authority = c.decode(add(root, task['authority'], 'evidence'))
         schema_check(authority, 'authority')
-        permissions.validate(authority, task['task_id'])
+        from input_evidence import EvidenceAcquisition
+        scope_reader = EvidenceAcquisition(root)
+        authority = permissions.acquire(authority, task['task_id'], scope_reader)
         add(root, authority['evidence']['path'], 'evidence')
-        from input_evidence import InputEvidence
-        import request_scope
-        scope_reader = InputEvidence(root)
-        for grant in authority['grants']:
-            request_scope.verify_sources(grant['request_scope'], None, scope_reader)
         # Pin the scope bytes the verifier read, not a second reading of the files.
         for path in sorted(scope_reader.read_paths):
-            raw = InputEvidence._decode(scope_reader.snapshots[path])
+            raw = scope_reader.bytes[path]
             key = c.digest(raw)
             dependencies[('evidence', path)] = {'space': 'evidence', 'path': path, 'sha256': key, 'size': len(raw)}
             blobs[key] = raw
@@ -496,7 +520,11 @@ def validate_protected_criteria(root: Path, prepared: dict, grant: dict, *, revi
 def _prepare(root: Path, task_path: str, *, parent: dict | None = None, identity: str | None = None) -> dict:
     """Compile one task and publish only its complete, verified result."""
     from production_compiler import prepare_task
-    result = prepare_task(c._root(root), task_path, parent=parent, identity=identity)
+    return _with_authored_save(root, prepare_task(c._root(root), task_path, parent=parent, identity=identity))
+
+
+def _with_authored_save(root: Path, result: dict) -> dict:
+    """Record the save of an authored revision and add it to its preparation result."""
     if read_run(root, result['run']).prepared['task']['execution'] == 'authored':
         from production_authored import record_save
         result.update(record_save(root, result['run']))
@@ -512,10 +540,10 @@ def prepare(root: Path, task: str | None = None, *, choices: str | None = None,
         raise ValueError('prepare selects exactly one task or editable choices file')
     if choices is None:
         return _prepare(root, task, identity=identity)
-    from production_inputs import compile_choices
+    from production_inputs import compile_choices, compilation_parent
     from production_compiler import publish_compilation
     compiled = compile_choices(root, choices, persist=True, identity=identity)
-    result = publish_compilation(root, compiled)
+    result = publish_compilation(root, compiled, parent=compilation_parent(root, compiled))
     if compiled.prepared['task']['execution'] == 'authored':
         from production_authored import record_save
         result.update(record_save(root, result['run']))
@@ -595,8 +623,9 @@ def _validate_run_history(run: str, prepared: dict, history, read_object,
     for row in rows:
         if row['input_sha256'] != prepared['input_sha256'] or row['event'] not in EVENTS:
             raise ProductionError('EVENT_CHAIN_CORRUPT', 'An event belongs to another input or has an undeclared kind.',
-                                  phase='integrity', run=run, event=row['sha256'], impact=store.RUN_EVIDENCE_IMPACT,
-                                  required_action='Restore the exact committed event from verified evidence; do not recreate approval.')
+                                  phase='integrity', run=run, event=row['sha256'], kind=row['event'],
+                                  sequence=row['sequence'], impact=store.RUN_EVIDENCE_IMPACT,
+                                  required_action=lifecycle.RESTORE_COMMITTED_EVENT)
         if row['event'] == 'dispatch-claim':
             import service_auth
             try:
@@ -605,31 +634,45 @@ def _validate_run_history(run: str, prepared: dict, history, read_object,
                     service_auth.validate_selection(authentication)
             except (KeyError, ValueError, TypeError) as exc:
                 raise ProductionError('EVENT_CHAIN_CORRUPT', 'The dispatch claim has an invalid authentication declaration.',
-                                      phase='integrity', run=run, event=row['sha256'], impact=store.RUN_EVIDENCE_IMPACT,
+                                      phase='integrity', run=run, event=row['sha256'], kind=row['event'],
+                                      sequence=row['sequence'], field='authentication', cause=str(exc),
+                                      impact=store.RUN_EVIDENCE_IMPACT,
                                       required_action='Restore the complete committed dispatch claim.') from exc
-        for item in row['data'].get('files', []) + row['data'].get('evidence', []):
-            if known.get(item['sha256']) == item['size']:
+        try:
+            saved = [(item['path'], item['sha256'], item['size'])
+                     for item in row['data'].get('files', []) + row['data'].get('evidence', [])]
+        except (KeyError, TypeError) as exc:
+            raise lifecycle.refused_event(run, row, exc) from exc
+        for path, key, size in saved:
+            if known.get(key) == size:
                 continue
             try:
-                raw = read_object(item['sha256'])
+                raw = read_object(key)
             except (ValueError, OSError, KeyError) as exc:
                 raise store.evidence_error('EVIDENCE_SNAPSHOT_MISSING', 'Event evidence cannot be read.',
-                                           file=item['path'], run=run, event=row['sha256'], expected=item['sha256'],
-                                           kind=row['event'], artifact='objects/' + item['sha256']) from exc
-            if c.digest(raw) != item['sha256'] or len(raw) != item['size']:
+                                           file=path, run=run, event=row['sha256'], expected=key,
+                                           kind=row['event'], artifact='objects/' + key) from exc
+            if c.digest(raw) != key or len(raw) != size:
                 raise store.evidence_error('EVIDENCE_SNAPSHOT_CORRUPT', 'Event evidence size or digest differs.',
-                                           file=item['path'], run=run, event=row['sha256'], expected=item['sha256'],
-                                           actual=c.digest(raw), kind=row['event'], artifact='objects/' + item['sha256'])
-            known[item['sha256']] = len(raw)
+                                           file=path, run=run, event=row['sha256'], expected=key,
+                                           actual=c.digest(raw), kind=row['event'], artifact='objects/' + key)
+            known[key] = len(raw)
     state = lifecycle.completion_tail(rows, prepared, run, read_object=read_object)
     for row in rows:
         if row['event'] == 'selection':
-            chosen = row['data']['selection']
-            reviewed = state.find('review', chosen['review'])
-            authorization = state.find('authorization', chosen['authorization'])
-            _recorded_selection_basis(prepared, [authorization], row, reviewed)
-            if row['data']['selection']['scope'] == 'studio-adoption':
-                _recorded_studio_adoption(run, row, rows, read_object)
+            # A recorded selection that its own rules refuse names its event; a
+            # diagnostic with its own code, such as unsaved evidence, keeps it.
+            try:
+                chosen = row['data']['selection']
+                reviewed = state.find('review', chosen['review'])
+                authorization = state.find('authorization', chosen['authorization'])
+                _recorded_selection_basis(prepared, [authorization], row, reviewed)
+                if chosen['scope'] == 'studio-adoption':
+                    _recorded_studio_adoption(run, row, rows, read_object)
+            except (ValueError, KeyError, TypeError) as exc:
+                if isinstance(exc, ProductionError):
+                    raise
+                raise lifecycle.refused_event(run, row, exc) from exc
     return state
 
 
@@ -694,47 +737,84 @@ class CurrentRunRead:
     sources: Any
     runtime: runtime_snapshot.FixedRuntimeRead | None
     reference_proofs: tuple
+    notices: tuple = ()
+
+
+# A prepared run sends its sealed request and reads its fixed runtime, so a
+# later change of the installation or of the packs is reported and does not stop it.
+INSTALLATION_NOTICE = ('No action is needed to send or continue this run: it keeps its sealed request. '
+                       'Prepare the task again to compile it with the current installation.')
+
+
+def _notice(error: BaseException, *, phase: str, required_action: str) -> dict:
+    from production_diagnostics import from_exception
+    return {**from_exception(error, phase=phase), 'severity': 'warning', 'required_action': required_action}
 
 
 def _current_source_inputs(root: Path, run: str, prepared: dict, *, force: bool = False,
                            previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None):
-    """Acquire current inputs and their diagnostics without retaining success."""
+    """Acquire current inputs with what stops the run and what it is only told.
+
+    A changed or missing author source, a replaced Studio reference and a
+    damaged fixed runtime are failures. A changed installation, changed
+    packs and a preparation reading that no longer verifies are notices.
+    """
     import route_reading
     import runtime_snapshot
     from live_source_read import LiveSourceRead
     sources=LiveSourceRead(root,ROOT,prepared['dependencies'])
     failures=[]
+    notices=[]
     descriptor=prepared.get('runtime_snapshot')
     fixed=None
     try:
         if descriptor is not None:
-            fixed=runtime_snapshot.require_current_read(root,descriptor,run=run,force=force,
-                                                        previous=previous_runtime)
-    except (ValueError,OSError) as exc:
-        failures.append(exc)
-    try:
-        if descriptor is not None and fixed is None:
-            # A live pack error still permits an independent report about the
-            # issued route reading. A broken fixed input fails this read too.
             fixed=runtime_snapshot.acquire_runtime(runtime_snapshot.path(root,descriptor),descriptor,
-                                                   previous=previous_runtime)
-        route_reading.require_route_reading(prepared['route_reading'],studio=root,
-            routes={prepared['task']['route']},features=prepared['task']['features'],
-            execution=prepared['task']['execution'],
-            resource_reader=fixed.read_resource if fixed is not None else None,
-            read_source=sources.skill_bytes)
+                                                   force_verify=force,previous=previous_runtime)
     except (ValueError,OSError) as exc:
         failures.append(exc)
+    if fixed is not None:
+        try:
+            notices.extend(runtime_snapshot.current_notices(root,descriptor,fixed,run=run))
+        except (ValueError,OSError) as exc:
+            notices.append(_notice(exc,phase='runtime-freshness',
+                required_action='No action is needed to send or continue this run. Repair the current pack state before the next preparation.'))
+    if descriptor is None or fixed is not None:
+        try:
+            route_reading.require_route_reading(prepared['route_reading'],studio=root,
+                routes={prepared['task']['route']},features=prepared['task']['features'],
+                execution=prepared['task']['execution'],
+                operation='author' if prepared['task']['execution'] == 'authored' else 'prepare',
+                resource_reader=fixed.read_resource if fixed is not None else None,
+                read_source=sources.skill_bytes)
+        except (ValueError,OSError) as exc:
+            # The reading was issued for this run's preparation. Changed
+            # sources, or a record the current installation cannot verify,
+            # leave the prepared request as it is.
+            notices.append(_notice(exc,phase='freshness',
+                required_action='No action is needed to send or continue this run. The reading issued for its preparation '
+                                'no longer verifies against the current installation; read the current material before '
+                                'the next preparation.'))
+    implementation=[]
     for dependency in prepared['dependencies']:
         if dependency['space'] == 'evidence': continue
         try: actual=current_sha256(root,dependency,read=sources)
         except (ValueError,OSError) as exc:
-            error=freshness_error(dependency,None,run=run)
-            error.__cause__=exc
-            failures.append(error)
+            actual,cause=None,exc
+        else:
+            if actual==dependency.get('selection_sha256', dependency['sha256']):
+                continue
+            cause=None
+        if dependency['space'] == 'skill':
+            # Changed installation files share one notice.
+            implementation.append((dependency,actual,cause))
             continue
-        if actual!=dependency.get('selection_sha256', dependency['sha256']):
-            failures.append(freshness_error(dependency,actual,run=run))
+        error=freshness_error(dependency,actual,run=run)
+        error.__cause__=cause
+        failures.append(error)
+    if implementation:
+        notices.append(_notice(implementation_error(implementation,run=run),phase='implementation',
+                               required_action=INSTALLATION_NOTICE))
     from studio_reference import ReferenceReads, validate_source
     reference_reads = ReferenceReads()
     proofs=[]
@@ -748,14 +828,7 @@ def _current_source_inputs(root: Path, run: str, prepared: dict, *, force: bool 
                 character=source['character'], slot=source['slot'], artifact_id=source['artifact_id'],
                 required_action='Select the current accepted artwork and prepare a new approved request; resume a sent run to recover its recorded result.',
                 cause=str(exc)))
-    return sources,fixed,tuple(proofs),failures
-
-
-def _freshness_failures(root: Path, run: str, prepared: dict, *, rows: list[dict] | None = None,
-                        force: bool = False,
-                        previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None):
-    """Inspect every current source and return failures in their check order."""
-    yield from _current_source_inputs(root,run,prepared,force=force,previous_runtime=previous_runtime)[3]
+    return sources,fixed,tuple(proofs),failures,notices
 
 
 def read_current(root: Path, run: str, *, force: bool = False,
@@ -765,13 +838,14 @@ def read_current(root: Path, run: str, *, force: bool = False,
     Internal steps receive these values explicitly. Another call checks actual
     current bytes again, including after a failed earlier acquisition. A prior
     runtime can supply immutable metadata only after its actual bytes match.
+    The first failure stops the boundary; notices travel with the result.
     """
     loaded=read_run(root,run,force=force)
-    sources,fixed,proofs,failures=_current_source_inputs(root,run,loaded.prepared,force=force,
-                                                      previous_runtime=previous_runtime)
+    sources,fixed,proofs,failures,notices=_current_source_inputs(root,run,loaded.prepared,force=force,
+                                                              previous_runtime=previous_runtime)
     if failures:
         raise failures[0]
-    return CurrentRunRead(loaded,sources,fixed,proofs)
+    return CurrentRunRead(loaded,sources,fixed,proofs,tuple(notices))
 
 
 def assert_current(root: Path, run: str, *, force: bool = False,
@@ -786,13 +860,17 @@ def assert_current(root: Path, run: str, *, force: bool = False,
     return read_current(root,run,force=force,previous_runtime=previous_runtime).view
 
 
-def freshness_diagnostics(root: Path, run: str, *, loaded: tuple | None = None,
-                          previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None) -> list[dict]:
-    """Every freshness problem of the run's live sources as a diagnostic, without stopping at the first."""
+def freshness(root: Path, run: str, *, loaded: tuple | None = None,
+              previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None) -> tuple[list[dict], list[dict]]:
+    """The run's freshness problems and its notices, as diagnostics, without stopping at the first.
+
+    A problem stops the run's next effect. A notice reports a change of the
+    installation or the packs that the prepared run does not depend on.
+    """
     from production_diagnostics import from_exception
     loaded=loaded or read_run(root,run)
-    return [from_exception(failure,phase='freshness') for failure in
-            _freshness_failures(root,run,loaded[1],rows=loaded[3],previous_runtime=previous_runtime)]
+    failures,notices=_current_source_inputs(root,run,loaded[1],previous_runtime=previous_runtime)[3:]
+    return [from_exception(failure,phase='freshness') for failure in failures],list(notices)
 
 
 def require_mutable(records: list[dict]) -> None:
@@ -973,7 +1051,8 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
         from production_request import check_authorization
         read_object = (loaded or read_run(root, prepared['run'])).evidence.read
         recorded = [(item['path'], read_object(item['sha256'])) for item in row['data']['files']]
-        check_authorization(root, prepared, request, grant, authority=authority, recorded=recorded)
+        check_authorization(root, prepared, request, grant, authority=authority, recorded=recorded,
+                            authorization=identifier)
     elif (operation == 'submit' and prepared['task']['execution'] == 'external'
             and prepared['task']['artifact'] == 'image'):
         from production_request import check_external_authorization
@@ -983,7 +1062,8 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
         acceptance = request['payload']['owner_acceptance']
         if acceptance['principal'] != grants['issuer']:
             raise ValueError('owner acceptance does not name the current authority issuer')
-        _require_owner_witness(acceptance, row)
+        _require_owner_witness(acceptance, row, run=prepared['run'],
+                               required_action=UNSAVED_SELECTION_WITNESS.format(run=prepared['run']))
     return request
 
 
@@ -1116,7 +1196,9 @@ def _claim_external_from(root: Path, loaded: RunView, authority: store.CurrentAu
         if previous[0]['data'] != data:
             raise ProductionError('DISPATCH_ALREADY_CLAIMED',
                 'An external tool call is already claimed; recover it, or prepare a new run for a new call.',
-                phase='before-send', run=run)
+                phase='before-send', run=run,
+                required_action='Recover that host call and receive its actual result; status --run names the command. '
+                                'A new call needs a newly prepared run.')
         return previous[0]
     lifecycle._claim_execution_from(root, loaded, authority, authorization)
     claim = lifecycle.commit_effect(root, run, 'external-claim', data, [authorization], effect='external-handoff')
@@ -1152,7 +1234,9 @@ def capture(root: Path, run: str, artifact: str, note: str) -> dict:
                 return same[0]
             states = lifecycle.derive(rows, prepared, run)
             if any(state['status'] == 'complete' for state in states.values()):
-                raise ProductionError('SETTLEMENT_CONFLICT', 'The external result was finalized; a new output cannot alter that receipt.', phase='capture', run=run)
+                raise ProductionError('SETTLEMENT_CONFLICT', 'The external result was finalized; a new output cannot alter that receipt.', phase='capture', run=run,
+                    required_action='Inspect the recorded outputs with status --run; the finalized receipt keeps them. '
+                                    'Another output belongs to a newly prepared run.')
             if len(previous) >= claim['data']['count']:
                 raise ValueError('external output count exceeds its authorization')
         return append_record(directory, prepared, rows, 'candidate',
@@ -1527,16 +1611,35 @@ def _owner_acceptance_witnesses(root: Path, prepared: dict, authority: store.Cur
     return [{**ref, 'raw': raw}]
 
 
-def _require_owner_witness(acceptance: dict, authorization: dict) -> dict:
-    """The authorizing event must retain the exact cited reading as evidence."""
+# A selection authorization that saved no reading of the owner instruction it cites, before it is used.
+UNSAVED_SELECTION_WITNESS = (
+    'A recorded authorization is not corrected in place. Authorize this selection again, which saves the cited owner '
+    'instruction: draft an authorization with draft-authorization --run {run} --grant GRANT --intent INTENT --out '
+    'AUTHORIZATION from the intent that selection-intent --run {run} --file FILE prints, record it with authorize '
+    '--run {run} --file AUTHORIZATION, put the digest it prints in the authorization field of the selection file '
+    'FILE, and run select --run {run} --file FILE.')
+# A recorded selection whose saved evidence lacks a file that its verification reads.
+UNSAVED_SELECTION_RECORD = (
+    'A recorded selection is not corrected in place, and the selections of a run are checked whenever the run is '
+    'read, so this run cannot be read. Its files stay in production/runs/{run}. Prepare a new run of the task with '
+    'prepare to continue the work.')
+
+
+def _require_owner_witness(acceptance: dict, authorization: dict, *, run: str, required_action: str) -> dict:
+    """The authorizing event must retain the exact cited reading as evidence.
+
+    `required_action` is the repair that fits the caller: a selection that
+    is still to be recorded is authorized again, a recorded one is not.
+    """
     ref = acceptance['evidence']
     matches = [item for item in authorization['data']['files']
                if item.get('purpose') == 'owner-acceptance'
                and all(item.get(key) == ref[key] for key in ('path', 'sha256', 'locator'))]
     if not matches:
-        raise store.evidence_error('EVIDENCE_SNAPSHOT_MISSING',
-                                  'The selection authorization holds no saved owner-acceptance witness.',
-                                  file=ref['path'], expected=ref['sha256'], event=authorization['sha256'])
+        raise ProductionError('EVIDENCE_SNAPSHOT_MISSING',
+            'The selection authorization holds no saved reading of the owner instruction that its owner_acceptance cites.',
+            phase='selection', file=ref['path'], run=run, event=authorization['sha256'], expected=ref['sha256'],
+            required_action=required_action)
     return matches[0]
 
 
@@ -1563,7 +1666,8 @@ def _recorded_selection_basis(prepared: dict, rows: list[dict], selection: dict,
     if acceptance is not None:
         if acceptance['principal'] != authorization['data']['authority']['issuer']:
             raise ValueError('owner acceptance does not name the recorded authority issuer')
-        _require_owner_witness(acceptance, authorization)
+        _require_owner_witness(acceptance, authorization, run=prepared['run'],
+                               required_action=UNSAVED_SELECTION_RECORD.format(run=prepared['run']))
     return eligible(prepared, reviewed, acceptance)
 
 
@@ -1641,7 +1745,9 @@ def candidate_state(root: Path, run: str, candidate: str, *, loaded: tuple | Non
         if state.latest('selection')['sequence'] > decision['sequence']:
             diagnostics.append(from_exception(ProductionError(
                 'SELECTION_REPLACED', 'A later selection of another candidate replaced this selection.',
-                phase='selection', run=run, required_action='Read the current selection of the run with status.'), phase='selection'))
+                phase='selection', run=run,
+                required_action='Read the current selection with production_workflow.py status --run ' + run + '.'),
+                phase='selection'))
     return {'run': run, 'candidate': candidate, 'candidate_sha256': chosen['data']['files'][0]['sha256'],
             'evaluation': evaluation, 'disposition': disposition_value,
             'unassessed_criteria': unassessed, 'review': latest['sha256'] if latest else None,
@@ -1691,7 +1797,8 @@ def disposition_value(root: Path, run: str, data: dict, *, files: list[dict] | N
         if data['review'] is not None:
             actual = latest_review(rows, data['candidate'])
             if data['review'] != actual['sha256']:
-                raise ProductionError('REVIEW_MISMATCH', 'Disposition must cite the actual latest review.', phase='disposition', run=run)
+                raise ProductionError('REVIEW_MISMATCH', 'Disposition must cite the actual latest review.', phase='disposition', run=run,
+                    required_action='Cite the latest review of this candidate, which candidate-status reports, or leave review null.')
         if current_state['decision_detail'] == data:
             row = next(row for row in rows if row['sha256'] == current_state['decision'])
         else:
@@ -1741,12 +1848,26 @@ def draft_selection(root: Path, run: str, candidate: str) -> dict:
     reviewed = latest_review(rows, candidate)
     return {'input_sha256': prepared['input_sha256'], 'candidate': candidate, 'review': reviewed['sha256'],
             'selector': '', 'reason': '', 'scope': 'delivery-only', 'adoption': None, 'slot': None,
-            'owner_acceptance': None, 'authorization': ''}
+            'owner_acceptance': None, 'authorization': '', 'replaces': replaced_selection(rows)}
+
+
+def replaced_selection(rows: list[dict]) -> str | None:
+    """The selection that a selection recorded now replaces: the run's latest one, or None.
+
+    A later disposition or review that ended the latest selection leaves it the
+    one a new selection follows.
+    """
+    if isinstance(rows, lifecycle.EventHistory):
+        latest = rows.lifecycle.latest('selection')
+    else:
+        latest = next((row for row in reversed(rows) if row['event'] == 'selection'), None)
+    return latest['sha256'] if latest is not None else None
 
 
 def selection_intent(selection: dict) -> dict:
-    # The reason and selecting actor are part of the exact decision, not merely
-    # the image id. The authorization reference itself is excluded to avoid a cycle.
+    # The reason, selecting actor and replaced selection are part of the exact
+    # decision, not merely the image id. The authorization reference itself is
+    # excluded to avoid a cycle.
     return {'operation': 'select', 'targets': ['delivery'],
             'payload': {k: v for k, v in selection.items() if k != 'authorization'}}
 
@@ -1766,6 +1887,12 @@ def select_value(root: Path, run: str, data: dict, *, files: list[dict] | None =
     Existing captured results use their saved input and review. Source freshness
     remains a boundary for new creative execution, not a reason to regenerate
     pixels merely to record their selection.
+
+    Submitting the run's latest selection again records nothing new and returns
+    it while it is current. Any other selection names that latest selection in
+    `replaces` and becomes the latest; the link keeps it distinct from an
+    earlier selection with the same choices. A selection that names another
+    one was decided before a later selection and is refused.
     """
     with store.transaction(root):
         directory, prepared, _, rows = read_run(root, run)
@@ -1778,14 +1905,19 @@ def select_value(root: Path, run: str, data: dict, *, files: list[dict] | None =
         if reviewed['sha256'] != data['review']:
             raise _selection_review_changed(run)
         eligible(prepared, reviewed, data['owner_acceptance'])
-        previous = [row for row in rows if row['event'] == 'selection' and row['data']['selection'] == data]
-        if previous:
-            selected, _, _ = current_selection(prepared, rows)
-            if selected['sha256'] != previous[-1]['sha256']:
-                raise ProductionError('SELECTION_REPLACED', 'The recorded selection is no longer the current decision.',
-                                      phase='selection', run=run,
-                                      required_action='Record a new exact selection decision before changing the selected result.')
-            row = selected
+        replaced = replaced_selection(rows)
+        if replaced is not None and find(rows, 'selection', replaced)['data']['selection'] == data:
+            row, _, _ = current_selection(prepared, rows)
+        elif data['replaces'] != replaced:
+            raise ProductionError('SELECTION_REPLACED',
+                'This selection replaces a selection that is no longer the latest of the run: another selection '
+                'was recorded after it was drafted.',
+                phase='selection', run=run, pointer='$.replaces', expected=replaced, actual=data['replaces'],
+                required_action=f"Read the current selection with production_workflow.py status --run {run}. To select "
+                    f"candidate {data['candidate']} in its place, write a new selection with draft-selection --run {run} "
+                    f"--candidate {data['candidate']} --out FILE, authorize the intent that selection-intent --run {run} "
+                    f'--file FILE prints, put the digest of that authorization in the authorization field of FILE '
+                    f'and run select --run {run} --file FILE.')
         else:
             _require_no_other_selection(rows, data['candidate'], run)
             request = _permission(root, prepared, rows, data['authorization'], **selection_intent(data))
@@ -1842,6 +1974,13 @@ def _selection_review_changed(run: str | None = None) -> ProductionError:
                            required_action='Review and explicitly select against the latest evidence.')
 
 
+def selection_withdrawn(rows: list[dict], selection: dict) -> bool:
+    """Whether a disposition of the selected candidate recorded after this selection withdrew it."""
+    candidate = selection['data']['selection']['candidate']
+    return any(row['event'] == 'disposition' and row['sequence'] > selection['sequence']
+               and row['data']['disposition']['candidate'] == candidate for row in rows)
+
+
 def current_selection(prepared: dict, rows: list[dict]) -> tuple[dict, dict, dict]:
     if isinstance(rows, lifecycle.EventHistory):
         rows = rows.lifecycle.selection_context()
@@ -1850,8 +1989,7 @@ def current_selection(prepared: dict, rows: list[dict]) -> tuple[dict, dict, dic
     reviewed = latest_review(rows, chosen['candidate'])
     if reviewed['sha256'] != chosen['review']:
         raise _selection_review_changed()
-    if any(row['event'] == 'disposition' and row['sequence'] > selection['sequence']
-           and row['data']['disposition']['candidate'] == chosen['candidate'] for row in rows):
+    if selection_withdrawn(rows, selection):
         closed = any(row['event'] in {'completion', 'abandoned'} for row in rows)
         raise ProductionError('SELECTION_WITHDRAWN', 'A later disposition withdrew this selection.', phase='selection',
                               required_action=('This run is closed. Its recorded completion or abandonment remains unchanged; '
@@ -2063,8 +2201,34 @@ def revision_intent(root: Path, run: str, task: str, candidate: str, repair: str
                         'repair': repair, 'revised_input_sha256': input_digest(revised, revised_consumer)}}
 
 
+def _reserved_run_taken(run: str, task: str, candidate: str, repair: str, *, child: str, edit: str,
+                        expected: dict, actual: Any) -> ProductionError:
+    """The run ID an edit record reserves is registered with another parent than the edit gives it.
+
+    Both records are kept. Another authorization of the same revision records
+    another edit, which reserves a new run ID.
+    """
+    revision = f'--task {task} --candidate {candidate} --repair {repair}'
+    return ProductionError('INPUT_CONSISTENCY_ERROR',
+        'The run that this edit record reserves for the revision is registered with another parent run, edit or repair.',
+        phase='revision', run=run, child=child, event=edit, expected=expected, actual=actual,
+        required_action=(f'The edit record and the run {child} that holds its reserved ID stay as they are. Authorize '
+                         'this revision again, which records a new edit that reserves a new run: save the intent that '
+                         f'revision-intent --run {run} {revision} prints as INTENT, draft its authorization with '
+                         f'draft-authorization --run {run} --grant GRANT --intent INTENT --out AUTHORIZATION, record it '
+                         f'with authorize --run {run} --file AUTHORIZATION, then run revise --run {run} {revision} '
+                         '--authorization DIGEST with the digest that authorize prints.'))
+
+
 @runtime_snapshot.operation
 def revise(root: Path, run: str, task: str, candidate: str, repair: str, authorization: str) -> dict:
+    """Prepare the revised task as the child run that its edit record reserves.
+
+    The edit record holds the child's run ID before preparation starts.
+    Repeating the command under the same authorization publishes that reserved
+    run when it is not registered yet, and otherwise returns the registered
+    run without compiling the task again.
+    """
     with store.transaction(root):
         # Revised sources may intentionally differ. Read the parent's immutable
         # snapshots, but still verify the candidate and observation evidence used.
@@ -2090,8 +2254,19 @@ def revise(root: Path, run: str, task: str, candidate: str, repair: str, authori
         else:
             edit = lifecycle.commit_effect(root,run,'edit',
                 {'intent':intent,'child':generate_uuid7(),'authorizations':[authorization]},[authorization],effect='local-action')
-    parent = {**intent['payload'], 'edit': edit['sha256']}
-    return _prepare(root, task, parent=parent, identity=edit['data']['child'])
+        parent = {**intent['payload'], 'edit': edit['sha256']}
+        child = edit['data']['child']
+        recorded = None
+        if any(row['run_id'] == child for row in store.runs(root, task_id=prepared['task']['task_id'])):
+            held = read_run(root, child).prepared['parent']
+            if held != parent:
+                raise _reserved_run_taken(run, task, candidate, repair, child=child, edit=edit['sha256'],
+                                          expected=parent, actual=mutable(held))
+            from production_compiler import published_preparation
+            recorded = published_preparation(root, child)
+    if recorded is not None:
+        return _with_authored_save(root, recorded)
+    return _prepare(root, task, parent=parent, identity=child)
 
 
 def submission_intent(package: dict, *, rendered: dict, seed: int | None,
@@ -2112,21 +2287,24 @@ def validate_dispatch_authentication(value: dict | None, transport: Any, service
 
 
 @runtime_snapshot.operation
-def claim_dispatch(root: Path, run: str, package: dict, verified: dict, journal: Path,
+def claim_dispatch(root: Path, run: str, package: dict, journal: Path,
                    intent: dict, authorization: str, *, rendered: dict, authentication: dict | None) -> dict:
     with store.transaction(root):
         current = read_current(root, run)
         authority = current_authority(root, current.view.prepared)
-        return _claim_dispatch_from(root, current.view, authority, package, verified, journal,
-                                    intent, authorization, rendered=rendered, authentication=authentication,
-                                    input_source=current.runtime)
+        return _claim_dispatch_from(root, current.view, authority, package, journal,
+                                    intent, authorization, rendered=rendered, authentication=authentication)
 
 
 def _claim_dispatch_from(root: Path, loaded: RunView, authority: store.CurrentAuthority,
-                         package: dict, verified: dict, journal: Path, intent: dict,
-                         authorization: str, *, rendered: dict, authentication: dict | None,
-                         input_source) -> dict:
-    """Claim the exact compiled request from acquired current inputs and grants."""
+                         package: dict, journal: Path, intent: dict,
+                         authorization: str, *, rendered: dict, authentication: dict | None) -> dict:
+    """Claim the exact sealed request under acquired current inputs and grants.
+
+    The package and rendered request are the run's own sealed artifacts,
+    compared by content. The claim names them by the package hash and the
+    request contract of its submission intent.
+    """
     directory, prepared, _, rows = loaded
     run = prepared['run']
     hand = find(rows, 'handoff')
@@ -2151,9 +2329,9 @@ def _claim_dispatch_from(root: Path, loaded: RunView, authority: store.CurrentAu
     compare_exact({key: fixed_plan['handoff'][key] for key in ('consumer_sha256', 'recipient', 'method')},
                   {key: hand['data'][key] for key in ('consumer_sha256', 'recipient', 'method')},
                   pointer='$.handoff', phase='execution')
-    from production_binding import _validate_live_from, _validate_upscale_live_from
+    from production_binding import _validate_live_from, _validate_upscale_binding_from
     if package.get('artifact_type') == 'upscale-request':
-        _validate_upscale_live_from(root, loaded, package, input_source=input_source)
+        _validate_upscale_binding_from(loaded, package)
     else:
         _validate_live_from(loaded, package)
     if intent.get('operation') != 'submit' or intent.get('targets') != ['delivery']:
@@ -2173,9 +2351,6 @@ def _claim_dispatch_from(root: Path, loaded: RunView, authority: store.CurrentAu
     c.local(root, relative)
     return append_record(directory, prepared, rows, 'dispatch-claim',
                          {'package_sha256': c.content_id(package),
-                          **({'upscale_request_sha256': c.content_id(package)}
-                             if package.get('artifact_type') == 'upscale-request' else
-                             {'effective_prompt_sha256': verified['host_forwarding']['effective_prompt_sha256']}),
                           'journal': relative, 'intent': intent, 'count': request['outputs'],
                           'authentication': authentication,
                           'authorizations': [authorization], 'execution_id': execution['execution_id']})
@@ -2212,7 +2387,9 @@ def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
                                                  for index, item in zip(indices, files)):
             raise ProductionError('PROVIDER_OUTPUT_CHANGED', 'A provider output cannot lose or change its first captured bytes.',
                                   phase='result-capture', run=run,
-                                  required_action='Restore the recorded output from its Production snapshot; do not resend.')
+                                  required_action='Restore each changed result file from ' + str(directory / 'objects')
+                                                  + ', where the run keeps the first captured bytes under the SHA-256 that its '
+                                                  'dispatch-results record lists; do not resend the request.')
         for item in files:
             media.inspect(c.object_read(directory, item['sha256']), prepared['task']['artifact'])
         import request_contract as rc
@@ -2269,17 +2446,33 @@ def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
         for index in indices:
             response = c.load(journal / f'response-{index}.json')
             source = c.local(journal, response['answer'])
-            if c.sha256_file(source) != response['answer_sha256']:
+            observed, current = response['answer_sha256'], c.sha256_file(source)
+            if current != observed:
+                answer = base + '/' + response['answer']
+                # An event that lists the answer at the observed digest stored those bytes in the run.
+                kept = any(item['path'] == answer and item['sha256'] == observed
+                           for row in rows for item in row['data'].get('evidence', []))
                 raise ProductionError('RESPONSE_CORRUPT', 'The output response differs from its original observation.',
-                                      phase='result-capture', run=run)
+                    phase='result-capture', run=run, file=answer, expected=observed, actual=current,
+                    output_response=base + f'/response-{index}.json',
+                    required_action=('Copy ' + str(directory / 'objects' / observed) + ' to this journal file, then run '
+                                     'resume for this run; do not resend the request.') if kept else
+                                    ('Restore this journal file to the bytes whose SHA-256 is expected, which the output '
+                                     'response file records as answer_sha256; no event of this run holds a copy of them. '
+                                     'Then run resume for this run; do not resend the request.'))
             for name in (f'response-{index}.json', f'acquisition-{index}.json', response['answer']):
                 item = file_record(root, directory, base + '/' + name)
                 if item not in evidence:
                     evidence.append(item)
         known_evidence = {item['path']: item['sha256'] for receipt in prior for item in receipt['evidence']}
-        if any(item['path'] in known_evidence and item['sha256'] != known_evidence[item['path']] for item in evidence):
+        changed = next((item for item in evidence
+                        if item['path'] in known_evidence and item['sha256'] != known_evidence[item['path']]), None)
+        if changed is not None:
+            recorded = known_evidence[changed['path']]
             raise ProductionError('RESPONSE_CORRUPT', 'Previously recorded provider evidence changed.',
-                                  phase='result-capture', run=run)
+                                  phase='result-capture', run=run, file=changed['path'], expected=recorded, actual=changed['sha256'],
+                                  required_action='Copy ' + str(directory / 'objects' / recorded) + ' to this journal file; '
+                                                  'do not resend the request.')
         return append_record(directory, prepared, rows, 'dispatch-results',
                              {'claim': claim['sha256'], 'files': files, 'evidence': evidence, 'expected_count': expected_count,
                               'output_indices': indices, 'returned_count': returned_count,
@@ -2289,31 +2482,44 @@ def record_dispatch_results(root: Path, run: str, package: dict, journal: Path,
                               'invalid_output_indices': sorted(invalid_output_indices)})
 
 
-def _studio_adoption_result(selector: dict, target: str, rows: list[dict], owner: dict, iteration: dict) -> dict:
-    """Match an owner's receipt to its exact completed Production operation."""
+def _studio_adoption_result(selector: dict, target: str, rows: list[dict], owner: dict, iteration: dict, *,
+                            saved: str | None = None) -> dict:
+    """Match an owner's receipt to its exact completed Production operation.
+
+    `owner` and `iteration` are the adoption record and iteration line the
+    Studio holds. With `saved` they are the copies a recorded selection saved,
+    which no command changes, so `saved` is then the repair of every diagnostic.
+    """
     import adoption_workflow
-    if not isinstance(owner, dict) or owner.get('artifact_type') != 'studio-adoption' or not isinstance(owner.get('approval'), dict):
-        raise ProductionError('ADOPTION_RECORD_CORRUPT', 'The canonical adoption record is incomplete or malformed.',
-                              phase='adoption-integrity', expected=target)
-    claims = {row['sha256']: row['data']['intent']['payload'] for row in rows if row['event'] == 'adoption-claim'}
-    results = []
-    for row in rows:
-        if row['event'] != 'adoption-result' or row['data']['claim'] != owner.get('production_claim'):
-            continue
-        payload = claims.get(row['data']['claim'])
-        if (payload and payload['character'] == selector['character'] and payload['iteration'] == selector['iteration_id']
-                and payload['approval_sha256'] == c.content_id(owner['approval'])
-                and row['data']['result'] == {'ok': True, **owner}):
-            results.append(row)
-    if len(results) != 1:
-        raise ProductionError('ADOPTION_RESULT_MISSING', 'This run records no exact completed adoption of the cited Studio iteration.',
-            phase='adoption-integrity', expected=target,
-            required_action='Adopt the selected candidate with production_workflow.py adopt under its own adopt authorization.')
+    character, iteration_id = selector['character'], selector['iteration_id']
+    origin = iteration.get('production')
+    problem = adoption_workflow.journal_problem(owner)
+    if problem is None:
+        problem = adoption_workflow.journal_disagreement(owner, rows, character, iteration_id)
+    if problem is not None:
+        raise adoption_workflow.record_corrupt(character, iteration_id, problem, origin, rows, required_action=saved,
+                                               expected=target)
+    claims, recorded = adoption_workflow.recorded_adoptions(rows, character, iteration_id)
+    results = [row for row in recorded if row['data']['claim'] == owner['production_claim']]
+    if not results:
+        raise ProductionError('ADOPTION_RESULT_MISSING',
+            'The run records no result of the adoption claim that the Studio adoption record of this iteration names.',
+            phase='adoption-integrity', expected=target, claim=owner['production_claim'],
+            required_action=saved or adoption_workflow.result_action(character, iteration_id, origin,
+                                                                     claims[owner['production_claim']]))
     try:
-        approval = adoption_workflow.validate_approval(owner['approval'], selector['character'], iteration)
+        approval = adoption_workflow.validate_approval(owner['approval'], character, iteration)
     except (ValueError, KeyError, TypeError) as exc:
-        raise ProductionError('ADOPTION_RECORD_CORRUPT', 'The canonical adoption approval differs from its selected artifact.',
-                              phase='adoption-integrity', expected=target) from exc
+        approved = {key: owner['approval'][key] for key in ('slot', 'image_sha256')}
+        actual = {'slot': iteration.get('slot'), 'image_sha256': (iteration.get('result') or {}).get('sha256')}
+        raise ProductionError('ADOPTION_RECORD_CORRUPT',
+            'The Studio iteration names another slot or image than its recorded adoption approved.',
+            phase='adoption-integrity', file=f'characters/{character}/iterations.jsonl', expected=approved, actual=actual,
+            required_action=saved or (f'This adoption record and the adoption result of its run agree; the line of {iteration_id} '
+                             f'in characters/{character}/iterations.jsonl does not, with the slot and image in actual '
+                             'instead of the approved ones in expected. No command rewrites the slot or image of a '
+                             'recorded iteration: correct that line to the approved values.'),
+            cause=str(exc)) from exc
     accepted = iteration.get('adoption_status') if iteration.get('production') else iteration.get('status')
     if (approval['image_sha256'] != target or approval['scope'] != selector['scope']
             or owner.get('next_action') or accepted != 'accepted'):
@@ -2341,8 +2547,11 @@ def _recorded_studio_adoption(run: str, selection: dict, rows: list[dict], read_
     def saved(path: str, expected: str | None = None) -> bytes:
         item = files.get(path)
         if item is None:
-            raise store.evidence_error('EVIDENCE_SNAPSHOT_MISSING', 'The adoption selection lacks its bound snapshot.',
-                                       file=path, run=run, event=selection['sha256'], expected=expected)
+            raise ProductionError('EVIDENCE_SNAPSHOT_MISSING',
+                'The studio-adoption selection holds no saved snapshot of this file, which its saved Studio records name.',
+                phase='integrity', file=path, run=run, event=selection['sha256'], kind='selection',
+                **({'expected': expected} if expected is not None else {}),
+                required_action=UNSAVED_SELECTION_RECORD.format(run=run))
         raw = read_object(item['sha256'])
         if c.digest(raw) != item['sha256'] or len(raw) != item['size'] or (expected is not None and item['sha256'] != expected):
             raise store.evidence_error('EVIDENCE_SNAPSHOT_CORRUPT', 'The saved adoption evidence differs from its receipt.',
@@ -2356,7 +2565,14 @@ def _recorded_studio_adoption(run: str, selection: dict, rows: list[dict], read_
     if len(matches) != 1 or matches[0].get('production') != {'run': run, 'candidate': chosen['candidate']}:
         raise ValueError('saved Studio iteration differs from its selected Production candidate')
     iteration = matches[0]
-    result = _studio_adoption_result(selector, target, prior, owner, iteration)
+    saved_repair = (f"Selection {selection['sha256']} of run {run} saved Studio adoption evidence that does not show "
+                    f"the completed adoption of {selector['iteration_id']} it cites, and a selection keeps the evidence "
+                    f"it saved. Select candidate {chosen['candidate']} again with scope studio-adoption and this "
+                    f"adoption: write the selection with production_workflow.py draft-selection --run {run} "
+                    f"--candidate {chosen['candidate']} --out FILE, authorize the intent that selection-intent --run "
+                    f"{run} --file FILE prints, put the digest of that authorization in the authorization field of "
+                    f"FILE and run select --run {run} --file FILE.")
+    result = _studio_adoption_result(selector, target, prior, owner, iteration, saved=saved_repair)
     for field in ('result', 'package', 'request', 'response', 'answer'):
         if iteration.get(field):
             saved(iteration[field]['path'], iteration[field]['sha256'])
@@ -2440,8 +2656,15 @@ def adoption_intent(root: Path, run: str, candidate: str, character: str, iterat
     preflight(root, character, iteration, approval, expected_production={'run': run, 'candidate': candidate},
               expected_image=chosen['data']['files'][0]['sha256'],
               registration_record=registration_record, pack_dir=pack_dir)
+    return _adoption_operation(reviewed['sha256'], candidate, character, iteration, approval,
+                               registration_record=registration_record, pack_dir=pack_dir)
+
+
+def _adoption_operation(review: str, candidate: str, character: str, iteration: str, approval: dict, *,
+                        registration_record: dict | None, pack_dir: Path | None) -> dict:
+    """The exact adopt operation of a candidate's review, its approval and destination."""
     return {'operation': 'adopt', 'targets': ['canon:' + approval['scope']],
-            'payload': {'candidate': candidate, 'review': reviewed['sha256'],
+            'payload': {'candidate': candidate, 'review': review,
                         'character': character, 'iteration': iteration,
                         'approval_sha256': c.content_id(approval),
                         'registration_sha256': c.content_id(registration_record) if registration_record else None,
@@ -2469,19 +2692,31 @@ def _adopt(root: Path, run: str, candidate: str, character: str, iteration: str,
     owner's durable adoption journal resumes the same already-claimed operation.
     The candidate must hold the run's current selection, and the owner checks
     the claim this operation records before it changes the Studio.
+
+    Repeating a claim whose result the run records adopts nothing, so the
+    owner's eligibility checks before an adoption do not apply to it. The owner
+    writes its journal again from that result when the journal is missing or
+    differs from it.
     """
+    import adoption_workflow
     with store.transaction(root):
         directory, prepared, _, rows = read_run(root, run)
         item = file_record(root, directory, approval_file)
         approval = c.decode(c.object_read(directory, item['sha256']))
-        intent = adoption_intent(root, run, candidate, character, iteration, approval,
-                                 registration_record=registration_record, pack_dir=pack_dir)
+        prior = [r for r in rows if r['event'] == 'adoption-claim' and authorization in r['data']['authorizations']]
+        repeated = bool(prior) and prior[0]['data']['files'] == [item] and any(
+            r['event'] == 'adoption-result' and r['data']['claim'] == prior[0]['sha256'] for r in rows)
+        if repeated:
+            intent = _adoption_operation(latest_review(rows, candidate)['sha256'], candidate, character, iteration,
+                                         approval, registration_record=registration_record, pack_dir=pack_dir)
+        else:
+            intent = adoption_intent(root, run, candidate, character, iteration, approval,
+                                     registration_record=registration_record, pack_dir=pack_dir)
         require_selected(prepared, rows, candidate, run=run)
         request = _permission(root, prepared, rows, authorization, **intent)
         if request['actor'] != approval['by']:
             raise ValueError('adoption approver differs from the authorized actor')
         data = {'intent': intent, 'files': [item], 'authorizations': [authorization]}
-        prior = [r for r in rows if r['event'] == 'adoption-claim' and authorization in r['data']['authorizations']]
         if prior and prior[0]['data'] != data:
             raise ValueError('adoption authorization is already used for different work')
         claim = append_record(directory, prepared, rows, 'adoption-claim', data)
@@ -2490,8 +2725,9 @@ def _adopt(root: Path, run: str, candidate: str, character: str, iteration: str,
         completed = [r for r in rows if r['event'] == 'adoption-result' and r['data']['claim'] == claim['sha256']]
         if completed:
             row = completed[-1]
-    if not completed:
-        import adoption_workflow
+    if completed:
+        adoption_workflow.restore_journal(root, character, iteration, production_claim=claim['sha256'])
+    else:
         result = adoption_workflow.adopt(root, character, iteration, approval,
                                         registration_record=registration_record, pack_dir=pack_dir, settings=settings,
                                         production_claim=claim['sha256'])
@@ -2544,7 +2780,8 @@ COMMAND_HELP = {
     'review-authored': 'Record an evidence-backed review of the saved authored artifact against its independent assessment basis.',
     'draft-execution': 'Write the unanswered execution decision file for every operation of a prepared run.',
     'execute': 'Apply the separate execution decisions, then dispatch or hand the exact request to its external host once.',
-    'resume': 'Recover the same execution without sending it again where a send has started.',
+    'resume': 'Recover the same execution without sending it again where a send has started; --watch keeps asking '
+              'while the provider task is pending.',
     'draft-outcome': "Write the statement to fill when the provider's records hold no task for a started send.",
     'status': 'Report each run by preparation, readiness, submission, capture, review and disposition.',
     'authority-import': 'Import the grant file of the named work task, or replace the current one.',
@@ -2568,17 +2805,51 @@ COMMAND_HELP = {
     'disposition': 'Record an explicit decision that a candidate is not selected.',
     'candidate-status': "Show one candidate's evaluation and disposition.",
     'draft-selection': 'Write the selection form of one reviewed candidate.',
-    'draft-acceptance': 'Write a compact owner decision for an existing reviewed image and its Studio slot.',
-    'accept': 'Record or resume the exact owner decision, Studio slot acceptance and completion.',
+    'draft-acceptance': 'Write one exact reviewed-result decision for delivery or an existing Studio slot.',
+    'accept': 'Apply or recover the reviewed decision, its requested scope and production completion.',
     'selection-intent': 'Show the exact selection operation that a selection file needs authorized.',
     'select': 'Record an authorized selection of a reviewed candidate.',
     'revision-intent': 'Show the exact edit operation that a reviewed repair needs authorized.',
-    'revise': 'Prepare a revised task as a new run under an authorized edit of a reviewed repair.',
+    'revise': 'Prepare a revised task as a new run under an authorized edit of a reviewed repair, or return that run once it exists.',
     'adoption-intent': 'Show the exact adoption operation that a canonical adoption needs authorized.',
     'adopt': 'Adopt a selected candidate as canon under its own exact authorization.',
     'complete': 'Complete the work task with its required authored results or current selected execution result.',
     'impact': 'Compare a run with its current sources and list what each change affects.',
 }
+# Every readiness value status reports, with what it tells about the run.
+READINESS_HELP = {
+    'ready': 'The compared current inputs match the prepared ones and nothing reported here blocks the next action.',
+    'authorization_required': 'A prepared operation of this unsent run has no exact authorization yet; '
+                              'draft-execution writes the decision file that execute applies.',
+    'configuration_required': 'The next provider step needs a credential that its selected authentication source '
+                              'does not supply.',
+    'blocked': 'A source, the installation or a pack differs from the prepared one, or the authority of the work '
+               'task cannot be read; readiness_diagnostics names which.',
+    'not-applicable': 'The run is completed or abandoned; it is shown from its retained records and is not compared.',
+    'unchecked': 'The run is open and its work task is completed or abandoned, so the view of the whole Studio did '
+                 'not compare it; --run RUN compares it.',
+    'saved': 'An authored revision whose save is recorded.',
+    'published': 'An authored revision published before its save was recorded; record-save records it.',
+}
+# task_disposition belongs to the run; its work task closes on its own record.
+DISPOSITION_HELP = {
+    'open': 'The run has neither a completion nor an abandonment; its work task may already be closed.',
+    'completed': 'The run holds its completion.',
+    'abandoned': 'The run was abandoned.',
+}
+
+
+def _status_epilog() -> str:
+    import textwrap
+    def block(title: str, values: dict) -> str:
+        width = max(map(len, values))
+        return title + ':\n' + '\n'.join(
+            textwrap.fill(text, 100, initial_indent=f'  {name.ljust(width)}  ', subsequent_indent=' ' * (width + 4))
+            for name, text in values.items())
+    return (block('readiness values', READINESS_HELP) + '\n\n'
+            + block('task_disposition values, of the run and not of its work task', DISPOSITION_HELP))
+
+
 # One sentence for each option, by destination; a (command, destination) entry is more specific.
 OPTION_HELP = {
     'root': 'The studio directory that holds the production records.',
@@ -2614,7 +2885,7 @@ OPTION_HELP = {
     'consultation': 'Studio-relative craft consultation report to apply.',
     'decisions': 'Studio-relative decisions about the consulted craft assets.',
     'spec': 'Studio-relative production specification the decisions annotate.',
-    ('status', 'run'): 'Report only this run.',
+    ('status', 'run'): 'Report only this run; an open run is compared with its current sources even after its work task closed.',
     ('logs', 'run'): 'Only operations linked to this run.',
     ('logs-export', 'run'): 'Only operations linked to this run.',
     ('logs', 'root'): 'Studio whose logs to list; without it, the configuration directory.',
@@ -2661,15 +2932,33 @@ def build_parser():
             p.add_argument('--run', required=True)
         if name in {'status', 'logs', 'logs-export'}:
             p.add_argument('--run')
+        if name == 'status':
+            p.epilog, p.formatter_class = _status_epilog(), argparse.RawDescriptionHelpFormatter
+            p.add_argument('--view', choices=['summary', 'full'], default='summary',
+                           help='Navigation with complete blockers and next actions, or full current evidence and declarations.')
         if name == 'execute':
             p.add_argument('--decisions-file')
         if name == 'resume':
-            p.add_argument('--outcome-file')
+            from production_execution import WATCH_INTERVAL_SECONDS, WATCH_LIMIT_SECONDS
+            recovery = p.add_mutually_exclusive_group()
+            recovery.add_argument('--outcome-file')
+            recovery.add_argument('--watch', action='store_true',
+                                  help='Resume, then ask for the provider task again every --interval seconds while it '
+                                       'stays pending, registering each output as it finishes, until none is pending '
+                                       'or --limit ends.')
+            p.add_argument('--interval', type=float, metavar='SECONDS',
+                           help=f'Seconds --watch waits between lookups; {WATCH_INTERVAL_SECONDS} when left out.')
+            p.add_argument('--limit', type=float, metavar='SECONDS',
+                           help='Seconds --watch keeps asking in all, after which it returns the run as a plain resume '
+                                f'leaves it; {WATCH_LIMIT_SECONDS} when left out.')
         if name in {'draft-outcome', 'draft-execution', 'logs-export', 'draft-review', 'draft-selection',
                     'draft-authorization', 'draft-disposition', 'draft-acceptance'}:
             p.add_argument('--out', required=True)
         if name in {'draft-execution', 'draft-authorization', 'draft-acceptance'}:
-            p.add_argument('--grant', required=True)
+            p.add_argument('--grant', required=name == 'draft-authorization')
+        if name == 'draft-acceptance':
+            p.add_argument('--scope', choices=['delivery-only', 'studio-slot'], default='delivery-only',
+                           help='Requested result scope; delivery-only leaves Studio acceptance unchanged.')
         if name == 'authority-import':
             p.add_argument('--file', required=True)
             p.add_argument('--expected-event')
@@ -2788,6 +3077,36 @@ def _write_new(root: Path, out: str, value: Any) -> None:
     write_new(_new_output(root, out), c.encoded(value), option='--out', value=out)
 
 
+def _write_decision_draft(root: Path, run: str, kind: str, out: str, value: dict,
+                          *, candidate: str | None = None) -> None:
+    """Register the exact producer-owned basis before publishing editable answers."""
+    import production_authoring_state
+    from production_execution import decision_context
+    loaded = read_run(root, run)
+    prepared, rows = loaded.prepared, loaded.rows
+    grant, scope = None, None
+    if kind == 'review':
+        reviews = [row for row in rows if row['event'] == 'authored-review'] if candidate is None else [
+            row for row in rows if row['event'] == 'review' and row['data']['candidate'] == candidate]
+        basis = reviews[-1]['sha256'] if reviews else None
+    elif kind == 'selection':
+        basis = {'review': value['review'], 'replaces': value['replaces']}
+    elif kind == 'acceptance':
+        basis = {'review': value['review'], 'expected_slot': value.get('expected_slot'),
+                 'authority': value['authority_sha256']}
+        grant, scope = value['grant'], value['scope']
+    elif kind == 'outcome':
+        basis = {'claim': value['claim']}
+    elif kind == 'execution':
+        basis = prepared['input_sha256']
+    else:
+        raise ValueError('unknown decision draft kind')
+    context = decision_context(prepared, candidate=candidate, basis=basis, grant=grant, scope=scope)
+    production_authoring_state.remember_decision_draft(root, prepared['task']['task_id'], run,
+                                                       kind, out, context=context)
+    _write_new(root, out, value)
+
+
 def _stdin_inputs(root: Path, args) -> None:
     """Store a JSON input read from stdin as an object of its run, and name it by that object's path.
 
@@ -2870,8 +3189,13 @@ def main() -> int:
             result = review_authored(root, args.run, args.file)
         elif name == 'draft-execution':
             from production_execution import draft_execution
+            import production_authoring_state
             result = draft_execution(root, args.run, args.grant)
-            _write_new(root, args.out, result)
+            _write_decision_draft(root, args.run, 'execution', args.out, result['choices'])
+            result['decisions_file'] = args.out
+            result['next_action'] = production_authoring_state._action(root, 'execute',
+                '--run', args.run, '--decisions-file', args.out,
+                reason='Complete the selected authority and decisions, then execute this exact saved draft.')
         elif name == 'execute':
             from production_execution import execute
             result = execute(root, args.run, decisions_file=args.decisions_file)
@@ -2891,12 +3215,21 @@ def main() -> int:
         elif name == 'logs-cleanup':
             result = _operation_context.cleanup_logs(root, before=args.before, operation_id=args.operation, apply=args.apply)
         elif name == 'resume':
-            from production_execution import resume
-            result = resume(root, args.run, outcome_file=args.outcome_file)
+            from production_execution import resume, watch
+            times = {key: value for key, value in (('interval', args.interval), ('limit', args.limit)) if value is not None}
+            if args.watch:
+                result = watch(root, args.run, **times)
+            elif times:
+                raise ProductionError('INPUT_ARGUMENT_INVALID', '--interval and --limit set the waits of resume --watch.',
+                                      phase='arguments', run=args.run,
+                                      required_action='Add --watch to keep asking while the provider task is pending, or '
+                                                      'leave out --interval and --limit to ask once.')
+            else:
+                result = resume(root, args.run, outcome_file=args.outcome_file)
         elif name == 'draft-outcome':
             from production_execution import draft_outcome
             result = draft_outcome(root, args.run)
-            _write_new(root, args.out, result)
+            _write_decision_draft(root, args.run, 'outcome', args.out, result)
         elif name == 'prepare':
             result = prepare(root, args.task, choices=args.choices)
         elif name == 'handoff-intent':
@@ -2928,7 +3261,8 @@ def main() -> int:
         elif name in {'draft-review', 'draft-selection'}:
             function = draft_review if name == 'draft-review' else draft_selection
             result = function(root, args.run, args.candidate)
-            _write_new(root, args.out, result)
+            _write_decision_draft(root, args.run, name.removeprefix('draft-'), args.out, result,
+                                  candidate=args.candidate)
         elif name == 'review':
             result = review(root, args.run, args.file)
         elif name == 'selection-intent':
@@ -2937,8 +3271,8 @@ def main() -> int:
             result = select(root, args.run, args.file)
         elif name == 'draft-acceptance':
             from production_acceptance import draft
-            result = draft(root, args.run, args.candidate, args.grant)
-            _write_new(root, args.out, result)
+            result = draft(root, args.run, args.candidate, args.grant, scope=args.scope)
+            _write_decision_draft(root, args.run, 'acceptance', args.out, result, candidate=args.candidate)
         elif name == 'accept':
             from production_acceptance import accept
             result = accept(root, args.run, decision_file=args.file)
@@ -2963,6 +3297,9 @@ def main() -> int:
             result = impact(root, args.run)
         else:
             result = status(root, args.run)
+            if args.view == 'summary':
+                from production_status_view import summary
+                result = summary(root, result, run=args.run)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result.get('ok', True):
             return 0

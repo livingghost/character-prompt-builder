@@ -115,6 +115,15 @@ class RequestContractTests(unittest.TestCase):
         path=self.root/'input.bin';path.write_bytes(b'abc');item=rc.media_metadata(path,role='source');sealed=self.seal();sealed['media']=[item]
         rc.verify_media_bytes(sealed);path.write_bytes(b'abd')
         with self.assertRaises(ValueError):rc.verify_media_bytes(sealed)
+    def test_extensionless_captured_images_retain_measured_request_metadata(self):
+        from PIL import Image
+        path=self.root/'captured-object'
+        Image.new('RGB',(11,7)).save(path,format='PNG')
+        metadata=rc.media_metadata(path,role='source-image')
+        self.assertEqual(metadata['media_type'],'image/png')
+        self.assertEqual(metadata['dimensions'],{'width':11,'height':7})
+        self.assertEqual(metadata['sha256'],c.digest(path.read_bytes()))
+        self.assertEqual(metadata['upload_source'],{'kind':'bytes'})
     def test_31_evidence_captures_actual_bytes(self):
         ref=self.save('source.json',{'value':1});reader=InputEvidence(self.root);self.assertEqual(reader.json(ref),{'value':1});self.assertEqual(reader.snapshots['source.json']['sha256'],ref['sha256'])
     def test_32_historical_evidence_needs_no_current_file(self):

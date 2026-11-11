@@ -206,8 +206,6 @@ def validate_profile(profile: Any) -> None:
     exact(recipe, {'order', 'guidance'}, 'prompt recipe')
     if not isinstance(recipe['order'], list) or not recipe['order'] or len(set(recipe['order'])) != len(recipe['order']):
         raise ValueError('prompt recipe needs a non-empty unique slot order')
-    if 'rendering' not in recipe['order']:
-        raise ValueError('prompt recipe must have a rendering slot')
     for item in recipe['order']:
         text(item, 'recipe slot')
     if not isinstance(recipe['guidance'], list) or not recipe['guidance']:
@@ -316,12 +314,17 @@ def _card_from_profile(record: Mapping, offering: Mapping | None, profile: dict 
             'note': 'Recommendations are starting points. Interface validity and observed image quality are separate evidence.'}
 
 
-def model_card(record: Mapping, offering: Mapping | None = None) -> dict:
+def model_card(record: Mapping, offering: Mapping | None = None, *, readiness: dict | None = None) -> dict:
     """Show prompt input, interface controls, and author preferences together."""
     from model_prompt_input import prompt_input_card
     from model_suitability import guidance_card
-    return {**_execution_card(record, offering), **prompt_input_card(record),
-            'use_case_suitability': guidance_card(record, offering)}
+    from request_validation import model_readiness
+    scale = ({'native_scale_factor': record.get('native_scale_factor'),
+              'supported_scale_factors': copy.deepcopy(record.get('supported_scale_factors'))}
+             if record.get('operation_kind') == 'upscale' else {})
+    return {**_execution_card(record, offering), **prompt_input_card(record), **scale,
+            'use_case_suitability': guidance_card(record, offering),
+            'readiness': copy.deepcopy(readiness) if readiness is not None else model_readiness(record, offering)}
 
 
 def _get(tree: dict, path: str) -> tuple[bool, Any]:

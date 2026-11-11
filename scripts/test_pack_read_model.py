@@ -57,6 +57,21 @@ class PackReadModelTests(unittest.TestCase):
         for relative, raw in values.items():
             packs.atomic(self.root / relative, raw, replace=True)
 
+    def fixed(self, catalog, *, records=(), resources=()):
+        """Fix the runtime of a compilation that bound these records and named resources."""
+        source = runtime_snapshot.CompileRuntime.from_catalog(catalog, self.settings)
+        index = runtime_snapshot.acquired_index(catalog)
+        pack = self.manifest['pack_id']
+        pinned = {item['path']: item['sha256'] for item in index['packs'][0]['files']}
+        sources = {entry['record']['id']: entry['source_file'] for entry in index['entries']}
+        binding = {
+            'records': [{'id': ident, 'role': 'retrieval', 'pack': pack, 'path': sources[ident],
+                         'sha256': pinned[sources[ident]]} for ident in records],
+            'resources': [{'name': name, 'role': 'lookup', 'pack': pack, 'path': index['resources'][name]['path'],
+                           'sha256': pinned[index['resources'][name]['path']]} for name in resources],
+            'evidence': []}
+        return runtime_snapshot.fixed_inputs(source, index, binding, looked_up=set(resources))
+
     def label(self, catalog):
         return next(e.record['label'] for e in catalog.entries if e.record['id'] == 'synthetic-acquired-light')
 
@@ -184,16 +199,17 @@ class PackReadModelTests(unittest.TestCase):
         self.assertEqual(opened, ['pack.json'])
         self.assertEqual(self.label(catalog), 'Synthetic A')
 
-    def test_snapshot_uses_catalog_inputs_after_live_source_changes(self):
+    def test_fixed_inputs_use_catalog_inputs_after_live_source_changes(self):
         catalog = cache.load_runtime_catalog(self.settings, quiet=True)
         original = self.files()
         self.variant('B')
-        output = self.base / 'captured-runtime'
-        runtime_snapshot.capture(catalog, self.settings, output)
-        payload = json.loads((output / 'snapshot.json').read_text(encoding='utf-8'))
-        self.assertEqual(payload['entries'][0]['record']['label'], 'Synthetic A')
-        for relative, raw in original.items():
-            self.assertEqual((output / 'packs' / self.manifest['pack_id'] / relative).read_bytes(), raw)
+        payload, files = self.fixed(catalog, records=['synthetic-acquired-light'], resources=['synthetic-policy'])
+        self.assertEqual([entry['record']['label'] for entry in payload['entries']], ['Synthetic A'])
+        self.assertEqual(set(payload['resources']), {'synthetic-policy'})
+        pack = self.manifest['pack_id']
+        self.assertEqual(set(files), {(pack, 'pack.json'), (pack, 'records/lighting.json'), (pack, 'resources/policy.json')})
+        for (_, relative), raw in files.items():
+            self.assertEqual(raw, original[relative])
         self.assertEqual(self.label(cache.load_runtime_catalog(self.settings, quiet=True)), 'Synthetic B')
 
     def test_pack_globs_have_portable_segment_semantics(self):
@@ -252,12 +268,11 @@ class PackReadModelTests(unittest.TestCase):
 
     def test_binary_capture_verifies_content_at_its_explicit_read_boundary(self):
         catalog, original = self.binary_catalog()
-        output = self.base / 'captured-binary'
-        runtime_snapshot.capture(catalog, self.settings, output)
-        self.assertEqual((output / 'packs' / self.manifest['pack_id'] / 'resources/blob.bin').read_bytes(), original)
+        _, files = self.fixed(catalog, resources=['synthetic-binary'])
+        self.assertEqual(files[(self.manifest['pack_id'], 'resources/blob.bin')], original)
         (self.root / 'resources/blob.bin').write_bytes(b'\xffchanged')
         with self.assertRaises(runtime_snapshot.ProductionError) as caught:
-            runtime_snapshot.capture(catalog, self.settings, self.base / 'changed-binary')
+            self.fixed(catalog, resources=['synthetic-binary'])
         self.assertEqual(caught.exception.diagnostic.code, 'PACK_CONTENT_MISMATCH')
 
     def test_binary_capture_rejects_file_and_directory_links_introduced_after_acquisition(self):
@@ -271,7 +286,7 @@ class PackReadModelTests(unittest.TestCase):
         except (OSError, NotImplementedError) as exc:
             self.skipTest('symbolic links are unavailable: ' + str(exc))
         with self.assertRaises(runtime_snapshot.ProductionError):
-            runtime_snapshot.capture(catalog, self.settings, self.base / 'file-link')
+            self.fixed(catalog, resources=['synthetic-binary'])
         blob.unlink()
         blob.write_bytes(original)
         resources = self.root / 'resources'
@@ -279,7 +294,7 @@ class PackReadModelTests(unittest.TestCase):
         resources.rename(moved)
         resources.symlink_to(moved, target_is_directory=True)
         with self.assertRaises(runtime_snapshot.ProductionError):
-            runtime_snapshot.capture(catalog, self.settings, self.base / 'directory-link')
+            self.fixed(catalog, resources=['synthetic-binary'])
 
     def test_inventory_refuses_a_missing_pack_root(self):
         with self.assertRaises(packs.PackError):

@@ -177,13 +177,13 @@ The seed, the output count and the service come from the task. [Prepared request
 python scripts/dispatch.py PACKAGE --studio STUDIO --character SUBJECT_ID --slot SLOT_ID [--preview-out FILE]
 ```
 
-The preview reads the model and service records from the runtime snapshot the run pinned, so it shows exactly what `execute` sends. A relative path is a `/`-separated path below the studio root.
+The preview shows the sealed request of the prepared run, the one `execute` sends, and checks it against the validation evidence the run fixed. A relative path is a `/`-separated path below the studio root.
 
 The preview refuses:
 
 - a package bound to no prepared run (`EXECUTION_NOT_APPLICABLE`);
 - a package or recording target that differs from the sealed run (`INPUT_CONSISTENCY_ERROR`);
-- a changed source (`SOURCE_CHANGED`) or a changed installation (`IMPLEMENTATION_CHANGED`);
+- a changed source (`SOURCE_CHANGED`);
 - a run that already owns an execution (`DISPATCH_ALREADY_CLAIMED`).
 
 Otherwise it prints the rendering choice, a few plain lines and the exact request the service would receive. The lines name:
@@ -225,9 +225,9 @@ The offering's service ID identifies its [Studio authentication](studio-authenti
 
 After the chosen source is available, the Agent checks that service and the target run's authentication selection and readiness, then continues its reported next action. Missing configuration or an unusable source requires its setup or repair action. The transport receives the value separately. The execution claim retains the service and source, including the variable name for an environment source; authenticated recovery requires that recorded source. Rotating a value at the same source preserves the request. The transport sends the value only to the endpoint it accepts from the service record. That endpoint uses https, or http on a loopback address for a local test service. It never follows a redirect.
 
-`production_workflow.py execute` performs the authorized upload and send. The public `dispatch.py` command previews the sealed request. The included Runware transport implements image generation and image upscaling; a catalog entry for another operation, such as video, supplies knowledge without adding an executable adapter for that operation. External host-tool execution uses the selected host tool's authentication. A Studio credential setting serves the dispatcher and does not configure that other host.
+`production_workflow.py execute` performs the authorized upload and send. The public `dispatch.py` command previews the sealed request. The included Runware transport implements image generation and image upscaling; it uploads the sealed image bytes as a data URI through Media Storage and verifies the returned stored bytes before using its media UUID. A public source URL is unnecessary for that byte transport. Retained source URLs remain provenance and do not replace the sealed bytes. A catalog entry for another operation, such as video, supplies knowledge without adding an executable adapter for that operation. External host-tool execution uses the selected host tool's authentication. A Studio credential setting serves the dispatcher and does not configure that other host.
 
-A 5xx answer, a redirect, a timeout or a dropped connection leaves unknown whether the service carried out the request. The run journal records that send as indeterminate with its reason, `execute` stops, and nothing is sent again. `resume` asks the provider once per call through the transport's lookup. When the provider holds no task, `draft-outcome` and `resume --outcome-file` record it, as [Production execution](production-recovery.md#status-and-resume) shows. The optional deadline is `PRODUCTION_HTTP_TIMEOUT_SECONDS`; see [Resource handling](../resource-handling.md).
+A 5xx answer, a redirect, a timeout or a dropped connection leaves unknown whether the service carried out the request. The run journal records that send as indeterminate with its reason, `execute` stops, and nothing is sent again. `resume` asks the provider once per call through the transport's lookup, and `resume --watch` keeps asking while the provider reports the task pending. When the provider holds no task, `draft-outcome` and `resume --outcome-file` record it, as [Production execution](production-recovery.md#status-and-resume) shows. The optional deadline is `PRODUCTION_HTTP_TIMEOUT_SECONDS`; see [Resource handling](../resource-handling.md).
 
 A model exposed on no service here is sent by hand, and `studio.py iterate` records its result before anything else is done with it.
 

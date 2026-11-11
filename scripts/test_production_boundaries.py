@@ -56,7 +56,7 @@ class BoundaryTests(unittest.TestCase):
         journal,rendered,tokens=self.authorized_journal()
         package=copy.deepcopy(self.data[4]);package['composition_prompt']+=' altered'
         with self.assertRaises(ProductionError) as caught:
-            workflow.claim_dispatch(self.root,self.run,package,{},journal.path,self.data[6]['operations'][-1],tokens['submit'],rendered=rendered,authentication=None)
+            workflow.claim_dispatch(self.root,self.run,package,journal.path,self.data[6]['operations'][-1],tokens['submit'],rendered=rendered,authentication=None)
         self.assertEqual(caught.exception.diagnostic.pointer,'$.package_sha256')
         self.assertEqual(accounting.all_states(self.root),[])
         self.assertFalse(any(r['event']=='dispatch-claim' for r in store.event_rows(self.root,self.run)))
@@ -70,7 +70,7 @@ class BoundaryTests(unittest.TestCase):
         altered=rc.seal(modified['request'],modified['layout'],modified['media'],modified['sealed']['target'],
             modified['sealed']['execution'],modified['request_trace'],modified['sealed']['bindings'],modified['sealed']['context'])
         with self.assertRaises(ProductionError) as caught:
-            workflow.claim_dispatch(self.root,self.run,self.data[4],{},journal.path,self.data[6]['operations'][-1],tokens['submit'],rendered=altered,authentication=None)
+            workflow.claim_dispatch(self.root,self.run,self.data[4],journal.path,self.data[6]['operations'][-1],tokens['submit'],rendered=altered,authentication=None)
         self.assertTrue(caught.exception.diagnostic.pointer.startswith('$.request_contract'))
         self.assertEqual(accounting.all_states(self.root),[])
 
@@ -87,6 +87,17 @@ class BoundaryTests(unittest.TestCase):
         with self.assertRaises(ProductionError) as caught:store.event_rows(self.root,self.run)
         self.assertEqual(caught.exception.diagnostic.code,'EVENT_CHAIN_CORRUPT')
         self.assertEqual(caught.exception.diagnostic.details['event'],1)
+
+    def test_a_recorded_file_without_its_size_names_the_event_and_the_field(self):
+        self.authorized_journal()
+        granted=next(row for row in store.event_rows(self.root,self.run) if row['event']=='authorization')
+        data=copy.deepcopy(granted['data']);data['files'][0].pop('size')
+        recorded=store.append(self.root,self.run,granted['input_sha256'],'authorization',data)
+        with self.assertRaises(ProductionError) as caught:workflow.load_run(self.root,self.run)
+        found=caught.exception.diagnostic.as_dict()
+        self.assertEqual((found['code'],found['run'],found['event'],found['kind'],found['sequence'],found['field']),
+                         ('EVENT_CHAIN_CORRUPT',self.run,recorded['sha256'],'authorization',recorded['sequence'],'size'))
+        self.assertIn(f"authorization event at sequence {recorded['sequence']}",found['message'])
 
     def test_malformed_event_has_recoverable_diagnostic(self):
         self.authorized_journal()
@@ -147,21 +158,20 @@ class BoundaryTests(unittest.TestCase):
         import runtime_snapshot
         decision_file = decisions(self.root, self.run)
         original_read = runtime_snapshot.acquire_runtime
-        original_current = runtime_snapshot.require_current_read
+        original_notices = runtime_snapshot.current_notices
         forced = []
-        comparisons = {'full': 0, 'forced': 0}
+        comparisons = []
         def observe(*args, **kwargs):
             if kwargs.get('force_verify'):
                 forced.append(True)
             return original_read(*args, **kwargs)
         def compare(*args, **kwargs):
-            # A computed live-source check compares the packs once; the external boundary forces one more.
-            comparisons['forced' if kwargs.get('force') else 'full'] += 1
-            return original_current(*args, **kwargs)
+            comparisons.append(True)
+            return original_notices(*args, **kwargs)
         token = operations._CURRENT.set(None)
         try:
             with patch.object(runtime_snapshot, 'acquire_runtime', side_effect=observe), \
-                 patch.object(runtime_snapshot, 'require_current_read', side_effect=compare), \
+                 patch.object(runtime_snapshot, 'current_notices', side_effect=compare), \
                  patch.object(transport_synthetic, 'send', wraps=transport_synthetic.send) as send:
                 result = execution.execute(self.root, self.run, decisions_file=decision_file)
             self.assertTrue(result['execution_completed'])
@@ -169,22 +179,21 @@ class BoundaryTests(unittest.TestCase):
             self.assertEqual(send.call_count, 1)
             # The claim transaction and returned status each inspect current
             # inputs; the external step performs its own forced acquisition.
-            self.assertLessEqual(comparisons['full'], 4)
-            self.assertEqual(comparisons['forced'], 1)
+            self.assertLessEqual(len(comparisons), 5)
         finally:
             operations._CURRENT.reset(token)
 
     def test_draft_execution_checks_live_sources_once(self):
         import runtime_snapshot
-        original_current = runtime_snapshot.require_current_read
-        full = []
+        original_notices = runtime_snapshot.current_notices
+        compared = []
         def compare(*args, **kwargs):
-            full.append(kwargs.get('force', False))
-            return original_current(*args, **kwargs)
-        with patch.object(runtime_snapshot, 'require_current_read', side_effect=compare):
-            drafted = execution.draft_execution(self.root, self.run, 'fixture-grant')
+            compared.append(True)
+            return original_notices(*args, **kwargs)
+        with patch.object(runtime_snapshot, 'current_notices', side_effect=compare):
+            drafted = execution.draft_execution(self.root, self.run, 'fixture-grant')['choices']
         self.assertEqual(len(drafted['decisions']), len(self.data[6]['operations']))
-        self.assertEqual(full, [False])
+        self.assertEqual(len(compared), 1)
 
     def test_nested_rollback_rechecks_sources_left_changed_by_the_interrupted_writer(self):
         import runtime_snapshot
@@ -204,20 +213,19 @@ class BoundaryTests(unittest.TestCase):
             self.assertEqual(caught.exception.diagnostic.code, 'SOURCE_CHANGED')
 
     def source_changed_after_preflight(self, *, preauthorized: bool) -> None:
-        import verify_generation_payload
         decision_file = decisions(self.root, self.run)
         if preauthorized:
             execution.authorize_decisions(self.root, self.run, decision_file, self.data[1], self.data[6])
         before = store.event_rows(self.root, self.run)
         journals = set((self.root / 'runs').iterdir())
-        original_verify = verify_generation_payload.verify
+        original_preflight = execution.require_recording
 
-        def edit_after_verification(*args, **kwargs):
-            result = original_verify(*args, **kwargs)
-            (self.root / 'prompt.txt').write_text('A source edited after preflight verification.\n', encoding='utf-8')
+        def edit_after_preflight(*args, **kwargs):
+            result = original_preflight(*args, **kwargs)
+            (self.root / 'prompt.txt').write_text('A source edited after the execution preflight.\n', encoding='utf-8')
             return result
 
-        with patch.object(verify_generation_payload, 'verify', side_effect=edit_after_verification), \
+        with patch.object(execution, 'require_recording', side_effect=edit_after_preflight), \
              patch.object(transport_synthetic, 'send') as send:
             with self.assertRaises(ProductionError) as caught:
                 execution.execute(self.root, self.run, decisions_file=None if preauthorized else decision_file)
@@ -418,6 +426,7 @@ class PublicationBoundaryTests(unittest.TestCase):
             self.assertEqual(extra.read_bytes(), b'unowned')
 
     def test_declarations_validate_structure_before_duplicate_or_conflict_checks(self):
+        import publication_artifacts
         from publication_artifacts import ArtifactSet
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -426,9 +435,16 @@ class PublicationBoundaryTests(unittest.TestCase):
                 with self.subTest(rows=bad), self.assertRaises(ProductionError) as caught:
                     ArtifactSet(root, bad)
                 self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_MANIFEST_CORRUPT')
-            artifacts = ArtifactSet(root, [row])
-            with self.assertRaises(ProductionError):
+                self.assertEqual(caught.exception.diagnostic.required_action, publication_artifacts.DECLARATION_DAMAGED)
+            with self.assertRaises(ProductionError) as caught:
+                ArtifactSet(root, [row, row], damaged='Synthetic repair of the holder of these rows.')
+            self.assertEqual(caught.exception.diagnostic.required_action, 'Synthetic repair of the holder of these rows.')
+            artifacts = ArtifactSet(root, [row], damaged='Synthetic repair of the holder of these rows.')
+            with self.assertRaises(ProductionError) as caught:
                 artifacts.add('item.txt', b'different')
+            conflict = caught.exception.diagnostic.as_dict()
+            self.assertEqual((conflict['code'], conflict['path'], conflict['required_action']),
+                             ('ARTIFACT_MANIFEST_CORRUPT', 'item.txt', publication_artifacts.OPERATION_CONFLICT))
             self.assertEqual(artifacts.files(), [row])
 
     def test_an_explicitly_declared_control_remains_a_verified_member(self):

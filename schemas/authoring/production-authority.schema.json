@@ -87,9 +87,13 @@
             ]
           },
           "request_scope": {
-            "type": [
-              "object",
-              "null"
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "authoring/request-scope.schema.json"
+              }
             ]
           },
           "submission_validation_modes": {

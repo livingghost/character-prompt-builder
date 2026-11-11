@@ -66,6 +66,22 @@ A bounded probe does not bypass malformed input, unavailable controls or missing
 Dispatcher compilation checks every declared control whatever the mode.
 External image-input preparation checks the exact authored fields against acquired schema rules and records unmeasured rules explicitly.
 
+Model cards and editable-input guidance expose the same readiness distinctions:
+parameter profile, service operation, selected validation evidence and exact
+request checking. A model can have useful documented guidance while its API
+schema or execution profile remains unavailable. A missing default schema
+produces `VALIDATION_EVIDENCE_REQUIRED`; select acquired target evidence, a
+bounded probe or an adopted observed profile at `choices.validation`. Selecting
+an alternative does not assert that its evidence applies: compilation checks
+the actual source, target and scope. Inspection never implies provider success.
+
+For an upscaler, keep native network scale separate from API request factors.
+Record an evidenced positive `native_scale_factor`; omit it when unknown.
+Use `supported_scale_factors` only for established request factors, otherwise
+omit it or use null. A provider's model list, a hires-fix table or a missing
+schema-query result does not establish another operation's complete parameter
+contract. Preserve each acquired response and its actual scope.
+
 ## The request validation record
 
 Every Generation Package and dispatcher run carries one request validation record:

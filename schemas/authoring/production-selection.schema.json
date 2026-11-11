@@ -62,6 +62,18 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
+    "replaces": {
+      "description": "The run's latest selection event when this selection is recorded, which this selection replaces; null for the run's first selection. The runtime derives it; the author does not write it.",
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "owner_acceptance": {
       "anyOf": [
         {
@@ -112,6 +124,7 @@
     "scope",
     "adoption",
     "authorization",
+    "replaces",
     "owner_acceptance",
     "slot"
   ],

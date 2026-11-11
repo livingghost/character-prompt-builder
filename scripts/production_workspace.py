@@ -182,8 +182,15 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
         result['identity_instruction'] = result['basis']['identity_instruction']
     if phase == 'decision':
         import production_store
+        import production_permissions
+        import production_request
         plan = loaded.artifacts['execution-plan.json']
-        result['authority'] = production_store.authority(root, prepared['task']['task_id'], required=False)
+        held = production_store.read_authority(root, prepared['task']['task_id'], required=False)
+        authority = held.document if held is not None else None
+        result['authority'] = production_store.authority_snapshot(root, prepared['task']['task_id'], held,
+                                                                 source_path=prepared['task'].get('authority'))
+        result['authorization_requirements'] = production_permissions.grant_requirements(authority, plan['operations'])
+        result['request_scope_template'] = production_request.delegation_template(prepared, plan['operations'], authority)
         result['operations'] = plan['operations']
         result['review_requirements'] = plan.get('review_requirements', [])
         result['prompt_check'] = plan.get('prompt_check')

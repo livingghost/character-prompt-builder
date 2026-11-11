@@ -164,7 +164,7 @@ def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = N
             delivery_file=delivery_file, comparison='exact-utf8-text',
             request_newlines=newlines(actual_prompt), delivery_newlines=newlines(prompt),
             newline_only_difference=lf(actual_prompt) == lf(prompt),
-            guidance={'document_path': 'references/runtime/production-execution.md#assemble-authored-choices',
+            guidance={'document_path': 'references/runtime/production-external-inputs.md#exact-target-and-provider-schema',
                       'schema': 'schemas/authoring/image-input-plan.schema.json'},
             required_action='Use build-inputs to derive the request from the single delivery source. '
                             'Exact text includes every newline; write manual delivery bytes as UTF-8 with LF, '

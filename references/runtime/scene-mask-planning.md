@@ -85,6 +85,23 @@ missing required pixels and unresolved decisions block the bundle. Feathering
 softens inward and never expands nonzero pixels into protection. Extensions
 are declared regions, not guessed dilation around an entire subject.
 
+Each finding in `report.json` blocks the bundle and names its `code`:
+
+- `PROTECTED_OVERLAP`: selected regions cover protected pixels; `pixels` counts
+  them. Correct the annotations so the edit and the protection do not meet.
+- `REQUIRED_REGION_MISSING`: part of a required region lies outside the edit,
+  because no selected region covers it or a protected region does; `region`
+  and `pixels` name it.
+- `UNRESOLVED_REGIONS`: the plan still lists region decisions in `unresolved`;
+  `items` repeats them. Settle each decision and empty the list.
+- `EMPTY_EDIT_MASK`: no editable pixel remains once protection is subtracted
+  from the selected regions.
+- `FEATHER_ERASED_REGION`: after feathering, part of a required region has no
+  editable value left; `region` and `pixels` name it. Lower `feather` or widen
+  that region.
+
+Correct the plan, then build again into a new output directory.
+
 Inspect the overlay at source resolution and enlarge contact boundaries, small
 fragments and image edges. Complete a separate review file with the bundle
 hash, reviewer, `ready` or `reject`, observations for every selected/protected

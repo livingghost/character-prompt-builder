@@ -152,7 +152,8 @@ class ReplayTests(unittest.TestCase):
                                                'review': {'checks': [], 'unresolved': []}})
         selection = {'input_sha256': PREPARED['input_sha256'], 'candidate': candidate['sha256'],
                      'review': review['sha256'], 'selector': 'Synthetic author', 'reason': 'Synthetic choice',
-                     'scope': 'delivery-only', 'adoption': None, 'slot': None, 'owner_acceptance': None}
+                     'scope': 'delivery-only', 'adoption': None, 'slot': None, 'owner_acceptance': None,
+                     'replaces': None}
         authorization = append_fixture(rows, 'authorization', {'request': {'operation': 'select', 'targets': ['delivery'],
             'payload': dict(selection), 'actor': 'Synthetic author'}})
         selection['authorization'] = authorization['sha256']
@@ -203,7 +204,7 @@ class ReplayTests(unittest.TestCase):
         pending = copy.deepcopy(data)
         pending['disposition']['disposition'] = 'pending'
         pending['previous_decision'] = retired['sha256']
-        blocked = [('disposition', pending), ('candidate', {}), ('review', {}), ('selection', {}),
+        blocked = [('disposition', pending), ('candidate', {}), ('review', {}), ('selection', {'selection': {'replaces': None}}),
                    ('authorization', {'request': {'operation': 'submit', 'targets': [], 'payload': {}}})]
         for event, value in blocked:
             with self.subTest(event=event):
@@ -241,6 +242,24 @@ class ReplayTests(unittest.TestCase):
                 with self.assertRaisesRegex(ProductionError, 'EVENT_CHAIN_CORRUPT'):
                     replay(invalid)
 
+    def test_selection_replay_checks_the_selection_it_replaces(self):
+        rows = []
+        candidate = append_fixture(rows, 'candidate', {'files': [{'sha256': 'e' * 64}]})
+        first = append_fixture(rows, 'selection', {'selection': {'candidate': candidate['sha256'], 'replaces': None}})
+        state = replay(rows)
+        following = {'selection': {'candidate': candidate['sha256'], 'replaces': first['sha256']}}
+        lifecycle.validate_transition(state, PREPARED, RUN, 'selection', following, read_object=lambda digest: b'{}')
+        for replaces in (None, 'c' * 64):
+            with self.subTest(replaces=replaces):
+                changed = {'selection': {'candidate': candidate['sha256'], 'replaces': replaces}}
+                with self.assertRaises(ValueError):
+                    lifecycle.validate_transition(state, PREPARED, RUN, 'selection', changed,
+                                                  read_object=lambda digest: b'{}')
+                invalid = list(rows)
+                append_fixture(invalid, 'selection', changed)
+                with self.assertRaisesRegex(ProductionError, 'EVENT_CHAIN_CORRUPT'):
+                    replay(invalid)
+
     def test_abandonment_keeps_candidate_disposition_closed(self):
         rows = []
         candidate = append_fixture(rows, 'candidate', {'files': [{'sha256': 'e' * 64}]})
@@ -250,6 +269,45 @@ class ReplayTests(unittest.TestCase):
                 'review': None}, 'files': [], 'previous_decision': None}
         with self.assertRaisesRegex(ProductionError, 'TASK_ABANDONED'):
             lifecycle.validate_transition(replay(rows), PREPARED, RUN, 'disposition', data, read_object=lambda digest: b'{}')
+
+    def test_refused_recorded_transition_names_its_repair_and_keeps_the_refusal(self):
+        from production_diagnostics import DEFAULT_ACTION
+        rows = execution_fixture()
+        append_fixture(rows, 'abandoned', {'reason': 'Synthetic closure'})
+        refused = append_fixture(rows, 'review', {})
+        with self.assertRaises(ProductionError) as caught:
+            replay(rows)
+        diagnostic = caught.exception.diagnostic
+        self.assertEqual((diagnostic.code, diagnostic.details['event']), ('EVENT_CHAIN_CORRUPT', refused['sha256']))
+        self.assertIn('Restore the exact committed event', diagnostic.required_action)
+        self.assertEqual(diagnostic.details['kind'], 'review')
+        self.assertIn('cannot be loaded', diagnostic.details['impact'])
+        cause = diagnostic.details['cause']
+        self.assertEqual((cause['code'], cause['phase'], cause['run']), ('TASK_ABANDONED', 'authorization', RUN))
+        self.assertIn('Open a new work task', cause['required_action'])
+        # A refusal that is a plain error keeps its message as the cause.
+        rows = []
+        append_fixture(rows, 'completion', {'synthetic': 'closed'})
+        append_fixture(rows, 'review', {})
+        with self.assertRaises(ProductionError) as caught:
+            replay(rows)
+        diagnostic = caught.exception.diagnostic
+        self.assertEqual(diagnostic.details['cause'], {'message': 'run is complete; prepare a new run for further work'})
+        self.assertNotEqual(diagnostic.required_action, DEFAULT_ACTION)
+
+    def test_a_recorded_event_without_a_field_its_rules_read_names_its_kind_sequence_and_field(self):
+        rows = []
+        candidate = append_fixture(rows, 'candidate', {'files': [{'sha256': 'e' * 64}]})
+        recorded = append_fixture(rows, 'selection', {'selection': {'candidate': candidate['sha256']}})
+        with self.assertRaises(ProductionError) as caught:
+            replay(rows)
+        found = caught.exception.diagnostic.as_dict()
+        self.assertEqual((found['code'], found['run'], found['event'], found['kind'], found['sequence'], found['field']),
+                         ('EVENT_CHAIN_CORRUPT', RUN, recorded['sha256'], 'selection', 2, 'replaces'))
+        self.assertEqual(found['message'], "The recorded selection event at sequence 2 is not valid after the events "
+                                           "before it: the field 'replaces' that its rules read is missing.")
+        self.assertEqual(found['cause'], {'message': "missing field 'replaces'"})
+        self.assertEqual(found['required_action'], lifecycle.RESTORE_COMMITTED_EVENT)
 
     def test_replay_work_grows_linearly_with_history(self):
         class CountedRecord(dict):

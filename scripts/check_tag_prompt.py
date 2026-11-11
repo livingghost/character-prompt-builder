@@ -107,7 +107,7 @@ def check_request(rendered: dict, record: dict, *, prompt_syntax: dict,
         dialect_resource = catalog.resources.get('prompt-dialects')
         if vocabulary_resource is None or dialect_resource is None:
             raise ProductionError('PROMPT_VOCABULARY_REQUIRED', 'A tag target requires prompt-vocabulary and prompt-dialects resources.',
-                phase='tag-prompt-check', required_action='Enable the resources for this model and prepare again.')
+                phase='tag-prompt-check', required_action='Enable the resources for this model, then run the same command again.')
         vocabulary_path, dialect_path = Path(vocabulary_resource.path), Path(dialect_resource.path)
         vocabulary, dialect = load_vocabulary(vocabulary_path), find_dialect(dialect_id, dialect_path)
         dictionary_ref = {'resource':'prompt-vocabulary','sha256':c.sha256_file(vocabulary_path)}
@@ -133,7 +133,7 @@ def require_request(rendered: dict, record: dict, *, prompt_syntax: dict,
     if any(item['severity'] == 'problem' for item in report['findings']):
         raise ProductionError('TAG_PROMPT_PROBLEM', 'The final rendition violates its grammar or declared interface constraints.',
             phase='tag-prompt-check', prompt_check=report,
-            required_action='Correct the authored text or selected weighting grammar; inspect model recommendations and prepare again.')
+            required_action='Correct the authored text or selected weighting grammar; inspect model recommendations, then run the same command again.')
     if report['prompt_input']['mode'] == 'tag-based':
         import request_contract as rc
         from prompt_vocabulary_selection import require_final_selection

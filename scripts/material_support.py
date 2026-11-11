@@ -11,7 +11,7 @@ import tempfile
 from typing import Any
 
 from io_budget import read_stream
-from execution_contract import publish_directory
+from execution_contract import flush_published, publish_directory
 
 
 def encoded(value: Any) -> bytes:
@@ -179,7 +179,7 @@ def publish(root: Path, output: str, files: dict[str, bytes]) -> dict:
         if target.exists():
             raise ValueError('material output appeared during publication')
         publish_directory(stage, target)
-        fsync_directory(target.parent)
+        flush_published(target)
         return {'written': True, 'files': sorted(files)}
     finally:
         if stage is not None and stage.exists():

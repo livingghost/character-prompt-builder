@@ -30,6 +30,7 @@ from pack_manager import (
     PackError,
     PackSettings,
     add_pack_root,
+    atomic_write_json,
     build_lock_data,
     configured_roots,
     disable_pack,
@@ -47,7 +48,6 @@ from pack_manager import (
     remove_pack_root,
     state_lock,
     validate_pack,
-    write_lock,
 )
 
 
@@ -60,7 +60,7 @@ def _print(value: Any) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2))
 
 
-def _write_release_lock(path: Path) -> dict[str, Any]:
+def _write_release_lock(path: Path) -> tuple[dict[str, Any], dict[str, list[str]]]:
     """Build a lock while preserving an existing released identity.
 
     Direct ``write_lock`` callers remain suitable for temporary development
@@ -73,6 +73,7 @@ def _write_release_lock(path: Path) -> dict[str, Any]:
         raise PackError("Bundled commons is core-managed; no pack.lock.json is required or written")
     candidate = build_lock_data(root)
     lock_path = root / "pack.lock.json"
+    existing = {}
     if lock_path.is_file():
         try:
             existing = json.loads(lock_path.read_text(encoding="utf-8"))
@@ -93,7 +94,17 @@ def _write_release_lock(path: Path) -> dict[str, Any]:
                 "and release. Increment pack.json release before rebuilding "
                 "pack.lock.json."
             )
-    return write_lock(root)
+    before = {row["path"]: row for row in existing.get("files", [])}
+    after = {row["path"]: row for row in candidate["files"]}
+    changes = {
+        "added": sorted(set(after) - set(before)),
+        "modified": sorted(name for name in set(after) & set(before) if after[name] != before[name]),
+        "removed": sorted(set(before) - set(after)),
+    }
+    # Publish the candidate whose complete acquisition and validation succeeded.
+    # Rebuilding here would repeat every file read and validate different bytes.
+    atomic_write_json(lock_path, candidate)
+    return candidate, changes
 
 
 def _mutate_enabled_state(args: argparse.Namespace, operation) -> dict[str, Any]:
@@ -515,7 +526,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result["discovery_issues"] = discovery_issues
         elif args.command == "build-lock":
             target, _ = _resolve_pack_target(args)
-            lock = _write_release_lock(target)
+            lock, changes = _write_release_lock(target)
             result = {
                 "ok": True,
                 "operation": "build-lock",
@@ -524,6 +535,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "release": lock["release"],
                 "file_count": len(lock["files"]),
                 "content_sha256": lock["content_sha256"],
+                "inventory_changes": changes,
+                "reading_guidance": "A lock release alone does not invalidate a delivered reading. The route reader compares the current operation's documents, selected resources and model guidance.",
             }
         elif args.command == "list":
             result = list_packs(settings, verify_lock=not args.skip_lock)

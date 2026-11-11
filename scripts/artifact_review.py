@@ -251,7 +251,7 @@ def publish(root: Path, out: str, files: dict[str, bytes], *, prefix: str = 'rev
         for name, raw in sorted(files.items()):
             c.atomic(c.local(staging, name, exists=False), raw)
         c.publish_directory(staging, target)
-        c.fsync_dir(target.parent)
+        c.flush_published(target)
     finally:
         if staging.exists():
             shutil.rmtree(staging)

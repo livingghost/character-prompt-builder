@@ -135,13 +135,21 @@ class ModelInputTests(unittest.TestCase):
         self.assertEqual(saved['next_actions'], result['next_actions'])
         self.assertFalse(result['execution_ready'])
 
-    def test_null_choices_leave_continuity_and_validation_to_prepare(self):
+    def test_missing_selected_evidence_is_reported_before_preparation_and_can_be_restored(self):
+        selected_validation = copy.deepcopy(self.choices['validation'])
         self.choices['visual'] = None
         self.choices['validation'] = None
         result = self.build()
+        self.assertFalse(result['ok'])
         self.assertNotIn('request-validation', result['inputs'])
+        self.assertEqual([row['code'] for row in result['unresolved']], ['VALIDATION_EVIDENCE_REQUIRED'])
+        self.assertFalse((self.root / 'built').exists())
+        self.choices['validation'] = selected_validation
+        result = self.build()
+        self.assertTrue(result['ok'], result)
         task = c.load(self.root / result['inputs']['production-task']['path'])
-        self.assertNotIn('request_validation', task['generation'])
+        self.assertEqual(c.load(self.root / task['generation']['request_validation']), self.package['request_validation'])
+        self.assertEqual(task['criteria'], self.spec['criteria'])
         self.assertEqual((self.root / task['delivery']['path']).read_text(encoding='utf-8'), self.package['composition_prompt'])
         action = result['next_actions'][0]
         self.assertEqual(action['operation'], 'prepare')

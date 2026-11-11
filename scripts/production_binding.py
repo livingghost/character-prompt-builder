@@ -210,15 +210,19 @@ def _validate_live_from(loaded, package: dict[str,Any]) -> None:
         raise ValueError('package belongs to a different or stale production input')
 
 
+def normalize_upscale_factor(scale: float) -> int | float:
+    """Keep an integral factor an integer for the selected request schema."""
+    import math
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(scale) or scale <= 0:
+        raise ValueError('upscale factor must be positive and finite')
+    return int(scale) if isinstance(scale, float) and scale.is_integer() else scale
+
+
 def upscale_request(root: Path, source: Path, model: str, scale: float,
                     settings: dict, guidance: str | None, *, request_validation: dict, render_intent: dict,
                     input_source=None) -> dict:
     """Describe exact local inputs before the submit authorization is issued."""
-    import math
-    if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(scale) or scale <= 0:
-        raise ValueError('upscale factor must be positive and finite')
-    if isinstance(scale, float) and scale.is_integer():
-        scale = int(scale)
+    scale = normalize_upscale_factor(scale)
     c.text(model, 'upscale model')
     if not isinstance(settings, dict):
         raise ValueError('upscale settings must be an object')
@@ -266,12 +270,6 @@ def validate_upscale_live(root: Path, run: str, request: dict) -> None:
     validate_upscale_input(root, request)
     from production_workflow import assert_current
     _validate_upscale_binding_from(assert_current(root,run),request)
-
-
-def _validate_upscale_live_from(root: Path, loaded, request: dict, *, input_source) -> None:
-    """Verify upscale evidence and its binding using the acquired fixed input."""
-    validate_upscale_input(root,request,input_source=input_source)
-    _validate_upscale_binding_from(loaded,request)
 
 
 def _validate_upscale_binding_from(loaded, request: dict) -> None:

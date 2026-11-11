@@ -8,7 +8,9 @@ python scripts/adoption_workflow.py --studio DIR --character ID references --out
 
 See references/runtime/adoption-workflow.md. No image API is called here.
 A Production candidate is adopted with production_workflow.py adopt, which
-records the claim this module checks.
+records the claim this module checks. A failure prints
+{"ok": false, "diagnostics": [...]} with the exit status its codes select in
+production_diagnostics.
 """
 from __future__ import annotations
 import operation_context as _operation_context
@@ -36,6 +38,9 @@ from reference_contract import INTENDED_INFLUENCES
 
 SCOPES = ("sheet", "catalog")
 INFLUENCES = INTENDED_INFLUENCES
+APPROVAL_FIELDS = ("scope", "influence", "character", "iteration_id", "slot", "image_sha256", "by", "at")
+JOURNAL_STATES = ("pending", "candidate-accepted", "sheet-bound", "catalog-registered")
+JOURNAL_STEPS = ("accept-candidate", "bind-sheet", "register-pack", "activate-pack")
 
 
 def safe_file(root: Path, relative: str, expected: str | None = None) -> Path:
@@ -55,6 +60,169 @@ def _journal_path(home: Path, iteration: str) -> Path:
     if path.is_symlink():
         raise ValueError("adoption journal must not be a symbolic link")
     return path
+
+
+def journal_problem(value: Any) -> str | None:
+    """What makes a decoded adoption journal unusable, or None when it is well-formed.
+
+    These are the fields its readers rely on. Agreement with the iteration,
+    sheet and run is checked by the reader that needs it.
+    """
+    if not isinstance(value, dict) or value.get("artifact_type") != "studio-adoption":
+        return "is not a studio-adoption object"
+    approval = value.get("approval")
+    if not isinstance(approval, dict) or any(not isinstance(approval.get(key), str) for key in APPROVAL_FIELDS):
+        return "has no complete approval"
+    if value.get("status") not in JOURNAL_STATES or value.get("next_action") not in (None, *JOURNAL_STEPS):
+        return "has no known status and next action"
+    if any(value.get(key) is not None and not isinstance(value[key], str)
+           for key in ("production_claim", "registration_target")):
+        return "has an invalid production claim or registration target"
+    registration = value.get("registration")
+    if registration is not None and (not isinstance(registration, dict) or any(
+            not isinstance(registration.get(key), str) for key in ("pack_path", "pack_id"))):
+        return "has an invalid registration"
+    decision = value.get("sheet_decision")
+    if decision is not None and (not isinstance(decision, dict) or "expected_current" not in decision):
+        return "has an invalid sheet decision"
+    if "sheet_binding" in value and (not isinstance(value["sheet_binding"], dict) or "current" not in value["sheet_binding"]):
+        return "has an invalid sheet binding"
+    return None
+
+
+def record_corrupt(character: str, iteration: str, problem: str, origin: dict[str, str] | None,
+                   rows: list[dict[str, Any]] | None, *, required_action: str | None = None, **details: Any):
+    """The ADOPTION_RECORD_CORRUPT diagnostic of an iteration's adoption journal.
+
+    Its repair is the one restore_action gives, unless the caller that read a
+    saved copy of the journal supplies the repair of that copy.
+    """
+    from production_diagnostics import ProductionError
+    file = f"characters/{character}/adoptions/{iteration}.json"
+    return ProductionError("ADOPTION_RECORD_CORRUPT", f"The adoption record {file} {problem}.",
+                           phase="adoption-integrity", file=file, character=character, iteration=iteration,
+                           required_action=required_action or restore_action(character, iteration, origin, rows),
+                           **details)
+
+
+def read_journal(read: studio.StudioRead, character: str, iteration: str) -> dict[str, Any]:
+    """Decode one well-formed adoption journal of a Studio read.
+
+    A missing, unreadable or malformed journal raises ADOPTION_RECORD_CORRUPT
+    whose required action names the repair this owner supports.
+    """
+    path = _journal_path(read.home(character), iteration)
+    try:
+        value = studio.read_json(path)
+    except FileNotFoundError:
+        problem = "is missing"
+    except ValueError as exc:
+        problem = f"is not JSON ({exc})"
+    else:
+        problem = journal_problem(value)
+        if problem is None:
+            return value
+    row = studio._find(read.raw_iterations(character), iteration)
+    origin, rows = row.get("production"), None
+    if origin is not None:
+        try:
+            rows = read.run(origin["run"]).rows
+        except (ValueError, OSError, KeyError, TypeError):
+            rows = None
+    raise record_corrupt(character, iteration, problem, origin, rows)
+
+
+def recorded_adoptions(rows: list[dict[str, Any]], character: str,
+                       iteration: str) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    """This iteration's adoption claims in its Production run, by digest, and their results in recorded order."""
+    claims = {}
+    for row in rows:
+        if row["event"] == "adoption-claim":
+            payload = row["data"]["intent"]["payload"]
+            if payload["character"] == character and payload["iteration"] == iteration:
+                claims[row["sha256"]] = row
+    return claims, [row for row in rows if row["event"] == "adoption-result" and row["data"]["claim"] in claims]
+
+
+def journal_disagreement(journal: dict[str, Any], rows: list[dict[str, Any]], character: str,
+                         iteration: str) -> str | None:
+    """What makes a well-formed Production adoption journal disagree with its run, or None when it agrees.
+
+    The journal agrees when it is the latest adoption result the run records
+    for the iteration, or when it names an adoption claim of the iteration
+    whose result the run does not record yet: that adoption is still in
+    progress, and its journal is its only record. These are the journals that
+    restore_journal leaves as they are.
+    """
+    claims, results = recorded_adoptions(rows, character, iteration)
+    claim = journal.get("production_claim")
+    if claim not in claims:
+        return "names no adoption claim of this iteration in its run"
+    own = [row for row in results if row["data"]["claim"] == claim]
+    if not own:
+        return None
+    if own[0]["data"]["result"] != {"ok": True, **journal}:
+        return "differs from the result its run recorded for its claim"
+    if results[-1] is not own[0]:
+        return "holds the result of an earlier adoption of this iteration than the latest one its run records"
+    return None
+
+
+def require_journal_agreement(journal: dict[str, Any], character: str, iteration: str,
+                              origin: dict[str, str], rows: list[dict[str, Any]]) -> None:
+    """Refuse a Production adoption journal that disagrees with its run with ADOPTION_RECORD_CORRUPT."""
+    problem = journal_disagreement(journal, rows, character, iteration)
+    if problem is not None:
+        raise record_corrupt(character, iteration, problem, origin, rows)
+
+
+def _adopt_command(character: str, iteration: str, origin: dict[str, str], claim: dict[str, Any]) -> tuple[str, bool]:
+    """The production_workflow.py adopt command of one recorded adoption claim, and whether it is a catalog adoption."""
+    from cli_invocation import shown
+    payload = claim["data"]["intent"]["payload"]
+    arguments = ["production_workflow.py", "adopt", "--run", origin["run"], "--candidate", payload["candidate"],
+                 "--character", character, "--iteration", iteration, "--approval", claim["data"]["files"][0]["path"],
+                 "--authorization", claim["data"]["authorizations"][0]]
+    if payload["pack_dir"] is not None:
+        arguments += ["--registration-record", "RECORD", "--pack-dir", payload["pack_dir"]]
+    return shown(arguments), payload["pack_dir"] is not None
+
+
+def restore_action(character: str, iteration: str, origin: dict[str, str] | None,
+                   rows: list[dict[str, Any]] | None) -> str:
+    """The repair of an adoption journal that is missing, malformed or differs from its run's result.
+
+    `rows` are the events of the iteration's Production run, or None when that run cannot be read.
+    """
+    if origin is None:
+        return ("An imported iteration keeps its adoption record only in this file, so no command writes it again; "
+                "restore the file from a copy of this Studio.")
+    if rows is None:
+        return (f"Once run {origin['run']} can be read, repeat the completed adoption of {iteration} with "
+                f"production_workflow.py adopt for that run and candidate {origin['candidate']}, with the approval and "
+                "authorization of that adoption. It writes this record again from the adoption result the run "
+                "recorded and does not adopt the image again.")
+    claims, results = recorded_adoptions(rows, character, iteration)
+    if not results:
+        return (f"The run {origin['run']} records no completed adoption of {iteration}, so no recorded result can "
+                "restore this record and no command writes it again; restore the file from a copy of this Studio.")
+    command, catalog = _adopt_command(character, iteration, origin, claims[results[-1]["data"]["claim"]])
+    return ("Repeat the completed adoption with " + command + ". It writes this record again from the "
+            "adoption result the run recorded and does not adopt the image again."
+            + (" RECORD is the registration record file of that catalog adoption." if catalog else ""))
+
+
+def result_action(character: str, iteration: str, origin: dict[str, str], claim: dict[str, Any]) -> str:
+    """The repair of an adoption under `claim` that stopped before its run recorded its result.
+
+    The Studio may have completed that adoption or stopped within it; repeating
+    its command continues the same claim in both cases.
+    """
+    command, catalog = _adopt_command(character, iteration, origin, claim)
+    return ("Repeat that adoption with " + command + ". It finishes the adoption under that claim and records its "
+            "result in the run; it starts no other adoption and adds no iteration."
+            + (" RECORD is the registration record file of that catalog adoption; give the pack runtime "
+               "arguments it was adopted with." if catalog else ""))
 
 
 def validate_approval(value: Any, character: str, row: dict[str, Any]) -> dict[str, Any]:
@@ -141,6 +309,13 @@ def _bind_sheet(root: Path, home: Path, row: dict[str, Any], approval: dict, jou
 
 
 def _registration(root: Path, row: dict[str, Any], journal: dict[str, Any], record: dict[str, Any], target: Path) -> dict[str, Any]:
+    """Create the adoption's pack at `target`, or keep the one this adoption created there.
+
+    An existing target belongs to this adoption when it is a valid locked pack
+    whose adoption receipt names this Studio, the journal's approval and the
+    pack's own ID. The journal then takes that ID, also after the journal was
+    written again without the ID it generated before the pack was created.
+    """
     from pack_manager import initial_pack_release
     from prepare_generation_references import detect_image_media_type, image_dimensions
     target = target.absolute()
@@ -150,8 +325,10 @@ def _registration(root: Path, row: dict[str, Any], journal: dict[str, Any], reco
     if target.exists():
         report = validate_pack(target, require_lock=True)
         receipt = studio.read_json(target / "resources" / "adoption-receipt.json")
-        if not report.valid or report.pack_id != journal["registration_pack_id"] or receipt.get("approval") != journal["approval"]:
+        if (not report.valid or receipt.get("approval") != journal["approval"] or receipt.get("pack_id") != report.pack_id
+                or receipt.get("studio_id") != studio.manifest(root)["studio_id"]):
             raise ValueError("registration target belongs to another adoption or its content changed; it will not be overwritten")
+        journal["registration_pack_id"] = report.pack_id
     else:
         target.parent.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=".adoption-pack-", dir=target.parent))
@@ -319,7 +496,9 @@ def preflight(root: Path, character: str, iteration: str, approval: Any, *,
     Production supplies its exact origin at intent time. The mutating owner
     additionally requires its recorded claim and catalog runtime. Imported rows
     keep their own ordinary adoption path even when their image bytes match a
-    Production candidate.
+    Production candidate. Once the run of a Production iteration records an
+    adoption result for it, a later adoption continues from its journal, so
+    that journal must exist and agree with the run.
     """
     from production_diagnostics import ProductionError
     root = studio.require_studio(root).resolve()
@@ -354,8 +533,11 @@ def preflight(root: Path, character: str, iteration: str, approval: Any, *,
     elif registration_record is not None or pack_dir is not None:
         raise ValueError('registration arguments require catalog scope')
     path = _journal_path(home, iteration)
-    if path.exists():
+    rows = read.run(origin['run']).rows if origin is not None else None
+    if path.exists() or (rows is not None and recorded_adoptions(rows, character, iteration)[1]):
         journal = read.journal(character, iteration)
+        if origin is not None:
+            require_journal_agreement(journal, character, iteration, origin, rows)
         prior = journal['approval']
         promotion = (prior['scope'] == 'sheet' and confirmed['scope'] == 'catalog'
                      and all(prior[key] == confirmed[key]
@@ -465,6 +647,49 @@ def adopt(root: Path, character: str, iteration: str, approval: Any, *,
         return {"ok": True, **journal}
 
 
+@mutation
+def restore_journal(root: Path, character: str, iteration: str, *, production_claim: str) -> str | None:
+    """Write a Production adoption journal again from the result its run recorded for this claim.
+
+    Only the latest adoption result the run records for the iteration writes
+    the journal. A journal that agrees with the run stays as it is: one equal
+    to that result, and a well-formed journal of another claim of the
+    iteration whose result is not recorded, which that operation wrote after
+    this result (journal_disagreement). Nothing else in the Studio changes.
+    Returns the Studio-relative path of a journal written again, otherwise None.
+    """
+    import production_store as store
+    import production_workflow as workflow
+    root = studio.require_studio(root).resolve()
+    with studio.recording_lock(root, character=character):
+        home = studio.character_dir(root, character)
+        origin = studio._find(studio.read_iteration_records(home), iteration).get("production")
+        if origin is None:
+            raise ValueError(f"{iteration} is an external import; no Production result holds its adoption journal")
+        with store.transaction(root):
+            rows = workflow.read_run(root, origin["run"]).rows
+        claims, results = recorded_adoptions(rows, character, iteration)
+        own = [row for row in results if row["data"]["claim"] == production_claim]
+        if (len(own) != 1 or own[0]["data"]["result"].get("production_claim") != production_claim
+                or claims[production_claim]["data"]["intent"]["payload"]["candidate"] != origin["candidate"]):
+            raise ValueError("the run records no result of this adoption claim for this candidate and iteration")
+        if results[-1] is not own[0]:
+            return None
+        recorded = {key: value for key, value in own[0]["data"]["result"].items() if key != "ok"}
+        path = _journal_path(home, iteration)
+        try:
+            current = studio.read_json(path)
+        except (FileNotFoundError, ValueError):
+            current = None
+        if journal_problem(current) is None and journal_disagreement(current, rows, character, iteration) is None:
+            return None
+        atomic_write_json(path, recorded)
+        import studio_activity as activity
+        activity.changed(path, "studio-adoption-restored", subject=character + "/" + iteration,
+                         details={"claim": production_claim, "status": recorded["status"]})
+        return path.relative_to(root).as_posix()
+
+
 @runtime_snapshot.operation
 def reference_index(root: Path, character: str, *, read: studio.StudioRead | None = None) -> dict[str, Any]:
     """Export the current character index from its owning Studio read phase."""
@@ -475,8 +700,33 @@ def reference_index(root: Path, character: str, *, read: studio.StudioRead | Non
     return mutable(read.reference_index(character))
 
 
+def _recorded_journal(read: studio.StudioRead, character: str, row: dict[str, Any]) -> dict[str, Any]:
+    """The adoption journal of a current or pending iteration, refused when it disagrees with its run.
+
+    A run that cannot be read leaves the journal unchecked here; the
+    iteration's adoption readiness reports that run.
+    """
+    journal = read.journal(character, row["iteration_id"])
+    origin = row.get("production")
+    if origin is not None:
+        try:
+            rows = read.run(origin["run"]).rows
+        except (ValueError, OSError, KeyError, TypeError):
+            return journal
+        require_journal_agreement(journal, character, row["iteration_id"], origin, rows)
+    return journal
+
+
 def _reference_index(root: Path, character: str, *, read: studio.StudioRead) -> dict[str, Any]:
-    """Derive current references from the supplied Studio inputs exactly once."""
+    """Derive current references from the supplied Studio inputs exactly once.
+
+    A damaged adoption journal is reported for its own slot: an accepted
+    iteration's binding carries its diagnostic, and the error of any other
+    iteration names its repair. The journal of an accepted or pending
+    Production iteration is also checked against its run; a superseded or
+    rejected iteration's journal is history, decoded without reading its run.
+    """
+    from production_diagnostics import ProductionError, from_exception
     home = read.home(character)
     sheet = home / "sheet"
     sidecar = read.sheet(character)
@@ -488,8 +738,15 @@ def _reference_index(root: Path, character: str, *, read: studio.StudioRead) -> 
     for row in rows:
         path = _journal_path(home, row["iteration_id"])
         if row["iteration_id"] not in accepted_ids and path.is_file():
-            journal = read.journal(character, row['iteration_id'])
-            if journal.get("next_action") and row.get("status") not in {"rejected", "superseded"}:
+            history = row.get("status") in {"rejected", "superseded"}
+            try:
+                journal = (read.journal(character, row['iteration_id']) if history
+                           else _recorded_journal(read, character, row))
+            except ProductionError as exc:
+                damaged = from_exception(exc, phase='adoption-integrity')
+                errors.append(f"{row['slot']}: {damaged['message']} {damaged['required_action']}")
+                continue
+            if journal.get("next_action") and not history:
                 readiness = adoption_readiness(root, character, row, read=read)
                 pending.append({"iteration_id": row["iteration_id"], "next_action": journal["next_action"],
                                 "adoption": readiness})
@@ -512,7 +769,12 @@ def _reference_index(root: Path, character: str, *, read: studio.StudioRead) -> 
                              "influence": None, "registration": None, "next_action": "repair-reference"})
             continue
         path = _journal_path(home, row["iteration_id"])
-        journal = read.journal(character, row['iteration_id']) if path.is_file() else None
+        journal = damaged = None
+        if path.is_file():
+            try:
+                journal = _recorded_journal(read, character, row)
+            except ProductionError as exc:
+                damaged = from_exception(exc, phase='adoption-integrity')
         readiness = adoption_readiness(root, character, row, read=read)
         bound = current_artifact(sidecar["slots"].get(slot))
         has_binding = bool(bound and bound.get("image"))
@@ -538,13 +800,15 @@ def _reference_index(root: Path, character: str, *, read: studio.StudioRead) -> 
                 errors.append(f"{slot}: registered pack changed or is missing")
             else:
                 state = "catalog-registered"
-        completion_diagnostic = None
-        if bound_here and not (journal and journal.get('next_action')):
+        completion_diagnostic = damaged
+        if damaged is not None:
+            readiness['diagnostics'].append(damaged)
+            errors.append(f"{slot}: {damaged['message']}")
+        elif bound_here and not (journal and journal.get('next_action')):
             try:
                 from studio_reference import current_source
                 current_source(root, character, slot, read=read)
             except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
-                from production_diagnostics import from_exception
                 completion_diagnostic = from_exception(exc, phase='adoption-integrity')
                 readiness['diagnostics'].append(completion_diagnostic)
                 errors.append(f"{slot}: {completion_diagnostic['message']}")
@@ -655,11 +919,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         root = studio.require_studio(args.studio)
         if args.command == 'draft':
-            from execution_contract import atomic, encoded
+            from execution_contract import encoded
+            from production_binding import write_new
             approval = draft_approval(root, args.character, args.iteration, scope=args.scope,
                 influence=args.influence,
                 registration_record=studio.read_json(args.registration_record) if args.registration_record else None)
-            atomic(args.out, encoded(approval), replace=False)
+            write_new(args.out, encoded(approval), option='--out', value=str(args.out))
             result = {'ok': True, 'output': str(args.out), 'approval': approval,
                       'unresolved': ['Record the actual approver and approval time for this exact subject.']}
         elif args.command == "adopt":
@@ -675,7 +940,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             result = reference_index(root, args.character)
     except (OSError, ValueError, RuntimeError) as exc:
-        result = {"ok": False, "errors": [str(exc)]}
+        from production_binding import report_failure
+        return report_failure(exc, phase='adoption')
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result["ok"] else 1
 

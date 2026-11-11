@@ -13,7 +13,7 @@ import stat
 import time
 import threading
 from datetime import datetime, timezone
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterator
 
 from io_budget import read_stream
@@ -206,12 +206,44 @@ def _plain_entries(root: Path, target: Path, rel: PurePosixPath) -> tuple[bool, 
     return True, info
 
 
+def _not_relative(root: Path, relative: str) -> str | None:
+    """Why `relative` names no place below a root, or None when it starts at no drive or root.
+
+    The operating system's own path rules decide: on Windows a drive such as
+    C: or a leading separator starts the path, elsewhere a leading /. When the
+    path lies below `root`, the reason also gives its root-relative form.
+    """
+    anchor = (PureWindowsPath(relative) if os.name == "nt" else PurePosixPath(relative)).anchor
+    if not anchor:
+        return None
+    start = anchor.replace("\\", "/")
+    reason = f"not relative to the root: {relative} starts at {start}"
+    bases = [Path(root).absolute()]
+    try:
+        bases.append(_root(root))
+    except (OSError, ValueError):
+        pass
+    for base in bases:
+        try:
+            below = Path(relative).relative_to(base)
+        except ValueError:
+            continue
+        if below.parts:
+            return reason + f"; below the root it is {below.as_posix()}"
+    return reason
+
+
 def _located(root: Path, relative: str, exists: bool) -> tuple[Path, os.stat_result | None]:
     """Return the checked path and, when the entry check read it, the target's lstat."""
-    if not isinstance(relative, str) or not relative or "\\" in relative:
+    if not isinstance(relative, str) or not relative:
+        raise ValueError("canonical studio-relative POSIX path required")
+    reason = _not_relative(root, relative)
+    if reason is not None:
+        raise ValueError(reason)
+    if "\\" in relative:
         raise ValueError("canonical studio-relative POSIX path required")
     rel = PurePosixPath(relative)
-    if rel.is_absolute() or rel.as_posix() != relative or any(x in {".", ".."} for x in rel.parts):
+    if rel.as_posix() != relative or any(x in {".", ".."} for x in rel.parts):
         raise ValueError("path must remain within the studio")
     assert_public_path(rel)
     root = root.absolute()
@@ -459,6 +491,29 @@ def publish_directory(staging: Path, target: Path, *, patience: float = 10.0) ->
         from operation_context import relocate_artifacts
         relocate_artifacts(staging, target)
         return
+
+
+PUBLISHED_CONTINUATION = ('Use the published directory; it is complete. If it is missing after a crash or power loss, '
+                          'run the same command again.')
+
+
+def flush_published(target: Path, *, phase: str = 'publication', continuation: str = PUBLISHED_CONTINUATION) -> None:
+    """Flush the directory that holds a published directory.
+
+    The publication is complete when this runs. A failed flush reports that,
+    with `published` true and the caller's continuation; it is not a failure
+    to read an input or to publish.
+    """
+    from production_diagnostics import ProductionError
+    target = Path(target)
+    try:
+        fsync_dir(target.parent)
+    except OSError as exc:
+        raise ProductionError('ARTIFACT_PUBLISH_FAILED',
+            'The directory is published and complete, but the directory that holds it could not be flushed to disk.',
+            phase=phase, file=str(target), published=True,
+            actual={'errno': exc.errno, 'winerror': getattr(exc, 'winerror', None)},
+            required_action=continuation) from exc
 
 
 _thread_locks: dict[str, Any] = {}

@@ -51,6 +51,21 @@ class FoundationTests(unittest.TestCase):
             self.assertEqual(artifacts.read('nested/second.bin'), b'second exact contents')
             artifacts.require_membership()
 
+    def test_flush_failure_after_publication_reports_the_directory_as_published(self):
+        import errno
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp); source = base/'staged'; target = base/'published'
+            source.mkdir(); (source/'result.txt').write_text('whole', encoding='utf-8')
+            c.publish_directory(source, target)
+            with patch.object(c, 'fsync_dir', side_effect=OSError(errno.EIO, 'Input/output error')):
+                with self.assertRaises(ProductionError) as caught:
+                    c.flush_published(target)
+            told = caught.exception.diagnostic
+            self.assertEqual((told.code, told.phase, told.file), ('ARTIFACT_PUBLISH_FAILED', 'publication', str(target)))
+            self.assertEqual(told.details, {'published': True, 'actual': {'errno': errno.EIO, 'winerror': None}})
+            self.assertEqual(told.required_action, c.PUBLISHED_CONTINUATION)
+            self.assertEqual((target/'result.txt').read_text(encoding='utf-8'), 'whole')
+
     def test_directory_publication_keeps_an_existing_empty_destination(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp); source = base/'staged'; target = base/'published'
@@ -98,7 +113,7 @@ class FoundationTests(unittest.TestCase):
         self.assertNotIn('guidance', from_exception(error, phase='cli'))
         mapped = Diagnostic('INPUT_SCHEMA_INVALID', 'The task has an invalid field.', phase='task-schema').as_dict()
         self.assertEqual(mapped['guidance'], {
-            'document_path': 'references/runtime/production-workflow.md#authoring-and-handoff',
+            'document_path': 'references/runtime/production-preparation.md#prepare-one-complete-input',
             'schema': 'schemas/authoring/production-task.schema.json'})
         declared = {'document_path': 'references/runtime/reference-delivery.md#bind-the-actual-transport'}
         explicit = Diagnostic('INPUT_CONSISTENCY_ERROR', 'A selected transport differs.',
@@ -183,6 +198,94 @@ class FoundationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);(root/'ledger.jsonl').write_text('{"decision":', encoding='utf-8')
             with self.assertRaises(ProductionError):store.evidence_snapshot(root,'ledger.jsonl','whole',purpose='test')
+            self.assertFalse((root/'production').exists())
+
+    def test_jsonl_evidence_with_an_invalid_line_names_the_file_the_line_and_its_repair(self):
+        import production_compiler as compiler
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            cases=[(b'{"decision":"first"}\n{"decision":\n{"decision":"third"}\n',2,'Expecting value'),
+                   (b'{"decision":"first"}\n\n{"a":1,"a":2}\n',3,'duplicate JSON key'),
+                   (b'\xff\n',1,'not UTF-8')]
+            for raw,line,reason in cases:
+                with self.subTest(line=line):
+                    (root/'ledger.jsonl').write_bytes(raw)
+                    with self.assertRaises(ProductionError) as caught:
+                        store.evidence_snapshot(root,'ledger.jsonl','whole',purpose='test')
+                    found=caught.exception.diagnostic.as_dict()
+                    self.assertEqual((found['code'],found['file'],found['line'],found['required_action']),
+                                     ('EVIDENCE_CAPTURE_FAILED','ledger.jsonl',line,store.CAPTURE_JSONL_LINE.format(line=line)))
+                    self.assertIn(f'line {line} is not one JSON value',found['cause'])
+                    self.assertIn(reason,found['cause'])
+                    # A file a task declares reports the same line and repair as an unreadable input.
+                    with self.assertRaises(ProductionError) as caught:
+                        compiler.read_input(root,'ledger.jsonl',pointer='$.sources[0].path')
+                    declared=caught.exception.diagnostic.as_dict()
+                    self.assertEqual((declared['code'],declared['file'],declared['pointer'],declared['line'],
+                                      declared['cause'],declared['required_action']),
+                                     ('INPUT_UNREADABLE','ledger.jsonl','$.sources[0].path',line,found['cause'],
+                                      found['required_action']))
+            self.assertFalse((root/'production').exists())
+
+    def test_a_path_that_starts_at_a_drive_or_root_is_refused_with_its_root_relative_form(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp).resolve();(root/'work').mkdir()
+            (root/'work/evidence.txt').write_text('evidence', encoding='utf-8')
+            inside=root/'work/evidence.txt'
+            for path in dict.fromkeys((inside.as_posix(),str(inside))):
+                with self.subTest(path=path):
+                    with self.assertRaises(ProductionError) as caught:
+                        store.stable_bytes(root,path)
+                    found=caught.exception.diagnostic.as_dict()
+                    self.assertEqual((found['code'],found['file'],found['required_action']),
+                                     ('EVIDENCE_CAPTURE_FAILED',path,store.CAPTURE_PATH_REFUSED))
+                    self.assertIn('not relative to the root',found['cause'])
+                    self.assertIn('below the root it is work/evidence.txt',found['cause'])
+                    with self.assertRaisesRegex(ValueError,'not relative to the root'):
+                        c.local(root,path)
+            if os.name=='nt':
+                # A drive names a place on that drive, never one below the root, with or without a separator.
+                for path in (root.drive+'work/evidence.txt',root.drive+'/work/evidence.txt','/work/evidence.txt'):
+                    with self.subTest(path=path),self.assertRaisesRegex(ValueError,'not relative to the root: '):
+                        c.local(root,path,exists=False)
+            else:
+                # Elsewhere C: is an ordinary name, so the same text stays a path below the root.
+                self.assertEqual(c.local(root,'C:/work/evidence.txt',exists=False),root/'C:'/'work'/'evidence.txt')
+            self.assertEqual(store.stable_bytes(root,'work/evidence.txt'),b'evidence')
+
+    def test_unread_evidence_names_its_cause_and_the_repair_that_fits_it(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);(root/'folder').mkdir()
+            (root/'source.txt').write_text('evidence', encoding='utf-8')
+            (root/'credentials.json').write_text('{}', encoding='utf-8')
+            cases=[('absent.txt','missing file: absent.txt',store.CAPTURE_MISSING),
+                   ('folder','directory: folder',store.CAPTURE_DIRECTORY),
+                   ('credentials.json','Private Studio credentials',store.CAPTURE_PRIVATE),
+                   ('folder\\source.txt','POSIX path required',store.CAPTURE_PATH_REFUSED),
+                   ('../source.txt','must remain within',store.CAPTURE_PATH_REFUSED)]
+            try:
+                (root/'link.txt').symlink_to(root/'source.txt')
+            except (OSError,NotImplementedError):
+                pass
+            else:
+                cases.append(('link.txt','symbolic link',store.CAPTURE_PATH_REFUSED))
+            for path,cause,repair in cases:
+                with self.subTest(path=path),self.assertRaises(ProductionError) as caught:
+                    store.stable_bytes(root,path)
+                found=caught.exception.diagnostic.as_dict()
+                self.assertEqual((found['code'],found['file'],found['required_action']),('EVIDENCE_CAPTURE_FAILED',path,repair))
+                self.assertIn(cause,found['cause'])
+            if (root/'link.txt').is_symlink():
+                with self.assertRaises(ProductionError) as caught:store.stable_read(root/'link.txt','link.txt')
+                self.assertEqual(caught.exception.diagnostic.required_action,store.CAPTURE_LINK)
+            for error,repair in ((PermissionError(13,'Permission denied'),store.CAPTURE_DENIED),
+                                 (OSError(5,'Input/output error'),store.CAPTURE_OS_ERROR)):
+                with self.subTest(error=error),patch.object(Path,'open',side_effect=error), \
+                        self.assertRaises(ProductionError) as caught:
+                    store.stable_bytes(root,'source.txt')
+                found=caught.exception.diagnostic.as_dict()
+                self.assertEqual((found['required_action'],found['cause']),(repair,str(error)))
+            self.assertEqual(store.stable_bytes(root,'source.txt'),b'evidence')
             self.assertFalse((root/'production').exists())
 
     def test_missing_evidence_reports_expected_digest(self):
@@ -312,6 +415,30 @@ class PublicationRecoveryTests(unittest.TestCase):
         self.assertEqual(store.event_rows(self.root, run), [])
         self.assertFalse(compiler.recover_publication(self.root, run)['recovered'])
 
+    def test_flush_failure_after_run_publication_names_its_registration(self):
+        import errno
+        import execution_contract as c
+        import production_compiler as compiler
+        import production_workflow as workflow
+        runs = self.root / 'production/runs'
+        flush = c.fsync_dir
+
+        def refuse_the_runs_directory(path):
+            if Path(path).resolve() == runs.resolve():
+                raise OSError(errno.EIO, 'Input/output error', str(path))
+            flush(path)
+
+        with patch.object(c, 'fsync_dir', refuse_the_runs_directory), self.assertRaises(ProductionError) as caught:
+            workflow.prepare(self.root, 'task.json')
+        told = caught.exception.diagnostic
+        [directory] = list(runs.iterdir())
+        self.assertEqual((told.code, told.details['published'], told.file),
+                         ('ARTIFACT_PUBLISH_FAILED', True, str(directory)))
+        self.assertEqual(told.required_action, 'Register the published run with recover-publication --run ' + directory.name + '.')
+        self.assertEqual(store.runs(self.root), [])
+        self.assertTrue(compiler.recover_publication(self.root, directory.name)['recovered'])
+        self.assertEqual([row['run_id'] for row in store.runs(self.root)], [directory.name])
+
     def test_unregistered_publication_rejects_undeclared_files_and_keeps_evidence(self):
         import production_compiler as compiler
         run = self.interrupted_publication()
@@ -372,6 +499,28 @@ class PublicationRecoveryTests(unittest.TestCase):
         with self.assertRaises(ProductionError) as caught:
             compiler.recover_publication(self.root, run)
         self.assertEqual(caught.exception.diagnostic.code, 'PINNED_RESOURCE_MISSING')
+        self.assertEqual(store.runs(self.root), [])
+
+    def test_work_task_mismatch_at_publication_names_both_task_ids(self):
+        import production_workflow as workflow
+        import work_ledger
+        opened = work_ledger.require_open(self.root)
+        other = {**opened, 'task_id': 'synthetic-other-work-task'}
+        with patch.object(work_ledger, 'require_open', return_value=other), self.assertRaises(ProductionError) as caught:
+            workflow.prepare(self.root, 'task.json')
+        named = caught.exception.diagnostic.as_dict()
+        self.assertEqual((named['code'], named['file'], named['pointer'], named['expected'], named['actual']),
+                         ('TASK_CHANGED', 'task.json', '$.task_id', other['task_id'], opened['task_id']))
+        self.assertIn('names another work task', named['message'])
+        answers = iter([other])
+        with patch.object(work_ledger, 'require_open', side_effect=lambda root: next(answers, opened)), \
+                self.assertRaises(ProductionError) as caught:
+            workflow.prepare(self.root, 'task.json')
+        changed = caught.exception.diagnostic.as_dict()
+        self.assertEqual((changed['code'], changed['expected'], changed['actual']),
+                         ('TASK_CHANGED', other['task_id'], opened['task_id']))
+        self.assertIn('changed during preparation', changed['message'])
+        self.assertIn('Run the same preparing command again', changed['required_action'])
         self.assertEqual(store.runs(self.root), [])
 
     def test_status_reports_authority_readiness_without_creating_events(self):
@@ -452,6 +601,57 @@ class AuthorityEvidenceTests(unittest.TestCase):
         self.assertTrue(report['ok'], report['changes'])
         self.assertIn(('work/ledger.jsonl', 'provenance_changed', 'intact'),
                       {(x['path'], x['status'], x['snapshot']) for x in report['provenance']})
+
+    def test_an_authorization_without_a_saved_reading_it_cites_names_a_new_authorization(self):
+        import copy
+        import production_execution as execution
+        import production_request
+        import production_workflow as workflow
+        import work_ledger
+        from test_production_execution import decisions
+        self.use_ledger_as_authority_evidence()
+        run = self.prepared_run()
+        work_ledger.note(self.root, 'Synthetic approval note appended after preparation; not user consent.')
+        loaded = workflow.read_run(self.root, run)
+        plan = loaded.artifacts['execution-plan.json']
+        execution.authorize_decisions(self.root, run, decisions(self.root, run), loaded.prepared, plan)
+        directory, prepared, _, rows = workflow.load_run(self.root, run)
+        submit = next(r for r in rows if r['event'] == 'authorization' and r['data']['request']['operation'] == 'submit')
+        approval = submit['data']['request']['request_decision']['principal_approval']['evidence']
+        # An authorization record that saved no reading of the approval it cites.
+        data = copy.deepcopy(submit['data'])
+        data['files'] = [item for item in data['files'] if item.get('purpose') != 'principal-approval']
+        unsaved = workflow.append_record(directory, prepared, rows, 'authorization', data)
+        intent = next(item for item in plan['operations'] if item['operation'] == 'submit')
+        with self.assertRaises(ProductionError) as caught:
+            workflow._permission(self.root, prepared, store.event_rows(self.root, run), unsaved['sha256'], **intent)
+        found = caught.exception.diagnostic.as_dict()
+        self.assertEqual((found['code'], found['run'], found['event'], found['file'], found['expected']),
+                         ('EVIDENCE_SNAPSHOT_MISSING', run, unsaved['sha256'], approval['path'], approval['sha256']))
+        self.assertEqual(found['required_action'], production_request.UNSAVED_AUTHORIZATION_EVIDENCE.format(run=run))
+        self.assertNotEqual(found['required_action'], store.RESTORE_EVIDENCE)
+        # An authorization that the decisions file recorded saved the reading, and execution uses it.
+        self.assertTrue(execution.execute(self.root, run)['execution_completed'])
+
+    def test_issuer_update_error_identifies_the_editable_field_and_current_authority(self):
+        self.prepared_run()
+        prior = store.authority_record(self.root, self.task_id)
+        document = store.authority(self.root, self.task_id)
+        issuer = document['issuer']
+        document['issuer'] = 'Another principal'
+        self.fixtures.write(self.root/'amended-authority.json', document)
+        with self.assertRaises(ProductionError) as caught:
+            store.import_authority(self.root, 'amended-authority.json', expected=prior['sha256'])
+        diagnostic = caught.exception.diagnostic
+        self.assertEqual((diagnostic.file, diagnostic.pointer), ('amended-authority.json', '/issuer'))
+        self.assertEqual(diagnostic.details['expected'], issuer)
+        self.assertEqual(diagnostic.details['current_authority']['event'], prior['sha256'])
+        self.assertIn('--expected-event ' + prior['sha256'], diagnostic.required_action)
+        self.assertEqual(store.authority_record(self.root, self.task_id), prior)
+        document['issuer'] = issuer
+        self.fixtures.write(self.root/'amended-authority.json', document)
+        changed = store.import_authority(self.root, 'amended-authority.json', expected=prior['sha256'])
+        self.assertEqual(changed['data']['authority']['issuer'], issuer)
 
     def test_missing_run_snapshot_names_run_event_digest_and_restoration(self):
         import production_workflow as workflow
@@ -721,6 +921,10 @@ class CompilerContractTests(unittest.TestCase):
         prepared=workflow.prepare(self.root,'task.json')
         compiler.validate_document(prepared['execution_plan'],compiler.PLAN_SCHEMA,'execution plan')
         self.assertEqual(prepared['execution_plan']['run'],prepared['run'])
+        recorded=compiler.published_preparation(self.root,prepared['run'])
+        self.assertEqual(c.encoded({**recorded,'formal_run_created':True}),c.encoded(prepared))
+        self.assertFalse(recorded['formal_run_created'])
+        self.assertEqual([row['run_id'] for row in store.runs(self.root)],[prepared['run']])
 
     def test_selected_integrated_text_survives_check_and_prepare(self):
         import production_compiler as compiler
@@ -803,10 +1007,35 @@ class CompilerContractTests(unittest.TestCase):
         self.assertEqual(unreadable['$.generation.plot']['file'],'missing/plot.json')
         self.assertIn('missing file',unreadable['$.generation.plot']['cause'])
         self.assertIn('POSIX',unreadable['$.generation.creative_intent']['cause'])
-        self.assertIn('/ separators',unreadable['$.generation.plot']['required_action'])
+        self.assertEqual(unreadable['$.generation.plot']['required_action'],store.CAPTURE_MISSING)
+        self.assertEqual(unreadable['$.generation.creative_intent']['required_action'],store.CAPTURE_PATH_REFUSED)
+        self.assertIn('/ separators',store.CAPTURE_PATH_REFUSED)
         states={row['phase']:row['state'] for row in report['checks']}
         self.assertEqual((states['plot'],states['retrieval']),('not-performed','not-performed'))
         self.assertEqual(states['execution-controls'],'passed')
+
+    def test_a_check_that_did_not_run_names_the_failed_prerequisite_to_resolve_first(self):
+        from production_diagnostics import DEFAULT_ACTION
+        self.edit('task.json',lambda task:task['generation'].update(plot='missing/plot.json'))
+        report=self.check()
+        waiting={row['phase']:row for row in report['diagnostics'] if row['code']=='CHECK_NOT_PERFORMED'}
+        # A check names the prerequisite it waits for; one waiting behind another also names the failed one.
+        self.assertEqual(waiting['plot']['blocked_by'],['input:$.generation.plot'])
+        self.assertIn('Resolve the error of the input at $.generation.plot first',waiting['plot']['required_action'])
+        self.assertEqual((waiting['retrieval']['blocked_by'],waiting['retrieval']['failed_prerequisites']),
+                         (['plot'],['input:$.generation.plot']))
+        self.assertIn('Resolve the error of the input at $.generation.plot first',waiting['retrieval']['required_action'])
+        self.assertIn('check retrieval runs once it passes',waiting['retrieval']['required_action'])
+        failed={row['phase'] for row in report['diagnostics']
+                if row['code']!='CHECK_NOT_PERFORMED' and row['severity']=='error'}
+        self.assertEqual(set(waiting['compilation']['blocked_by']),failed)
+        missing=self.check('missing-task.json')['diagnostics']
+        unread=next(row for row in missing if row['code']=='INPUT_UNREADABLE')
+        task_read=next(row for row in missing if row['code']=='CHECK_NOT_PERFORMED' and row['phase']=='task-read')
+        self.assertEqual((unread['phase'],task_read['blocked_by']),('task-read',['task-read']))
+        self.assertIn('Resolve the error of task-read first',task_read['required_action'])
+        for row in [*waiting.values(),*(row for row in missing if row['code']=='CHECK_NOT_PERFORMED')]:
+            self.assertNotEqual(row['required_action'],DEFAULT_ACTION)
 
     def test_unavailable_controls_and_missing_profiles_have_their_own_codes(self):
         import production_compiler as compiler
@@ -826,6 +1055,30 @@ class CompilerContractTests(unittest.TestCase):
         report=compiler.check_task(root,self.fixtures.upscale_task(root))
         self.assertIn(('MODEL_PROFILE_MISSING','$.scale_factor'),self.coded(report))
         self.assertFalse(report['publishable'])
+
+    def test_unknown_upscale_request_factors_leave_the_scale_to_the_offering_profile(self):
+        import production_compiler as compiler
+        for name,change in (('absent',lambda record:record.pop('supported_scale_factors')),
+                            ('null',lambda record:record.update(supported_scale_factors=None))):
+            with self.subTest(supported_scale_factors=name):
+                def unknown(records):
+                    change(next(record for record in records if record['id']==self.fixtures.UPSCALE_MODEL_ID))
+                root=self.case_with(unknown,with_upscale=True)['root']
+                task=self.fixtures.upscale_task(root)
+                report=compiler.check_task(root,task)
+                self.assertTrue(report['publishable'],report['diagnostics'])
+                delivery=c.load(root/task)['delivery']['path']
+                request=c.load(root/delivery);request['scale_factor']=3;self.fixtures.write(root/delivery,request)
+                refused=compiler.check_task(root,task)
+                errors=[row for row in refused['diagnostics'] if row['code']!='CHECK_NOT_PERFORMED']
+                self.assertEqual({(row['code'],row['phase'],row['file'],row['pointer']) for row in errors},
+                                 {('CONTROL_NOT_AVAILABLE','execution-controls',delivery,'$.scale_factor')})
+                # The repair names where the offering's execution profile declares the allowed factors.
+                self.assertIn('the schema of the scale control in modes.upscale.controls of the execution_profile '
+                              'of the synthetic offering in model record '+self.fixtures.UPSCALE_MODEL_ID,
+                              errors[0]['required_action'])
+                self.assertIn('scale factor 3',errors[0]['message'])
+                self.assertFalse(refused['publishable'])
 
     def test_bounded_views_and_scene_material_are_compiler_checks(self):
         states={row['phase']:row['state'] for row in self.check()['checks']}
@@ -891,8 +1144,8 @@ class ExitCodeTests(unittest.TestCase):
     def test_each_diagnostic_class_has_its_exit_status(self):
         from production_diagnostics import exit_code, result_exit
         self.assertEqual([exit_code(code) for code in (None, 'INPUT_SCHEMA_INVALID', 'SOURCE_CHANGED', 'AUTHORIZATION_REQUIRED',
-                                                       'REMOTE_OUTCOME_UNKNOWN', 'INTERNAL_ERROR')],
-                         [0, 2, 2, 3, 4, 1])
+                                                       'REMOTE_OUTCOME_UNKNOWN')],
+                         [0, 2, 2, 3, 4])
         rows = lambda *codes: [{'code': code, 'severity': 'error'} for code in codes]
         self.assertEqual(result_exit(rows('GRANT_REVOKED', 'INPUT_UNREADABLE')), 2)
         self.assertEqual(result_exit(rows('GRANT_REVOKED', 'DISPATCH_ALREADY_CLAIMED')), 4)
@@ -938,6 +1191,46 @@ class CleanupTests(unittest.TestCase):
         self.assertTrue(listed['eligible'])
         self.assertEqual(compiler.staging_cleanup(self.root,operation_id='op-publication',apply=True)['deleted'],1)
         self.assertFalse(directory.exists());self.assertEqual(store.runs(self.root),[])
+
+    def test_damaged_manifest_of_an_unregistered_publication_names_its_removal(self):
+        import production_compiler as compiler
+        import production_workflow as workflow
+        with patch.object(store,'register_run',side_effect=OSError('Synthetic registration interruption')):
+            with self.assertRaises(OSError):workflow.prepare(self.root,'task.json')
+        directory=next((self.root/'production/runs').iterdir())
+        (directory/'owner.json').write_bytes(c.encoded({'operation_id':'op-publication','pid':self.dead}))
+        manifest=c.load(directory/'manifest.json');repeated=manifest['files'][0]
+        manifest['files'].append(dict(repeated))
+        (directory/'manifest.json').write_bytes(c.encoded(manifest))
+        with self.assertRaises(ProductionError) as caught:compiler.recover_publication(self.root,directory.name)
+        found=caught.exception.diagnostic.as_dict()
+        self.assertEqual((found['code'],found['path'],found['required_action']),
+                         ('ARTIFACT_MANIFEST_CORRUPT',repeated['path'],compiler.UNRECOVERABLE_PUBLICATION))
+        self.assertEqual(Path(found['file']).name,directory.name)
+        listed=compiler.staging_cleanup(self.root)['publications'][0]
+        self.assertEqual((listed['eligible'],listed['diagnostics'][0]['required_action']),
+                         (True,compiler.UNRECOVERABLE_PUBLICATION))
+        self.assertEqual(compiler.staging_cleanup(self.root,operation_id='op-publication',apply=True)['deleted'],1)
+        self.assertFalse(directory.exists());self.assertEqual(store.runs(self.root),[])
+
+    def test_a_registered_manifest_that_is_not_a_complete_file_array_names_no_staging_cleanup(self):
+        import sqlite3
+        from contextlib import closing
+        import production_compiler as compiler
+        import production_workflow as workflow
+        run=workflow.prepare(self.root,'task.json')['run']
+        directory=workflow.run_dir(self.root,run);manifest=c.load(directory/'manifest.json')
+        for code,change in (('ARTIFACT_INCOMPLETE',{'complete':False}),('ARTIFACT_MANIFEST_CORRUPT',{'files':{}})):
+            with self.subTest(code=code):
+                # The registration records exactly these manifest bytes.
+                raw=c.encoded({**manifest,**change});(directory/'manifest.json').write_bytes(raw)
+                with closing(sqlite3.connect(self.root/'production/records.sqlite3')) as db:
+                    db.execute('UPDATE runs SET manifest_sha256=? WHERE run_id=?',(c.digest(raw),run));db.commit()
+                with self.assertRaises(ProductionError) as caught:workflow.read_run(self.root,run,force=True)
+                found=caught.exception.diagnostic.as_dict()
+                self.assertEqual((found['code'],found['run'],Path(found['file']),found['required_action']),
+                                 (code,run,directory/'manifest.json',compiler.REGISTERED_MANIFEST_DAMAGED))
+                self.assertEqual(compiler.staging_cleanup(self.root)['publications'],[])
 
     def test_predecessor_comes_from_formal_records(self):
         import production_workflow as workflow
@@ -997,11 +1290,26 @@ class ImplementationPinTests(unittest.TestCase):
                 workflow.assert_current(root,run)
                 module=copied/'scripts/production_compiler.py'
                 module.write_bytes(module.read_bytes()+b'\n')
-                with self.assertRaises(ProductionError) as caught:
-                    workflow.assert_current(root,run)
-            diagnostic=caught.exception.diagnostic
-            self.assertEqual((diagnostic.code,diagnostic.phase,diagnostic.file),
-                             ('IMPLEMENTATION_CHANGED','implementation','scripts/production_compiler.py'))
+                # The prepared run keeps its sealed request: a changed installation is a notice.
+                current=workflow.read_current(root,run)
+            [notice]=[item for item in current.notices if item['code']=='IMPLEMENTATION_CHANGED']
+            self.assertEqual((notice['severity'],notice['phase'],notice['file']),
+                             ('warning','implementation','scripts/production_compiler.py'))
+            self.assertNotIn('changed_files',notice)
+            with patch.object(workflow,'ROOT',copied):
+                other=copied/'scripts/production_execution.py'
+                other.write_bytes(other.read_bytes()+b'\n')
+                problems,found=workflow.freshness(root,run)
+            self.assertEqual(problems,[])
+            changed=[item for item in found if item['code']=='IMPLEMENTATION_CHANGED']
+            # One update of the installation is one notice, whatever its file count.
+            self.assertEqual(len(changed),1)
+            self.assertEqual(sorted(row['path'] for row in changed[0]['changed_files']),
+                             ['scripts/production_compiler.py','scripts/production_execution.py'])
+            self.assertEqual(changed[0]['file'],changed[0]['changed_files'][0]['path'])
+            for row,pin in ((row,next(d for d in pinned if d['path']==row['path'])) for row in changed[0]['changed_files']):
+                self.assertEqual(row['expected'],pin['sha256'])
+                self.assertNotEqual(row['actual'],pin['sha256'])
 
 
 class RecordingDestinationTests(unittest.TestCase):

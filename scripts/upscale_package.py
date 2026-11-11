@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import mimetypes
 import re
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
@@ -14,11 +13,10 @@ from prepare_generation_references import resolve_model_record
 from state_protocol import artifact_hash, finalize_artifact, sha256_json, validate_artifact
 from owned_json import json_type
 
-IMAGE_MEDIA_TYPES = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".webp": "image/webp",
+IMAGE_FORMAT_MEDIA_TYPES = {
+    "PNG": "image/png",
+    "JPEG": "image/jpeg",
+    "WEBP": "image/webp",
 }
 SETTING_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -45,11 +43,12 @@ def package_id_for(
     settings: Mapping[str, Any],
     guidance_prompt: str | None,
 ) -> str:
+    from production_binding import normalize_upscale_factor
     seed = {
         "model": model_id,
         "source_sha256": source_sha256,
         "output_sha256": output_sha256,
-        "scale_factor": float(scale_factor),
+        "scale_factor": normalize_upscale_factor(scale_factor),
         "settings": dict(settings),
         "guidance_prompt": guidance_prompt,
     }
@@ -71,12 +70,11 @@ def _image_metadata(path: Path, *, stored_path: str) -> dict[str, Any]:
     resolved = path.resolve(strict=True)
     if not resolved.is_file():
         raise ValueError(f"image path must be a regular file: {resolved}")
-    media_type = IMAGE_MEDIA_TYPES.get(resolved.suffix.lower())
-    if media_type is None:
-        guessed, _encoding = mimetypes.guess_type(resolved.name)
-        raise ValueError(f"unsupported image media type {guessed!r}: {resolved}")
     from PIL import Image
     with Image.open(resolved) as image:
+        media_type = IMAGE_FORMAT_MEDIA_TYPES.get(image.format)
+        if media_type is None:
+            raise ValueError(f"unsupported image media type {image.format!r}: {resolved}")
         width, height = image.size
         image.verify()
     if width < 1 or height < 1:
@@ -205,10 +203,10 @@ def build_upscale_package(
         raise ValueError(f"model record {model_id!r} is not an upscaler")
     if record.get("input_image_count") != 1:
         raise ValueError("the current Upscale Package contract supports exactly one source image")
-    if isinstance(scale_factor, bool) or not isinstance(scale_factor, (int, float)):
-        raise ValueError("scale_factor must be numeric")
-    supported = [float(value) for value in record.get("supported_scale_factors") or []]
-    if float(scale_factor) not in supported:
+    from production_binding import normalize_upscale_factor
+    scale_factor = normalize_upscale_factor(scale_factor)
+    supported = record.get("supported_scale_factors")
+    if supported is not None and scale_factor not in supported:
         raise ValueError(
             f"scale_factor {scale_factor!r} is not supported by model {model_id!r}: {supported}"
         )
@@ -257,7 +255,7 @@ def build_upscale_package(
         model_id=model_id,
         source_sha256=source["sha256"],
         output_sha256=output["sha256"],
-        scale_factor=float(scale_factor),
+        scale_factor=scale_factor,
         settings=normalized_settings,
         guidance_prompt=guidance,
     )
@@ -269,7 +267,7 @@ def build_upscale_package(
         "upscaler_record_sha256": canonical_record_sha256(record),
         "source_image": source,
         "output_image": output,
-        "scale_factor": float(scale_factor),
+        "scale_factor": scale_factor,
         "settings": normalized_settings,
         "guidance_prompt": guidance,
         "post_upscale_identity_audit": {
@@ -327,8 +325,9 @@ def verify_upscale_package(value: Any, *, package_root: Path,
         raise ValueError("source image bytes or metadata changed")
     if output != value.get("output_image"):
         raise ValueError("output image bytes or metadata changed")
-    factor = float(value.get("scale_factor"))
-    if factor not in [float(item) for item in record.get("supported_scale_factors") or []]:
+    from production_binding import normalize_upscale_factor
+    factor = normalize_upscale_factor(value.get("scale_factor"))
+    if record.get("supported_scale_factors") is not None and factor not in record['supported_scale_factors']:
         raise ValueError("scale_factor is outside the active model contract")
     expected_width = round(source["dimensions"]["width"] * factor)
     expected_height = round(source["dimensions"]["height"] * factor)

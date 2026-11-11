@@ -167,7 +167,7 @@ def rendered_request(package: dict, *, seed: int | None, count: int) -> dict:
                    {'subjects': visual['subjects'], 'purpose': visual['purpose'], 'output_kind': 'image'})
 
 
-def claim(root: Path, run: str, package: dict, verified: dict, journal: Path, count: int = 2) -> dict:
+def claim(root: Path, run: str, package: dict, journal: Path, count: int = 2) -> dict:
     import production_workflow as w
     rendered = rendered_request(package, seed=None, count=count)
     target = rendered['sealed']['target']
@@ -175,7 +175,7 @@ def claim(root: Path, run: str, package: dict, verified: dict, journal: Path, co
                                  offering={'service': target['service'], 'model_identifier': target['model_identifier']}, service={})
     authorization = grant(root, run, intent)
     (journal / 'request-contract.json').write_bytes(c.encoded(rendered))
-    return w.claim_dispatch(root, run, package, verified, journal, intent, authorization, rendered=rendered, authentication=None)
+    return w.claim_dispatch(root, run, package, journal, intent, authorization, rendered=rendered, authentication=None)
 
 
 def prepare_external_delivery(root: Path, prompt: str, *, route: str = 'generation',

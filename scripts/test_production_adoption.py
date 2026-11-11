@@ -187,7 +187,7 @@ class AdoptionTests(unittest.TestCase):
         self.assert_later_adoption('abandoned')
 
     def test_completed_slot_acceptance_can_be_adopted_later(self):
-        decision=acceptance.draft(self.root,self.run,self.candidate,'fixture-grant')
+        decision=acceptance.draft(self.root,self.run,self.candidate,'fixture-grant',scope='studio-slot')
         decision['reason']='Synthetic author accepts this existing image for delivery.'
         f.write(self.root/'slot-decision.json',decision)
         acceptance.accept(self.root,self.run,decision_file='slot-decision.json')
@@ -426,8 +426,10 @@ class AdoptionTests(unittest.TestCase):
         self.select()
         token=self.authorize_adoption();record=self.adopt(token)
         self.assertEqual(record['event'],'adoption-result');self.assertEqual(self.adopt(token),record)
-        self.select_adoption();workflow.complete(self.root,self.run)
-        self.assertEqual(workflow.verify_completion(self.root,self.run,self.task['task_id'])['event'],'completion')
+        self.select_adoption();completed=acceptance.accept(self.root,self.run)
+        self.assertEqual(completed['scope'],'studio-adoption')
+        self.assertEqual(workflow.verify_completion(self.root,self.run,self.task['task_id'])['sha256'],completed['completion'])
+        self.assertEqual(acceptance.accept(self.root,self.run)['completion'],completed['completion'])
         self.assertEqual(accounting.summary(self.root)['submissions'],1)
         self.assertIsNone(execution.status(self.root,self.run)['runs'][0]['next_action'])
 
@@ -501,6 +503,53 @@ class AdoptionTests(unittest.TestCase):
             with self.assertRaises(OSError): self.adopt(token)
         with self.assertRaises(ProductionError) as caught:self.select_adoption()
         self.assertEqual(caught.exception.diagnostic.code,'ADOPTION_RESULT_MISSING')
+        action = caught.exception.diagnostic.required_action
+        self.assert_names_adopt(caught.exception, token, 'ADOPTION_RESULT_MISSING')
+        with self.assertRaises(ProductionError) as current:
+            studio_reference.current_source(self.root, 'robot', 'base.front')
+        self.assertEqual((current.exception.diagnostic.code, current.exception.diagnostic.required_action),
+                         ('ADOPTION_RESULT_MISSING', action))
+        binding = adoption_workflow.reference_index(self.root, 'robot')['bindings'][0]
+        self.assertEqual((binding['next_action'], binding['adoption']['diagnostics'][-1]['required_action']),
+                         ('record-adoption-result', action))
+        self.assertEqual(self.adopt(token)['event'], 'adoption-result')
+        rows = store.event_rows(self.root, self.run)
+        self.assertEqual([sum(row['event'] == event for row in rows) for event in ('adoption-claim', 'adoption-result')], [1, 1])
+        self.assertEqual(self.select_adoption()['event'], 'selection')
+
+    def test_studio_adoption_selection_names_the_adopt_that_finishes_a_stopped_adoption(self):
+        self.select()
+        token = self.authorize_adoption()
+        with patch.object(adoption_workflow, '_bind_sheet', side_effect=OSError('Synthetic stop before the sheet binding.')):
+            with self.assertRaises(OSError):
+                self.adopt(token)
+        with self.assertRaises(ProductionError) as caught:
+            self.select_adoption()
+        self.assert_names_adopt(caught.exception, token, 'ADOPTION_RESULT_MISSING')
+        self.assertEqual(self.adopt(token)['event'], 'adoption-result')
+        self.assertEqual(self.select_adoption()['event'], 'selection')
+
+    def test_completion_refuses_a_selection_that_saved_an_unfinished_adoption_record(self):
+        token, record, path = self.adopted_record()
+        promote, _ = self.catalog_promotion()
+        with patch.object(adoption_workflow, 'adopt', side_effect=OSError('Synthetic stop before the owner starts.')):
+            with self.assertRaises(OSError):
+                promote()
+        later = workflow.find(store.event_rows(self.root, self.run), 'adoption-claim')
+        confirm = workflow.confirm_studio_adoption
+        def rewritten_meanwhile(*args, **kwargs):
+            paths = confirm(*args, **kwargs)
+            c.atomic_write_json(path, {**c.load(path), 'production_claim': later['sha256']})
+            return paths
+        with patch.object(workflow, 'confirm_studio_adoption', side_effect=rewritten_meanwhile):
+            selected = self.select_adoption()
+        with self.assertRaises(ProductionError) as caught:
+            workflow.complete(self.root, self.run)
+        diagnostic = caught.exception.diagnostic
+        self.assertEqual(diagnostic.code, 'ADOPTION_RESULT_MISSING')
+        self.assertIn(selected['sha256'], diagnostic.required_action)
+        self.assertIn('draft-selection --run ' + self.run + ' --candidate ' + self.candidate, diagnostic.required_action)
+        self.assertNotIn('production_workflow.py adopt', diagnostic.required_action)
 
     def test_interrupted_local_adoption_reuses_generation_execution(self):
         self.select()
@@ -519,6 +568,256 @@ class AdoptionTests(unittest.TestCase):
         token=self.authorize_adoption();f.write(self.root/'adoption-basis.txt','Other content must not be treated as the recorded approval.')
         with self.assertRaises(ValueError):self.adopt(token)
         self.assertFalse(any(r['event']=='adoption-result' for r in store.event_rows(self.root,self.run)))
+
+    def adopted_record(self):
+        """Adopt the selected candidate; return its authorization, recorded result row and Studio adoption record."""
+        self.select()
+        token = self.authorize_adoption()
+        record = self.adopt(token)
+        path = adoption_workflow._journal_path(studio.character_home(self.root, 'robot'), self.row['iteration_id'])
+        return token, record, path
+
+    def catalog_promotion(self):
+        """Authorize promoting the sheet adoption to catalog scope; return the adopt call and its authorization."""
+        from revision_contract import digest
+        registration = {'id':'adopted-test-character','label':'Adopted fixture','curation_status':'curated',
+            'category':'species','prompt':'a fictional test character','domains':['shared'],'tags':['fixture','character'],
+            'search_terms':[{'phrase':'adopted test character','facet':'species','weight':1.0,'source':'author'}],
+            'scaffold':{'family':'direct-geometry-required','confidence':'fallback'}}
+        approval = {**self.approval, 'scope':'catalog', 'registration_record_sha256':digest(registration)}
+        pack = Path(self.temp.name) / 'registered-pack'
+        f.write(self.root / 'catalog-approval.json', approval)
+        authority = store.authority(self.root, self.task['task_id'])
+        authority['grants'][0]['targets'].append('canon:catalog')
+        self.import_authority(authority)
+        token = fixture.grant(self.root, self.run, workflow.adoption_intent(self.root, self.run, self.candidate,
+            'robot', self.row['iteration_id'], approval, registration_record=registration, pack_dir=pack))
+        return (lambda: workflow.adopt(self.root, self.run, self.candidate, 'robot', self.row['iteration_id'],
+                    'catalog-approval.json', token, registration_record=registration, pack_dir=pack,
+                    settings=self.settings)), token
+
+    def assert_names_adopt(self, error, token, code, approval='approval.json'):
+        diagnostic = error.diagnostic
+        self.assertEqual(diagnostic.code, code)
+        for part in ('production_workflow.py adopt --run ' + self.run, '--candidate ' + self.candidate,
+                     '--iteration ' + self.row['iteration_id'], '--approval ' + approval, '--authorization ' + token):
+            self.assertIn(part, diagnostic.required_action)
+
+    def assert_names_restoring_adopt(self, error, token, approval='approval.json'):
+        self.assert_names_adopt(error, token, 'ADOPTION_RECORD_CORRUPT', approval)
+
+    def assert_readers_name_restoring_adopt(self, token, message):
+        """Every reader of the adoption record reports ADOPTION_RECORD_CORRUPT with the adopt command that restores it."""
+        reads = (lambda: studio_reference.current_source(self.root, 'robot', 'base.front'), self.select_adoption,
+                 lambda: workflow.adoption_intent(self.root, self.run, self.candidate, 'robot',
+                                                  self.row['iteration_id'], self.approval))
+        for read in reads:
+            with self.subTest(read=read), self.assertRaises(ProductionError) as caught:
+                read()
+            self.assert_names_restoring_adopt(caught.exception, token)
+            self.assertIn(message, caught.exception.diagnostic.message)
+        binding = adoption_workflow.reference_index(self.root, 'robot')['bindings'][0]
+        self.assertEqual(binding['next_action'], 'repair-reference')
+        diagnostic = binding['adoption']['diagnostics'][-1]
+        self.assertEqual((diagnostic['code'], diagnostic['required_action']),
+                         ('ADOPTION_RECORD_CORRUPT', caught.exception.diagnostic.required_action))
+        self.assertIn(caught.exception.diagnostic.required_action, studio.status(self.root))
+
+    def assert_repeated_adopt_restores(self, token, record, path):
+        recorded = {key: value for key, value in record['data']['result'].items() if key != 'ok'}
+        events = store.event_rows(self.root, self.run)
+        with (patch.object(adoption_workflow, 'adopt', side_effect=AssertionError('The owner adoption must not run again')),
+              patch.object(adoption_workflow, '_bind_sheet', side_effect=AssertionError('The sheet must not be bound again'))):
+            self.assertEqual(self.adopt(token), record)
+        self.assertEqual(c.load(path), recorded)
+        self.assertEqual(store.event_rows(self.root, self.run), events)
+        studio_reference.validate_source(studio_reference.current_source(self.root, 'robot', 'base.front'))
+        index = adoption_workflow.reference_index(self.root, 'robot')
+        self.assertTrue(index['ok'], index['errors'])
+        self.assertEqual(self.select_adoption()['event'], 'selection')
+
+    def test_repeated_adopt_restores_a_deleted_adoption_record(self):
+        token, record, path = self.adopted_record()
+        path.unlink()
+        for read in (lambda: studio_reference.current_source(self.root, 'robot', 'base.front'), self.select_adoption):
+            with self.subTest(read=read), self.assertRaises(ProductionError) as caught:
+                read()
+            self.assert_names_restoring_adopt(caught.exception, token)
+        binding = adoption_workflow.reference_index(self.root, 'robot')['bindings'][0]
+        self.assertEqual(binding['next_action'], 'repair-reference')
+        self.assertEqual(binding['adoption']['diagnostics'][-1]['code'], 'ADOPTION_RECORD_CORRUPT')
+        self.assert_repeated_adopt_restores(token, record, path)
+
+    def test_repeated_adopt_restores_a_truncated_adoption_record(self):
+        token, record, path = self.adopted_record()
+        path.write_bytes(path.read_bytes()[:40])
+        reads = (lambda: studio_reference.current_source(self.root, 'robot', 'base.front'), self.select_adoption,
+                 lambda: workflow.adoption_intent(self.root, self.run, self.candidate, 'robot',
+                                                  self.row['iteration_id'], self.approval))
+        for read in reads:
+            with self.subTest(read=read), self.assertRaises(ProductionError) as caught:
+                read()
+            self.assert_names_restoring_adopt(caught.exception, token)
+        binding = adoption_workflow.reference_index(self.root, 'robot')['bindings'][0]
+        self.assertEqual(binding['next_action'], 'repair-reference')
+        diagnostic = binding['adoption']['diagnostics'][-1]
+        self.assertEqual((diagnostic['code'], diagnostic['required_action']),
+                         ('ADOPTION_RECORD_CORRUPT', caught.exception.diagnostic.required_action))
+        self.assertIn(caught.exception.diagnostic.required_action, studio.status(self.root))
+        self.assert_repeated_adopt_restores(token, record, path)
+
+    def test_repeated_adopt_restores_the_record_of_a_superseded_iteration(self):
+        token, record, path = self.adopted_record()
+        imported = studio.iterate(self.root, 'robot', 'base.front', self.root / self.row['result']['path'],
+            package=None, request=None, response=None, note='Another explicit synthetic slot choice with separate ownership.')
+        studio.accept(self.root, 'robot', imported['iteration_id'])
+        path.write_bytes(path.read_bytes()[:40])
+        errors = adoption_workflow.reference_index(self.root, 'robot')['errors']
+        self.assertTrue(any(path.name in error and '--authorization ' + token in error for error in errors), errors)
+        with patch.object(adoption_workflow, 'adopt', side_effect=AssertionError('The owner adoption must not run again')):
+            self.assertEqual(self.adopt(token), record)
+        self.assertEqual(c.load(path), {key: value for key, value in record['data']['result'].items() if key != 'ok'})
+        errors = adoption_workflow.reference_index(self.root, 'robot')['errors']
+        self.assertFalse(any(path.name in error for error in errors), errors)
+
+    def test_repeated_adopt_restores_a_changed_adoption_record(self):
+        token, record, path = self.adopted_record()
+        recorded = c.load(path)
+        changes = {
+            'approval': lambda value: value['approval'].update(by='Another approver'),
+            'status': lambda value: value.update(status='candidate-accepted', next_action='bind-sheet'),
+            'sheet_decision': lambda value: value['sheet_decision'].update(reason='Another synthetic reason.'),
+            'production_claim': lambda value: value.update(production_claim='f' * 64),
+        }
+        for field, change in changes.items():
+            with self.subTest(field=field):
+                changed = copy.deepcopy(recorded)
+                change(changed)
+                c.atomic_write_json(path, changed)
+                self.assert_readers_name_restoring_adopt(
+                    token, 'names no adoption claim' if field == 'production_claim' else 'differs from the result')
+                self.assert_repeated_adopt_restores(token, record, path)
+
+    def test_an_earlier_adoption_result_in_place_of_the_latest_one_is_restored(self):
+        token, record, path = self.adopted_record()
+        promote, catalog_token = self.catalog_promotion()
+        promoted = promote()
+        c.atomic_write_json(path, {key: value for key, value in record['data']['result'].items() if key != 'ok'})
+        with self.assertRaises(ProductionError) as caught:
+            studio_reference.current_source(self.root, 'robot', 'base.front')
+        self.assert_names_restoring_adopt(caught.exception, catalog_token, 'catalog-approval.json')
+        self.assertIn('earlier adoption', caught.exception.diagnostic.message)
+        self.assertIn('--pack-dir', caught.exception.diagnostic.required_action)
+        self.assertEqual(adoption_workflow.reference_index(self.root, 'robot')['bindings'][0]['next_action'],
+                         'repair-reference')
+        with patch.object(adoption_workflow, 'adopt', side_effect=AssertionError('The owner adoption must not run again')):
+            self.assertEqual(promote(), promoted)
+        self.assertEqual(c.load(path), {key: value for key, value in promoted['data']['result'].items() if key != 'ok'})
+        studio_reference.validate_source(studio_reference.current_source(self.root, 'robot', 'base.front'))
+
+    def test_an_unfinished_catalog_adoption_resumes_after_its_earlier_record_is_restored(self):
+        token, record, path = self.adopted_record()
+        promote, catalog_token = self.catalog_promotion()
+        with patch.object(adoption_workflow, 'add_pack_root', side_effect=OSError('Synthetic stop after the pack is written.')):
+            with self.assertRaises(OSError):
+                promote()
+        pack = Path(c.load(path)['registration_target'])
+        created = c.load(pack / 'pack.json')['pack_id']
+        path.unlink()
+        for read in (lambda: studio_reference.current_source(self.root, 'robot', 'base.front'), promote):
+            with self.subTest(read=read), self.assertRaises(ProductionError) as caught:
+                read()
+            self.assert_names_restoring_adopt(caught.exception, token)
+        self.assertEqual(self.adopt(token), record)
+        self.assertEqual(c.load(path), {key: value for key, value in record['data']['result'].items() if key != 'ok'})
+        promoted = promote()
+        result = promoted['data']['result']
+        self.assertEqual((result['status'], result['registration']['pack_id']), ('catalog-registered', created))
+        self.assertEqual(c.load(pack / 'pack.json')['pack_id'], created)
+        rows = store.event_rows(self.root, self.run)
+        self.assertEqual([sum(row['event'] == event for row in rows) for event in ('adoption-claim', 'adoption-result')], [2, 2])
+        self.assertEqual(c.load(path), {key: value for key, value in result.items() if key != 'ok'})
+        studio_reference.validate_source(studio_reference.current_source(self.root, 'robot', 'base.front'))
+        self.assertTrue(adoption_workflow.reference_index(self.root, 'robot')['ok'])
+
+    def test_repeated_adopt_leaves_an_intact_adoption_record(self):
+        token, record, path = self.adopted_record()
+        raw = path.read_bytes()
+        with (patch.object(adoption_workflow, 'adopt', side_effect=AssertionError('The owner adoption must not run again')),
+              patch.object(adoption_workflow, 'atomic_write_json', side_effect=AssertionError('An intact record is not written'))):
+            self.assertEqual(self.adopt(token), record)
+        self.assertEqual(path.read_bytes(), raw)
+
+    def test_repeated_adopt_keeps_the_record_of_a_later_adoption_of_the_iteration(self):
+        from revision_contract import digest
+        token, record, path = self.adopted_record()
+        registration = {'id':'adopted-test-character','label':'Adopted fixture','curation_status':'curated',
+            'category':'species','prompt':'a fictional test character','domains':['shared'],'tags':['fixture','character'],
+            'search_terms':[{'phrase':'adopted test character','facet':'species','weight':1.0,'source':'author'}],
+            'scaffold':{'family':'direct-geometry-required','confidence':'fallback'}}
+        approval = {**self.approval, 'scope':'catalog', 'registration_record_sha256':digest(registration)}
+        pack = Path(self.temp.name) / 'registered-pack'
+        f.write(self.root / 'catalog-approval.json', approval)
+        authority = store.authority(self.root, self.task['task_id'])
+        authority['grants'][0]['targets'].append('canon:catalog')
+        self.import_authority(authority)
+        catalog_token = fixture.grant(self.root, self.run, workflow.adoption_intent(self.root, self.run, self.candidate,
+            'robot', self.row['iteration_id'], approval, registration_record=registration, pack_dir=pack))
+        promote = lambda: workflow.adopt(self.root, self.run, self.candidate, 'robot', self.row['iteration_id'],
+            'catalog-approval.json', catalog_token, registration_record=registration, pack_dir=pack, settings=self.settings)
+        promoted = promote()
+        later = {key: value for key, value in promoted['data']['result'].items() if key != 'ok'}
+        raw = path.read_bytes()
+        self.assertEqual(self.adopt(token), record)
+        self.assertEqual(path.read_bytes(), raw)
+        path.unlink()
+        self.assertEqual(self.adopt(token), record)
+        self.assertFalse(path.exists())
+        with self.assertRaises(ProductionError) as caught:
+            studio_reference.current_source(self.root, 'robot', 'base.front')
+        self.assertIn('--authorization ' + catalog_token, caught.exception.diagnostic.required_action)
+        self.assertIn('--pack-dir', caught.exception.diagnostic.required_action)
+        with patch.object(adoption_workflow, 'adopt', side_effect=AssertionError('The owner adoption must not run again')):
+            self.assertEqual(promote(), promoted)
+        self.assertEqual(c.load(path), later)
+        studio_reference.validate_source(studio_reference.current_source(self.root, 'robot', 'base.front'))
+
+    def test_changed_iteration_slot_names_the_record_that_disagrees(self):
+        _, _, path = self.adopted_record()
+        raw = path.read_bytes()
+        home = studio.character_home(self.root, 'robot')
+        rows = studio.read_iteration_records(home)
+        rows[0]['slot'] = 'base.side'
+        studio.write_iterations(home, rows)
+        with self.assertRaises(ProductionError) as caught:
+            self.select_adoption()
+        diagnostic = caught.exception.diagnostic.as_dict()
+        self.assertEqual(diagnostic['code'], 'ADOPTION_RECORD_CORRUPT')
+        self.assertEqual(diagnostic['expected'], {'slot':'base.front', 'image_sha256':self.row['result']['sha256']})
+        self.assertEqual(diagnostic['actual'], {'slot':'base.side', 'image_sha256':self.row['result']['sha256']})
+        self.assertIn('characters/robot/iterations.jsonl', diagnostic['required_action'])
+        self.assertNotIn('production_workflow.py', diagnostic['required_action'])
+        self.assertEqual(path.read_bytes(), raw)
+
+
+class RecordedAdoptionEvidenceTests(unittest.TestCase):
+    """A recorded studio-adoption selection is verified from the snapshots it saved; synthetic records only."""
+
+    def test_a_studio_adoption_selection_without_a_saved_file_names_a_new_run(self):
+        run = 'synthetic-run'
+        candidate = {'sequence': 1, 'event': 'candidate', 'sha256': 'c' * 64, 'data': {'files': [{'sha256': 'e' * 64}]}}
+        selection = {'sequence': 2, 'event': 'selection', 'sha256': 'd' * 64, 'data': {'files': [], 'selection': {
+            'scope': 'studio-adoption', 'candidate': candidate['sha256'],
+            'adoption': {'character': 'robot', 'iteration_id': 'synthetic-iteration', 'scope': 'sheet'}}}}
+        with self.assertRaises(ProductionError) as caught:
+            workflow._recorded_studio_adoption(run, selection, [candidate, selection], lambda key: b'')
+        found = caught.exception.diagnostic.as_dict()
+        self.assertEqual((found['code'], found['file'], found['run'], found['event']),
+                         ('EVIDENCE_SNAPSHOT_MISSING', 'characters/robot/adoptions/synthetic-iteration.json',
+                          run, selection['sha256']))
+        # The record names no snapshot of the file, so there are no saved bytes to restore.
+        self.assertNotIn('expected', found)
+        self.assertEqual(found['required_action'], workflow.UNSAVED_SELECTION_RECORD.format(run=run))
 
 
 if __name__ == '__main__':

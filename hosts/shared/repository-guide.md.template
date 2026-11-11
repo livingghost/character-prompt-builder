@@ -88,6 +88,11 @@ and the selected `--service SERVICE`, `--model-file FILE` for an acquired model,
 or `--dialect ID` for family-only work. The reader delivers the complete operation
 and execution contract and selected knowledge. Continue every page to its delivery record.
 An earlier source-delivery record alone does not supply knowledge to a new context.
+The reader returns JSON: read each `body` segment, follow `actions.continue`
+until null, and retain `reading.record`. In the same context, supply complete
+prior keys with repeatable `--known-reading` or follow `context_reuse.operations`;
+the reader delivers missing or changed bodies and records their provenance.
+Fresh contexts read the applicable bodies again without discarding production work.
 
 Edit the draft's files and authored choices. Task direction, independent criteria,
 source use, expression and controls stay with their responsible author. The
@@ -254,6 +259,11 @@ conditions and models and the causal evidence available.
 - Place neutral synthetic examples under `examples/` and preserve the user's material in their own studio.
 - Give each text-encoding test one necessary non-ASCII fixture, distributing script coverage across tests.
 - Report executed checks separately from unverified behavior, including incomplete runs and environmental failures.
+- An agent acts on what a command prints, on `--help` and on a search of the documents and code.
+  A change that adds or alters a reported state or value, an option, a refusal or a diagnostic updates those surfaces with it:
+  the report gives the meaning or the next action, the diagnostic names its repair in `required_action` instead of the default text,
+  `--help` describes the option or value, and the routed document and the diagnostic code table say the same.
+  Follow [Context for judgment](references/maintenance/agent-workflow-design.md#context-for-judgment).
 
 Prepare a release commit only after local validation and packaging agree.
 Add its CHANGELOG section above the earlier ones, with what changed for a user.

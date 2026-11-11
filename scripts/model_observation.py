@@ -265,7 +265,7 @@ def publish(root:Path,run:str,out_dir:Path,*,relative_prefix:str,adoption:dict|N
     with tempfile.TemporaryDirectory(prefix='.pending-observation-',dir=out_dir.parent) as temporary:
         staging=Path(temporary)
         for name,raw in files.items():c.atomic(staging/name,raw)
-        c.publish_directory(staging,out_dir);c.fsync_dir(out_dir.parent)
+        c.publish_directory(staging,out_dir);c.flush_published(out_dir)
     return result
 
 

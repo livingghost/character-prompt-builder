@@ -101,6 +101,14 @@ python scripts/pack_cli.py validate --directory ~/.character-prompt-builder/pack
 
 The lock records every pack file except itself with relative path, size, media type, role, and SHA-256. Any change to a locked file invalidates the pack, so a pack still being edited stays unlocked. Advance the pack's own CalVer, rebuild the lock, and publish the complete new release. Never publish different bytes under the same pack UUID and release.
 
+`build-lock` acquires and validates the complete current inventory once, checks
+the existing release identity, and atomically publishes that same checked
+candidate. Its `inventory_changes` lists added, modified and removed paths.
+This is a complete content check, not an incremental trust in timestamps or an
+unchanged file size. A new lock or release does not by itself invalidate route
+reading. The reading consumer compares the documents, selected resources and
+model guidance its current operation requires, and names actual differences.
+
 Run exact one-pack publication checks through [Release Validation](../release/validation.md).
 
 ## Discovery roots and state changes

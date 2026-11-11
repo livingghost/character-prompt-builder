@@ -17,9 +17,9 @@ Resolve `<skill-root>` to the absolute directory containing this installed `SKIL
 uv run --project <skill-root> --locked python <skill-root>/scripts/check_dependencies.py
 ```
 
-The first invocation synchronizes Python packages. Add `--capability sheet` for sheet fonts or `--capability temporal-media` for FFprobe. Resolve reported requirements under [Dependencies](DEPENDENCIES.md).
+The first invocation synchronizes packages. Add `--capability sheet` for fonts or `--capability temporal-media` for FFprobe. Resolve requirements under [Dependencies](DEPENDENCIES.md).
 
-For every documented `python scripts/<name>.py ...` command, run `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...`. Keep the Studio working directory: `--project` selects this skill's environment while script arguments retain their own path meanings. Execute runtime-provided `argv` as given; it retains the running interpreter and absolute script path. Use this environment for every route.
+Run documented `python scripts/<name>.py ...` commands as `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...`. Keep the Studio working directory: `--project` selects the skill environment without changing argument paths. Execute returned `argv` as given; it retains the interpreter and absolute script path. Use this environment for every route.
 
 ## Core contract
 
@@ -51,7 +51,7 @@ An authored rendering declaration binds its prompt span in `render_intent`. Use 
 A Generation Package uses `generation-package` (automatic for dispatcher), with its exact interface profile and mode-valid controls. Record unlisted targets under [Image Generation](references/runtime/image-generation.md#choose-execution). `image_input` binds references and exact external requests; edits add [Semantic instruction editing](references/runtime/semantic-instruction-edit.md). [Model evidence](references/runtime/model-evidence.md) owns schemas, trials, profiles, suitability and failure diagnosis.
 Put execution values in declared controls, not prompt prose. Image shape and framing remain depiction choices. Resolve required scalar recommendations with provenance; choose within ranges. Display unavailable controls without sending them.
 Display the rendering choice and complete verified request before submission. Use its named provider; never substitute engines.
-For model or service changes, follow [Retarget](references/runtime/production-variation.md#change-the-target-explicitly), starting from the source run.
+For model, prompt, reference or post-completion changes, follow [Variation](references/runtime/production-variation.md) from the source run. Preserve independent branches and earlier results.
 
 ## Knowledge use and retrieval records
 
@@ -73,7 +73,7 @@ Before prompt, reference, sheet, generation or visual-state series work (not per
 
 ## Artifact-bearing production gate
 
-Saved work reads `python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO` with features. Execution: `authored`, `external`, `dispatcher`; operation: `author`, `save`, `prepare`, `execute`, `review`, `adopt`. Read [full contracts](references/runtime/production-execution.md) and specialists. Select `--model MODEL [--service SERVICE]`, `--model-file FILE` or `--dialect ID`. Follow `reading-actions.continue` to `reading-record`. Reuse complete current context; new contexts reread. Delivery is not comprehension.
+Saved work reads `python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO` with features. Execution: `authored`, `external`, `dispatcher`; operation: `author`, `save`, `prepare`, `execute`, `review`, `adopt`. Read [full contracts](references/runtime/production-execution.md) and specialists. Select `--model MODEL [--service SERVICE]`, `--model-file FILE` or `--dialect ID`. Read JSON `body`; follow `actions.continue` until null and `reading.record` is issued. Explicit `--known-reading` keys reuse complete current context; fresh contexts reread. Delivery is not comprehension.
 
 Edit `draft-inputs` files; use `save --choices FILE` for text (`--draft` if unfinished), or `prepare --choices FILE` for images. `status` locates sources and next actions. `build-inputs` is an optional export.
 
@@ -101,7 +101,7 @@ Conversation-only prompts read no route: read [Prompt-Only Core](references/runt
 - several images at once, across models or as concurrent variants of one model: route `batch`;
 - accepted characters in a new pose or shared scene, including staged asset creation: route `repose`;
 - deterministic editing of pinned stills: feature `image-edit`; user-requested semantic replacement of clothing, objects, environment or other depicted content: feature `semantic-instruction-edit`, [Semantic instruction editing](references/runtime/semantic-instruction-edit.md); masks when needed: feature `scene-mask-planning`;
-- enlarging a finished image: route `upscale` with an active upscaler model record;
+- enlarging a finished image: route `upscale`; offer enlargement when its intended use needs more resolution;
 - canonical identity, a character sheet, its panels, candidates or reference board: route `character-sheet`, [Sheet fills](references/runtime/sheet-fill-workflow.md); a new pose or scene for an accepted character uses `repose` or `generation` instead;
 - sheet, iteration, or accepted-image work, which lives in a studio: feature `studio` first;
 - explicit selection for a canonical owner: route or feature `adoption`;
@@ -126,7 +126,7 @@ After story revisions, update Studio sources and run `studio.py sync` for the au
 
 ## Common runtime sequence
 
-[Common runtime sequence](references/runtime/production-workflow.md) owns continuation for every image deliverable. Follow `next_action` and phase context. Edit choices and judgments; scripts derive paths, repeated values and receipts. Context views and prior readings supply no new judgment.
+Follow [Common runtime sequence](references/runtime/production-workflow.md) for images. Start with `draft-inputs` and its read action, then `next_action` and phase context. Edit choices; scripts derive paths, repeated values and receipts. Views supply no judgment.
 
 ## Identity and scene-state authority
 

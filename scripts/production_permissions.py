@@ -7,6 +7,7 @@ who may perform the exact operation and the evidence of their permission.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import copy
 from typing import Any
 import execution_contract as c
 from production_diagnostics import ProductionError
@@ -67,6 +68,41 @@ def validate(authority: Any, task_id: str) -> None:
         stops.add(entry['id'])
 
 
+def acquire(authority: Any, task_id: str, reader) -> dict:
+    """Bind selected delegation sources to acquired bytes without inventing permission.
+
+    Authors select paths and locators. A supplied digest is a constraint; an
+    omitted digest is derived here. The stored authority always has complete
+    source references and remains distinct from the editable declaration.
+    """
+    value = copy.deepcopy(authority)
+
+    def source(ref: dict) -> dict:
+        c.exact(ref, {'path', 'locator'} | ({'sha256'} if 'sha256' in ref else set()),
+                'selected delegation source')
+        c.text(ref['locator'], 'source locator')
+        selected = reader.select(ref['path'])
+        if 'sha256' in ref and c.sha(ref['sha256']) != selected['sha256']:
+            raise ProductionError('SOURCE_CHANGED', 'The selected delegation source differs from its declared digest.',
+                phase='authority-evidence', file=ref['path'], expected=ref['sha256'], actual=selected['sha256'],
+                required_action='Inspect the current source and explicitly update its selection or restore the cited bytes.')
+        result = {**selected, 'locator': ref['locator']}
+        reader.basis(result)
+        return result
+
+    for grant in value.get('grants', []):
+        scope = grant.get('request_scope')
+        if scope is None:
+            continue
+        scope['plan'] = source(scope['plan'])
+        for case in scope.get('cases', []):
+            for rule in case.get('variations', {}).values():
+                if rule.get('kind') == 'authored-content':
+                    rule['source'] = source(rule['source'])
+    validate(value, task_id)
+    return value
+
+
 def validate_request(request: Any) -> None:
     c.exact(request, {'grant', 'actor', 'operation', 'targets', 'payload', 'outputs',
                       'stop_assessments', 'reason'} | ({'request_decision'} if isinstance(request, dict) and 'request_decision' in request else set()), 'authorization request')
@@ -122,37 +158,106 @@ def target_coverage(authority: dict, operation: str, targets: list[str], *, now:
             if operation in grant['operations'] and grant_current(grant, instant)]
 
 
+def _grant_diagnostics(authority: dict | None, operation: str, targets: list[str],
+                       grant_id: str | None, *, actor: str | None = None,
+                       now: datetime | None = None) -> list[dict]:
+    """One mechanical coverage check for both guidance and authorization."""
+    terms = {'operation': operation, 'grant': grant_id}
+    problems = []
+
+    def add(code: str, message: str, **details) -> None:
+        problems.append(ProductionError(code, message, phase='authorization', **terms, **details).diagnostic.as_dict())
+
+    if authority is None:
+        add('AUTHORIZATION_REQUIRED', 'The work task has no registered current authority.',
+            required_action='Import actual authority for these operations and targets before execution.')
+        return problems
+    if grant_id is None:
+        add('AUTHORIZATION_REQUIRED', 'Select a current grant for this prepared operation.',
+            expected=sorted(targets), required_action='Select one eligible grant from the operation requirements, or obtain actual authority for the missing scope.')
+        return problems
+    matches = [g for g in authority['grants'] if g['id'] == grant_id]
+    if len(matches)!=1:
+        add('GRANT_REVOKED', 'The current authority no longer contains this grant.', required_action=GRANT_ACTION)
+        return problems
+    grant=matches[0];instant=now or datetime.now(timezone.utc)
+    if grant.get('revoked_at') is not None:
+        add('GRANT_REVOKED', 'The selected grant was revoked.', actual=grant['revoked_at'], required_action=GRANT_ACTION)
+    if grant.get('effective_at') is not None and instant<time_value(grant['effective_at']):
+        add('GRANT_NOT_EFFECTIVE', 'The grant is not yet effective.', actual=grant['effective_at'],
+            required_action='Wait for the grant to take effect, or obtain a grant that is effective now.')
+    if grant['expires_at'] is not None and instant>=time_value(grant['expires_at']):
+        add('GRANT_REVOKED', 'The selected grant has expired.', actual=grant['expires_at'], required_action=GRANT_ACTION)
+    if (actor is not None and grant['actor'] != actor) or operation not in grant['operations']:
+        add('GRANT_SCOPE_EXCEEDED', 'Actor or operation is outside the current grant.',
+            expected={'actor': actor if actor is not None else grant['actor'], 'operation': operation},
+            actual={'actor': grant['actor'], 'operations': sorted(grant['operations'])},
+            required_action='Obtain a current grant naming this actor and operation; another actor cannot act on it.')
+    missing=sorted(set(targets)-set(grant['targets']))
+    if missing:
+        add('GRANT_SCOPE_EXCEEDED', 'The current grant does not cover all required targets.',
+            pointer='$.targets', expected=sorted(targets), actual=sorted(grant['targets']),
+            granted=sorted(grant['targets']), missing=missing, required_action=SCOPE_ACTION)
+    return problems
+
+
+def _raise_diagnostic(diagnostic: dict, **details) -> None:
+    value = {key: item for key, item in diagnostic.items() if key not in {'severity', 'blocked_checks'}}
+    raise ProductionError(**value, **details)
+
+
+def grant_requirements(authority: dict | None, intents: list[dict], *,
+                       selections: list[dict] | None = None, grant: str | None = None,
+                       now: datetime | None = None) -> dict:
+    """Describe every operation before submission, preserving explicit grant choices.
+
+    An unanswered selector can use its sole eligible grant. Coverage does not
+    approve the exact request, assess a stop condition or choose a scope case.
+    """
+    instant = now or datetime.now(timezone.utc)
+    selected = {item['operation']: item.get('grant') for item in selections or []}
+    requirements = []
+    for intent in intents:
+        operation, targets = intent['operation'], sorted(intent['targets'])
+        candidates = []
+        for item in (authority or {}).get('grants', []):
+            diagnostics = _grant_diagnostics(authority, operation, targets, item['id'], now=instant)
+            candidates.append({'grant': item['id'], 'actor': item['actor'],
+                'operations': sorted(item['operations']), 'granted': sorted(item['targets']),
+                'missing': sorted(set(targets) - set(item['targets'])),
+                'eligible': not diagnostics, 'diagnostics': diagnostics})
+        eligible = [item for item in candidates if item['eligible']]
+        chosen = selected.get(operation)
+        if chosen is None:
+            chosen = grant if grant is not None else eligible[0]['grant'] if len(eligible) == 1 else None
+        match = next((item for item in candidates if item['grant'] == chosen), None)
+        diagnostics = _grant_diagnostics(authority, operation, targets, chosen, now=instant)
+        requirements.append({'operation': operation, 'targets': targets, 'selected_grant': chosen,
+            'selected_actor': match['actor'] if match else None, 'candidates': candidates,
+            'eligible': not diagnostics, 'diagnostics': diagnostics})
+    diagnostics = [item for requirement in requirements for item in requirement['diagnostics']]
+    return {'state': 'covered' if not diagnostics else 'action-required', 'requirements': requirements,
+            'diagnostics': diagnostics,
+            'limit': 'Mechanical grant coverage only. Exact request approval, scope and stop assessments remain with the responsible actor.'}
+
+
+def require_grants(requirements: dict) -> None:
+    """Refuse all uncovered operations together before recording any authorization."""
+    if requirements['diagnostics']:
+        _raise_diagnostic(requirements['diagnostics'][0], authorization_requirements=requirements)
+
+
 def check(authority: dict, request: dict, *, now: datetime | None = None) -> dict:
     """Verify current authority and the exact operation before recording its execution."""
     validate_request(request)
-    terms={'operation':request['operation'],'grant':request['grant']}
-    matches=[g for g in authority['grants'] if g['id']==request['grant']]
-    if len(matches)!=1:
-        raise ProductionError('GRANT_REVOKED','The current authority no longer contains this grant.',phase='authorization',
-                              required_action=GRANT_ACTION,**terms)
-    grant=matches[0];instant=now or datetime.now(timezone.utc)
-    if grant.get('revoked_at') is not None:
-        raise ProductionError('GRANT_REVOKED','The selected grant was revoked.',phase='authorization',actual=grant['revoked_at'],
-                              required_action=GRANT_ACTION,**terms)
-    if grant.get('effective_at') is not None and instant<time_value(grant['effective_at']):
-        raise ProductionError('GRANT_NOT_EFFECTIVE','The grant is not yet effective.',phase='authorization',actual=grant['effective_at'],
-                              required_action='Wait for the grant to take effect, or obtain a grant that is effective now.',**terms)
-    if grant['expires_at'] is not None and instant>=time_value(grant['expires_at']):
-        raise ProductionError('GRANT_REVOKED','The selected grant has expired.',phase='authorization',actual=grant['expires_at'],
-                              required_action=GRANT_ACTION,**terms)
-    if grant['actor']!=request['actor'] or request['operation'] not in grant['operations']:
-        raise ProductionError('GRANT_SCOPE_EXCEEDED','Actor or operation is outside the current grant.',phase='authorization',
-                              expected={'actor':request['actor'],'operation':request['operation']},
-                              actual={'actor':grant['actor'],'operations':sorted(grant['operations'])},
-                              required_action='Obtain a current grant naming this actor and operation; another actor cannot act on it.',**terms)
-    missing=sorted(set(request['targets'])-set(grant['targets']))
-    if missing:
-        raise ProductionError('GRANT_SCOPE_EXCEEDED','The current grant does not cover all required targets.',phase='authorization',
-                              pointer='$.targets',expected=sorted(request['targets']),actual=sorted(grant['targets']),
-                              granted=sorted(grant['targets']),missing=missing,required_action=SCOPE_ACTION,**terms)
+    problems = _grant_diagnostics(authority, request['operation'], request['targets'], request['grant'],
+                                  actor=request['actor'], now=now)
+    if problems:
+        _raise_diagnostic(problems[0])
+    terms = {'operation': request['operation'], 'grant': request['grant']}
     if {x['id'] for x in request['stop_assessments']}!={x['id'] for x in authority['stop_conditions']}:
         raise ProductionError('AUTHORIZATION_REQUIRED','Every declared stop condition needs an actual current assessment.',phase='authorization',
                               pointer='$.stop_assessments',expected=sorted(x['id'] for x in authority['stop_conditions']),
                               actual=sorted(x['id'] for x in request['stop_assessments']),
                               required_action='Assess every current stop condition from actual evidence.',**terms)
-    return grant
+    return next(grant for grant in authority['grants'] if grant['id'] == request['grant'])

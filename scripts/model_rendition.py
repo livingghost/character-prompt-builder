@@ -95,7 +95,13 @@ def validate_bindings(rows:Any)->list[dict]:
 def reference_contract(policy:dict|None,reader:InputEvidence,expected_target:dict,dialect:str|None,rows:list[dict])->dict|None:
     validate_bindings(rows)
     if not rows:return None
-    if policy is None:raise ValueError('selected reference bindings require an explicit reference_instruction_transport')
+    if policy is None:
+        from production_diagnostics import ProductionError
+        raise ProductionError('VALIDATION_POLICY_REQUIRED',
+            'The selected references need an execution policy that declares reference_instruction_transport.',
+            phase='request-validation-evidence',pointer='$.validation.execution_policy',
+            required_action='Author an execution policy that declares reference_instruction_transport for this target, '
+                            'select it at choices.validation.execution_policy, then run the same command again.')
     c.exact(policy,{'mode','contract'},'reference instruction transport')
     mode=policy['mode']
     if mode not in {'native-fields','authored-rendition','not-supported'}:raise ValueError('unknown reference instruction transport')

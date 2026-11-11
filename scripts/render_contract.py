@@ -4,6 +4,7 @@ from __future__ import annotations
 import operation_context as _operation_context
 import argparse
 import json
+import sys
 from pathlib import Path
 import model_suitability as suitability
 import render_contract_lib as r
@@ -63,6 +64,38 @@ def measured_basis(model_id: str, record: dict, offering: dict | None) -> dict |
         reader, expected_target=target, execution=recorded)
 
 
+def available_models(operation: str, service: str | None, runtime) -> dict:
+    """List complete catalog advice and executable inspection in this runtime."""
+    from catalog_retrieval.runtime import load_pack_catalog
+    rows, errors = [], []
+    for entry in sorted(load_pack_catalog().entries, key=lambda item: item.record['id']):
+        if entry.kind != 'model' or entry.record.get('operation_kind', 'generation') != operation:
+            continue
+        record = entry.record
+        offerings = record.get('offerings') or [None]
+        for offering in offerings:
+            selected_service = (offering or {}).get('service')
+            if service is not None and selected_service != service:
+                continue
+            argv = [sys.executable, str(Path(__file__).resolve()), 'model', '--model', record['id']]
+            if selected_service is not None:
+                argv += ['--service', selected_service]
+            argv += runtime.command_arguments()
+            try:
+                measured_basis(record['id'], record, offering)
+                card = r.model_card(record, offering)
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                errors.append({'model': record['id'], 'service': selected_service, 'reason': str(exc)})
+                continue
+            rows.append({'model': record['id'], 'service': selected_service,
+                'model_identifier': (offering or {}).get('model_identifier', record['id']),
+                'card': card, 'next_action': {'action': 'inspect-model', 'argv': argv,
+                    'reason': 'Inspect this exact model and service in the selected pack runtime.'}})
+    return {'operation': operation, 'service': service, 'models': rows,
+            'resolution_errors': errors,
+            'note': 'Catalog advice describes declared inputs. No request was sent or checked by this listing.'}
+
+
 def main(argv=None) -> int:
     parser = _operation_context.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -87,6 +120,10 @@ def main(argv=None) -> int:
     from pack_runtime_cli import add_pack_runtime_arguments
     add_pack_runtime_arguments(diagnose)
     add_pack_runtime_arguments(preferences)
+    models = sub.add_parser('models', help='List model guidance for an operation and optional service')
+    models.add_argument('--operation', required=True, choices=sorted(suitability.OPERATIONS))
+    models.add_argument('--service')
+    add_pack_runtime_arguments(models)
     for command in ('model', 'compile', 'assess'):
         p = sub.add_parser(command)
         if command == 'assess':
@@ -136,6 +173,12 @@ def main(argv=None) -> int:
             else:
                 value, witness = suitability.load_preferences()
                 result = {'preferences': value, 'source': witness, 'path': str(suitability.preferences_path())}
+        elif args.command == 'models':
+            from pack_runtime_cli import resolve_pack_runtime
+            from catalog_cli import configure_pack_runtime
+            runtime = resolve_pack_runtime(parser, args)
+            configure_pack_runtime(runtime.settings);configured=True
+            result = available_models(args.operation, args.service, runtime)
         elif args.command == 'diagnose':
             from input_evidence import InputEvidence
             from pack_runtime_cli import resolve_pack_runtime

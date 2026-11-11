@@ -34,7 +34,7 @@ import transport_contract  # noqa: E402
 import transport_runware  # noqa: E402
 from request_contract import MANAGEMENT_VALUE
 
-EXPECTED_CHECKS = 66
+EXPECTED_CHECKS = 67
 
 SERVICE = {"endpoint": {"base_url": "https://example.invalid/v1", "method": "POST"}, "operations": {"imageInference": {}}, "auth": {"scheme": "bearer", "header": "Authorization"}}
 TEXT_KEYS = {"model": ["model"], "prompt": ["positivePrompt"], "negative prompt": ["negativePrompt"]}
@@ -493,10 +493,10 @@ def main() -> int:
             return self.give
 
     outcomes = [transport_contract.lookup_once(transport, {}, {}, "KEY")["outcome"] for transport in (
-        types.SimpleNamespace(), Asked({"data": []}), Asked(None),
+        Asked({"data": []}), Asked(None),
         Asked(transport_contract.Indeterminate("the service answered 503")), Asked(ConnectionResetError("reset")))]
-    check("lookup_once says unsupported, found, no-answer or unavailable, and only found carries an answer",
-          outcomes == ["unsupported", "found", "no-answer", "unavailable", "unavailable"]
+    check("lookup_once says found, no-answer or unavailable, and only found carries an answer",
+          outcomes == ["found", "no-answer", "unavailable", "unavailable"]
           and transport_contract.lookup_once(Asked({"data": []}), {}, {}, "KEY")["answer"] == {"data": []}, outcomes)
     check("only a transport that declares CREDENTIAL_FREE True is credential-free",
           [transport_contract.credential_free(item) for item in (types.SimpleNamespace(CREDENTIAL_FREE=True),
@@ -513,10 +513,20 @@ def main() -> int:
         lacking = refusal(lambda: transport_contract.load("partial_fixture"))
     check("a transport that lacks or mistypes contract names is refused in one line naming each",
           all(f"{name} is missing" in lacking for name in ("compile_request", "compile_upscale", "added_parameters",
-                                                           "upload_media", "send", "rejections", "results", "observation_outcome"))
+                                                           "upload_media", "send", "lookup", "rejections", "results",
+                                                           "observation_outcome"))
           and "RESULT_HOSTS is not a set of host names" in lacking and "CREDENTIAL_FREE is not a boolean" in lacking
-          and "lookup" not in lacking and "endpoint" not in lacking
-          and "OPERATIONS" not in lacking and len(lacking.splitlines()) == 1, lacking)
+          and "endpoint" not in lacking and "OPERATIONS" not in lacking and len(lacking.splitlines()) == 1, lacking)
+    # Every other name of a complete transport, without lookup: load names lookup as the one thing it lacks.
+    import transport_synthetic
+    lookupless = types.ModuleType("transport_lookupless_fixture")
+    lookupless.__dict__.update({name: value for name, value in vars(transport_synthetic).items()
+                                if not name.startswith("__") and name != "lookup"})
+    with patch.dict(sys.modules, {"transport_lookupless_fixture": lookupless}):
+        without = refusal(lambda: transport_contract.load("lookupless_fixture"))
+    check("a transport without lookup is refused by load, which names lookup as the function it lacks",
+          without == "transport_lookupless_fixture does not meet the transport contract in "
+                     "scripts/transport_contract.py: lookup is missing", without)
     absent = refusal(lambda: transport_contract.load("absent_fixture"))
     check("a record naming a transport that is not there names the module to write and the contract",
           "scripts/transport_absent_fixture.py" in absent and "scripts/transport_contract.py" in absent

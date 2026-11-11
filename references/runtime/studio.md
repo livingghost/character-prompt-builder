@@ -425,7 +425,7 @@ abandoned. It appends its own adoption evidence and preserves the original
 production decision and closure. For imported iterations, the Studio
 owns plain slot acceptance and [Adoption Workflow](adoption-workflow.md) owns
 sheet or catalog binding.
-[Production execution](production-adoption.md#select-optionally-adopt-and-finish)
+[Production execution](production-adoption.md#select-a-reviewed-result-and-finish)
 gives the procedures and the rules that withdraw a selection.
 
 ## Artifact evidence and completion

@@ -173,7 +173,7 @@ class RegisteredRuntimeContinuationTests(unittest.TestCase):
         ambient = runtime.selected_pack_settings()
         report = inputs.inspect_inputs(self.root)
         draft = next(row for row in report['inputs'] if row.get('choices') == choices_path)
-        self.assertNotIn('target-evidence-required', [row['code'] for row in draft['unresolved']])
+        self.assertNotIn('target-evidence-required', [row.get('reason') for row in draft['unresolved']])
         reading = next(row for row in draft['unresolved'] if row['code'] == 'TARGET_GUIDANCE_REQUIRED')
         action = reading['next_action']
         self.assertEqual(action['args']['model'], self.model)

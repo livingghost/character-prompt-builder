@@ -49,7 +49,7 @@ A complete run that waits for authority is a normal prepared result.
 Invalid input remains an unpublished staging attempt.
 
 Each row of `checks` names a `phase`, its `state` (`passed`, `failed` or `not-performed`) and the checks it `requires`.
-A failed prerequisite gives `CHECK_NOT_PERFORMED`, whose `blocked_by` names it; none of those states is a pass.
+A check whose prerequisite did not pass gives `CHECK_NOT_PERFORMED`: `blocked_by` names that prerequisite, and `required_action` names the failed check to resolve first by its own diagnostic. None of those states is a pass.
 A task schema error blocks only the checks that need the whole task.
 Declared document checks such as specification, plot, retrieval, parameters and target still run and report. A missing selected file is an error; an unused optional document is not a missing requirement.
 A recording error does not stop model controls, route reading, retrieval or negative-input validation.
@@ -60,15 +60,18 @@ A synthetic `check` of a missing task file exits 2 and reports (trimmed):
 ```json
 {"ok": false, "publishable": false, "run": null, "diagnostics": [
   {"code": "INPUT_UNREADABLE", "phase": "task-read", "file": "missing-task.json", "cause": "missing file: missing-task.json",
-   "required_action": "Name an existing regular file by its path relative to the studio root, with / separators."},
-  {"code": "CHECK_NOT_PERFORMED", "phase": "task-read", "blocked_checks": ["task-schema", "task-contract", "sources", "..."]}]}
+   "required_action": "No file exists at this path below the root it is read from. Correct the path where it is given, or put the file there, then run the command again."},
+  {"code": "CHECK_NOT_PERFORMED", "phase": "task-read", "blocked_checks": ["task-schema", "task-contract", "sources", "..."],
+   "blocked_by": ["task-read"],
+   "required_action": "Resolve the error of task-read first, as its own diagnostic in this report directs; every check in blocked_checks runs once it passes. Then run the same command again."}]}
 ```
 
 Full source and evidence bytes belong to the run.
 The run also pins the installed implementation: the files listed in `config/implementation-files.json` (the modules the production commands import, every schema, their data files and the route manifest, written by `scripts/rebuild_metadata.py` from the import closure) and the route reads. The index records the digest of each module it was computed from. Preparation refuses an index whose modules changed since, or whose schema list differs from the schema directory, and names `scripts/rebuild_metadata.py` as the fix.
 `package-manifest.toml` is not pinned, so a release bump keeps a prepared run current.
-A pinned implementation file that changes later gives `IMPLEMENTATION_CHANGED`; prepare the task again.
-Live creative sources, persona applicability, pack selection and fixed runtime integrity are checked again before execution.
+A pinned implementation file or a bound pack file that changes later is reported as a notice, `IMPLEMENTATION_CHANGED` or a pack code: the prepared run keeps its sealed request and fixed runtime and still sends.
+The transport module that sends is the exception; `TRANSPORT_IMPLEMENTATION_CHANGED` stops the send.
+Live creative sources, persona applicability, accepted Studio references and fixed runtime integrity are checked again before execution, and a change in them stops it.
 
 Publication is an atomic, no-replace directory rename.
 Each producer declares the exact files it writes. The manifest persists that complete set with each file's content hash and size.
@@ -77,6 +80,11 @@ Reference companions retain their complete source proof, delivered media, supple
 For example, a companion's `references/manifest.json` is an immutable input even though the root `manifest.json` describes the whole publication.
 An unexpected or missing member gives `ARTIFACT_SET_MISMATCH`; the failed stage keeps its bytes for inspection.
 
+The fixed runtime holds what the compilation used from the selected packs: the bound records, the named resources,
+and each pack file it bound or read, with the manifest and release of every pack that supplied one.
+A pack-owned reference binds its canonical record, its asset record and the artifact file it delivers.
+It also records the pack selection. The rest of those packs is not copied, so an edit to a record or file the run
+does not use leaves its fixed runtime, and the run, unchanged.
 The fixed runtime has its own complete membership in `snapshot.json`.
 Reading, publication and reuse check that membership and the declared file contents.
 Reuse verifies both the staged capture and the existing snapshot before disposing of the duplicate capture.

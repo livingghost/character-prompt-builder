@@ -83,5 +83,5 @@ def publish(root: Path, relative: str, files: dict[str, bytes]) -> dict:
         staging=Path(temp)
         for name,raw in files.items():c.atomic(c.local(staging,name,exists=False),raw)
         if target.exists():raise FileExistsError('evidence destination already exists')
-        c.publish_directory(staging,target);c.fsync_dir(target.parent)
+        c.publish_directory(staging,target);c.flush_published(target)
     return {'path':relative+'/manifest.json','sha256':c.digest(files['manifest.json'])}

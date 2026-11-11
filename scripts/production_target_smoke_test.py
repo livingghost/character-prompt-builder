@@ -115,7 +115,8 @@ class TargetProjectionTests(unittest.TestCase):
 
     def test_unknown_model_returns_unresolved_without_replacement(self):
         result = self.project({'kind': 'catalog', 'model': 'not-a-fixture-model', 'service': 'synthetic'})
-        self.assertEqual(result['unresolved'][0]['code'], 'target-evidence-required')
+        self.assertEqual((result['unresolved'][0]['code'], result['unresolved'][0]['reason']),
+                         ('AUTHORED_CHOICE_REQUIRED', 'target-evidence-required'))
         self.assertIsNone(result['resolved_target'])
         self.assertEqual(result['choices']['authoring'], self.authored)
 
@@ -145,6 +146,32 @@ class TargetProjectionTests(unittest.TestCase):
         self.assertEqual(result['choices']['authoring']['upscale'],
             {**before, 'model': fixtures.ALTERNATE_UPSCALE_MODEL_ID})
         self.assertEqual(result['task']['upscale']['service'], 'synthetic')
+
+    def test_prepared_and_projected_targets_share_exact_identity(self):
+        projected = self.project({'kind': 'catalog', 'model': fixtures.MODEL_ID, 'service': 'synthetic'})
+        current = target.projected_identity(projected)
+        plan = {'model': fixtures.MODEL_ID, 'service': 'synthetic', 'request_sha256': 'a' * 64}
+        package = {'request_validation': {'target': {'operation': 'generate'}}}
+        self.assertEqual(current, target.prepared_identity(self.task, plan, {}, package))
+        self.assertIsNone(target.prepared_identity(self.task, {**plan, 'request_sha256': None}, {}, package))
+        external_task = {'route': 'generation', 'execution': 'external'}
+        external = self.project({'kind': 'catalog', 'model': fixtures.MODEL_ID,
+            'service': 'synthetic', 'operation': 'generate'}, task=external_task, external=self.external_choices())
+        current = target.projected_identity(external)
+        external_plan = {**plan, 'model': current['model']}
+        consumer = {'image_input': external['choices']['external']['image_input']}
+        self.assertEqual(current, target.prepared_identity(external_task, external_plan, consumer, None))
+        self.assertEqual(current['model'], 'synthetic:robot')
+
+    def test_target_guidance_distinguishes_available_inputs_from_request_check(self):
+        result = self.project({'kind': 'catalog', 'model': fixtures.MODEL_ID, 'service': 'synthetic'})
+        readiness = result['knowledge']['readiness']
+        self.assertEqual(readiness['parameter_profile']['status'], 'available')
+        self.assertEqual(readiness['service_operation']['status'], 'available')
+        self.assertEqual(readiness['validation_evidence']['status'], 'required')
+        self.assertEqual(readiness['request_check']['status'], 'not-performed')
+        self.assertEqual([row['code'] for row in readiness['unresolved']], ['VALIDATION_EVIDENCE_REQUIRED'])
+        self.assertEqual(result['knowledge']['model_cards'][0]['readiness'], readiness)
 
     def test_selector_only_task_remains_supported(self):
         self.task['generation']['production_spec'] = 'original-spec.json'
@@ -247,7 +274,8 @@ class TargetProjectionTests(unittest.TestCase):
             'prompt_input': prompt_input('descriptive')}}
         result = self.project(selected, task={'route': 'generation', 'execution': 'external'},
             external=self.external_choices())
-        self.assertEqual(result['unresolved'][0]['code'], 'target-evidence-required')
+        self.assertEqual((result['unresolved'][0]['code'], result['unresolved'][0]['reason']),
+                         ('AUTHORED_CHOICE_REQUIRED', 'target-evidence-required'))
         self.assertIn('changed', result['unresolved'][0]['message'])
         self.assertIsNone(result['resolved_target'])
 

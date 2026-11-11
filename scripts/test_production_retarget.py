@@ -77,6 +77,74 @@ class RetargetTests(unittest.TestCase):
         self.assertEqual(loaded.artifacts['package.json']['request_validation']['target']['model_identifier'], 'synthetic:alternate')
         self.assertEqual(store.event_rows(self.root, self.run), [])
 
+    def test_public_continuation_tracks_edited_targets_and_retains_the_parent(self):
+        settings = self.case['settings']
+        runtime = ['--state-file', str(settings.state_file), '--cache-dir', str(settings.cache_dir),
+                   '--managed-root', str(settings.managed_root), '--pack-root', str(self.case['pack'])]
+        cli = [sys.executable, str(Path(__file__).resolve().parent / 'production_workflow.py')]
+        environment = {**os.environ, 'PYTHONDONTWRITEBYTECODE': '1',
+            'CPB_HOME': str(production_fixtures.scratch_home_dir(self.base / 'continuation-home'))}
+
+        def invoke(argv):
+            result = subprocess.run(argv, cwd=self.base, env=environment, capture_output=True,
+                                    text=True, encoding='utf-8', timeout=60)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            return json.loads(result.stdout)
+
+        def inspect_action():
+            report = invoke([*cli, 'inspect-inputs', '--root', str(self.root), *runtime])
+            current = next(row for row in report['inputs'] if row.get('current'))
+            self.assertEqual(current['choices'], 'editor/choices.json')
+            self.assertEqual(current['unresolved'], [], current)
+            return next(action for action in current['next_actions']
+                        if action.get('operation') in {'prepare', 'retarget'})
+
+        parent = workflow.read_run(self.root, self.run)
+        original_sources = {row['id']: (row, (self.root / row['path']).read_bytes())
+                            for row in parent.prepared['task']['sources']}
+        draft = invoke([*cli, 'draft-inputs', '--root', str(self.root), '--from-run', self.run,
+                        '--out-dir', 'editor', *runtime])
+        initial = next(action for action in draft['next_actions'] if action.get('operation') == 'prepare')
+        self.assertNotIn('--from', initial['argv'])
+        original = c.load(self.root / 'editor/choices.json')
+        changed = copy.deepcopy(original)
+        changed['target']['model'] = f.ALTERNATE_MODEL_ID
+        self.reassess(changed)
+        selected = inspect_action()
+        self.assertEqual(selected['operation'], 'retarget')
+        self.assertEqual(selected['args']['from'], self.run)
+        self.assertEqual(selected['args']['reason'], '<retarget-reason>')
+        self.assertTrue(selected['requires_author_input'])
+
+        # Reopening recomputes guidance from current editable choices, including
+        # their actual target-specific reading and validation evidence.
+        f.write(self.root / 'editor/choices.json', original)
+        self.assertEqual(inspect_action()['operation'], 'prepare')
+        f.write(self.root / 'editor/choices.json', changed)
+        selected = inspect_action()
+        self.assertEqual(selected['operation'], 'retarget')
+        argv = list(selected['argv'])
+        self.assertEqual(argv[argv.index('--from') + 1], self.run)
+        self.assertIn('--prepare', argv)
+        for option in ('--state-file', '--cache-dir', '--managed-root', '--pack-root'):
+            self.assertEqual(argv[argv.index(option) + 1], runtime[runtime.index(option) + 1])
+        reason = 'Compare the explicitly selected alternate synthetic interface while retaining the source brief.'
+        argv[argv.index('--reason') + 1] = reason
+        child = invoke(argv)
+        actual = workflow.read_run(self.root, child['run'])
+        self.assertEqual(actual.prepared['parent']['run'], self.run)
+        self.assertEqual(actual.prepared['parent']['kind'], 'retarget')
+        self.assertEqual(actual.prepared['parent']['reason'], reason)
+        self.assertEqual(actual.prepared['task']['criteria'], parent.prepared['task']['criteria'])
+        self.assertEqual(child['request_preview']['model'], 'synthetic:alternate')
+        self.assertEqual(child['request_preview']['prompt'], self.parent['request_preview']['prompt'])
+        for source in actual.prepared['task']['sources']:
+            original_source, raw = original_sources[source['id']]
+            self.assertEqual({key: value for key, value in source.items() if key != 'path'},
+                             {key: value for key, value in original_source.items() if key != 'path'})
+            self.assertEqual((self.root / source['path']).read_bytes(), raw)
+        self.assertEqual(store.event_rows(self.root, self.run), [])
+
     def test_applicable_reopened_evidence_and_reading_produce_the_same_validation(self):
         import production_inputs
         parent = workflow.read_run(self.root, self.run)
@@ -306,6 +374,25 @@ class ReferenceRetargetTests(unittest.TestCase):
             self.assertEqual(len(store.runs(root)), 3)
             for run in (parent['run'], child['run'], revised['run']):
                 self.assertEqual(store.event_rows(root, run), [])
+
+    def test_reference_delivery_without_an_execution_policy_asks_for_one(self):
+        import production_inputs
+        with tempfile.TemporaryDirectory(prefix='cpb-reference-policy-') as temporary:
+            base = Path(temporary)
+            case = f.create(base / 'studio', base / 'runtime', with_alternate=True)
+            root = case['root']
+            scenario = f.reference_retarget_case(case)
+            choices = c.load(root / scenario['parent_choices_file'])
+            for label, validation in (('the selected validation names no policy', {**choices['validation'], 'execution_policy': None}),
+                                      ('no validation is selected', None)):
+                with self.subTest(label):
+                    f.write(root / scenario['parent_choices_file'], {**choices, 'validation': validation})
+                    report = production_inputs.compile_choices(root, scenario['parent_choices_file']).report
+                    self.assertFalse(report['publishable'])
+                    problem = next(item for item in report['diagnostics'] if item['code'] == 'VALIDATION_POLICY_REQUIRED')
+                    self.assertEqual(problem['phase'], 'request-validation-evidence')
+                    self.assertIn('choices.validation.execution_policy', problem['required_action'])
+            self.assertEqual(len(store.runs(root)), 1)
 
 
 if __name__ == '__main__':

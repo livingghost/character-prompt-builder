@@ -152,8 +152,12 @@ def _draft_compilation(root: Path, choices_path: str):
         try:
             captured[path] = store.stable_bytes(root, path)
         except (ValueError, OSError) as exc:
-            unresolved.append({'field': 'authoring.task.authored', 'file': path,
-                'code': 'authored-source-unavailable', 'message': str(exc)})
+            unresolved.append({'field': 'authoring.task.authored', 'file': path, 'code': 'INPUT_UNREADABLE',
+                'cause': str(exc), 'message': 'The authored target file ' + path + ' cannot be read.',
+                'required_action': 'Restore ' + path + ' as a readable file, or select another file where these '
+                    'choices name it: target.model_file, target.vocabulary_record or '
+                    'authoring.task.authored.negative.path.',
+                'guidance': {'document_path': 'references/runtime/production-authoring.md#select-and-change-the-target'}})
     choice_raw = captured[choices_path]
     raw = view['delivery']
     if not isinstance(raw, bytes):
@@ -192,6 +196,7 @@ def _draft_compilation(root: Path, choices_path: str):
               'external_effect': False, 'formal_run_created': False, 'request_preview': None,
               'execution_plan': execution, 'authoring': {'choices': choices_path,
               'choices_ref': copy.deepcopy(view['choices_ref']),
+              'source_run': (view.get('source_run') or {}).get('run'),
               'unresolved': copy.deepcopy(unresolved)}}
     prepared['authoring'] = copy.deepcopy(report['authoring'])
     compiled = compiler.Compilation(report=report, directory=directory, prepared=prepared,
@@ -225,7 +230,8 @@ def save(root: Path, choices_path: str, *, draft: bool = False) -> dict:
         raise CompilationError(compiled.report)
     if compiled.prepared['task']['execution'] != 'authored':
         raise ValueError('save requires authored execution; prepare the selected image request instead')
-    result = compiler.publish_compilation(root, compiled)
+    result = compiler.publish_compilation(root, compiled,
+        parent=production_inputs.compilation_parent(root, compiled))
     result.update(record_save(root, result['run']))
     return result
 
@@ -574,6 +580,10 @@ def status(root: Path, loaded, *, logs: list | None = None) -> dict:
         root_option = '--studio' if command == 'finish' else '--root'
         next_action = {'command': command, 'argv': python_argv(workflow.ROOT / 'scripts' / script,
             command, root_option, str(root), *selected, *arguments), 'reason': reason}
+        if command == 'review-authored':
+            from production_execution import _draft_action
+            next_action = _draft_action(root, run, 'review',
+                basis=reviewed['sha256'] if reviewed else None, prepared=prepared)
     return {'run': run, 'task_id': prepared['task']['task_id'], 'integrity': 'intact',
             'preparation': 'authored', 'readiness': 'saved' if saved else 'published',
             'readiness_diagnostics': [], 'submission': 'not-applicable', 'send_started': False,
@@ -586,7 +596,7 @@ def status(root: Path, loaded, *, logs: list | None = None) -> dict:
                 'completion_state': completion_state(prepared['task']),
                 'missing': missing, 'unresolved': copy.deepcopy(revision['unresolved']),
                 'artifact': str(loaded.directory / revision['artifact']['path'])},
-            'candidates': [], 'candidate_states': [], 'freshness_diagnostics': [],
+            'candidates': [], 'candidate_states': [], 'freshness_diagnostics': [], 'freshness_notices': [],
             'selection_diagnostics': [], 'selection_ready': False, 'settlement_open': False,
             'execution': None, 'journal': None, 'logs': logs or [], 'authentication': None,
             'cleanup': {'state': 'not-needed', 'eligible': False, 'uploaded': 0, 'deleted': 0,

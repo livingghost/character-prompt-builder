@@ -77,6 +77,18 @@ class PublicCLITests(unittest.TestCase):
         self.assertEqual(len({commands[name].description for name in ('variant', 'repeat', 'retarget')}), 3)
         self.assertTrue(all(child.description for child in commands.values()))
 
+    def test_status_help_explains_every_readiness_and_disposition_value(self):
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        import production_workflow
+        schema = json.loads((ROOT / 'schemas/authoring/production-status.schema.json').read_text(encoding='utf-8'))
+        parser = production_workflow.build_parser()
+        shown = next(action for action in parser._actions if action.dest == 'command').choices['status'].format_help()
+        for axis, explained in (('readiness', production_workflow.READINESS_HELP),
+                                ('task_disposition', production_workflow.DISPOSITION_HELP)):
+            self.assertEqual(sorted(explained), sorted(schema['$defs'][axis]['enum']))
+            for name in explained:
+                self.assertIn(f'  {name} ', shown)
+
     def scenario(self, name: str) -> list[tuple[list[str], int, dict]]:
         """Build one example scenario and run the commands it prints, in order."""
         out = self.base / name

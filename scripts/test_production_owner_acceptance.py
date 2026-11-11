@@ -11,6 +11,7 @@ import production_fixtures as fixture
 import production_store as store
 import production_workflow as workflow
 import studio
+from production_diagnostics import ProductionError
 from test_production_review import ReviewCase
 
 
@@ -160,6 +161,48 @@ class OwnerAcceptanceTests(ReviewCase):
         with self.assertRaises(ValueError):
             workflow.select_value(self.root, self.run, selection)
         self.assertFalse(any(row['event'] == 'selection' for row in store.event_rows(self.root, self.run)))
+
+    def unsaved_authorization(self, selection):
+        """Record a copy of the selection's authorization that saved no owner-acceptance witness."""
+        directory, prepared, _, rows = workflow.load_run(self.root, self.run)
+        data = copy.deepcopy(workflow.find(rows, 'authorization', selection['authorization'])['data'])
+        data['files'] = [item for item in data['files'] if item.get('purpose') != 'owner-acceptance']
+        return workflow.append_record(directory, prepared, rows, 'authorization', data)
+
+    def test_an_authorization_without_its_saved_owner_instruction_is_authorized_again(self):
+        self.record_review([('output', 'pass'), ('palette', 'fail')])
+        selection = self.authorize(self.decision(self.allowance()))
+        unsaved = self.unsaved_authorization(selection)
+        refused = dict(selection, authorization=unsaved['sha256'])
+        with self.assertRaises(ProductionError) as caught:
+            workflow.select_value(self.root, self.run, refused)
+        found = caught.exception.diagnostic.as_dict()
+        evidence = selection['owner_acceptance']['evidence']
+        self.assertEqual((found['code'], found['run'], found['event'], found['file'], found['expected']),
+                         ('EVIDENCE_SNAPSHOT_MISSING', self.run, unsaved['sha256'], evidence['path'], evidence['sha256']))
+        self.assertEqual(found['required_action'], workflow.UNSAVED_SELECTION_WITNESS.format(run=self.run))
+        self.assertFalse(any(row['event'] == 'selection' for row in store.event_rows(self.root, self.run)))
+        # Another authorization of the same selection saves the cited instruction.
+        workflow.select_value(self.root, self.run, self.authorize(copy.deepcopy(refused)))
+        self.assertTrue(self.state()['selection_current'])
+
+    def test_a_recorded_selection_without_its_saved_owner_instruction_names_a_new_run(self):
+        self.record_review([('output', 'pass'), ('palette', 'fail')])
+        selection = self.authorize(self.decision(self.allowance()))
+        unsaved = self.unsaved_authorization(selection)
+        chosen = dict(selection, authorization=unsaved['sha256'])
+        directory, prepared, _, rows = workflow.load_run(self.root, self.run)
+        raw = c.encoded(chosen)
+        key = c.object_store(directory, raw)
+        workflow.append_record(directory, prepared, rows, 'selection', {
+            'files': [{'path': f'production/runs/{self.run}/objects/{key}', 'sha256': key, 'size': len(raw)}],
+            'selection': chosen, 'authorizations': [unsaved['sha256']]})
+        with self.assertRaises(ProductionError) as caught:
+            workflow.load_run(self.root, self.run)
+        found = caught.exception.diagnostic.as_dict()
+        self.assertEqual((found['code'], found['run'], found['event']),
+                         ('EVIDENCE_SNAPSHOT_MISSING', self.run, unsaved['sha256']))
+        self.assertEqual(found['required_action'], workflow.UNSAVED_SELECTION_RECORD.format(run=self.run))
 
     def test_exact_authorization_covers_the_allowance_reason(self):
         self.record_review([('output', 'pass'), ('palette', 'fail')])

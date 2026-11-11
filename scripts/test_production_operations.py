@@ -8,6 +8,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -290,6 +291,80 @@ class OperationTests(unittest.TestCase):
         self.assertEqual(result['protected'][0]['reason'],'remote-outcome-unresolved')
         self.assertTrue(folder.is_dir())
 
+    def test_cleanup_finishes_a_removal_that_failed_part_of_the_way(self):
+        root = self.new_studio(); folder = self._fake_operation(root, 'held'); self._fake_operation(root, 'kept')
+        unlink, removed = os.unlink, []
+        def refuse_the_third_file(path, *args, **kwargs):
+            if len(removed) == 2:
+                raise PermissionError(errno.EACCES, 'The file is in use by another process', os.fspath(path))
+            unlink(path, *args, **kwargs)
+            removed.append(os.path.basename(os.fspath(path)))
+        with patch.object(os, 'unlink', refuse_the_third_file), self.assertRaises(ProductionError) as caught:
+            ops.cleanup_logs(root, operation_id='held', apply=True)
+        failure = caught.exception.diagnostic
+        self.assertEqual(failure.code, 'LOG_WRITE_FAILED')
+        remainder = Path(failure.file)
+        self.assertEqual({path.name for path in remainder.iterdir()}, ops._LOG_FILES - set(removed))
+        self.assertEqual([row['operation_id'] for row in ops.list_operations(root)], ['kept'])
+        for selector in ({'operation_id': 'held'}, {'before': '2001-01-01'}):
+            plan = ops.cleanup_logs(root, **selector)
+            self.assertIn(('held', 'removal-interrupted'), [(row['operation_id'], row['reason']) for row in plan['candidates']])
+            self.assertEqual(plan['deleted'], [])
+        (remainder/'request.json').write_text('{"formal":"evidence"}', encoding='utf-8')
+        refused = ops.cleanup_logs(root, operation_id='held', apply=True)
+        self.assertEqual((refused['deleted'], [row['reason'] for row in refused['protected']]), ([], ['unowned-or-missing-content']))
+        (remainder/'request.json').unlink()
+        applied = ops.cleanup_logs(root, operation_id='held', apply=True)
+        self.assertEqual(applied['deleted'], ['held'])
+        self.assertFalse(remainder.exists()); self.assertFalse(folder.exists())
+        self.assertEqual([path.name for path in folder.parent.iterdir()], ['kept'])
+        self.assertIn('logs-cleanup --apply again', failure.required_action)
+
+    def test_cleanup_that_cannot_start_a_removal_leaves_the_operation_whole(self):
+        root = self.new_studio(); folder = self._fake_operation(root, 'held')
+        with patch.object(os, 'rename', side_effect=PermissionError(errno.EACCES, 'A file in the directory is in use')), \
+                self.assertRaises(ProductionError) as caught:
+            ops.cleanup_logs(root, operation_id='held', apply=True)
+        self.assertEqual((caught.exception.diagnostic.code, caught.exception.diagnostic.file), ('LOG_WRITE_FAILED', str(folder)))
+        self.assertEqual({path.name for path in folder.iterdir()}, ops._LOG_FILES)
+        self.assertEqual(ops.cleanup_logs(root, operation_id='held', apply=True)['deleted'], ['held'])
+        self.assertFalse(folder.parent.exists())
+
+    def test_a_failed_removal_reports_the_operations_removed_before_it(self):
+        root = self.new_studio(); first = self._fake_operation(root, 'first'); second = self._fake_operation(root, 'second')
+        rmtree, removed = shutil.rmtree, []
+        def refuse_the_second(path, *args, **kwargs):
+            if removed:
+                raise PermissionError(errno.EACCES, 'The file is in use by another process', os.fspath(path))
+            rmtree(path, *args, **kwargs)
+            removed.append(Path(path).name)
+        with patch.object(shutil, 'rmtree', refuse_the_second), self.assertRaises(ProductionError) as caught:
+            ops.cleanup_logs(root, before='2001-01-01', apply=True)
+        failure = caught.exception.diagnostic
+        self.assertEqual((failure.code, failure.file), ('LOG_WRITE_FAILED', str(second.with_name('.removing-second'))))
+        self.assertEqual(failure.details['deleted'], ['first'])
+        self.assertEqual(failure.as_dict()['deleted'], ['first'])
+        self.assertFalse(first.exists())
+        self.assertEqual(ops.cleanup_logs(root, before='2001-01-01', apply=True)['deleted'], ['second'])
+
+    def test_cleanup_removes_the_day_directories_it_empties_and_nothing_else(self):
+        root = self.new_studio(); operations = root / 'logs/operations'
+        alone = self._fake_operation(root, 'alone', created='2000-01-01T00:00:00Z')
+        shared = self._fake_operation(root, 'shared', created='2000-01-02T00:00:00Z')
+        self._fake_operation(root, 'running', completed=False, created='2000-01-02T00:00:00Z')
+        beside = self._fake_operation(root, 'beside', created='2000-01-03T00:00:00Z')
+        (beside.parent / 'notes.txt').write_text('Not an operation log.', encoding='utf-8')
+        plan = ops.cleanup_logs(root, before='2001-01-01')
+        self.assertEqual(sorted(path.name for path in operations.iterdir()), ['2000-01-01', '2000-01-02', '2000-01-03'])
+        self.assertEqual(plan['deleted'], [])
+        applied = ops.cleanup_logs(root, before='2001-01-01', apply=True)
+        self.assertEqual(sorted(applied['deleted']), ['alone', 'beside', 'shared'])
+        self.assertFalse(alone.parent.exists())
+        self.assertEqual([path.name for path in shared.parent.iterdir()], ['running'])
+        self.assertEqual([path.name for path in beside.parent.iterdir()], ['notes.txt'])
+        self.assertEqual((beside.parent / 'notes.txt').read_text(encoding='utf-8'), 'Not an operation log.')
+        self.assertTrue(operations.is_dir())
+
     def test_export_is_redacted_and_does_not_follow_log_file_link(self):
         root=self.new_studio();folder=self._fake_operation(root,'export')
         private=self.home/'private.txt';private.write_text('NOT A DIAGNOSTIC', encoding='utf-8')
@@ -304,6 +379,72 @@ class OperationTests(unittest.TestCase):
         root=self.new_studio();self._fake_operation(root,'source')
         with self.assertRaisesRegex(ProductionError,'LOG_EXPORT_PATH_INVALID'):
             ops.export_logs(root,root/'logs/operations/diagnostics')
+
+    def test_export_published_before_a_failed_directory_flush_is_reported_as_published(self):
+        import execution_contract as c
+        root = self.new_studio(); self._fake_operation(root, 'exported')
+        out, flush = root/'exports/diagnostics', c.fsync_dir
+        def refuse_the_export_parent(path):
+            if Path(path) == out.parent:
+                raise OSError(errno.EIO, 'Input/output error', str(path))
+            flush(path)
+        with patch.object(c, 'fsync_dir', refuse_the_export_parent), self.assertRaises(ProductionError) as caught:
+            ops.export_logs(root, out)
+        told = caught.exception.diagnostic
+        self.assertEqual((told.code, told.phase, told.file), ('ARTIFACT_PUBLISH_FAILED', 'logs-export', str(out)))
+        self.assertEqual(told.details, {'published': True, 'actual': {'errno': errno.EIO, 'winerror': None}})
+        self.assertIn('Use the export at --out', told.required_action)
+        manifest = json.loads((out/'export.json').read_text(encoding='utf-8'))
+        self.assertEqual(manifest['included'], [f'exported/{name}' for name in sorted(ops._LOG_FILES)])
+        self.assertEqual(sorted(path.name for path in (out/'exported').iterdir()), sorted(ops._LOG_FILES))
+        self.assertEqual([path.name for path in out.parent.iterdir()], ['diagnostics'])
+
+    def test_export_reports_the_refusal_its_publication_met(self):
+        import execution_contract as c
+        root = self.new_studio(); self._fake_operation(root, 'exported')
+        out = root/'exports/diagnostics'
+        with patch.object(c, '_rename_directory_exclusive', side_effect=OSError(errno.EXDEV, 'Invalid cross-device link')), \
+                self.assertRaises(ProductionError) as caught:
+            ops.export_logs(root, out)
+        told = caught.exception.diagnostic
+        self.assertEqual((told.code, told.phase, told.file), ('ARTIFACT_PUBLISH_FAILED', 'logs-export', str(out)))
+        self.assertEqual(told.details, {'published': False, 'actual': {'errno': errno.EXDEV, 'winerror': None}})
+        self.assertIn('run logs-export again', told.required_action)
+        self.assertEqual(list(out.parent.iterdir()), [])
+        def another_writer(_staging, target):
+            Path(target).mkdir(); (Path(target)/'theirs.txt').write_text('another export', encoding='utf-8')
+            raise FileExistsError(errno.EEXIST, 'File exists', str(target))
+        with patch.object(c, '_rename_directory_exclusive', another_writer), self.assertRaises(ProductionError) as caught:
+            ops.export_logs(root, out)
+        told = caught.exception.diagnostic
+        self.assertEqual((told.code, told.phase, told.required_action), ('OUTPUT_ALREADY_EXISTS', 'logs-export', 'Choose a new --out.'))
+        self.assertEqual(told.details, {})
+        self.assertEqual([path.relative_to(out.parent).as_posix() for path in sorted(out.parent.rglob('*'))],
+                         ['diagnostics', 'diagnostics/theirs.txt'])
+
+    def test_export_that_cannot_stage_beside_its_destination_reports_the_repair(self):
+        import execution_contract as c
+        root = self.new_studio(); self._fake_operation(root, 'exported')
+        out, mkdir = root/'exports/diagnostics', Path.mkdir
+        def refuse_the_export_parent(path, *args, **kwargs):
+            if path == out.parent:
+                raise PermissionError(errno.EACCES, 'Permission denied', str(path))
+            return mkdir(path, *args, **kwargs)
+        # The directory that holds --out, the staging directory beside it, and the manifest in staging.
+        failures = (
+            ('parent', patch.object(Path, 'mkdir', refuse_the_export_parent), errno.EACCES),
+            ('staging', patch.object(tempfile, 'TemporaryDirectory', side_effect=disk_full), errno.ENOSPC),
+            ('manifest', patch.object(c, 'atomic', side_effect=disk_full), errno.ENOSPC))
+        for refused, failure, number in failures:
+            with self.subTest(refused=refused):
+                with failure, self.assertRaises(ProductionError) as caught:
+                    ops.export_logs(root, out)
+                told = caught.exception.diagnostic
+                self.assertEqual((told.code, told.phase, told.file), ('ARTIFACT_PUBLISH_FAILED', 'logs-export', str(out)))
+                self.assertEqual(told.details, {'published': False, 'actual': {'errno': number, 'winerror': None}})
+                self.assertIn('--out', told.required_action)
+                self.assertIn('run logs-export again', told.required_action)
+                self.assertFalse(out.exists())
 
     def test_forced_exit_leaves_detectable_incomplete_operation(self):
         import subprocess,sys

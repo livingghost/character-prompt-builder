@@ -8,6 +8,7 @@ from __future__ import annotations
 import contextlib
 import contextvars
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -17,7 +18,7 @@ from typing import Any, Iterator
 
 import execution_contract as c
 from production_diagnostics import ProductionError
-from private_state import assert_public_path
+from private_state import PrivateStateError, assert_public_path
 from owned_json import freeze, mutable
 
 _CONNECTIONS: contextvars.ContextVar[dict[str, sqlite3.Connection]] = contextvars.ContextVar('production_connections', default={})
@@ -184,10 +185,15 @@ def reader(root: Path) -> Iterator[sqlite3.Connection | None]:
         connection.close()
 
 
+EXPORT_AGAIN = ('Take the event export again from the Studio that holds this run, with observe_model_schema.py '
+                'attach-probe for a request observation; an edited export is refused.')
+
+
 def validate_event_chain(rows: list[dict], scope: str) -> None:
     """Validate a read-only event export using the same chain as the store."""
     if not isinstance(rows, list):
-        raise ProductionError('EVENT_CHAIN_CORRUPT', 'Event records must be a list.', phase='integrity', run=scope)
+        raise ProductionError('EVENT_CHAIN_CORRUPT', 'Event records must be a list.', phase='integrity', run=scope,
+                              required_action=EXPORT_AGAIN)
     previous = None
     for sequence, row in enumerate(rows, 1):
         try:
@@ -198,10 +204,11 @@ def validate_event_chain(rows: list[dict], scope: str) -> None:
                      and c.content_id(body) == row['sha256'])
         except (ValueError, TypeError, KeyError) as exc:
             raise ProductionError('EVENT_CHAIN_CORRUPT', 'Event export is malformed.',
-                                  phase='integrity', run=scope, event=sequence) from exc
+                                  phase='integrity', run=scope, event=sequence, required_action=EXPORT_AGAIN) from exc
         if not valid:
             raise ProductionError('EVENT_CHAIN_CORRUPT', 'Event export differs from its recorded chain.',
-                                  phase='integrity', run=scope, event=sequence, expected=row.get('sha256'))
+                                  phase='integrity', run=scope, event=sequence, expected=row.get('sha256'),
+                                  required_action=EXPORT_AGAIN)
         previous = row['sha256']
 
 
@@ -236,7 +243,8 @@ def _verified_history(scope: str, entries: list[sqlite3.Row]) -> VerifiedHistory
                 required_action='Restore the exact committed event from verified evidence; do not recreate approval.') from exc
         if not consistent:
             raise ProductionError('EVENT_CHAIN_CORRUPT', 'Formal event chain differs from its committed contents.',
-                                  phase='integrity', run=scope, event=entry['sequence'], expected=entry['sha256'])
+                phase='integrity', run=scope, event=entry['sequence'], expected=entry['sha256'],
+                required_action='Restore the exact committed event from verified evidence; do not recreate approval.')
         previous = digest
         result.append(row)
     return VerifiedHistory(scope, result)
@@ -256,7 +264,8 @@ def append(root: Path, scope: str, input_sha256: str | None, event: str, data: d
             if row['event'] == event and row['data'] == data: return row
         previous = history.tail
         if check_previous and previous != expected_previous:
-            raise ProductionError('EVENT_CONFLICT', 'Another operation committed first; reload the current state.', phase='storage', run=scope)
+            raise ProductionError('EVENT_CONFLICT', 'Another operation committed first; reload the current state.', phase='storage', run=scope,
+                                  required_action='Read the run again with status --run, then repeat this command if its step is still open.')
         row = {'sequence': len(rows)+1, 'previous': previous, 'input_sha256': input_sha256,
                'event': event, 'data': data, 'created_at': c.now()}
         row['sha256'] = c.content_id(row)
@@ -335,12 +344,84 @@ def registered_run(root: Path, run: str) -> dict:
     return dict(row)
 
 
+# The repair of each cause that keeps a file from being read as evidence.
+CAPTURE_MISSING = ('No file exists at this path below the root it is read from. Correct the path where it is given, '
+                   'or put the file there, then run the command again.')
+CAPTURE_LINK = ('This path is a symbolic link, and a link is never followed. Give the path of the regular file itself, '
+                'or replace the link with a copy of that file, then run the command again.')
+CAPTURE_DIRECTORY = 'This path is a directory. Give the path of one regular file, then run the command again.'
+CAPTURE_NOT_REGULAR = ('This path is neither a regular file nor a directory. Give the path of a regular file, '
+                       'then run the command again.')
+CAPTURE_PRIVATE = ('This path names private Studio authentication state, credentials.json or a .pending-auth- file, '
+                   'which is never read as an input, evidence or artifact. Give another file, then run the command again.')
+CAPTURE_PATH_REFUSED = ('The path is refused before any file is opened, for the reason cause gives. Write it relative to '
+                        'the root it is read from, with / separators and no . or .. segment, with no symbolic link in '
+                        'that root or below it and no entry redirected outside it, then run the command again.')
+CAPTURE_DENIED = ('The operating system denied reading this file. Grant read permission on it, or close the program that '
+                  'holds it open, then run the command again.')
+CAPTURE_OS_ERROR = ('The operating system could not read this file; cause gives its error. Resolve that condition, '
+                    'then run the command again.')
+CAPTURE_JSONL_LINE = ('Line {line} of this JSONL file is not one JSON value, for the reason cause gives, so the file is '
+                      'not read. Correct that line so that it holds one complete JSON value, or name another file where '
+                      'this one is given, then run the command again.')
+
+
+class _NotEvidence(ValueError):
+    """What `stable_read` found in place of a regular file, with the repair that fits it."""
+
+    def __init__(self, cause: str, repair: str, **details: Any):
+        super().__init__(cause)
+        self.repair = repair
+        self.details = details
+
+
+def _capture_failed(path: str, exc: BaseException) -> ProductionError:
+    """The diagnostic of a file that was not read: `cause` states why, and the repair fits that cause."""
+    details = {}
+    if isinstance(exc, _NotEvidence):
+        repair = exc.repair
+        details = exc.details
+    elif isinstance(exc, PrivateStateError):
+        repair = CAPTURE_PRIVATE
+    elif isinstance(exc, PermissionError):
+        repair = CAPTURE_DENIED
+    elif isinstance(exc, OSError):
+        repair = CAPTURE_OS_ERROR
+    else:
+        repair = CAPTURE_PATH_REFUSED
+    return ProductionError('EVIDENCE_CAPTURE_FAILED', 'Evidence could not be read as one stable file.', file=path,
+                           phase='input-capture', cause=str(exc), required_action=repair, **details)
+
+
+def _jsonl_records(data: bytes) -> None:
+    """Refuse JSONL whose nonblank line is not one JSON value, naming the line by its 1-based number."""
+    for number, line in enumerate(data.splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            c.decode(line)
+        except UnicodeDecodeError:
+            reason = 'it is not UTF-8 text'
+        except json.JSONDecodeError as exc:
+            reason = f'{exc.msg} at column {exc.colno}'
+        except ValueError as exc:
+            reason = str(exc)
+        else:
+            continue
+        raise _NotEvidence(f'line {number} is not one JSON value: {reason}',
+                           CAPTURE_JSONL_LINE.format(line=number), line=number)
+
+
 def stable_bytes(root: Path, path: str) -> bytes:
-    """Read a studio file through one handle and detect replacement or in-flight writes."""
+    """Read a studio file through one handle and detect replacement or in-flight writes.
+
+    The path is checked against the root first. `stable_read` then reports
+    what it finds at that path, including an absent file.
+    """
     try:
-        selected = c.local(root,path)
+        selected = c.local(root, path, exists=False)
     except (OSError, ValueError) as exc:
-        raise ProductionError('EVIDENCE_CAPTURE_FAILED', 'Evidence could not be read as one stable file.', file=path, phase='input-capture') from exc
+        raise _capture_failed(path, exc) from exc
     return stable_read(selected, path)
 
 
@@ -349,15 +430,21 @@ def stable_read(selected: Path, path: str) -> bytes:
     try:
         assert_public_path(selected)
         assert_public_path(path)
-        if selected.is_symlink() or not selected.is_file():
-            raise ValueError('not a regular file')
+        if selected.is_symlink():
+            raise _NotEvidence('symbolic link: ' + path, CAPTURE_LINK)
+        if not selected.exists():
+            raise _NotEvidence('missing file: ' + path, CAPTURE_MISSING)
+        if selected.is_dir():
+            raise _NotEvidence('directory: ' + path, CAPTURE_DIRECTORY)
+        if not selected.is_file():
+            raise _NotEvidence('not a regular file: ' + path, CAPTURE_NOT_REGULAR)
         with selected.open('rb') as stream:
             before = os.fstat(stream.fileno())
             data = stream.read()
             after = os.fstat(stream.fileno())
         current = selected.stat()
     except (OSError, ValueError) as exc:
-        raise ProductionError('EVIDENCE_CAPTURE_FAILED', 'Evidence could not be read as one stable file.', file=path, phase='input-capture') from exc
+        raise _capture_failed(path, exc) from exc
     # File identity, size and last write. Windows reports different change times
     # for a handle and a path, so the change time is not part of the identity.
     identity = lambda s: (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns)
@@ -366,9 +453,12 @@ def stable_read(selected: Path, path: str) -> bytes:
                               required_action='Finish the source write, then capture the complete evidence again.')
     if path.endswith('.jsonl'):
         if data and not data.endswith(b'\n'):
-            raise ProductionError('EVIDENCE_INCOMPLETE', 'JSONL evidence has an incomplete final record.', file=path, phase='input-capture')
-        for line in data.splitlines():
-            if line.strip(): c.decode(line)
+            raise ProductionError('EVIDENCE_INCOMPLETE', 'JSONL evidence has an incomplete final record.', file=path, phase='input-capture',
+                                  required_action='Finish the write of this JSONL file so that its last record ends with a newline, then run the same command again.')
+        try:
+            _jsonl_records(data)
+        except _NotEvidence as exc:
+            raise _capture_failed(path, exc) from exc
     return data
 
 
@@ -497,13 +587,39 @@ def authority_record(root: Path, task_id: str) -> dict | None:
     return rows[-1] if rows else None
 
 
+def authority_snapshot(root: Path, task_id: str, current: CurrentAuthority | None, *,
+                       source_path: str | None = None) -> dict:
+    """Expose the already acquired authority and its exact update predecessor."""
+    from cli_invocation import python_argv
+    if current is not None and current.task_id != task_id:
+        raise ValueError('current authority belongs to another work task')
+    if current is not None:
+        sources = [item['path'] for item in current.evidence if item['purpose'] == 'authority-source']
+        if sources:
+            source_path = sources[-1]
+    arguments = ['authority-import', '--root', str(root), '--file', source_path or '<authority-file>']
+    if current is not None:
+        arguments += ['--expected-event', current.event['sha256']]
+    return {'document': mutable(current.document) if current is not None else None,
+        'event_sha256': current.event['sha256'] if current is not None else None,
+        'source_path': source_path,
+        'update_action': {'command': 'authority-import',
+            'argv': python_argv(Path(__file__).with_name('production_workflow.py'), *arguments),
+            'reason': 'Edit the current declaration from actual authority, then import it with this observed predecessor. '
+                      'Author input can be supplied by the acting agent from already-established user authorization; '
+                      'ask the user only if necessary authority remains unresolved. Reinspect if another update wins.',
+            'requires_author_input': True}}
+
+
 def import_authority(root: Path, file: str, *, expected: str | None = None, initial: bool = False) -> dict:
     import production_permissions as permissions
     from state_protocol import validate_against_schema
     raw=stable_bytes(root,file); document=c.decode(raw)
     errors=validate_against_schema(document,c.load(Path(__file__).resolve().parents[1]/'schemas/authoring/production-authority.schema.json'))
-    if errors: raise ProductionError('INPUT_SCHEMA_INVALID','; '.join(errors),file=file,phase='authority-import')
-    permissions.validate(document,document['task_id'])
+    if errors:
+        raise ProductionError('INPUT_SCHEMA_INVALID','; '.join(errors),file=file,phase='authority-import',
+                              required_action='Correct the fields the message names in this authority declaration, following '
+                                              'schemas/authoring/production-authority.schema.json, then run the command again.')
     with transaction(root) as connection:
         prior=authority_record(root,document['task_id'])
         if initial and prior is not None:
@@ -513,17 +629,23 @@ def import_authority(root: Path, file: str, *, expected: str | None = None, init
                                   expected=prior['sha256'],actual=expected,
                                   required_action='Read the current authority, reconcile changes, and supply --expected-event.')
         if prior is not None and document['issuer']!=prior['data']['authority']['issuer']:
-            raise ProductionError('AUTHORIZATION_MISMATCH','An authority update cannot silently replace its issuer.',phase='authority-import')
-        evidence=[evidence_snapshot(root,document['evidence']['path'],document['evidence']['locator'],purpose='authority-declaration')]
-        import request_scope
-        from input_evidence import InputEvidence
-        inputs=InputEvidence(root)
-        for grant in document['grants']:
-            request_scope.verify_sources(grant['request_scope'],None,inputs)
+            issuer=prior['data']['authority']['issuer']
+            raise ProductionError('AUTHORIZATION_MISMATCH','An authority update cannot silently replace its issuer.',
+                phase='authority-import',file=file,pointer='/issuer',expected=issuer,actual=document['issuer'],
+                current_authority={'task_id':document['task_id'],'issuer':issuer,'event':prior['sha256']},
+                required_action=f'Keep issuer {issuer!r} for this work task. Edit grants and their actual evidence in '
+                                f'{file}, then retry authority-import with --expected-event {prior["sha256"]}. '
+                                'A different issuing principal requires its own work-task authority; do not rename the current issuer.')
+        from input_evidence import EvidenceAcquisition
+        inputs=EvidenceAcquisition(root)
+        document=permissions.acquire(document,document['task_id'],inputs)
+        declaration = inputs.select(document['evidence']['path'])
+        evidence=[evidence_snapshot(root,document['evidence']['path'],document['evidence']['locator'],
+            purpose='authority-declaration',raw=inputs.bytes[declaration['path']])]
         # Store the scope bytes the verifier read, not a second reading of the files.
-        for path in sorted(inputs.read_paths):
+        for path in sorted(inputs.locators):
             evidence.append(evidence_snapshot(root,path,inputs.locators.get(path,'whole'),purpose='request-scope',
-                                              raw=InputEvidence._decode(inputs.snapshots[path])))
+                                              raw=inputs.bytes[path]))
         # The declaration itself is also immutable evidence of this update.
         evidence.append(evidence_snapshot(root,file,'whole',purpose='authority-source',raw=raw))
         row=append(root,'authority:'+document['task_id'],None,'authority-updated',

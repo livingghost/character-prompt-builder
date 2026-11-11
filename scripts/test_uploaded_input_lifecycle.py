@@ -211,6 +211,20 @@ class UploadedInputLifecycleTests(unittest.TestCase):
                 upload_index=0, provider_id='unowned-fixture-id', request=witness)
         self.assertEqual(caught.exception.diagnostic.code, 'CLEANUP_OWNERSHIP_REQUIRED')
 
+    def test_journal_request_naming_another_input_names_its_restoration(self):
+        self.call()
+        contract = self.journal().path / 'request-contract.json'
+        value = c.load(contract)
+        value['media'][0]['sha256'] = '0' * 64
+        fixtures.write(contract, value)
+        item = execution.status(self.root, self.run)['runs'][0]
+        diagnostic = item['diagnostics'][0]
+        self.assertEqual((item['integrity'], diagnostic['code'], diagnostic['pointer']),
+                         ('blocked', 'CLEANUP_OWNERSHIP_REQUIRED', '$.media[0]'))
+        self.assertEqual(diagnostic['actual']['sha256'], '0' * 64)
+        self.assertIn(str(workflow.run_dir(self.root, self.run) / 'request-contract.json'), diagnostic['required_action'])
+        self.assertEqual(item['next_action']['reason'], diagnostic['required_action'])
+
     def test_transport_without_deletion_keeps_outputs_and_reports_retained_inputs(self):
         adapter = SimpleNamespace(**{key: value for key, value in vars(transport).items()
             if key not in {'prepare_delete', 'send_delete', 'lookup_delete'}})
@@ -293,6 +307,72 @@ class TwoInputCleanupTests(unittest.TestCase):
         self.assertEqual(second['runs'][0]['cleanup']['state'], 'complete')
         self.assertEqual(second['runs'][0]['next_action']['command'], 'repeat')
         self.assertEqual(accounting.summary(self.root)['submissions'], 0)
+
+    def second_upload_unanswered(self) -> tuple[list[str], object]:
+        """The first upload completes and the exchange of the second one ends without an answer."""
+        actual_upload = transport.upload_media
+        uploads = []
+
+        def second_lost(*args, **kwargs):
+            if uploads:
+                raise TimeoutError('Synthetic lost answer of the second upload')
+            value = actual_upload(*args, **kwargs)
+            uploads.append(value['provider_id'])
+            return value
+        return uploads, second_lost
+
+    def test_unknown_upload_releases_the_completed_input_and_keeps_the_unknown_one(self):
+        uploads, upload = self.second_upload_unanswered()
+        with patch.object(transport, 'upload_media', side_effect=upload), \
+                patch.object(transport, 'send', side_effect=AssertionError('An unknown upload prevents generation')), \
+                patch.object(transport, 'send_delete', wraps=transport.send_delete) as delete:
+            with self.assertRaises(ProductionError) as caught:
+                self.call()
+        diagnostic = caught.exception.diagnostic
+        self.assertEqual((diagnostic.code, diagnostic.details['steps']), ('REMOTE_OUTCOME_UNKNOWN', ['upload:1']))
+        self.assertEqual([call.kwargs['provider_id'] for call in delete.call_args_list], uploads)
+        item = execution.status(self.root, self.run)['runs'][0]
+        self.assertEqual((item['cleanup']['state'], item['cleanup']['uploaded'], item['cleanup']['deleted']), ('complete', 1, 1))
+        self.assertEqual(item['effects'], [{'step': 'upload:0', 'operation': 'upload', 'result': 'executed'},
+                                           {'step': 'upload:1', 'operation': 'upload', 'result': 'unanswered'},
+                                           {'step': 'delete:0', 'operation': 'delete', 'result': 'executed'}])
+        self.assertEqual(item['next_action']['command'], 'repeat')
+        self.assertEqual(diagnostic.details['next_action'], item['next_action'])
+        self.assertEqual(diagnostic.details['cleanup']['state'], 'complete')
+        rows = self.rows()
+        with patch.object(transport, 'upload_media', side_effect=AssertionError('No upload')), \
+                patch.object(transport, 'send', side_effect=AssertionError('No generation')), \
+                patch.object(transport, 'send_delete', side_effect=AssertionError('No second deletion')), \
+                patch.object(transport, 'lookup_delete', side_effect=AssertionError('A settled deletion needs no lookup')):
+            with self.assertRaises(ProductionError) as again:
+                execution.resume(self.root, self.run)
+        self.assertEqual(again.exception.diagnostic.code, 'REMOTE_OUTCOME_UNKNOWN')
+        self.assertEqual(self.rows(), rows)
+        self.assertEqual(accounting.summary(self.root)['submissions'], 0)
+
+    def test_unknown_upload_of_an_ended_operation_is_recorded_before_the_cleanup(self):
+        uploads, upload = self.second_upload_unanswered()
+        # The operation ends without recording its stop, as when its process is killed.
+        with patch.object(execution, '_record_execution_failure'), \
+                patch.object(transport, 'upload_media', side_effect=upload), \
+                patch.object(transport, 'send_delete', side_effect=AssertionError('No deletion while the uploader runs')):
+            with self.assertRaises(ProductionError):
+                self.call()
+        self.assertEqual(execution.status(self.root, self.run)['runs'][0]['next_action']['command'], 'status')
+        with patch.object(execution, '_sender_alive', return_value=False):
+            action = execution.status(self.root, self.run)['runs'][0]['next_action']
+            self.assertEqual(action['command'], 'resume')
+            with patch.object(transport, 'upload_media', side_effect=AssertionError('No upload')), \
+                    patch.object(transport, 'send', side_effect=AssertionError('No generation')), \
+                    patch.object(transport, 'send_delete', wraps=transport.send_delete) as delete:
+                with self.assertRaises(ProductionError) as caught:
+                    execution.resume(self.root, self.run)
+            self.assertEqual(caught.exception.diagnostic.code, 'REMOTE_OUTCOME_UNKNOWN')
+            self.assertEqual([call.kwargs['provider_id'] for call in delete.call_args_list], uploads)
+            stopped = [row['data'] for row in self.rows() if row['event'] == 'execution-outcome']
+            self.assertEqual([(row['code'], row['unknown_uploads']) for row in stopped],
+                             [('REMOTE_OUTCOME_UNKNOWN', ['upload:1'])])
+            self.assertEqual(execution.status(self.root, self.run)['runs'][0]['next_action']['command'], 'repeat')
 
     def test_failed_input_is_not_retried_while_untouched_input_cleanup_resumes(self):
         begin = accounting.begin_cleanup_step

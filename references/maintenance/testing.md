@@ -59,7 +59,7 @@ are removed; the connection transaction context alone does not close them.
 
 `test_pack_read_model.py` checks input/build interleavings, source removal after
 acquisition, same-size/same-mtime edits, disabled-pack isolation, one acquisition
-per selected file and snapshot capture from the catalog's own input.
+per selected file and fixed-runtime inputs taken from the catalog's own input.
 `test_schema_read_model.py` checks immutable schema ownership, root isolation,
 lazy references, keyword coverage, diagnostic order and standalone validation.
 Run-view tests distinguish shared read-only state from editable exports and
@@ -77,7 +77,7 @@ packs stay outside that copy. It starts the commands with `CPB_HOME` at one scra
 
 - every `scripts/*_test.py` suite;
 - every `scripts/test_*.py` unittest module, as `python -m unittest <module>` from `scripts/`;
-- every example's `build_example.py --check`;
+- every `examples/*/*.py` script that offers `--check`, such as an example's `build_example.py --check`;
 - the validators and the default pack audit.
 
 `--only SUBSTRING` keeps the commands whose label or command contains SUBSTRING, such as the suites of one subsystem. `--list` prints the commands without running them, and `--jobs N` sets how many run at once. For a focused diagnosis:
@@ -225,6 +225,7 @@ The full runner above covers the public contracts through these developer checks
 | Contract | Executable checks |
 |---|---|
 | Evidence, transactions and operation diagnostics | [test_production_foundation.py](../../scripts/test_production_foundation.py), [test_production_operations.py](../../scripts/test_production_operations.py) |
+| Diagnostic code table, exit statuses and guidance links | [documentation_contract_smoke_test.py](../../scripts/documentation_contract_smoke_test.py) |
 | Fixed runtime snapshot reuse and irreversible-boundary checks | [test_runtime_snapshot.py](../../scripts/test_runtime_snapshot.py) |
 | Exact execution and handoff boundaries | [test_production_execution.py](../../scripts/test_production_execution.py), [test_production_boundaries.py](../../scripts/test_production_boundaries.py) |
 | Current grants, execution ownership and result records | [execution_lifecycle_smoke_test.py](../../scripts/execution_lifecycle_smoke_test.py) |

@@ -72,7 +72,9 @@ def _settle(root: Path, run: str, receipt: dict) -> dict:
         acquired = [row for row in rows if row['event'] == 'candidate']
         if receipt['outputs'] != len(acquired):
             raise ProductionError('INPUT_CONSISTENCY_ERROR', 'External receipt output count differs from saved candidates.',
-                                  phase='settlement', run=run, expected=len(acquired), actual=receipt['outputs'])
+                                  phase='settlement', run=run, expected=len(acquired), actual=receipt['outputs'],
+                                  required_action='Repeat receive-external with the same response and files; it counts '
+                                                  'the saved candidates again.')
         response = workflow.file_record(root, directory, receipt['response']['path'])
         if response['sha256'] != receipt['response']['sha256']:
             raise ProductionError('EVIDENCE_SNAPSHOT_CORRUPT', 'External response differs from the saved receipt.',
@@ -139,7 +141,9 @@ def receive_external(root: Path, run: str, *, response_file: str,
     directory, prepared, _, rows = workflow.read_run(root, run)
     if prepared['task']['execution'] != 'external':
         raise ProductionError('INPUT_CONSISTENCY_ERROR', 'This run does not delegate execution to an external host.',
-                              phase='result-capture', run=run)
+                              phase='result-capture', run=run,
+                              required_action='Follow the next action of status --run; receive-external settles the host '
+                                              'call of an external run, and resume recovers a dispatcher execution.')
     claim = workflow.find(rows, 'external-claim')
     authorization = claim['data']['authorizations'][0]
     actor = workflow.find(rows, 'authorization', authorization)['data']['request']['actor']

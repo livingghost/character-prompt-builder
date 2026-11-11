@@ -42,9 +42,15 @@ def _redirect_source(task: dict, old: str | None, new: str) -> None:
 
 
 def _captured(loaded, path: str) -> bytes:
+    """The saved bytes of an input the source run's task declares, by the snapshot its prepared input pins."""
     matches = [d for d in loaded.prepared['dependencies'] if d['space'] in {'studio', 'task-source'} and d['path'] == path]
     if len(matches) != 1:
-        raise ProductionError('EVIDENCE_SNAPSHOT_MISSING', 'The source run does not own this declared input.', phase='variation', file=path)
+        raise ProductionError('EVIDENCE_SNAPSHOT_MISSING',
+            'The prepared input of the source run pins no single snapshot of this input, which its task declares.',
+            phase='variation', file=path, run=loaded.prepared['run'], pinned=len(matches),
+            required_action='A sealed run is not corrected in place, so this run cannot be the source of a variant or a repeat. '
+                            'The run still loads; only deriving from it stops here. Prepare a new run from the current task '
+                            'or choices with prepare.')
     return loaded.evidence.read(matches[0]['sha256'])
 
 
@@ -65,9 +71,12 @@ def _target_change(root: Path, run: str, pointer: str, message: str) -> Producti
         required_action='Retarget with a reassessed task: ' + RETARGET.format(root=studio, run=run))
 
 
-def _unchanged(root: Path, run: str, prepared: dict, replaced: set[str], dependencies: list[dict]) -> None:
+def _unchanged(root: Path, run: str, prepared: dict, replaced: set[str], dependencies: list[dict]) -> list[dict]:
+    """Stop on an author source that changed without being replaced; return a notice for a changed installation."""
     import production_workflow as workflow
+    from production_diagnostics import from_exception
     retained = {(d['space'], d['path']) for d in dependencies}
+    installation = []
     for source in prepared['dependencies']:
         if ((source['space'], source['path']) not in retained
                 or source['space'] not in {'studio', 'skill'} or source['path'] in replaced):
@@ -77,11 +86,18 @@ def _unchanged(root: Path, run: str, prepared: dict, replaced: set[str], depende
         except (ValueError, OSError):
             actual = None
         if actual != source.get('selection_sha256', source['sha256']) and source['space'] == 'skill':
-            raise workflow.freshness_error(source, actual, run=run)
+            installation.append((source, actual, None))
+            continue
         if actual != source.get('selection_sha256', source['sha256']):
             raise ProductionError('SOURCE_CHANGED', 'An unchanged source differs from the prepared input.',
                 phase='variation', file=source['path'], expected=source['sha256'], actual=actual,
                 required_action='Review the source and replace it through its declared field, or restore the pinned contents.')
+    if not installation:
+        return []
+    return [{**from_exception(workflow.implementation_error(installation, run=run), phase='implementation'),
+             'severity': 'warning',
+             'required_action': 'The new run is compiled with the current installation, which differs from the one that '
+                                'prepared its parent. Compare its request with the parent before approving it.'}]
 
 
 def _basis(rows: list[dict], run: str, candidates: Sequence[str]) -> list[dict]:
@@ -114,9 +130,11 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     loaded = workflow.read_run(root, run)
     directory, prepared, _, rows = loaded
     if prepared['task']['execution'] != 'dispatcher':
-        raise ProductionError('VARIANT_NOT_APPLICABLE', 'Input derivation needs a compiled model request.', phase='variation')
+        raise ProductionError('VARIANT_NOT_APPLICABLE', 'Input derivation needs a compiled model request.', phase='variation',
+            required_action='Derive a variant or repeat from a dispatcher run. Revise this run through draft-inputs --from-run, '
+                            'then follow inspect-inputs for that draft.')
     runtime_inputs=runtime_snapshot.compilation_inputs(root,mode='variant' if changes_file is not None else 'repeat',
-        parent=prepared['runtime_snapshot'],target=loaded.artifacts['execution-target.json'],run=run)
+        parent=prepared['runtime_snapshot'],run=run)
     basis = _basis(rows, run, candidates)
     plan = loaded.artifacts['execution-plan.json']
     task = copy.deepcopy(prepared['task'])
@@ -159,10 +177,14 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
             if field in TARGET_KEYS:
                 raise _target_change(root, run, '$.changes.' + field, 'A model or service is selected by retargeting, not by a field change.')
             raise ProductionError('CHANGES_UNKNOWN_FIELD', 'This field is not declared mutable by the compiler.',
-                phase='variation', pointer='$.changes.' + field, actual=field, expected=sorted(fields))
+                phase='variation', pointer='$.changes.' + field, actual=field, expected=sorted(fields),
+                required_action='Name a field that expected lists; they are the mutable_fields of the source run\'s execution plan. '
+                                'Make any other change through draft-inputs --from-run.')
         errors = validate_against_schema(value, fields[field]['schema'])
         if errors:
-            raise ProductionError('CHANGES_TYPE_INVALID', '; '.join(errors), phase='variation', pointer='$.changes.' + field)
+            raise ProductionError('CHANGES_TYPE_INVALID', '; '.join(errors), phase='variation', pointer='$.changes.' + field,
+                required_action='Give this field a value its schema accepts; mutable_fields of the source run\'s execution plan '
+                                'holds the schema of each field.')
         checks.update(fields[field]['checks'])
         if field in TASK_FIELDS:
             name = TASK_FIELDS[field]
@@ -273,7 +295,9 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
         difference.append({'field': field, 'before': before, 'after': copy.deepcopy(value)})
     if 'production-spec' in changes and 'execution-mode' in changes:
         problems.append(ProductionError('CHANGES_CONFLICT', 'Choose a complete specification or its execution-mode field, not both.',
-                                        phase='variation', pointer='$.changes').diagnostic.as_dict())
+            phase='variation', pointer='$.changes',
+            required_action='Keep production-spec or execution-mode in the changes, not both. A new specification carries '
+                            'its mode in render_intent.execution_mode.').diagnostic.as_dict())
     if problems:
         first = problems[0]
         details = {key: value for key, value in first.items()
@@ -311,10 +335,13 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     if not compiled.report['publishable']:
         raise CompilationError(compiled.report)
     try:
-        _unchanged(root, run, prepared, replaced, compiled.prepared['dependencies'])
-        if changes_file is None and compiled.prepared['input_sha256'] != prepared['input_sha256']:
+        notices = _unchanged(root, run, prepared, replaced, compiled.prepared['dependencies'])
+        if changes_file is None and (compiler.authored_input_digest(compiled.prepared, compiled.consumer)
+                                     != compiler.authored_input_digest(prepared, loaded.consumer)):
             raise ProductionError('REPEAT_INPUT_MISMATCH',
-                'Repeated preparation did not retain the fixed input identity.', phase='variation')
+                'Repeated preparation did not retain the authored input.', phase='variation',
+                required_action='Restore the task, sources and references of the run to the content it pinned, or '
+                                'declare the difference with variant.')
         if prepare:
             result = compiler.publish_compilation(root, compiled, parent=parent, current_task=current_task)
         else:
@@ -325,7 +352,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
         if compiled.directory is not None and compiled.directory.exists():
             shutil.rmtree(compiled.directory)
     result['derivation'] = parent
-    result['runtime_warnings'] = list(compiled.report.get('runtime_warnings', ()))
+    result['runtime_warnings'] = [*compiled.report.get('runtime_warnings', ()), *notices]
     result['revalidated_checks' if prepare else 'required_checks']=sorted(checks)
     result.update(external_effect=False, authorization_inherited=False, candidate_required=False)
     return result
@@ -353,19 +380,29 @@ def retarget(root: Path, run: str, task_file: str | None = None, *, choices: str
     previous = loaded.prepared
     before = loaded.artifacts['execution-plan.json']
     if previous['task']['execution'] not in {'dispatcher', 'external'} or not before.get('request_sha256'):
-        raise ProductionError('RETARGET_NOT_APPLICABLE', 'Retargeting starts from an exact prepared image request.', phase='retarget')
+        raise ProductionError('RETARGET_NOT_APPLICABLE', 'Retargeting starts from an exact prepared image request.', phase='retarget',
+            required_action='Name a dispatcher or external image run with --from. Change the target of another run through '
+                            'draft-inputs --from-run with --model and --service, then follow inspect-inputs for that draft.')
     if choices is None:
         task = c.decode(store.stable_bytes(root, task_file))
         workflow.validate_task(task)
+        source = None
     else:
         from production_inputs import authoring_view
-        task = authoring_view(root, choices)['task']
+        authored = authoring_view(root, choices)
+        task, source = authored['task'], authored['source_run']
     if task['execution'] not in {'dispatcher', 'external'}:
-        raise ProductionError('RETARGET_NOT_APPLICABLE', 'The reassessed task must declare an image request.', phase='retarget')
+        raise ProductionError('RETARGET_NOT_APPLICABLE', 'The reassessed task must declare an image request.', phase='retarget',
+            required_action='Supply a task or choices whose execution is dispatcher or external. An authored revision is '
+                            'saved with save --choices, not retargeted.')
     for field in ('task_id', 'production_id'):
         if task[field] != previous['task'][field]:
+            if (field == 'task_id' and source is not None and source['run'] == run
+                    and work_ledger.require_open(root)['task_id'] == task['task_id']):
+                continue
             raise ProductionError('RETARGET_SCOPE_MISMATCH', 'Retargeting retains the work task and production series.',
-                phase='retarget', pointer='$.' + field, expected=previous['task'][field], actual=task[field])
+                phase='retarget', pointer='$.' + field, expected=previous['task'][field], actual=task[field],
+                required_action='Retain the production series; use draft-inputs --from-run with --new-task or --task-id to select another work task explicitly.')
     current_task = work_ledger.require_open(root) if prepare else None
     if choices is None:
         compiled = compiler.compile_task(root, task_file, persist=prepare)
@@ -381,23 +418,22 @@ def retarget(root: Path, run: str, task_file: str | None = None, *, choices: str
     if not new_plan.get('request_sha256'):
         if compiled.directory is not None:
             shutil.rmtree(compiled.directory, ignore_errors=True)
-        raise ProductionError('RETARGET_NOT_APPLICABLE', 'The selected target needs its exact prepared image request.', phase='retarget')
-    def target_identity(task, plan, consumer, package):
-        actual = ((consumer.get('image_input') or {}).get('model') or {}).get('target')
-        if task['execution'] == 'dispatcher':
-            actual = (package or {}).get('request_validation', {}).get('target')
-        return {'model': plan['model'], 'service': plan['service'], 'route': task['route'],
-                'execution': task['execution'], 'operation': (actual or {}).get('operation')}
-    old_target = target_identity(previous['task'], before, loaded.consumer, loaded.artifacts.get('package.json'))
-    new_target = target_identity(task, new_plan, compiled.consumer, compiled.package)
+        raise ProductionError('RETARGET_NOT_APPLICABLE', 'The selected target needs its exact prepared image request.', phase='retarget',
+            required_action='Reassess the task as a dispatcher request, or as an external image task whose image input holds '
+                            'its exact external request.')
+    from production_target import prepared_identity
+    old_target = prepared_identity(previous['task'], before, loaded.consumer, loaded.artifacts.get('package.json'))
+    new_target = prepared_identity(task, new_plan, compiled.consumer, compiled.package)
     changes = []
+    if task['task_id'] != previous['task']['task_id']:
+        changes.append({'field': 'task', 'before': previous['task']['task_id'], 'after': task['task_id']})
     if not same_json(old_target, new_target):
         changes.append({'field': 'target', 'before': old_target, 'after': new_target})
     old_runtime = (previous.get('runtime_snapshot') or {}).get('sha256')
     new_runtime = (compiled.prepared.get('runtime_snapshot') or {}).get('sha256')
     if old_runtime != new_runtime:
         changes.append({'field': 'runtime', 'before': old_runtime, 'after': new_runtime})
-    if not changes:
+    if not any(item['field'] in {'target', 'runtime'} for item in changes):
         if compiled.directory is not None:
             shutil.rmtree(compiled.directory, ignore_errors=True)
         raise ProductionError('RETARGET_NO_OP', 'Neither the target nor the pack runtime has changed.', phase='retarget',

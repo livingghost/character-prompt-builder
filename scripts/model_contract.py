@@ -24,7 +24,7 @@ MODEL_RECORD_KEYS = frozenset(
         "search_terms", "tags",
         "aliases", "avoid_uses", "default_aspect_ratio_behavior", "execution_profile",
         "input_image_count", "max_negative_prompt_chars", "max_outputs",
-        "max_positive_prompt_chars", "max_reference_images", "negative_transport_mode",
+        "max_positive_prompt_chars", "max_reference_images", "native_scale_factor", "negative_transport_mode",
         "negative_transport_notes", "offerings", "operation_kind", "ordering", "output_limits",
         "prompt_dialect", "prompt_input", "prompt_style", "recommendation_merge_mode", "recommended_parameters",
         "recommended_negative_preset", "recommended_negative_prompt",
@@ -297,15 +297,22 @@ def validate_model_record(record: Mapping[str, Any]) -> list[str]:
             )
         if record.get("upscaler_class") not in UPSCALER_CLASSES:
             errors.append(f"upscaler_class must be one of {sorted(UPSCALER_CLASSES)}")
+        native = record.get("native_scale_factor")
+        if "native_scale_factor" in record and (
+            isinstance(native, bool) or not isinstance(native, (int, float))
+            or not math.isfinite(native) or native <= 0
+        ):
+            errors.append("native_scale_factor must be a finite positive number")
         scales = record.get("supported_scale_factors")
-        if not isinstance(scales, list) or not scales:
+        if scales is not None and (not isinstance(scales, list) or not scales):
             errors.append("supported_scale_factors must be a non-empty array")
-        else:
+        elif scales is not None:
             normalized_scales: list[float] = []
             for index, value in enumerate(scales):
                 if (
                     isinstance(value, bool)
                     or not isinstance(value, (int, float))
+                    or not math.isfinite(value)
                     or value <= 1
                 ):
                     errors.append(

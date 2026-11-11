@@ -24,7 +24,7 @@ from typing import Any, Sequence
 import world_realization as wr
 from state_protocol import canonical_json, parse_json, resolve_world, sha256_json, validate_against_schema, validate_artifact
 from authorial_intent_audit import parse_document as parse_intents
-from execution_contract import fsync_dir, publish_directory
+from execution_contract import flush_published, fsync_dir, publish_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / 'schemas/authoring/story-context-query.schema.json'
@@ -242,7 +242,7 @@ def publish(bundle: dict, target: Path) -> None:
             with p.open('wb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
         for p in [*(x for x in staging.iterdir() if x.is_dir()),staging]:fsync_dir(p)
         if target.exists() or target.is_symlink():raise ValueError('output appeared during build')
-        publish_directory(staging,target);fsync_dir(target.parent)
+        publish_directory(staging,target);flush_published(target)
     finally:
         if staging is not None and staging.exists():shutil.rmtree(staging)
         lock.unlink(missing_ok=True)

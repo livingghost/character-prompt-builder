@@ -1,5 +1,147 @@
 # Changelog
 
+## 2026.11.11.1
+
+- Preserve explicit work-task bindings and parent lineage when reopening saved
+  prompts, completed results and independent model or prompt variants.
+- Expose every available authored draft and candidate with its own continuation;
+  status navigation links complete judgment evidence without repeating its bodies.
+- Select a retained candidate directly as the source of an enlargement, keeping
+  original image provenance and the new operation's own criteria and inputs.
+- Use one authored acceptance decision for delivery and Studio slots, deriving
+  authorization and selection records and recovering incomplete acceptance.
+- Report actual remaining work before task closure without marking author steps
+  or questions complete on behalf of the agent.
+- Retain producer-owned decision draft locations across interruption, with explicit
+  choices for multiple files and their original run, candidate and decision basis.
+- Return structured reading pages and combine explicitly selected complete
+  same-context deliveries with new bodies, retaining exact provenance and
+  current-source checks across phases and changed targets.
+- Diagnose scope flags, route/feature namespaces and issuer updates with concrete
+  recovery guidance. Detect retained upscale media from decoded image data,
+  including extensionless captured sources, through package verification.
+- Send and preview the sealed package and request of a prepared run as
+  published. The dispatch claim names them by content hash. A run that uses
+  a pack-owned reference asset now previews and executes, and binds that
+  asset's records and artifact file.
+- Fix a run's pack runtime from what its compilation bound or read instead of
+  copying every text file and record of the selected packs. An edit to an
+  unused record leaves the run unchanged, and a variant or repeat compiles
+  against the current packs once its parent's bound inputs are unchanged.
+- Compare current sources for the open runs of open work. Completed and
+  abandoned runs report `readiness: not-applicable` from retained records, and
+  an open run left by closed work reports `unchecked` until it is selected.
+  Report a changed installation as one finding per run with `changed_files`,
+  and observe each draft source run and the selected packs once per status.
+  `status --help` lists every `readiness` and `task_disposition` value with
+  what it tells about the run.
+- Name the repair when preparation cannot bind a pack record, a pack file or a
+  pack-owned reference artifact: restore or correct the pack content, build
+  the reference use plan again, or deliver the reference again. A preparation
+  without an enabled pack names `pack_cli.py enable`.
+- Give a blocked unsent run that was prepared from editable choices
+  `prepare --choices` as its next action. The earlier action prepared the
+  run's published copy again, which left out the edit that blocked it.
+- Name `authority-import` first in the readiness diagnostic of an unsent run
+  whose work task has no registered authority.
+- Keep a prepared run usable after the installation or the packs change. Such
+  a change, and a preparation reading that no longer verifies, is listed in
+  the new `freshness_notices` of status as a warning; `execute`, `resume`,
+  review and acceptance continue with the sealed request and fixed runtime.
+  A changed author source, a replaced Studio reference, a damaged fixed
+  runtime and a changed transport module still stop the run.
+- Compile a variant or repeat against the current installation and packs.
+  What differs from its parent is listed in `runtime_warnings`. It keeps the
+  model and service, and a repeat keeps the authored input: the task, its
+  sources and its references.
+- Report an upload that ended without an answer as `REMOTE_OUTCOME_UNKNOWN`
+  from `execute` and `resume`, with `repeat` as the continuation. `status`
+  and `resume` no longer point at each other for such a run.
+- Return the child run that a repeated `revise` already prepared instead of
+  compiling it again and failing at publication.
+- Accept an upscale model record that lists no supported scale factors; the
+  offering's execution profile and request evidence then constrain the scale.
+- Report a directory that was published before its flush failed as published,
+  with `published: true` and the continuation, in place of an unreadable
+  input. `logs-export` no longer calls its own finished export an occupied
+  destination.
+- Finish a `logs-cleanup --apply` that failed part of the way by running it
+  again; the remainder no longer stays as a directory nothing removes.
+- Say why a file could not be read as evidence, with the repair for that
+  cause, and name both digests and the run's copy when a saved answer file
+  changed. A work-task mismatch shows both task IDs, and a damaged manifest of
+  an unregistered publication names its removal with `staging-cleanup`.
+- Add 33 codes that the scripts raise to the diagnostic code table.
+- Apply an acceptance decision file again after another decision replaced
+  its selection: `accept --file` records a new selection that replaces the
+  current one and completes. Every selection names the selection it replaces
+  in `replaces`, and its authorization covers that link. Running the same
+  `accept` twice in a row still records one selection.
+- Require `lookup` of every transport; a service that cannot be asked again
+  returns None. A run whose provider is still working gives `resume --watch`,
+  which asks again every `--interval` seconds (10) and registers each output
+  as it finishes, until none is pending or `--limit` (120 seconds) ends. A
+  lookup that learns nothing new records nothing.
+- Save what an upload of unknown outcome returned, including an issued media
+  identifier, and delete the inputs uploaded before it.
+- Name the file, line, event or field and a repair that can be carried out in
+  more diagnostics: an invalid JSONL evidence line, a record that names no
+  saved reading, a damaged manifest of a registered run, a check that did not
+  run because a prerequisite failed, a recorded event that lacks a required
+  field, and an upscale scale outside the offering's execution profile.
+- Refuse a drive or root path where a Studio-relative path is expected, with
+  its Studio-relative form, instead of reading another file below the root.
+- Report every unanswered choice as `AUTHORED_CHOICE_REQUIRED` with its
+  `reason`, the field, what to put there and where it comes from, and the
+  section that explains it, in `draft-inputs`, `inspect-inputs`, `status` and
+  the commands that build or prepare choices. An unread route names the exact
+  read command.
+- Point each diagnostic phase at the section that explains it, and check that
+  every code a production script raises has a row in the diagnostic table.
+- Run the repair example on Windows and in `run_checks.py`. `logs-cleanup
+  --apply` reports what it removed before a failure and removes the day
+  folders it empties.
+- Report failures of `adoption_workflow.py` and `studio_reference.py` with
+  their codes, repairs and exit statuses. A changed adoption record names the
+  `adopt` command that restores it in every reader, and an interrupted catalog
+  adoption resumes after its record is restored. A decision citing an outdated
+  review reports `SELECTION_REVIEW_CHANGED` with its `draft-acceptance`.
+- Restore a Production adoption record that was deleted or damaged in the
+  Studio: running the same `adopt` again writes it from the result its run
+  recorded and adopts nothing again. Each reader of a missing or malformed
+  record reports `ADOPTION_RECORD_CORRUPT` with that command in place of a
+  Python error.
+- Report reference delivery without an authored execution policy as
+  `VALIDATION_POLICY_REQUIRED` in each case: no validation selected, a
+  validation without a policy, and a policy that does not cover the target.
+  The first two reported `MODEL_PROFILE_MISSING` and a general input error.
+- Withdraw a draft when its published directory is removed: it leaves the
+  editable branches of the work task, so one remaining draft no longer needs
+  an explicit `--choices`. A draft interrupted before publication is still
+  resumed.
+- Give 76 more diagnostics their own `required_action` in place of the
+  default sentence, and bring their entries in the diagnostic code table in
+  line with the conditions that report them.
+- Open the work task of a new revision or enlargement when its draft is
+  produced, so a refused draft command leaves no task. Report an unreadable
+  reading ledger before delivering any body.
+
+## 2026.11.09.5
+
+- Start local-image enlargement through the common editable workflow, importing
+  exact image bytes and retaining existing source paths, criteria and authority.
+- Show required operation grants, current authority and unapproved request-scope
+  templates before execution, and resume decisions saved at custom locations.
+- Guide changed targets through retarget with their parent run, and distinguish
+  model capabilities, validation evidence and actual request checks.
+- Upload sealed local image bytes through the Runware storage adapter and retain
+  integral scale factors as integers throughout the upscale contracts.
+- Explain changed reading sources and give executable continuation, replay,
+  restart and explicit same-context reuse actions. Publish each fully validated
+  pack-lock candidate once.
+- Keep technical review scoped to the commissioned criteria and carry meaningful
+  work through reopening, target changes and execution recovery.
+
 ## 2026.11.09.3
 
 - Preserve the declared model and service when compiling complete dispatcher

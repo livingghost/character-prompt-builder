@@ -760,6 +760,21 @@ class StoredContentTests(ReviewCase):
                 self.assertRefused(key, 'EVIDENCE_SNAPSHOT_CORRUPT')
         self.assertRefused(key, 'EVIDENCE_SNAPSHOT_CORRUPT')
 
+    def test_a_recorded_selection_that_breaks_the_selection_schema_names_its_event(self):
+        self.record_review([('output', 'pass'), ('palette', 'pass')])
+        selected = self.select()
+        data = copy.deepcopy(selected['data'])
+        data['selection'].pop('slot')
+        data['selection']['replaces'] = selected['sha256']
+        recorded = store.append(self.root, self.run, selected['input_sha256'], 'selection', data)
+        with self.assertRaises(ProductionError) as caught:
+            workflow.load_run(self.root, self.run)
+        found = caught.exception.diagnostic.as_dict()
+        self.assertEqual((found['code'], found['run'], found['event'], found['kind'], found['sequence']),
+                         ('EVENT_CHAIN_CORRUPT', self.run, recorded['sha256'], 'selection', recorded['sequence']))
+        self.assertIn(f"The recorded selection event at sequence {recorded['sequence']} is not valid", found['message'])
+        self.assertIn("missing required property 'slot'", found['message'])
+
     def test_corrupt_evidence_object_is_caught_after_reuse(self):
         import runtime_snapshot
         key = workflow.find(store.event_rows(self.root, self.run), 'candidate', self.candidate)['data']['files'][0]['sha256']
@@ -925,6 +940,19 @@ class SelectionTests(ReviewCase):
         self.assertEqual(self.state()['disposition'], 'not_selected')
         self.assertEqual((self.state(self.other)['disposition'], self.state(self.other)['selection_current']), ('selected', True))
         self.assertEqual(validate_studio.validate(self.root), [])
+
+    def test_a_selection_drafted_before_another_one_is_refused(self):
+        earlier = workflow.draft_selection(self.root, self.run, self.candidate)
+        earlier.update(reason='Synthetic selection drafted before another one was recorded.')
+        fixture.selection(self.root, self.run, earlier)
+        fixtures.write(self.root / 'earlier-selection.json', earlier)
+        first = self.select()
+        self.assertEqual((earlier['replaces'], first['data']['selection']['replaces']), (None, None))
+        self.assertEqual(workflow.draft_selection(self.root, self.run, self.candidate)['replaces'], first['sha256'])
+        before = store.event_rows(self.root, self.run)
+        self.assertCode('SELECTION_REPLACED', lambda: workflow.select(self.root, self.run, 'earlier-selection.json'))
+        self.assertEqual(workflow.select(self.root, self.run, 'selection.json'), first)
+        self.assertEqual(store.event_rows(self.root, self.run), before)
 
     def test_a_newer_review_ends_the_selection(self):
         self.select()

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import copy
+import base64
+import io
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -18,7 +20,10 @@ SERVICE = {'endpoint': {'base_url': 'https://api.runware.ai/v1'}}
 MEDIA_UUID = 'be012743-84d6-4e79-8bfb-cff57e622e1b'
 STORED_URL = 'https://mm.runware.ai/media-storage/test.png'
 SOURCE_URL = 'https://assets.example.test/reference.png'
-IMAGE = b'\x89PNG\r\n\x1a\n' + bytes(range(64))
+from PIL import Image
+_image_bytes = io.BytesIO()
+Image.new('RGB', (4, 3), 'steelblue').save(_image_bytes, format='PNG')
+IMAGE = _image_bytes.getvalue()
 
 
 def accepted(request, *, cost='0.0125'):
@@ -110,15 +115,16 @@ class StorageHTTPTests(unittest.TestCase):
     def posts(self):
         return [call for call in self.calls if call['method'] == 'POST']
 
-    def test_import_url_once_and_verify_stored_bytes_before_accepting_uuid(self):
-        result = self.upload()
+    def test_upload_bytes_once_and_verify_stored_bytes_before_accepting_uuid(self):
+        result = self.upload(source=None)
         self.assertEqual(result['provider_id'], MEDIA_UUID)
         self.assertEqual(result['response'], json.loads(self.last_body))
         self.assertEqual(result['usage'], {'currency': 'USD', 'amount': '0.0125', 'final': True})
         self.assertEqual(len(self.posts()), 1)
         task = self.posts()[0]['payload'][0]
         self.assertEqual({k: v for k, v in task.items() if k != 'taskUUID'},
-                         {'taskType': 'mediaStorage', 'operation': 'upload', 'media': SOURCE_URL})
+                         {'taskType': 'mediaStorage', 'operation': 'upload',
+                          'media': 'data:image/png;base64,' + base64.b64encode(IMAGE).decode('ascii')})
         self.assertEqual(uuid.UUID(task['taskUUID']).version, 4)
         self.assertEqual(self.posts()[0]['authorization'], 'Bearer synthetic-selected-key')
         self.assertEqual(self.calls[1], {'method': 'GET', 'path': '/stored.png', 'authorization': None})
@@ -203,6 +209,10 @@ class StorageHTTPTests(unittest.TestCase):
             self.upload()
         self.assertEqual(caught.exception.body, self.last_body)
         self.assertEqual([call['method'] for call in self.calls], ['POST', 'GET'])
+        # The storage answer names the identifier it issued, which the run journal keeps with the HTTP status.
+        evidence = caught.exception.evidence()
+        self.assertEqual(evidence['http_status'], 200)
+        self.assertEqual(json.loads(evidence['body'])['data'][0]['mediaUUID'], MEDIA_UUID)
 
     def test_stored_content_redirect_is_not_followed(self):
         self.stored_status = 302
@@ -210,12 +220,10 @@ class StorageHTTPTests(unittest.TestCase):
             self.upload()
         self.assertEqual([call['path'] for call in self.calls], ['/v1', '/stored.png'])
 
-    def test_storage_host_and_source_locator_are_validated(self):
-        for source in (None, '/local/image.png', 'http://assets.example.test/image.png',
-                       'https://name:secret@assets.example.test/image.png', SOURCE_URL + '#fragment',
-                       SOURCE_URL + '#', 'https://assets.example.test/image name.png'):
-            with self.subTest(source=source), self.assertRaises(ValueError):
-                self.upload(source=source)
+    def test_storage_host_and_actual_source_bytes_are_validated(self):
+        with self.assertRaises(ValueError):
+            transport.upload_media(b'not an image', 'image/png', SERVICE,
+                                   'synthetic-selected-key', source_url=None)
         self.assertEqual(self.calls, [])
         self.response = lambda request: {'data': [{**accepted(request)['data'][0],
                                                  'mediaURL': 'https://unrelated.example.test/file.png'}]}

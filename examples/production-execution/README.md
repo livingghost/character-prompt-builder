@@ -21,6 +21,9 @@ Each output includes `commands.json`, its actual authored or execution records, 
 result and a final summary. Examples that exercise external operations also retain their
 synthetic authority, exact input, claim and result receipts.
 
+`python examples/production-execution/repair_example.py --check` runs the second example in a
+temporary directory and exits 1 unless it completes; `scripts/run_checks.py` runs it this way.
+
 All authority is conspicuously synthetic and exists only for executable fixtures. No production
 command invents missing approvals. No network calls, purchased generation, audience assessment,
 character performance or finished-artwork quality is claimed. The fixtures test processing,

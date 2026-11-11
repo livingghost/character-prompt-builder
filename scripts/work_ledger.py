@@ -145,22 +145,30 @@ def new_task_id(root: Path) -> str:
     return generate_uuid7()
 
 
-@mutation
-def begin(root: Path, goal: str, steps: list[str]) -> dict[str, Any]:
-    from execution_contract import lock
-    with lock(work_dir(root)):
-        return _begin_locked(root, goal, steps)
-
-
-def _begin_locked(root: Path, goal: str, steps: list[str]) -> dict[str, Any]:
+def require_beginnable(root: Path, goal: str, steps: list[str]) -> None:
+    """The shared gate for opening work and for a caller's check before it opens work."""
     if read_current(root) is not None:
         raise ValueError("a task is already open; suspend, finish or abandon it before opening another")
     if not goal.strip():
         raise ValueError("a task needs a goal")
     if not steps or not all(text.strip() for text in steps):
         raise ValueError("a task needs at least one step, each with text")
+
+
+@mutation
+def begin(root: Path, goal: str, steps: list[str], *, task_id: str | None = None) -> dict[str, Any]:
+    """Open work. A caller that built inputs for an unopened task supplies that task's ID."""
+    from execution_contract import lock
+    with lock(work_dir(root)):
+        return _begin_locked(root, goal, steps, task_id)
+
+
+def _begin_locked(root: Path, goal: str, steps: list[str], task_id: str | None = None) -> dict[str, Any]:
+    require_beginnable(root, goal, steps)
+    if task_id is not None and task_path(root, task_id).exists():
+        raise ValueError('the task ID already belongs to saved work')
     task = refreshed({
-        "task_id": new_task_id(root),
+        "task_id": task_id or new_task_id(root),
         "goal": goal.strip(),
         "opened_at": now(),
         "steps": [{"n": index, "text": text.strip(), "done_at": None} for index, text in enumerate(steps, 1)],
@@ -394,6 +402,67 @@ def _require_finished_steps(task: dict[str, Any]) -> None:
         )
 
 
+def _require_finishable_work(task: dict[str, Any]) -> None:
+    """The shared work gate for status and the eventual owning-task mutation."""
+    if task.get('work_state') not in {'active', 'suspended'}:
+        raise ValueError('only active or suspended work can finish on its own production completion')
+    if task.get('blocked_on') or any(question['state'] == 'open' for question in task.get('questions', [])):
+        raise ValueError('resolve the open author questions before finishing')
+    _require_finished_steps(task)
+
+
+def _finish_journal(root: Path, run: str, task: dict[str, Any], completion: dict) -> list[dict]:
+    matching = [entry for entry in read_ledger(root) if entry.get('event') == 'finished'
+                and entry.get('task_id') == task['task_id']]
+    if matching and (len(matching) != 1 or matching[0].get('production_run') != run
+                     or matching[0].get('completion_sha256') != completion['sha256']):
+        raise ValueError('task completion journal conflicts with the exact run evidence')
+    if task.get('work_state') == 'completed' and (not matching or task.get('production_run') != run):
+        raise ValueError('closed task completion journal conflicts with its saved completion')
+    return matching
+
+
+def finish_state(root: Path, run: str) -> dict[str, Any]:
+    """Expose actual remaining work and the same completion gate that finish enforces.
+
+    Reading this view records no progress, answers no question and closes no task.
+    The explicit run identifies its owner even when another task is active.
+    """
+    from production_workflow import read_run, verify_completion
+    from execution_contract import load
+    from production_diagnostics import from_exception
+    loaded = read_run(root, run)
+    task_id = loaded.prepared['task']['task_id']
+    task = load(task_path(root, task_id))
+    if task.get('task_id') != task_id:
+        raise ValueError('the saved task differs from the run owner')
+    result = {'task_id': task_id, 'run': run, 'work_state': task.get('work_state'),
+        'incomplete_steps': [step for step in task.get('steps', []) if not step.get('done_at')],
+        'open_questions': [question for question in task.get('questions', []) if question['state'] == 'open'],
+        'blocked_on': task.get('blocked_on'), 'completion': None,
+        'ready_to_finish': False, 'finished': False, 'diagnostics': [],
+        'finish_command': shown(python_argv(SCRIPT, 'finish', '--studio', str(root.resolve()), '--run', run))}
+    try:
+        if any(row['event'] == 'completion' for row in loaded.rows):
+            completion = verify_completion(root, run, task_id)
+            result['completion'] = completion['sha256']
+            _finish_journal(root, run, task, completion)
+            if task.get('work_state') == 'completed':
+                result['finished'] = True
+                return result
+        elif loaded.prepared['task']['execution'] == 'authored':
+            from production_authored import completion_data
+            completion_data(loaded.prepared, loaded.rows)
+        else:
+            raise ValueError('the selected production result has no verified completion')
+        _require_finishable_work(task)
+        result['ready_to_finish'] = True
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        result['diagnostics'].append(from_exception(exc, phase='work-finish',
+            required_action='Complete the actual remaining work or resolve its recorded question, then finish this run.'))
+    return result
+
+
 def _finish_verified(root: Path, run: str) -> dict[str, Any]:
     from production_workflow import complete, read_run, verify_completion
     from execution_contract import load
@@ -404,30 +473,16 @@ def _finish_verified(root: Path, run: str) -> dict[str, Any]:
         raise ValueError('the saved task differs from the run owner')
     if (loaded.prepared['task']['execution'] == 'authored'
             and not any(row['event'] == 'completion' for row in loaded.rows)):
-        if task.get('work_state') not in {'active', 'suspended'}:
-            raise ValueError('only active or suspended work can finish on its own production completion')
-        if task.get('blocked_on') or any(question['state'] == 'open' for question in task.get('questions', [])):
-            raise ValueError('resolve the open author questions before finishing')
-        _require_finished_steps(task)
+        _require_finishable_work(task)
         # The authored owner records the actual outcomes through its ordinary
         # completion event. Finishing work need not repeat that bookkeeping.
         complete(root, run)
     completion = verify_completion(root, run, task_id)
-    matching = [entry for entry in read_ledger(root) if entry.get('event') == 'finished'
-                and entry.get('task_id') == task_id]
-    if matching and (len(matching) != 1 or matching[0].get('production_run') != run
-                     or matching[0].get('completion_sha256') != completion['sha256']):
-        raise ValueError('task completion journal conflicts with the exact run evidence')
+    matching = _finish_journal(root, run, task, completion)
     if task.get('work_state') == 'completed':
-        if not matching or task.get('production_run') != run:
-            raise ValueError('closed task completion journal conflicts with its saved completion')
         _clear_finished_pointer(root, task_id)
         return task
-    if task.get('work_state') not in {'active', 'suspended'}:
-        raise ValueError('only active or suspended work can finish on its own production completion')
-    if task.get("blocked_on") or any(question['state'] == 'open' for question in task.get('questions', [])):
-        raise ValueError("resolve the open author questions before finishing")
-    _require_finished_steps(task)
+    _require_finishable_work(task)
     if not matching:
         finished = {"at": now(), "task_id": task_id, "event": "finished", "text": task["goal"],
                     "production_run": run, "completion_sha256": completion['sha256']}

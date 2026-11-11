@@ -21,14 +21,32 @@ def require_scope(operation: str, execution: str) -> None:
         raise ValueError('reading execution must be one of: ' + ', '.join(EXECUTIONS))
 
 
+def _require_name(manifest: dict[str, Any], kind: str, name: str) -> None:
+    """Reject a misplaced or unknown name with its declared selection action."""
+    choices = manifest[kind + 's']
+    if name in choices:
+        return
+    other = 'feature' if kind == 'route' else 'route'
+    if name in manifest[other + 's']:
+        if kind == 'feature':
+            action = f'{name!r} is a route; select route {name!r} and remove --feature {name}'
+        else:
+            action = (f'{name!r} is a feature; choose a route from: '
+                      + ', '.join(sorted(choices)) + f'; include --feature {name}')
+    else:
+        action = f'choose a {kind} from: ' + (', '.join(sorted(choices)) or '(none declared)')
+    raise ValueError(f'unknown {kind}: {name}; {action}. '
+                     f'Route and feature names are declared separately in {MANIFEST}; '
+                     'SKILL.md explains when to select them.')
+
+
 def resolve(route: str, features: list[str] | None = None, *, execution: str,
             operation: str | None = None, root: Path = ROOT,
             read_source:Callable[[str],bytes]|None=None) -> dict[str, Any]:
     read_source=read_source or (lambda path:read(local(root,path)))
     raw=read_source(MANIFEST)
     manifest=decode(raw)
-    if route not in manifest['routes']:
-        raise ValueError(f'unknown route: {route}')
+    _require_name(manifest, 'route', route)
     entry = manifest['routes'][route]
     operation = operation or entry['default_operation']
     require_scope(operation, execution)
@@ -36,8 +54,7 @@ def resolve(route: str, features: list[str] | None = None, *, execution: str,
     pending = list(selected)
     while pending:
         name = pending.pop()
-        if name not in manifest['features']:
-            raise ValueError(f'unknown feature: {name}')
+        _require_name(manifest, 'feature', name)
         for dependency in manifest['features'][name].get('execution_features', {}).get(execution, []):
             if dependency not in selected:
                 selected.add(dependency)
@@ -50,8 +67,6 @@ def resolve(route: str, features: list[str] | None = None, *, execution: str,
     paths = list(context['reads']) + context['executions'][execution] + entry['reads']
     roles: set[str] = set()
     for feature in selected:
-        if feature not in manifest['features']:
-            raise ValueError(f'unknown feature: {feature}')
         f = manifest['features'][feature]
         paths += f['reads']
         roles.update(f['source_roles'])
@@ -129,8 +144,8 @@ def main() -> int:
     p=sub.add_parser('inspect'); p.add_argument('route'); p.add_argument('--feature',action='append',default=[])
     p.add_argument('--operation', choices=OPERATIONS, help='Current operation; defaults to the route owner')
     p.add_argument('--execution', required=True, choices=EXECUTIONS, help='Execution kind selected by the task')
-    reading = sub.add_parser('read', help='Read the complete route documents, record issuance and write the reading record to complete')
-    from route_reading import add_read_arguments, read_command
+    reading = sub.add_parser('read', help='Deliver structured pages of complete current operation knowledge and its reading record')
+    from route_reading import ReadingSourcesChanged, add_read_arguments, read_command
     add_read_arguments(reading)
     sub.add_parser('validate')
     a=parser.parse_args()
@@ -141,7 +156,10 @@ def main() -> int:
         result=validate() if a.command=='validate' else resolve(a.route,a.feature,operation=a.operation,execution=a.execution)
         print(json.dumps(result,indent=2)); return 0 if result.get('ok',True) else 1
     except (ValueError,OSError) as exc:
-        print(json.dumps({'ok':False,'error':str(exc)})); return 1
+        if not getattr(exc, 'reading_result_written', False):
+            print(json.dumps({'ok':False,'error':str(exc),
+                              **(exc.as_dict() if isinstance(exc, ReadingSourcesChanged) else {})}))
+        return 1
 if __name__=='__main__':
     import stdio_utf8
     stdio_utf8.configure()

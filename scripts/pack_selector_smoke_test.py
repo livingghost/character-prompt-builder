@@ -163,6 +163,20 @@ class PackSelectorTests(unittest.TestCase):
         self.assertEqual(code, 0, payload)
         self.assertEqual(payload["pack_id"], self.manifest["pack_id"])
         self.assertEqual((self.pack / "pack.lock.json").read_bytes(), before)
+        self.assertEqual(payload['inventory_changes'], {'added': [], 'modified': [], 'removed': []})
+
+    def test_release_lock_publishes_the_one_fully_validated_inventory(self) -> None:
+        import pack_cli
+        manifest = json.loads((self.pack / 'pack.json').read_text(encoding='utf-8'))
+        manifest['release'] = '2026.11.10.1'
+        (self.pack / 'pack.json').write_text(json.dumps(manifest), encoding='utf-8')
+        (self.pack / 'new-note.txt').write_text('New authored evidence.\n', encoding='utf-8')
+        with mock.patch.object(pack_manager.PackInput, 'read', wraps=pack_manager.PackInput.read) as acquire:
+            lock, changes = pack_cli._write_release_lock(self.pack)
+        self.assertEqual(acquire.call_count, 1)
+        self.assertEqual(json.loads((self.pack / 'pack.lock.json').read_text(encoding='utf-8')), lock)
+        self.assertEqual(changes, {'added': ['new-note.txt'], 'modified': ['pack.json'], 'removed': []})
+        self.assertTrue(pack_manager.validate_pack(self.pack, require_lock=True).valid)
 
     def test_directory_is_explicit_and_need_not_be_discovered(self) -> None:
         outside = self.root / "outside"

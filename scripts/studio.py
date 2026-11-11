@@ -336,8 +336,8 @@ class StudioRead:
     def journal(self, character: str, iteration: str) -> dict:
         key = character, iteration
         if key not in self._journals:
-            from adoption_workflow import _journal_path
-            self._journals[key] = freeze(read_json(_journal_path(self.home(character), iteration)))
+            from adoption_workflow import read_journal
+            self._journals[key] = freeze(read_journal(self, character, iteration))
         return self._journals[key]
 
     def _package(self, reference: dict, *, verify: bool = False) -> tuple[Path, dict]:
@@ -1044,10 +1044,24 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
         selection = workflow.require_selected(prepared, records, origin["candidate"], run=origin["run"])
     if production_selection is not None:
         from production_diagnostics import ProductionError
-        if selection is None or selection['sha256'] != production_selection:
-            raise ProductionError('SLOT_ACCEPTANCE_MISMATCH', 'The slot effect differs from the candidate\'s current exact selection.',
-                                  phase='acceptance', expected=production_selection,
-                                  actual=selection['sha256'] if selection else None)
+        if selection is None:
+            raise ProductionError('SLOT_ACCEPTANCE_MISMATCH',
+                f'{iteration_id} records no Production candidate, so the Studio cannot accept it for a Production selection.',
+                phase='acceptance', file=f'characters/{character}/iterations.jsonl', expected=production_selection,
+                actual=None,
+                required_action=(f'The selection this acceptance applies names {iteration_id} as the Studio recording '
+                    f'of its candidate, and the line of {iteration_id} in characters/{character}/iterations.jsonl '
+                    'records no production run and candidate. No command rewrites the origin of a recorded '
+                    'iteration: restore that line from a copy of this Studio.'))
+        if selection['sha256'] != production_selection:
+            run = origin['run']
+            raise ProductionError('SLOT_ACCEPTANCE_MISMATCH',
+                'Another selection of the candidate was recorded while this acceptance was applied.',
+                phase='acceptance', run=run, expected=production_selection, actual=selection['sha256'],
+                required_action=(f'Read the current selection with production_workflow.py status --run {run}. Run '
+                    f'accept --run {run} to resume that selection in its own scope, or apply the decision file of '
+                    f'this acceptance again with accept --run {run} --file FILE, which records it as a new selection '
+                    'that replaces the current one.'))
         saved = [entry for entry in row.get('acceptances', [])
                  if entry.get('production_selection') == selection['sha256']]
         if saved:

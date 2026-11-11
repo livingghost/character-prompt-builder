@@ -201,7 +201,11 @@ class StudioSourceTests(unittest.TestCase):
         args = ['--studio',str(self.root),'--character','robot','--slot','canon.primary','source','--out',str(target)]
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(sr.main(args),0)
-            self.assertEqual(sr.main(args),1)
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            self.assertEqual(sr.main(args),2)
+        diagnostic = json.loads(printed.getvalue())['diagnostics'][0]
+        self.assertEqual((diagnostic['code'], diagnostic['required_action']), ('OUTPUT_ALREADY_EXISTS', 'Choose a new --out.'))
         self.assertEqual(c.load(target),self.source)
 
 
@@ -329,6 +333,23 @@ class ProductionStudioSourceTests(unittest.TestCase):
                     sr.current_source(self.root, 'robot', 'base.front')
         c.atomic_write_json(self.journal, journal)
         sr.validate_source(sr.current_source(self.root, 'robot', 'base.front'))
+
+    def test_cli_reports_a_damaged_adoption_record_with_its_restoring_command(self):
+        import contextlib, io
+        self.journal.unlink()
+        target = self.base / 'source.json'
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            code = sr.main(['--studio', str(self.root), '--character', 'robot', '--slot', 'base.front',
+                            'source', '--out', str(target)])
+        report = json.loads(printed.getvalue())
+        self.assertEqual(code, 2)
+        self.assertFalse(report['ok'])
+        diagnostic = report['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'ADOPTION_RECORD_CORRUPT')
+        self.assertEqual(diagnostic['file'], 'characters/robot/adoptions/' + self.row['iteration_id'] + '.json')
+        self.assertIn('production_workflow.py adopt --run ' + self.run, diagnostic['required_action'])
+        self.assertFalse(target.exists())
 
     def test_catalog_reference_waits_for_its_completed_result_and_resumes_same_claim(self):
         import production_workflow as workflow

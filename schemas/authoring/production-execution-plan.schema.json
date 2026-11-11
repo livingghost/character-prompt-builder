@@ -113,8 +113,12 @@
     },
     "request": {
       "anyOf": [
-        {"type": "object"},
-        {"type": "array"}
+        {
+          "type": "object"
+        },
+        {
+          "type": "array"
+        }
       ]
     },
     "validation": {
@@ -144,6 +148,9 @@
           "items": {
             "$ref": "#/$defs/diagnostic"
           }
+        },
+        "authorization_requirements": {
+          "type": "object"
         }
       },
       "required": [

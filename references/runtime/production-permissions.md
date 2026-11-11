@@ -76,6 +76,26 @@ authorization grants the exact operation.
 
 `draft-execution` produces one compact editing document for dispatcher and external image execution. Its `decisions` keep direction and submission separate. Select grants and write each operation's reason, stop assessments and request judgments; exact payloads, actors, counts and review hashes are derived from the prepared input when execution records the separate authorizations. For a dispatcher principal approval, select only its actual evidence `path` and `locator`; the runtime measures the bytes and binds the current issuer and exact request. Scope assessment entries contain criterion, conclusion and reason. The editing `rendition_review` contains its assessments; the runtime supplies the exact input and reference identities in the formal record.
 
+Before execution, `workspace --phase decision`, `status` and `draft-execution`
+expose `authorization_requirements`: each operation and all required targets,
+candidate grants, missing targets and current eligibility. These use the same
+grant check as execution. Resolve all named gaps from the actual issuer's
+authority while preserving the requested work and already applicable choices.
+A unique eligible grant can fill an unanswered selector; that mechanical choice
+does not approve the request, choose a delegation case or assess any condition.
+
+For a dispatcher request, `request_scope_template` supplies the complete current
+scope shape from the exact prepared target, execution hashes and fixed fields.
+Its state is `unapproved`; source path and locator remain unanswered. Use it
+only where the actual instruction delegates that scope. Its linked
+`schemas/authoring/request-scope.schema.json` describes fixed fields, finite or
+numeric variations, authored-content sources and review criteria. The author
+selects the actual source and authorized variations. Acquisition derives omitted
+source hashes from those bytes, checks any supplied hash and stores complete
+canonical references. Editing a source does not silently repin an existing
+registered authority. The template is separate from both the current authority
+and the execution choices and is never imported automatically.
+
 Use the input workspace before the decision workspace to reconstruct the actual request, then compare it with the source commission and authority. Inspect the complete references, controls and `execution_plan.prompt_check` before approving. Draft assessments have null conclusions and empty reasons. Structural
 checks and dictionary evidence cannot fill them. An unscoped dispatcher request
 needs principal approval; a scoped delegation needs satisfied assessments.
@@ -112,7 +132,8 @@ reuses completed uploads within that execution, checks the provider's recorded
 outcome, or completes deletion of that execution's uploaded inputs. The exact
 submission scope includes those deletions when the selected transport supports
 them. Cleanup uses the owned upload receipts after a terminal result and output
-capture; it does not reopen submission or require a new generation approval.
+capture, or after an upload that stopped the execution before its send; it does
+not reopen submission or require a new generation approval.
 Every new generation uploads its inputs anew. Recovery never
 resends a started request. A timeout, disconnect or missing image is not evidence
 that the provider did nothing. `draft-outcome` leaves an evidenced `not_executed`
@@ -135,6 +156,12 @@ a later ledger append does not invalidate an earlier reading.
 authority update and its predecessor. Revocation is checked again at every new
 external boundary. Updating authority does not authorize different request bytes.
 
+The decision and status views expose `authority.document`, its `source_path`,
+the current `event_sha256` and an `update_action` containing the exact predecessor
+argument. Edit that declaration from the actual instruction and use the returned
+action. A concurrent authority change requires another inspection and
+reconciliation; no `current` shortcut replaces the observed predecessor.
+
 A review repair binds its changed creative scopes and revised input hash. An
 authority-only update is separate from a creative variant, and a revoked grant
 stops consumption of an edit receipt as `GRANT_REVOKED`.
@@ -154,8 +181,8 @@ agent-filled acceptance form establishes no consent. Every nonpass hard
 criterion and unresolved entry must be covered, and an unassessed hard criterion
 cannot be accepted in place of review. The authorization pins the evidence bytes
 and the complete selection payload, including its candidate, exact review,
-acceptance and destination. Later changes to the live evidence file cannot
-rewrite that saved decision.
+acceptance, destination and the selection it replaces. Later changes to the live
+evidence file cannot rewrite that saved decision.
 
 A `studio-slot` selection uses the `select` operation and `delivery` target to
 authorize acceptance of the exact recorded iteration for its slot. Its compact
@@ -171,7 +198,7 @@ completed or abandoned run with current authority. The source task stays closed;
 its selection and review remain the evidence for that candidate. New production
 decisions and submissions keep their own lifecycle and permissions. Follow
 selection, adoption and completion in
-[Production execution](production-adoption.md#select-optionally-adopt-and-finish).
+[Production execution](production-adoption.md#select-a-reviewed-result-and-finish).
 The sheet stores the selected immutable image and provenance together; candidates
 and historical selections cannot silently replace the current image.
 

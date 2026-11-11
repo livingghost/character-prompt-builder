@@ -60,6 +60,14 @@ gives one the wrong type, naming each such name in one error:
     send(request, service, key) -> dict
         Perform the request through post() and return the answer as a JSON object.
 
+    lookup(request, service, key) -> dict | None
+        Ask the service again, by the request's original identifiers, for the
+        answer to a request that was sent: one that was lost, or one whose
+        outputs were unfinished. Return that answer in the shape send()
+        returns, or None when the service gives no answer for it. A service
+        that never leaves an output unfinished and offers no way to ask again
+        returns None.
+
     rejections(answer) -> list[dict]
         The service's refusals, empty when it accepted the request.
 
@@ -89,13 +97,6 @@ A transport may also define these names; check() refuses one with the wrong type
         as send_delete, or None when the provider has no definitive answer.
         An unknown deletion is reconciled without sending it again. These
         three methods form one complete optional cleanup capability.
-
-    lookup(request, service, key) -> dict | None
-        Ask the service for the answer to a request that was sent and whose
-        answer was lost or remains unfinished, by its original identifiers. It
-        returns that answer in the shape send() returns, or None when the
-        service gives no answer for it. A transport without lookup cannot
-        reconcile a lost answer, and the outcome stays unknown.
 
     CREDENTIAL_FREE
         True for a transport that reaches no network and reads no credential.
@@ -161,6 +162,7 @@ NAMES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "upload_media": (callable, "a function"),
     "usage": (callable, "a function"),
     "send": (callable, "a function"),
+    "lookup": (callable, "a function"),
     "rejections": (callable, "a function"),
     "results": (callable, "a function"),
     "observation_outcome": (callable, "a function"),
@@ -171,7 +173,6 @@ OPTIONAL: dict[str, tuple[Callable[[Any], bool], str]] = {
     "prepare_delete": (callable, "a function"),
     "send_delete": (callable, "a function"),
     "lookup_delete": (callable, "a function"),
-    "lookup": (callable, "a function"),
     "CREDENTIAL_FREE": (lambda value: type(value) is bool, "a boolean"),
 }
 
@@ -271,16 +272,12 @@ def credential_free(transport: Any) -> bool:
 
 
 def lookup_once(transport: Any, request: dict[str, Any], service: dict[str, Any], key: str) -> dict[str, Any]:
-    """Ask the service once for the lost answer to a sent request, and say what the asking found.
+    """Ask the service once for the answer to a sent request, and say what the asking found.
 
     The result is {"outcome", "answer", "reason"}. The outcome is "found" with the
-    service's answer, "no-answer" when the service gave none, "unavailable" when
-    the exchange ended without an answer, and "unsupported" for a transport
-    without lookup. Only "found" carries an answer.
+    service's answer, "no-answer" when the service gave none, and "unavailable"
+    when the exchange ended without an answer. Only "found" carries an answer.
     """
-    if not callable(getattr(transport, "lookup", None)):
-        return {"outcome": "unsupported", "answer": None,
-                "reason": "The transport defines no lookup, so a lost answer cannot be asked for again."}
     try:
         answer = transport.lookup(request, service, key)
     except Indeterminate as unknown:
@@ -349,6 +346,15 @@ def outcome(transport: Any, answer: dict[str, Any]) -> str:
     if value not in OUTCOMES:
         raise ValueError(f"the transport gave the outcome {value!r}; an answer's outcome is one of {', '.join(OUTCOMES)}")
     return value
+
+
+def reading(transport: Any, answer: dict[str, Any]) -> dict[str, Any]:
+    """What the dispatcher reads from an answer: its outcome, its outputs, its refusals and its charge.
+
+    Two answers with the same reading settle, capture and charge a request alike.
+    """
+    return {"outcome": outcome(transport, answer), "results": transport.results(answer),
+            "rejections": transport.rejections(answer), "usage": transport.usage(answer)}
 
 
 def complete(transport: Any, answer: dict[str, Any]) -> bool:

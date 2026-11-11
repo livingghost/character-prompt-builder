@@ -20,7 +20,7 @@ from production_diagnostics import ProductionError
 
 def decisions(root: Path, run: str) -> str:
     from production_fixtures import ACTOR
-    value = execution.draft_execution(root, run, 'fixture-grant')
+    value = execution.draft_execution(root, run, 'fixture-grant')['choices']
     authority = store.authority(root, workflow.load_run(root, run)[1]['task']['task_id'])
     for request in value['decisions']:
         request['reason'] = 'Explicit synthetic fixture decision. Not user consent.'
@@ -434,12 +434,7 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         descriptor=workflow.read_run(self.root,self.run).prepared['runtime_snapshot']
         directory=runtime_snapshot.path(self.root,descriptor)
         snapshot=c.load(directory/'snapshot.json')
-        bound={(row['pack'],row['path']) for row in runtime_snapshot.dependencies(descriptor['binding'])}
-        unused=sorted((pack['pack_id'],item['path']) for pack in snapshot['packs'] for item in pack['files']
-                      if item['path'].startswith('records/') and item['path'].endswith('.json')
-                      and (pack['pack_id'],item['path']) not in bound)
-        self.assertTrue(unused,'The complete runtime must retain unselected catalogue records.')
-        pack,relative=unused[0]
+        pack,relative=sorted((pack['pack_id'],item['path']) for pack in snapshot['packs'] for item in pack['files'])[0]
         member=directory/'packs'/pack/relative
         original=member.read_bytes()
         upload=self.uploader()
@@ -501,15 +496,135 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         self.assertTrue(outcome['evidence'][0]['path'].endswith('/upload-001-refused.json'))
         self.assertEqual(self.recorded()['reported_cost'],{})
 
-    def test_unanswered_upload_is_not_reissued_by_resume(self):
+    def unanswered_upload(self):
+        """Execute with an upload whose exchange ends without an answer, and return the diagnostic."""
         with patch.object(transport_synthetic,'upload_media',side_effect=TimeoutError('Synthetic upload timeout')):
-            with self.assertRaises(TimeoutError):
+            with self.assertRaises(ProductionError) as caught:
                 execution.execute(self.root,self.run,decisions_file=self.decision)
-        with patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('No repeated upload')),patch.object(transport_synthetic,'send',side_effect=AssertionError('No send after unknown upload')):
-            result=execution.resume(self.root,self.run)
-        self.assertFalse(result['execution_completed'])
+        return caught.exception.diagnostic
+
+    def test_unanswered_upload_is_reported_and_never_reissued(self):
+        first=self.unanswered_upload()
+        self.assertEqual((first.code,first.details['steps']),('REMOTE_OUTCOME_UNKNOWN',['upload:0']))
+        self.assertIn('Synthetic upload timeout',first.details['cause'])
+        rows=store.event_rows(self.root,self.run)
+        self.assertEqual([(row['data']['submission'],row['data']['code']) for row in rows if row['event']=='execution-outcome'],
+                         [('claimed','REMOTE_OUTCOME_UNKNOWN')])
+        journal=c.local(self.root,workflow.find(rows,'dispatch-claim')['data']['journal'])
+        self.assertEqual(c.load(journal/'upload-001-indeterminate.json'),
+                         {'outcome':'indeterminate','reason':'the upload ended without a provider answer (TimeoutError)',
+                          'http_status':None,'body':None})
+        item=execution.status(self.root,self.run)['runs'][0]
+        self.assertEqual(item['submission'],'claimed')
+        self.assertEqual(item['effects'],[{'step':'upload:0','operation':'upload','result':'unanswered'}])
+        self.assertEqual(item['next_action']['command'],'repeat')
+        self.assertFalse(item['authentication']['required'])
+        for attempt in range(2):
+            with patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('No repeated upload')),patch.object(transport_synthetic,'send',side_effect=AssertionError('No send after unknown upload')):
+                with self.assertRaises(ProductionError) as caught:
+                    execution.resume(self.root,self.run)
+            diagnostic=caught.exception.diagnostic
+            self.assertEqual((diagnostic.code,diagnostic.details['steps']),('REMOTE_OUTCOME_UNKNOWN',['upload:0']))
+            self.assertIn('repeat --from '+self.run+' --prepare',diagnostic.required_action)
+            self.assertEqual(diagnostic.details['next_action'],item['next_action'])
+        self.assertEqual(store.event_rows(self.root,self.run),rows)
         self.assertEqual(self.recorded()['executions'][0]['status'],'started')
         self.assertEqual(self.recorded()['submissions'],0)
+
+    def test_unanswered_upload_keeps_what_the_exchange_returned(self):
+        import transport_contract
+        # A storage answer whose stored bytes could not be verified still names the identifier it issued.
+        body=b'{"data":[{"taskType":"mediaStorage","mediaUUID":"be012743-84d6-4e79-8bfb-cff57e622e1b"}]}'
+        unknown=transport_contract.Indeterminate(
+            'the upload returned an identifier but stored content verification failed (ValueError)',status=200,body=body)
+        with patch.object(transport_synthetic,'upload_media',side_effect=unknown):
+            with self.assertRaises(ProductionError) as caught:
+                execution.execute(self.root,self.run,decisions_file=self.decision)
+        diagnostic=caught.exception.diagnostic
+        rows=store.event_rows(self.root,self.run)
+        base=workflow.find(rows,'dispatch-claim')['data']['journal']
+        saved=c.local(self.root,base)/'upload-001-indeterminate.json'
+        self.assertEqual(c.load(saved),{'outcome':'indeterminate','reason':unknown.reason,'http_status':200,
+                                        'body':body.decode('utf-8')})
+        self.assertEqual(diagnostic.details['evidence'],[base+'/upload-001-indeterminate.json'])
+        self.assertIn(base+'/upload-001-indeterminate.json',diagnostic.required_action)
+        # The stop record names the unknown upload and keeps the exchange's evidence in the run.
+        stopped=workflow.find(rows,'execution-outcome')['data']
+        self.assertEqual((stopped['code'],stopped['unknown_uploads']),('REMOTE_OUTCOME_UNKNOWN',['upload:0']))
+        self.assertEqual([item['path'] for item in stopped['evidence']],[base+'/upload-001-indeterminate.json'])
+        self.assertEqual(c.object_read(workflow.run_dir(self.root,self.run),stopped['evidence'][0]['sha256']),saved.read_bytes())
+        with patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('No repeated upload')):
+            with self.assertRaises(ProductionError) as again:
+                execution.resume(self.root,self.run)
+        self.assertEqual(again.exception.diagnostic.details['evidence'],[base+'/upload-001-indeterminate.json'])
+        self.assertEqual(store.event_rows(self.root,self.run),rows)
+
+    def test_outcome_statement_without_a_send_names_the_continuation_of_the_run(self):
+        statement=lambda run:fixtures.write(self.root/'outcome.json',execution.draft_outcome(self.root,run))
+        begin=accounting.begin_step
+        def interrupt(*args,**kwargs):
+            if kwargs['step']=='send':
+                raise OSError('Synthetic interruption before the durable send boundary')
+            return begin(*args,**kwargs)
+        with patch.object(accounting,'begin_step',side_effect=interrupt):
+            with self.assertRaises(OSError):
+                execution.execute(self.root,self.run,decisions_file=self.decision)
+        another=workflow.prepare(self.root,self.task_path)['run']
+        with patch.object(transport_synthetic,'upload_media',side_effect=TimeoutError('Synthetic upload timeout')):
+            with self.assertRaises(ProductionError):
+                execution.execute(self.root,another,decisions_file=decisions(self.root,another))
+        unsent=workflow.prepare(self.root,self.task_path)['run']
+        for run,command in ((self.run,'resume'),(another,'repeat'),(unsent,'draft-execution')):
+            with self.subTest(command=command):
+                if run==unsent:
+                    # No claim exists yet, so no statement can be drafted; the refusal does not read the file.
+                    fixtures.write(self.root/'outcome.json',{'run':run,'outcome':'not_executed'})
+                else:
+                    statement(run)
+                rows=store.event_rows(self.root,run)
+                with patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('No upload')), \
+                        patch.object(transport_synthetic,'send',side_effect=AssertionError('No send')):
+                    with self.assertRaises(ProductionError) as caught:
+                        execution.resume(self.root,run,outcome_file='outcome.json')
+                diagnostic=caught.exception.diagnostic
+                action=execution.status(self.root,run)['runs'][0]['next_action']
+                self.assertEqual((diagnostic.code,action['command']),('OUTCOME_STATEMENT_NOT_APPLICABLE',command))
+                self.assertEqual(diagnostic.details['next_action'],action)
+                self.assertIn(action['reason'],diagnostic.required_action)
+                self.assertEqual(store.event_rows(self.root,run),rows)
+
+    def test_unanswered_upload_continues_with_a_newly_prepared_run(self):
+        import production_variation
+        self.unanswered_upload()
+        action=execution.status(self.root,self.run)['runs'][0]['next_action']
+        self.assertEqual(action['argv'][-3:],['--from',self.run,'--prepare'])
+        child=production_variation.derive(self.root,self.run,prepare=True)['run']
+        self.assertEqual(execution.status(self.root,child)['runs'][0]['submission'],'unclaimed')
+        with patch.object(transport_synthetic,'upload_media',side_effect=self.uploader()) as upload,patch.object(transport_synthetic,'send',side_effect=self.sender()) as send:
+            result=execution.execute(self.root,child,decisions_file=decisions(self.root,child))
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual((upload.call_count,send.call_count),(1,1))
+        self.assertEqual(execution.status(self.root,self.run)['runs'][0]['next_action']['command'],'repeat')
+
+    def test_upload_still_in_progress_is_not_reported_as_unknown(self):
+        # No stop is recorded while the owner operation runs; this process is that operation.
+        with patch.object(execution,'_record_execution_failure'):
+            with patch.object(transport_synthetic,'upload_media',side_effect=TimeoutError('Synthetic upload timeout')):
+                with self.assertRaises(ProductionError):
+                    execution.execute(self.root,self.run,decisions_file=self.decision)
+        action=execution.status(self.root,self.run)['runs'][0]['next_action']
+        self.assertEqual(action['command'],'status')
+        self.assertIn('still uploading',action['reason'])
+        with patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('No repeated upload')):
+            with self.assertRaises(ProductionError) as caught:
+                execution.resume(self.root,self.run)
+        self.assertEqual(caught.exception.diagnostic.code,'DISPATCH_ALREADY_CLAIMED')
+        self.assertIn('Wait for that operation to end',caught.exception.diagnostic.required_action)
+        with patch.object(execution,'_sender_alive',return_value=False):
+            self.assertEqual(execution.status(self.root,self.run)['runs'][0]['next_action']['command'],'repeat')
+            with self.assertRaises(ProductionError) as caught:
+                execution.resume(self.root,self.run)
+        self.assertEqual(caught.exception.diagnostic.code,'REMOTE_OUTCOME_UNKNOWN')
 
 
 if __name__ == '__main__':

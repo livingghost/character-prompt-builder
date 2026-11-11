@@ -822,7 +822,7 @@ class LifecycleTests(unittest.TestCase):
         failed=self.review_data(run,ca,'fail');failed['unresolved']=['The new observed defect needs a correction decision.']
         self.write('second-review.json',failed);w.review(self.root,run,'second-review.json')
         with self.assertRaises(ValueError):w.complete(self.root,run)
-        self.assertEqual(w.status(self.root,run)['runs'][0]['next_action']['command'],'draft-selection')
+        self.assertEqual(w.status(self.root,run)['runs'][0]['next_action']['command'],'draft-acceptance')
     def test_changed_source_reports_declared_impact(self):
         run=self.prepare();(self.root/'brief.md').write_text('Changed purpose.', encoding='utf-8')
         result=w.impact(self.root,run)
@@ -898,6 +898,56 @@ class LifecycleTests(unittest.TestCase):
         authorization = fixture.grant(self.root, run, intent)
         child = w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
         self.assertNotEqual(child['run'], run)
+    def authorized_revision(self):
+        run, ca = self.candidate(); self.revised_input(run, ca)
+        intent = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
+        return run, ca, fixture.grant(self.root, run, intent)
+    def edits(self, run):
+        return [row for row in w.load_run(self.root, run)[3] if row['event'] == 'edit']
+    def test_repeated_revise_returns_the_recorded_child_run(self):
+        import production_store as store
+        run, ca, authorization = self.authorized_revision()
+        child = w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
+        self.assertTrue(child['formal_run_created'])
+        registered = store.runs(self.root)
+        again = w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
+        self.assertEqual((again['run'], again['formal_run_created']), (child['run'], False))
+        self.assertEqual(c.encoded({**again, 'formal_run_created': True}), c.encoded(child))
+        self.assertEqual(store.runs(self.root), registered)
+        self.assertEqual([row['data']['child'] for row in self.edits(run)], [child['run']])
+        self.assertEqual(list((self.root / 'production/staging').iterdir()), [])
+    def test_revise_after_an_interrupted_preparation_publishes_the_reserved_child_run(self):
+        run, ca, authorization = self.authorized_revision()
+        with patch.object(w, '_prepare', side_effect=OSError('synthetic interruption before publication')):
+            with self.assertRaises(OSError):
+                w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
+        reserved = [row['data']['child'] for row in self.edits(run)]
+        child = w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
+        self.assertEqual(([child['run']], child['formal_run_created']), (reserved, True))
+        self.assertEqual(w.load_run(self.root, child['run'])[1]['parent']['edit'], self.edits(run)[0]['sha256'])
+    def test_revise_names_a_new_authorization_when_its_reserved_run_holds_other_work(self):
+        from production_diagnostics import DEFAULT_ACTION, ProductionError
+        run, ca, authorization = self.authorized_revision()
+        with patch.object(w, '_prepare', side_effect=OSError('synthetic interruption before publication')):
+            with self.assertRaises(OSError):
+                w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
+        edit = self.edits(run)[0]
+        # A preparation that names the reserved run ID publishes other work under it.
+        w.prepare(self.root, 'task.json', identity=edit['data']['child'])
+        with self.assertRaises(ProductionError) as caught:
+            w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', authorization)
+        refused = caught.exception.diagnostic.as_dict()
+        self.assertEqual((refused['code'], refused['run'], refused['child'], refused['event']),
+                         ('INPUT_CONSISTENCY_ERROR', run, edit['data']['child'], edit['sha256']))
+        self.assertEqual(refused['expected']['edit'], edit['sha256'])
+        self.assertNotEqual(refused['required_action'], DEFAULT_ACTION)
+        self.assertIn(f"revision-intent --run {run} --task new-task.json --candidate {ca['sha256']} --repair repair",
+                      refused['required_action'])
+        # Another authorization of the same revision records another edit, which reserves a new run.
+        again = fixture.grant(self.root, run, w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair'))
+        child = w.revise(self.root, run, 'new-task.json', ca['sha256'], 'repair', again)
+        self.assertNotEqual(child['run'], edit['data']['child'])
+        self.assertEqual(w.load_run(self.root, child['run'])[1]['parent']['edit'], self.edits(run)[-1]['sha256'])
     def test_grant_explanation_update_does_not_change_reviewed_repair(self):
         run, ca = self.candidate(); self.revised_input(run, ca)
         intent = w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
@@ -985,6 +1035,47 @@ class SubmissionCountTests(unittest.TestCase):
 
     def test_exact_count_is_permission_not_consumption(self):
         self.assertEqual(permissions.check(self.authority, self.request)['id'], 'grant')
+
+    def test_preflight_reports_each_operation_and_preserves_explicit_selection(self):
+        import copy
+        direction = copy.deepcopy(self.authority['grants'][0])
+        direction.update(id='direction', operations=['direction'], targets=['purpose', 'delivery'],
+                         request_scope=None, submission_validation_modes=[])
+        self.authority['grants'].append(direction)
+        intents = [{'operation': 'direction', 'targets': ['purpose', 'delivery'], 'payload': {'direction': 'fixture'}},
+                   {'operation': 'submit', 'targets': ['delivery'], 'payload': {'count': 1}}]
+        report = permissions.grant_requirements(self.authority, intents)
+        self.assertEqual([item['selected_grant'] for item in report['requirements']], ['direction', 'grant'])
+        self.assertEqual(report['state'], 'covered')
+        chosen = [{'operation': 'direction', 'grant': 'grant'}, {'operation': 'submit', 'grant': 'direction'}]
+        blocked = permissions.grant_requirements(self.authority, intents, selections=chosen)
+        self.assertEqual([item['selected_grant'] for item in blocked['requirements']], ['grant', 'direction'])
+        self.assertEqual({item['operation'] for item in blocked['diagnostics']}, {'direction', 'submit'})
+        with self.assertRaises(permissions.ProductionError) as caught:
+            permissions.require_grants(blocked)
+        self.assertEqual(caught.exception.diagnostic.details['authorization_requirements'], blocked)
+        request = {**self.request, 'operation': 'direction', 'targets': ['purpose', 'delivery'],
+                   'payload': {'direction': 'fixture'}, 'outputs': 0}
+        with self.assertRaises(permissions.ProductionError) as executed:
+            permissions.check(self.authority, request)
+        self.assertEqual(executed.exception.diagnostic.as_dict(), blocked['requirements'][0]['diagnostics'][0])
+
+    def test_multiple_eligible_grants_need_a_choice_without_discarding_shared_grants(self):
+        import copy
+        self.authority['grants'][0]['operations'] = ['direction', 'submit']
+        self.authority['grants'][0]['targets'] = ['delivery', 'purpose']
+        intents = [{'operation': 'direction', 'targets': ['purpose'], 'payload': {'direction': 'fixture'}},
+                   {'operation': 'submit', 'targets': ['delivery'], 'payload': {'count': 1}}]
+        initial = permissions.grant_requirements(self.authority, intents)
+        self.assertEqual([item['selected_grant'] for item in initial['requirements']], ['grant', 'grant'])
+        duplicate = copy.deepcopy(self.authority['grants'][0]); duplicate['id'] = 'also-eligible'
+        self.authority['grants'].append(duplicate)
+        unresolved = permissions.grant_requirements(self.authority, intents)
+        self.assertEqual([item['selected_grant'] for item in unresolved['requirements']], [None, None])
+        explicit = permissions.grant_requirements(self.authority, intents,
+            selections=[{'operation': 'direction', 'grant': 'also-eligible'}, {'operation': 'submit', 'grant': 'grant'}])
+        self.assertEqual(explicit['state'], 'covered')
+        self.assertEqual([item['selected_grant'] for item in explicit['requirements']], ['also-eligible', 'grant'])
 
 
 

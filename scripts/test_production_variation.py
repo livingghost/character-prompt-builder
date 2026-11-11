@@ -50,6 +50,20 @@ class VariationTests(unittest.TestCase):
         self.assertEqual(child['execution_plan']['request_sha256'], self.parent['execution_plan']['request_sha256'])
         self.assertEqual(store.event_rows(self.root, child['run']), [])
 
+    def test_declared_input_without_a_pinned_snapshot_stops_derivation_and_names_its_continuation(self):
+        import types
+        loaded = workflow.read_run(self.root, self.run)
+        path = loaded.prepared['task']['delivery']['path']
+        self.assertEqual(variation._captured(loaded, path), (self.root / path).read_bytes())
+        unpinned = types.SimpleNamespace(evidence=loaded.evidence, prepared={'run': self.run,
+            'dependencies': [row for row in loaded.prepared['dependencies'] if row['path'] != path]})
+        with self.assertRaises(ProductionError) as caught:
+            variation._captured(unpinned, path)
+        found = caught.exception.diagnostic.as_dict()
+        self.assertEqual((found['code'], found['file'], found['run'], found['pinned']),
+                         ('EVIDENCE_SNAPSHOT_MISSING', path, self.run, 0))
+        self.assertIn('Prepare a new run', found['required_action'])
+
     def test_unknown_field_creates_no_run(self):
         with self.assertRaises(ProductionError) as caught:
             self.change({'arbitrary-internal-path': 'not permitted'})
@@ -114,7 +128,7 @@ class VariationTests(unittest.TestCase):
         original = compiler.compile_task
         def changed(*args, **kwargs):
             result = original(*args, **kwargs)
-            result.prepared['input_sha256'] = 'f'*64
+            result.consumer['instructions'] = 'A different synthetic delivery.'
             return result
         with patch.object(compiler, 'compile_task', side_effect=changed):
             with self.assertRaisesRegex(ProductionError, 'REPEAT_INPUT_MISMATCH'):
@@ -344,22 +358,26 @@ class VariationTests(unittest.TestCase):
             self.change({'parameter:steps': 22})
         self.assertEqual(caught.exception.diagnostic.code, 'SOURCE_CHANGED')
 
-    def test_changed_installed_implementation_asks_for_a_new_preparation(self):
+    def test_changed_installation_is_a_notice_for_a_variant_and_a_repeat(self):
         import shutil
         installation = Path(self.temp.name) / 'installation'
-        for source in workflow.load_run(self.root, self.run)[1]['dependencies']:
-            if source['space'] == 'skill':
-                target = installation / source['path']
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(workflow.ROOT / source['path'], target)
-        module = installation / 'scripts/production_compiler.py'
-        module.write_bytes(module.read_bytes() + b'\n')
-        with patch.object(workflow, 'ROOT', installation), self.assertRaises(ProductionError) as caught:
-            self.change({'parameter:steps': 22})
-        diagnostic = caught.exception.diagnostic
-        self.assertEqual((diagnostic.code, diagnostic.phase, diagnostic.file),
-                         ('IMPLEMENTATION_CHANGED', 'implementation', 'scripts/production_compiler.py'))
-        self.assertEqual([row['run_id'] for row in store.runs(self.root)], [self.run])
+        pinned = [source for source in workflow.load_run(self.root, self.run)[1]['dependencies'] if source['space'] == 'skill']
+        for source in pinned:
+            target = installation / source['path']
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(workflow.ROOT / source['path'], target)
+        # A schema is pinned by content, and the implementation index names it without a digest.
+        changed = next(source['path'] for source in pinned if source['path'].startswith('schemas/'))
+        schema = installation / changed
+        schema.write_bytes(schema.read_bytes() + b'\n')
+        with patch.object(workflow, 'ROOT', installation):
+            varied = self.change({'parameter:steps': 22})
+            repeated = variation.derive(self.root, self.run, prepare=True)
+        for result in (varied, repeated):
+            [notice] = result['runtime_warnings']
+            self.assertEqual((notice['code'], notice['severity'], notice['file']),
+                             ('IMPLEMENTATION_CHANGED', 'warning', changed))
+        self.assertEqual(len(store.runs(self.root)), 3)
 
 
 class HierarchicalParameterTests(unittest.TestCase):

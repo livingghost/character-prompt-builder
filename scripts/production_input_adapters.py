@@ -8,6 +8,7 @@ import execution_contract as c
 import request_validation
 import visual_continuity
 from owned_json import mutable
+from production_diagnostics import choice_required
 
 
 def inventory(root: Path, task: dict) -> dict:
@@ -32,12 +33,22 @@ def inventory(root: Path, task: dict) -> dict:
 
 
 def authority(root: Path, task: dict, saved: dict | None) -> dict:
+    import production_store
+    held = production_store.read_authority(root, task['task_id'], required=False)
+    if held is not None:
+        snapshot = production_store.authority_snapshot(root, task['task_id'], held,
+                                                       source_path=task.get('authority'))
+        value = snapshot['document']
+        return {'present': True, 'path': snapshot['source_path'], 'issuer': value['issuer'],
+                'grants': value['grants'], 'stop_conditions': value['stop_conditions'],
+                'eligibility_evaluated': False, 'current': snapshot}
     path = task.get('authority')
     if not isinstance(path, str) or not c.local(root, path, exists=False).is_file():
         return {'present': False, 'path': path, 'eligibility_evaluated': False}
     value = c.load(c.local(root, path))
     import production_permissions
-    production_permissions.validate(value, task['task_id'])
+    from input_evidence import EvidenceAcquisition
+    value = production_permissions.acquire(value, task['task_id'], EvidenceAcquisition(root))
     return {'present': True, 'path': path, 'issuer': value['issuer'],
             'grants': value['grants'], 'stop_conditions': value['stop_conditions'],
             'eligibility_evaluated': False}
@@ -154,30 +165,60 @@ def validation_template(task: dict) -> dict | None:
     return {'mode': 'target-schema', 'contract': None, 'evidence': None, 'execution_policy': None}
 
 
-OPTIONAL_FIELDS = {'visual': set(), 'validation': {'contract', 'evidence', 'execution_policy'}}
+# What each field of a visual continuity choice holds; examples/input-assembly/README.md shows the choice.
+VISUAL_FIELDS = {
+    'purpose': '"image", or "sheet-panel" for a character sheet panel with exactly one production subject',
+    'basis': '{"path": FILE, "locator": SECTION}: the Studio file that records the author\'s continuity '
+             'decisions and the part of it that states them',
+    'subjects': 'one entry per Production Specification subject ID, each {"continuity": DECISION, '
+                '"character_id": ID or null, "studio_character": NAME or null, "identity_refs": '
+                '[{"slot": SLOT, "iteration_id": ITERATION}]}',
+    'production_spec': 'the Studio path of the Production Specification whose subjects these decisions cover',
+    'prepared_reference_set': 'the Studio path of the prepared reference set that holds the identity references',
+}
+BASIS_FIELDS = {'path': 'the Studio file that records the author\'s continuity decisions',
+                'locator': 'the part of that file that states the decisions'}
+VISUAL_GUIDE = {'document_path': 'examples/input-assembly/README.md#visual-choices'}
+VALIDATION_GUIDE = {'document_path': 'references/runtime/model-evidence.md#editable-selections-and-compiled-evidence'}
 
 
 def unresolved_choices(choices: dict) -> list[dict]:
-    """Describe unanswered selection fields without filling any authored value."""
+    """Describe unanswered selection fields without filling any authored value.
+
+    The schema of the choices refuses a null validation mode, so validation
+    reports only its contract and evidence selectors.
+    """
     output = []
-    for field in ('visual', 'validation'):
-        value = choices.get(field)
-        if not isinstance(value, dict):
-            continue
-        template = visual_template({'artifact': 'image', 'execution': 'dispatcher'}) if field == 'visual' else validation_template({'artifact': 'image', 'execution': 'dispatcher'})
-        for key in template:
-            if key in OPTIONAL_FIELDS[field]:
-                continue
-            if key in value and value[key] is None:
-                output.append({'field': field + '.' + key, 'code': 'selection-required'})
-        if field == 'validation':
-            for key in ('contract', 'evidence'):
-                if value.get(key) is None and (value.get('mode') != 'target-schema'
-                        or value.get('evidence' if key == 'contract' else 'contract') is not None):
-                    output.append({'field': field + '.' + key, 'code': 'source-selection-required'})
-        basis = value.get('basis')
+    visual = choices.get('visual')
+    if isinstance(visual, dict):
+        for key, value in VISUAL_FIELDS.items():
+            if key in visual and visual[key] is None:
+                output.append(choice_required('visual.' + key, 'selection-required',
+                    'visual.' + key + ' is null, so the visual continuity choice cannot build its record.',
+                    'Set visual.' + key + ' to ' + value + '.', VISUAL_GUIDE))
+        basis = visual.get('basis')
         if isinstance(basis, dict):
-            for key in ('path', 'locator'):
+            for key, value in BASIS_FIELDS.items():
                 if not basis.get(key):
-                    output.append({'field': field + '.basis.' + key, 'code': 'source-selection-required'})
+                    output.append(choice_required('visual.basis.' + key, 'source-selection-required',
+                        'visual.basis.' + key + ' is empty, so the continuity decisions have no cited source.',
+                        'Set visual.basis.' + key + ' to ' + value + '.', VISUAL_GUIDE))
+    validation = choices.get('validation')
+    if isinstance(validation, dict):
+        mode = validation.get('mode')
+        for key in ('contract', 'evidence'):
+            other = 'evidence' if key == 'contract' else 'contract'
+            if validation.get(key) is not None:
+                continue
+            if mode != 'target-schema':
+                output.append(choice_required('validation.' + key, 'source-selection-required',
+                    'validation.' + key + ' is null, and mode ' + str(mode) + ' needs its contract and evidence.',
+                    'Set validation.' + key + ' to the Studio path or @pack/PACK_ID/PATH selector of the ' +
+                    str(mode) + ' ' + key + ' file.', VALIDATION_GUIDE))
+            elif validation.get(other) is not None:
+                output.append(choice_required('validation.' + key, 'source-selection-required',
+                    'validation.' + key + ' is null while validation.' + other + ' is selected.',
+                    'Set validation.' + key + ' to the selector of the same schema contract as validation.' +
+                    other + ' (an active offering schema uses @pack/PACK_ID/SCHEMA_SNAPSHOT in both), or set both '
+                    'to null to use the selected offering\'s parameter schema.', VALIDATION_GUIDE))
     return output

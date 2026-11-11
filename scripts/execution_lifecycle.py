@@ -174,11 +174,35 @@ class ReplayState:
         if send is not None:
             return (state['status'] == 'complete'
                     or state['effect_results'].get(send, {}).get('outcome') in NO_EFFECT_OUTCOMES)
-        return identifier in self._failed_uploads
+        return identifier in self._failed_uploads or bool(state['unknown_uploads'])
+
+    def _claim_owner(self, claim: Any) -> str | None:
+        """The execution whose start names this claim."""
+        return next((identifier for identifier, state in self.executions.items()
+                     if claim is not None and state.get('claim') == claim), None)
+
+    def _check_unknown_uploads(self, data: dict) -> None:
+        """A stopped attempt states as unknown only started uploads of its execution without a result, before any send."""
+        invalid = self._invalid_execution
+        identifier = self._claim_owner(data.get('claim'))
+        steps = data['unknown_uploads']
+        if (identifier is None or identifier in self._send_steps or not isinstance(steps, list) or not steps
+                or not all(isinstance(step, str) for step in steps) or len(set(steps)) != len(steps)):
+            invalid('An unknown upload outcome needs its started execution and no send.')
+        state = self.executions[identifier]
+        for step in steps:
+            boundary = self._steps[identifier].get(step)
+            if (boundary is None or boundary['operation'] != 'upload' or step in state['effect_results']
+                    or step in state['unknown_uploads']):
+                invalid('An unknown upload outcome names only a started upload without a recorded result.')
 
     def check_execution(self, event: str, data: dict) -> None:
         """Check an execution transition without altering the verified state."""
         invalid = self._invalid_execution
+        if event == 'execution-outcome':
+            if 'unknown_uploads' in data:
+                self._check_unknown_uploads(data)
+            return
         if event == 'execution-created':
             identifier = data['execution_id']
             authorization = self._events.get(('authorization', data['authorization_sha256']))
@@ -206,6 +230,9 @@ class ReplayState:
                     or (cleanup and not self._cleanup_ready(identifier, state))
                     or data['step'] in self._steps[identifier]):
                 invalid('An external step is repeated or outside its active execution.')
+            if not cleanup and state['unknown_uploads']:
+                # An upload of unknown outcome is never sent again, so its execution never reaches its send.
+                invalid('An execution with an upload of unknown outcome starts no further upload or send.')
             if data['request_sha256'] != state['request_sha256']:
                 invalid('External step belongs to a different request.')
             if cleanup:
@@ -250,7 +277,7 @@ class ReplayState:
             effects = request['payload'].get('external_effects', [])
             self.executions[identifier] = {**data, 'run': self.run, 'created_event': row['sha256'],
                 'status': 'claimed', 'start': None, 'effect': None, 'steps': [],
-                'effect_results': {}, 'result': None, 'actual_cost': None,
+                'effect_results': {}, 'unknown_uploads': [], 'result': None, 'actual_cost': None,
                 'captured_outputs': 0, 'submissions': 0, 'authorized_effects': effects}
             self._steps[identifier] = {}
             self._delete_indices[identifier] = set()
@@ -275,6 +302,8 @@ class ReplayState:
         elif event == 'execution-result':
             self.executions[identifier].update(result=row['sha256'], captured_outputs=data['outputs'], actual_cost=data['cost'],
                                                status='complete' if data['final'] else 'captured')
+        elif event == 'execution-outcome' and data.get('unknown_uploads'):
+            self.executions[self._claim_owner(data['claim'])]['unknown_uploads'].extend(data['unknown_uploads'])
 
     def advance(self, row: dict) -> None:
         """Retain a row after its transition has passed the owning policy."""
@@ -322,14 +351,18 @@ def derive(records: list[dict] | ReplayState, prepared: dict, run: str) -> dict[
 
 
 def cleanup_ready(state: dict) -> bool:
-    """Deletion waits for captured terminal outputs or a proven no-generation outcome."""
+    """Deletion waits for captured terminal outputs or a proven no-generation outcome.
+
+    Before a send, a refused upload and an upload whose stopped attempt recorded its
+    outcome as unknown are both final: neither is sent again, so the send never starts.
+    """
     send = next((item for item in state['steps'] if item['operation'] == 'send'), None)
     if send is not None:
         return (state['status'] == 'complete'
                 or state['effect_results'].get(send['step'], {}).get('outcome') in NO_EFFECT_OUTCOMES)
-    return any(item['operation'] == 'upload' and
-               state['effect_results'].get(item['step'], {}).get('outcome') in NO_EFFECT_OUTCOMES
-               for item in state['steps'])
+    return bool(state['unknown_uploads']) or any(
+        item['operation'] == 'upload' and state['effect_results'].get(item['step'], {}).get('outcome') in NO_EFFECT_OUTCOMES
+        for item in state['steps'])
 
 
 def by_authorization(records: list[dict] | ReplayState, prepared: dict, run: str, authorization: str) -> dict | None:
@@ -404,10 +437,19 @@ def _validate_disposition(state: ReplayState, prepared: dict, run: str, data: di
         reviewed = state._reviews.get(decision['candidate'])
         if reviewed is None or decision['review'] != reviewed['sha256']:
             raise ProductionError('REVIEW_MISMATCH', 'Disposition must cite the actual latest review.',
-                                  phase='disposition', run=run)
+                                  phase='disposition', run=run,
+                                  required_action='Cite the latest review of this candidate, which candidate-status '
+                                                  'reports, or leave review null.')
     previous = state._decisions.get(decision['candidate'])
     if data['previous_decision'] != (previous['sha256'] if previous else None):
         raise ValueError('disposition does not follow the candidate\'s previous decision')
+
+
+def _validate_selection(state: ReplayState, data: dict) -> None:
+    """A selection names the run's latest selection before it as the one it replaces."""
+    previous = state.latest('selection')
+    if data['selection']['replaces'] != (previous['sha256'] if previous is not None else None):
+        raise ValueError('selection does not name the run\'s preceding selection as the one it replaces')
 
 
 def validate_transition(records: list[dict] | ReplayState, prepared: dict, run: str, event: str, data: dict, *,
@@ -430,6 +472,8 @@ def validate_transition(records: list[dict] | ReplayState, prepared: dict, run: 
         adoption = request['operation'] == 'adopt'
     elif event == 'disposition':
         _validate_disposition(state, prepared, run, data)
+    elif event == 'selection':
+        _validate_selection(state, data)
     elif event == 'adoption-claim':
         c.exact(data, {'intent', 'files', 'authorizations'}, 'adoption claim')
         intent = data['intent']
@@ -537,7 +581,9 @@ def _claim_execution_from(root: Path, loaded, authority, authorization: str) -> 
     if request['operation'] != 'submit':
         raise ValueError('only a submission owns an external execution')
     if derive(rows, prepared, run):
-        raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'This run already owns an execution.', phase='execution', run=run)
+        raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'This run already owns an execution.', phase='execution', run=run,
+            required_action='Continue the existing execution from the next action of status --run; a new request '
+                            'needs a newly prepared run.')
     identifier = generate_uuid7()
     data = {'execution_id': identifier, 'authorization_sha256': authorization, 'grant': request['grant'],
             'task_id': prepared['task']['task_id'], 'actor': request['actor'],
@@ -564,7 +610,9 @@ def begin(root: Path, run: str, authorization: str, *, effect: str, claim: str |
             directory, prepared, _, rows = w.read_run(root, run)
         if state['status'] != 'claimed':
             raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'Execution start already exists; inspect or resume it.',
-                                  phase='execution', run=run)
+                                  phase='execution', run=run,
+                                  required_action='Inspect this execution with status --run and continue from its '
+                                                  'next action; it is not started again.')
         return w.append_record(directory, prepared, rows, 'execution-start',
             {'execution_id': state['execution_id'], 'claim': claim, 'effect': effect,
              'request_sha256': state['request_sha256'], 'started_at': c.now()})
@@ -626,7 +674,8 @@ def record_effect(root: Path, run: str, authorization: str, *, claim: str,
         previous = state['effect_results'].get(step)
         if previous is not None:
             if previous != data:
-                raise ProductionError('SETTLEMENT_CONFLICT', 'The saved receipt for this effect differs.', phase='result-capture', run=run)
+                raise ProductionError('SETTLEMENT_CONFLICT', 'The saved receipt for this effect differs.', phase='result-capture', run=run,
+                    required_action='Inspect the recorded result of this step with status --run; a step keeps its first saved receipt.')
             return next(row for row in rows if row['event'] == 'external-effect-result' and row['data'] == data)
         return w.append_record(directory, prepared, rows, 'external-effect-result', data)
 
@@ -704,7 +753,9 @@ def record_result(root: Path, run: str, authorization: str, *, outputs: int, cos
                 return previous
             if (state['status'] == 'complete' or outputs < state['captured_outputs']
                     or (state['actual_cost'] is not None and state['actual_cost'] != cost)):
-                raise ProductionError('SETTLEMENT_CONFLICT', 'Captured results cannot be erased or finalized differently.', phase='result-capture')
+                raise ProductionError('SETTLEMENT_CONFLICT', 'Captured results cannot be erased or finalized differently.', phase='result-capture',
+                    required_action='Inspect the recorded result with status --run; captured outputs, a final result and '
+                                    'a confirmed charge are kept as recorded.')
         return w.append_record(directory, prepared, rows, 'execution-result', data)
 
 
@@ -780,8 +831,38 @@ def summarize_states(states, *, diagnostics: list[dict] | None = None) -> dict:
             'executions': states}
 
 
+RESTORE_COMMITTED_EVENT = 'Restore the exact committed event from verified evidence; do not recreate approval.'
+
+
+def refused_event(run: str, row: dict, exc: BaseException) -> ProductionError:
+    """The diagnostic of a recorded event that replay refuses: which event it is, and what in it is refused.
+
+    The event is named by its `kind`, `sequence` and digest in `event`. A
+    field that the rules read and do not find is named in `field`. The
+    refusing rule's own diagnostic addresses whoever attempts that transition,
+    so it is kept under `cause` and its repair does not replace the reader's.
+    """
+    details = {}
+    if isinstance(exc, KeyError) and exc.args:
+        details['field'] = exc.args[0]
+        reason = f'the field {exc.args[0]!r} that its rules read is missing'
+        cause = {'message': f'missing field {exc.args[0]!r}'}
+    else:
+        reason = str(exc).rstrip('.')
+        cause = exc.diagnostic.as_dict() if isinstance(exc, ProductionError) else {'message': str(exc)}
+    return ProductionError('EVENT_CHAIN_CORRUPT',
+        f"The recorded {row['event']} event at sequence {row['sequence']} is not valid after the events before it: {reason}.",
+        phase='integrity', run=run, event=row['sha256'], kind=row['event'], sequence=row['sequence'], cause=cause,
+        impact=store.RUN_EVIDENCE_IMPACT, required_action=RESTORE_COMMITTED_EVENT, **details)
+
+
 def completion_tail(records: list[dict], prepared: dict, run: str, *, read_object) -> ReplayState:
-    """Replay each event once, retaining the verified state for later consumers."""
+    """Replay each event once, retaining the verified state for later consumers.
+
+    A recorded event that the transition rules refuse makes the history
+    unreadable, whatever rule refused it: the reader's repair is to restore the
+    committed events, and `refused_event` names the event and what is refused.
+    """
     state = ReplayState(prepared, run)
     for row in records:
         try:
@@ -790,8 +871,7 @@ def completion_tail(records: list[dict], prepared: dict, run: str, *, read_objec
         except (ValueError, KeyError, TypeError) as exc:
             if isinstance(exc, ProductionError) and exc.diagnostic.code == 'EXECUTION_RECORD_CORRUPT':
                 raise
-            raise ProductionError('EVENT_CHAIN_CORRUPT', 'Invalid recorded lifecycle transition: ' + str(exc),
-                                  phase='integrity', run=run, event=row['sha256']) from exc
+            raise refused_event(run, row, exc) from exc
     return state
 
 

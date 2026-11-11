@@ -7,7 +7,7 @@ its operation in `taskType` and carries a fresh `taskUUID`, which is the run's
 own identifier; the model sits in `model`, the count in `numberResults`, and the
 seed in `seed`. The prompt, the negative and the media go on the keys the
 offering gives them. An upscale asks for `upscaleFactor` and a PNG
-`outputFormat`. A mediaStorage upload imports an authored source URL; generation
+`outputFormat`. A mediaStorage upload sends sealed local bytes as a data URI; generation
 and upscaling receive the mediaUUID in the actual upload response. The stored
 media is read back and must match the sealed local image bytes.
 Finished images arrive as `imageURL` on im.runware.ai. An unreadable successful
@@ -20,6 +20,7 @@ returned images for that task count as its answer.
 """
 from __future__ import annotations
 
+import base64
 import json
 import urllib.request
 import uuid
@@ -35,7 +36,7 @@ SERVICE = "runware"
 API_HOST = "api.runware.ai"
 OPERATIONS = {"generation": "imageInference", "instruction-edit": "imageInference", "upscale": "imageUpscale"}
 RESULT_HOSTS = frozenset({"im.runware.ai"})
-UPLOAD_SOURCE = "url"
+UPLOAD_SOURCE = "bytes"
 STORAGE_HOSTS = frozenset({"mm.runware.ai"})
 
 
@@ -318,14 +319,18 @@ def _storage_post(request: dict, service: dict, key: str) -> tuple[dict, dict, i
 
 def upload_media(data: bytes, media_type: str, service: dict[str, Any], key: str,
                  *, source_url: str | None) -> dict:
-    """Import the selected URL once and verify the actual stored media before use."""
-    from request_contract import validate_upload_source
+    """Upload sealed local bytes once and verify the stored bytes before use."""
+    from PIL import Image
+    from production_evidence import inspect
 
     if not isinstance(data, bytes) or not data or not isinstance(media_type, str) or not media_type:
         raise ValueError('upload requires verified bytes and their declared media type')
-    validate_upload_source({'kind': 'url', 'url': source_url})
+    measured = inspect(data, 'image')
+    mime = Image.MIME.get(measured['format'])
+    if mime is None or not mime.startswith('image/'):
+        raise ValueError('storage upload needs a supported raster image format')
     request = {'taskType': 'mediaStorage', 'taskUUID': str(uuid.uuid4()),
-               'operation': 'upload', 'media': source_url}
+               'operation': 'upload', 'media': 'data:' + mime + ';base64,' + base64.b64encode(data).decode('ascii')}
     answer, entry, status, body = _storage_post(request, service, key)
     try:
         _verify_stored_media(entry.get('mediaURL'), data)

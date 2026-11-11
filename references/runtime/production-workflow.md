@@ -13,6 +13,10 @@ For saved work, initialize or reopen its Studio and work task. Use
 or session entry to locate existing editing sources and an active execution.
 These entrances share the current authoring view. Continue its actual files;
 recover an uncertain external operation from its saved run.
+Default status presents navigation; `details_action` and `status --view full`
+provide complete declarations and source content. When several drafts remain,
+select the intended `inspect-inputs --choices FILE` action. Do not treat the
+latest timestamp or first listed candidate as the author's choice.
 
 Read the complete contract for the current operation with
 `execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO`, adding
@@ -23,6 +27,10 @@ knowledge remain complete. Follow every
 returned continuation until the delivery record is issued. An existing record
 establishes earlier source delivery. A new context still needs the complete
 knowledge required for its present judgment.
+In the same context, `context_reuse.operations` carries explicit complete
+reading keys into the next operation and delivers its remaining bodies. Read
+each JSON `body` and continue until `actions.continue` is null. This reuses
+delivered knowledge, not an earlier successful source or permission check.
 
 | Requested work | Operation and owning result |
 | --- | --- |
@@ -55,6 +63,28 @@ compiler regenerates paths, reference positions, content hashes and dependent
 inputs. Reassess only the choices whose meaning or applicability changed;
 keep all other valid choices and history.
 
+## Change direction without losing prior work
+
+Use [Variation](production-variation.md) to branch from saved inputs, including
+completed results. Separate branches can hold different prompts, models,
+controls and reference selections. Each branch has an explicit editable
+source and its own prepared request; preparing one does not replace another.
+Add, remove or reorder references at their authored source selection and
+preserve their intended roles and exclusions. The builder derives positions
+and hashes for the resulting request.
+
+An enlargement starts from the selected retained image, with its own operation
+contract and criteria. `draft-inputs` accepts an explicit source run and
+candidate as described in [Variation](production-variation.md); it retains the
+image's provenance without imposing its generation prompt on enlargement.
+Choose the resulting enlarged candidate through the common acceptance flow.
+
+If the earlier work task is finished, `--new-task` opens the requested revision
+while retaining the prior task, result, selection and completion. Applicable
+content and criteria remain available. Apply the current commission's actual
+authority to the new task; a saved approval is evidence only at its own scope.
+An already active task must be selected or suspended explicitly.
+
 ## Continue according to the actual result
 
 Saving completes the save operation. If the commission also requests delivery
@@ -74,3 +104,8 @@ commission and applicable sources independently of the prompt being assessed.
 Chosen angles, wording and controls are means to that result. Keep limitations
 and inconclusive evidence visible. Canonical adoption requires its actual
 owner decision and authority; it is never a side effect of saving or capture.
+Use [Acceptance](production-adoption.md) for a reviewed result: author the
+decision once with `draft-acceptance`, then `accept` derives and records its
+exact authorization, selection and completion. Its work state identifies
+unfinished steps or questions before the owning task can finish. Continue a
+saved acceptance after interruption without generating the image again.

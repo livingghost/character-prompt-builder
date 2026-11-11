@@ -11,7 +11,7 @@ The commands are:
 
 - every ``scripts/*_test.py`` suite, found by name;
 - every ``scripts/test_*.py`` unittest module, run from ``scripts/`` as ``python -m unittest <module>``;
-- every ``examples/*/build_example.py`` that offers ``--check``;
+- every ``examples/*/*.py`` script that offers ``--check``, run with it;
 - the validators in ``VALIDATORS`` and the audit of the shipped packs.
 
 Each command runs from a temporary copy of the declared core release files,
@@ -122,9 +122,9 @@ def unittest_modules() -> list[Path]:
 
 
 def example_checks() -> list[Path]:
-    """Every example builder that offers --check."""
+    """Every example script that offers --check."""
     return sorted(
-        path for path in (ROOT / "examples").glob("*/build_example.py")
+        path for path in (ROOT / "examples").glob("*/*.py")
         if "--check" in path.read_text(encoding="utf-8")
     )
 
@@ -143,7 +143,7 @@ def commands() -> list[tuple[str, list[str]]]:
     ]
     modules = [(f"scripts/{path.name}", _python("-m", "unittest", path.stem)) for path in unittest_modules()]
     examples = [
-        (f"example {path.parent.name}", _python(path.relative_to(ROOT).as_posix(), "--check"))
+        (f"example {path.relative_to(ROOT / 'examples').as_posix()}", _python(path.relative_to(ROOT).as_posix(), "--check"))
         for path in example_checks()
     ]
     validators = [(label, _python(*arguments)) for label, arguments in VALIDATORS]

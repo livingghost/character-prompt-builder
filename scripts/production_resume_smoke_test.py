@@ -80,26 +80,29 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(report['registration'],'unregistered')
         action=report['next_action']
         self.assertEqual(action['command'],'draft-execution')
-        # The complete command keeps this interpreter, the checked root and the exact run and grant.
+        # The command keeps this interpreter, the checked root and the exact run.
         self.assertEqual(action['argv'], [
             os.path.abspath(sys.executable), str(Path(workflow.__file__).resolve()),
             'draft-execution', '--root', str(self.root.resolve()), '--run', self.run,
-            '--grant', 'fixture-grant', '--out', action['draft'],
+            '--out', action['draft'],
         ])
         self.assertTrue(action['draft'].startswith(f'production/decisions/{self.run}/execution/'))
         self.assertEqual(action['argv'][-2:], ['--out', action['draft']])
         self.assertEqual(whole['current_task']['task_id'],report['task_id'])
+        self.assertEqual([item['selected_grant'] for item in report['authorization_requirements']['requirements']],
+                         ['fixture-grant', 'fixture-grant'])
 
     def test_execute_keeps_current_readiness_and_complete_maintenance_findings(self):
         import production_compiler
         with patch.object(production_compiler, 'inspect_staging', wraps=production_compiler.inspect_staging) as stages, \
              patch.object(execution, 'unclaimed_journals', wraps=execution.unclaimed_journals) as journals, \
              patch.object(production_compiler, 'unregistered_publications', wraps=production_compiler.unregistered_publications) as publications, \
-             patch.object(workflow, 'freshness_diagnostics', wraps=workflow.freshness_diagnostics) as freshness:
+             patch.object(workflow, 'freshness', wraps=workflow.freshness) as freshness:
             result = self.send()
         self.assertTrue(result['execution_completed'])
         self.assertEqual(result['runs'][0]['readiness'], 'ready')
         self.assertEqual(result['runs'][0]['freshness_diagnostics'], [])
+        self.assertEqual(result['runs'][0]['freshness_notices'], [])
         self.assertTrue(freshness.called)
         for field in ('current_task', 'staging', 'staging_details', 'unclaimed_journals', 'unregistered_publications'):
             self.assertIn(field, result)
@@ -179,6 +182,28 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(send.call_count,1)
         self.assertTrue(result['execution_completed'])
         self.assertEqual(workflow.find(store.event_rows(self.root,self.run),'dispatch-claim')['sha256'],claim['sha256'])
+
+    def resume_cli(self,*arguments):
+        """resume through the public CLI: the exit status, the printed JSON or None, and stderr."""
+        completed=subprocess.run([sys.executable,str(Path(workflow.__file__)),'resume','--root',str(self.root),
+                                  '--run',self.run,*arguments],capture_output=True,text=True,encoding='utf-8',
+                                 env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'},check=False)
+        return completed.returncode,(json.loads(completed.stdout) if completed.stdout.strip() else None),completed.stderr
+
+    def test_resume_watch_through_the_cli(self):
+        self.send()
+        # A settled run needs one pass; the watch returns its result without waiting.
+        code,report,_=self.resume_cli('--watch','--interval','30','--limit','60')
+        self.assertEqual(code,0)
+        self.assertTrue(checked(report)['execution_completed'])
+        for arguments in (('--interval','5'),('--watch','--limit','0')):
+            code,report,_=self.resume_cli(*arguments)
+            diagnostic=report['diagnostics'][0]
+            self.assertEqual((code,diagnostic['code']),(2,'INPUT_ARGUMENT_INVALID'),arguments)
+            self.assertIn('--watch' if arguments[0]=='--interval' else '--limit',diagnostic['required_action'])
+        code,report,stderr=self.resume_cli('--watch','--outcome-file','outcome.json')
+        self.assertEqual((code,report),(2,None))
+        self.assertIn('--outcome-file',stderr)
 
     def abandon(self):
         task_id=workflow.load_run(self.root,self.run)[1]['task']['task_id']
@@ -298,6 +323,10 @@ class OutcomeStatementCliTests(unittest.TestCase):
         import os
         import subprocess
         import sys
+        # These recovery assertions inspect complete declarations; ordinary CLI
+        # navigation is covered independently by the status presentation suite.
+        if arguments[0] == 'status':
+            arguments = (*arguments, '--view', 'full')
         completed = subprocess.run([sys.executable, str(Path(__file__).with_name('production_workflow.py')), *arguments,
                                     '--root', str(root)], capture_output=True, text=True, encoding='utf-8',
                                    env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'}, check=False)
@@ -325,6 +354,77 @@ class OutcomeStatementCliTests(unittest.TestCase):
             item = checked(report)['runs'][0]
             self.assertEqual(item['submission'], 'not_executed')
             self.assertEqual(item['next_action']['command'], 'repeat')
+
+    def test_custom_execution_draft_survives_reopen_authority_change_and_log_cleanup(self):
+        import copy
+        from production_fixtures import assess_rendition
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            with production_fixtures.scratch_home(base / 'home'):
+                case = fixtures.create(base / 'studio', base / 'runtime')
+                root = case['root']
+                run = workflow.prepare(root, 'task.json')['run']
+                custom = 'work/upscale/execution-decisions.json'
+                code, draft = self.cli(root, 'draft-execution', '--run', run, '--out', custom)
+                self.assertEqual(code, 0, draft)
+                self.assertEqual(c.load(root / custom), draft['choices'])
+                choices = draft['choices']
+                direction_reason = 'Explicit synthetic direction retained through authority changes; not user consent.'
+                for choice in choices['decisions']:
+                    choice['reason'] = direction_reason if choice['operation'] == 'direction' else 'Explicit synthetic submission; not user consent.'
+                    if choice['operation'] == 'submit':
+                        choice['request_decision']['principal_approval'] = copy.deepcopy(draft['authority']['document']['evidence'])
+                        assess_rendition(choice['request_decision']['rendition_review'])
+                fixtures.write(root / custom, choices)
+                original_choices = (root / custom).read_bytes()
+                code, reopened = self.cli(root, 'status', '--run', run)
+                self.assertEqual(code, 0, reopened)
+                observed = checked(reopened)['runs'][0]
+                self.assertEqual(observed['next_action']['draft'], custom)
+                self.assertEqual(reopened['current_task']['authoring']['decision_drafts'][0]['path'], custom)
+                authority = observed['authority']['document']
+                added = copy.deepcopy(authority['grants'][0])
+                added.update(id='selection-only', operations=['select'], targets=['delivery'],
+                             request_scope=None, submission_validation_modes=[])
+                authority['grants'].append(added)
+                source = observed['authority']['source_path']
+                fixtures.write(root / source, authority)
+                code, amended = self.cli(root, 'authority-import', '--file', source,
+                    '--expected-event', observed['authority']['event_sha256'])
+                self.assertEqual(code, 0, amended)
+                code, cleaned = self.cli(root, 'logs-cleanup', '--before', '9999-01-01', '--apply')
+                self.assertEqual(code, 0, cleaned)
+                code, continued = self.cli(root, 'status', '--run', run)
+                self.assertEqual(code, 0, continued)
+                current = checked(continued)['runs'][0]
+                self.assertEqual(current['next_action']['argv'][-2:], ['--decisions-file', custom])
+                self.assertEqual(current['authority']['event_sha256'], amended['sha256'])
+                self.assertEqual((root / custom).read_bytes(), original_choices)
+                code, executed = self.cli(root, 'execute', '--run', run, '--decisions-file', custom)
+                self.assertEqual(code, 0, executed)
+                self.assertEqual(checked(executed)['runs'][0]['submission'], 'acknowledged')
+                directions = [row['data']['request'] for row in store.event_rows(root, run)
+                              if row['event'] == 'authorization' and row['data']['request']['operation'] == 'direction']
+                self.assertEqual(directions[0]['reason'], direction_reason)
+
+    def test_multiple_execution_drafts_are_presented_for_explicit_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            with production_fixtures.scratch_home(base / 'home'):
+                case = fixtures.create(base / 'studio', base / 'runtime')
+                root = case['root']
+                run = workflow.prepare(root, 'task.json')['run']
+                paths = ['work/first-decisions.json', 'work/second-decisions.json']
+                for path in paths:
+                    code, drafted = self.cli(root, 'draft-execution', '--run', run, '--out', path)
+                    self.assertEqual(code, 0, drafted)
+                code, report = self.cli(root, 'status', '--run', run)
+                self.assertEqual(code, 0, report)
+                action = checked(report)['runs'][0]['next_action']
+                self.assertTrue(action['requires_author_input'])
+                self.assertEqual({item['draft'] for item in action['alternatives']}, set(paths))
+                self.assertNotIn('draft', action)
+                self.assertEqual(store.event_rows(root, run), [])
 
 
 class AuthoringContinuationTests(unittest.TestCase):
@@ -403,7 +503,11 @@ class AuthoringContinuationTests(unittest.TestCase):
         self.assertEqual(current['focus'], 'authoring')
         self.assertEqual(current['next_actions'][0]['command'], 'edit-choices')
         selected = next(item for item in current['authoring']['inputs'] if item['current'])
-        self.assertEqual(selected['working_copy']['unresolved'][0]['code'], 'authored-input-unreadable')
+        self.assertEqual(selected['choices'], self.choices_path)
+        self.assertEqual(selected['unresolved'][0]['code'], 'authored-input-unreadable')
+        self.assertEqual(selected['unresolved'][0]['path'], self.choices_path)
+        self.assertEqual(selected['next_actions'][0]['path'], str(self.root / self.choices_path))
+        self.assertEqual(current['next_actions'][0], selected['next_actions'][0])
         self.assertIn('choices_diagnostic', current['authoring']['context']['input'])
         self.assertEqual(report['runs'][0]['run'], self.run)
         self.assertEqual(report['runs'][0]['integrity'], 'intact')

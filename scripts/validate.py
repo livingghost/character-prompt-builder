@@ -712,7 +712,7 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "# Production authoring",
         "### Read the route to completion",
         "## Use the delivered knowledge",
-        "preserves all source bytes across pages",
+        "preserves every required source byte",
         "same complete, paged snapshot",
     ),
     "references/runtime/narrative-development.md": (

@@ -38,8 +38,17 @@ def _owned(directory: Path, rendered: dict, state: dict | None) -> list[dict]:
         c.exact(receipt, {'index', 'source', 'source_sha256', 'provider_id', 'response', 'usage'}, 'owned upload receipt')
         if (receipt['index'] != index or receipt['source'] != item['path']
                 or receipt['source_sha256'] != item['sha256']):
-            raise ProductionError('CLEANUP_OWNERSHIP_REQUIRED', 'The upload response differs from this execution\'s input.',
-                                  phase='input-cleanup')
+            # The receipt comes from the run's object store by its digest, so the journal's request copy changed.
+            raise ProductionError('CLEANUP_OWNERSHIP_REQUIRED',
+                f"The upload receipt of media input {index + 1} names another input than the request-contract.json "
+                "of this execution's journal.", phase='input-cleanup', pointer=f'$.media[{index}]',
+                expected={'path': receipt['source'], 'sha256': receipt['source_sha256']},
+                actual={'path': item['path'], 'sha256': item['sha256']},
+                required_action="Restore request-contract.json in this execution's journal, the directory status --run "
+                                'reports as journal, to the copy execute wrote: '
+                                + str(directory / 'request-contract.json') + ' with each media path moved from the run '
+                                'directory into the journal. Its media entry then names the path and SHA-256 given as '
+                                'expected, which the upload receipt recorded. Nothing is deleted or sent meanwhile.')
         identifier = c.text(receipt['provider_id'], 'uploaded provider identifier')
         if identifier in seen:
             continue
@@ -108,7 +117,9 @@ def _read_request(directory: Path, journal, boundary: dict) -> dict:
     path = journal.path / (_name(boundary['upload_index']) + '-request.json')
     if c.sha256_file(path) != boundary['delete_request_sha256']:
         raise ProductionError('ARTIFACT_CORRUPT', 'The saved deletion request differs from its committed boundary.',
-                              phase='input-cleanup', file=str(path))
+                              phase='input-cleanup', file=str(path),
+                              required_action='Copy ' + str(directory / 'objects' / boundary['delete_request_sha256'])
+                                              + ' to this journal file, then run resume for this run; the deletion is not sent again.')
     return request
 
 

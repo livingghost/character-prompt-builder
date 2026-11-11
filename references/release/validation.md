@@ -58,7 +58,7 @@ conditions.
 Each test suite runs once per change, in one place:
 
 - `python scripts/run_checks.py` runs every test suite and check command once, in parallel, from a temporary copy of the declared product files. Source-owned CI and source-control settings are included when present. Independently authored packs are outside that tree. `CPB_HOME` points to one scratch configuration directory whose pack state enables the shipped packs alone. The runner exits 1 when any command fails. CI runs it once per operating system.
-- `python scripts/validate.py .` checks the invariants of the tree: structure, manifests, metadata, contracts, documentation and content conformance. Its catalog audit uses the configured release-pack runtime. It runs no test suite.
+- `python scripts/validate.py .` checks the invariants of the tree: structure, manifests, metadata, contracts, documentation and content conformance. Its catalog audit uses the configured release-pack runtime. It verifies the shipped state-aware example with the shipped packs and an empty configuration directory, so the author's packs and model selection preferences do not enter that check. It runs no test suite.
 - `python scripts/package.py` builds the release and validates the stage once with `validate.py`. It checks the extracted copy by inventory and file hashes, then runs a short installed smoke.
 
 A suite passes by exiting 0 after running at least one test, with none skipped. Run one suite directly for a targeted diagnosis, for example `python scripts/pack_smoke_test.py`. These check commands are not suites, and a person runs them directly too:
@@ -254,10 +254,9 @@ The actual bundled `packs/commons` directory with the commons UUID is core-manag
 
 ## Production execution verification
 
-The runner covers the production suites, the unittest modules and every example that offers `--check`. These examples write a new directory, so a person runs them directly:
+The runner covers the production suites, the unittest modules and every example that offers `--check`, including `python examples/production-execution/repair_example.py --check`. These examples write a new directory, so a person runs them directly:
 
 - `python examples/production-execution/run_example.py --out <new-directory>`
-- `python examples/production-execution/repair_example.py --out <new-directory>`
 - `python examples/generation/build_example.py --out <new-directory>`, then the `prepare_argv` it prints
 - `python examples/story-context/run_example.py --out <new-directory>`, which records each command and artifact of the moment path
 

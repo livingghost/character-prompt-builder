@@ -145,7 +145,7 @@ class RunReader:
             publication = None
         if publication is None:
             directory = c.local(root, registered['directory'])
-            acquired = acquire_publication(directory, expected=registered['manifest_sha256'],
+            acquired = acquire_publication(directory, expected=registered['manifest_sha256'], registered=True,
                 documents={'prepared.json', 'consumer.json', 'package.json', 'request-contract.json',
                            'execution-plan.json', 'execution-target.json'})
             manifest = acquired.manifest

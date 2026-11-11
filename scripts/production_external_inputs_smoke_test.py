@@ -212,8 +212,10 @@ class ExternalInputTests(unittest.TestCase):
         _, report = authored.build(choice, {}, InputEvidence(self.root), self.root,
                                    'different-value', PROMPT.encode())
         self.assertEqual(report['state'], 'reference-upload-required')
-        self.assertEqual(report['unresolved'][0]['code'], 'provider-upload-required')
-        self.assertIn('does not match the carrier and provider media value', report['unresolved'][0]['message'])
+        pending = report['unresolved'][0]
+        self.assertEqual((pending['code'], pending['reason']), ('AUTHORED_CHOICE_REQUIRED', 'provider-upload-required'))
+        self.assertIn('does not match its carrier and provider media value', pending['message'])
+        self.assertIn('transport', pending['required_action'])
 
     def test_a_new_evidence_file_needs_no_manual_hash_edit(self):
         choice = authored.draft(self.plan, self.request)

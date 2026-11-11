@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import copy
+import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -78,6 +82,21 @@ class AuthoredRevisionTests(unittest.TestCase):
     def finish(self, run):
         work_ledger.step_done(self.root, 1)
         return work_ledger.finish(self.root, run)
+
+    def test_custom_authored_review_is_resumed_from_its_registered_location(self):
+        path, _ = self.choices(requirements=['save', 'review'])
+        run = workflow.save(self.root, path)['run']
+        custom = 'work/authored-review.json'
+        result = subprocess.run([sys.executable, str(Path(workflow.__file__)), 'draft-review',
+            '--root', str(self.root), '--run', run, '--out', custom],
+            capture_output=True, text=True, encoding='utf-8', env=dict(os.environ), check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout), c.load(self.root / custom))
+        before = (self.root / custom).read_bytes()
+        status = workflow.status(self.root, run)['runs'][0]
+        self.assertEqual(status['next_action']['command'], 'review-authored')
+        self.assertEqual(status['next_action']['argv'][-2:], ['--file', custom])
+        self.assertEqual((self.root / custom).read_bytes(), before)
 
     def test_finished_save_completes_the_requested_authored_work(self):
         path, _ = self.choices()

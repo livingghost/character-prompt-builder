@@ -1,0 +1,224 @@
+{
+  "title": "Request scope authoring",
+  "description": "An actual issuer delegation. Exact cases may be drafted from a prepared request; a generated shape never supplies permission.",
+  "type": "object",
+  "properties": {
+    "plan": {
+      "$ref": "#/$defs/source"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "productions": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "minProperties": 1
+                }
+              ]
+            }
+          },
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "properties": {
+                "target": {
+                  "type": "object",
+                  "properties": {
+                    "service": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "model_identifier": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "operation": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "service",
+                    "model_identifier",
+                    "operation"
+                  ],
+                  "additionalProperties": false
+                },
+                "execution": {
+                  "type": "object",
+                  "properties": {
+                    "service_execution_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "offering_contract_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "transport_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "service_execution_sha256",
+                    "offering_contract_sha256",
+                    "transport_sha256"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "target",
+                "execution"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "fixed": {
+            "type": "object"
+          },
+          "variations": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "values"
+                    },
+                    "values": {
+                      "type": "array",
+                      "minItems": 1,
+                      "uniqueItems": true
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "values"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "range"
+                    },
+                    "type": {
+                      "enum": [
+                        "integer",
+                        "number"
+                      ]
+                    },
+                    "minimum": {
+                      "type": "number"
+                    },
+                    "maximum": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "type",
+                    "minimum",
+                    "maximum"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "authored-content"
+                    },
+                    "source": {
+                      "$ref": "#/$defs/source"
+                    },
+                    "criterion": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "source",
+                    "criterion"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "review_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "productions",
+          "targets",
+          "fixed",
+          "variations",
+          "review_criteria"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "plan",
+    "cases"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "source": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "path",
+        "locator"
+      ],
+      "additionalProperties": false,
+      "description": "Select actual instruction bytes by path and locator. Omitted SHA-256 is derived on acquisition; a supplied digest must match."
+    }
+  }
+}

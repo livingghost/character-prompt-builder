@@ -266,7 +266,7 @@ def publish(sheet_root: Path, image: Path | bytes, *, kind: str, recipe: dict,
             if getattr(getattr(exc, 'diagnostic', None), 'code', None) != 'OUTPUT_ALREADY_EXISTS':
                 raise
             verify_artifact(descriptor, sheet_root)
-        c.fsync_dir(parent)
+        c.flush_published(destination)
     finally:
         if staging.exists():
             shutil.rmtree(staging)
@@ -359,7 +359,7 @@ def copy_artifact(artifact: dict, source_root: Path, target_root: Path) -> dict:
                 if getattr(getattr(exc, 'diagnostic', None), 'code', None) != 'OUTPUT_ALREADY_EXISTS':
                     raise
                 verify_artifact(artifact, target_root)
-            c.fsync_dir(parent)
+            c.flush_published(target)
         finally:
             if staging.exists(): shutil.rmtree(staging)
     verify_artifact(artifact, target_root)

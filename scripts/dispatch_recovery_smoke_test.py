@@ -36,6 +36,25 @@ import transport_synthetic
 from test_production_execution import decisions
 
 
+class WatchClock:
+    """The clock and the wait of resume --watch, where time passes only while the watch waits.
+
+    `interrupt` is how many waits pass before the next one is interrupted, as
+    Ctrl+C interrupts it; None lets every wait pass.
+    """
+    def __init__(self, interrupt: int | None = None) -> None:
+        self.now, self.waits, self.interrupt = 0.0, [], interrupt
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        if self.interrupt is not None and len(self.waits) == self.interrupt:
+            raise KeyboardInterrupt
+        self.waits.append(seconds)
+        self.now += seconds
+
+
 class DispatchRecoveryTests(unittest.TestCase):
     """Each test works on its own copy of one prepared studio and its own home.
 
@@ -274,6 +293,84 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(len(studio.read_iterations(studio.character_dir(self.root,'robot'))),2)
         self.assertEqual(accounting.all_states(self.root)[0]['captured_outputs'],2)
 
+    def unfinished(self,*args):
+        """The service carries out the request and accepts it with every output still unfinished."""
+        answer=self.actual_send(*args)
+        return {**answer,'data':[{'id':f'unfinished-{index}','pending':True} for index in range(len(answer['data']))]}
+
+    def finishing(self,*finished):
+        """A lookup whose n-th answer has its first finished[n] outputs final, the last count repeating.
+
+        It also returns what each call saw when it was asked: the candidates and the events of the run.
+        """
+        seen=[]
+        def lookup(request,service,key):
+            final=transport_synthetic._ANSWERED[request['request_id']]
+            count=finished[min(len(seen),len(finished)-1)]
+            seen.append({'candidates':len(self.candidates()),'events':len(self.rows())})
+            waiting=[{'id':f'unfinished-{index}','pending':True} for index in range(count,len(final['data']))]
+            return {**final,'data':[*final['data'][:count],*waiting]}
+        return lookup,seen
+
+    def watch(self,lookup,clock,**options):
+        with patch.object(transport_synthetic,'lookup',side_effect=lookup),patch.object(execution,'time',clock):
+            return execution.watch(self.root,self.run,**options)
+
+    def test_watch_registers_outputs_as_they_finish_and_returns_when_all_are_final(self):
+        self.send.side_effect=self.unfinished
+        first=self.call();uploads=self.upload.call_count
+        self.assertEqual((first['runs'][0]['submission'],self.candidates()),('pending',[]))
+        lookup,seen=self.finishing(1,1,2);clock=WatchClock()
+        result=self.watch(lookup,clock,interval=10,limit=300)
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual(result['runs'][0]['submission'],'acknowledged')
+        # One lookup per pass, one interval apart; the first output is registered by the pass that found it final.
+        self.assertEqual(clock.waits,[10,10])
+        self.assertEqual([row['candidates'] for row in seen],[0,1,1])
+        # The second lookup found what the run already held, so it added no event and no receipt.
+        self.assertGreater(seen[1]['events'],seen[0]['events'])
+        self.assertEqual(seen[2]['events'],seen[1]['events'])
+        self.assertEqual(sorted(path.name for path in self.journal().path.glob('lookup-*')),
+                         ['lookup-001-answer.json','lookup-001.json','lookup-002-answer.json','lookup-002.json'])
+        self.assertEqual((self.send.call_count,self.upload.call_count,len(self.candidates())),(1,uploads,2))
+        self.key.assert_not_called()
+
+    def test_watch_of_a_settled_run_asks_nothing_and_waits_for_nothing(self):
+        self.call();clock=WatchClock()
+        result=self.watch(AssertionError('A settled run is not asked again'),clock)
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual((clock.waits,self.send.call_count,len(self.candidates())),([],1,2))
+
+    def test_watch_limit_leaves_the_run_as_a_plain_resume_leaves_it(self):
+        self.send.side_effect=self.unfinished
+        self.call()
+        lookup,seen=self.finishing(1);clock=WatchClock()
+        result=self.watch(lookup,clock,interval=10,limit=25)
+        # Lookups at 0, 10 and 20 seconds; the next one would start after the limit.
+        self.assertEqual((len(seen),clock.waits),(3,[10,10]))
+        item=result['runs'][0]
+        self.assertEqual((item['submission'],item['capture'],len(item['candidates'])),('pending','partial',1))
+        self.assertFalse(result['ok']);self.assertFalse(result['execution_completed'])
+        self.assertEqual(item['next_action']['argv'][2:],['resume','--root',str(self.root.resolve()),'--run',self.run,'--watch'])
+        with patch.object(transport_synthetic,'lookup',side_effect=lookup):
+            plain=execution.resume(self.root,self.run)
+        self.assertEqual(plain['runs'],result['runs'])
+        self.assertEqual((self.send.call_count,len(seen)),(1,4))
+
+    def test_interruption_during_the_wait_keeps_registered_outputs_and_the_run_resumable(self):
+        self.send.side_effect=self.unfinished
+        self.call()
+        lookup,seen=self.finishing(1,2)
+        with self.assertRaises(KeyboardInterrupt):
+            self.watch(lookup,WatchClock(interrupt=0),interval=10,limit=300)
+        self.assertEqual((len(seen),len(self.candidates())),(1,1))
+        item=execution.status(self.root,self.run)['runs'][0]
+        self.assertEqual((item['submission'],item['capture'],item['next_action']['command']),('pending','partial','resume'))
+        with patch.object(transport_synthetic,'lookup',side_effect=lookup):
+            final=execution.resume(self.root,self.run)
+        self.assertTrue(final['execution_completed'])
+        self.assertEqual((self.send.call_count,len(self.candidates()),len(seen)),(1,2,2))
+
     def test_pending_observation_cannot_be_edited_into_a_final_answer(self):
         from production_diagnostics import ProductionError
         self.send.side_effect=self.partial_processing
@@ -467,16 +564,80 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(before,{p.name:(p.stat().st_mtime_ns,p.read_bytes()) for p in paths})
 
     def test_corrupt_response_provenance_stops_registration(self):
+        from production_diagnostics import ProductionError
         with patch.object(workflow,'record_dispatch_results',side_effect=OSError('Synthetic interrupted registration')),self.assertRaises(OSError):self.call()
         response=self.journal().path/'response-1.json';value=c.load(response);value['answer_sha256']='a'*64;cases.write(response,value)
-        with self.assertRaises(ValueError):execution.resume(self.root,self.run)
+        with self.assertRaises(ProductionError) as caught:execution.resume(self.root,self.run)
+        found=caught.exception.diagnostic.as_dict();journal=self.journal().path
+        # The answer still has the bytes the run recorded for it, so the output response file is the one to restore.
+        self.assertEqual((found['code'],found['file'],found['answer']),
+                         ('RESPONSE_CORRUPT',str(journal/'response-1.json'),str(journal/'answer.json')))
+        self.assertEqual((found['expected'],found['actual']),('a'*64,c.sha256_file(journal/'answer.json')))
+        self.assertIn('The events of this run hold no copy of '+str(journal/'response-1.json')+' with other bytes',
+                      found['required_action'])
         self.assertEqual(self.candidates(),[]);self.assertEqual(self.send.call_count,1)
+
+    def test_output_response_naming_another_output_names_its_recorded_copy(self):
+        from production_diagnostics import ProductionError
+        self.call();journal=self.journal();before=self.candidates()
+        response=journal.path/'response-1.json';original=response.read_bytes()
+        value=c.load(response);value['id']='another-provider-output';cases.write(response,value)
+        with self.assertRaises(ProductionError) as caught:execution.resume(self.root,self.run)
+        found=caught.exception.diagnostic.as_dict()
+        kept=workflow.run_dir(self.root,self.run)/'objects'/c.digest(original)
+        self.assertEqual((found['code'],found['file'],found['answer']),
+                         ('RESPONSE_CORRUPT',str(response),str(journal.path/'answer.json')))
+        self.assertIn('Copy '+str(kept)+' to '+str(response),found['required_action'])
+        # No output was indexed again while the receipt disagreed.
+        self.assertEqual(sorted(path.name for path in journal.path.glob('response-*.json')),['response-1.json','response-2.json'])
+        self.assertEqual(self.candidates(),before)
+        response.write_bytes(kept.read_bytes())
+        self.assertTrue(execution.resume(self.root,self.run)['execution_completed'])
+        self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
+
+    def test_changed_acquisition_receipt_names_its_recorded_copy(self):
+        from production_diagnostics import ProductionError
+        self.call();journal=self.journal();before=self.candidates()
+        receipt=journal.path/'acquisition-1.json';original=receipt.read_bytes()
+        value=c.load(receipt);value['size']+=1;cases.write(receipt,value)
+        with self.assertRaises(ProductionError) as caught:execution.resume(self.root,self.run)
+        found=caught.exception.diagnostic.as_dict()
+        kept=workflow.run_dir(self.root,self.run)/'objects'/c.digest(original)
+        self.assertEqual((found['code'],found['file']),('PROVIDER_OUTPUT_CHANGED',str(receipt)))
+        self.assertEqual(found['required_action'],'Copy '+str(kept)+' to '+str(receipt)
+                         +'. Then run resume for this run; do not resend the request.')
+        self.assertEqual(self.candidates(),before)
+        receipt.write_bytes(kept.read_bytes())
+        self.assertTrue(execution.resume(self.root,self.run)['execution_completed'])
+        self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
 
     def test_corrupt_answer_is_not_reinterpreted_as_new_result(self):
         with patch.object(workflow,'record_dispatch_results',side_effect=OSError('Synthetic interrupted registration')),self.assertRaises(OSError):self.call()
         cases.write(self.journal().path/'answer.json',{'data':[]})
         with self.assertRaises(ValueError):execution.resume(self.root,self.run)
         self.assertEqual(self.send.call_count,1)
+
+    def test_answer_changed_before_registration_names_both_digests_and_the_copy_the_run_keeps(self):
+        from production_diagnostics import ProductionError
+        acquire=dispatch.acquire
+        def acquire_then_change(journal,*args,**kwargs):
+            acquired=acquire(journal,*args,**kwargs)
+            cases.write(journal.path/'answer.json',{'data':[]})
+            return acquired
+        with patch.object(dispatch,'acquire',side_effect=acquire_then_change),self.assertRaises(ProductionError) as caught:
+            self.call()
+        journal=self.journal();found=caught.exception.diagnostic.as_dict()
+        base=workflow.find(self.rows(),'dispatch-claim')['data']['journal']
+        observed=c.load(journal.path/'response-1.json')['answer_sha256']
+        kept=workflow.run_dir(self.root,self.run)/'objects'/observed
+        self.assertEqual((found['code'],found['file'],found['output_response']),
+                         ('RESPONSE_CORRUPT',base+'/answer.json',base+'/response-1.json'))
+        self.assertEqual((found['expected'],found['actual']),(observed,c.sha256_file(journal.path/'answer.json')))
+        self.assertIn('Copy '+str(kept)+' to this journal file, then run resume',found['required_action'])
+        self.assertEqual(self.candidates(),[])
+        (journal.path/'answer.json').write_bytes(kept.read_bytes())
+        self.assertTrue(execution.resume(self.root,self.run)['execution_completed'])
+        self.assertEqual((self.send.call_count,len(self.candidates())),(1,2))
 
     def test_missing_answer_after_send_remains_unknown(self):
         self.send.side_effect=TimeoutError('Synthetic timeout');self.call()
@@ -540,7 +701,7 @@ class ResumeOffersDownload(unittest.TestCase):
                 self.assertTrue(execution.resume(root,run)['execution_completed'])
 
 
-SECOND_TRANSPORT = '"""A synthetic second service for the dispatch tests; it reaches only the test\'s loopback service."""\nimport json\n\nfrom model_contract import NEGATIVE_ROLE, PROMPT_ROLE, required_request_key\nfrom request_contract import RequestWriter, path_parts\nfrom transport_contract import address, post\n\nOPERATIONS = {"generation": "text-to-image"}\nRESULT_HOSTS = frozenset()\nUPLOAD_SOURCE = "bytes"\n\n\ndef endpoint(service):\n    return address(service["endpoint"]["base_url"])\n\n\ndef compile_request(verified, offering, service, media_ids=None, seed=None, count=1):\n    forwarding = verified["host_forwarding"]\n    writer = RequestWriter()\n    source = [{"kind": "offering", "service": offering["service"], "model_identifier": offering["model_identifier"]}]\n\n    def write(path, value, kind, transform):\n        writer.write(path, value, source_kind=kind, source_refs=source, transform_id=transform)\n\n    prompt = path_parts(required_request_key(offering, PROMPT_ROLE))\n    write(prompt, forwarding["effective_prompt"], "authored", "selected-rendition")\n    layout = {"model": None, "operation": None, "primary_text": prompt, "negative_text": None,\n              "output_count": ["num_images"], "fixed_output_count": None, "seed": None, "media": [],\n              "management": [], "content": [{"id": "prompt", "field": prompt}],\n              "fields": [{"id": "prompt", "field": prompt, "kind": "content"},\n                         {"id": "count", "field": ["num_images"], "kind": "parameter"}]}\n    selected = forwarding["selected_transport"]\n    negative = selected["rendition"].get("negative") or ""\n    if selected["mode"] in {"separate-field", "native-subset"} and negative:\n        field = path_parts(required_request_key(offering, NEGATIVE_ROLE))\n        write(field, negative, "authored", "selected-negative-channel")\n        layout["negative_text"] = field\n        layout["content"].append({"id": "negative", "field": field})\n        layout["fields"].append({"id": "negative", "field": field, "kind": "content"})\n    for name, value in sorted((forwarding.get("parameters") or {}).items()):\n        write(path_parts(name), value, "model-setting", "selected-parameter")\n        layout["fields"].append({"id": "parameter:" + name, "field": path_parts(name), "kind": "parameter"})\n    write(["num_images"], count, "model-setting", "explicit-output-count")\n    if seed is not None:\n        write(["seed"], seed, "model-setting", "explicit-seed")\n        layout["seed"] = ["seed"]\n        layout["fields"].append({"id": "seed", "field": ["seed"], "kind": "parameter"})\n    return {"request": writer.request, "layout": layout, "request_trace": writer.trace}\n\n\ndef added_parameters(offering, seed=None, count=1):\n    return {"num_images": count, **({"seed": seed} if seed is not None else {})}\n\n\ndef upload_media(data, media_type, service, key, *, source_url):\n    raise ValueError("the fixture service takes no media")\n\n\ndef send(request, service, key):\n    status, body = post(endpoint(service), json.dumps(request).encode("utf-8"),\n                        {"Content-Type": "application/json", "Authorization": "Key " + key})\n    answer = json.loads(body.decode("utf-8"))\n    return answer if status == 200 else {"errors": [{"status": status, **answer}]}\n\n\ndef rejections(answer):\n    return list(answer.get("errors") or [])\n\n\ndef results(answer):\n    return [{"data": item["b64"], "seed": item.get("seed"), "id": item.get("id")} for item in answer.get("images") or []]\n\n\ndef observation_outcome(answer):\n    return "rejected" if rejections(answer) else "accepted" if results(answer) else "indeterminate"\n\n\ndef usage(answer):\n    return None\n'
+SECOND_TRANSPORT = '"""A synthetic second service for the dispatch tests; it reaches only the test\'s loopback service."""\nimport json\n\nfrom model_contract import NEGATIVE_ROLE, PROMPT_ROLE, required_request_key\nfrom request_contract import RequestWriter, path_parts\nfrom transport_contract import address, post\n\nOPERATIONS = {"generation": "text-to-image"}\nRESULT_HOSTS = frozenset()\nUPLOAD_SOURCE = "bytes"\n\n\ndef endpoint(service):\n    return address(service["endpoint"]["base_url"])\n\n\ndef compile_request(verified, offering, service, media_ids=None, seed=None, count=1):\n    forwarding = verified["host_forwarding"]\n    writer = RequestWriter()\n    source = [{"kind": "offering", "service": offering["service"], "model_identifier": offering["model_identifier"]}]\n\n    def write(path, value, kind, transform):\n        writer.write(path, value, source_kind=kind, source_refs=source, transform_id=transform)\n\n    prompt = path_parts(required_request_key(offering, PROMPT_ROLE))\n    write(prompt, forwarding["effective_prompt"], "authored", "selected-rendition")\n    layout = {"model": None, "operation": None, "primary_text": prompt, "negative_text": None,\n              "output_count": ["num_images"], "fixed_output_count": None, "seed": None, "media": [],\n              "management": [], "content": [{"id": "prompt", "field": prompt}],\n              "fields": [{"id": "prompt", "field": prompt, "kind": "content"},\n                         {"id": "count", "field": ["num_images"], "kind": "parameter"}]}\n    selected = forwarding["selected_transport"]\n    negative = selected["rendition"].get("negative") or ""\n    if selected["mode"] in {"separate-field", "native-subset"} and negative:\n        field = path_parts(required_request_key(offering, NEGATIVE_ROLE))\n        write(field, negative, "authored", "selected-negative-channel")\n        layout["negative_text"] = field\n        layout["content"].append({"id": "negative", "field": field})\n        layout["fields"].append({"id": "negative", "field": field, "kind": "content"})\n    for name, value in sorted((forwarding.get("parameters") or {}).items()):\n        write(path_parts(name), value, "model-setting", "selected-parameter")\n        layout["fields"].append({"id": "parameter:" + name, "field": path_parts(name), "kind": "parameter"})\n    write(["num_images"], count, "model-setting", "explicit-output-count")\n    if seed is not None:\n        write(["seed"], seed, "model-setting", "explicit-seed")\n        layout["seed"] = ["seed"]\n        layout["fields"].append({"id": "seed", "field": ["seed"], "kind": "parameter"})\n    return {"request": writer.request, "layout": layout, "request_trace": writer.trace}\n\n\ndef added_parameters(offering, seed=None, count=1):\n    return {"num_images": count, **({"seed": seed} if seed is not None else {})}\n\n\ndef upload_media(data, media_type, service, key, *, source_url):\n    raise ValueError("the fixture service takes no media")\n\n\ndef send(request, service, key):\n    status, body = post(endpoint(service), json.dumps(request).encode("utf-8"),\n                        {"Content-Type": "application/json", "Authorization": "Key " + key})\n    answer = json.loads(body.decode("utf-8"))\n    return answer if status == 200 else {"errors": [{"status": status, **answer}]}\n\n\ndef lookup(request, service, key):\n    """The fixture service keeps no task that could be asked for again."""\n    return None\n\n\ndef rejections(answer):\n    return list(answer.get("errors") or [])\n\n\ndef results(answer):\n    return [{"data": item["b64"], "seed": item.get("seed"), "id": item.get("id")} for item in answer.get("images") or []]\n\n\ndef observation_outcome(answer):\n    return "rejected" if rejections(answer) else "accepted" if results(answer) else "indeterminate"\n\n\ndef usage(answer):\n    return None\n'
 
 
 class SecondServiceTests(unittest.TestCase):
@@ -624,10 +785,35 @@ class SecondServiceTests(unittest.TestCase):
         result=self.execute();again=execution.resume(self.root,self.run)
         self.assertEqual(result['runs'][0]['submission'],'outcome_unknown')
         self.assertEqual(again['runs'][0]['submission'],'outcome_unknown');self.assertEqual(len(self.loopback.received),1)
-        # This transport defines no lookup, so resume asks nothing and records no new fact.
-        self.assertEqual([item['code'] for item in again['warnings']],['PROVIDER_LOOKUP_UNSUPPORTED'])
-        self.assertFalse(any(row['event']=='execution-outcome' and row['data'].get('lookup')
-                             for row in store.event_rows(self.root,self.run)))
+        # The fixture service offers no way to ask again, so its lookup gives no answer, and resume records that.
+        self.assertEqual([row['data']['lookup'] for row in store.event_rows(self.root,self.run)
+                          if row['event']=='execution-outcome' and row['data'].get('lookup')],['no-answer'])
+
+    def test_lost_answer_the_service_cannot_give_again_leads_to_the_outcome_statement(self):
+        # The transport's lookup returns None, so resume records once that the service gave no
+        # answer; status and resume then name the author's statement instead of another resume.
+        self.loopback.reply=(503,{},b'synthetic busy')
+        self.assertEqual(self.execute()['runs'][0]['next_action']['command'],'resume')
+        first=execution.resume(self.root,self.run)['runs'][0]['next_action']
+        self.assertEqual(first['command'],'draft-outcome')
+        self.assertIn('the provider gave no answer for this send',first['reason'])
+        self.assertIn('resume --outcome-file',first['reason'])
+        self.assertEqual(execution.status(self.root,self.run)['runs'][0]['next_action'],first)
+        again=execution.resume(self.root,self.run)
+        self.assertEqual(again['runs'][0]['next_action'],first)
+        # The second lookup reported what the run already held, so it recorded nothing.
+        self.assertEqual(len([row for row in store.event_rows(self.root,self.run)
+                              if row['event']=='execution-outcome' and row['data'].get('lookup')]),1)
+        statement=execution.draft_outcome(self.root,self.run)
+        cases.write(self.root/'provider-task-list.txt','Synthetic provider task export: no task with this identifier.\n')
+        authority=store.authority(self.root,workflow.load_run(self.root,self.run)[1]['task']['task_id'])
+        statement.update(actor=authority['issuer'],reason='The provider task list holds no task for this request.',
+                         evidence={'path':'provider-task-list.txt','locator':'whole export',
+                                   'sha256':c.sha256_file(self.root/'provider-task-list.txt')})
+        cases.write(self.root/'outcome.json',statement)
+        settled=execution.resume(self.root,self.run,outcome_file='outcome.json')['runs'][0]
+        self.assertEqual((settled['submission'],settled['next_action']['command']),('not_executed','repeat'))
+        self.assertEqual(len(self.loopback.received),1)
 
     def test_dropped_connection_retains_unknown_outcome(self):
         self.loopback.reply='drop'

@@ -2,16 +2,19 @@
 
 The production transaction owns permission and execution claims. Network I/O
 starts only after that transaction commits. Recovery reads durable answers; it
-never interprets a timeout as evidence that a request was not sent. A lost
-answer is asked for again only through the transport's lookup, and an author's
-evidenced statement that the provider holds no such task is recorded as one.
+never interprets a timeout as evidence that a request was not sent. A lost or
+unfinished answer is asked for again only through the transport's lookup, and
+an author's evidenced statement that the provider holds no such task is
+recorded as one.
 """
 from __future__ import annotations
 
 import copy
 import functools
+import math
 import os
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +29,12 @@ INSPECTION_ERRORS = (ValueError, OSError, KeyError, TypeError, sqlite3.DatabaseE
 # Step outcomes the provider evidenced as making nothing.
 NO_EFFECT_OUTCOMES = frozenset({'rejected', 'not_executed'})
 SCRIPT = str(Path(__file__).with_name('production_workflow.py'))
+# The seconds resume --watch waits between lookups of a pending provider task, and in all. The included
+# service record polls an asynchronous task about every ten seconds. The limit keeps one watch within
+# about two minutes, a common time limit of an agent's command; a pending run is watched again from
+# its next action.
+WATCH_INTERVAL_SECONDS = 10
+WATCH_LIMIT_SECONDS = 120
 
 
 def _public_call(function):
@@ -56,7 +65,9 @@ def compiled(root: Path, run: str, *, fresh: bool = False, loaded=None) -> tuple
     loaded = workflow.assert_current(root, run) if fresh else loaded or workflow.read_run(root, run)
     directory, prepared, consumer, rows = loaded
     if prepared['task']['execution'] != 'dispatcher' or 'package.json' not in loaded.artifacts:
-        raise ProductionError('EXECUTION_NOT_APPLICABLE', 'This operation needs a prepared model request.', phase='execution', run=run)
+        raise ProductionError('EXECUTION_NOT_APPLICABLE', 'This operation needs a prepared model request.', phase='execution', run=run,
+                              required_action='Follow the next action of status --run; this run holds no sealed dispatcher '
+                                              'request to send or resume.')
     package = loaded.artifacts['package.json']
     rendered = loaded.artifacts['request-contract.json']
     plan = loaded.artifacts['execution-plan.json']
@@ -72,7 +83,7 @@ def compiled(root: Path, run: str, *, fresh: bool = False, loaded=None) -> tuple
 
 
 @_public_call
-def draft_execution(root: Path, run: str, grant: str) -> dict:
+def draft_execution(root: Path, run: str, grant: str | None = None) -> dict:
     """Draft the independent judgments of the prepared operations in one editing document."""
     import production_decisions
     return production_decisions.draft(root, run, grant)
@@ -227,7 +238,9 @@ def _execute_external(root: Path, run: str, *, decisions_file: str | None) -> di
         plan = loaded.artifacts['execution-plan.json']
         if prepared['task']['execution'] not in {'dispatcher', 'external'} or not plan['operations']:
             raise ProductionError('EXECUTION_NOT_APPLICABLE', 'This operation needs a prepared model request.',
-                                  phase='execution', run=run)
+                                  phase='execution', run=run,
+                                  required_action='Follow the next action of status --run; an external run without an image '
+                                                  'request is handed over with handoff and claimed with claim-external.')
         if any(row['event'] == 'external-claim' for row in rows):
             raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'This run already handed its request to the host.',
                 phase='execution', run=run,
@@ -257,17 +270,16 @@ def _execute_external(root: Path, run: str, *, decisions_file: str | None) -> di
 def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
     import production_workflow as workflow
     import studio
-    from verify_generation_payload import verify
-    import runtime_snapshot
 
     loaded = workflow.read_run(root, run)
     if loaded.prepared['task']['execution'] == 'external':
         return _execute_external(root, run, decisions_file=decisions_file)
 
     with stage('execution-preflight'):
-        # Inspect the verified publication before authorizing its handoff.
-        # The claim transaction checks live sources before any journal or
-        # handoff is written; each later external step checks them again.
+        # The publication read above verified the sealed package, request and
+        # target by content. They are sent as prepared, not built again. The
+        # claim transaction checks live sources before any journal or handoff
+        # is written; each later external step checks them again.
         data = compiled(root, run, loaded=loaded)
         directory, prepared, _, rows, package, rendered, plan, target, transport = data
         if any(row['event'] == 'dispatch-claim' for row in rows):
@@ -275,19 +287,6 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
                 required_action='Use resume for this execution, variant for changed input, or repeat for an intentional new run.')
         require_recording(root, prepared)
         credential = _credential(root, transport, target['offering']['service'])
-        descriptor = prepared['runtime_snapshot']
-        fixed = runtime_snapshot.acquire_runtime(runtime_snapshot.path(root, descriptor), descriptor)
-        if package.get('artifact_type') == 'upscale-request':
-            from production_binding import validate_upscale_input
-            validate_upscale_input(root, package, input_source=fixed)
-            verified = {}
-        else:
-            from build_generation_payload import resolve_execution_target
-            source = runtime_snapshot.CompileRuntime.from_fixed(fixed, descriptor)
-            resolved = resolve_execution_target(target, source=source)
-            verified = verify(package, package_root=directory, studio=root,
-                              reading_ledgers=[directory / 'reads.jsonl'],
-                              target=resolved, input_source=source)
         if current():
             current().link(run=run, task=prepared['task']['task_id'])
             current().durable()
@@ -296,7 +295,7 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
         # That check is independent of the presence of a diagnostic operation.
 
     with stage('authorization-and-claim'), store.transaction(root):
-        boundary = workflow.read_current(root, run, previous_runtime=fixed)
+        boundary = workflow.read_current(root, run)
         loaded = boundary.view
         authority = workflow.current_authority(root, loaded.prepared)
         if decisions_file is not None:
@@ -314,10 +313,9 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
                                tokens['direction'], journal=journal.path)
         loaded = workflow.read_run(root, run)
         submission = next(item for item in plan['operations'] if item['operation'] == 'submit')
-        claim = workflow._claim_dispatch_from(root, loaded, authority, package, verified, journal.path, submission,
+        claim = workflow._claim_dispatch_from(root, loaded, authority, package, journal.path, submission,
                                               tokens['submit'], rendered=saved,
-                                              authentication=credential.selection if credential is not None else None,
-                                              input_source=boundary.runtime)
+                                              authentication=credential.selection if credential is not None else None)
     return _transmit(root, run, journal, saved, claim, tokens['submit'], target, transport,
                      credential.value if credential is not None else '', previous_runtime=boundary.runtime)
 
@@ -372,6 +370,165 @@ def _owner() -> dict:
     return {'operation_id': current_operation_id(), 'pid': os.getpid()}
 
 
+def _unsaved_uploads(journal: Path, state: dict | None) -> list[int]:
+    """Media positions whose upload started and left no provider answer in the journal.
+
+    An upload's response or refusal is saved before its result is recorded, so
+    recovery continues from either file. A started upload with neither is never
+    sent again: the provider may or may not hold it. Neither is one whose stopped
+    attempt recorded its outcome as unknown, whatever the journal holds later.
+    """
+    positions = []
+    for step in state['steps'] if state else []:
+        if step['operation'] != 'upload':
+            continue
+        index = int(step['step'].split(':', 1)[1])
+        name = f'upload-{index + 1:03d}'
+        if (step['step'] in state['unknown_uploads']
+                or not any((journal / (name + suffix)).is_file() for suffix in ('.json', '-refused.json'))):
+            positions.append(index)
+    return positions
+
+
+def _unanswered_upload_name(index: int) -> str:
+    """The journal file that keeps what an upload exchange without an answer returned."""
+    return f'upload-{index + 1:03d}-indeterminate.json'
+
+
+def _keep_unanswered_upload(journal, index: int, cause: BaseException) -> None:
+    """Save the reason an upload exchange ended without an answer, with the HTTP status and body of one that came.
+
+    A service can answer and still leave the outcome unknown, for example with an
+    issued media identifier whose stored content could not be verified. That
+    answer is the author's evidence for the provider's records. A failure to save
+    it leaves the unknown outcome reported as before.
+    """
+    import transport_contract
+    evidence = (cause.evidence() if isinstance(cause, transport_contract.Indeterminate) else
+                {'outcome': transport_contract.INDETERMINATE,
+                 'reason': f'the upload ended without a provider answer ({type(cause).__name__})',
+                 'http_status': None, 'body': None})
+    try:
+        journal.write(_unanswered_upload_name(index), evidence)
+    except (ValueError, OSError):
+        if current():
+            current().event('upload_evidence_unavailable', phase='reference-upload')
+
+
+def _upload_blocker(root: Path, claims: list[dict], rows: list[dict], state: dict | None) -> tuple[str, list[int]] | None:
+    """Why a claimed execution cannot continue from the uploads it started before its send.
+
+    The result is ('running', positions) while the operation that started them
+    still runs, ('unknown', positions) once it ended without their provider
+    answers, and None when every started upload left its answer in the journal.
+    Status and resume both decide from this one reading.
+    """
+    claim = claims[-1]
+    positions = _unsaved_uploads(c.local(root, claim['data']['journal']), state)
+    if not positions:
+        return None
+    if {f'upload:{index}' for index in positions} <= set(state['unknown_uploads']):
+        return 'unknown', positions
+    started = max((index for index, row in enumerate(rows)
+                   if row['event'] == 'external-step' and row['data'].get('claim') == claim['sha256']
+                   and row['data'].get('operation') in {'upload', 'send'}), default=-1)
+    # A stopped attempt records an execution outcome after its last upload or send.
+    # Without one, the process the journal names decides.
+    stopped = any(row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
+                  for row in rows[started + 1:])
+    return ('unknown' if stopped or not _sender_alive(root, claims) else 'running'), positions
+
+
+def _unknown_upload_action(root: Path, run: str) -> dict:
+    """The continuation of an execution whose started upload has no saved provider answer."""
+    return _action('repeat', root, ['--from', run, '--prepare'],
+        'An upload started and no provider response was saved, so its outcome is unknown and it is never sent again. '
+        'This execution cannot reach its send: prepare an intentional new run and obtain its exact approval. '
+        "Check the provider's own records when the stored input or its charge matters.")
+
+
+def _upload_outcome_unknown(root: Path, run: str, journal, positions: list[int], *, phase: str,
+                            cause: BaseException | None = None, cleanup: dict | None = None,
+                            cleanup_failure: dict | None = None) -> ProductionError:
+    """The diagnostic of uploads that started without a saved provider answer, with the continuation.
+
+    `evidence` lists the journal files that keep what each exchange returned.
+    `cleanup` is the deletion of the inputs this execution uploaded before, as
+    production_cleanup.perform reported it, and `cleanup_failure` the diagnostic
+    of a deletion that stopped.
+    """
+    inputs = ', '.join(str(index + 1) for index in positions)
+    base = journal.path.absolute().relative_to(Path(root).absolute()).as_posix()
+    evidence = [base + '/' + _unanswered_upload_name(index) for index in positions
+                if (journal.path / _unanswered_upload_name(index)).is_file()]
+    details = {} if cause is None else {'cause': type(cause).__name__ + ': ' + str(cause)}
+    if evidence:
+        details['evidence'] = evidence
+    action = _unknown_upload_action(root, run)
+    release = ''
+    if cleanup is not None:
+        details['cleanup'] = cleanup['cleanup']
+        if cleanup['warnings']:
+            details['cleanup_warnings'] = cleanup['warnings']
+        if cleanup['cleanup']['eligible'] and cleanup['cleanup']['state'] in {'pending', 'outcome_unknown'}:
+            action = _cleanup_action(root, run, cleanup['cleanup'])
+            release = ('First run resume for this run: it deletes the inputs this execution uploaded before and never '
+                       'uploads or sends again. ')
+    elif cleanup_failure is not None:
+        details['cleanup_warnings'] = [cleanup_failure]
+        action = _action('status', root, ['--run', run],
+            'Deleting the inputs this execution uploaded before stopped: ' + cleanup_failure['message'] + ' '
+            + cleanup_failure['required_action'])
+        release = 'Deleting the inputs this execution uploaded before stopped; follow the next action of status --run. '
+    kept = (' What the exchange returned is saved in ' + ', '.join(evidence) + '.') if evidence else ''
+    return ProductionError('REMOTE_OUTCOME_UNKNOWN',
+        f'An upload started without a saved provider response (media input {inputs}); its outcome is unknown '
+        'and it is not sent again.', phase=phase, run=run,
+        steps=[f'upload:{index}' for index in positions], next_action=action,
+        required_action='This execution cannot reach its send. ' + release + 'Prepare an intentional new run with '
+                        'repeat --from ' + run + " --prepare and obtain its exact approval. Check the provider's own "
+                        'records when the stored input or its charge matters.' + kept, **details)
+
+
+class _UploadUnanswered(Exception):
+    """An upload exchange that ended without a saved provider answer, which `_transmit` settles on its own."""
+
+    def __init__(self, index: int, cause: BaseException | None) -> None:
+        super().__init__(f'upload:{index}')
+        self.index, self.cause = index, cause
+
+
+def _stop_on_unknown_upload(root: Path, run: str, journal, claim: dict, target: dict, transport: Any,
+                            positions: list[int], *, phase: str, cause: BaseException | None = None) -> ProductionError:
+    """Settle what uploads without a saved provider answer settle, and return their diagnostic.
+
+    Such an upload is never sent again, so this execution can never reach its
+    send. What the exchange returned is kept in the journal, the stopped attempt
+    is recorded once with the uploads whose outcome is unknown, and the inputs
+    this execution uploaded before are deleted, as after a refused upload. An
+    upload of unknown outcome has no recorded identifier and is never deleted.
+    """
+    import production_workflow as workflow
+    if cause is not None:
+        _keep_unanswered_upload(journal, positions[0], cause)
+    error = _upload_outcome_unknown(root, run, journal, positions, phase=phase, cause=cause)
+    try:
+        _, prepared, _, rows = workflow.read_run(root, run)
+        recorded = set(_claim_execution(rows, prepared, run, claim)['unknown_uploads'])
+    except (ValueError, OSError):
+        recorded = set()
+    if not {f'upload:{index}' for index in positions} <= recorded:
+        _record_execution_failure(root, run, journal, claim, error, unknown_uploads=positions)
+    try:
+        import production_cleanup
+        cleanup = production_cleanup.perform(root, run, journal, claim, target, transport)
+    except (ValueError, OSError) as exc:
+        # A stopped deletion is reported beside the unknown upload; it never hides it.
+        return _upload_outcome_unknown(root, run, journal, positions, phase=phase, cause=cause,
+                                       cleanup_failure=from_exception(exc, phase='input-cleanup'))
+    return _upload_outcome_unknown(root, run, journal, positions, phase=phase, cause=cause, cleanup=cleanup)
+
+
 def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, authorization: str,
               target: dict, transport: Any, key: str, *, previous_runtime=None) -> dict:
     """Carry fixed metadata while each external step reacquires its actual inputs."""
@@ -381,11 +538,16 @@ def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, author
     import production_workflow as workflow
     try:
         media_ids = {}
+        # The journal names the operation that transmits now, for its uploads and its send.
+        journal.update(sender=_owner())
         with stage('reference-upload'):
             for index, item in enumerate(rendered['media']):
                 raw = c.read(Path(item['path']))
                 if c.digest(raw) != item['sha256'] or len(raw) != item['size']:
-                    raise ProductionError('ARTIFACT_CORRUPT', 'Saved reference bytes changed.', phase='before-send', file=item['path'])
+                    raise ProductionError('ARTIFACT_CORRUPT', 'Saved reference bytes changed.', phase='before-send', file=item['path'],
+                        expected=item['sha256'],
+                        required_action='Copy the file at the same relative path under ' + str(workflow.run_dir(root, run))
+                                        + ' to this journal file, then run resume for this run.')
                 _,prepared,_,rows=workflow.read_run(root,run)
                 state=accounting.require_active(rows,prepared,run,authorization)
                 step=f'upload:{index}'
@@ -400,12 +562,14 @@ def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, author
                     except transport_contract.Refused as refusal:
                         return _refused_upload(root, run, journal, claim, authorization, index, refusal.evidence(),
                                                previous_runtime=previous_runtime)
+                    except (ValueError, OSError) as exc:
+                        # The step is committed and no answer was saved, whatever ended the exchange.
+                        raise _UploadUnanswered(index, exc) from exc
                     c.exact(uploaded,{'provider_id','response','usage'},'transport upload result')
                     journal.write(f'upload-{index + 1:03d}.json', {'index': index, 'source': item['path'],
                         'source_sha256': item['sha256'], **uploaded})
                 elif not (journal.path/f'upload-{index+1:03d}.json').is_file():
-                    raise ProductionError('REMOTE_OUTCOME_UNKNOWN','An upload started without its saved response; it cannot be sent again.',
-                                          phase='reference-upload',run=run)
+                    raise _UploadUnanswered(index, None)
                 media_ids[index]=_upload_receipt(root,run,journal,rendered,claim,authorization,index)['provider_id']
         request = rc.materialize(rendered, media_ids)
         rc.validate_wire(rendered, request, media_ids)
@@ -414,7 +578,6 @@ def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, author
         # answer can be looked up without reading the journal.
         identifiers = [{'field': list(path), 'value': rc.get(request, path)} for path in rendered['layout']['management']]
         with stage('provider-wait'):
-            journal.update(sender=_owner())
             accounting.begin_step(root, run, authorization, claim=claim['sha256'], step='send', operation='send',
                                   identifiers=identifiers, previous_runtime=previous_runtime)
             journal.update(status='sending')
@@ -433,6 +596,9 @@ def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, author
         result = _finish(root, run, journal, transport, previous_runtime=previous_runtime)
         result.update(external_effect=True)
         return result
+    except _UploadUnanswered as unanswered:
+        raise _stop_on_unknown_upload(root, run, journal, claim, target, transport, [unanswered.index],
+                                      phase='reference-upload', cause=unanswered.cause) from unanswered.cause
     except BaseException as exc:
         _record_execution_failure(root, run, journal, claim, exc)
         raise
@@ -535,18 +701,31 @@ def submission_state(rows: list[dict], prepared: dict, run: str, *, sender_alive
     return ('send_started' if sender_alive else 'outcome_unknown'), effects
 
 
-def _record_execution_failure(root: Path, run: str, journal, claim: dict, error: BaseException) -> None:
-    """Record a stopped attempt without changing facts about prior external effects."""
+def _record_execution_failure(root: Path, run: str, journal, claim: dict, error: BaseException, *,
+                              unknown_uploads: tuple[int, ...] | list[int] = ()) -> None:
+    """Record a stopped attempt without changing facts about prior external effects.
+
+    `unknown_uploads` names the media positions whose started upload left no
+    provider answer. The record states their outcome as unknown, with the journal
+    evidence of each exchange, so the execution never starts another upload or
+    its send and the inputs it uploaded before may be deleted.
+    """
     try:
         import production_workflow as workflow
         _, prepared, _, rows = workflow.read_run(root, run)
         # The failing process owns the attempt and is stopping now.
         outcome, effects = submission_state(rows, prepared, run, sender_alive=False)
         diagnostic = getattr(error, 'diagnostic', None)
-        _append(root, run, 'execution-outcome', {'claim': claim['sha256'],
+        data = {'claim': claim['sha256'],
             'submission': outcome, 'effects': effects, 'error_type': type(error).__name__,
             'code': diagnostic.code if diagnostic is not None else 'EXECUTION_STOPPED',
-            'recovery': 'Inspect saved evidence; resume does not blindly resend.'})
+            'recovery': 'Inspect saved evidence; resume does not blindly resend.'}
+        if unknown_uploads:
+            data['unknown_uploads'] = [f'upload:{index}' for index in unknown_uploads]
+            evidence = _evidence(root, run, journal, [_unanswered_upload_name(index) for index in unknown_uploads])
+            if evidence:
+                data['evidence'] = evidence
+        _append(root, run, 'execution-outcome', data)
     except (ValueError, OSError):
         # The original failure must survive a simultaneous record-storage failure.
         # A diagnostic log never substitutes for the missing formal event.
@@ -585,8 +764,12 @@ def _finish_captured(root: Path, run: str, journal, transport: Any, *, loaded,
                               required_action='Restore the recorded response bytes; do not resend the request.')
     captured = {index: item['sha256'] for row in rows if row['event'] == 'dispatch-results'
                 for index, item in zip(row['data']['output_indices'], row['data']['files'])}
+    # The run's copy of each journal file an event recorded, which a refused receipt names as its repair.
+    base = journal.path.absolute().relative_to(Path(root).absolute()).as_posix() + '/'
+    kept = {item['path'][len(base):]: loaded.directory / 'objects' / item['sha256']
+            for row in rows for item in row['data'].get('evidence', []) if item['path'].startswith(base)}
     with stage('result-capture'):
-        acquisition = dispatch.acquire(journal, transport, answer_name=answer_name, captured=captured)
+        acquisition = dispatch.acquire(journal, transport, answer_name=answer_name, captured=captured, kept=kept)
     package = c.load(journal.path / 'package.json')
     capture_diagnostics=[]
     if acquisition['refused']:
@@ -714,26 +897,60 @@ def _lookup_receipt_name(journal) -> str:
     return f'lookup-{number:03d}.json'
 
 
+def _lookup_observation(transport: Any, found: dict) -> dict:
+    """What one lookup observed: the reading of the answer it found, or the outcome and reason of none."""
+    import transport_contract
+    if found['outcome'] == 'found':
+        return {'outcome': 'found', 'answer': transport_contract.reading(transport, found['answer'])}
+    return {'outcome': found['outcome'], 'reason': found['reason']}
+
+
+def _recorded_observation(root: Path, run: str, journal, claim: dict, transport: Any) -> dict | None:
+    """The latest observation of the started send that an event of the run records, as _lookup_observation gives it.
+
+    That is the reading of the provider answer the send or a lookup saved, as the
+    run keeps its bytes, or the outcome and reason of a lookup that received no
+    answer. It is None while the latest record is a send that ended without an
+    answer, and while nothing is recorded.
+    """
+    import transport_contract
+    import production_workflow as workflow
+    base = journal.path.absolute().relative_to(Path(root).absolute()).as_posix() + '/'
+    for row in reversed(store.event_rows(root, run)):
+        data = row['data']
+        if row['event'] != 'execution-outcome' or data.get('claim') != claim['sha256']:
+            continue
+        if data.get('lookup') in {'no-answer', 'unavailable'}:
+            return {'outcome': data['lookup'], 'reason': data['reason']}
+        kept = {item['path'][len(base):]: item['sha256'] for item in data.get('evidence', [])
+                if item['path'].startswith(base)}
+        answer = next((sha for name, sha in kept.items() if name == 'send-observation.json'
+                       or (name.startswith('lookup-') and name.endswith('-answer.json'))), None)
+        if answer is not None:
+            saved = c.decode(c.object_read(workflow.run_dir(root, run), answer))
+            return {'outcome': 'found', 'answer': transport_contract.reading(transport, saved)}
+        if 'indeterminate.json' in kept:
+            return None
+    return None
+
+
 def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transport: Any) -> dict:
-    """Ask the provider once for the lost answer of the started send, and record what it said."""
+    """Ask the provider once for the answer of the started send, and record what it said when that is new.
+
+    A lookup that observes what the run already records for the send, the same
+    reading of an answer or no answer again for the same reason, records nothing.
+    """
     import transport_contract
     import dispatch
     request = c.load(journal.path / 'request.json')
-    # A transport without lookup is asked nothing, so it needs no credential.
     selected = claim_authentication(claim, transport, target['offering']['service'])
-    credential = _credential(root, transport, target['offering']['service'], expected=selected) \
-        if callable(getattr(transport, 'lookup', None)) else None
+    credential = _credential(root, transport, target['offering']['service'], expected=selected)
     key = credential.value if credential is not None else ''
     with stage('provider-lookup'):
         found = transport_contract.lookup_once(transport, request, target['service'], key)
-    if found['outcome'] == 'unsupported':
-        # Nothing was asked, so there is no new fact to record.
+    if _lookup_observation(transport, found) == _recorded_observation(root, run, journal, claim, transport):
         result = status(root, run)
-        result.update(ok=False, execution_completed=False, external_effect=False,
-                      warnings=[{'code': 'PROVIDER_LOOKUP_UNSUPPORTED', 'severity': 'warning', 'phase': 'resume',
-                                 'message': found['reason'],
-                                 'required_action': "Check the provider's own records; record an evidenced statement with "
-                                                    'draft-outcome and resume --outcome-file when it holds no such task.'}])
+        result.update(ok=False, execution_completed=False, external_effect=False)
         return result
     receipt = {'outcome': found['outcome'], 'reason': found['reason'], 'transport': target['service']['transport'],
                'request_sha256': c.sha256_file(journal.path / 'request.json'), 'looked_up_at': c.now()}
@@ -781,9 +998,33 @@ def draft_outcome(root: Path, run: str) -> dict:
             'evidence': {'path': '', 'sha256': '', 'locator': ''}}
 
 
+def _statement_not_applicable(root: Path, run: str, message: str, why: str) -> ProductionError:
+    """Refuse an outcome statement for a run without a started send, naming the run's own continuation.
+
+    A statement records that the provider holds no task for a started send, so
+    a run without one has nothing to state. Its repair is the next action that
+    status gives the run in its current state.
+    """
+    from cli_invocation import shown
+    action = _status(root, run)['runs'][0]['next_action']
+    following = (' Nothing is left to do for this run.' if action is None else
+                 ' Its next action, as status --run gives it: ' + action['reason'] + ' Run: ' + shown(action['argv']))
+    return ProductionError('OUTCOME_STATEMENT_NOT_APPLICABLE', message, phase='resume', run=run, next_action=action,
+                           required_action=why + ' It continues without an outcome statement.' + following)
+
+
 def _record_not_executed(root: Path, run: str, journal, claim: dict, execution_state: dict, outcome_file: str) -> dict:
     """Record the author's evidenced statement that the provider never executed the started send."""
     import production_workflow as workflow
+    send = next((item for item in execution_state['steps'] if item['operation'] == 'send'), None)
+    if send is None:
+        raise _statement_not_applicable(root, run, 'No send started for this execution.',
+                                        'No send started, so the provider holds no task of this execution to state.')
+    if (journal.path / 'answer.json').is_file() or any(
+            row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
+            and row['data'].get('submission') == 'pending' for row in store.event_rows(root, run)):
+        raise ProductionError('OUTCOME_STATEMENT_CONFLICT', 'The provider answer for this send is saved.', phase='resume', run=run,
+                              required_action='Run resume without --outcome-file to register the saved answer.')
     raw = store.stable_bytes(root, outcome_file)
     statement = c.decode(raw)
     c.exact(statement, OUTCOME_STATEMENT_FIELDS, 'outcome statement')
@@ -793,26 +1034,23 @@ def _record_not_executed(root: Path, run: str, journal, claim: dict, execution_s
     c.text(statement['evidence']['locator'], 'evidence locator')
     compare_exact({'run': run, 'claim': claim['sha256'], 'outcome': 'not_executed'},
                   {key: statement[key] for key in ('run', 'claim', 'outcome')}, pointer='$', phase='resume')
-    send = next((item for item in execution_state['steps'] if item['operation'] == 'send'), None)
-    if send is None:
-        raise ProductionError('OUTCOME_STATEMENT_NOT_APPLICABLE', 'No send started for this execution.', phase='resume', run=run,
-                              required_action='Resume this unsent execution, or abandon the task without changing its history.')
-    if (journal.path / 'answer.json').is_file() or any(
-            row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
-            and row['data'].get('submission') == 'pending' for row in store.event_rows(root, run)):
-        raise ProductionError('OUTCOME_STATEMENT_CONFLICT', 'The provider answer for this send is saved.', phase='resume', run=run,
-                              required_action='Run resume without --outcome-file to register the saved answer.')
     if statement['actor'] not in execution_state['outcome_actors']:
-        raise ProductionError('AUTHORIZATION_MISMATCH', 'This actor cannot state the outcome of this execution_state.', phase='resume',
-                              run=run, expected=execution_state['outcome_actors'], actual=statement['actor'])
+        raise ProductionError('AUTHORIZATION_MISMATCH', 'This actor cannot state the outcome of this execution.', phase='resume',
+                              run=run, expected=execution_state['outcome_actors'], actual=statement['actor'],
+                              required_action='Have one of the outcome actors listed in expected make the statement and '
+                                              'name that actor in the outcome file.')
     if c.digest(store.stable_bytes(root, statement['evidence']['path'])) != statement['evidence']['sha256']:
         raise ProductionError('SOURCE_CHANGED', 'The statement evidence differs from its declared digest.', phase='resume',
-                              file=statement['evidence']['path'], expected=statement['evidence']['sha256'])
+                              file=statement['evidence']['path'], expected=statement['evidence']['sha256'],
+                              required_action='Set evidence.sha256 in the outcome file to the SHA-256 of the evidence '
+                                              'file it names, or restore that file, then resume with --outcome-file.')
     directory = workflow.run_dir(root, run)
     files = [workflow.file_record(root, directory, outcome_file),
              workflow.file_record(root, directory, statement['evidence']['path'])]
     if files[0]['sha256'] != c.digest(raw) or files[1]['sha256'] != statement['evidence']['sha256']:
-        raise ProductionError('SOURCE_CHANGED', 'The statement or its evidence changed while it was read.', phase='resume')
+        raise ProductionError('SOURCE_CHANGED', 'The statement or its evidence changed while it was read.', phase='resume',
+                              required_action='Leave the outcome file and its evidence file unchanged while resume reads '
+                                              'them, then run resume --outcome-file again.')
     with store.transaction(root):
         _record_no_effect(root, run, claim['data']['authorizations'][0], claim, send['step'], 'not_executed', files)
         _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'not_executed',
@@ -835,16 +1073,19 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
     import production_workflow as workflow
     import transport_contract
     initial = workflow.read_run(root, run)
-    if initial[1]['task']['execution'] != 'dispatcher':
+    mode = initial[1]['task']['execution']
+    if mode != 'dispatcher':
         if outcome_file is not None:
-            raise ProductionError('OUTCOME_STATEMENT_NOT_APPLICABLE', 'Only a dispatcher execution has a send to state.', phase='resume', run=run)
+            raise _statement_not_applicable(root, run, 'Only a dispatcher execution has a send to state.',
+                                            f'This {mode} run has no dispatcher send whose absence a statement records.')
         return _status(root, run, loaded=initial)
     data = compiled(root, run, loaded=initial)
     _, prepared, _, rows, _, _, plan, target, transport = data
     claims = [row for row in rows if row['event'] == 'dispatch-claim']
     if not claims:
         if outcome_file is not None:
-            raise ProductionError('OUTCOME_STATEMENT_NOT_APPLICABLE', 'This run has no claimed execution.', phase='resume', run=run)
+            raise _statement_not_applicable(root, run, 'This run has no claimed execution.',
+                                            'Nothing was sent for this run, so there is no provider task to state.')
         return _status(root, run, loaded=initial)
     claim = claims[-1]
     selected = claim_authentication(claim, transport, target['offering']['service'])
@@ -878,7 +1119,9 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
         recorded = {item['sha256'] for row in rows for item in row['data'].get('evidence', []) if item['path'] == relative}
         if recorded and recorded != {c.sha256_file(observation)}:
             raise ProductionError('RESPONSE_CORRUPT', 'The saved provider observation differs from its durable receipt.',
-                                  phase='resume', run=run, file=str(observation))
+                                  phase='resume', run=run, file=str(observation), expected=sorted(recorded),
+                                  required_action='Copy ' + str(workflow.run_dir(root, run) / 'objects' / sorted(recorded)[0])
+                                                  + ' to this file; do not resend the request.')
         saved = c.load(observation)
         if transport_contract.complete(transport, saved):
             # Recover a crash after saving the observation but before publishing the final answer.
@@ -908,14 +1151,17 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
             return result
         return _reconcile(root, run, journal, claim, target, transport)
     # Only completed, durably saved uploads may be reused before the first send.
-    # A step without a response remains unknown and is never reissued.
-    for step in execution_state['steps']:
-        if step['operation']!='upload' or not step['step'].startswith('upload:'):
-            raise ProductionError('REMOTE_OUTCOME_UNKNOWN','Unresolved external step prevents further effects.',phase='resume',run=run)
-        index=int(step['step'].split(':',1)[1])
-        if not (journal.path/f'upload-{index+1:03d}.json').is_file():
-            result=status(root,run);result.update(ok=False,execution_completed=False)
-            return result
+    # A started upload without a saved answer stays unknown and is never reissued.
+    blocker = _upload_blocker(root, claims, rows, execution_state)
+    if blocker is not None:
+        if blocker[0] == 'running':
+            raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'The operation that started this upload is still running.',
+                                  phase='resume', run=run, steps=[f'upload:{index}' for index in blocker[1]],
+                                  required_action='Wait for that operation to end, then follow the next action of '
+                                                  'status --run; the upload is not started again.')
+        # The operation that started the upload has ended. Record its unknown outcome
+        # where that operation could not, and delete the inputs uploaded before it.
+        raise _stop_on_unknown_upload(root, run, journal, claim, target, transport, blocker[1], phase='resume')
     # No send has begun: revalidate current conditions before any new effect.
     # Failures here are still attempts to resume this exact claim, so retain the
     # same formal outcome record as failures during transmission.
@@ -933,6 +1179,41 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
     return _transmit(root, run, journal, c.load(journal.path / 'request-contract.json'), claim,
                      claim['data']['authorizations'][0], target, transport,
                      credential.value if credential is not None else '', previous_runtime=boundary.runtime)
+
+
+def _pending(report: dict, run: str) -> bool:
+    """Whether the report shows the run's provider task accepted with outputs still unfinished."""
+    return any(item.get('run') == run and item.get('submission') == 'pending' for item in report['runs'])
+
+
+def watch(root: Path, run: str, *, interval: float = WATCH_INTERVAL_SECONDS,
+          limit: float = WATCH_LIMIT_SECONDS) -> dict:
+    """Resume the run, then resume it again every `interval` seconds while its provider task is pending.
+
+    Each pass is one resume in a read boundary of its own: it asks the provider
+    through the transport's lookup, registers the outputs that finished, records
+    nothing when the provider reports what the run already holds, and never
+    sends or uploads again. The watch returns the result of its last pass once
+    the run is no longer pending, or when the next pass would start more than
+    `limit` seconds after the watch began; the run is then exactly as that
+    resume left it. A KeyboardInterrupt ends the watch where it arrives, and
+    what the passes before it registered stays registered.
+    """
+    import runtime_snapshot
+    for option, value, default in (('--interval', interval, WATCH_INTERVAL_SECONDS),
+                                   ('--limit', limit, WATCH_LIMIT_SECONDS)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            raise ProductionError('INPUT_ARGUMENT_INVALID', f'{option} of resume --watch is not a positive number of seconds.',
+                                  phase='resume', run=run,
+                                  required_action=f'Give {option} a positive number of seconds, or leave it out for {default}.')
+    deadline = time.monotonic() + limit
+    while True:
+        with runtime_snapshot.public_call(fresh=True):
+            result = resume(root, run)
+        if not _pending(result, run) or time.monotonic() + interval > deadline:
+            return result
+        with stage('provider-watch', seconds=interval):
+            time.sleep(interval)
 
 
 def unclaimed_journals(root: Path) -> list[dict]:
@@ -1004,28 +1285,251 @@ def _action(command: str, root: Path, arguments: list[str], reason: str) -> dict
     return {'command': command, 'argv': _argv(command, root, *arguments), 'reason': reason}
 
 
+def decision_context(prepared: dict, *, candidate: str | None = None, basis: object = None,
+                     grant: str | None = None, scope: str | None = None) -> dict:
+    """The producer's immutable decision basis, separate from editable answers."""
+    return {'input_sha256': prepared['input_sha256'], 'candidate': candidate, 'basis': basis,
+            'grant': grant, 'scope': scope}
+
+
+def _choose_drafts(root: Path, run: str, kind: str, actions: list[dict]) -> dict:
+    if len(actions) == 1:
+        return actions[0]
+    return {**_action('status', root, ['--run', run],
+        f'Several saved {kind} drafts are available. Inspect them and explicitly choose the intended file; '
+        'no draft was selected or overwritten.'), 'requires_author_input': True, 'alternatives': actions}
+
+
 def _draft_action(root: Path, run: str, kind: str, *, candidate: str | None = None,
-                  basis: object = None, grant: str | None = None) -> dict:
-    """Name drafts by run, candidate and decision basis, never by a shared filename."""
-    identity = c.content_id({'run': run, 'candidate': candidate, 'basis': basis, 'grant': grant})[:24]
+                  basis: object = None, grant: str | None = None, scope: str | None = None,
+                  prepared: dict | None = None, existing_only: bool = False, guidance: str = '') -> dict | None:
+    """Continue producer-owned files for this exact target and decision basis.
+
+    `guidance` follows the reason of each returned action: what the file states
+    and the evidence that settles it.
+    """
+    import production_authoring_state
+    if prepared is None:
+        import production_workflow
+        prepared = production_workflow.read_run(root, run).prepared
+    context = decision_context(prepared, candidate=candidate, basis=basis, grant=grant, scope=scope)
+    filename_basis = 'provider-no-answer' if kind == 'outcome' else basis
+    identity = c.content_id({'run': run, 'candidate': candidate, 'basis': filename_basis,
+                             'grant': grant, 'scope': scope})[:24]
     relative = f'production/decisions/{run}/{kind}/{identity}.json'
     path = c.local(root, relative, exists=False)
+    drafts = {item['path']: item for item in production_authoring_state.decision_drafts(
+        root, prepared['task']['task_id'], kind=kind, run=run, context=context)}
+    if path.exists():
+        drafts.setdefault(relative, {'path': relative, 'available': True})
     apply_name, option = {'review':('review','--file'), 'selection':('select','--file'),
                           'acceptance':('accept','--file'),
                           'execution':('execute','--decisions-file'), 'outcome':('resume','--outcome-file')}[kind]
-    apply_args = ['--run', run, option, relative]
-    if path.exists():
-        return {**_action(apply_name, root, apply_args,
-            f'Existing {kind} draft: {relative}. Inspect and complete it from actual evidence, then apply it. '
-            'The draft is not itself approval; do not recreate or overwrite it.'),
-            'draft': relative, 'requires_author_input': True}
+    if kind == 'review' and prepared['task']['execution'] == 'authored':
+        apply_name = 'review-authored'
+    expected = {'run': run}
+    if kind in {'review', 'selection', 'acceptance'}:
+        expected = {'input_sha256': prepared['input_sha256'], 'candidate': candidate}
+        if kind == 'review' and candidate is None:
+            expected['candidate'] = prepared['authored_revision']['artifact']['sha256']
+        if kind == 'selection':
+            expected.update(review=basis['review'], replaces=basis['replaces'])
+        elif kind == 'acceptance':
+            expected.update(run=run, review=basis['review'], scope=scope, grant=grant,
+                            authority_sha256=basis.get('authority'))
+            if scope == 'studio-slot':
+                expected['expected_slot'] = basis['expected_slot']
+    elif kind == 'outcome':
+        expected['claim'] = basis['claim']
+    review_guidance = (' Review only the commissioned criteria; measured output can establish technical requirements. '
+        'The evidence medium adds no artistic-quality requirement. Record supported findings and limits, then continue '
+        'to the next status action.') if kind == 'review' else ''
+    review_guidance += (' ' + guidance) if guidance else ''
+    required = {'review': {'reviewer', 'checks'}, 'selection': {'selector', 'authorization'},
+                'acceptance': {'stop_assessments'}, 'outcome': {'outcome'}, 'execution': {'decisions'}}[kind]
+    for item in drafts.values():
+        if item['available']:
+            item['ownership'] = production_authoring_state.decision_file_state(root, item['path'], expected,
+                                                                               required=required)
+    other_targets = [name for name, item in drafts.items() if item.get('ownership') == 'other-target']
+    drafts = {name: item for name, item in drafts.items() if item.get('ownership') != 'other-target'}
+    present = [item for item in drafts.values() if item['available']]
+    if present:
+        actions = []
+        for item in present:
+            if item['ownership'] == 'unfinished':
+                action = _action('status', root, ['--run', run],
+                    f"The saved {kind} draft at {item['path']} is incomplete or unreadable. "
+                    'Inspect and finish that file, including its original ownership fields, then check status again. '
+                    'Its contents do not change the saved candidate or the workspace to inspect.' + review_guidance)
+            else:
+                action = _action(apply_name, root, ['--run', run, option, item['path']],
+                    f"Existing {kind} draft: {item['path']}. Inspect and complete it from actual evidence, then apply it. "
+                    'The draft is not itself approval; do not recreate or overwrite it.' + review_guidance)
+            actions.append({**action, 'draft': item['path'], 'requires_author_input': True})
+        return _choose_drafts(root, run, kind, actions)
+    if existing_only and not drafts:
+        return None
     arguments = ['--run', run]
     if candidate is not None: arguments += ['--candidate', candidate]
     if grant is not None: arguments += ['--grant', grant]
-    arguments += ['--out', relative]
-    return {**_action('draft-' + kind, root, arguments,
-        f'Create the {kind} draft for this exact run and candidate in {relative}. '
-        'Fill it from actual review or authority evidence; then use the next status action.'), 'draft': relative}
+    if scope is not None: arguments += ['--scope', scope]
+    if not drafts and path.exists():
+        number = 2
+        while c.local(root, relative, exists=False).exists():
+            relative = f'production/decisions/{run}/{kind}/{identity}-{number}.json'
+            number += 1
+    destinations = list(drafts) or [relative]
+    ownership_guidance = (' Existing files belong to another decision target and are retained: '
+                          + ', '.join(other_targets) + '. Continue this run in the new path shown here.') if other_targets else ''
+    def created(destination: str) -> str:
+        if kind == 'outcome':
+            return f'Write the outcome statement of this run to {destination}.'
+        return (f'Create the {kind} draft for this exact run and candidate in {destination}. '
+                'Fill it from actual review or authority evidence; then use the next status action.')
+    actions = [{**_action('draft-' + kind, root, arguments + ['--out', destination],
+        created(destination) + ownership_guidance + review_guidance),
+        'draft': destination} for destination in destinations]
+    return _choose_drafts(root, run, kind, actions)
+
+
+def _acceptance_action(root: Path, run: str, candidate: dict, prepared: dict,
+                       rows: list[dict], authority: store.CurrentAuthority | None, scope: str) -> dict:
+    """Keep destination-specific checks within the explicitly named use."""
+    import production_permissions
+    import production_acceptance
+    expected_slot = None
+    if scope == 'studio-slot':
+        try:
+            target, _ = production_acceptance._target(root, run, candidate['candidate'],
+                                                     loaded=(None, prepared, None, rows))
+            expected_slot = production_acceptance.slot_state(root, target['character'], target['slot'])
+        except INSPECTION_ERRORS as exc:
+            diagnostic = from_exception(exc, phase='acceptance')
+            command = 'resume' if diagnostic['code'] == 'STUDIO_CANDIDATE_REQUIRED' else 'status'
+            return _action(command, root, ['--run', run],
+                'For Studio slot acceptance: ' + diagnostic['message'] + ' ' + diagnostic['required_action'])
+    document = authority.document if authority is not None else {'grants': []}
+    grants = [item['grant'] for item in production_permissions.target_coverage(document, 'select', ['delivery'])
+              if not item['missing']]
+    saved = []
+    for grant in grants:
+        basis = {'review': candidate['review'], 'expected_slot': expected_slot,
+                 'authority': production_acceptance.authority_basis(authority, grant)}
+        action = _draft_action(root, run, 'acceptance', candidate=candidate['candidate'], grant=grant,
+            scope=scope, basis=basis, prepared=prepared, existing_only=True)
+        if action is not None:
+            saved.extend(action['alternatives'] if action['command'] == 'status' and action.get('alternatives')
+                         else [action])
+    if saved:
+        action = _choose_drafts(root, run, 'acceptance', saved)
+    else:
+        grant = grants[0] if len(grants) == 1 else None
+        basis = {'review': candidate['review'], 'expected_slot': expected_slot}
+        if grant is not None:
+            basis['authority'] = production_acceptance.authority_basis(authority, grant)
+        action = _draft_action(root, run, 'acceptance', candidate=candidate['candidate'], grant=grant,
+                               scope=scope, basis=basis, prepared=prepared)
+    action['reason'] = ('Use this action for ' + ('delivery only' if scope == 'delivery-only' else 'explicit Studio slot acceptance')
+                        + '. ' + action['reason'])
+    return action
+
+
+def _candidate_action(root: Path, run: str, candidate: dict, prepared: dict,
+                      rows: list[dict], authority: store.CurrentAuthority | None) -> dict:
+    """Expose the current judgment for one candidate without ranking alternatives."""
+    if candidate['review'] is None or candidate['selection_requirements']['unassessed_hard_criteria']:
+        actions = [_draft_action(root, run, 'review', candidate=candidate['candidate'],
+                                 basis=candidate['review'], prepared=prepared)]
+        phases = ['observe', 'review']
+    else:
+        scopes = ['delivery-only', 'studio-slot'] if prepared['task'].get('recording') else ['delivery-only']
+        previous = [row['data']['selection']['scope'] for row in rows if row['event'] == 'selection'
+                    and row['data']['selection']['candidate'] == candidate['candidate']]
+        if previous and previous[-1] in scopes:
+            scopes.remove(previous[-1])
+            scopes.insert(0, previous[-1])
+        actions = [_acceptance_action(root, run, candidate, prepared, rows, authority, scope) for scope in scopes]
+        import production_workflow
+        selection = _draft_action(root, run, 'selection', candidate=candidate['candidate'],
+            basis={'review': candidate['review'], 'replaces': production_workflow.replaced_selection(rows)},
+            prepared=prepared, existing_only=True)
+        if selection is not None:
+            actions.insert(0, selection)
+        phases = ['review']
+    contexts = [_action('workspace', root,
+        ['--run', run, '--phase', phase, '--candidate', candidate['candidate']],
+        'Read the candidate and its commissioned criteria when needed; retain knowledge already in this context.')
+        for phase in phases]
+    def attach_context(action):
+        action['read_context'] = contexts
+        for alternative in action.get('alternatives', []):
+            attach_context(alternative)
+    for action in actions:
+        attach_context(action)
+    saved = []
+    for action in actions:
+        if action['command'] in {'review', 'select', 'accept'}:
+            saved.append(action)
+        elif action['command'] == 'status':
+            if action.get('alternatives'):
+                saved.extend(action['alternatives'])
+            elif action.get('draft'):
+                saved.append(action)
+    if len(saved) > 1:
+        action = _choose_drafts(root, run, 'decision', saved)
+        action['read_context'] = contexts
+    else:
+        action = saved[0] if saved else actions[0]
+        others = [item for item in actions if item is not action]
+        if others:
+            action['alternatives'] = action.get('alternatives', []) + others
+    return action
+
+
+def _execution_draft_paths(root: Path, prepared: dict) -> list[dict]:
+    """Discover registered custom files and the ordinary run-owned draft folder."""
+    import production_authoring_state
+    result = {item['path']: item for item in production_authoring_state.decision_drafts(
+        root, prepared['task']['task_id'], kind='execution', run=prepared['run'])}
+    folder = c.local(root, 'production/decisions/' + prepared['run'] + '/execution', exists=False)
+    for path in sorted(folder.glob('*.json')):
+        relative = path.relative_to(root).as_posix()
+        result.setdefault(relative, {'run': prepared['run'], 'path': relative, 'available': True})
+    for item in result.values():
+        if item['available']:
+            item['ownership'] = production_authoring_state.decision_file_state(
+                root, item['path'], {'run': prepared['run']}, required={'decisions'})
+    return [item for item in result.values() if item.get('ownership') != 'other-target']
+
+
+def _execution_draft_action(root: Path, prepared: dict) -> dict:
+    run = prepared['run']
+    drafts = _execution_draft_paths(root, prepared)
+    present = [item for item in drafts if item['available']]
+    if present:
+        actions = []
+        for item in present:
+            if item['ownership'] == 'unfinished':
+                action = _action('status', root, ['--run', run],
+                    'The saved execution draft is incomplete or unreadable. Inspect and finish ' + item['path'] +
+                    ' with its original run ownership, then check status again. Do not recreate its applicable choices.')
+            else:
+                action = _action('execute', root, ['--run', run, '--decisions-file', item['path']],
+                    'Continue this saved execution draft. Inspect its operation requirements and update unanswered judgments '
+                    'from current authority; retain applicable decisions and do not recreate the file.')
+            actions.append({**action, 'draft': item['path'], 'requires_author_input': True})
+        if len(actions) == 1:
+            return actions[0]
+        return {**_action('status', root, ['--run', run],
+            'Several saved execution drafts belong to this run. Inspect them and explicitly choose the intended file; '
+            'no draft was selected or overwritten.'), 'requires_author_input': True, 'alternatives': actions}
+    if len(drafts) == 1:
+        relative = drafts[0]['path']
+        return {**_action('draft-execution', root, ['--run', run, '--out', relative],
+            'The registered execution draft has not been published. Create it at this unused location and retain its task/run association.'),
+            'draft': relative}
+    return _draft_action(root, run, 'execution', basis=prepared['input_sha256'], prepared=prepared)
 
 
 def _sender_alive(root: Path, claims: list[dict]) -> bool:
@@ -1065,33 +1569,55 @@ def _registration(root: Path, prepared: dict, rows: list[dict]) -> str:
 
 
 def _unknown_outcome_action(root: Path, run: str, rows: list[dict]) -> dict:
-    """Ask the provider first; after it gave no answer, the author's evidenced statement is next."""
+    """The continuation of a started send whose outcome is unknown.
+
+    resume records an answer the journal saved and asks the provider through the
+    transport's lookup; it never sends again. Once that lookup found no answer,
+    only the author's evidenced statement settles the send.
+    """
+    claim = next((row for row in reversed(rows) if row['event'] == 'dispatch-claim'), None)
     lookups = [row['data'].get('lookup') for row in rows if row['event'] == 'execution-outcome' and row['data'].get('lookup')]
-    if lookups and lookups[-1] == 'no-answer':
-        return _draft_action(root, run, 'outcome', basis='provider-no-answer')
-    return _action('resume', root, ['--run', run],
-        "resume asks the provider for the lost answer where the transport can; it never sends again. When the provider's "
-        'records hold no such task, record that with draft-outcome and resume --outcome-file.')
+    if claim is None or not lookups or lookups[-1] != 'no-answer':
+        return _action('resume', root, ['--run', run],
+            "resume asks the provider for the lost answer through the transport's lookup; it never sends again. When the "
+            "provider's records hold no such task, record that with draft-outcome and resume --outcome-file.")
+    return _draft_action(root, run, 'outcome', basis={'claim': claim['sha256']}, guidance=
+        "resume asked the provider through the transport's lookup, and the provider gave no answer for this send. Check "
+        "the provider's own records for the request in request.json of this run's journal. When they hold no such task, "
+        'fill the statement with its actor, its reason and the evidence file that shows it (path, SHA-256 and locator), '
+        'then run resume --outcome-file with the statement: it records the send as not_executed. When they hold the '
+        'task, run resume again: it asks the provider once more and never sends again.')
+
+
+def _cleanup_action(root: Path, run: str, cleanup: dict) -> dict:
+    """Continue deleting this run's uploaded inputs, from their recorded upload receipts and deletion requests."""
+    reason = ('Recover the original deletion requests by their recorded identifiers; their unknown outcomes never cause a new generation.'
+              if cleanup['state'] == 'outcome_unknown' else
+              'Delete only this run\'s retained uploaded inputs. Captured images stay saved; resume never uploads or generates them again.')
+    return _action('resume', root, ['--run', run], reason)
 
 
 def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, execution_state: dict | None,
-                 authority: dict | None) -> dict | None:
-    """The one concrete command that moves this run forward, with why."""
+                 authority: store.CurrentAuthority | None, transport: Any = None) -> dict | None:
+    """The one concrete command that moves this run forward, with why.
+
+    `transport` is the module a dispatcher run sends through; an external or
+    authored run has none.
+    """
     import production_workflow as workflow
     run = report['run']
     mode = prepared['task']['execution']
     events = {row['event'] for row in rows}
     if mode == 'dispatcher' and report['submission'] == 'pending':
-        return _action('resume', root, ['--run', run],
-            'The provider accepted this task and is still processing. Resume retrieves the same task without sending again.')
+        return _action('resume', root, ['--run', run, '--watch'],
+            f'The provider accepted this task and is still processing it. resume --watch asks for the same task every '
+            f'{WATCH_INTERVAL_SECONDS} seconds, registers each output as it finishes and returns when none is pending, '
+            f'or after {WATCH_LIMIT_SECONDS} seconds; --interval and --limit change those times. It never sends again.')
     if mode == 'dispatcher' and report['submission'] == 'outcome_unknown':
         return _unknown_outcome_action(root, run, rows)
     cleanup = report['cleanup']
     if mode == 'dispatcher' and cleanup['eligible'] and cleanup['state'] in {'pending', 'outcome_unknown'}:
-        reason = ('Recover the original deletion requests by their recorded identifiers; their unknown outcomes never cause a new generation.'
-                  if cleanup['state'] == 'outcome_unknown' else
-                  'Delete only this run\'s retained uploaded inputs. Captured images stay saved; resume never uploads or generates them again.')
-        return _action('resume', root, ['--run', run], reason)
+        return _cleanup_action(root, run, cleanup)
     if report['task_disposition'] == 'completed':
         return None
     if report['task_disposition'] == 'abandoned':
@@ -1135,58 +1661,65 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
         return _action('resume', root, ['--run', run],
             'The saved provider answer is not fully registered or shown; resume registers it without sending again.')
     if report['candidates']:
-        for candidate in report['candidate_states']:
-            if candidate['review'] is None or candidate['selection_requirements']['unassessed_hard_criteria']:
-                continue
-            if candidate.get('disposition') != 'not_selected':
-                if prepared['task']['artifact'] == 'image' and prepared['task'].get('recording'):
-                    import production_permissions
-                    import production_acceptance
-                    try:
-                        target, _ = production_acceptance._target(root, run, candidate['candidate'],
-                                                                 loaded=(None, prepared, None, rows))
-                        expected_slot = production_acceptance.slot_state(root, target['character'], target['slot'])
-                    except INSPECTION_ERRORS as exc:
-                        diagnostic = from_exception(exc, phase='acceptance')
-                        command = 'resume' if diagnostic['code'] == 'STUDIO_CANDIDATE_REQUIRED' else 'status'
-                        return _action(command, root, ['--run', run], diagnostic['required_action'])
-                    grants = [item['grant'] for item in production_permissions.target_coverage(authority or {'grants': []},
-                                                                                              'select', ['delivery'])
-                              if not item['missing']]
-                    grant = grants[0] if len(grants) == 1 else '<grant-id>'
-                    return _draft_action(root, run, 'acceptance', candidate=candidate['candidate'], grant=grant,
-                                         basis={'review': candidate['review'], 'authority': c.content_id(authority or {}),
-                                                'expected_slot': expected_slot})
-                return _draft_action(root, run, 'selection', candidate=candidate['candidate'], basis=candidate.get('review'))
-        unreviewed = [row['candidate'] for row in report['candidate_states'] if row['review'] is None] or report['candidates']
-        previous = next((row.get('review') for row in report['candidate_states'] if row['candidate'] == unreviewed[0]), None)
-        return _draft_action(root, run, 'review', candidate=unreviewed[0], basis=previous)
+        candidates = [candidate for candidate in report['candidate_states']
+                      if candidate.get('disposition') != 'not_selected']
+        actions = [_candidate_action(root, run, candidate, prepared, rows, authority) for candidate in candidates]
+        if len(actions) == 1:
+            return actions[0]
+        if actions:
+            return {**_action('status', root, ['--run', run],
+                'Several candidates remain available. Inspect the intended candidates and choose the next review or '
+                'acceptance action; listing order is not a recommendation or selection.'),
+                'requires_author_input': True, 'alternatives': actions}
+        return _action('repeat', root, ['--from', run, '--prepare'],
+            'Every candidate was marked not selected. Continue with an intentional new trial or author a revised '
+            'draft from this run; existing candidates and decisions remain saved.')
     if report['submission'] == 'unclaimed' and 'handoff' not in events and report['readiness'] == 'blocked':
         diagnostic = report['readiness_diagnostics'][0]
         if not report['freshness_diagnostics']:
             # Only the committed authority is unreadable; the run's own inputs are current.
             return _action('status', root, ['--run', run], diagnostic['required_action'])
         # Nothing was handed over yet, so a changed source is prepared again instead of passed on.
-        return _action('prepare', root, ['--task', prepared['task_path']], diagnostic['required_action'])
+        # A run prepared from editable choices names them: its own task file is the published
+        # copy, which a later edit of the choices does not reach.
+        choices = (prepared.get('authoring') or {}).get('choices')
+        if choices is None:
+            return _action('prepare', root, ['--task', prepared['task_path']], diagnostic['required_action'])
+        if c.local(root, choices, exists=False).is_file():
+            return _action('prepare', root, ['--choices', choices], diagnostic['required_action'])
+        return _action('draft-inputs', root, ['--from-run', run, '--out-dir', '<editable-directory>'],
+            'The editable choices of this run are no longer at ' + choices + '. Restore them from the run, apply the '
+            'intended change, then prepare those choices.')
     if mode == 'external' and prepared['task'].get('image_input') and 'external-claim' not in events:
         if report['readiness'] == 'authorization_required':
-            grants = [item['id'] for item in (authority or {}).get('grants', []) if not item.get('revoked_at')]
-            grant = grants[0] if len(grants) == 1 else '<grant-id>'
-            return _draft_action(root, run, 'execution', grant=grant, basis=c.content_id(authority or {}))
+            return _execution_draft_action(root, prepared)
         return _action('execute', root, ['--run', run],
             'Hand the exact request to the host once under the current separate direction and submission authorizations.')
     if mode == 'dispatcher':
         submission = report['submission']
         if submission == 'unclaimed':
             if report['readiness'] == 'authorization_required':
-                grants = [item['id'] for item in (authority or {}).get('grants', []) if not item.get('revoked_at')]
-                grant = grants[0] if len(grants) == 1 else '<grant-id>'
-                return _draft_action(root, run, 'execution', grant=grant, basis=c.content_id(authority or {}))
+                return _execution_draft_action(root, prepared)
             return _action('execute', root, ['--run', run], 'Every prepared operation has a current exact authorization.')
         if submission == 'claimed':
             if any(item['result'] == 'rejected' for item in report['effects']):
                 return _action('repeat', root, ['--from', run, '--prepare'],
                     'The provider refused an upload. Prepare a new request and obtain its exact approval.')
+            blocker = _upload_blocker(root, [row for row in rows if row['event'] == 'dispatch-claim'], rows, execution_state)
+            if blocker is not None:
+                if blocker[0] == 'running':
+                    return _action('status', root, ['--run', run],
+                        'The owner operation is still uploading; check again after it ends.')
+                import production_cleanup
+                unrecorded = [index for index in blocker[1]
+                              if f'upload:{index}' not in execution_state['unknown_uploads']]
+                if unrecorded and report['cleanup']['retained'] and production_cleanup.supported(transport):
+                    inputs = ', '.join(str(index + 1) for index in unrecorded)
+                    return _action('resume', root, ['--run', run],
+                        f'The operation that started the upload of media input {inputs} ended without recording that '
+                        'its outcome is unknown. resume records it and deletes the inputs this execution uploaded before; '
+                        'it never uploads or sends again.')
+                return _unknown_upload_action(root, run)
             return _action('resume', root, ['--run', run],
                 'No send has started; resume rechecks current conditions and continues the same execution.')
         if submission == 'send_started':
@@ -1220,7 +1753,7 @@ def _run_authentication(root: Path, prepared: dict, claims: list[dict], report: 
     required = False
     if not transport_contract.credential_free(transport):
         if not claims:
-            required = report['task_disposition'] == 'open' and report['readiness'] != 'blocked'
+            required = report['task_disposition'] == 'open' and report['readiness'] not in {'blocked', 'unchecked'}
         elif (report['next_action'] or {}).get('command') == 'resume':
             journal = c.local(root, claims[-1]['data']['journal'])
             observations = _response_observations(journal)
@@ -1229,8 +1762,8 @@ def _run_authentication(root: Path, prepared: dict, claims: list[dict], report: 
             if report['cleanup']['eligible'] and report['cleanup']['state'] in {'pending', 'outcome_unknown'}:
                 required = True
             elif not saved_answer and report['submission'] in {'pending', 'outcome_unknown'}:
-                required = callable(getattr(transport, 'lookup', None))
-            elif not saved_answer and report['submission'] == 'claimed' and report['readiness'] != 'blocked':
+                required = True
+            elif not saved_answer and report['submission'] == 'claimed' and report['readiness'] not in {'blocked', 'unchecked'}:
                 steps = execution_state['steps'] if execution_state else []
                 required = (not any(item['result'] == 'rejected' for item in report['effects'])
                     and all(step['operation'] == 'upload' and step['step'].startswith('upload:')
@@ -1239,8 +1772,23 @@ def _run_authentication(root: Path, prepared: dict, claims: list[dict], report: 
     return authentication_readiness(root, transport, target['offering']['service'], required=required, expected=selected)
 
 
+def _work_open(root: Path, task_id: str, states: dict) -> bool:
+    """Whether the run's work task can still continue: active or suspended.
+
+    An unreadable work record leaves the run comparable; its own diagnostics
+    belong to the work ledger.
+    """
+    if task_id not in states:
+        import work_ledger
+        try:
+            states[task_id] = c.load(work_ledger.task_path(root, task_id)).get('work_state')
+        except INSPECTION_ERRORS:
+            states[task_id] = None
+    return states[task_id] in {None, 'active', 'suspended'}
+
+
 def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities: dict, *, loaded=None,
-                previous_runtime=None) -> dict:
+                previous_runtime=None, work_states: dict | None = None, selected_by_id: bool = True) -> dict:
     import production_workflow as workflow
     identifier = item['run_id']
     loaded = loaded if loaded is not None else workflow.read_run(root, identifier)
@@ -1262,10 +1810,20 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
     claim = (claims or external_claims or [None])[-1]
     execution_state = _claim_execution(rows, prepared, identifier, claim) if claim else None
     candidate_states = [workflow.candidate_state(root, identifier, key, loaded=loaded) for key in candidates]
-    freshness = workflow.freshness_diagnostics(root, identifier, loaded=loaded, previous_runtime=previous_runtime)
     events = {row['event'] for row in rows}
     mode = prepared['task']['execution']
     task_disposition = 'completed' if 'completion' in events else 'abandoned' if 'abandoned' in events else 'open'
+    # Current sources are compared with the prepared ones while the run can
+    # still change its outcome. A completed or abandoned run is shown from its
+    # retained records. An open run left by closed work is compared when it is
+    # selected by its ID, not on every view of the whole Studio.
+    unchecked = (task_disposition == 'open' and not selected_by_id
+                 and not _work_open(root, prepared['task']['task_id'], {} if work_states is None else work_states))
+    compared = task_disposition == 'open' and not unchecked
+    # A freshness problem stops the next effect. A notice reports a changed
+    # installation or pack, which the sealed request does not depend on.
+    freshness, notices = (workflow.freshness(root, identifier, loaded=loaded, previous_runtime=previous_runtime)
+                          if compared else ([], []))
     selection_ready = False
     selection_diagnostics = []
     if 'selection' in events:
@@ -1283,7 +1841,8 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
             selection_ready = True
         except ValueError as exc:
             selection_diagnostics.append(from_exception(exc, phase='selection'))
-    readiness = 'blocked' if freshness else 'ready'
+    readiness = ('unchecked' if unchecked else 'blocked' if freshness else
+                 'ready' if compared else 'not-applicable')
     readiness_diagnostics = list(freshness)
     task_id = prepared['task']['task_id']
     if task_id not in authorities:
@@ -1295,19 +1854,26 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
     if authority_error is not None:
         readiness = 'blocked'
         readiness_diagnostics.append(authority_error)
-    if not claims and mode == 'dispatcher' and readiness != 'blocked' and task_disposition == 'open':
+    # Without a registered authority no decision file can be completed, so the repair names its import first.
+    unregistered = ('' if authority is not None else 'The work task has no registered authority: import it first with '
+                    'the authority-import command in authority.update_action. ')
+    if not claims and mode == 'dispatcher' and readiness not in {'blocked', 'unchecked'} and task_disposition == 'open':
         plan = loaded.artifacts['execution-plan.json']
         try:
-            receipts(root, prepared, rows, plan, authority=authority, loaded=loaded)
+            receipts(root, prepared, rows, plan, authority=authority, loaded=loaded,
+                required_action=unregistered + 'Fill the execution decision file from the actual approval or delegation, '
+                                'then execute with --decisions-file.')
         except INSPECTION_ERRORS as exc:
             readiness = 'authorization_required'
             readiness_diagnostics.append(from_exception(exc, phase='readiness'))
-    if not external_claims and mode == 'external' and consumer.get('image_input') and readiness != 'blocked' and task_disposition == 'open':
+    if (not external_claims and mode == 'external' and consumer.get('image_input')
+            and readiness not in {'blocked', 'unchecked'} and task_disposition == 'open'):
         try:
             plan = loaded.artifacts['execution-plan.json']
             receipts(root, prepared, rows, plan,
                 authority=authority, loaded=loaded,
-                required_action='Complete the separate decisions in draft-execution, then execute hands the exact input to the host once.')
+                required_action=unregistered + 'Complete the separate decisions in draft-execution, then execute hands '
+                                'the exact input to the host once.')
         except INSPECTION_ERRORS as exc:
             readiness = 'authorization_required'
             readiness_diagnostics.append(from_exception(exc, phase='readiness'))
@@ -1321,12 +1887,35 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         'effects': effects, 'capture': capture, 'capture_diagnostics': captures[-1]['data'].get('diagnostics', []) if captures else [],
         'registration': _registration(root, prepared, rows), 'review': review_state, 'task_disposition': task_disposition,
         'candidates': candidates, 'candidate_states': candidate_states, 'freshness_diagnostics': freshness,
+        'freshness_notices': notices,
         'selection_diagnostics': selection_diagnostics, 'selection_ready': selection_ready, 'settlement_open': settlement_open,
         'execution': None if execution_state is None else {'execution_id': execution_state['execution_id'], 'status': execution_state['status']},
         'journal': claims[-1]['data']['journal'] if claims else None,
         'logs': logs.get(identifier, [])}
+    import production_permissions
+    plan = loaded.artifacts['execution-plan.json']
+    selections = None
+    # Prepared operations are authorized before their send; afterwards the
+    # recorded authorizations are the evidence and no grant is still chosen.
+    unsent = (compared and submission in {'unclaimed', 'claimed'} and not external_claims
+              and ('handoff' not in events or (mode == 'external' and bool(consumer.get('image_input')))))
+    draft_paths = [item for item in _execution_draft_paths(root, prepared) if item['available']] if unsent else []
+    if len(draft_paths) == 1:
+        try:
+            decisions = c.load(c.local(root, draft_paths[0]['path']))
+            workflow.schema_check(decisions, 'execution-decisions')
+            if decisions.get('run') == identifier:
+                selections = decisions.get('decisions')
+        except INSPECTION_ERRORS as exc:
+            report['readiness_diagnostics'].append(from_exception(exc, phase='authorization', file=draft_paths[0]['path']))
+    report['authority'] = store.authority_snapshot(root, task_id, authority,
+                                                  source_path=prepared['task'].get('authority'))
+    report['authorization_requirements'] = (production_permissions.grant_requirements(
+        authority.document if authority is not None else None, plan['operations'], selections=selections)
+        if unsent else None)
     import production_cleanup
     report['cleanup'] = {'state': 'not-needed', 'eligible': False, 'uploaded': 0, 'deleted': 0, 'retained': 0, 'items': []}
+    transport = None
     if mode == 'dispatcher':
         import transport_contract
         target = loaded.artifacts['execution-target.json']
@@ -1334,16 +1923,22 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         media_directory = c.local(root, claims[-1]['data']['journal']) if claims else directory
         rendered = c.load(media_directory / 'request-contract.json') if claims else loaded.artifacts['request-contract.json']
         report['cleanup'] = production_cleanup.inspect(directory, rendered, execution_state, transport)
-    report['next_action'] = _next_action(root, report, prepared, rows, execution_state=execution_state,
-                                       authority=authority.document if authority is not None else None)
+    # Recovery of a sent request never depends on the comparison; only an
+    # unsent run needs it to choose between sending and preparing again.
+    report['next_action'] = (_action('status', root, ['--run', identifier],
+        'This unsent run belongs to closed work, so this view did not compare its current sources. '
+        'Select the run to compare them and receive its next action; reopen its inputs in new work with '
+        'draft-inputs --from-run when the commission continues.')
+        if unchecked and submission in {'unclaimed', 'claimed'} and not external_claims else
+        _next_action(root, report, prepared, rows, execution_state=execution_state, authority=authority,
+                     transport=transport))
     action = report['next_action']
-    if action and action['command'] in {'draft-execution', 'execute', 'draft-review', 'review', 'draft-acceptance', 'accept'}:
+    if (action and 'read_context' not in action
+            and action['command'] in {'draft-execution', 'execute', 'draft-review', 'review', 'draft-acceptance', 'accept'}):
         candidate = None
         if action['command'] in {'draft-review', 'review', 'draft-acceptance', 'accept'}:
             if '--candidate' in action['argv']:
                 candidate = action['argv'][action['argv'].index('--candidate') + 1]
-            elif action.get('draft'):
-                candidate = c.load(c.local(root, action['draft'])).get('candidate')
             if candidate is None and action['command'] == 'accept':
                 try:
                     candidate = workflow.current_selection(prepared, rows)[1]['candidate']
@@ -1400,13 +1995,16 @@ def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime
         if run is not None:
             items = [row for row in items if row['run_id'] == run]
             if not items:
-                raise ProductionError('RUN_NOT_REGISTERED', 'No formal run has this ID.', phase='status', run=run)
+                raise ProductionError('RUN_NOT_REGISTERED', 'No formal run has this ID.', phase='status', run=run,
+                    required_action='Run status without --run to list the runs of this Studio, and check that --root '
+                                    'names the Studio that holds the run.')
     try:
         logs = _logs_by_run(root)
     except INSPECTION_ERRORS as exc:
         logs = {}
         result['diagnostics'].append(from_exception(exc, phase='logs'))
     authorities: dict = {}
+    work_states: dict = {}
     execution_states = []
     execution_diagnostics = []
     for item in items or []:
@@ -1421,7 +2019,8 @@ def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime
             continue
         try:
             result['runs'].append(_run_status(root, item, logs, authorities, loaded=observed,
-                previous_runtime=previous_runtime if identifier == run else None))
+                previous_runtime=previous_runtime if identifier == run else None, work_states=work_states,
+                selected_by_id=identifier == run))
         except INSPECTION_ERRORS as exc:
             result['runs'].append(_blocked_run(root, identifier, exc, logs))
     current = result['current_task']
@@ -1432,6 +2031,30 @@ def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime
                 'Inspect the existing run for the current work task and follow its saved execution state.')]
         else:
             current['next_actions'] = [selected['next_action']] if selected['next_action'] else []
+            if selected.get('task_disposition') == 'completed' and not current['next_actions']:
+                import work_ledger
+                from cli_invocation import python_argv
+                try:
+                    current['work_completion'] = work_ledger.finish_state(root, selected['run'])
+                except INSPECTION_ERRORS as exc:
+                    diagnostic = from_exception(exc, phase='work-finish',
+                        file='work/tasks/' + current['task_id'] + '/task.json')
+                    current.setdefault('diagnostics', []).append(diagnostic)
+                    result['diagnostics'].append(diagnostic)
+                    current['next_actions'] = [{'command': 'show',
+                        'argv': python_argv(Path(work_ledger.__file__), 'show', '--studio', str(root)),
+                        'reason': 'Inspect and repair the owning work record. Its unreadable finish state does not erase the saved result.'}]
+                else:
+                    work = current['work_completion']
+                if current.get('work_completion') and not work['finished']:
+                    command = 'finish' if work['ready_to_finish'] else 'show'
+                    arguments = ['--run', selected['run']] if work['ready_to_finish'] else []
+                    current['next_actions'] = [{'command': command,
+                        'argv': python_argv(Path(work_ledger.__file__), command, '--studio', str(root), *arguments),
+                        'reason': ('The selected result and all work steps are complete; finish this exact task.'
+                            if work['ready_to_finish'] else
+                            'The result is complete. Continue the listed unfinished work or resolve its questions before finishing; '
+                            'record only steps actually completed.')}]
     authority_errors = [error for _, error in authorities.values() if error is not None]
     result['ok'] = (not result['diagnostics'] and not authority_errors
                     and all(row['integrity'] == 'intact' for row in result['runs']))

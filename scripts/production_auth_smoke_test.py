@@ -317,7 +317,7 @@ class ProductionAuthenticationTests(unittest.TestCase):
         other = service_auth.set_value(self.root, 'another-service', 'synthetic-other-service-key')['selection']
         submission = next(item for item in plan['operations'] if item['operation'] == 'submit')
         with self.assertRaises(ValueError):
-            workflow.claim_dispatch(self.root, self.run, package, {}, journal.path, submission,
+            workflow.claim_dispatch(self.root, self.run, package, journal.path, submission,
                                     tokens['submit'], rendered=rendered, authentication=other)
         self.assertEqual(accounting.all_states(self.root), [])
         self.assertFalse(any(row['event'] == 'dispatch-claim' for row in store.event_rows(self.root, self.run)))

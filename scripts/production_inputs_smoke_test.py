@@ -244,8 +244,8 @@ class InputToolsTests(unittest.TestCase):
         self.choices['visual'] = {'subjects': {'person': {'continuity': None}}}
         self.save_choices()
         result = self.build()
-        self.assertEqual(result['unresolved'], [{'field': 'visual.subjects.person.continuity',
-                                               'code': 'continuity-choice-required'}])
+        self.assertEqual([(row['field'], row['code'], row['reason']) for row in result['unresolved']],
+                         [('visual.subjects.person.continuity', 'AUTHORED_CHOICE_REQUIRED', 'continuity-choice-required')])
         self.assertFalse((self.root / 'built').exists())
 
     def test_failed_specialist_publishes_no_partial_inputs(self):
@@ -514,7 +514,8 @@ class InputToolsTests(unittest.TestCase):
         (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
         built = tool.build_inputs(self.root, None, draft['choices_file'], 'external-built', from_run=run)
         self.assertFalse(built['ok'])
-        self.assertEqual(built['unresolved'][0]['code'], 'target-evidence-required')
+        self.assertEqual((built['unresolved'][0]['code'], built['unresolved'][0]['reason']),
+                         ('AUTHORED_CHOICE_REQUIRED', 'target-evidence-required'))
         self.assertIn('evidence changed', built['unresolved'][0]['message'])
         self.assertFalse((self.root / 'external-built').exists())
 
@@ -608,7 +609,7 @@ class AuthoringRecoveryTests(unittest.TestCase):
     def test_partial_reading_is_discovered_in_a_fresh_process_without_issuing_a_key(self):
         class InterruptedStream(io.StringIO):
             def write(self, value):
-                if value.startswith('--- '):
+                if value.startswith(', "body": '):
                     raise OSError('Synthetic interruption before page delivery.')
                 return super().write(value)
         before = self.ledger.read_bytes()

@@ -191,8 +191,35 @@ class InitialCLITests(unittest.TestCase):
             with self.subTest(flag=flag):
                 refused = self.call(['draft-inputs', '--root', str(self.root), '--task', 'task.json',
                     '--out-dir', 'rejected-' + flag[2:], flag, value], code=2)
-                self.assertIn('initial task flags', json.dumps(refused))
+                diagnostic = refused['diagnostics'][0]
+                self.assertEqual(diagnostic['code'], 'INPUT_CONSISTENCY_ERROR')
+                self.assertIn('authoring.task.' + flag[2:], diagnostic['requested_fields'])
+                self.assertEqual(diagnostic['next_actions'][0]['operation'], 'draft-inputs')
                 self.assertFalse((self.root / ('rejected-' + flag[2:])).exists())
+
+    def test_local_upscale_draft_imports_actual_bytes_and_initializes_only_requested_content(self):
+        from PIL import Image
+        source = self.root.parent / 'outside-source.png'
+        Image.new('RGB', (13, 9), 'steelblue').save(source)
+        raw = source.read_bytes()
+        result = self.call(['draft-inputs', '--root', str(self.root), '--route', 'upscale',
+            '--source-image', str(source), '--scale', '4', '--purpose', 'Enlarge this image four times.',
+            '--out-dir', 'work/local-upscale'])
+        choices = c.load(self.root / result['choices_file'])
+        authored = choices['authoring']
+        self.assertEqual((authored['task']['artifact'], authored['task']['execution']), ('image', 'dispatcher'))
+        self.assertEqual(authored['task']['task_id'], self.task_id)
+        self.assertIsNone(authored['task']['authority'])
+        self.assertEqual(authored['task']['direction']['decisions'], [])
+        self.assertEqual(authored['upscale']['render_intent'],
+                         {'artifact_type': 'render-intent', 'execution_mode': 'upscale'})
+        self.assertIs(type(authored['upscale']['scale_factor']), int)
+        self.assertEqual((self.root / authored['upscale']['source']).read_bytes(), raw)
+        self.assertEqual(result['selected_image']['sha256'], c.digest(raw))
+        self.assertEqual((result['selected_image']['width'], result['selected_image']['height']), (13, 9))
+        self.assertFalse(any(row['field'] in {'authoring.task.criteria', 'authoring.task.direction.purpose'}
+                             for row in result['unresolved']))
+        self.assertTrue(result['next_actions'])
 
 
 class DispatcherAuthoringTests(unittest.TestCase):
@@ -434,11 +461,37 @@ class DispatcherAuthoringTests(unittest.TestCase):
         built = inputs.build_inputs(self.root, None, result['choices_file'], 'upscale/built')
         task = c.load(self.root / built['inputs']['production-task']['path'])
         request = c.load(self.root / task['delivery']['path'])
-        self.assertEqual(request['scale_factor'], 4.0)
+        self.assertEqual(request['scale_factor'], 4)
+        self.assertIs(type(request['scale_factor']), int)
         self.assertEqual(request['request_validation'], previous)
         production_binding.validate_upscale_input(self.root, request)
         self.assertEqual([row['operation'] for row in built['next_actions']],
                          ['prepare', 'draft-execution', 'execute'])
+
+    def test_local_source_selection_keeps_existing_criteria_authority_and_image_path(self):
+        import production_case_fixtures as cases
+        source = cases.upscale_task(self.root)
+        original = c.load(self.root / source)
+        declaration = c.load(self.root / original['delivery']['path'])
+        original_image = declaration['source']['path']
+        result = inputs.draft_inputs(self.root, source, 'upscale/selected',
+            source_image=self.root / original_image, scale=4.0,
+            purpose='Enlarge the already selected image for this delivery.')
+        authoring = result['choices']['authoring']
+        self.assertEqual(authoring['upscale']['source'], original_image)
+        self.assertIs(type(authoring['upscale']['scale_factor']), int)
+        self.assertEqual(authoring['task']['criteria'], original['criteria'])
+        self.assertEqual(authoring['task']['direction'], original['direction'])
+        self.assertEqual(authoring['task']['authority'], original['authority'])
+        self.assertEqual(result['selected_image']['sha256'], declaration['source']['sha256'])
+
+    def test_factor_normalization_preserves_fractional_values_and_rejects_non_finite_values(self):
+        from production_binding import normalize_upscale_factor
+        self.assertIs(type(normalize_upscale_factor(4.0)), int)
+        self.assertEqual(normalize_upscale_factor(2.5), 2.5)
+        for factor in (True, 0, -1, float('nan'), float('inf')):
+            with self.subTest(factor=factor), self.assertRaises(ValueError):
+                normalize_upscale_factor(factor)
 
 
 class DuplicateDependencyTests(unittest.TestCase):

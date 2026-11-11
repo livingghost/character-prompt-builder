@@ -2039,7 +2039,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         initial = status_without_events()
         self.assertEqual(initial['readiness'], 'authorization_required')
         self.assertEqual(initial['next_action']['command'], 'draft-execution')
-        choices = execution.draft_execution(self.root, run, 'fixture-grant')
+        choices = execution.draft_execution(self.root, run, 'fixture-grant')['choices']
         self.assertEqual([item['operation'] for item in choices['decisions']], ['direction', 'submit'])
         self.fixture.grant(self.root, run, plan['operations'][0])
         directed = status_without_events()

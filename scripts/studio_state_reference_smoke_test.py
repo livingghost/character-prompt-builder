@@ -96,11 +96,16 @@ class StudioStateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'no current accepted'):
             sr.build_binding(self.root,'robot','unaccepted',scope=self.scope,identity=self.graph['identity_contract'])
 
-    def test_pending_studio_adoption_cannot_be_used(self):
+    def test_changed_studio_adoption_record_cannot_be_used(self):
+        from production_diagnostics import ProductionError
         path=self.root/'characters/robot/adoptions'/f"{self.case.row['iteration_id']}.json"
         data=c.load(path); data['next_action']='bind-sheet';c.atomic_write_json(path,data)
-        with self.assertRaisesRegex(ValueError,'incomplete'):
+        with self.assertRaises(ProductionError) as caught:
             sr.validate_source(self.source)
+        diagnostic=caught.exception.diagnostic
+        self.assertEqual(diagnostic.code,'ADOPTION_RECORD_CORRUPT')
+        self.assertIn('differs from the result its run recorded',diagnostic.message)
+        self.assertIn('production_workflow.py adopt --run '+self.case.run,diagnostic.required_action)
 
     def test_selection_rechecks_adoption_before_preparation(self):
         selection=self.selection()

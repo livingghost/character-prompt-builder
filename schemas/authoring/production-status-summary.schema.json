@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production status navigation view",
+  "description": "Current states and executable continuations with explicit links to complete decision evidence.",
+  "type": "object",
+  "properties": {
+    "view": {"const": "summary"},
+    "ok": {"type": "boolean"},
+    "external_effect": {"type": "boolean"},
+    "details_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"},
+    "current_task": {"type": ["object", "null"]},
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "run": {"type": "string", "minLength": 1},
+          "integrity": {"enum": ["intact", "blocked"]},
+          "next_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"},
+          "details_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"}
+        },
+        "required": ["run", "integrity", "next_action", "details_action"]
+      }
+    },
+    "diagnostics": {"type": "array", "items": {"type": "object"}},
+    "staging": {"type": "array", "items": {"type": "string"}},
+    "staging_details": {"type": "array", "items": {"type": "object"}},
+    "unclaimed_journals": {"type": "array", "items": {"type": "object"}},
+    "unregistered_publications": {"type": "array", "items": {"type": "object"}},
+    "execution_records": {"type": "object"},
+    "execution_completed": {"type": "boolean"},
+    "warnings": {"type": "array", "items": {"type": "object"}}
+  },
+  "required": ["view", "ok", "external_effect", "details_action", "current_task", "runs", "diagnostics",
+    "staging", "staging_details", "unclaimed_journals", "unregistered_publications", "execution_records"],
+  "additionalProperties": false
+}

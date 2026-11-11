@@ -363,7 +363,7 @@ def fill_decisions(root:Path,run:str,path:str)->str:
     import production_execution as execution
     import production_store as store
     import production_workflow as workflow
-    value=execution.draft_execution(root,run,'fixture-grant')
+    value=execution.draft_execution(root,run,'fixture-grant')['choices']
     authority=store.authority(root,workflow.load_run(root,run)[1]['task']['task_id'])
     for request in value['decisions']:
         request['reason']='Explicit synthetic fixture decision. Not user consent.'

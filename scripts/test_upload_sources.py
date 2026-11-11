@@ -86,8 +86,8 @@ class UploadSourceTests(unittest.TestCase):
     def test_local_byte_transport_has_no_remote_input(self):
         bound = self.bind([], 'bytes')
         self.assertEqual([row['upload_source'] for row in bound], [{'kind': 'bytes'}, {'kind': 'bytes'}])
-        with self.assertRaises(ProductionError):
-            self.bind(self.sources(), 'bytes')
+        retained = self.bind(self.sources(), 'bytes')
+        self.assertEqual(retained, bound)
         self.assertEqual(rc.bind_upload_sources([], [], 'url'), [])
 
     def test_source_url_change_changes_the_authorized_request(self):

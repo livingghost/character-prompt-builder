@@ -91,8 +91,11 @@ class RuntimeMembershipTests(unittest.TestCase):
             return flush(path)
 
         with patch.object(c, 'fsync_dir', side_effect=fail_parent):
-            with self.assertRaises(OSError):
+            with self.assertRaises(ProductionError) as caught:
                 runtime_snapshot.publish(self.root, staged, descriptor)
+        told = caught.exception.diagnostic
+        self.assertEqual((told.code, told.details['published'], told.required_action),
+                         ('ARTIFACT_PUBLISH_FAILED', True, runtime_snapshot.REUSED_AFTER_FLUSH))
         self.assertTrue(staged.is_dir())
         self.assertTrue(target.is_dir())
         self.assertEqual(runtime_snapshot.read(staged, descriptor), runtime_snapshot.read(target, descriptor))
@@ -328,7 +331,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         for force in (False, True):
             with self.subTest(force=force), self.assertRaisesRegex(ProductionError, 'RUNTIME_SNAPSHOT_CORRUPT'):
                 workflow.read_current(self.root, self.run, force=force, previous_runtime=owned)
-        reported = workflow.freshness_diagnostics(self.root, self.run, previous_runtime=owned)
+        reported, _ = workflow.freshness(self.root, self.run, previous_runtime=owned)
         self.assertIn('RUNTIME_SNAPSHOT_CORRUPT', {item['code'] for item in reported})
 
         # Rewriting member checksums cannot substitute a different archive for
@@ -349,14 +352,16 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertEqual(restored.runtime.read_pack(fixtures.PACK_ID, 'records/models.json'), original)
 
         # Fixed metadata supplies no proof that current pack sources still
-        # match. The diagnostic fallback keeps the same independent findings.
+        # match. Each boundary reads the current packs and reports the
+        # difference as a notice, with or without the earlier acquisition.
         live = self.models.read_bytes()
         try:
             self.models.write_bytes(live + b'\n')
-            with self.assertRaises(ProductionError):
-                workflow.read_current(self.root, self.run, previous_runtime=owned)
-            self.assertEqual(workflow.freshness_diagnostics(self.root, self.run, previous_runtime=owned),
-                             workflow.freshness_diagnostics(self.root, self.run))
+            current = workflow.read_current(self.root, self.run, previous_runtime=owned)
+            self.assertEqual([(item['code'], item['severity']) for item in current.notices],
+                             [('PACK_CONTENT_MISMATCH', 'warning')])
+            self.assertEqual(workflow.freshness(self.root, self.run, previous_runtime=owned),
+                             workflow.freshness(self.root, self.run))
         finally:
             self.models.write_bytes(live)
 
@@ -387,7 +392,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
             self.assertIsNot(runtime.load_pack_catalog(), first)
             self.assertEqual(model().record, stored)
 
-    def test_run_retains_full_runtime_and_status_needs_no_catalogue(self):
+    def test_run_retains_the_runtime_it_used_and_status_needs_no_catalogue(self):
         directory=runtime_snapshot.path(self.root,self.descriptor)
         with runtime_snapshot.public_call():
             owned=runtime_snapshot.acquire_runtime(directory,self.descriptor)
@@ -395,14 +400,16 @@ class RuntimeSnapshotTests(unittest.TestCase):
                 report=workflow.status(self.root,self.run)
             self.assertTrue(report['ok'])
             json.dumps(report)
-            self.assertIn('profiles',owned.payload)
-            self.assertIn('phrases',owned.payload)
             required={(row['pack'],row['path']) for row in runtime_snapshot.dependencies(self.descriptor['binding'])}
             declared={(pack['pack_id'],item['path']) for pack in owned.payload['packs'] for item in pack['files']}
             self.assertEqual(set(owned.file_bytes),declared)
+            # The fixed runtime holds the bound records and the files this
+            # compilation bound or read, with the manifest of each such pack.
             self.assertLess(required,declared)
-            self.assertLess({row['id'] for row in self.descriptor['binding']['records']},
-                            {row['record']['id'] for row in owned.payload['entries']})
+            self.assertEqual({row['id'] for row in self.descriptor['binding']['records']},
+                             {row['record']['id'] for row in owned.payload['entries']})
+            self.assertEqual(set(owned.payload['resources']),
+                             {row['name'] for row in self.descriptor['binding']['resources']})
             forced=runtime_snapshot.acquire_runtime(directory,self.descriptor,force_verify=True,previous=owned)
             self.assertIs(forced.payload,owned.payload)
             exported=runtime_snapshot.read(directory,self.descriptor)
@@ -417,7 +424,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
             pack,relative=next(iter(declared-required))
             (directory/'packs'/pack/relative).write_bytes(b'Changed archived member outside the used binding.')
             with self.assertRaisesRegex(ProductionError,'RUNTIME_SNAPSHOT_CORRUPT'):
-                runtime_snapshot.require_current_read(self.root,self.descriptor)
+                runtime_snapshot.acquire_runtime(directory,self.descriptor)
 
     def test_run_binds_the_model_service_and_guides_it_used(self):
         binding = self.descriptor['binding']
@@ -453,18 +460,16 @@ class RuntimeSnapshotTests(unittest.TestCase):
             (self.case['pack']/relative).unlink()
         destination=self.base/'owned-runtime'
         # Pack text belongs to the acquired inputs even if its live path
-        # disappears; the publication/current boundary must reject that drift.
+        # disappears; the publication boundary must reject that drift.
         descriptor,owned=runtime_snapshot.capture_compilation(source,destination,target=target,package=projection,
             reading_resources={},evidence_bytes=evidence)
         self.assertEqual(checked,descriptor)
         expected={(fixtures.PACK_ID,relative) for relative in values}
         self.assertEqual({(row['pack'],row['path']) for row in descriptor['binding']['evidence']},expected)
         self.assertLess(expected,set(owned.file_bytes))
-        self.assertIn('profiles',owned.payload)
-        self.assertIn('phrases',owned.payload)
         runtime_snapshot.publish(self.root,destination,descriptor,read=owned)
         with self.assertRaisesRegex(ProductionError,'RECORD_NOT_FOUND'):
-            runtime_snapshot.require_current_read(self.root,descriptor)
+            runtime_snapshot.require_current(self.root,descriptor)
 
     def test_missing_pack_evidence_does_not_publish_an_incomplete_runtime(self):
         source=runtime_snapshot.compilation_inputs(self.root).runtime
@@ -486,11 +491,18 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertEqual(row['actual'], c.sha256_file(self.models))
         self.assertEqual(row['affected_runs'], [self.run])
         self.assertEqual([action['operation'] for action in row['actions']], ['restore', 'retarget'])
-        with self.assertRaises(ProductionError) as caught:
-            execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
-        self.assertEqual(caught.exception.diagnostic.code, 'PACK_CONTENT_MISMATCH')
-        self.assertEqual(store.event_rows(self.root, self.run), [])
         fixed = runtime_snapshot.path(self.root, self.descriptor) / 'packs' / fixtures.PACK_ID / 'records/models.json'
+        self.assertEqual(c.sha256_file(fixed), bound)
+        # The prepared run is told of the edit and still sends its sealed request.
+        waiting = execution.status(self.root, self.run)['runs'][0]
+        self.assertEqual(waiting['freshness_diagnostics'], [])
+        [notice] = waiting['freshness_notices']
+        self.assertEqual((notice['code'], notice['severity'], notice['resource']),
+                         ('PACK_CONTENT_MISMATCH', 'warning', 'records/models.json'))
+        self.assertEqual([action['operation'] for action in notice['actions']], ['continue', 'retarget'])
+        self.assertNotEqual(waiting['readiness'], 'blocked')
+        result = execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
+        self.assertTrue(result['execution_completed'])
         self.assertEqual(c.sha256_file(fixed), bound)
 
     def test_removed_record_and_vanished_pack_are_not_found(self):
@@ -515,18 +527,36 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertEqual((row['code'], row['expected'], row['actual']),
                          ('PACK_RELEASE_MISMATCH', '2026.09.24.1', '2026.09.25.1'))
 
-    def test_disabled_pack_stops_execute_and_variant(self):
+    def test_variant_compiles_against_the_current_packs_and_is_told_what_differs(self):
+        services = self.case['pack'] / 'resources/services.json'
+        document = c.load(services)
+        document['services']['synthetic']['label'] = 'Edited synthetic fixture'
+        fixtures.write(services, document)
+        pack_manager.write_lock(self.case['pack'])
+        runtime.configure_pack_runtime(self.case['settings'])
+        fixtures.write(self.root / 'changes.json', {'changes': {'parameter:steps': 22}, 'reason': 'Synthetic change.'})
+        result = variation.derive(self.root, self.run, changes_file='changes.json', prepare=True)
+        self.assertIn(('PACK_CONTENT_MISMATCH', 'warning', 'resources/services.json'),
+                      [(row['code'], row['severity'], row.get('resource')) for row in result['runtime_warnings']])
+        child = workflow.load_run(self.root, result['run'])[1]['runtime_snapshot']
+        bound = next(row for row in child['binding']['resources'] if row['name'] == 'service-profiles')
+        self.assertEqual(bound['sha256'], c.sha256_file(services))
+        self.assertEqual(self.codes(result['run']), [])
+
+    def test_disabled_pack_cannot_compile_a_variant_and_leaves_the_prepared_run_usable(self):
         pack_manager.disable_pack(self.case['settings'], fixtures.PACK_ID)
         self.assertEqual(self.codes(), [('PACK_NOT_ENABLED', 'error')])
-        with self.assertRaises(ProductionError) as caught:
-            execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
-        self.assertEqual(caught.exception.diagnostic.code, 'PACK_NOT_ENABLED')
-        self.assertEqual(store.event_rows(self.root, self.run), [])
+        # A derivation compiles against the current packs, which no longer hold the model.
         fixtures.write(self.root / 'changes.json', {'changes': {'parameter:steps': 22}, 'reason': 'Synthetic change.'})
         with self.assertRaises(ProductionError) as caught:
             variation.derive(self.root, self.run, changes_file='changes.json', prepare=True)
-        self.assertEqual(caught.exception.diagnostic.code, 'PACK_NOT_ENABLED')
+        self.assertEqual(caught.exception.report['diagnostics'][0]['phase'], 'target-contract')
         self.assertEqual(len(store.runs(self.root)), 1)
+        # The prepared run keeps its sealed request and fixed runtime.
+        [notice] = execution.status(self.root, self.run)['runs'][0]['freshness_notices']
+        self.assertEqual((notice['code'], notice['severity']), ('PACK_NOT_ENABLED', 'warning'))
+        result = execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
+        self.assertTrue(result['execution_completed'])
 
     def test_a_resource_is_fixed_as_the_file_of_the_pack_that_outranks(self):
         directory = runtime_snapshot.path(self.root, self.descriptor)
@@ -655,7 +685,9 @@ class RuntimeSnapshotTests(unittest.TestCase):
         run = workflow.prepare(self.root, 'task.json')['run']
         descriptor = workflow.load_run(self.root, run)[1]['runtime_snapshot']
         payload = runtime_snapshot.read(runtime_snapshot.path(self.root, descriptor), descriptor)
-        self.assertIn(ident, [pack['pack_id'] for pack in payload['packs']])
+        # The run used nothing from this pack, so its fixed runtime holds
+        # the selection that enabled it and none of its files.
+        self.assertNotIn(ident, [pack['pack_id'] for pack in payload['packs']])
         self.assertIn(ident,payload['selection']['enabled_packs'])
         self.assertNotIn(ident, {row['pack'] for row in runtime_snapshot.dependencies(descriptor['binding'])})
         record = development / 'records/lighting.json'
@@ -692,10 +724,10 @@ class RuntimeSnapshotTests(unittest.TestCase):
             pack_manager.write_lock(self.case['pack'])
             runtime.configure_pack_runtime(self.case['settings'])
             edited_run, edited = prepared('edited-prepare')
-            changed = published(edited)
-            # Only the added README.md and the rebuilt lock are new content.
-            self.assertEqual(changed['files'], first['files'] + 1)
-            self.assertEqual((changed['snapshot_reused'], changed['stored'], changed['reused']), (False, 2, first['files'] - 1))
+            # A file the run does not use leaves its fixed runtime unchanged.
+            self.assertTrue(published(edited)['snapshot_reused'])
+            self.assertEqual(workflow.load_run(self.root, edited_run)[1]['runtime_snapshot']['sha256'],
+                             workflow.load_run(self.root, cold_run)[1]['runtime_snapshot']['sha256'])
             descriptor = workflow.load_run(self.root, edited_run)[1]['runtime_snapshot']
             view = runtime_snapshot.path(self.root, descriptor) / 'packs' / COMMONS / 'pack.json'
             self.assertTrue(os.path.samefile(view, objects / c.sha256_file(view)))
@@ -732,7 +764,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         active=None
         original = store.stable_bytes
         original_pack = pack_manager.sha256_file
-        original_current=runtime_snapshot.require_current_read
+        original_current=runtime_snapshot.current_notices
         def counted(root,relative,*args,**kwargs):
             resolved = (Path(root)/relative).resolve()
             if any(root in resolved.parents for root in live_roots):
@@ -752,7 +784,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         with patch.dict(os.environ, {'CPB_HOME': str(self.base / 'home')}), \
              patch.object(store, 'stable_bytes', side_effect=counted), \
              patch.object(pack_manager, 'sha256_file', side_effect=counted_pack), \
-             patch.object(runtime_snapshot,'require_current_read',side_effect=current_boundary):
+             patch.object(runtime_snapshot,'current_notices',side_effect=current_boundary):
             operation, token = self.operation('bounded-execute')
             try:
                 result = execution.execute(self.root, self.run, decisions_file=decision_file)

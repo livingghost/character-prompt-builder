@@ -48,7 +48,12 @@ For URL-import transports, `upload-sources` selects the same `[{"file": "studio-
 A prompt edit is checked again against retrieval and render intent.
 Supply an explicitly reassessed `retrieval-record` when the original record does not apply to the new wording.
 The runtime invents no lookup or approval evidence.
-Unchanged evidence and the fixed runtime stay reusable; current source applicability and pack choices still apply.
+Unchanged evidence stays reusable; current source applicability and pack choices still apply.
+A variant or repeat compiles against the current installation and packs and fixes its own runtime from what it used.
+It keeps the model and service of its parent; `retarget` selects another.
+Where the installation or the packs differ from what the parent pinned, the result lists each difference in `runtime_warnings` as a warning.
+Compare the new request with the parent's before approving it.
+A pack that no longer holds the model or the service stops the compilation, as it stops any preparation.
 
 The derived task and replaced inputs are published with the new run under `production/runs/RUN/inputs/`.
 They are recorded as `task-source` dependencies, and nothing is written under `production/inputs/`.
@@ -63,16 +68,24 @@ A synthetic parameter variant from standard input reports this derivation (trimm
 Its new run holds `inputs/parameters.json`, `inputs/requested-changes.json` and `inputs/task.json`.
 
 `repeat` creates another run for the same input and semantic request, with its own future execution claim.
-It compares the repeated input before registration and publishes nothing on a mismatch.
+It compares the authored input, the task with its sources and references, before registration and publishes nothing on a mismatch.
+The installation and the packs are not part of that comparison; each run pins its own.
 It never borrows its parent's exact execution decisions; `resume` instead recovers the parent's execution.
 Neither variants nor repeats change a candidate's disposition, select a result or adopt identity.
 The [complete synthetic example](../../examples/generation/README.md) shows preparation, variants and repeats.
 ## Change the target explicitly
 
+After reopening choices, `next_actions` selects `retarget` when the target differs
+from the source run's exact request in the same production series, including an
+explicitly reopened work task.
+Fill its reason with the actual reason for the change. The status view reads the
+current editable target again, so reverting that selection restores the ordinary
+prepare action. It never invents a change reason or discards unchanged criteria.
+
 `variant` keeps its model and service. `retarget` applies another target to an
 exact prepared dispatcher or external image request. Reopen the source run and
-select the target in the common editable input. Keep its work task ID and
-production series ID, and record why the target changes.
+select the target in the common editable input. Keep its production series ID,
+use its work task or an explicitly reopened task, and record why the target changes.
 
 ```text
 python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --model MODEL_ID --service SERVICE_ID --out-dir work/retarget
@@ -117,6 +130,49 @@ The new run receives no prior submission claim or exact-request authorization.
 Existing grants retain their scope and can authorize the normal new execution
 boundary when applicable. Prior image reviews remain observations of the images
 they assessed, and remain available as source evidence for later judgment.
+
+## Revise the editable source across production steps
+
+The common choices file supports broader revisions than the bounded field map.
+Reopen the exact source run with `draft-inputs --from-run RUN`, edit the selected
+content, and follow `inspect-inputs` for that draft. Same-target `prepare`
+records the source run as its parent. A target change supplies the explicit
+`retarget` action and authored reason. A saved image is not required to compare
+several prompts or models. Keep each intended branch in a separate directory;
+`inspect-inputs --choices PATH` selects one when several are pending. Preparing
+these branches creates independent immutable inputs without a paid fan-out.
+
+Add or remove reference images at `authoring.references`, keeping each retained
+image's intended use, exclusions and subject scope. The owner derives the
+current attachment order, boards, transport files and hashes. Removing all
+reference selection with `authoring.references: null` also removes its derived
+image-input binding. Choose a supported operation at the rendering-intent owner
+when moving between requests with and without images. Existing source-based
+identity obligations and continuity choices still need their actual carriers;
+removing an image does not erase a criterion or approve another identity source.
+The compiler reports these unresolved meanings at their owning choices. An
+unused carrier or URL ceases to be a live requirement when its reference is
+removed. Original prepared requests and their media remain available for review.
+
+An accepted or completed result can be the source of later authorized work.
+Use `draft-inputs --from-run RUN --new-task GOAL --out-dir DIRECTORY` after the
+earlier work task has closed, or `--task-id ACTIVE_TASK_ID` to bind it explicitly
+to current work. The new task reuses content and records its source without
+altering the earlier completion. An existing open task must be continued,
+suspended or finished before opening another; the command does not replace it.
+Current task authority and request-specific judgments are evaluated for the
+new work. A registered reopened draft can retarget across that explicit task
+binding while retaining its production series.
+
+For a selected generated image, the ordinary upscale entry takes
+`--route upscale --source-run RUN --source-candidate CANDIDATE --scale N
+--purpose TEXT`, with its selected upscale model and service. It verifies the
+retained result and records that candidate as its source. The new upscale
+request has its own criteria and review; generation wording is not copied into
+a promptless upscaler. After capture, review and accept the enlarged candidate
+through the same result operations as other images. Reworking that enlarged
+result follows these same reopening rules. See [Production authoring](production-authoring.md#keep-branches-and-reopen-completed-work)
+for the complete input and continuation contract.
 
 Retargeting resolves the currently selected runtime, including explicit `--state-file`, `--cache-dir`, `--managed-root` and `--pack-root` options.
 The same target is accepted when the current pack runtime differs from the parent's fixed runtime.

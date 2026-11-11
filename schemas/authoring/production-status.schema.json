@@ -100,6 +100,8 @@
         "authorization_required",
         "configuration_required",
         "blocked",
+        "not-applicable",
+        "unchecked",
         "saved",
         "published"
       ]
@@ -220,28 +222,75 @@
       "type": "object",
       "properties": {
         "state": {
-          "enum": ["not-needed", "waiting", "pending", "failed", "outcome_unknown", "complete", "unsupported"]
+          "enum": [
+            "not-needed",
+            "waiting",
+            "pending",
+            "failed",
+            "outcome_unknown",
+            "complete",
+            "unsupported"
+          ]
         },
-        "eligible": {"type": "boolean"},
-        "uploaded": {"type": "integer", "minimum": 0},
-        "deleted": {"type": "integer", "minimum": 0},
-        "retained": {"type": "integer", "minimum": 0},
+        "eligible": {
+          "type": "boolean"
+        },
+        "uploaded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deleted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retained": {
+          "type": "integer",
+          "minimum": 0
+        },
         "items": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "upload_index": {"type": "integer", "minimum": 0},
-              "provider_id": {"type": "string", "minLength": 1},
-              "upload_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-              "state": {"enum": ["pending", "failed", "outcome_unknown", "deleted"]}
+              "upload_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "provider_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "upload_receipt_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "failed",
+                  "outcome_unknown",
+                  "deleted"
+                ]
+              }
             },
-            "required": ["upload_index", "provider_id", "upload_receipt_sha256", "state"],
+            "required": [
+              "upload_index",
+              "provider_id",
+              "upload_receipt_sha256",
+              "state"
+            ],
             "additionalProperties": false
           }
         }
       },
-      "required": ["state", "eligible", "uploaded", "deleted", "retained", "items"],
+      "required": [
+        "state",
+        "eligible",
+        "uploaded",
+        "deleted",
+        "retained",
+        "items"
+      ],
       "additionalProperties": false
     },
     "registration": {
@@ -357,6 +406,12 @@
               "items": {
                 "$ref": "#/$defs/next_action"
               }
+            },
+            "alternatives": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/next_action"
+              }
             }
           },
           "required": [
@@ -403,11 +458,17 @@
           "$ref": "#/$defs/authoring_state"
         },
         "focus": {
-          "enum": ["authoring", "authored", "execution"]
+          "enum": [
+            "authoring",
+            "authored",
+            "execution"
+          ]
         },
         "next_actions": {
           "type": "array",
-          "items": {"type": "object"}
+          "items": {
+            "type": "object"
+          }
         },
         "production_run": {
           "type": [
@@ -420,6 +481,9 @@
           "items": {
             "$ref": "#/$defs/diagnostic"
           }
+        },
+        "work_completion": {
+          "type": "object"
         }
       },
       "required": [
@@ -430,35 +494,172 @@
       ],
       "additionalProperties": false
     },
+    "unresolved": {
+      "description": "The choices still to answer and the editable inputs still to repair, as their authoring owners report them.",
+      "type": "array",
+      "items": {
+        "$ref": "authoring/production-compilation-report.schema.json#/$defs/unresolved_entry"
+      }
+    },
     "authoring_state": {
       "type": "object",
       "properties": {
-        "state": {"const": "authoring-state"},
-        "task_id": {"type": ["string", "null"]},
-        "inputs": {"type": "array", "items": {"type": "object"}},
-        "readings": {"type": "array", "items": {"type": "object"}},
-        "last_check": {"type": ["object", "null"]},
-        "pending": {"type": "boolean"},
-        "context": {"type": ["object", "null"]},
-        "saved": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/saved_authored"}]},
-        "diagnostics": {"type": "array", "items": {"type": "object"}},
-        "next_actions": {"type": "array", "items": {"type": "object"}},
-        "external_effect": {"const": false}
+        "selection_required": {
+          "type": "boolean"
+        },
+        "input_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "unresolved": {
+                "$ref": "#/$defs/unresolved"
+              }
+            }
+          }
+        },
+        "state": {
+          "const": "authoring-state"
+        },
+        "task_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "unresolved": {
+                "$ref": "#/$defs/unresolved"
+              },
+              "working_copy": {
+                "type": "object",
+                "properties": {
+                  "unresolved": {
+                    "$ref": "#/$defs/unresolved"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "readings": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "last_check": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pending": {
+          "type": "boolean"
+        },
+        "context": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "input": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "unresolved": {
+                  "$ref": "#/$defs/unresolved"
+                }
+              }
+            }
+          }
+        },
+        "saved": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/saved_authored"
+            }
+          ]
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "external_effect": {
+          "const": false
+        },
+        "decision_drafts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
       },
-      "required": ["state", "task_id", "inputs", "readings", "last_check", "pending", "context", "saved", "diagnostics", "next_actions", "external_effect"],
+      "required": [
+        "selection_required",
+        "input_options",
+        "state",
+        "task_id",
+        "inputs",
+        "readings",
+        "last_check",
+        "pending",
+        "context",
+        "saved",
+        "diagnostics",
+        "next_actions",
+        "external_effect",
+        "decision_drafts"
+      ],
       "additionalProperties": false
     },
     "saved_authored": {
       "type": "object",
       "properties": {
-        "run": {"$ref": "#/$defs/run/properties/run"},
-        "task_id": {"$ref": "#/$defs/run/properties/task_id"},
-        "task_disposition": {"$ref": "#/$defs/run/properties/task_disposition"},
-        "authored": {"$ref": "#/$defs/authored"},
-        "next_action": {"$ref": "#/$defs/run/properties/next_action"},
-        "working_changes": {"type": "boolean"}
+        "run": {
+          "$ref": "#/$defs/run/properties/run"
+        },
+        "task_id": {
+          "$ref": "#/$defs/run/properties/task_id"
+        },
+        "task_disposition": {
+          "$ref": "#/$defs/run/properties/task_disposition"
+        },
+        "authored": {
+          "$ref": "#/$defs/authored"
+        },
+        "next_action": {
+          "$ref": "#/$defs/run/properties/next_action"
+        },
+        "working_changes": {
+          "type": "boolean"
+        }
       },
-      "required": ["run", "task_id", "task_disposition", "authored", "next_action", "working_changes"],
+      "required": [
+        "run",
+        "task_id",
+        "task_disposition",
+        "authored",
+        "next_action",
+        "working_changes"
+      ],
       "additionalProperties": false
     },
     "effect": {
@@ -491,18 +692,82 @@
     "authored": {
       "type": "object",
       "properties": {
-        "state": {"enum": ["draft", "finished"]},
-        "completion_state": {"enum": ["draft", "finished"]},
-        "input_verified": {"type": "boolean"},
-        "saved": {"type": ["string", "null"]},
-        "delivered": {"type": ["string", "null"]},
-        "reviewed": {"type": ["string", "null"]},
-        "requirements": {"type": "array", "items": {"enum": ["save", "delivery", "review"]}, "uniqueItems": true},
-        "missing": {"type": "array", "items": {"enum": ["finished-revision", "save", "delivery", "review"]}, "uniqueItems": true},
-        "unresolved": {"type": "array"},
-        "artifact": {"type": "string", "minLength": 1}
+        "state": {
+          "enum": [
+            "draft",
+            "finished"
+          ]
+        },
+        "completion_state": {
+          "enum": [
+            "draft",
+            "finished"
+          ]
+        },
+        "input_verified": {
+          "type": "boolean"
+        },
+        "saved": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "delivered": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewed": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "save",
+              "delivery",
+              "review"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "finished-revision",
+              "save",
+              "delivery",
+              "review"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "unresolved": {
+          "$ref": "#/$defs/unresolved"
+        },
+        "artifact": {
+          "type": "string",
+          "minLength": 1
+        }
       },
-      "required": ["state", "completion_state", "input_verified", "saved", "delivered", "reviewed", "requirements", "missing", "unresolved", "artifact"],
+      "required": [
+        "state",
+        "completion_state",
+        "input_verified",
+        "saved",
+        "delivered",
+        "reviewed",
+        "requirements",
+        "missing",
+        "unresolved",
+        "artifact"
+      ],
       "additionalProperties": false
     },
     "run": {
@@ -589,6 +854,12 @@
             "$ref": "#/$defs/diagnostic"
           }
         },
+        "freshness_notices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
         "selection_diagnostics": {
           "type": "array",
           "items": {
@@ -640,6 +911,15 @@
               "additionalProperties": false
             }
           ]
+        },
+        "authority": {
+          "type": "object"
+        },
+        "authorization_requirements": {
+          "type": [
+            "object",
+            "null"
+          ]
         }
       },
       "required": [
@@ -662,6 +942,7 @@
         "candidates",
         "candidate_states",
         "freshness_diagnostics",
+        "freshness_notices",
         "selection_diagnostics",
         "selection_ready",
         "settlement_open",

@@ -3,6 +3,8 @@
 
 Synthetic pixels and explicit synthetic authority demonstrate processing only.
 They do not measure character performance, model quality or user acceptance.
+Every text file it writes is UTF-8 with LF line ends, so the synthetic host
+receives the same exact prompt bytes on every platform.
 """
 from __future__ import annotations
 import argparse
@@ -12,6 +14,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 SKILL = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SKILL / 'scripts'))
@@ -26,8 +29,10 @@ def run(out: Path) -> dict:
         raise ValueError('choose a new output directory')
     out.mkdir(parents=True)
     log = []
+    def text(name, value):
+        (out / name).write_text(value, encoding='utf-8', newline='\n')
     def write(name, value):
-        (out / name).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        text(name, json.dumps(value, ensure_ascii=False, indent=2) + '\n')
     def command(script, *args, parse=True):
         argv = [sys.executable, '-B', str(SKILL / 'scripts' / script), *map(str, args)]
         result = subprocess.run(argv, cwd=out, capture_output=True, text=True, encoding="utf-8",
@@ -52,8 +57,8 @@ def run(out: Path) -> dict:
     command('work_ledger.py', '--studio', out, 'begin', '--goal', 'Synthetic localized image repair',
             '--step', 'observe', '--step', 'repair', parse=False)
     task_id = json.loads((out / 'work/current.json').read_text(encoding='utf-8'))['task_id']
-    (out / 'brief.txt').write_text('Processing fixture: a central region must differ from the surrounding field. No cast, story or audience claim.\n', encoding='utf-8')
-    (out / 'delivery.txt').write_text('Use an unbroken field for the initial diagnostic fixture.\n', encoding='utf-8')
+    text('brief.txt', 'Processing fixture: a central region must differ from the surrounding field. No cast, story or audience claim.\n')
+    text('delivery.txt', 'Use an unbroken field for the initial diagnostic fixture.\n')
     task = {'task_id': task_id, 'route': 'development', 'features': [], 'execution': 'external',
             'sources': [{'id': 'brief', 'path': 'brief.txt', 'role': 'world', 'disposition': 'applied',
                          'locator': 'whole', 'reason': 'Explicit synthetic processing requirement.'}],
@@ -127,7 +132,7 @@ def run(out: Path) -> dict:
     revised = copy.deepcopy(task)
     revised['direction']['decisions'][0].update(selected='local', reason='The actual initial artifact failed the declared contrast check.')
     revised['delivery']['path'] = 'revised-delivery.txt'
-    (out / 'revised-delivery.txt').write_text('Change only the central image region.\n', encoding='utf-8')
+    text('revised-delivery.txt', 'Change only the central image region.\n')
     fixture.external_image_input(out, revised)
     write('revised-task.json', revised)
     intent = workflow(first, 'revision-intent', '--task', 'revised-task.json', '--candidate', initial['sha256'], '--repair', 'separate-region')
@@ -154,10 +159,24 @@ def run(out: Path) -> dict:
     return result
 
 
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--out', type=Path, help='New directory that keeps the example and its records.')
+    parser.add_argument('--check', action='store_true',
+                        help='Run the example in a temporary directory and exit 1 unless it completes.')
+    args = parser.parse_args()
+    if args.check:
+        with tempfile.TemporaryDirectory(prefix='synthetic-repair-example-') as folder:
+            result = run(Path(folder).resolve() / 'example')
+    elif args.out:
+        result = run(args.out.absolute())
+    else:
+        parser.error('Use --out or --check.')
+    print(json.dumps(result, indent=2))
+    return 0 if result['ok'] else 1
+
+
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--out', type=Path, required=True)
-    args = parser.parse_args()
-    print(json.dumps(run(args.out.absolute()), indent=2))
+    raise SystemExit(main())

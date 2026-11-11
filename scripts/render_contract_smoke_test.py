@@ -135,6 +135,23 @@ class RenderContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'profile is missing'):
             r.selected_profile({'id':'unconfigured'},None)
 
+    def test_promptless_upscale_recipe_describes_source_and_scale_without_rendering(self):
+        from model_prompt_input_fixtures import prompt_input
+        selected = profile()
+        selected['prompt_recipe'] = {'order': ['source', 'scale'],
+            'guidance': ['Use the source image and the requested scale; this interface has no text input.']}
+        mode = copy.deepcopy(selected['modes']['image-to-image'])
+        mode['media'] = 'input-image'
+        selected['modes'] = {'upscale': mode}
+        record = {'id': 'synthetic-no-text-upscaler', 'operation_kind': 'upscale',
+            'prompt_input': prompt_input('none'), 'execution_profile': selected,
+            'native_scale_factor': 4, 'supported_scale_factors': None}
+        card = r.model_card(record)
+        self.assertEqual(card['execution_profile']['prompt_recipe']['order'], ['source', 'scale'])
+        self.assertEqual(card['native_scale_factor'], 4)
+        self.assertIsNone(card['supported_scale_factors'])
+        self.assertEqual(card['readiness']['request_check']['status'], 'not-performed')
+
     def test_mode_is_deliberate(self):
         self.intent['execution_mode']='unknown'
         with self.assertRaises(ValueError):self.compile()
@@ -523,7 +540,16 @@ class ExternalPackGuidanceTests(unittest.TestCase):
                 'kind': 'measured', 'source': 'Synthetic claim of a measured request.', 'limitations': [],
                 'observed_profile': {'path': path, 'sha256': digest}}
             measured.append(record)
-        cls.write(cls.pack / 'records/models.json', {'kind':'model', 'records':[cls.model, offered, unconfigured, documented, *measured]})
+        from model_contract_smoke_test import fixture_models
+        upscale = fixture_models()['fixture-restorative-upscaler']
+        upscale.update(label='Synthetic native-scale upscaler', native_scale_factor=4,
+            supported_scale_factors=None, aliases=[], prompt_style='Source image and explicit scale.',
+            ordering=['source', 'scale'], search_terms=[{'phrase': 'synthetic native-scale upscaler',
+                'facet': 'model', 'weight': 1.0, 'source': 'author'}],
+            offerings=[{'service': name, 'model_identifier': 'synthetic:upscale',
+                'request_keys': {'input image': ['inputImage']}, 'constraints': {},
+                'observed_at': '2026-01-01'} for name in ('synthetic-service', 'other-service')])
+        cls.write(cls.pack / 'records/models.json', {'kind':'model', 'records':[cls.model, offered, unconfigured, documented, upscale, *measured]})
         write_lock(cls.pack)
         for variant, roots, enabled in [('registered',[str(cls.pack)],[cls.pack_id]),
                                          ('extra',[],[cls.pack_id]), ('disabled',[str(cls.pack)],[])]:
@@ -576,6 +602,28 @@ class ExternalPackGuidanceTests(unittest.TestCase):
         self.assertEqual(offered['model_identifier'],'synthetic:renderer')
         self.assertTrue(offered['ready_for_parameter_resolution'])
 
+    def test_upscaler_listing_returns_usable_inspection_in_the_same_runtime(self):
+        import subprocess
+        result = json.loads(self.command('render_contract.py', 'models', '--operation', 'upscale',
+            '--service', 'synthetic-service', variant='extra').stdout)
+        self.assertEqual(result['resolution_errors'], [])
+        self.assertEqual(len(result['models']), 1)
+        row = result['models'][0]
+        self.assertEqual(row['model'], 'fixture-restorative-upscaler')
+        self.assertEqual(row['service'], 'synthetic-service')
+        card = row['card']
+        self.assertIsNone(card['supported_scale_factors'])
+        self.assertEqual(card['native_scale_factor'], 4)
+        self.assertFalse(card['ready_for_parameter_resolution'])
+        self.assertEqual(card['readiness']['validation_evidence']['status'], 'required')
+        self.assertEqual(card['readiness']['request_check']['status'], 'not-performed')
+        argv = row['next_action']['argv']
+        self.assertEqual(argv[-len(self.selectors('extra')):], self.selectors('extra'))
+        inspected = subprocess.run(argv, cwd=self.root, capture_output=True, text=True,
+            encoding='utf-8', timeout=60)
+        self.assertEqual(inspected.returncode, 0, inspected.stdout + inspected.stderr)
+        self.assertEqual(json.loads(inspected.stdout), card)
+
     def test_dialect_and_model_share_registered_or_extra_runtime(self):
         for variant in ('registered','extra'):
             with self.subTest(variant=variant):
@@ -590,14 +638,15 @@ class ExternalPackGuidanceTests(unittest.TestCase):
         studio.mkdir(exist_ok=True)
         output = self.command('execution_routes.py','read','generation','--execution','external','--feature','prompt-dialect',
                                '--model',self.alias,'--root',str(studio),'--page-bytes','1048576').stdout
-        line = next(line for line in output.splitlines()
-                    if line.startswith('--- {') and line.endswith('} ---')
-                    and json.loads(line[4:-4])['kind'] == 'model')
-        metadata = json.loads(line[4:-4])
+        result = json.loads(output)
+        segment = next(item for item in result['body'] if item['metadata']['kind'] == 'model')
+        metadata = segment['metadata']
         self.assertEqual(metadata['path'], 'model-guidance/' + self.model_id)
-        cards, _ = json.JSONDecoder().raw_decode(output.split(line + '\n', 1)[1])
+        cards = json.loads(segment['text'])
         self.check_card(cards[0])
-        self.assertIn('reading-key: generation ', output)
+        self.assertEqual(result['metadata']['route'], 'generation')
+        self.assertTrue(result['reading']['key'])
+        self.assertIsNone(result['actions']['continue'])
 
     def test_missing_profile_keeps_advice_visible_but_blocks_compile(self):
         model = 'fixture-external-unconfigured'

@@ -1493,8 +1493,14 @@
                 "creative"
               ]
             },
+            "native_scale_factor": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "The model's native network scale. This does not declare the factors accepted by an offering API."
+            },
             "supported_scale_factors": {
-              "type": "array",
+              "type": ["array", "null"],
+              "description": "Known supported request factors. Omit or use null when the API factors have not been established; native scale is independent.",
               "minItems": 1,
               "uniqueItems": true,
               "items": {
@@ -1818,7 +1824,6 @@
               },
               "required": [
                 "upscaler_class",
-                "supported_scale_factors",
                 "input_image_count",
                 "supports_guidance_prompt",
                 "upscale_settings"

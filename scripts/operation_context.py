@@ -54,6 +54,8 @@ _STREAM_FILES = ('events.jsonl', 'stdout.log', 'stderr.log')
 _CONSOLE_FILES = frozenset({'stdout.log', 'stderr.log'})
 # A metadata rewrite interrupted by a crash leaves only this owned temporary file.
 _PARTIAL_FILES = frozenset({'.operation.json.tmp', '.artifacts.json.tmp'})
+# Cleanup gives an operation directory this prefix before deleting it; a remainder keeps it.
+_REMOVAL_PREFIX = '.removing-'
 # Output written before the Studio is known, kept to rebuild the record there.
 _EARLY_LIMIT = 1 << 20
 # Link kinds that collect every value an operation touches.
@@ -858,10 +860,13 @@ def _log_base(root: Path | None) -> Path:
         return c.local(owner, 'logs/operations', exists=False)
     except (OSError, ValueError) as exc:
         raise ProductionError('LOG_PATH_UNSAFE', 'The diagnostic tree is not an owned regular directory.',
-                              phase='logs', file=str(owner / 'logs/operations')) from exc
+                              phase='logs', file=str(owner / 'logs/operations'),
+                              required_action='Replace the link or redirected entry on this path with a regular directory '
+                                              'inside its Studio or configuration directory.') from exc
 
 
-def _log_folders(root: Path | None):
+def _log_folders(root: Path | None, *, removals: bool = False):
+    """Yield each operation directory, and with `removals` also what an unfinished cleanup left of one."""
     import execution_contract as c
     base = _log_base(root)
     if not base.exists():
@@ -871,6 +876,8 @@ def _log_folders(root: Path | None):
             continue
         for folder in sorted(day.iterdir()):
             if not folder.is_dir() or folder.is_symlink():
+                continue
+            if folder.name.startswith(_REMOVAL_PREFIX) and not removals:
                 continue
             # Validate ancestors before opening any metadata.
             c.local(base, folder.relative_to(base).as_posix())
@@ -1020,7 +1027,7 @@ def _run_has_unresolved_external_effect(root: Path, run: str) -> bool:
 
 def _cleanup_assessment(root: Path | None, folder: Path, *, cutoff=None) -> dict:
     import execution_contract as c
-    row = {'operation_id': folder.name, 'path': str(folder), 'eligible': False}
+    row = {'operation_id': folder.name.removeprefix(_REMOVAL_PREFIX), 'path': str(folder), 'eligible': False}
     try:
         base = _log_base(root)
         c.local(base, folder.relative_to(base).as_posix())
@@ -1028,6 +1035,10 @@ def _cleanup_assessment(root: Path | None, folder: Path, *, cutoff=None) -> dict
         names = {p.name for p in children}
         if not names <= _LOG_FILES | _PARTIAL_FILES or any(p.is_symlink() or not p.is_file() for p in children):
             row['reason'] = 'unowned-or-missing-content'
+            return row
+        if folder.name.startswith(_REMOVAL_PREFIX):
+            # Cleanup assessed the whole record as eligible before it gave the directory this name.
+            row.update(eligible=True, reason='removal-interrupted')
             return row
         state = _read_operation(folder)
         metadata = state['metadata']
@@ -1059,31 +1070,51 @@ def _cleanup_assessment(root: Path | None, folder: Path, *, cutoff=None) -> dict
     return row
 
 
+def _remove_emptied_day(base: Path, day: Path) -> None:
+    """Remove a day directory of the diagnostic tree that a removal left empty.
+
+    Only an empty, unlinked directory directly below the tree is removed; one
+    that holds anything, such as a new operation, stays.
+    """
+    if day.parent != base or day.is_symlink():
+        return
+    try:
+        os.rmdir(day)
+    except OSError:
+        pass
+
+
 def cleanup_logs(root: Path | None, *, before: str | None = None, operation_id: str | None = None, apply: bool = False) -> dict:
     """List or delete only closed, owned diagnostics of a Studio, or of the configuration directory when `root` is None.
 
     An operation killed before the `before` date whose process has ended is closed.
     Selection is rechecked immediately before deleting closed diagnostics.
     Formal evidence and directories with unexpected files are never cleanup targets.
+    A removal renames the directory before deleting it. What a failed deletion leaves
+    keeps that name, and `operation_id` or any `before` date selects it again.
+    A day directory that a removal leaves empty is removed with it.
+    A failed removal stops the call; its LOG_WRITE_FAILED lists in `deleted` the
+    operations the call removed before it.
     """
-    import execution_contract as c
     from production_diagnostics import ProductionError
     if (before is None) == (operation_id is None):
-        raise ProductionError('INPUT_ARGUMENT_INVALID', 'Select --before YYYY-MM-DD or --operation OPERATION_ID.', phase='logs-cleanup')
+        raise ProductionError('INPUT_ARGUMENT_INVALID', 'Select --before YYYY-MM-DD or --operation OPERATION_ID.', phase='logs-cleanup',
+                              required_action='Pass exactly one of --before YYYY-MM-DD and --operation OPERATION_ID.')
     if before is not None:
         try:
             if re.fullmatch(r'\d{4}-\d{2}-\d{2}', before) is None:
                 raise ValueError('date only')
             cutoff = datetime.fromisoformat(before).date()
         except (ValueError, TypeError) as exc:
-            raise ProductionError('INPUT_ARGUMENT_INVALID', 'Cleanup date must be YYYY-MM-DD.', phase='logs-cleanup') from exc
+            raise ProductionError('INPUT_ARGUMENT_INVALID', 'Cleanup date must be YYYY-MM-DD.', phase='logs-cleanup',
+                                  required_action='Pass --before as a calendar date written YYYY-MM-DD.') from exc
     else:
         cutoff = None
     root = Path(root) if root is not None else None
     base = _log_base(root)
     rows, deleted = [], []
-    for folder in _log_folders(root):
-        if operation_id is not None and folder.name != operation_id:
+    for folder in _log_folders(root, removals=True):
+        if operation_id is not None and folder.name.removeprefix(_REMOVAL_PREFIX) != operation_id:
             continue
         row = _cleanup_assessment(root, folder, cutoff=cutoff)
         if cutoff is not None and row.get('created_at'):
@@ -1094,15 +1125,24 @@ def cleanup_logs(root: Path | None, *, before: str | None = None, operation_id: 
             if updated != row:
                 row = {**updated, 'eligible': False, 'reason': 'changed-since-inspection'}
             else:
+                removal = folder.with_name(_REMOVAL_PREFIX + row['operation_id'])
                 try:
-                    shutil.rmtree(folder)
+                    # One rename takes the whole record out of the listings. A refused rename
+                    # changes nothing, and a failed deletion leaves its remainder under this name.
+                    if folder != removal:
+                        os.rename(folder, removal)
+                    shutil.rmtree(removal)
                     deleted.append(row['operation_id'])
                 except FileNotFoundError:
                     # Another cleanup may already have removed this closed operation.
                     deleted.append(row['operation_id'])
                 except OSError as exc:
                     raise ProductionError('LOG_WRITE_FAILED', 'Owned diagnostics could not be removed.',
-                        phase='logs-cleanup', file=str(folder), actual=type(exc).__name__) from exc
+                        phase='logs-cleanup', file=str(removal if removal.exists() else folder), actual=type(exc).__name__,
+                        deleted=list(deleted),
+                        required_action='Check open handles and permissions on this path, then run '
+                                        'logs-cleanup --apply again; it removes what remains.') from exc
+                _remove_emptied_day(base, folder.parent)
         rows.append(row)
     return {'ok': True, 'apply': bool(apply), 'selector': {'before': before, 'operation': operation_id},
             'candidates': [row for row in rows if row['eligible']],
@@ -1115,6 +1155,7 @@ def export_logs(root: Path | None, out: Path, *, run: str | None = None, include
 
     `root` None exports the configuration directory. `include_streams` False leaves out
     stdout.log and stderr.log, which can quote work text a command printed.
+    ARTIFACT_PUBLISH_FAILED states in `published` whether the export is at `out`.
     """
     import tempfile
     from production_diagnostics import ProductionError
@@ -1128,22 +1169,43 @@ def export_logs(root: Path | None, out: Path, *, run: str | None = None, include
     except (ValueError, OSError) as exc:
         raise ProductionError('LOG_EXPORT_PATH_INVALID', 'Select a new studio-relative diagnostic export directory.'
                               if root is not None else 'Select a new diagnostic export directory.',
-                              phase='logs-export', file=str(out)) from exc
+                              phase='logs-export', file=str(out),
+                              required_action=('Choose a new --out inside the Studio, relative to --root'
+                                               if root is not None else 'Choose a new absolute --out')
+                              + ', on a path without symbolic links.') from exc
     base = _log_base(root)
     # Both paths are compared resolved, so a link in either one cannot hide an overlap.
     exported, logged = out.resolve(), base.resolve()
     if exported == logged or logged in exported.parents or exported in logged.parents:
-        raise ProductionError('LOG_EXPORT_PATH_INVALID', 'An export cannot overlap the source diagnostic tree.', phase='logs-export')
+        raise ProductionError('LOG_EXPORT_PATH_INVALID', 'An export cannot overlap the source diagnostic tree.', phase='logs-export',
+                              required_action='Choose a new --out that is neither inside logs/operations nor a directory '
+                                              'that holds it.')
     if out.exists():
-        raise ProductionError('OUTPUT_ALREADY_EXISTS', 'Log export destination already exists.', phase='logs-export', file=str(out))
+        raise ProductionError('OUTPUT_ALREADY_EXISTS', 'Log export destination already exists.', phase='logs-export', file=str(out),
+                              required_action='Choose a new --out.')
     rows = list_operations(root, run=run)
-    out.parent.mkdir(parents=True, exist_ok=True)
+
+    def not_staged(exc: OSError) -> ProductionError:
+        return ProductionError('ARTIFACT_PUBLISH_FAILED', 'The diagnostic export could not be staged beside its destination.',
+                               phase='logs-export', file=str(out), published=False,
+                               actual={'errno': exc.errno, 'winerror': getattr(exc, 'winerror', None)},
+                               required_action='Check that the directory that holds --out can be created and written, '
+                                               'with free space and no file in its place, or choose another --out; '
+                                               'then run logs-export again.')
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        pending = tempfile.TemporaryDirectory(prefix='.pending-log-export-', dir=out.parent)
+    except OSError as exc:
+        raise not_staged(exc) from exc
     secrets = _secrets()
     names = sorted(_LOG_FILES if include_streams else _LOG_FILES - _CONSOLE_FILES)
     included, omissions, incomplete = [], [], []
-    with tempfile.TemporaryDirectory(prefix='.pending-log-export-', dir=out.parent) as temporary:
+    with pending as temporary:
         staging = Path(temporary) / 'export'
-        staging.mkdir(mode=0o700)
+        try:
+            staging.mkdir(mode=0o700)
+        except OSError as exc:
+            raise not_staged(exc) from exc
         for row in rows:
             if not row.get('operation_id') or not row.get('path'):
                 omissions.append({'operation_id': row.get('operation_id'), 'reason': row.get('diagnostic', 'unreadable')})
@@ -1188,12 +1250,22 @@ def export_logs(root: Path | None, out: Path, *, run: str | None = None, include
                                   'Named payload fields such as prompts, terms and renditions are omitted.'),
                     'limitations': 'Unknown secrets in free text cannot be guaranteed absent.',
                     'incomplete_operations': sorted(set(incomplete)), 'omissions': omissions}
-        c.atomic(staging/'export.json', c.encoded(manifest))
+        try:
+            c.atomic(staging/'export.json', c.encoded(manifest))
+        except OSError as exc:
+            raise not_staged(exc) from exc
         try:
             c.publish_directory(staging, out)
-            c.fsync_dir(out.parent)
-        except (OSError, ValueError) as exc:
-            raise ProductionError('OUTPUT_ALREADY_EXISTS' if out.exists() else 'ARTIFACT_PUBLISH_FAILED',
-                                  'Diagnostic export could not be published to its new destination.',
-                                  phase='logs-export', file=str(out)) from exc
+        except ProductionError as exc:
+            # The rename itself established whether something else holds the destination.
+            refusal = exc.diagnostic
+            occupied = refusal.code == 'OUTPUT_ALREADY_EXISTS'
+            raise ProductionError(refusal.code, 'Diagnostic export could not be published to its new destination.',
+                                  phase='logs-export', file=str(out),
+                                  required_action='Choose a new --out.' if occupied else
+                                  'Check handles, permissions and rename support of the directory that holds --out, '
+                                  'then run logs-export again.',
+                                  **({} if occupied else {'published': False, 'actual': refusal.details.get('actual')})) from exc
+        c.flush_published(out, phase='logs-export', continuation='Use the export at --out; it is complete. If it is '
+                          'missing after a crash or power loss, run logs-export again.')
     return manifest

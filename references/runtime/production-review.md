@@ -19,6 +19,23 @@ A review names the actual reviewer, observations, the criteria assessed so far, 
 Each observation names its `evidence` (`candidate` or a supplemental evidence ID), a locator, the observed fact, its interpretation and limitations.
 Additional evidence entries record path, kind, relation and limitations; their bytes are measured and pinned, not trusted from filenames.
 
+`draft-review` remembers the chosen output path and its exact run, candidate
+and preceding review. After interruption, status points to that same file while
+its basis remains current, including when the file is still being edited.
+Several saved drafts are explicit alternatives. Their answers do not change
+the candidate or its independent review workspace; the `review` command checks
+the completed file before recording it. Authored revisions use the same draft
+discovery and apply the file with `review-authored`.
+
+Review the commissioned criteria. An image evidence kind names the medium; it
+does not create an artistic-quality requirement. For a technical enlargement,
+decode the returned file and measure its dimensions against the requested
+factor. Compare it with the source for any commissioned preservation or identity
+requirement. Dimensions alone do not establish fidelity or visual quality.
+Record supported findings and limits, then follow the selection and completion
+actions for the actual task. Excluding an artistic-quality comparison does not
+prevent a technical review from being completed.
+
 ### Observe before interpreting
 
 First inspect the actual candidate and record what it visibly or measurably
@@ -210,6 +227,9 @@ python scripts/production_workflow.py revise --root STUDIO --run RUN --task revi
 ```
 
 Authorize the returned edit intent, then `revise` creates a new run linked to the parent candidate, latest review, repair and exact changed input.
+The edit record of the parent run reserves the new run's ID before preparation starts.
+Running the same `revise` again returns that run with `formal_run_created: false` and prepares nothing; after an interruption before publication it publishes the reserved run.
+When another preparation has registered a run under the reserved ID with another parent, `revise` reports `INPUT_CONSISTENCY_ERROR` with that run in `child`; both records stay, and a new authorization of the same edit intent records another edit, which reserves a new ID.
 The new run needs its own direction and submit authorization and real evidence.
 Its preparation transfers none of the parent's passing checks or permission to send.
 Changed approval evidence requires new authority, not a repair that grants itself more power.

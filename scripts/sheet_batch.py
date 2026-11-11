@@ -478,9 +478,14 @@ def advance(root: Path, state_path: str, *, grant: str | None = None,
                     else:
                         entry['status'] = 'approval-required'
                         if grant is not None:
-                            value = execution.draft_execution(root, run, grant)
+                            value = execution.draft_execution(root, run, grant)['choices']
                             draft = _relative(root, entry['inputs'], exists=False).parent / 'decisions/execution' / (c.content_id(value)+'.json')
                             if not draft.exists():
+                                from production_authoring_state import remember_decision_draft
+                                prepared = workflow.read_run(root, run).prepared
+                                remember_decision_draft(root, prepared['task']['task_id'], run, 'execution',
+                                    draft.relative_to(root).as_posix(),
+                                    context=execution.decision_context(prepared, basis=prepared['input_sha256']))
                                 c.atomic(draft, c.encoded(value))
                             else:
                                 held = c.load(draft)

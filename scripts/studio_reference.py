@@ -4,6 +4,8 @@
 The source identifies one current slot, not an arbitrary file of matching pixels.
 Live preparation checks that selection again. Recorded verification reads the
 same approval and artwork from the package companion, without granting a send.
+A command-line failure prints {"ok": false, "diagnostics": [...]} with the exit
+status its codes select in production_diagnostics.
 """
 from __future__ import annotations
 import operation_context as _operation_context
@@ -167,9 +169,14 @@ def _load_current(root: Path, character: str, slot: str, *, read) -> tuple[dict,
         # A current reference concerns this exact adoption, not every historical
         # Production run stored beside it. The run below verifies its own origin.
         row = copy.deepcopy(studio._find(read.raw_iterations(character), iteration))
+        journal = read.journal(character, iteration)
         if row.get('production') is not None:
             row['status'] = row.get('adoption_status', 'none')
-        journal = read.journal(character, iteration)
+            # The run's recorded result is the authority for a Production
+            # journal, so a journal that disagrees with it is reported as
+            # damaged, with its repair, before any of its fields is trusted.
+            adoption.require_journal_agreement(journal, character, iteration, row['production'],
+                                               read.run(row['production']['run']).rows)
         if (row['status'] != 'accepted' or row['slot'] != slot or
                 row['result']['sha256'] != current['artifact']['image']['sha256'] or
                 journal.get('status') not in {'sheet-bound', 'catalog-registered'} or journal.get('next_action') is not None):
@@ -382,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     bind.add_argument('--state-snapshot', type=Path)
     bind.add_argument('--out', type=Path, required=True)
     args = parser.parse_args(argv)
+    from production_binding import report_failure, write_new
     try:
         if args.command == 'source':
             result = current_source(args.studio, args.character, args.slot)
@@ -390,12 +398,11 @@ def main(argv: list[str] | None = None) -> int:
                 identity=c.load(args.identity_contract), era=c.load(args.era_contract) if args.era_contract else None,
                 appearance=c.load(args.appearance_variant) if args.appearance_variant else None,
                 snapshot=c.load(args.state_snapshot) if args.state_snapshot else None)
-        c.atomic(args.out, c.encoded(result))
+        write_new(args.out, c.encoded(result), option='--out', value=str(args.out))
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (ValueError, OSError, KeyError, TypeError) as exc:
-        print(json.dumps({'ok': False, 'errors': [str(exc)]}, ensure_ascii=False, indent=2))
-        return 1
+        return report_failure(exc, phase='studio-reference')
 
 
 if __name__ == '__main__':

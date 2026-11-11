@@ -446,8 +446,19 @@ def validate(root:Path=ROOT)->dict[str,Any]:
                 runtime = Path(workspace)
                 settings = default_settings(state_file=runtime/'state.json', cache_dir=runtime/'cache',
                     default_enabled_packs=[commons['pack_id']])
-                with using_pack_runtime(settings):
-                    result=verify(load_json(payload_path),package_root=pilot,studio=pilot)
+                # The configuration directory supplies the author's model selection
+                # preferences, which are part of delivered model guidance. The shipped
+                # example is verified with the shipped packs and an empty directory.
+                home = os.environ.get('CPB_HOME')
+                os.environ['CPB_HOME'] = str(runtime / 'home')
+                try:
+                    with using_pack_runtime(settings):
+                        result=verify(load_json(payload_path),package_root=pilot,studio=pilot)
+                finally:
+                    if home is None:
+                        del os.environ['CPB_HOME']
+                    else:
+                        os.environ['CPB_HOME'] = home
             if result.get('verified') is not True: errors.append('pilot generation package is not verified')
         except ValueError as exc: errors.append(f'pilot generation package: {exc}')
     prepared_set_path=pilot/'prepared-reference-set.json'

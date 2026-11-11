@@ -71,6 +71,24 @@ meaning or authority to the agent without manufacturing a conclusion.
 The same rule applies to references, prompt text, direction, criteria,
 parameters, rendering, target changes and external requests.
 
+Production is a branching process. Preparing, generating, selecting or
+completing a result must not make its useful inputs unreachable. Retain the
+immutable result, selected evidence and decisions; open an explicitly bound
+new authored revision when the commission changes. A later revision does not
+rewrite the earlier completion. Several model or prompt trials may coexist,
+and the agent must be able to name each editable branch without a latest-file
+heuristic silently choosing one. These are shared lifecycle properties rather
+than a fixed list of supported rework scenarios.
+
+Moving between generation, editing and enlargement preserves the selected
+source bytes and provenance at their relevant scope. A changed operation
+obtains its own applicable input contract, current authorization and criteria;
+it does not inherit irrelevant prompt fields or turn a scene result into
+canonical character authority. Adding, removing or reordering attachments
+changes the selected use and derived bindings without deleting source files
+or overwriting the original run. Unchanged reference roles, exclusions and
+other meaningful choices remain available.
+
 A reference's use, subject scope, source authority and prohibited influence
 remain authored decisions. Attachment order, board placement, relative paths
 and hashes follow the selected source content. A setting change must not
@@ -107,6 +125,45 @@ facts. Do not make the agent reconstruct these relationships by inspecting a
 set of internal JSON files. Do not omit necessary knowledge solely to produce
 a smaller response.
 
+Navigation views prioritize current identities, all available branches,
+unanswered choices, blockers and executable next actions. Supply complete
+decision evidence through explicit phase views; do not repeat the full
+request or source bodies in every status projection. Several valid candidates
+need explicit alternatives, not a first-item selection disguised as guidance.
+Presentation never changes the verified evidence used at an effect boundary.
+
+Keep the cost of a navigation view proportional to the work that can still
+proceed, not to the Studio's history. Compare current sources with prepared
+ones for the open runs of open work. A completed or abandoned run is shown
+from its retained records, and an open run left by closed work is compared
+when it is selected. A prepared run keeps its sealed request and fixed
+runtime, so a later change of the installation or the packs is a notice
+that leaves it usable; stop on what the author changed and on damage to the
+run's own records. A variant or repeat compiles against the current
+installation and packs and is told what differs from its parent. Report one
+cause once: files that changed
+together and share one remedy form one finding that lists them. An inspection
+owns the observations its parts share, such as a source run several drafts
+were reopened from, and passes that owner explicitly; an effect boundary
+acquires its own inputs.
+
+An agent continues from what a command prints, from `--help` and from a search
+of the documents and code. Keep the meaning of every reported value within
+reach of those three. The report states the meaning or gives the next action
+that resolves it. `--help` of the reporting command lists the values of an
+axis whose meaning the output does not carry. The routed document describes
+the same values in the same terms. A refusal or blocking diagnostic names its
+repair in `required_action`: the command to run, the record to correct, or the
+choice its author owns. The default action text says nothing about the cause,
+so a producer that knows the cause supplies its own. Use a diagnostic code for
+the condition its table entry describes, and extend the entry when a producer
+gives the code another cause.
+
+A change that adds or alters a state, a reported value, an option, a refusal
+or a diagnostic updates these surfaces in the same change. Where a schema or
+table enumerates the values, a mechanical check ties the help or document to
+that enumeration, so a new value cannot ship unexplained.
+
 ## Storage and read boundaries
 
 Give persistence I/O an explicit owner. A consumer receives decoded values for
@@ -118,7 +175,7 @@ fact. Keep these boundaries visible in the API:
 | Pack state, discovery and selected file contents | `pack_manager.RuntimeInputs` and `PackInput` | Validation, record/resource resolution, catalog persistence and Production snapshot capture use the same acquired input |
 | Installed builder sources and schema documents | `builder_inputs.BuilderInputs`, `state_protocol.SchemaDocuments` and `protocol_contract.ContractSet` | One pure evaluator consumes immutable documents and lazy reference resolution bound to their exact contents |
 | Registered run and immutable publication | `production_read_model.RunReader` | A shared `RunView` owns prepared inputs, consumer data, manifest-verified bytes, the compiled documents its consumers use and event history |
-| Acquired compilation inputs and fixed runtime files | `runtime_snapshot.CompileRuntime` and `FixedRuntimeRead` | Compilation consumes owned catalog and file values; publication preserves the complete selected runtime; a route receipt reads its named resources without reconstructing the catalog |
+| Acquired compilation inputs and fixed runtime files | `runtime_snapshot.CompileRuntime` and `FixedRuntimeRead` | Compilation consumes owned catalog and file values; publication preserves the runtime inputs the compilation bound or read; a route receipt reads its named resources without reconstructing the catalog |
 | Current route documents and prepared live sources | `live_source_read.LiveSourceRead` | One current-input boundary acquires the declared files and passes the same bytes to route receipts and dependency comparisons |
 | Lifecycle transitions and event lookups | `execution_lifecycle.ReplayState` and `EventHistory` | One ordered replay publishes read-only indexes and applies the same rules to a proposed append |
 | Current authority | `production_store.CurrentAuthority` | Permission checks consume the checked grant document, owning event and evidence bytes without changing prepared input |
@@ -239,12 +296,18 @@ refine that positive procedure at their applicable scope. Carry useful choices
 into the work, with reasons or qualifications where they affect its use.
 Keep ordinary operation specifications and their applicable prerequisites,
 authority, constraints, exceptions and recovery instructions together in the
-complete documents delivered by the existing route read. Owning references
-retain their full bodies in that read. A link, search hit or available source
+complete documents delivered through the route reader. Owning references
+retain their full bodies. A link, search hit or available source
 file alone does not deliver its context, and the agent must not have to search
 backward for a caller's restrictions. Page large reads without omitting sources,
-return an executable continuation and issue a reading record only after all
-pages have been delivered. Implementation-only maintenance details can remain
+return an executable continuation and issue a reading record only after the
+required bodies have complete delivery evidence. Explicit same-context reuse
+can combine earlier complete deliveries with new complete bodies, matching
+content and current resource/model scope and retaining per-body provenance.
+Changed or missing bodies require full delivery. A fresh context never gains
+knowledge from a historical receipt alone. Keep body text, progress and actions
+in separate structured fields, including an explicit terminal continuation.
+Implementation-only maintenance details can remain
 in their owning maintenance references.
 
 Technical specifications and maintenance procedures keep their complete

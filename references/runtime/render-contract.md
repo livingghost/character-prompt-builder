@@ -164,12 +164,16 @@ The chosen source's identity and current-state authority remain separate from re
 After runtime activation, inspect the selected model and its exact service:
 
 ```bash
+python scripts/render_contract.py models --operation upscale --service SERVICE_ID
 python scripts/render_contract.py model --model MODEL_ID --service SERVICE_ID
 python scripts/catalog_cli.py inspect <model-id>
 ```
 
-The first command prints one complete guidance card. Catalog inspection prints a card for each offering.
-Both resolve models from every enabled pack.
+`models` lists the matching models and offerings, their complete guidance cards,
+and an executable inspection action for each one. Omit `--service` to compare
+all registered offerings for the operation. Each action retains the selected
+pack runtime. `model` prints one complete guidance card; catalog inspection
+prints a card for each offering. These commands resolve every enabled pack.
 Pass the same state, cache, managed root, and extra pack roots to every model-aware command.
 The prompt-dialect command resolves the model, dialect, and writing guide in that same runtime.
 The prompt-dialect report and route reading with `--model` include the same cards.
@@ -223,6 +227,21 @@ for the existing retrieval and settlement flow.
 
 A card may report `ready_for_parameter_resolution: false` for an unconfigured model.
 Its catalog entry remains readable, but Generation Package dispatch requires an authored execution profile.
+The card's `readiness` keeps four questions separate:
+
+| Field | What its status establishes |
+| --- | --- |
+| `parameter_profile` | Whether the selected interface declares the controls used for parameter resolution |
+| `service_operation` | Whether the acquired service and transport expose the requested operation; catalog-only inspection says `not-acquired` |
+| `validation_evidence` | Whether evidence is still required, selected by the author, declared by the offering, or already acquired |
+| `request_check` | Whether an exact request has been checked; ordinary model inspection reports `not-performed` |
+
+An available profile is not evidence that a schema exists or a request was
+accepted. `unresolved` names the responsible choice and the action needed for
+dispatcher preparation. An explicit target schema, bounded probe or adopted
+observed profile can supply validation when the offering has no default schema.
+Preparation checks the selected evidence and exact request; sending still
+requires its own authority and authentication.
 An execution profile's `basis.kind` is `provider-documentation`, `curated-starting-point`, `measured` or `synthetic`.
 A `measured` basis names the adopted observed request profile it rests on, by its path inside the pack and its SHA-256.
 No other kind names one.
@@ -421,6 +440,15 @@ rendering expression in its actual guidance prompt; guidance alone does not
 require a rendering declaration.
 The offering maps the neutral `scale` setting to its actual request field in `parameter_keys`.
 The upscaler's execution profile declares that field and every other setting, including unavailable seed and count controls.
+Its recipe can describe source-image and scale selection without a rendering
+slot. A text-free interface does not require an invented style or prompt.
+`native_scale_factor` describes the network's native enlargement. The separate
+`supported_scale_factors` field describes known request factors; an absent or
+null value means those API factors remain unknown. Never derive an API enum
+from a model name or native factor. The exact offering profile and selected
+request evidence constrain the requested scale. A factor that the schema of the
+profile's scale control refuses is `CONTROL_NOT_AVAILABLE` at the declaration's
+`scale_factor`, and its repair names that control.
 Pass the intent file with `--render-intent` to `production_binding.py`, and to `dispatch.py --upscale` for its preview.
 The sealed request retains the complete resolved contract beside the source evidence.
 

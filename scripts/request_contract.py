@@ -238,15 +238,20 @@ def media_metadata(path: Path, *, role: str, binding_ids: list[str] | None = Non
         'dimensions': None,
         'upload_source': {'kind': 'bytes'},
     }
-    if media_type.split('/', 1)[0] == 'image':
-        from PIL import Image
-
-        with Image.open(io.BytesIO(raw)) as image:
+    from PIL import Image, UnidentifiedImageError
+    try:
+        image = Image.open(io.BytesIO(raw))
+    except UnidentifiedImageError:
+        if media_type.split('/', 1)[0] == 'image':
+            raise ValueError('media bytes do not decode as the selected image')
+    else:
+        with image:
             image.load()
             result['dimensions'] = {'width': image.width, 'height': image.height}
             actual = Image.MIME.get(image.format)
-            if actual is not None and actual != media_type:
-                raise ValueError('media bytes differ from their declared file format')
+            if actual is None:
+                raise ValueError('decoded image format has no declared media type: ' + str(image.format))
+            result['media_type'] = actual
     return result
 
 
@@ -282,10 +287,6 @@ def bind_upload_sources(media: list[dict], selections: list, kind: str, *, read=
         raise ValueError('transport must declare its upload source as bytes or url')
     if not isinstance(selections, list):
         raise ValueError('upload_sources must be an array')
-    if kind == 'bytes' and selections:
-        raise ProductionError('UPLOAD_SOURCE_INVALID',
-                'This transport uploads the verified carrier bytes directly; URL sources do not apply.',
-                phase='request-compilation', pointer='$.upload_sources')
     carriers = {item['sha256'] for item in media}
     selected, files = {}, set()
     for position, row in enumerate(selections):
@@ -299,12 +300,16 @@ def bind_upload_sources(media: list[dict], selections: list, kind: str, *, read=
             digest = c.digest(read(path))
         except (ValueError, OSError) as exc:
             raise ProductionError('UPLOAD_SOURCE_INVALID', str(exc),
-                phase='request-compilation', pointer=f'$.upload_sources[{position}].file') from exc
+                phase='request-compilation', pointer=f'$.upload_sources[{position}].file',
+                required_action='Write this upload_sources entry as {"file": CARRIER_FILE, "url": URL}, with a readable '
+                                'studio-relative carrier file that no other entry names.') from exc
         if digest not in carriers:
             raise ProductionError('UPLOAD_SOURCE_INVALID',
                 'The selected upload source file does not match any prepared carrier.',
                 phase='request-compilation', pointer=f'$.upload_sources[{position}].file',
                 file=path, sha256=digest,
+                required_action='Name the exact file of a prepared carrier; carriers lists each one with its path and role. '
+                                'Remove an entry whose carrier the request no longer sends.',
                 carriers=[{'index': i, 'path': item['path'], 'role': item['role']}
                           for i, item in enumerate(media)])
         source = {'kind': 'url', 'url': row['url']}
@@ -313,11 +318,14 @@ def bind_upload_sources(media: list[dict], selections: list, kind: str, *, read=
         except ValueError as exc:
             raise ProductionError('UPLOAD_SOURCE_INVALID', str(exc),
                 phase='request-compilation', pointer=f'$.upload_sources[{position}].url',
-                file=path) from exc
+                file=path,
+                required_action='Give the https URL at which the service reads this carrier, without credentials, fragment '
+                                'or whitespace; http is accepted only on a loopback address.') from exc
         if digest in selected and selected[digest] != source:
             raise ProductionError('UPLOAD_SOURCE_INVALID',
                 'The same prepared carrier contents have conflicting source URLs.',
-                phase='request-compilation', pointer=f'$.upload_sources[{position}].url', file=path)
+                phase='request-compilation', pointer=f'$.upload_sources[{position}].url', file=path,
+                required_action='Give entries whose files hold the same carrier bytes one shared URL.')
         selected[digest] = source
         files.add(path)
     missing = [index for index, item in enumerate(media) if item['sha256'] not in selected] if kind == 'url' else []

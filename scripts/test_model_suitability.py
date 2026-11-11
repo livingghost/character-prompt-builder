@@ -228,6 +228,17 @@ class SuitabilityTests(unittest.TestCase):
         self.assertEqual(second['author_preferences'][0]['preference'], 'no-discouragement')
         self.assertNotEqual(first['preferences_source']['sha256'], second['preferences_source']['sha256'])
 
+    def test_shipped_example_is_verified_apart_from_the_authors_preferences(self):
+        reading = c.load(ROOT / 'examples/state-aware-pilot/generated/route-reading.json')
+        value = preferences()
+        value['entries'][0]['selector'].update(service=None,
+            model_patterns=[{'field': 'model-id', 'pattern': reading['model']['id']}])
+        s.install_preferences(value)
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/validate_state_protocol.py'), str(ROOT)],
+                                capture_output=True, text=True, encoding='utf-8', check=False)
+        self.assertEqual(json.loads(result.stdout)['errors'], [], result.stderr)
+        self.assertEqual(c.load(s.preferences_path()), value)
+
     def test_selection_preferences_do_not_rewrite_sealed_parameter_contracts(self):
         record, offered = model(), offering()
         direction = intent('Flat graphic illustration.')

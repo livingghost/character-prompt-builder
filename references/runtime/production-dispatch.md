@@ -19,6 +19,7 @@ Each upload or send boundary checks the current grant and the live packs again, 
 Revocation after a start boundary cannot undo the started request.
 The send boundary records the management identifiers sent with the request.
 The prepared submit scope includes deletion of its own uploaded inputs where the transport supports it. Deletion uses the immutable upload receipts and a separately saved request, so cleanup needs no new submission decision. A new generation always uploads again; only recovery within the same execution reuses its completed uploads.
+An upload that the provider refuses, or that ends without a saved answer, stops the execution before its send. The inputs it uploaded before are deleted in the same call; [Recovery](production-recovery.md#status-and-resume) describes the upload whose outcome stays unknown.
 
 ## Authentication at execution
 

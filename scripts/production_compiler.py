@@ -33,7 +33,13 @@ GENERATION_FILES=('parameters','production_spec','plot','retrieval_record','crea
 JSON_FILES=set(GENERATION_FILES)-{'negative','integrated_prompt','native_negative'}
 # A derived run's own inputs live in its run directory and are never live studio sources.
 RUN_INPUT=re.compile(r'^production/runs/[^/]+/inputs/')
-UNREADABLE_ACTION='Name an existing regular file by its path relative to the studio root, with / separators.'
+# A run directory without a registration whose manifest is not a complete publication manifest.
+UNRECOVERABLE_PUBLICATION=('This publication cannot be registered. List it with staging-cleanup, remove it with --apply '
+                           '--operation once its owner operation has ended, then run the preparing command again.')
+# A registered run whose registered manifest bytes are not a complete publication manifest.
+REGISTERED_MANIFEST_DAMAGED=('The registration of this run records these exact manifest bytes, so no other copy of its '
+                             'manifest is known, and a registered run is not corrected in place. Nothing is read from '
+                             'this run, and other runs are unaffected. Prepare a new run of the task with prepare.')
 REPORT_SCHEMA='schemas/authoring/production-compilation-report.schema.json'
 PLAN_SCHEMA='schemas/authoring/production-execution-plan.schema.json'
 PUBLICATION_CONTROLS=('manifest.json','owner.json','failure.json',c.LOCK_FILE)
@@ -50,17 +56,18 @@ def dependency_space(path: str) -> str:
 
 
 def read_input(root: Path, path: str, *, pointer: str | None, phase: str = 'source-read') -> bytes:
-    """Read one declared input once; a failure names the file, the task pointer and the cause."""
+    """Read one declared input once; a failure names the file, the task pointer, the cause and its repair."""
     try:
         return store.stable_bytes(root, path)
     except ProductionError as exc:
-        if exc.diagnostic.code != 'EVIDENCE_CAPTURE_FAILED':
-            if exc.diagnostic.pointer is None:
-                exc.diagnostic.pointer = pointer
+        failure = exc.diagnostic
+        if failure.code != 'EVIDENCE_CAPTURE_FAILED':
+            if failure.pointer is None:
+                failure.pointer = pointer
             raise
-        cause = exc.__cause__ or exc
         raise ProductionError('INPUT_UNREADABLE', 'The declared input could not be read.', phase=phase, file=path,
-                              pointer=pointer, cause=str(cause), required_action=UNREADABLE_ACTION) from cause
+                              pointer=pointer, required_action=failure.required_action,
+                              **failure.details) from exc.__cause__
 
 
 def validate_document(value: Any, schema_path: str, label: str) -> None:
@@ -101,6 +108,17 @@ def input_digest(prepared: dict, consumer: dict) -> str:
     return c.content_id(value)
 
 
+def authored_input_digest(prepared: dict, consumer: dict) -> str:
+    """Hash what the author supplied: the input without the installation pins and the fixed pack runtime.
+
+    A repeat keeps this identity. The installation and the packs may differ
+    between the two preparations; each run pins its own.
+    """
+    reduced = {**prepared, 'runtime_snapshot': None,
+               'dependencies': [x for x in prepared['dependencies'] if x['space'] != 'skill']}
+    return input_digest(reduced, consumer)
+
+
 def _file_inputs(task: dict) -> list[tuple[str,str]]:
     items=[]
     delivery=task.get('delivery')
@@ -129,13 +147,34 @@ NO_TASK_CHECKS=['task-schema','task-contract','sources','runtime-resolution','so
                 'request-compilation','recording-validation','execution-plan','publication']
 
 
+def _prerequisite(name: str) -> str:
+    """How a repair names one prerequisite: a check, or the input file at a pointer of the task."""
+    if name.startswith('input:'):
+        return 'the input at ' + name.removeprefix('input:')
+    if name.startswith('undeclared:'):
+        return 'an input at ' + name.removeprefix('undeclared:') + ', which the task does not declare'
+    return name
+
+
+def _resolve_first(prerequisites: list[str], waiting: str) -> str:
+    """The repair of `waiting`, which did not run: resolve its failed prerequisites first, each as its own diagnostic directs."""
+    names = [_prerequisite(name) for name in prerequisites]
+    if len(names) == 1:
+        return (f'Resolve the error of {names[0]} first, as its own diagnostic in this report directs; '
+                f'{waiting} runs once it passes. Then run the same command again.')
+    return (f'Resolve the errors of {", ".join(names[:-1])} and {names[-1]} first, each as its own diagnostic in '
+            f'this report directs; {waiting} runs once they pass. Then run the same command again.')
+
+
 def inspect_task(root: Path, task_path: str) -> tuple[dict | None,list[dict],dict[str,bytes]]:
     """Read the task and every file it declares once, keeping each failure with its pointer and cause."""
     diagnostics=[]; captured={}
     def no_task(diagnostic: dict):
         diagnostics.append(diagnostic)
+        blocked=[diagnostic['phase']]
         diagnostics.append(Diagnostic('CHECK_NOT_PERFORMED','No task object is available for dependent checks.',phase='task-read',
-                                      file=task_path,blocked_checks=NO_TASK_CHECKS).as_dict())
+                                      file=task_path,blocked_checks=NO_TASK_CHECKS,details={'blocked_by':blocked},
+                                      required_action=_resolve_first(blocked,'every check in blocked_checks')).as_dict())
         return None,diagnostics,captured
     try:
         raw=read_input(root,task_path,pointer=None,phase='task-read')
@@ -195,22 +234,46 @@ class InputChecks:
         self.states: dict[str, str] = {}
         self.values: dict[str, Any] = {}
         self.rows: list[dict] = []
+        self.requires: dict[str, list[str]] = {}
 
     def record(self, name: str, state: str, requires=()) -> None:
         """Record the state of a check performed elsewhere in the compilation."""
         self.states[name] = state
+        self.requires[name] = list(requires)
         self.rows.append({'phase': name, 'state': state, 'requires': list(requires)})
+
+    def failed_behind(self, names: list[str]) -> list[str]:
+        """The failed checks that keep `names` from passing, following prerequisites that did not run."""
+        found, seen, pending = [], set(), list(names)
+        while pending:
+            name = pending.pop(0)
+            if name in seen:
+                continue
+            seen.add(name)
+            if self.states.get(name) == 'not-performed':
+                pending.extend(self.requires.get(name, []))
+            elif self.states.get(name) == 'failed':
+                found.append(name)
+        return found
 
     def check(self, name: str, action, *, requires=(), file=None, pointer=None, code=None,
               guidance=None, required_action=None):
-        """Run one check unless a prerequisite failed; `code` names a failure that has no code of its own."""
+        """Run one check unless a prerequisite failed; `code` names a failure that has no code of its own.
+
+        A `ParameterErrors` failure reports each problem at `$.PARAMETER` with
+        the code its status names. A check that knows more about one problem
+        adds `code`, `pointer` and `required_action` to it, and those apply.
+        """
         blocked = [key for key in requires if self.states.get(key) != 'passed']
         if blocked:
             self.record(name, 'not-performed', requires)
+            # The failed checks behind the blocked ones each name their own repair.
+            failed = self.failed_behind(blocked) or blocked
             self.diagnostics.append(Diagnostic('CHECK_NOT_PERFORMED',
-                'Required inputs or checks are unavailable: ' + ', '.join(blocked),
-                phase=name, file=file, pointer=pointer, blocked_checks=[name],
-                guidance=guidance, details={'blocked_by': blocked}).as_dict())
+                'This check did not run: it requires ' + ', '.join(blocked) + ', which did not pass.',
+                phase=name, file=file, pointer=pointer, blocked_checks=[name], guidance=guidance,
+                required_action=_resolve_first(failed, 'check ' + name),
+                details={'blocked_by': blocked, **({'failed_prerequisites': failed} if failed != blocked else {})}).as_dict())
             return None
         try:
             with stage(name):
@@ -235,8 +298,10 @@ class InputChecks:
             from production_spec import SpecificationError
             if isinstance(exc, ParameterErrors):
                 for item in exc.problems:
-                    problem = {**diagnostic, 'message': item['message'], 'pointer': '$.' + item['parameter']}
-                    problem['code'] = _status_code(item.get('status')) or diagnostic['code']
+                    problem = {**diagnostic, 'message': item['message'],
+                               'pointer': item.get('pointer', '$.' + item['parameter']),
+                               'required_action': item.get('required_action', diagnostic['required_action'])}
+                    problem['code'] = item.get('code') or _status_code(item.get('status')) or diagnostic['code']
                     self.diagnostics.append(problem)
             elif isinstance(exc, SpecificationError):
                 for message in exc.errors:
@@ -257,7 +322,7 @@ class InputChecks:
 
 def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[str, bytes],
                          checks: InputChecks, *, runtime_ready: bool, directory: Path, artifacts: ArtifactSet,
-                         runtime_source=None,runtime_target=None,evidence=None) -> None:
+                         runtime_source=None,evidence=None) -> None:
     """Use existing domain validators before package assembly, without short-circuiting peers.
 
     A task schema error blocks only the checks that need the whole task. Every
@@ -377,13 +442,10 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
     if task.get('authority'):
         def authority():
             value=c.decode(cached(task['authority'], '$.authority'))
-            workflow.schema_check(value,'authority');workflow.permissions.validate(value,task['task_id'])
+            workflow.schema_check(value,'authority')
             cached(value['evidence']['path'])
-            from input_evidence import InputEvidence
-            import request_scope
-            reader=InputEvidence(root)
-            for grant in value['grants']: request_scope.verify_sources(grant['request_scope'],None,reader)
-            return value
+            from input_evidence import EvidenceAcquisition
+            return workflow.permissions.acquire(value,task['task_id'],EvidenceAcquisition(root))
         # A committed authority is the current one; the task's file is read only before the first import.
         if checks.states.get('task-schema') != 'passed' or store.authority_record(root, task['task_id']) is None:
             checks.check('authority-evidence',authority,requires=whole,file=task['authority'] if present(task['authority']) else task_path,
@@ -402,10 +464,9 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
     import build_generation_payload as builder
     import render_contract_lib as render
     def target(model_name, service):
-        result=(builder.resolve_target(model_name,service,source=runtime_source) if runtime_target is None else
-                builder.resolve_execution_target(runtime_target,source=runtime_source))
+        result=builder.resolve_target(model_name,service,source=runtime_source)
         if not result.matches(model_name) or result.offering is None or result.offering['service']!=service:
-            raise ValueError('the task target differs from its retained execution target; retarget explicitly')
+            raise ValueError('the selected packs resolve another model or service than the task declares')
         if result.service is None:
             raise ProductionError('MODEL_PROFILE_MISSING','The declared target has no selected offering.',phase='runtime-resolution')
         return result
@@ -434,8 +495,13 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                             required_action='Declare parameter_keys.scale on the selected offering of the upscale model record.')
                     dispatch.require_guidance_key(offering,request['guidance_prompt'])
                     settings=dispatch.mapped_settings(model,offering,request['settings'])
-                    contract=render.compile_contract(model,offering,request['render_intent'],{**settings,scale:request['scale_factor']},
-                        prompt=request['guidance_prompt'] or '',reference_count=1)
+                    try:
+                        contract=render.compile_contract(model,offering,request['render_intent'],{**settings,scale:request['scale_factor']},
+                            prompt=request['guidance_prompt'] or '',reference_count=1)
+                    except render.ParameterErrors as exc:
+                        raise render.ParameterErrors([_upscale_scale_problem(item,scale=scale,model_id=resolved.model_id,
+                            offering=offering,mode=request['render_intent']['execution_mode'],factor=request['scale_factor'])
+                            for item in exc.problems]) from exc
                     render.dispatch_values(contract,seed=None,count=1)
                 checks.check('execution-controls',upscale_controls,requires=['target-contract'],file=delivery_path)
         return
@@ -459,12 +525,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         'prepared_reference_set':documents.get('references'),'route_reading':c.decode(captured[task['route_reading']]) if task.get('route_reading') in captured else None,
         'seed':selected.get('seed'),'count':selected.get('count')}
     def selected_target():
-        if runtime_target is None:
-            result=builder.resolve_target(values['model'],selected['service'],source=runtime_source)
-        else:
-            result=builder.resolve_execution_target(runtime_target,source=runtime_source)
-            if not result.matches(values['model']) or result.offering is None or result.offering['service']!=selected['service']:
-                raise ValueError('the task target differs from its retained execution target; retarget explicitly')
+        result=builder.resolve_target(values['model'],selected['service'],source=runtime_source)
         if result.offering is None or result.service is None:
             raise ProductionError('MODEL_PROFILE_MISSING','The declared target has no selected offering or service.',phase='runtime-resolution')
         return result
@@ -486,8 +547,10 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
     def validation(selected_target):
         reference_document=documents.get('references')
         if reference_document is not None and reference_document.get('transport_mode')!='none':
-            raise ProductionError('MODEL_PROFILE_MISSING','Reference delivery requires an explicitly authored request validation policy.',
-                                  phase='request-compilation',pointer='$.generation.request_validation')
+            raise ProductionError('VALIDATION_POLICY_REQUIRED','Reference delivery requires an explicitly authored request validation policy.',
+                                  phase='request-validation-evidence',pointer='$.generation.request_validation',
+                                  required_action='Author an execution policy that declares reference_instruction_transport for this target, '
+                                                  'select it at choices.validation.execution_policy, then run the same command again.')
         from request_validation import acquire_offering
         return acquire_offering(selected_target,evidence)
     required={
@@ -714,15 +777,45 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
 
 
 def require_upscale_target(model_id: str, model: dict, package: dict) -> None:
-    """The declared upscale operation, scale and text channel must be supported."""
+    """The declared upscale operation, scale and text channel must be supported.
+
+    A model record lists its known request factors in supported_scale_factors.
+    Without the field, or with null, those factors are unknown: the offering's
+    execution profile and the selected request evidence then constrain the scale.
+    """
     if model.get('operation_kind')!='upscale':
-        raise ProductionError('MODEL_PROFILE_MISSING','The selected model is not an upscaler.',phase='runtime-resolution')
+        raise ProductionError('MODEL_PROFILE_MISSING','The selected model is not an upscaler.',phase='runtime-resolution',
+            required_action='Select a model record whose operation_kind is upscale, at choices.target or as the model of the '
+                            'upscale declaration, then run the same command again.')
     if model_id!=package['model']:
-        raise ProductionError('INPUT_CONSISTENCY_ERROR','Use the canonical selected model identifier in the upscale declaration.',phase='runtime-resolution',expected=model_id,actual=package['model'])
-    if package['scale_factor'] not in model.get('supported_scale_factors',[]):
-        raise ProductionError('CONTROL_NOT_AVAILABLE','The model does not declare this scale factor.',phase='request-compilation',pointer='$.scale_factor')
+        raise ProductionError('INPUT_CONSISTENCY_ERROR','Use the canonical selected model identifier in the upscale declaration.',phase='runtime-resolution',expected=model_id,actual=package['model'],
+            required_action='Name the model by its record ID, given as expected, in the upscale declaration, then run the same command again.')
+    supported=model.get('supported_scale_factors')
+    if supported is not None and package['scale_factor'] not in supported:
+        raise ProductionError('CONTROL_NOT_AVAILABLE','The model does not declare this scale factor.',phase='request-compilation',pointer='$.scale_factor',
+            required_action='Select a scale factor that supported_scale_factors of the model record lists, or record this factor '
+                            'there when request evidence establishes it, then run the same command again.')
     if package['guidance_prompt'] and model.get('supports_guidance_prompt') is not True:
-        raise ProductionError('CONTROL_NOT_AVAILABLE','The upscaler does not accept guidance text.',phase='request-compilation',pointer='$.guidance_prompt')
+        raise ProductionError('CONTROL_NOT_AVAILABLE','The upscaler does not accept guidance text.',phase='request-compilation',pointer='$.guidance_prompt',
+            required_action='Set guidance_prompt to null in the upscale declaration, or select an upscaler whose record sets '
+                            'supports_guidance_prompt to true, then run the same command again.')
+
+
+def _upscale_scale_problem(item: dict, *, scale: str, model_id: str, offering: dict, mode: str, factor: Any) -> dict:
+    """Report a scale factor that the offering's execution profile refuses at the declaration's scale_factor.
+
+    Without supported_scale_factors in the model record, the schema of the
+    scale control in the selected offering's execution profile lists the
+    factors the interface takes. Every other control problem is kept as it is.
+    """
+    if item['parameter'] != scale or item['status'] != 'schema-invalid':
+        return item
+    where = (f'the schema of the {scale} control in modes.{mode}.controls of the execution_profile of the '
+             f'{offering["service"]} offering in model record {model_id}')
+    return {**item, 'code': 'CONTROL_NOT_AVAILABLE', 'pointer': '$.scale_factor',
+            'message': f'The execution profile of the selected offering does not allow scale factor {factor}: {item["message"]}',
+            'required_action': f'Select a scale_factor that {where} allows, or record the factor there when request '
+                               'evidence establishes it, then run the same command again.'}
 
 
 def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,identity:str,blobs:dict,*,
@@ -747,7 +840,10 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     raw=captured[path] if path in captured else read_input(root,path,pointer='$.source.path')
     compare=c.digest(raw)
     if compare!=package['source']['sha256']:
-        raise ProductionError('SOURCE_CHANGED','The upscale source changed during capture.',phase='source-read',file=str(source),expected=package['source']['sha256'],actual=compare)
+        raise ProductionError('SOURCE_CHANGED','The upscale source changed during capture.',phase='source-read',file=str(source),expected=package['source']['sha256'],actual=compare,
+            required_action='Finish writing the upscale source image, then run the same command again. If the image was replaced on '
+                            'purpose, select it again as the source with draft-inputs --route upscale, so that the new '
+                            'input pins its bytes.')
     from production_evidence import inspect
     inspect(raw,'image')
     carrier=directory/'upscale.references'/('source'+source.suffix.lower());artifacts.write(carrier,raw)
@@ -795,22 +891,13 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
 
 def execution_readiness(prepared: dict, *, operations: list[dict]) -> dict:
     import production_permissions as permissions
-    diagnostics=[]
     authority=prepared.get('authority')
-    if authority is None:
-        diagnostics.append(Diagnostic('AUTHORIZATION_REQUIRED','No authority declaration is available.',phase='readiness',severity='warning',
-                                      required_action='Import actual approval or delegation for these operations.').as_dict())
-    else:
-        for intent in operations:
-            coverage=permissions.target_coverage(authority,intent['operation'],intent['targets'])
-            if not any(not item['missing'] for item in coverage):
-                missing=sorted(set().union(*(set(item['missing']) for item in coverage))) if coverage else sorted(intent['targets'])
-                diagnostics.append(Diagnostic('GRANT_SCOPE_EXCEEDED','No current grant covers all targets of the prepared operation.',phase='readiness',severity='warning',
-                    pointer='$.operations.'+intent['operation'],details={'expected':intent['targets'],'coverage':coverage,'missing':missing},
-                    required_action=permissions.SCOPE_ACTION).as_dict())
-        diagnostics.append(Diagnostic('AUTHORIZATION_REQUIRED','Exact execution receipts require the actual actor assessment of this preview.',phase='readiness',severity='warning',
-                                      required_action='Provide execution decisions or existing exact receipts; invoking execute is not approval.').as_dict())
-    return {'state':'authorization_required', 'executable':False, 'diagnostics':diagnostics}
+    requirements=permissions.grant_requirements(authority,operations)
+    diagnostics=[{**item,'phase':'readiness','severity':'warning'} for item in requirements['diagnostics']]
+    diagnostics.append(Diagnostic('AUTHORIZATION_REQUIRED','Exact execution receipts require the actual actor assessment of this preview.',phase='readiness',severity='warning',
+                                  required_action='Provide execution decisions or existing exact receipts; invoking execute is not approval.').as_dict())
+    return {'state':'authorization_required', 'executable':False, 'diagnostics':diagnostics,
+            'authorization_requirements':requirements}
 
 
 # A studio file named as {"path": STUDIO_RELATIVE_FILE}.
@@ -963,8 +1050,7 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                     diagnostics.append(from_exception(exc,phase='runtime-resolution',file=task_path))
             active_phase='input-checks'
             inspect_dependencies(root,task,task_path,captured,checks,runtime_ready=runtime_ready,directory=directory,
-                                 artifacts=artifacts,runtime_source=runtime_source,
-                                 runtime_target=runtime_inputs.target if runtime_inputs is not None else None,evidence=evidence)
+                                 artifacts=artifacts,runtime_source=runtime_source,evidence=evidence)
             if any(d.get('severity','error')=='error' for d in diagnostics):
                 raise CompilationError(report)
             active_phase='source-validation'
@@ -1092,8 +1178,12 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
             blocked=['publication']
         else:
             blocked=STAGES+['publication']
+        # The phases of the errors listed before this one; each error names its own repair.
+        failed=list(dict.fromkeys(item['phase'] for item in report['diagnostics']
+                                  if item.get('severity','error')=='error' and item['code']!='CHECK_NOT_PERFORMED')) or [active_phase]
         report['diagnostics'].append(Diagnostic('CHECK_NOT_PERFORMED','Full compilation is blocked by the listed errors.',
-            phase='compilation',blocked_checks=blocked).as_dict())
+            phase='compilation',blocked_checks=blocked,details={'blocked_by':failed},
+            required_action=_resolve_first(failed,'the rest of the compilation')).as_dict())
         if directory is not None and persist:
             try:c.atomic(directory/'failure.json',c.encoded(report))
             except OSError:pass
@@ -1161,21 +1251,41 @@ def write_manifest(directory: Path, artifacts: ArtifactSet) -> dict:
 
 
 def read_manifest(directory: Path, *, expected: str | None=None) -> dict:
-    """Read the sealed ownership rows, optionally bound to their registration."""
+    """Read the sealed ownership rows of a publication that no run registers yet.
+
+    `expected` is the digest of the manifest the calling operation wrote.
+    """
     return _read_publication_manifest(directory, expected=expected)[0]
 
 
-def _read_publication_manifest(directory: Path, *, expected: str | None = None) -> tuple[dict, str]:
+def _read_publication_manifest(directory: Path, *, expected: str | None = None,
+                               registered: bool = False) -> tuple[dict, str]:
+    """Read and check a publication manifest; `registered` says that `expected` is a run's registered digest.
+
+    A manifest that is not a complete file array is repaired by who holds it:
+    a publication without a registration is removed and prepared again, while
+    a registered run keeps the manifest bytes its registration records.
+    """
+    path=directory/'manifest.json'
     raw=c.read(c.local(directory,'manifest.json'))
     digest = c.digest(raw)
+    damaged=REGISTERED_MANIFEST_DAMAGED if registered else UNRECOVERABLE_PUBLICATION
+    where={'file':str(path),**({'run':directory.name} if registered else {})}
     if expected is not None and digest!=expected:
-        raise ProductionError('ARTIFACT_MANIFEST_CORRUPT','Publication manifest differs from the registered digest.',phase='integrity',file=str(directory/'manifest.json'),expected=expected,actual=digest)
+        if registered:
+            raise ProductionError('ARTIFACT_MANIFEST_CORRUPT','Publication manifest differs from the registered digest.',
+                                  phase='integrity',expected=expected,actual=digest,required_action=store.RESTORE_EVIDENCE,**where)
+        raise ProductionError('ARTIFACT_MANIFEST_CORRUPT','Publication manifest differs from the one this operation wrote.',
+                              phase='integrity',expected=expected,actual=digest,required_action=damaged,**where)
     manifest=c.decode(raw)
     c.exact(manifest,{'files','complete'},'publication manifest')
-    if manifest['complete'] is not True:raise ProductionError('ARTIFACT_INCOMPLETE','Publication has not completed.',phase='integrity')
+    if manifest['complete'] is not True:
+        raise ProductionError('ARTIFACT_INCOMPLETE','Publication has not completed.',phase='integrity',
+                              required_action=damaged,**where)
     if not isinstance(manifest['files'],list):
-        raise ProductionError('ARTIFACT_MANIFEST_CORRUPT','Publication files must be an array.',phase='integrity')
-    ArtifactSet(directory,manifest['files'])
+        raise ProductionError('ARTIFACT_MANIFEST_CORRUPT','Publication files must be an array.',phase='integrity',
+                              required_action=damaged,**where)
+    ArtifactSet(directory,manifest['files'],damaged=damaged)
     return manifest, digest
 
 
@@ -1189,15 +1299,17 @@ class PublicationRead:
     manifest_sha256: str
 
 
-def acquire_publication(directory: Path, *, expected: str | None = None,
+def acquire_publication(directory: Path, *, expected: str | None = None, registered: bool = False,
                         documents=()) -> PublicationRead:
     """Acquire a publication and decode its requested JSON at the I/O boundary.
 
     Every boundary reads its own current bytes. Large media is streamed;
     requested documents are decoded from the bytes that were checked. The
     returned values have no lazy readers or cross-boundary success state.
+    `registered` says that `expected` is the manifest digest a run's
+    registration records; otherwise the publication has no registration yet.
     """
-    manifest, manifest_sha256 = _read_publication_manifest(directory, expected=expected)
+    manifest, manifest_sha256 = _read_publication_manifest(directory, expected=expected, registered=registered)
     requested = frozenset(documents)
     acquired = {}
     for item in manifest['files']:
@@ -1207,7 +1319,8 @@ def acquire_publication(directory: Path, *, expected: str | None = None,
             if snapshot:
                 raise store.evidence_error('EVIDENCE_SNAPSHOT_MISSING','A saved source snapshot of the run is missing.',file=str(path),
                                            expected=item['sha256'],run=directory.name,artifact=item['path'])
-            raise ProductionError('ARTIFACT_MISSING','A published artifact is missing.',phase='integrity',file=str(path),expected=item['sha256'],run=directory.name)
+            raise ProductionError('ARTIFACT_MISSING','A published artifact is missing.',phase='integrity',file=str(path),expected=item['sha256'],run=directory.name,
+                                  required_action=store.RESTORE_EVIDENCE)
         raw = None
         if item['path'] in requested:
             raw = c.read(path)
@@ -1224,7 +1337,8 @@ def acquire_publication(directory: Path, *, expected: str | None = None,
             if snapshot:
                 raise store.evidence_error('EVIDENCE_SNAPSHOT_CORRUPT','A saved source snapshot of the run differs from its committed contents.',
                                            file=str(path),expected=item['sha256'],actual=actual,run=directory.name,artifact=item['path'])
-            raise ProductionError('ARTIFACT_CORRUPT','A published artifact differs from its committed contents.',phase='integrity',file=str(path),expected=item['sha256'],actual=actual,run=directory.name)
+            raise ProductionError('ARTIFACT_CORRUPT','A published artifact differs from its committed contents.',phase='integrity',file=str(path),expected=item['sha256'],actual=actual,run=directory.name,
+                                  required_action=store.RESTORE_EVIDENCE)
         if raw is not None:
             acquired[item['path']] = c.decode(raw)
     return PublicationRead(freeze(manifest), freeze(acquired),
@@ -1232,7 +1346,7 @@ def acquire_publication(directory: Path, *, expected: str | None = None,
 
 
 def verify_publication(directory: Path, *, expected: str | None=None) -> dict:
-    """Verify a publication when no caller needs decoded artifact contents."""
+    """Verify a publication that no run registers yet when no caller needs decoded artifact contents."""
     return acquire_publication(directory, expected=expected).manifest
 
 
@@ -1287,8 +1401,19 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
     try:
         with stage('artifact-publication'), store.transaction(root):
             active=work_ledger.require_open(root)
-            if active['task_id']!=prepared['task']['task_id'] or active['task_id']!=current_task['task_id']:
-                raise ProductionError('TASK_CHANGED','The open work task changed during preparation.',phase='publication')
+            if active['task_id']!=prepared['task']['task_id']:
+                # A derived task exists only in the staging of this preparation, so only a Studio task file is named.
+                live=dependency_space(prepared['task_path'])=='studio'
+                raise ProductionError('TASK_CHANGED','The task names another work task than the open one.',
+                    phase='publication',file=prepared['task_path'] if live else None,pointer='$.task_id' if live else None,
+                    expected=active['task_id'],actual=prepared['task']['task_id'],
+                    required_action='Show the open work task with work_ledger.py show and prepare a task that names its task_id, '
+                                    'given as expected. Reopen a run of other work with draft-inputs --from-run and --task-id or --new-task.')
+            if active['task_id']!=current_task['task_id']:
+                raise ProductionError('TASK_CHANGED','The open work task changed during preparation.',
+                    phase='publication',expected=current_task['task_id'],actual=active['task_id'],
+                    required_action='Run the same preparing command again. The task names the work task that is open now, '
+                                    'given as actual; expected is the one that was open when this preparation started.')
             prepared['parent']=parent
             prepared['predecessor']=store.latest_run(root,prepared['task']['task_id'])
             import production_workflow as workflow
@@ -1316,11 +1441,16 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
             manifest_sha256=c.content_id(manifest)
             verify_publication(directory,expected=manifest_sha256)
             target.parent.mkdir(parents=True,exist_ok=True)
-            if target.exists():raise ProductionError('OUTPUT_ALREADY_EXISTS','A run already occupies the publication destination.',phase='publication',file=str(target))
+            if target.exists():
+                raise ProductionError('OUTPUT_ALREADY_EXISTS','A run already occupies the publication destination.',phase='publication',file=str(target),
+                    required_action='Continue with the run that holds this ID. status reports it among runs, or among '
+                                    'unregistered_publications when recover-publication --run still has to register it.')
             if isinstance(compiled.artifacts,StagedArtifacts):
                 compiled.artifacts.flush_files()
                 compiled.artifacts.flush_directories(controls=PUBLICATION_CONTROLS)
-            c.publish_directory(directory,target);c.fsync_dir(target.parent)
+            c.publish_directory(directory,target)
+            # The run directory is in place; only its registration is left when this flush fails.
+            c.flush_published(target,continuation='Register the published run with recover-publication --run '+run+'.')
             if ((prepared.get('authored_revision') or {}).get('state')!='draft' and
                 prepared['task'].get('authority') and store.read_authority(root,prepared['task']['task_id'],required=False) is None):
                 store.import_authority(root,prepared['task']['authority'],initial=True)
@@ -1337,14 +1467,36 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
         operation=current()
         if operation:
             operation.link(run=run,task=prepared['task']['task_id'])
-        return {'ok':True,'run':run,'input_sha256':prepared['input_sha256'],'consumer':str(target/'consumer.json'),
-                'package':str(target/'package.json') if compiled.package else None,'request_preview':compiled.report['request_preview'],
-                'execution_plan':compiled.execution_plan,'warnings':warnings,'formal_run_created':True}
+        return _preparation_result(run,target,prepared['input_sha256'],package=bool(compiled.package),
+            request_preview=compiled.report['request_preview'],execution_plan=compiled.execution_plan,
+            warnings=warnings,created=True)
     except BaseException:
         if directory.exists():
             try:c.atomic(directory/'failure.json',c.encoded({'state':'publication-interrupted','target':str(target)}))
             except OSError:pass
         raise
+
+
+def _preparation_result(run:str,directory:Path,input_sha256:str,*,package:bool,request_preview:Any,
+                        execution_plan:dict,warnings:list,created:bool)->dict:
+    """What a preparation returns for its formal run; formal_run_created says whether this call published it."""
+    return {'ok':True,'run':run,'input_sha256':input_sha256,'consumer':str(directory/'consumer.json'),
+            'package':str(directory/'package.json') if package else None,'request_preview':request_preview,
+            'execution_plan':execution_plan,'warnings':warnings,'formal_run_created':created}
+
+
+def published_preparation(root: Path, run: str) -> dict:
+    """The preparation result of a registered run, read from its verified publication; it creates no run."""
+    import production_workflow as workflow
+    from owned_json import mutable
+    root=c._root(root)
+    loaded=workflow.read_run(root,run)
+    plan=mutable(loaded.artifacts['execution-plan.json'])
+    rendered=loaded.artifacts.get('request-contract.json')
+    return _preparation_result(run,c.local(root,loaded.registered['directory']),loaded.prepared['input_sha256'],
+        package='package.json' in loaded.artifacts,
+        request_preview=mutable(rendered['request']) if rendered is not None else plan.get('request'),
+        execution_plan=plan,warnings=[],created=False)
 
 
 
@@ -1391,7 +1543,9 @@ def _remove_owned(path: Path, label: str) -> None:
         shutil.rmtree(path)
     except OSError as exc:
         raise ProductionError('ARTIFACT_PUBLISH_FAILED', f'Owned {label} could not be removed.',
-                              phase='cleanup', file=str(path), actual=type(exc).__name__) from exc
+                              phase='cleanup', file=str(path), actual=type(exc).__name__,
+                              required_action='Check open handles and permissions on this path, then run staging-cleanup again; '
+                                              'its listing shows what remains.') from exc
 
 
 def _owner(directory: Path) -> dict:
@@ -1502,7 +1656,9 @@ def _staging_parent(root: Path) -> Path:
         return c.local(root, 'production/staging', exists=False)
     except (OSError, ValueError) as exc:
         raise ProductionError('STAGING_CLEANUP_REFUSED', 'Staging is outside the owned studio tree or contains a symbolic link.',
-                              phase='cleanup', file=str(root/'production/staging')) from exc
+                              phase='cleanup', file=str(root/'production/staging'),
+                              required_action='Replace the symbolic link or redirected directory on the path to production/staging '
+                                              'with a regular directory inside the studio, then run the command again.') from exc
 
 
 def inspect_staging(root: Path) -> list[dict]:
@@ -1539,6 +1695,9 @@ def prepare_task(root: Path, task_path: str, *, parent: dict | None=None, identi
     import work_ledger
     current_task=work_ledger.require_open(root)
     compiled=compile_task(root,task_path,persist=True,identity=identity,runtime_inputs=runtime_inputs)
+    if parent is None:
+        from production_inputs import export_parent
+        parent=export_parent(root,task_path,compiled)
     return publish_compilation(root,compiled,parent=parent,current_task=current_task)
 
 

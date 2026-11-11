@@ -353,6 +353,62 @@ class RunReadBoundaryTests(unittest.TestCase):
         self.assertTrue(all(blobs[key] == raw for key, raw in expected.items()))
         self.assertTrue(set(expected).issubset({item['sha256'] for item in dependencies if item['space'] == 'evidence'}))
 
+    def test_delegation_template_acquires_sources_once_without_rewriting_author_choices(self):
+        import production_request
+        import production_workspace
+        loaded = workflow.read_run(self.root, self.run_id)
+        prior = store.read_authority(self.root, self.case['task']['task_id'])
+        before = store.event_rows(self.root, 'authority:' + prior.task_id)
+        template = production_request.delegation_template(loaded.prepared,
+            loaded.artifacts['execution-plan.json']['operations'], prior.document)
+        self.assertEqual(template['state'], 'unapproved')
+        self.assertEqual(template['scope']['plan'], {'path': None, 'locator': None})
+        self.assertTrue(Path(template['schema']).is_file())
+        self.assertEqual(store.event_rows(self.root, 'authority:' + prior.task_id), before)
+        declaration = mutable(prior.document)
+        source = declaration['evidence']
+        declaration['grants'][0]['request_scope'] = template['scope']
+        declaration['grants'][0]['request_scope']['plan'] = dict(source)
+        path = self.root / 'delegation.json'
+        fixtures.write(path, declaration)
+        original = path.read_bytes()
+        reads = Counter()
+        read = store.stable_read
+
+        def counted(selected, *args, **kwargs):
+            reads[str(selected)] += 1
+            return read(selected, *args, **kwargs)
+
+        with patch.object(store, 'stable_read', side_effect=counted):
+            imported = store.import_authority(self.root, 'delegation.json', expected=prior.event['sha256'])
+        self.assertEqual(path.read_bytes(), original)
+        pinned = imported['data']['authority']['grants'][0]['request_scope']['plan']
+        self.assertEqual(pinned['sha256'], c.sha256_file(self.root / source['path']))
+        self.assertEqual(reads[str(self.root / source['path'])], 1)
+        snapshot = store.authority_snapshot(self.root, prior.task_id, store.read_authority(self.root, prior.task_id))
+        self.assertEqual(snapshot['event_sha256'], imported['sha256'])
+        self.assertEqual(snapshot['source_path'], 'delegation.json')
+        self.assertEqual(snapshot['update_action']['argv'][-2:], ['--expected-event', imported['sha256']])
+        (self.root / source['path']).write_bytes((self.root / source['path']).read_bytes() + b'Later unrelated instruction.\n')
+        view = production_workspace.workspace(self.root, self.run_id, phase='decision')
+        self.assertEqual(view['authority']['document']['grants'][0]['request_scope']['plan'], pinned)
+
+    def test_declared_scope_digest_is_checked_before_authority_event_is_appended(self):
+        import production_request
+        loaded = workflow.read_run(self.root, self.run_id)
+        prior = store.read_authority(self.root, self.case['task']['task_id'])
+        template = production_request.delegation_template(loaded.prepared,
+            loaded.artifacts['execution-plan.json']['operations'], prior.document)
+        declaration = mutable(prior.document)
+        template['scope']['plan'] = {**declaration['evidence'], 'sha256': '0' * 64}
+        declaration['grants'][0]['request_scope'] = template['scope']
+        fixtures.write(self.root / 'wrong-source.json', declaration)
+        before = store.event_rows(self.root, 'authority:' + prior.task_id)
+        with self.assertRaises(ProductionError) as caught:
+            store.import_authority(self.root, 'wrong-source.json', expected=prior.event['sha256'])
+        self.assertEqual(caught.exception.diagnostic.code, 'SOURCE_CHANGED')
+        self.assertEqual(store.event_rows(self.root, 'authority:' + prior.task_id), before)
+
     def test_submission_shares_authority_bytes_and_preserves_distinct_readings_of_one_source(self):
         import request_scope
         loaded = workflow.read_run(self.root, self.run_id)

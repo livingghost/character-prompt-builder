@@ -15,7 +15,7 @@ import protocol_contract as contract
 
 ROOT = Path(__file__).resolve().parents[1]
 from io_budget import read_stream
-from execution_contract import publish_directory
+from execution_contract import flush_published, publish_directory
 HEX = re.compile(r'^[0-9a-f]{64}$')
 
 
@@ -106,10 +106,13 @@ def export(root:Path,path:str,out:str,expected_contract:str|None=None) -> dict:
         _fsync_dir(stage)
         # This also rechecks installed schema bytes immediately before publication.
         verify_bundle(root,stage.relative_to(root.resolve()).as_posix())
-        publish_directory(stage,target);_fsync_dir(target.parent)
-    finally:
+        publish_directory(stage,target)
+    except BaseException:
         if stage is not None and stage.exists():shutil.rmtree(stage)
         guard.unlink(missing_ok=True);_fsync_dir(target.parent)
+        raise
+    guard.unlink(missing_ok=True)
+    flush_published(target)
     return {'ok':True,'out':out,**inspected,'canonical_adoption':False}
 
 

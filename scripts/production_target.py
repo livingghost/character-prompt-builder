@@ -14,9 +14,17 @@ from pathlib import Path
 from typing import Any
 
 import execution_contract as c
+from production_diagnostics import choice_required
 
 
 AUTHORED_FIELDS = frozenset({'execution_mode', 'parameters', 'syntax', 'vocabulary_record'})
+# The sections that explain a target selection, its external interface and its reference model.
+TARGET_GUIDE = {'document_path': 'references/runtime/production-authoring.md#select-and-change-the-target'}
+INTERFACE_GUIDE = {'document_path': 'references/runtime/production-external-inputs.md#exact-target-and-provider-schema'}
+REFERENCE_GUIDE = {'document_path': 'references/runtime/production-external-inputs.md#edit-the-request-and-media-choices'}
+CATALOG_TARGET = '{"kind": "catalog", "model": MODEL_ID, "service": SERVICE}'
+OFFERINGS = ("the service of one of the model's offerings, which scripts/catalog_cli.py inspect MODEL_ID "
+             "lists under record.offerings")
 COMMON_FIELDS = frozenset({'assessment'})
 CATALOG_FIELDS = frozenset({'kind', 'model', 'service', 'operation'}) | AUTHORED_FIELDS | COMMON_FIELDS
 ACQUIRED_FIELDS = frozenset({'kind', 'model_file', 'service'}) | AUTHORED_FIELDS | COMMON_FIELDS
@@ -51,6 +59,35 @@ def _specifications(authored: dict) -> list[dict]:
         if isinstance(item, dict) and item.get('format') == 'json' and isinstance(item.get('content'), dict):
             result.append(item['content'])
     return result
+
+
+def prepared_identity(task: dict, plan: dict, consumer: dict, package: dict | None) -> dict | None:
+    """Identify a prepared image target from values owned by its run reader."""
+    if task.get('execution') not in {'dispatcher', 'external'} or not plan.get('request_sha256'):
+        return None
+    actual = ((consumer.get('image_input') or {}).get('model') or {}).get('target')
+    if task['execution'] == 'dispatcher':
+        actual = (package or {}).get('request_validation', {}).get('target')
+    return {'model': plan['model'], 'service': plan['service'], 'route': task['route'],
+            'execution': task['execution'], 'operation': (actual or {}).get('operation')}
+
+
+def projected_identity(projected: dict) -> dict | None:
+    """Identify the current selection without reading another copy of its inputs."""
+    task, resolved = projected['task'], projected.get('resolved_target')
+    if resolved is None or task.get('execution') not in {'dispatcher', 'external'}:
+        return None
+    if task['execution'] == 'dispatcher':
+        offering = resolved.offering or {}
+        operations = getattr(resolved.transport, 'OPERATIONS', {})
+        operation = operations.get(resolved.model.get('operation_kind') or 'generation')
+        model, service = resolved.model_id, offering.get('service')
+    else:
+        external = projected['choices'].get('external') or {}
+        actual = (((external.get('image_input') or {}).get('model') or {}).get('target') or {})
+        model, service, operation = (actual.get(key) for key in ('model_identifier', 'service', 'operation'))
+    return {'model': model, 'service': service, 'route': task['route'],
+            'execution': task['execution'], 'operation': operation}
 
 
 def _reference_choices(authored: dict, external: dict | None):
@@ -132,15 +169,37 @@ def extract(task: dict, authored: dict, external: dict | None) -> dict | None:
     return selected
 
 
+def _listing(task: dict) -> str:
+    """The command that lists the catalog models able to perform this task's operation."""
+    if task.get('route') == 'upscale':
+        return 'scripts/render_contract.py models --operation upscale'
+    return 'scripts/render_contract.py models --operation generation (instruction-edit for an editing model)'
+
+
+# The external interface fields an evidenced selection names, with what each one holds.
+EXTERNAL_MODEL_FIELDS = {
+    'requested': 'the model name as the request asks for it',
+    'evidence': '{"path": FILE, "locator": SECTION}: the saved provider documentation or lookup that identifies '
+                'this interface',
+    'prompt_input': 'the evidenced input contract of the interface (mode, forms, vocabularies and basis, as '
+                    'schemas/model-prompt-input.schema.json defines it)',
+}
+EXTERNAL_TARGET_FIELDS = {'service': 'service', 'model_identifier': 'model identifier', 'operation': 'wire operation'}
+
+
 def unresolved(selection: Any, task: dict) -> list[dict]:
     """Report missing target choices without selecting an offering or control."""
     result = []
-    def missing(field, message):
-        result.append({'field': field, 'code': 'target-selection-required', 'message': message})
+    def missing(field, message, required_action, owner=TARGET_GUIDE):
+        result.append(choice_required(field, 'target-selection-required', message, required_action, owner))
     execution = task.get('execution')
     if selection is None:
         if execution != 'authored':
-            missing('target', 'Select the model and actual service for this image request.')
+            missing('target', 'target is null, so this image request selects no model or service.',
+                    'List the candidate models and their offering services with ' + _listing(task) +
+                    ', then set target to ' + CATALOG_TARGET + ' with the model and service of one listed row. '
+                    'An unlisted interface of an external task uses {"kind": "external", "model": ...} with its '
+                    'acquired evidence instead.')
         return result
     if not isinstance(selection, dict):
         raise ValueError('target must be an authored selection or null')
@@ -150,39 +209,79 @@ def unresolved(selection: Any, task: dict) -> list[dict]:
         raise ValueError('target requires one declared catalog, acquired or external selection')
     if kind == 'catalog':
         if not selection.get('model'):
-            missing('target.model', 'Select one canonical catalog model.')
+            missing('target.model', 'target.model is empty, so no catalog model is selected.',
+                    'List the candidate models with ' + _listing(task) + ', then set target.model to the model ID '
+                    'of one listed row.')
         if execution != 'authored' and not selection.get('service'):
-            missing('target.service', 'Select the service whose offering will receive this request.')
+            missing('target.service', 'target.service is empty, so no offering of the model receives this request.',
+                    'Set target.service to ' + OFFERINGS + '.')
         if execution == 'external' and not selection.get('operation'):
-            missing('target.operation', 'Select the exact wire operation from the external interface evidence.')
+            missing('target.operation', 'target.operation is empty, so the external wire operation is not selected.',
+                    'Set target.operation to the exact wire operation that the external interface evidence '
+                    'names for this request.', INTERFACE_GUIDE)
     elif kind == 'acquired':
         if execution != 'authored':
-            missing('target.kind', 'A supplied model definition is an authored-text target; select the actual image interface.')
+            missing('target.kind', 'target.kind is "acquired", and a supplied model definition targets authored '
+                    'text only.', 'Select the image interface at target.kind instead: ' + CATALOG_TARGET +
+                    ' for a catalog offering, or {"kind": "external", "model": ...} with acquired evidence in an '
+                    'external task.')
         if not selection.get('model_file'):
-            missing('target.model_file', 'Select the acquired model definition file.')
+            missing('target.model_file', 'target.model_file is empty, so no acquired model definition is selected.',
+                    'Set target.model_file to the Studio path of the acquired model definition JSON, the file that '
+                    'scripts/execution_routes.py read --model-file reads.')
     else:
         if execution != 'external':
-            missing('target.kind', 'An evidenced external interface requires external execution.')
+            missing('target.kind', 'target.kind is "external", and an evidenced external interface needs an '
+                    'external task.', 'Select a catalog target at target.kind for this ' + str(execution) +
+                    ' task: ' + CATALOG_TARGET + ' with ' + OFFERINGS + '.')
         model = selection.get('model')
         if not isinstance(model, dict):
-            missing('target.model', 'Supply the exact external model identity and its acquired evidence.')
+            missing('target.model', 'target.model is null, so the external interface is not identified.',
+                    'Set target.model to {"requested": NAME, "target": {"service": SERVICE, "model_identifier": '
+                    'IDENTIFIER, "operation": OPERATION}, "evidence": {"path": FILE, "locator": SECTION}, '
+                    '"prompt_input": CONTRACT} from the acquired provider evidence; tag input also names '
+                    'prompt_dialect.', INTERFACE_GUIDE)
         else:
             if set(model) - {'requested', 'target', 'evidence', 'prompt_input', 'prompt_dialect'}:
                 raise ValueError('external target model contains derived or unknown fields')
-            for field in ('requested', 'evidence', 'prompt_input'):
+            for field, value in EXTERNAL_MODEL_FIELDS.items():
                 if model.get(field) is None:
-                    missing('target.model.' + field, 'Supply the selected external model ' + field + '.')
+                    missing('target.model.' + field, 'target.model.' + field + ' is null.',
+                            'Set target.model.' + field + ' to ' + value + '.', INTERFACE_GUIDE)
             target = model.get('target')
             if not isinstance(target, dict):
-                missing('target.model.target', 'Supply the actual external service, model identifier and operation.')
+                missing('target.model.target', 'target.model.target is null, so the external call has no '
+                        'service, model identifier or operation.',
+                        'Set target.model.target to {"service": SERVICE, "model_identifier": IDENTIFIER, '
+                        '"operation": OPERATION} as the provider evidence names them.', INTERFACE_GUIDE)
             else:
-                for field in ('service', 'model_identifier', 'operation'):
+                for field, label in EXTERNAL_TARGET_FIELDS.items():
                     if not target.get(field):
-                        missing('target.model.target.' + field, 'Select the actual external ' + field + '.')
+                        missing('target.model.target.' + field, 'target.model.target.' + field + ' is empty.',
+                                'Set target.model.target.' + field + ' to the ' + label +
+                                ' that the provider evidence names.', INTERFACE_GUIDE)
     return result
 
 
+class SharedRuntime:
+    """One inspection's current pack runtime, acquired when a target first needs it.
+
+    The inspection owns this value. Its drafts resolve their targets against
+    one acquisition of the selected packs; another inspection acquires again.
+    """
+
+    def __init__(self):
+        self._runtime = None
+
+    def get(self):
+        if self._runtime is None:
+            self._runtime = _runtime(None)
+        return self._runtime
+
+
 def _runtime(source):
+    if isinstance(source, SharedRuntime):
+        return source.get()
     if source is not None:
         return source
     from catalog_retrieval.runtime import load_pack_catalog, selected_pack_settings
@@ -210,7 +309,7 @@ def _resolve(selection: dict, task: dict, root: Path, reader, source):
         c.text(record.get('id'), 'acquired model identity')
         resolve_prompt_input(record)
         offering = select_offering(record, selection['service']) if selection.get('service') is not None else None
-        return AcquiredTarget(record['id'], record, offering), source
+        return AcquiredTarget(record['id'], record, offering), None if isinstance(source, SharedRuntime) else source
     model = copy.deepcopy(selection['model'])
     evidence = model['evidence']
     selected = reader.select(evidence['path'])
@@ -226,17 +325,21 @@ def _resolve(selection: dict, task: dict, root: Path, reader, source):
     return AcquiredTarget(record['id'], record, offering, external_model=model), source
 
 
-def _knowledge(resolved, selection: dict, source) -> dict:
+def _knowledge(resolved, selection: dict, source, *, validation_choices=None) -> dict:
     """Expose full acquired guidance; this is not a route delivery receipt."""
     import render_contract_lib
     from model_prompt_input import prompt_input_card
+    from request_validation import target_readiness
     record = resolved.model
     offerings = ([resolved.offering] if resolved.offering is not None else
                  list(record.get('offerings') or [None]))
+    readiness = target_readiness(resolved, choices=validation_choices)
     knowledge = {'model': resolved.model_id, 'model_record': copy.deepcopy(record),
                  'offering': copy.deepcopy(resolved.offering),
                  'parameter_schema': copy.deepcopy(resolved.parameter_schema),
-                 'model_cards': [render_contract_lib.model_card(record, offering) for offering in offerings],
+                 'model_cards': [render_contract_lib.model_card(record, offering,
+                    readiness=readiness if offering is resolved.offering else None) for offering in offerings],
+                 'readiness': readiness,
                  **prompt_input_card(record), 'resources': {}, 'assessment': None}
     if source is not None:
         from route_reading import _family
@@ -305,8 +408,11 @@ def project(choices: dict, task: dict, root: Path, reader, out_dir: str, source=
             elif choices['target'].get('kind') == 'external' and prior and prior.get('reference_model') is not None:
                 choices['target'].setdefault('reference_model', prior['reference_model'])
         except (ValueError, OSError, KeyError, TypeError) as exc:
-            result['unresolved'].append({'field': 'external.image_input',
-                'code': 'selection-evidence-required', 'message': str(exc)})
+            result['unresolved'].append(choice_required('external.image_input', 'selection-evidence-required',
+                'The image-input plan selected at external.image_input cannot be opened: ' + str(exc),
+                'Set external.image_input to the Studio path of an image-input plan whose external_request.file '
+                'names its saved request and whose recorded hashes match the current files, or replace the '
+                'selector with the editable plan object.', REFERENCE_GUIDE))
             return result
     selected = choices.get('target')
     result['unresolved'] = unresolved(selected, task)
@@ -327,9 +433,14 @@ def project(choices: dict, task: dict, root: Path, reader, out_dir: str, source=
                 acquisition['model']['evidence']['sha256'] = pins[evidence['path']]
         resolved, source = _resolve(acquisition, task, root, reader, source)
         with source.using() if source is not None else nullcontext():
-            result['knowledge'] = _knowledge(resolved, selected, source)
+            result['knowledge'] = _knowledge(resolved, selected, source, validation_choices=choices.get('validation'))
     except (ValueError, OSError, KeyError, TypeError) as exc:
-        result['unresolved'].append({'field': 'target', 'code': 'target-evidence-required', 'message': str(exc)})
+        result['unresolved'].append(choice_required('target', 'target-evidence-required',
+            'target does not resolve to a usable model and offering: ' + str(exc),
+            'Correct target so that it resolves: a catalog model ID and one of its offering services, which '
+            'scripts/render_contract.py model --model MODEL_ID --service SERVICE prints when they resolve; an '
+            'acquired model_file that exists; or external evidence whose recorded sha256 matches its current '
+            'file, or a newly selected evidence file.', TARGET_GUIDE))
         return result
     result['resolved_target'] = resolved
     authored = choices.get('authoring')
@@ -349,13 +460,20 @@ def project(choices: dict, task: dict, root: Path, reader, out_dir: str, source=
         owned_task.setdefault('authored', {})['target'] = target
     elif execution == 'dispatcher':
         if resolved.offering is None:
-            result['unresolved'].append({'field': 'target.service', 'code': 'target-selection-required',
-                'message': 'Select one available offering for this dispatcher request.'})
+            result['unresolved'].append(choice_required('target.service', 'target-selection-required',
+                'No offering of the selected model is selected for this dispatcher request.',
+                'Set target.service to ' + OFFERINGS + '.', TARGET_GUIDE))
             return result
         if route == 'upscale':
             if has_authoring and not isinstance(authored.get('upscale'), dict):
-                result['unresolved'].append({'field': 'authoring.upscale', 'code': 'authored-choice-required',
-                    'message': 'Select the source image, scale and controls for this upscale.'})
+                result['unresolved'].append(choice_required('authoring.upscale', 'authored-choice-required',
+                    'authoring.upscale is null, so this dispatcher upscale selects no source image, scale or controls.',
+                    'Draft the enlargement with scripts/production_workflow.py draft-inputs --route upscale '
+                    '--source-image IMAGE --scale FACTOR (or --source-run RUN --source-candidate CANDIDATE) into a '
+                    'new --out-dir, or set authoring.upscale to {"source": IMAGE_PATH, "scale_factor": FACTOR, '
+                    '"settings": {}, "guidance_prompt": null, "render_intent": {"artifact_type": "render-intent", '
+                    '"execution_mode": "upscale"}}.',
+                    {'document_path': 'references/adapters/upscale.md#prepare-the-exact-input'}))
                 return result
             if has_authoring:
                 authored['upscale']['model'] = resolved.model_id
@@ -373,7 +491,10 @@ def project(choices: dict, task: dict, root: Path, reader, out_dir: str, source=
         try:
             model = _external_model(selected, resolved, out_dir, result['files'])
         except (ValueError, KeyError) as exc:
-            result['unresolved'].append({'field': 'target', 'code': 'target-evidence-required', 'message': str(exc)})
+            result['unresolved'].append(choice_required('target', 'target-evidence-required',
+                'target cannot bind the external request: ' + str(exc),
+                'Select target.service for one offering of a catalog model; an external host without a '
+                'dispatcher transport also needs target.operation from its wire contract.', INTERFACE_GUIDE))
             return result
         for references in _reference_choices(authored, external):
             if isinstance(references.get('image_input'), dict):
@@ -383,8 +504,8 @@ def project(choices: dict, task: dict, root: Path, reader, out_dir: str, source=
             if isinstance(plan, dict):
                 plan['model'] = model
             else:
-                result['unresolved'].append({'field': 'external.image_input', 'code': 'selection-required',
-                    'message': 'Select the editable native request and reference inputs for this external target.'})
+                from production_external_inputs import plan_required
+                result['unresolved'].append(plan_required())
             delivery = (external or {}).get('reference_delivery')
             if isinstance(delivery, dict):
                 delivery['target_model'] = (resolved.model_id if selected['kind'] == 'catalog'
@@ -392,7 +513,10 @@ def project(choices: dict, task: dict, root: Path, reader, out_dir: str, source=
                 if delivery['target_model'] is None:
                     from production_reference_inputs import _authored_rows
                     if _authored_rows(delivery['choices']):
-                        result['unresolved'].append({'field': 'target.reference_model',
-                            'code': 'target-selection-required',
-                            'message': 'Select the catalog model that prepares canonical references for this external interface.'})
+                        result['unresolved'].append(choice_required('target.reference_model',
+                            'target-selection-required',
+                            'target.reference_model is empty, so no catalog model prepares the canonical '
+                            'references of this external interface.',
+                            'Set target.reference_model to the catalog model ID that prepares the canonical '
+                            'reference set for this external interface.', REFERENCE_GUIDE))
     return result

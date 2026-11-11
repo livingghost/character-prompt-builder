@@ -6,11 +6,9 @@ from owned_json import json_type
 
 # Process exit statuses. A diagnostic code selects one through EXIT_CODES.
 EXIT_OK = 0
-EXIT_INTERNAL = 1
 EXIT_INPUT = 2
 EXIT_WAITING = 3
 EXIT_EXECUTION = 4
-EXIT_INTERRUPTED = 130
 
 # The author grants permission, configures the runtime, then retries.
 WAITING_CODES = frozenset({
@@ -28,24 +26,24 @@ EXECUTION_CODES = frozenset({
     'PROVIDER_OUTPUT_CHANGED', 'TRANSPORT_IMPLEMENTATION_CHANGED',
 })
 # Every other code is an input defect: a declared input, a stored record or an argument needs correcting.
-EXIT_CODES = {**{code: EXIT_WAITING for code in WAITING_CODES}, **{code: EXIT_EXECUTION for code in EXECUTION_CODES},
-              'INTERNAL_ERROR': EXIT_INTERNAL, 'OPERATION_INTERRUPTED': EXIT_INTERRUPTED}
+EXIT_CODES = {**{code: EXIT_WAITING for code in WAITING_CODES}, **{code: EXIT_EXECUTION for code in EXECUTION_CODES}}
 
 DEFAULT_ACTION = 'Correct the declared input and retry the operation.'
 # Phase owners are declared here; diagnostic prose never selects its own help.
 PHASE_DOCUMENTS = {
-    'task-read': 'references/runtime/production-workflow.md#authoring-and-handoff',
-    'task-schema': 'references/runtime/production-workflow.md#authoring-and-handoff',
-    'task-contract': 'references/runtime/production-workflow.md#authoring-and-handoff',
-    'source-read': 'references/runtime/production-execution.md#prepare-one-complete-input',
-    'source-validation': 'references/runtime/production-execution.md#prepare-one-complete-input',
+    'task-read': 'references/runtime/production-preparation.md#prepare-one-complete-input',
+    'task-schema': 'references/runtime/production-preparation.md#prepare-one-complete-input',
+    'task-contract': 'references/runtime/production-preparation.md#prepare-one-complete-input',
+    'source-read': 'references/runtime/production-preparation.md#prepare-one-complete-input',
+    'source-validation': 'references/runtime/production-preparation.md#prepare-one-complete-input',
+    'authoring': 'references/runtime/production-authoring.md#use-the-delivered-knowledge',
     'authoring-context': 'references/runtime/production-authoring.md#resume-input-authoring',
-    'delivery-content': 'references/runtime/production-execution.md#assemble-authored-choices',
-    'route-reading': 'references/runtime/production-execution.md#apply-the-completed-reading',
+    'delivery-content': 'references/runtime/production-authoring.md#use-the-delivered-knowledge',
+    'route-reading': 'references/runtime/production-authoring.md#use-the-delivered-knowledge',
     'world-views': 'references/runtime/world-realization.md#local-realization-plan-and-cli',
     'moment-views': 'references/runtime/story-context.md#use-the-moment-in-production',
     'scene-materials': 'references/runtime/story-context.md#prepared-scene-persona-material',
-    'image-input': 'references/runtime/production-execution.md#image-input-and-exact-external-requests',
+    'image-input': 'references/runtime/production-image-inputs.md#image-input',
     'identity-coverage': 'references/character-identity-contract.md#source-to-input-and-review-coverage',
     'semantic-edit': 'references/runtime/semantic-instruction-edit.md#author-and-bind-the-task',
     'scene-mask-binding': 'references/runtime/scene-mask-planning.md#use-the-existing-production-pipeline',
@@ -57,7 +55,7 @@ PHASE_DOCUMENTS = {
     'negative-provenance': 'references/runtime/prompt-composition.md#negative-output',
     'negative-transport': 'references/runtime/image-generation.md#model-and-negative-transport',
     'retrieval': 'references/runtime/prompt-composition.md#catalog-retrieval-and-inspection',
-    'render-intent': 'references/runtime/render-contract.md#choose-the-finish',
+    'render-intent': 'references/runtime/render-contract.md#select-the-operation-and-optional-rendering-declaration',
     'target-contract': 'references/runtime/render-contract.md#read-the-models-guidance',
     'execution-profile': 'references/runtime/render-contract.md#declare-controls-by-operation',
     'execution-controls': 'references/runtime/render-contract.md#declare-controls-by-operation',
@@ -65,15 +63,15 @@ PHASE_DOCUMENTS = {
     'request-validation-evidence': 'references/runtime/model-evidence.md#the-request-validation-record',
     'reference-preparation': 'references/runtime/reference-delivery.md#bind-the-actual-transport',
     'dependency-preflight': 'DEPENDENCIES.md#environment-check-and-installation',
-    'runtime-resolution': 'references/runtime/production-execution.md#prepare-one-complete-input',
+    'runtime-resolution': 'references/runtime/production-preparation.md#prepare-one-complete-input',
     'recording-validation': 'references/runtime/studio.md#production-owned-candidates',
-    'package-compilation': 'references/runtime/production-execution.md#prepare-one-complete-input',
+    'package-compilation': 'references/runtime/production-preparation.md#prepare-one-complete-input',
     'request-compilation': 'references/runtime/render-contract.md#resolve-and-inspect-the-exact-input',
-    'execution-plan': 'references/runtime/production-execution.md#execute-the-prepared-request',
-    'publication': 'references/runtime/production-execution.md#unpublished-staging-and-interrupted-publication',
+    'execution-plan': 'references/runtime/production-request-execution.md#execute-the-prepared-request',
+    'publication': 'references/runtime/production-preparation.md#unpublished-staging-and-interrupted-publication',
     'authorization': 'references/runtime/production-permissions.md#authorization-and-execution-records',
-    'readiness': 'references/runtime/production-execution.md#execute-the-prepared-request',
-    'resume': 'references/runtime/production-execution.md#status-and-resume',
+    'readiness': 'references/runtime/production-request-execution.md#execute-the-prepared-request',
+    'resume': 'references/runtime/production-recovery.md#status-and-resume',
 }
 PHASE_SCHEMAS = {
     'task-schema': 'schemas/authoring/production-task.schema.json',
@@ -94,6 +92,33 @@ def guidance(phase: str) -> dict[str, str] | None:
             **({'schema': PHASE_SCHEMAS[phase]} if phase in PHASE_SCHEMAS else {})}
 
 
+# The kinds of AUTHORED_CHOICE_REQUIRED. schemas/authoring/production-compilation-report.schema.json
+# enumerates the same reasons and the code table of production-diagnostics.md explains each one.
+CHOICE_REASONS = frozenset({
+    'reading-required', 'target-selection-required', 'target-evidence-required', 'selection-required',
+    'source-selection-required', 'selection-evidence-required', 'continuity-choice-required',
+    'authored-choice-required', 'plot-approval-required', 'current-judgment-required',
+    'provider-upload-required',
+})
+# The fields a diagnostic owns; every other key of an unresolved entry is one of its details.
+DIAGNOSTIC_FIELDS = frozenset({'code', 'severity', 'phase', 'file', 'pointer', 'message', 'required_action',
+                               'blocked_checks', 'guidance'})
+
+
+def choice_required(field: str, reason: str, message: str, required_action: str,
+                    guidance: dict[str, str], **details: Any) -> dict:
+    """One unanswered authored choice, as the owner that detects it states it.
+
+    `field` locates the choice in the choices file, `message` says what is
+    unanswered, `required_action` names the value to give there and where it
+    comes from, and `guidance` names the section that explains the choice.
+    """
+    if reason not in CHOICE_REASONS:
+        raise ValueError('unknown authored choice reason: ' + reason)
+    return {'field': field, 'code': 'AUTHORED_CHOICE_REQUIRED', 'reason': reason, 'message': message,
+            'required_action': required_action, 'guidance': dict(guidance), **details}
+
+
 def exit_code(code: str | None) -> int:
     """The exit status for one diagnostic code: 0 without one, 2 for an input defect."""
     if code is None:
@@ -111,7 +136,7 @@ def result_exit(diagnostics: Iterable[dict], *, failure: int = EXIT_INPUT) -> in
     statuses = {exit_code(item.get('code')) for item in diagnostics
                 if isinstance(item, dict) and item.get('severity', 'error') == 'error'
                 and item.get('code') != 'CHECK_NOT_PERFORMED'}
-    for status in (EXIT_INPUT, EXIT_EXECUTION, EXIT_WAITING, EXIT_INTERNAL):
+    for status in (EXIT_INPUT, EXIT_EXECUTION, EXIT_WAITING):
         if status in statuses:
             return status
     return failure
@@ -163,12 +188,26 @@ def from_exception(error: BaseException, *, phase: str, file: str | None = None,
         if result['required_action'] == DEFAULT_ACTION and required_action is not None:
             result['required_action'] = required_action
         return result
+    from route_reading import ReadingSourcesChanged
+    if isinstance(error, ReadingSourcesChanged):
+        details = error.as_dict()
+        return Diagnostic(details.pop('code'), str(error), phase=phase, file=file, pointer=pointer,
+                          guidance=guidance, required_action=details.pop('required_action'),
+                          details=details).as_dict()
     if isinstance(error, FileExistsError):
         code = 'OUTPUT_ALREADY_EXISTS'
     elif isinstance(error, OSError):
         code = 'ARTIFACT_PUBLISH_FAILED' if phase in {'publication', 'storage'} else 'INPUT_UNREADABLE'
     return Diagnostic(code, str(error), phase=phase, file=file, pointer=pointer,
                       guidance=guidance, required_action=required_action or DEFAULT_ACTION).as_dict()
+
+
+def from_unresolved(item: dict, *, file: str, phase: str = 'authoring') -> dict:
+    """The diagnostic of one unresolved entry, keeping the text, repair and guidance its producer gave."""
+    return Diagnostic(item['code'], item['message'], phase=item.get('phase', phase),
+                      file=item.get('file', file), pointer=item['field'],
+                      required_action=item['required_action'], guidance=item.get('guidance'),
+                      details={key: value for key, value in item.items() if key not in DIAGNOSTIC_FIELDS}).as_dict()
 
 
 def same_json(expected: Any, actual: Any) -> bool:

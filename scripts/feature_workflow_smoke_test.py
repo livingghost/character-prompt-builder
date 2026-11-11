@@ -183,6 +183,26 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertFalse((self.home / 'adoptions').exists())
         self.assertFalse(validate_studio(self.root))
 
+    def test_cli_reports_a_refusal_with_its_code_and_repair(self):
+        from PIL import Image
+        image = self.work / 'import.png'
+        Image.new('RGB', (24, 24), 'blue').save(image)
+        row = studio.iterate(self.root, 'C01', 'outfit.front', image,
+            package=None, request=None, response=None, note='Synthetic import with provenance still to be supplied.')
+        approval = self.work / 'approval.json'
+        pm.atomic_write_json(approval, self.approval(row, influence='outfit'))
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            code = adoption.main(['--studio', str(self.root), '--character', 'C01', 'adopt',
+                                  '--iteration', row['iteration_id'], '--approval', str(approval)])
+        report = json.loads(printed.getvalue())
+        self.assertEqual(code, 2)
+        self.assertFalse(report['ok'])
+        diagnostic = report['diagnostics'][0]
+        self.assertEqual((diagnostic['code'], diagnostic['iteration']), ('ADOPTION_PACKAGE_REQUIRED', row['iteration_id']))
+        self.assertIn('studio.py attach-package', diagnostic['required_action'])
+        self.assertFalse((self.home / 'adoptions').exists())
+
     def test_import_status_separates_available_source_from_author_approval(self):
         row = self.iteration()
         studio.accept(self.root, 'C01', row['iteration_id'])
@@ -282,6 +302,26 @@ class FeatureWorkflowTests(unittest.TestCase):
         pm.atomic_write_json(path, journal)
         self.assertTrue(self.index()['ok'])
         self.assertEqual(studio_reference.current_source(self.root, 'C01', row['slot']), source)
+
+    def test_damaged_imported_adoption_record_names_no_restoring_command(self):
+        import studio_reference
+        from production_diagnostics import ProductionError
+        row = self.iteration(slot='outfit.front')
+        adoption.adopt(self.root, 'C01', row['iteration_id'], self.approval(row, influence='outfit'))
+        path = adoption._journal_path(self.home, row['iteration_id'])
+        path.write_text('[]', encoding='utf-8')
+        for read in (lambda: studio_reference.current_source(self.root, 'C01', row['slot']),
+                     lambda: adoption.adopt(self.root, 'C01', row['iteration_id'], self.approval(row, influence='outfit'))):
+            with self.subTest(read=read), self.assertRaises(ProductionError) as caught:
+                read()
+            diagnostic = caught.exception.diagnostic
+            self.assertEqual(diagnostic.code, 'ADOPTION_RECORD_CORRUPT')
+            self.assertIn('characters/C01/adoptions/' + row['iteration_id'] + '.json', diagnostic.message)
+            self.assertNotIn('workflow.py', diagnostic.required_action)
+        binding = self.index()['bindings'][0]
+        self.assertEqual(binding['next_action'], 'repair-reference')
+        self.assertEqual(binding['adoption']['diagnostics'][-1]['required_action'], diagnostic.required_action)
+        self.assertEqual(path.read_text(encoding='utf-8'), '[]')
 
     def test_09_generation_rejects_old_reference_and_wrong_authority(self):
         old=self.iteration(); self.adopt(old); new=self.iteration('red'); self.adopt(new)

@@ -19,7 +19,7 @@ from model_prompt_input_fixtures import prompt_input
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK_ID = "0190c000-0000-7000-8000-000000000077"
-EXPECTED_CHECKS = 19
+EXPECTED_CHECKS = 22
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -186,6 +186,32 @@ def main() -> int:
         check("package commits source bytes", restorative["source_image"]["sha256"] != "0" * 64)
         check("package commits output bytes", restorative["output_image"]["sha256"] != "0" * 64)
         check("package uses portable relative paths", not Path(restorative["source_image"]["path"]).is_absolute())
+
+        extensionless = package_root / "images" / restorative['source_image']['sha256']
+        extensionless.write_bytes(source.read_bytes())
+        named_output = package_root / "images" / "actual-png.jpg"
+        named_output.write_bytes(output.read_bytes())
+        measured_package = build_upscale_package(
+            model="fixture-restorative-upscaler", source_image=extensionless,
+            output_image=named_output, package_root=package_root,
+            source_stored_path=extensionless.relative_to(package_root).as_posix(),
+            output_stored_path=named_output.relative_to(package_root).as_posix(),
+            scale_factor=2, settings={"variant": "general"}, guidance_prompt=None,
+            audit_status="not-required", audit_notes=[])
+        check("extensionless captured source round-trips from its actual PNG bytes",
+              verify_upscale_package(measured_package, package_root=package_root) == measured_package
+              and measured_package['source_image']['sha256'] == restorative['source_image']['sha256'])
+        check("output media type follows decoded bytes instead of its filename",
+              measured_package['output_image']['media_type'] == 'image/png')
+        unsupported = package_root / "images" / "unsupported.png"
+        Image.new("RGB", (2, 2)).save(unsupported, format="GIF")
+        check("a supported suffix cannot admit an unsupported decoded format", expect_error(
+            lambda: build_upscale_package(
+                model="fixture-restorative-upscaler", source_image=unsupported,
+                output_image=output, package_root=package_root,
+                source_stored_path="images/unsupported.png", output_stored_path="images/output.png",
+                scale_factor=2, settings={"variant": "general"}, guidance_prompt=None,
+                audit_status="not-required", audit_notes=[]), 'unsupported image media type'))
 
         original_output = output.read_bytes()
         make_image(output, (4, 4), 120)

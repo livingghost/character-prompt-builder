@@ -1,8 +1,8 @@
-"""Accept one existing Production image in its Studio slot, with recoverable evidence.
+"""Select and complete an existing reviewed result, with recoverable evidence.
 
 The author supplies decisions once. The run supplies its candidate, review,
 authority, destination and immutable evidence. Selection is the durable intent;
-the Studio owns its acceptance history and the run records the verified result.
+the requested scope decides which existing owner records its verified result.
 No task, generation, candidate, review or iteration is created here.
 """
 from __future__ import annotations
@@ -11,6 +11,7 @@ import copy
 from pathlib import Path
 
 import execution_contract as c
+import production_permissions as permissions
 import production_store as store
 import runtime_snapshot
 from production_diagnostics import ProductionError, compare_exact
@@ -33,7 +34,7 @@ def _target(root: Path, run: str, candidate: str, *, loaded: tuple | None = None
         raise ProductionError('SLOT_ACCEPTANCE_NOT_APPLICABLE',
             'Slot acceptance needs an image run with its existing Studio recording.',
             phase='acceptance', run=run, candidate=candidate,
-            required_action='Use ordinary selection for a delivery without a Studio slot.')
+            required_action='Use draft-acceptance --scope delivery-only for delivery without a Studio slot.')
     home = studio.character_home(root, recording['character'])
     origin = {'run': run, 'candidate': candidate}
     matches = [row for row in studio.read_iterations(home, project=False) if row.get('production') == origin]
@@ -55,7 +56,9 @@ def _target(root: Path, run: str, candidate: str, *, loaded: tuple | None = None
     actual = c.sha256_file(c.local(root, result['path']))
     if actual != expected:
         raise ProductionError('SLOT_ACCEPTANCE_MISMATCH', 'The recorded Studio image bytes have changed.',
-                              phase='acceptance', run=run, file=result['path'], expected=expected, actual=actual)
+                              phase='acceptance', run=run, file=result['path'], expected=expected, actual=actual,
+                              required_action='Copy production/runs/' + run + '/objects/' + expected + ' to ' + result['path']
+                                              + '; the run keeps the candidate bytes there.')
     return target, row
 
 
@@ -66,46 +69,93 @@ def validate_slot(root: Path, run: str, candidate: str, slot: dict, *, loaded: t
     return row
 
 
+def authority_basis(authority: store.CurrentAuthority, grant: str) -> str:
+    """Bind only this grant's terms, source authority and current stop definitions."""
+    document = authority.document
+    selected = next(item for item in document['grants'] if item['id'] == grant)
+    terms = {key: selected.get(key) for key in
+             ('id', 'actor', 'mode', 'effective_at', 'expires_at', 'revoked_at')}
+    terms.update(operation='select', operation_granted='select' in selected['operations'],
+                 targets=['delivery'], delivery_granted='delivery' in selected['targets'])
+    declaration = [{key: item[key] for key in ('path', 'locator', 'sha256')}
+                   for item in authority.evidence if item['purpose'] == 'authority-declaration']
+    return c.content_id({'task_id': authority.task_id, 'issuer': document['issuer'],
+                         'grant': terms, 'declaration': declaration,
+                         'stop_conditions': sorted(document['stop_conditions'], key=lambda item: item['id'])})
+
+
+def _grant(authority: store.CurrentAuthority, grant: str | None) -> str:
+    requirements = permissions.grant_requirements(authority.document,
+        [{'operation': 'select', 'targets': ['delivery']}], grant=grant)
+    permissions.require_grants(requirements)
+    return requirements['requirements'][0]['selected_grant']
+
+
 @runtime_snapshot.operation
-def draft(root: Path, run: str, candidate: str, grant: str) -> dict:
-    """Pin the existing candidate and prior slot state without supplying a judgment."""
+def draft(root: Path, run: str, candidate: str, grant: str | None = None, *, scope: str = 'delivery-only') -> dict:
+    """Pin the retained result and applicable authority without supplying a judgment."""
     import production_workflow as workflow
     loaded = workflow.read_run(root, run)
     _, prepared, _, rows = loaded
     workflow.require_mutable(rows)
     workflow.require_open_task(rows, run)
     reviewed = workflow.latest_review(rows, candidate)
-    target, _ = _target(root, run, candidate, loaded=loaded)
-    authority = workflow.current_authority(root, prepared).document
-    matches = [item for item in authority['grants'] if item['id'] == grant]
-    if len(matches) != 1:
-        raise ValueError('unknown grant id')
-    return {'run': run, 'input_sha256': prepared['input_sha256'], 'candidate': candidate,
-            'review': reviewed['sha256'], 'expected_slot': slot_state(root, target['character'], target['slot']),
-            'grant': grant, 'reason': '',
+    if scope not in {'delivery-only', 'studio-slot'}:
+        raise ValueError('acceptance scope must be delivery-only or studio-slot')
+    authority = workflow.current_authority(root, prepared)
+    grant = _grant(authority, grant)
+    result = {'run': run, 'input_sha256': prepared['input_sha256'], 'candidate': candidate,
+            'review': reviewed['sha256'], 'scope': scope,
+            'authority_sha256': authority_basis(authority, grant), 'grant': grant, 'reason': '',
             'stop_assessments': [{'id': item['id'], 'clear': False, 'evidence': ''}
-                                 for item in authority['stop_conditions']],
+                                 for item in authority.document['stop_conditions']],
             'owner_acceptance': None}
+    if scope == 'studio-slot':
+        target, _ = _target(root, run, candidate, loaded=loaded)
+        result['expected_slot'] = slot_state(root, target['character'], target['slot'])
+    return result
 
 
 def _expand(root: Path, run: str, decisions: dict, loaded: tuple) -> tuple[dict, dict]:
-    """Derive the exact selection and authorization from explicitly authored choices."""
+    """Derive the exact selection and authorization from explicitly authored choices.
+
+    The selection replaces the run's latest selection in `loaded`, so its
+    authorization states which selection it replaces.
+    """
     import production_workflow as workflow
     workflow.schema_check(decisions, 'acceptance')
     _, prepared, _, rows = loaded
+    compare_exact({'run': run, 'input_sha256': prepared['input_sha256']},
+                  {key: decisions[key] for key in ('run', 'input_sha256')}, phase='acceptance')
     reviewed = workflow.latest_review(rows, decisions['candidate'])
-    compare_exact({'run': run, 'input_sha256': prepared['input_sha256'], 'review': reviewed['sha256']},
-                  {key: decisions[key] for key in ('run', 'input_sha256', 'review')}, phase='acceptance')
-    target, _ = _target(root, run, decisions['candidate'], loaded=loaded)
-    current = slot_state(root, target['character'], target['slot'])
-    if decisions['expected_slot'] != current:
-        raise ProductionError('SLOT_ACCEPTANCE_CONFLICT', 'The slot changed after this acceptance decision was drafted.',
-            phase='acceptance', run=run, expected=decisions['expected_slot'], actual=current,
-            required_action='Inspect the current slot and draft a new decision if this replacement is still intended.')
+    if decisions['review'] != reviewed['sha256']:
+        candidate = decisions['candidate']
+        raise ProductionError('SELECTION_REVIEW_CHANGED',
+            'The decision selects against a review that is no longer the candidate\'s latest.',
+            phase='acceptance', run=run, pointer='$.review', expected=reviewed['sha256'], actual=decisions['review'],
+            required_action=(f'Read the latest review with production_workflow.py candidate-status --run {run} '
+                f'--candidate {candidate}. Draft a decision against it with draft-acceptance --run {run} --candidate '
+                f'{candidate} --scope {decisions["scope"]} --grant {decisions["grant"]} --out FILE, keep the '
+                'judgments of this decision only where that review still supports them, and apply it with accept '
+                f'--run {run} --file FILE.'))
+    target = None
+    if decisions['scope'] == 'studio-slot':
+        target, _ = _target(root, run, decisions['candidate'], loaded=loaded)
+        current = slot_state(root, target['character'], target['slot'])
+        if decisions['expected_slot'] != current:
+            raise ProductionError('SLOT_ACCEPTANCE_CONFLICT', 'The slot changed after this acceptance decision was drafted.',
+                phase='acceptance', run=run, expected=decisions['expected_slot'], actual=current,
+                required_action='Inspect the current slot and draft a new decision if this replacement is still intended.')
     authority = workflow.current_authority(root, prepared)
-    grants = [item for item in authority.document['grants'] if item['id'] == decisions['grant']]
-    if len(grants) != 1:
-        raise ProductionError('GRANT_REVOKED', 'The selected grant is not current.', phase='authorization', run=run)
+    grant = _grant(authority, decisions['grant'])
+    current_basis = authority_basis(authority, grant)
+    if decisions['authority_sha256'] != current_basis:
+        raise ProductionError('ACCEPTANCE_AUTHORITY_CHANGED',
+            'The selected grant, source authority or stop conditions changed after this decision was drafted.',
+            phase='acceptance', run=run, pointer='$.authority_sha256',
+            expected=decisions['authority_sha256'], actual=current_basis,
+            required_action='Read the changed authority and draft a new acceptance decision; retain judgments only where their basis still applies.')
+    actor = next(item['actor'] for item in authority.document['grants'] if item['id'] == grant)
     allowance = decisions['owner_acceptance']
     if allowance is not None:
         source = allowance['evidence']
@@ -113,9 +163,10 @@ def _expand(root: Path, run: str, decisions: dict, loaded: tuple) -> tuple[dict,
         allowance = {**copy.deepcopy(allowance), 'principal': authority.document['issuer'],
                      'evidence': {**source, 'sha256': c.digest(raw)}}
     selection = {'input_sha256': prepared['input_sha256'], 'candidate': decisions['candidate'],
-                 'review': decisions['review'], 'selector': grants[0]['actor'], 'reason': decisions['reason'],
-                 'scope': 'studio-slot', 'adoption': None, 'slot': target,
-                 'owner_acceptance': allowance, 'authorization': ''}
+                 'review': decisions['review'], 'selector': actor, 'reason': decisions['reason'],
+                 'scope': decisions['scope'], 'adoption': None, 'slot': target,
+                 'owner_acceptance': allowance, 'authorization': '',
+                 'replaces': workflow.replaced_selection(rows)}
     request = workflow.draft_authorization_from(loaded, authority, decisions['grant'], workflow.selection_intent(selection))
     request['reason'] = decisions['reason']
     request['stop_assessments'] = copy.deepcopy(decisions['stop_assessments'])
@@ -173,36 +224,64 @@ def verify_slot(root: Path, run: str, selection_receipt: dict, *, rows: list[dic
 
 @runtime_snapshot.operation
 def accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
-    """Accept and complete one committed selection, then rebuild its views once."""
+    """Apply or recover one exact reviewed decision and rebuild its views once."""
     import studio_activity as activity
     with activity.operation(root) as projection:
         result = _accept(root, run, decision_file=decision_file)
     return activity.project_result(result, projection)
 
 
+def _selected(rows: list[dict]) -> dict | None:
+    """A completed run retains its established selection when later use changes."""
+    selections = [row for row in rows if row['event'] == 'selection']
+    completed = [row for row in rows if row['event'] == 'completion']
+    if completed:
+        identifier = completed[-1]['data'].get('selection')
+        return next((row for row in selections if row['sha256'] == identifier), None)
+    return selections[-1] if selections else None
+
+
+def _resumed(rows: list[dict], digest: str) -> dict | None:
+    """The run's selection that a decision file with this digest recorded, while it is in force.
+
+    A completed run keeps the selection its completion names. In an open run the
+    latest selection is in force until a later disposition of its candidate
+    withdraws it or a newer review of its candidate ends it. The same decision
+    is then applied as a new decision, as it is after a later selection replaced
+    the one it recorded.
+    """
+    import production_workflow as workflow
+    selected = _selected(rows)
+    if selected is None or not any(item['sha256'] == digest for item in selected['data']['files']):
+        return None
+    chosen = selected['data']['selection']
+    if not any(row['event'] == 'completion' for row in rows) and (
+            workflow.selection_withdrawn(rows, selected)
+            or workflow.latest_review(rows, chosen['candidate'])['sha256'] != chosen['review']):
+        return None
+    return selected
+
+
 def _accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
-    """Select, accept and complete the original run, or recover its exact committed intent."""
+    """Select and complete the requested scope, or recover its exact committed intent.
+
+    A decision file that recorded the selection in force resumes it. Any other
+    decision, including one that recorded an earlier selection, is applied as
+    a new selection that replaces the run's latest one.
+    """
     import production_workflow as workflow
     import studio
     import work_ledger
-    from cli_invocation import python_argv, shown
     loaded = workflow.read_run(root, run)
     directory, prepared, _, rows = loaded
-    selections = [row for row in rows if row['event'] == 'selection']
-    selected = selections[-1] if selections else None
+    selected = _selected(rows)
     if decision_file is not None:
         raw = store.stable_bytes(root, decision_file)
-        prior = [row for row in selections if any(item['sha256'] == c.digest(raw)
-                 for item in row['data'].get('files', []))]
-        if prior:
-            if selected['sha256'] != prior[-1]['sha256']:
-                raise ProductionError('SELECTION_REPLACED', 'A newer selection replaced this acceptance decision.',
-                                      phase='acceptance', run=run)
-            selected = prior[-1]
-        else:
-            with store.transaction(root):
-                loaded = workflow.read_run(root, run)
-                directory, prepared, _, rows = loaded
+        with store.transaction(root):
+            loaded = workflow.read_run(root, run)
+            directory, prepared, _, rows = loaded
+            selected = _resumed(rows, c.digest(raw))
+            if selected is None:
                 workflow.require_mutable(rows)
                 workflow.require_open_task(rows, run)
                 selection, request = _expand(root, run, c.decode(raw), loaded)
@@ -211,33 +290,48 @@ def _accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
                 selection['authorization'] = authorization['sha256']
                 item = {'path': decision_file, 'sha256': c.object_store(directory, raw), 'size': len(raw)}
                 selected = workflow.select_value(root, run, selection, files=[item])
-    if selected is None or selected['data']['selection']['scope'] != 'studio-slot':
-        raise ProductionError('SLOT_SELECTION_REQUIRED', 'Accept needs an exact studio-slot selection.',
+    if selected is None:
+        raise ProductionError('SELECTION_REQUIRED', 'Accept needs an exact reviewed selection.',
             phase='acceptance', run=run,
             required_action='Draft the actual choices with draft-acceptance and supply the completed file.')
     directory, prepared, _, rows = workflow.read_run(root, run)
-    current, chosen, _ = workflow.current_selection(prepared, rows)
+    current = _selected(rows)
     if current['sha256'] != selected['sha256']:
-        raise ProductionError('SELECTION_REPLACED', 'The acceptance decision is no longer the current selection.',
-                              phase='acceptance', run=run)
+        action = ('Read the current selection with production_workflow.py status --run ' + run + '. Run accept --run '
+                  + run + ' to resume that selection')
+        action += (', or accept --run ' + run + ' --file ' + decision_file + ' again to record this decision as a '
+                   'new selection that replaces it.' if decision_file is not None else '.')
+        raise ProductionError('SELECTION_REPLACED',
+            'Another operation recorded a newer selection of this run while this acceptance was applied.',
+            phase='acceptance', run=run, expected=selected['sha256'], actual=current['sha256'],
+            required_action=action)
     completed = [row for row in rows if row['event'] == 'completion']
+    chosen = selected['data']['selection']
     studio_result = {}
+    result = None
     if completed:
-        result = verify_slot(root, run, selected, rows=rows)
         done = workflow.verify_completion(root, run, prepared['task']['task_id'])
+        if chosen['scope'] == 'studio-slot':
+            result = next(row for row in rows if row['event'] == 'slot-acceptance'
+                          and row['data']['selection'] == selected['sha256'])
     else:
+        workflow.current_selection(prepared, rows)
         workflow.require_open_task(rows, run)
-        target = chosen['slot']
-        studio_result = studio.accept(root, target['character'], target['iteration_id'],
-                                      production_selection=selected['sha256'])
-        data = _receipt(root, run, selected, require_current=True)
-        directory, prepared, _, rows = workflow.read_run(root, run)
-        result = workflow.append_record(directory, prepared, rows, 'slot-acceptance', data)
+        if chosen['scope'] == 'studio-slot':
+            target = chosen['slot']
+            studio_result = studio.accept(root, target['character'], target['iteration_id'],
+                                          production_selection=selected['sha256'])
+            data = _receipt(root, run, selected, require_current=True)
+            directory, prepared, _, rows = workflow.read_run(root, run)
+            result = workflow.append_record(directory, prepared, rows, 'slot-acceptance', data)
         done = workflow.complete(root, run)
+    work = work_ledger.finish_state(root, run)
     answer = {'ok': True, 'run': run, 'selection': selected['sha256'],
-              'slot_acceptance': result['sha256'], 'completion': done['sha256'], 'slot': chosen['slot'],
-              'task_id': prepared['task']['task_id'],
-              'finish_command': shown(python_argv(work_ledger.SCRIPT, 'finish', '--studio', str(root.resolve()), '--run', run))}
+              'scope': chosen['scope'], 'completion': done['sha256'],
+              'task_id': prepared['task']['task_id'], 'work': work,
+              'finish_command': work['finish_command']}
+    if result is not None:
+        answer.update(slot_acceptance=result['sha256'], slot=chosen['slot'])
     warnings = [item['projection_warning'] for item in (selected, studio_result, done) if item.get('projection_warning')]
     if warnings:
         answer['projection_warnings'] = warnings

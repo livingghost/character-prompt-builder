@@ -7,28 +7,43 @@ from pathlib import Path, PurePosixPath
 import execution_contract as c
 from production_diagnostics import ProductionError
 
+RESTORE_CONTENTS = ('Restore the exact bytes matching the expected digest at this path, then run the command again; '
+                    'never recreate different contents.')
+# A refused declaration is continued by who made it: the stored rows a set was
+# loaded from, or the running operation that writes into the set or reads from it.
+DECLARATION_DAMAGED = ('The stored file list of this set is not a valid declaration, and no valid copy of it is known. '
+                       'Nothing is read from this set; records outside it are unaffected.')
+OPERATION_CONFLICT = ('This file set refuses a file that the running operation declared, requested or staged; path names '
+                      'it when one is given. Nothing is restored for this: the operation stops, and the runs already '
+                      'registered are unaffected. Run the same command again. Staging that a failed preparation leaves is '
+                      'listed by staging-cleanup and removed with --apply --operation once its owner operation has ended.')
+
 
 class ArtifactSet:
     """One set of exact file contents, declared by the producers that write them.
 
     The publication manifest persists these rows. A directory walk checks
     membership; producers establish which files the publication owns.
+    `damaged` is the repair reported when `rows`, a stored declaration, are
+    refused; the reader that knows what holds those rows supplies it.
     """
 
-    def __init__(self, root: Path, rows=()):
+    def __init__(self, root: Path, rows=(), *, damaged: str = DECLARATION_DAMAGED):
         self._root_spelling = Path(root).absolute()
         self.root = c._root(self._root_spelling)
         self._files: dict[str, dict] = {}
+        self._repair = damaged
         seen = set()
         for row in rows:
             added = self.add_record(row)
             if added['path'] in seen:
                 self._invalid('An artifact is declared twice.', path=added['path'])
             seen.add(added['path'])
+        self._repair = OPERATION_CONFLICT
 
     def _invalid(self, message: str, **details) -> None:
         raise ProductionError('ARTIFACT_MANIFEST_CORRUPT', message, phase='integrity',
-                              file=str(self.root), **details)
+                              file=str(self.root), required_action=self._repair, **details)
 
     def _relative(self, path: str | Path) -> str:
         if isinstance(path, Path):
@@ -144,11 +159,13 @@ class ArtifactSet:
         source = c.local(self.root, relative, exists=False)
         if not source.is_file():
             raise ProductionError('ARTIFACT_MISSING', 'A declared artifact is missing.',
-                                  phase='integrity', file=str(source), expected=row['sha256'])
+                                  phase='integrity', file=str(source), expected=row['sha256'],
+                                  required_action=RESTORE_CONTENTS)
         raw = c.read(source)
         if c.digest(raw) != row['sha256'] or len(raw) != row['size']:
             raise ProductionError('ARTIFACT_CORRUPT', 'A declared artifact differs from its committed contents.',
-                                  phase='integrity', file=str(source), expected=row['sha256'], actual=c.digest(raw))
+                                  phase='integrity', file=str(source), expected=row['sha256'], actual=c.digest(raw),
+                                  required_action=RESTORE_CONTENTS)
         return raw
 
     def copy_file(self, path: str, destination: Path) -> Path:

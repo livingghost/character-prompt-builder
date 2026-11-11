@@ -5,7 +5,6 @@ import copy
 import io
 import json
 import os
-import re
 import shlex
 import subprocess
 import sys
@@ -54,8 +53,50 @@ class ReadingTests(unittest.TestCase):
         out=stream.getvalue()
         self.assertEqual(['notes/always.md','notes/work.md'],[x['path'] for x in issued['row']['documents']])
         for name in ('notes/always.md','notes/work.md'):
-            self.assertIn((self.root/name).read_bytes().decode('utf-8'),out)
-        self.assertTrue(out.rstrip().endswith(issued['reading_key']))
+            self.assertIn((self.root/name).read_bytes().decode('utf-8'), [item['text'] for item in json.loads(out)['body']])
+        self.assertEqual(json.loads(out)['reading']['key'], issued['reading_key'])
+    def test_route_and_feature_errors_explain_selection_before_delivery(self):
+        cases = [
+            (r.ROOT, 'generation', ['batch'],
+             ["'batch' is a route", "select route 'batch'", 'remove --feature batch']),
+            (self.root, 'generation', ['development'],
+             ["'development' is a route", "select route 'development'", 'remove --feature development']),
+            (self.root, 'extra', [],
+             ["'extra' is a feature", 'choose a route from: development, generation', 'include --feature extra']),
+            (self.root, 'unlisted-scope', [],
+             ['unknown route: unlisted-scope', 'choose a route from: development, generation']),
+            (self.root, 'generation', ['unlisted-scope'],
+             ['unknown feature: unlisted-scope', 'choose a feature from: extra']),
+        ]
+        for root, route, features, expected in cases:
+            with self.subTest(route=route, features=features):
+                acquired = []
+                def source(path):
+                    acquired.append(path)
+                    return (root / path).read_bytes()
+                with self.assertRaises(ValueError) as resolved:
+                    r.execution_routes.resolve(route, features, execution='dispatcher',
+                                               root=root, read_source=source)
+                message = str(resolved.exception)
+                for fragment in [*expected, r.execution_routes.MANIFEST, 'SKILL.md']:
+                    self.assertIn(fragment, message)
+                self.assertEqual(acquired, [r.execution_routes.MANIFEST])
+                for reader in (r.issue, r.read_page):
+                    stream = io.StringIO()
+                    with self.assertRaises(ValueError) as rejected:
+                        reader(route=route, features=features, execution='dispatcher',
+                               root=root, ledger=self.ledger, stream=stream)
+                    self.assertEqual(str(rejected.exception), message)
+                    self.assertEqual(stream.getvalue(), '')
+                    self.assertFalse(self.ledger.exists())
+                    self.assertFalse((self.ledger.parent / 'reading-snapshots').exists())
+                    self.assertFalse((self.ledger.parent / 'readings').exists())
+        corrected = r.read_page(route='development', features=['extra'], execution='dispatcher',
+                                root=self.root, ledger=self.ledger, stream=io.StringIO())
+        self.assertEqual(corrected['issued']['row']['route'], 'development')
+        self.assertEqual(corrected['issued']['row']['features'], ['extra'])
+        self.assertEqual([item['metadata']['path'] for item in corrected['body']],
+                         ['notes/always.md', 'notes/work.md', 'notes/extra.md'])
     def test_only_a_failed_resource_blocks_a_reading(self):
         self.manifest['features']['prompt-dialect'] = {'reads': [], 'source_roles': []}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
@@ -156,24 +197,23 @@ class ReadingTests(unittest.TestCase):
         delivered={}
         for page_number in range(64):
             output=self.cli_read(argv,cwd=self.root,environment=env)
+            result=json.loads(output)
             page_bytes=0
-            for match in re.finditer(r'^--- (\{[^\n]+\}) ---\n',output,re.MULTILINE):
-                header=json.loads(match.group(1))
-                size=header['end']-header['start']
-                body=output[match.end():].encode('utf-8')[:size]
-                body.decode('utf-8')
+            for segment in result['body']:
+                header=segment['metadata']
+                body=segment['text'].encode('utf-8')
                 key=(header['kind'],header['path'])
+                self.assertEqual(len(body),header['end']-header['start'])
                 self.assertEqual(len(delivered.get(key,b'')),header['start'])
                 delivered[key]=delivered.get(key,b'')+body
-                page_bytes+=size
+                page_bytes+=len(body)
             self.assertLessEqual(page_bytes,r.DEFAULT_PAGE_BYTES)
             self.assertGreater(page_bytes,0)
-            actions=json.loads(next(line.split(': ',1)[1] for line in output.splitlines()
-                                    if line.startswith('reading-actions: ')))
-            if 'continue' not in actions:
+            actions=result['actions']
+            if actions['continue'] is None:
                 break
-            self.assertNotIn('reading-key: ',output)
-            self.assertNotIn('reading-record: ',output)
+            self.assertIsNone(result['reading'])
+            self.assertIsNone(result['context_reuse'])
             self.assertFalse(ledger.exists())
             self.assertFalse((self.root/'work/readings').exists())
             argv=actions['continue']['argv']
@@ -181,9 +221,8 @@ class ReadingTests(unittest.TestCase):
         else:
             self.fail('Default continuation did not finish the route reading')
         self.assertGreater(page_number,0)
-        last=output.rstrip().splitlines()[-1]
-        self.assertTrue(last.startswith('reading-record: work/readings/development-'),last)
-        draft=c.load(self.root/last.split(': ',1)[1])
+        self.assertTrue(result['reading']['record'].startswith('work/readings/development-'))
+        draft=c.load(self.root/result['reading']['record'])
         self.assertEqual((draft['route'],draft['operation']),('development','author'))
         for document in draft['documents']:
             body=(r.ROOT/document['path']).read_bytes()
@@ -229,12 +268,14 @@ class ReadingTests(unittest.TestCase):
         return run.stdout
 
     def cli_reading_actions(self, output, *, studio, ledger, runtime, roots, page_bytes):
-        lines = [line for line in output.splitlines() if line.startswith('reading-actions: ')]
-        self.assertTrue(lines, output[-2000:])
-        actions = json.loads(lines[-1].split(': ', 1)[1])
+        actions = json.loads(output)['actions']
         self.assertIn('replay', actions)
-        self.assertTrue(set(actions) <= {'continue', 'replay'}, actions)
+        self.assertTrue(set(actions) <= {'continue', 'replay', 'restart'}, actions)
+        self.assertIn('restart', actions)
         for name, action in actions.items():
+            if action is None:
+                self.assertEqual(name, 'continue')
+                continue
             self.assertEqual(set(action), {'argv', 'command', 'reason'})
             argv = action['argv']
             self.assertEqual(argv[:3], [os.path.abspath(sys.executable),
@@ -256,9 +297,9 @@ class ReadingTests(unittest.TestCase):
         return actions
 
     def cli_reading_record(self, output, *, studio, ledger):
-        last = output.rstrip().splitlines()[-1]
-        self.assertTrue(last.startswith('reading-record: '), last)
-        path = Path(last.split(': ', 1)[1])
+        result = json.loads(output)
+        self.assertIsNone(result['actions']['continue'])
+        path = Path(result['reading']['record'])
         if not path.is_absolute():
             path = studio / path
         record = c.load(path)
@@ -309,12 +350,12 @@ class ReadingTests(unittest.TestCase):
         actions = self.cli_reading_actions(output, **expected)
         self.assertIn('continue', actions)
         self.assertFalse(ledger.exists())
-        cursor = next(line.split(': ', 1)[1] for line in reversed(output.splitlines())
-                      if line.startswith('reading-cursor: '))
+        cursor = json.loads(output)['cursor']
         snapshot_path = ledger.parent / 'reading-snapshots' / cursor.split(':')[0] / 'snapshot.json'
         snapshot_bytes = snapshot_path.read_bytes()
         snapshot = json.loads(snapshot_bytes)
-        self.assertEqual(set(snapshot), {'manifest', 'root', 'runtime', 'task_id', 'model_file', 'nonce', 'bodies'})
+        self.assertEqual(set(snapshot), {'manifest', 'root', 'runtime', 'task_id', 'model_file', 'nonce', 'bodies',
+                                         'required_bodies', 'reused_bodies', 'known_readings', 'context_keys'})
         self.assertIsNone(snapshot['task_id'])
         self.assertEqual(snapshot['runtime'], {
             'state_file': runtime['--state-file'], 'cache_dir': runtime['--cache-dir'],
@@ -328,8 +369,7 @@ class ReadingTests(unittest.TestCase):
                                  'CPB_READS_LEDGER': str(other_ledger)}
         replay = self.cli_read(actions['replay']['argv'], cwd=second_cwd,
                                environment=continued_environment)
-        headers = lambda text: [json.loads(line[4:-4]) for line in text.splitlines()
-                                if line.startswith('--- {') and line.endswith('} ---')]
+        headers = lambda text: [segment['metadata'] for segment in json.loads(text)['body']]
         self.assertEqual(headers(replay), headers(output))
         self.cli_reading_actions(replay, **expected)
         output = self.cli_read(actions['continue']['argv'], cwd=second_cwd,
@@ -339,32 +379,52 @@ class ReadingTests(unittest.TestCase):
             # A manually supplied cursor may omit runtime selectors. The next
             # offered commands must still name the runtime stored in the snapshot.
             self.assertIn('continue', actions)
-            cursor = next(line.split(': ', 1)[1] for line in reversed(output.splitlines())
-                          if line.startswith('reading-cursor: '))
+            cursor = json.loads(output)['cursor']
             output = self.cli_read([*base, '--continue', cursor, '--root', str(studio),
                                     '--reading-ledger', str(ledger), '--page-bytes', str(page_bytes)],
                                    cwd=second_cwd, environment=continued_environment)
             actions = self.cli_reading_actions(output, **expected)
         for _ in range(64):
-            if 'continue' not in actions:
+            if actions['continue'] is None:
                 break
             output = self.cli_read(actions['continue']['argv'], cwd=second_cwd,
                                    environment=continued_environment)
             actions = self.cli_reading_actions(output, **expected)
         else:
             self.fail('Returned continuation commands did not finish the route reading')
-        self.assertEqual(set(actions), {'replay'})
+        self.assertEqual(set(actions), {'continue', 'replay', 'restart'})
+        self.assertIsNone(actions['continue'])
         path, record = self.cli_reading_record(output, studio=studio, ledger=ledger)
         self.assertEqual(record['features'], ['studio'] if explicit else [])
         first_record_bytes = path.read_bytes()
         replay = self.cli_read(actions['replay']['argv'], cwd=second_cwd,
                                environment=continued_environment)
-        self.assertEqual(set(self.cli_reading_actions(replay, **expected)), {'replay'})
+        self.assertIsNone(self.cli_reading_actions(replay, **expected)['continue'])
         _, replay_record = self.cli_reading_record(replay, studio=studio, ledger=ledger)
         self.assertNotEqual(record['reading_key'], replay_record['reading_key'])
         self.assertEqual(path.read_bytes(), first_record_bytes)
         r.require_route_reading(record, root=r.ROOT, ledgers=[ledger])
         self.assertEqual(len(r.ledger_rows(ledger)), 2)
+        reuse = json.loads(output)['context_reuse']
+        reused = self.cli_read(reuse['operations']['author']['argv'], cwd=second_cwd,
+                               environment=continued_environment)
+        reused_path, reused_record = self.cli_reading_record(reused, studio=studio, ledger=ledger)
+        self.assertEqual(reused_record['documents'], record['documents'])
+        self.assertNotEqual(reused_record['reading_key'], record['reading_key'])
+        self.assertNotEqual(reused_path, path)
+        self.assertEqual(json.loads(reused)['body'], [])
+        self.assertEqual(json.loads(reused)['progress']['total_bytes'], 0)
+        before = ledger.read_bytes()
+        restart_action = json.loads(reused)['actions']['restart']
+        self.assertNotIn('--known-reading', restart_action['argv'])
+        restart = self.cli_read(restart_action['argv'], cwd=second_cwd,
+                                environment=continued_environment)
+        restarted_headers = headers(restart)
+        self.assertEqual(restarted_headers[0]['start'], 0)
+        self.assertEqual(json.loads(restart)['progress']['reused_bytes'], 0)
+        self.assertNotEqual(restarted_headers[0]['snapshot'], cursor.split(':')[0])
+        self.cli_reading_actions(restart, **expected)
+        self.assertEqual(ledger.read_bytes(), before)
         self.assertEqual(snapshot_path.read_bytes(), snapshot_bytes)
         self.assertFalse(other_ledger.exists())
         self.assertFalse((other_home / 'pack-state.json').exists())
@@ -390,18 +450,15 @@ class ReadingTests(unittest.TestCase):
                 lookup.assert_not_called()
         self.assertFalse((self.root / 'work/reading-snapshots').exists())
 
-    def test_reading_ledger_argument_is_reserved_for_continuation(self):
+    def test_explicit_ledger_is_a_current_reading_location(self):
         import contextlib
-        ledger = self.root / 'existing ledger/reads.jsonl'
-        ledger.parent.mkdir()
-        original = b'Existing ledger bytes are retained.\n'
-        ledger.write_bytes(original)
-        args, parser = self.read_args('development', '--reading-ledger', str(ledger))
-        with contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises((ValueError, SystemExit)):
-                r.read_command(args, parser)
-        self.assertEqual(ledger.read_bytes(), original)
-        self.assertFalse((ledger.parent / 'reading-snapshots').exists())
+        ledger = self.root / 'selected ledger/reads.jsonl'
+        args, parser = self.read_args('development', '--reading-ledger', str(ledger), '--page-bytes', '1000000')
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = r.read_command(args, parser)
+        self.assertTrue(ledger.is_file())
+        self.assertEqual(result['issued']['row']['route'], 'development')
+        self.assertIn(str(ledger), result['context_reuse']['operations']['save']['argv'])
 
     def family_catalog(self):
         pack=self.root/'pack';(pack/'resources').mkdir(parents=True)
@@ -460,8 +517,8 @@ class ReadingTests(unittest.TestCase):
         out=io.StringIO()
         with catalog,patch.dict(os.environ),contextlib.redirect_stdout(out):
             os.environ.pop('CPB_READS_LEDGER',None)
-            self.read_command_to_completion(*self.read_args('generation'))
-        draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
+            result=self.read_command_to_completion(*self.read_args('generation'))
+        draft=c.load(self.root/result['reading']['record'])
         self.assertEqual({x['dialect'] for x in draft['resources'].values()},{None})
         self.assertIn(self.guide['sections'][0]['rules'][0],out.getvalue())
         for section in self.guide['sections'][1:]:
@@ -491,9 +548,9 @@ class ReadingTests(unittest.TestCase):
         with (catalog,patch.object(prepare_generation_references,'resolve_model_record',return_value=record),
               patch.dict(os.environ),contextlib.redirect_stdout(out)):
             os.environ.pop('CPB_READS_LEDGER',None)
-            self.read_command_to_completion(args,parser)
+            result=self.read_command_to_completion(args,parser)
         self.assertNotIn(self.guide['sections'][1]['rules'][0],out.getvalue())
-        draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
+        draft=c.load(self.root/result['reading']['record'])
         self.assertEqual({x['dialect'] for x in draft['resources'].values()},{'family-b'})
         self.assertEqual(draft['model']['id'], 'synthetic-model')
         self.assertEqual(draft['model']['record_sha256'], c.content_id(record[1]))
@@ -621,12 +678,12 @@ class ReadingTests(unittest.TestCase):
         out=io.StringIO()
         with catalog,patch.dict(os.environ),contextlib.redirect_stdout(out):
             os.environ.pop('CPB_READS_LEDGER',None)
-            self.read_command_to_completion(*self.read_args('generation','--dialect','family-a'))
+            result=self.read_command_to_completion(*self.read_args('generation','--dialect','family-a'))
             with self.assertRaisesRegex(ValueError,"unknown dialect 'family-c'; the prompt-dialects resource carries: family-a, family-b"):
                 self.read_command_to_completion(*self.read_args('generation','--dialect','family-c'))
         self.assertIn(self.guide['sections'][1]['rules'][0],out.getvalue())
         self.assertNotIn(self.guide['sections'][2]['rules'][0],out.getvalue())
-        draft=c.load(self.root/out.getvalue().rstrip().splitlines()[-1].split(': ',1)[1])
+        draft=c.load(self.root/result['reading']['record'])
         self.assertEqual({x['dialect'] for x in draft['resources'].values()},{'family-a'})
         row=next(x for x in r.ledger_rows(self.root/'work/reads.jsonl') if x['key_sha256']==c.digest(draft['reading_key'].encode()))
         self.assertEqual(row['resources'],draft['resources'])
@@ -654,6 +711,260 @@ class ReadingTests(unittest.TestCase):
     def test_same_version_reusable(self):
         record=self.record()
         self.assertEqual(self.verify(record),self.verify(record))
+
+    def test_current_scope_preserves_an_unneeded_changed_specialist(self):
+        record = self.record(features=['extra'])
+        (self.root / 'notes/extra.md').write_bytes(b'# Changed specialist\nA different specialist source.\n')
+        r.require_route_reading(record, root=self.root, ledgers=[self.ledger], features=[])
+        issued = r.resolve_issuance(record['reading_key'], ledgers=[self.ledger])
+        self.assertEqual(r.build_record(issued, root=self.root, ledgers=[self.ledger], features=[]), record)
+        copied = self.root / 'copied/reads.jsonl'
+        r.copy_issuance(record, copied, root=self.root, ledgers=[self.ledger])
+        self.assertEqual(r.ledger_rows(copied), r.ledger_rows(self.ledger))
+        with self.assertRaises(r.ReadingSourcesChanged) as failure:
+            r.require_route_reading(record, root=self.root, ledgers=[self.ledger], features=['extra'])
+        self.assertEqual([row['path'] for row in failure.exception.changes], ['notes/extra.md'])
+        self.assertEqual(failure.exception.as_dict()['code'], 'READING_SOURCES_CHANGED')
+        from production_diagnostics import from_exception
+        diagnostic = from_exception(failure.exception, phase='authoring', file='choices.json')
+        self.assertEqual(diagnostic['changes'], failure.exception.changes)
+        self.assertEqual(diagnostic['code'], 'READING_SOURCES_CHANGED')
+        self.assertEqual(diagnostic['file'], 'choices.json')
+        self.assertEqual(diagnostic['required_action'], failure.exception.required_action)
+
+    def test_same_context_read_issues_current_scope_without_repeated_bodies(self):
+        issued = self.issued()
+        before = self.ledger.read_bytes()
+        reused = r.read_page(route='generation', root=self.root, ledger=self.ledger, stream=io.StringIO(),
+                             operation='save', execution='dispatcher', known_reading_keys=[issued['reading_key']])
+        self.assertTrue(reused['same_context_required'])
+        self.assertEqual(reused['body'], [])
+        self.assertEqual(reused['issued']['row']['operation'], 'save')
+        self.assertNotEqual(reused['issued']['reading_key'], issued['reading_key'])
+        self.assertTrue(self.ledger.read_bytes().startswith(before))
+        self.assertEqual(reused['progress']['reused_bytes'], reused['progress']['required_bytes'])
+        changed = b'# Changed work\nA current source.\n'
+        (self.root / 'notes/work.md').write_bytes(changed)
+        current = r.read_page(route='generation', root=self.root, ledger=self.ledger, stream=io.StringIO(),
+                              operation='save', execution='dispatcher', known_reading_keys=[issued['reading_key']])
+        self.assertEqual([item['metadata']['path'] for item in current['body']], ['notes/work.md'])
+        self.assertEqual(current['body'][0]['text'].encode(), changed)
+        self.assertEqual(current['progress']['reused_bodies'], 1)
+        r.require_route_reading(r.draft_record(current['issued']), root=self.root, ledgers=[self.ledger])
+
+    def test_phase_continuation_combines_multiple_complete_readings_and_keeps_origins(self):
+        for name in ('prepare', 'execute', 'review', 'adopt'):
+            path = 'notes/' + name + '.md'
+            (self.root / path).write_bytes(('# ' + name + '\nComplete ' + name + ' contract.\n').encode())
+            self.manifest['operation_contexts'][name]['reads'].append(path)
+        self.manifest['operation_contexts']['review']['reads'] += ['notes/prepare.md', 'notes/execute.md']
+        self.manifest['operation_contexts']['adopt']['reads'] += ['notes/prepare.md', 'notes/review.md']
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        prepared = self.root / 'prepared-request.json'
+        original = b'{"prompt":"The retained character choice.","seed":31}\n'
+        prepared.write_bytes(original)
+        keys, seen = [], set()
+        delivered = 0
+        for operation in ('prepare', 'execute', 'review', 'adopt'):
+            output = io.StringIO()
+            result = r.read_page(route='generation', operation=operation, execution='dispatcher',
+                                 root=self.root, ledger=self.ledger, stream=output, known_reading_keys=keys)
+            response = json.loads(output.getvalue())
+            paths = [item['metadata']['path'] for item in response['body']]
+            self.assertTrue(paths)
+            self.assertFalse(set(paths) & seen)
+            self.assertEqual(response['reading']['key'], result['issued']['reading_key'])
+            self.assertIsNone(response['actions']['continue'])
+            seen.update(paths)
+            delivered += result['progress']['total_bytes']
+            keys = result['context_reuse']['known_reading_keys']
+            record = r.draft_record(result['issued'])
+            r.require_route_reading(record, root=self.root, ledgers=[self.ledger], operation=operation)
+            self.assertEqual(prepared.read_bytes(), original)
+        self.assertEqual(delivered, sum((self.root / path).stat().st_size for path in seen))
+        adopted = result['issued']['row']
+        first = r.resolve_issuance(keys[0], ledgers=[self.ledger])['row']
+        work = next(item for item in adopted['delivery']['bodies'] if item['body']['path'] == 'notes/work.md')
+        self.assertEqual(work['origin']['key_sha256'], first['key_sha256'])
+        self.assertNotEqual(work['reused_from'], first['key_sha256'])
+        copied = self.root / 'isolated-copy/reads.jsonl'
+        r.copy_issuance(r.draft_record(result['issued']), copied, root=self.root, ledgers=[self.ledger])
+        r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[copied])
+        self.assertEqual(r.ledger_rows(copied)[0]['delivery'], adopted['delivery'])
+
+    def test_partial_delivery_never_supplies_known_bodies_and_fresh_read_ignores_ledger(self):
+        partial = r.read_page(route='generation', execution='dispatcher', root=self.root,
+                              ledger=self.ledger, stream=io.StringIO(), page_bytes=17)
+        self.assertIsNone(partial['reading'])
+        self.assertIsNone(partial['context_reuse'])
+        with self.assertRaisesRegex(ValueError, 'no issuance row'):
+            r.read_page(route='generation', execution='dispatcher', root=self.root, ledger=self.ledger,
+                        stream=io.StringIO(), known_reading_keys=['a' * 32])
+        complete = r.read_page(cursor=partial['cursor'], root=self.root, ledger=self.ledger,
+                               stream=io.StringIO(), page_bytes=10000)
+        fresh = r.read_page(route='generation', execution='dispatcher', root=self.root,
+                            ledger=self.ledger, stream=io.StringIO())
+        self.assertEqual(fresh['progress']['reused_bytes'], 0)
+        self.assertFalse(fresh['same_context_required'])
+        self.assertEqual(fresh['progress']['total_bytes'], complete['progress']['total_bytes'])
+        self.assertEqual(fresh['progress']['total_bytes'], fresh['progress']['required_bytes'])
+        self.assertEqual(len(fresh['body']), len(fresh['issued']['row']['documents']))
+
+    def test_context_delta_replay_and_interruption_preserve_complete_union(self):
+        issued = self.issued()
+        self.manifest['operation_contexts']['execute']['reads'].append('notes/extra.md')
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        first = r.read_page(route='generation', operation='execute', execution='dispatcher',
+                            root=self.root, ledger=self.ledger, stream=io.StringIO(),
+                            known_reading_keys=[issued['reading_key']], page_bytes=31)
+        replay = r.read_page(cursor=first['cursor'], replay=True, root=self.root, ledger=self.ledger,
+                             stream=io.StringIO(), page_bytes=11)
+        self.assertEqual(replay['body'][0]['metadata']['start'], 0)
+        self.assertEqual(replay['body'][0]['metadata']['path'], 'notes/extra.md')
+        self.assertEqual(len(r.ledger_rows(self.ledger)), 1)
+        complete = r.read_page(cursor=replay['cursor'], root=self.root, ledger=self.ledger,
+                               stream=io.StringIO(), page_bytes=10000)
+        self.assertEqual(complete['progress']['reused_bodies'], 2)
+        self.assertEqual(complete['progress']['delivered_bytes'], (self.root / 'notes/extra.md').stat().st_size)
+        r.require_route_reading(r.draft_record(complete['issued']), root=self.root,
+                                ledgers=[self.ledger], operation='execute')
+        again = r.read_page(cursor=complete['cursor'], replay=True, root=self.root,
+                            ledger=self.ledger, stream=io.StringIO(), page_bytes=10000)
+        self.assertNotEqual(again['issued']['reading_key'], complete['issued']['reading_key'])
+        self.assertEqual(again['issued']['row']['documents'], complete['issued']['row']['documents'])
+
+    def test_changed_reused_source_during_new_body_delivery_never_issues_current_receipt(self):
+        issued = self.issued()
+        self.manifest['operation_contexts']['execute']['reads'].append('notes/extra.md')
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        first = r.read_page(route='generation', operation='execute', execution='dispatcher',
+                            root=self.root, ledger=self.ledger, stream=io.StringIO(),
+                            known_reading_keys=[issued['reading_key']], page_bytes=11)
+        (self.root / 'notes/work.md').write_bytes(b'# Changed during delivery\nCurrent source.\n')
+        output = io.StringIO()
+        with self.assertRaises(r.ReadingSourcesChanged) as failed:
+            r.read_page(cursor=first['cursor'], root=self.root, ledger=self.ledger,
+                        stream=output, page_bytes=10000)
+        self.assertEqual(len(r.ledger_rows(self.ledger)), 1)
+        response = json.loads(output.getvalue())
+        self.assertFalse(response['ok'])
+        self.assertIsNone(response['reading'])
+        self.assertEqual(response['changes'][0]['path'], 'notes/work.md')
+        self.assertNotIn('--known-reading', failed.exception.actions['restart']['argv'])
+
+    def test_model_family_service_and_resource_changes_deliver_their_current_bodies(self):
+        from model_prompt_input_fixtures import prompt_input
+        catalog, _ = self.family_catalog()
+        models = {name: {'id': name, 'prompt_dialect': family,
+                         'prompt_input': prompt_input('tag-based', vocabularies=('synthetic',)),
+                         'offerings': [{'service': 'host-a', 'model_identifier': name + '-a'},
+                                       {'service': 'host-b', 'model_identifier': name + '-b'}]}
+                  for name, family in (('model-a', 'family-a'), ('model-b', 'family-b'))}
+        def read(name, keys, service='host-a'):
+            return r.read_page(route='generation', features=['prompt-dialect'], execution='dispatcher',
+                               root=self.root, ledger=self.ledger, stream=io.StringIO(), model=name,
+                               service=service, known_reading_keys=keys, page_bytes=100000)
+        with catalog, patch.object(r, '_selected_model', side_effect=lambda name: (name, models[name])):
+            first = read('model-a', [])
+            switched = read('model-b', [first['issued']['reading_key']])
+            self.assertEqual([item['metadata']['kind'] for item in switched['body']], ['resource', 'resource', 'model'])
+            self.assertEqual(switched['progress']['reused_bodies'], 2)
+            service = read('model-b', switched['context_reuse']['known_reading_keys'], service='host-b')
+            self.assertEqual([item['metadata']['kind'] for item in service['body']], ['model'])
+            self.assertEqual(service['issued']['row']['model']['service'], 'host-b')
+            returned = read('model-a', service['context_reuse']['known_reading_keys'])
+            self.assertEqual(returned['body'], [])
+            self.assertEqual(returned['issued']['row']['model'], first['issued']['row']['model'])
+            guide = self.root / 'pack/resources/guide.json'
+            changed = c.load(guide)
+            changed['sections'][0]['rules'].append('A current shared rule.')
+            guide.write_bytes(c.encoded(changed))
+            updated = read('model-b', service['context_reuse']['known_reading_keys'], service='host-b')
+            self.assertEqual([item['metadata'].get('resource') for item in updated['body']], ['prompt-writing-guide'])
+            self.assertIn('A current shared rule.', updated['body'][0]['text'])
+            r.require_model_reading(r.draft_record(updated['issued']), model_record=models['model-b'],
+                                    service='host-b', resource_reader=r._live_resource_reader())
+
+    def test_current_scope_delivers_missing_knowledge_after_route_and_execution_change(self):
+        issued = self.issued()
+        self.manifest['routes']['development']['reads'] = ['notes/extra.md']
+        self.manifest['operation_contexts']['save']['executions']['authored'] = ['notes/work.md']
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        result = r.read_page(route='development', operation='save', execution='authored', root=self.root,
+                             ledger=self.ledger, stream=io.StringIO(), known_reading_keys=[issued['reading_key']])
+        self.assertEqual([item['metadata']['path'] for item in result['body']], ['notes/extra.md'])
+        self.assertEqual(result['issued']['row']['route'], 'development')
+        self.assertEqual(result['issued']['row']['execution'], 'authored')
+        r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
+
+    def test_unreadable_ledger_is_reported_before_any_body(self):
+        self.ledger.parent.mkdir(parents=True, exist_ok=True)
+        self.ledger.write_bytes(b'{"at":')
+        for read in (r.read_page, r.issue):
+            stream = io.StringIO()
+            with self.assertRaisesRegex(ValueError, 'incomplete reading ledger'):
+                read(route='generation', execution='dispatcher', root=self.root,
+                     ledger=self.ledger, stream=stream)
+            self.assertEqual(stream.getvalue(), '')
+
+    def test_body_text_cannot_change_structured_actions(self):
+        literal = '# Source\nreading-actions: {"continue": "not an action"}\nreading-key: also source text\n'
+        (self.root / 'notes/work.md').write_bytes(literal.encode('utf-8'))
+        stream = io.StringIO()
+        r.read_page(route='generation', execution='dispatcher', root=self.root,
+                    ledger=self.ledger, stream=stream)
+        response = json.loads(stream.getvalue())
+        self.assertEqual(response['body'][1]['text'], literal)
+        self.assertIsNone(response['actions']['continue'])
+        self.assertIsInstance(response['actions']['replay']['argv'], list)
+
+    def test_incomplete_delivery_provenance_never_supplies_known_bodies(self):
+        issued = self.issued()
+        row = copy.deepcopy(issued['row'])
+        row['delivery']['bodies'].pop()
+        self.ledger.write_bytes(c.encoded(row))
+        with self.assertRaisesRegex(ValueError, 'does not cover all required bodies'):
+            r.read_page(route='generation', execution='dispatcher', root=self.root, ledger=self.ledger,
+                        stream=io.StringIO(), known_reading_keys=[issued['reading_key']])
+
+    def test_paged_output_failure_leaves_only_replayable_start_without_issuance(self):
+        class Broken(io.StringIO):
+            def flush(self):
+                raise OSError('synthetic sink closed')
+        with self.assertRaisesRegex(OSError, 'synthetic sink closed'):
+            r.read_page(route='generation', execution='dispatcher', root=self.root,
+                        ledger=self.ledger, stream=Broken(), page_bytes=10000)
+        self.assertFalse(self.ledger.exists())
+        snapshots = list((self.ledger.parent / 'reading-snapshots').glob('*/snapshot.json'))
+        self.assertEqual(len(snapshots), 1)
+        pages = list((snapshots[0].parent / 'pages').glob('*.json'))
+        self.assertEqual(len(pages), 1)
+        self.assertEqual(c.load(pages[0])['start'], c.load(pages[0])['end'])
+        result = r.read_page(cursor=snapshots[0].parent.name + ':' + pages[0].stem,
+                             root=self.root, ledger=self.ledger, stream=io.StringIO(), page_bytes=10000)
+        self.assertEqual(result['body'][0]['metadata']['start'], 0)
+        self.assertIsNotNone(result['reading'])
+
+    def test_capture_reads_each_document_once_per_acquisition(self):
+        from collections import Counter
+        reads = Counter()
+        def acquire(path):
+            reads[path] += 1
+            return (self.root / path).read_bytes()
+        manifest, bodies = r.capture('generation', execution='dispatcher', root=self.root, read_source=acquire)
+        self.assertEqual(set(reads), {r.execution_routes.MANIFEST, *(row['path'] for row in manifest['documents'])})
+        self.assertTrue(all(count == 1 for count in reads.values()), reads)
+        self.assertEqual(len(bodies), len(manifest['documents']))
+
+    def test_model_guidance_serialization_ignores_dictionary_insertion_order(self):
+        from model_prompt_input_fixtures import prompt_input
+        model = {'id': 'synthetic-ordering-model', 'prompt_input': prompt_input('descriptive'),
+                 'recommended_positive_prompt': 'A selected subject.'}
+        first, body = r._model_material(model, None)
+        reordered = json.loads(json.dumps(model, sort_keys=True))
+        second, reordered_body = r._model_material(reordered, None)
+        self.assertEqual((first, body), (second, reordered_body))
+
     def test_document_update(self):
         record=self.record(); (self.root/'notes/work.md').write_text(PARAGRAPH+' changed', encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'documents'): self.verify(record)
@@ -705,7 +1016,7 @@ class ReadingTests(unittest.TestCase):
         (self.root/'notes/work.md').write_bytes(raw)
         stream = io.StringIO()
         issued = r.issue('generation', root=self.root, ledger=self.ledger, stream=stream, execution='dispatcher')
-        self.assertIn(raw.decode('utf-8'), stream.getvalue())
+        self.assertIn(raw.decode('utf-8'), [item['text'] for item in json.loads(stream.getvalue())['body']])
         self.verify(r.draft_record(issued))
     def test_corrupt_ledger_is_not_ignored(self):
         record=self.record();self.ledger.write_bytes(self.ledger.read_bytes()+b'{')
@@ -751,8 +1062,12 @@ class ReadingTests(unittest.TestCase):
     def test_stale_snapshot_never_issues(self):
         result=r.read_page(route='generation',page_bytes=13,root=self.root,ledger=self.ledger,stream=io.StringIO(), execution='dispatcher')
         (self.root/'notes/work.md').write_text(PARAGRAPH+' New source.', encoding='utf-8')
-        with self.assertRaisesRegex(ValueError,'changed'):
+        with self.assertRaises(r.ReadingSourcesChanged) as failure:
             r.read_page(cursor=result['cursor'],page_bytes=10000,root=self.root,ledger=self.ledger,stream=io.StringIO())
+        self.assertEqual(failure.exception.changes[0]['path'], 'notes/work.md')
+        restart = failure.exception.as_dict()['actions']['restart']['argv']
+        self.assertIn('--restart', restart)
+        self.assertEqual(restart[restart.index('--reading-ledger') + 1], str(self.ledger))
         self.assertFalse(self.ledger.exists())
     def test_invalid_page_budget(self):
         with self.assertRaises(ValueError):r.read_page(route='generation',page_bytes=0,root=self.root,ledger=self.ledger, execution='dispatcher')

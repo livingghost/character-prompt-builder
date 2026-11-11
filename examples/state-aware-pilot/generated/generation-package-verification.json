@@ -18,13 +18,13 @@
     "artifact_type": "execution-policy",
     "basis": {
       "locator": "whole",
-      "path": "synthetic-validation/8508b80c382c1a30/basis.txt",
+      "path": "synthetic-validation/04ce13eba79281f6/basis.txt",
       "sha256": "424db1c13f6c398026a9d9ae39d4e8f294e1274d4e2d1dec1ab501e7d61e06c5"
     },
     "reference_instruction_transport": {
       "contract": {
-        "path": "synthetic-validation/8508b80c382c1a30/references.json",
-        "sha256": "e33adcc599bd99f6494d2817757fcc39c4b4b820018fd9ae9b4a8f30f4816770"
+        "path": "synthetic-validation/04ce13eba79281f6/references.json",
+        "sha256": "62f378c894ffb759bc01d0794891a5dc6fe991d1a7949cc88de83737e5dcaff6"
       },
       "mode": "authored-rendition"
     },
@@ -3195,7 +3195,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "fa7144213ae97209aa884f618d8996a3464b8a29484ffe3c2ba321d597df594e",
+  "generation_input_sha256": "94000baddba69640fff4d01a58f169ce553403af904c49b136ca3adf9d0169b0",
   "parameters": {
     "height": 1024,
     "safety": {
@@ -3245,7 +3245,7 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
     "effective_prompt_sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121",
     "selected_references": [],
-    "generation_input_sha256": "fa7144213ae97209aa884f618d8996a3464b8a29484ffe3c2ba321d597df594e",
+    "generation_input_sha256": "94000baddba69640fff4d01a58f169ce553403af904c49b136ca3adf9d0169b0",
     "prompt_trace": [
       {
         "source_kind": "authored",

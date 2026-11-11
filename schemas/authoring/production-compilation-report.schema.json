@@ -82,6 +82,18 @@
     "staging": {
       "type": "string",
       "minLength": 1
+    },
+    "authoring": {
+      "description": "The editable choices file this report compiled. A refused compilation holds the authoring result, whose unresolved entries locate each choice still to answer.",
+      "type": "object",
+      "properties": {
+        "unresolved": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/unresolved_entry"
+          }
+        }
+      }
     }
   },
   "required": [
@@ -179,7 +191,98 @@
         "message",
         "required_action",
         "blocked_checks"
+      ],
+      "if": {
+        "properties": {
+          "code": {
+            "const": "AUTHORED_CHOICE_REQUIRED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "$ref": "#/$defs/choice_reason"
+          }
+        },
+        "required": [
+          "reason",
+          "guidance"
+        ]
+      }
+    },
+    "choice_reason": {
+      "description": "The kind of unanswered choice that AUTHORED_CHOICE_REQUIRED reports. The code table of references/runtime/production-diagnostics.md explains each one.",
+      "enum": [
+        "reading-required",
+        "target-selection-required",
+        "target-evidence-required",
+        "selection-required",
+        "source-selection-required",
+        "selection-evidence-required",
+        "continuity-choice-required",
+        "authored-choice-required",
+        "plot-approval-required",
+        "current-judgment-required",
+        "provider-upload-required"
       ]
+    },
+    "unresolved_entry": {
+      "description": "One entry of an authoring report's unresolved list. field locates it in the choices file. An AUTHORED_CHOICE_REQUIRED entry also states its reason, what is unanswered, the value to give and where it comes from, and the section that explains it.",
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string"
+        },
+        "required_action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "guidance": {
+          "$ref": "#/$defs/guidance"
+        }
+      },
+      "required": [
+        "field",
+        "code"
+      ],
+      "if": {
+        "properties": {
+          "code": {
+            "const": "AUTHORED_CHOICE_REQUIRED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "$ref": "#/$defs/choice_reason"
+          },
+          "message": {
+            "minLength": 1
+          }
+        },
+        "required": [
+          "reason",
+          "message",
+          "required_action",
+          "guidance"
+        ]
+      }
     },
     "guidance": {
       "type": "object",

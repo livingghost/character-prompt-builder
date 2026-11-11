@@ -64,6 +64,20 @@ The source contains `studio_root`, `studio_id`, `character`, `sheet`, `slot`,
 and SHA-256. Matching pixels alone do not identify the owner or adoption. A new
 adoption of the same pixels is a different reference.
 
+A refusal of `source` or `bind` writes no output file and prints
+`{"ok": false, "diagnostics": [...]}` with the exit status its codes select in
+[Production diagnostics](production-diagnostics.md#exit-codes). For a synthetic
+Production adoption whose adoption record was deleted, `source` exits 2 and
+prints (trimmed, with the run, candidate and authorization digests written as
+RUN, CANDIDATE and AUTHORIZATION):
+
+```json
+{"ok": false, "diagnostics": [{"code": "ADOPTION_RECORD_CORRUPT", "phase": "adoption-integrity",
+  "file": "characters/robot/adoptions/it-0001.json",
+  "message": "The adoption record characters/robot/adoptions/it-0001.json is missing.",
+  "required_action": "Repeat the completed adoption with production_workflow.py adopt --run RUN --candidate CANDIDATE --character robot --iteration it-0001 --approval approval.json --authorization AUTHORIZATION. It writes this record again from the adoption result the run recorded and does not adopt the image again."}]}
+```
+
 Identity influence uses the existing explicit Studio identity approval and work
 character decision. An adopted crop or externally imported image without that
 identity authority is not automatically promoted to an identity anchor. Its

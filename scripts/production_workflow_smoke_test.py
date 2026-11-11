@@ -394,11 +394,14 @@ class ProductionTests(unittest.TestCase):
             with patch.object(w,'ROOT',copied):
                 w.assert_current(self.root,run)
                 changed.write_bytes(changed.read_bytes()+b'\n')
-                from production_diagnostics import ProductionError
-                with self.assertRaises(ProductionError) as caught: w.assert_current(self.root,run)
-                self.assertEqual(caught.exception.diagnostic.code,'IMPLEMENTATION_CHANGED')
-                self.assertEqual(caught.exception.diagnostic.file,'scripts/production_workflow.py')
-                self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
+                # A changed installation is reported and leaves the prepared run usable.
+                [notice]=w.read_current(self.root,run).notices
+                self.assertEqual((notice['code'],notice['severity'],notice['file']),
+                                 ('IMPLEMENTATION_CHANGED','warning','scripts/production_workflow.py'))
+                state=w.status(self.root,run)['runs'][0]
+                self.assertNotEqual(state['readiness'],'blocked')
+                self.assertEqual(state['freshness_diagnostics'],[])
+                self.assertEqual([item['code'] for item in state['freshness_notices']],['IMPLEMENTATION_CHANGED'])
     def clone_run(self,run,task_id=None):
         from pack_manager import generate_uuid7
         target=self.root/'production'/generate_uuid7(); shutil.copytree(w.run_dir(self.root,run),target)
@@ -672,7 +675,7 @@ class PackageIntegrationTests(unittest.TestCase):
         w.handoff(self.root,self.run,plan['handoff']['recipient'],'dispatcher',tokens['direction'],journal=journal.path)
         changed=copy.deepcopy(self.package);changed['input_snapshots'][sorted(snapshots)[0]]['sha256']='a'*64
         with self.assertRaises(ProductionError) as caught:
-            w.claim_dispatch(self.root,self.run,changed,{},journal.path,intent,tokens['submit'],rendered=rendered,authentication=None)
+            w.claim_dispatch(self.root,self.run,changed,journal.path,intent,tokens['submit'],rendered=rendered,authentication=None)
         self.assertEqual(caught.exception.diagnostic.pointer,'$.package_sha256')
         self.assertEqual(accounting.all_states(self.root),[])
 

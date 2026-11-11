@@ -385,6 +385,21 @@ class IdentityAuthoringTests(unittest.TestCase):
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
         self.assertEqual(task['criteria'], self.task['criteria'])
 
+    def test_missing_whole_subject_review_names_the_criterion_to_add(self):
+        from validate import markdown_anchor_slugs
+        result, choices = self.draft_identity()
+        for check in choices['authoring']['task']['criteria']:
+            check.pop('identity_review', None)
+        report = self.compile_identity(result, choices)
+        self.assertFalse(report['ok'])
+        diagnostic = next(row for row in report['diagnostics'] if row['code'] == 'IDENTITY_COVERAGE_INCOMPLETE')
+        self.assertEqual((diagnostic['pointer'], diagnostic['phase'], diagnostic['gaps']),
+                         ('authoring.task.criteria', 'identity-coverage', {'missing_whole_reviews': ['A']}))
+        self.assertIn('identity_review', diagnostic['required_action'])
+        self.assertIn('authoring.task.criteria', diagnostic['required_action'])
+        path, _, anchor = diagnostic['guidance']['document_path'].partition('#')
+        self.assertIn(anchor, markdown_anchor_slugs(production_inputs.ROOT / path))
+
     def test_changed_original_requires_current_judgment_before_reusing_draft(self):
         result, choices = self.draft_identity()
         changed = c.encoded({'identity': {'new_condition': 'The split now closes at rest.'}})
@@ -516,7 +531,10 @@ class IdentityAuthoringTests(unittest.TestCase):
         choices['authoring']['documents']['state_graphs'][0]['identity_contract']['identity']['outline'] = 'A closed solid disc.'
         built = self.build_identity(result, choices)
         self.assertFalse(built['ok'])
-        self.assertEqual(built['unresolved'][0]['code'], 'current-judgment-required')
+        gap = built['unresolved'][0]
+        self.assertEqual((gap['code'], gap['reason'], gap['field']),
+                         ('AUTHORED_CHOICE_REQUIRED', 'current-judgment-required', 'authoring.documents.state_graphs'))
+        self.assertIn('authoring.documents.state_graphs', gap['required_action'])
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
 
     def test_scene_snapshot_edit_preserves_original_graph_identity_source(self):
@@ -538,8 +556,9 @@ class IdentityAuthoringTests(unittest.TestCase):
         graph['visual_evidence_bundle']['disposition'] = 'adopted'
         built = self.build_identity(result, choices)
         self.assertFalse(built['ok'])
-        self.assertEqual(built['unresolved'][0]['field'], 'authoring.documents.state_graphs')
-        self.assertEqual(built['unresolved'][0]['code'], 'current-judgment-required')
+        gap = built['unresolved'][0]
+        self.assertEqual((gap['code'], gap['reason'], gap['field']),
+                         ('AUTHORED_CHOICE_REQUIRED', 'current-judgment-required', 'authoring.documents.state_graphs'))
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
 
 
