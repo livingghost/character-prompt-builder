@@ -139,6 +139,21 @@ class SemanticEditPlanTests(unittest.TestCase):
     def validate(self):
         return inputs.validate(self.plan, self.root)
 
+    def test_public_cli_accepts_nested_relative_paths(self):
+        import contextlib
+        write(self.root, 'plans/edit-plan.json', c.load(self.root / 'edit-plan.json'))
+        write(self.root, 'plans/image-input.json', c.load(self.root / 'image-input.json'))
+        output = io.StringIO()
+        arguments = ['semantic_edit_plan.py', 'plans/edit-plan.json',
+            '--image-input', 'plans/image-input.json', '--root', str(self.root),
+            '--out', 'bindings/edit.json']
+        with patch('sys.argv', arguments), contextlib.redirect_stdout(output):
+            self.assertEqual(edits.main(), 0, output.getvalue())
+        result = json.loads(output.getvalue())
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['binding'], str(self.root / 'bindings/edit.json'))
+        edits.validate_binding(c.load(self.root / 'bindings/edit.json'))
+
     def test_binding_keeps_generic_roles_exact_target_and_all_original_hashes(self):
         result = self.validate()
         self.assertEqual(result['status'], 'prepared-not-generated')
@@ -1302,7 +1317,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         import contextlib
         from pack_runtime_cli import PackRuntimeContext
         output = self.root / 'prepared.json'
-        arguments = ['--studio', str(self.root), '--image-input-plan-file', 'image-input.json',
+        write(self.root, 'plans/image-input.json', self.plan)
+        arguments = ['--studio', str(self.root), '--image-input-plan-file', 'plans/image-input.json',
             '--output-dir', str(self.base / 'carriers'), '--out', str(output)]
         arguments += PackRuntimeContext(self.case['settings'], (self.case['pack'],)).command_arguments()
         with contextlib.redirect_stdout(io.StringIO()):

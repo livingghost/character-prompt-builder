@@ -20,11 +20,12 @@ def studio_file(root: Path | None, value: str | Path, *, option: str, root_optio
                  exists: bool = True) -> Path:
     """The file one CLI option names: an absolute path, or a '/'-separated path below the studio root.
 
-    A backslash or a leading './' is refused with the root-relative form to
-    write instead, so a relative path never depends on the working directory.
+    A relative Path uses the same '/'-separated form. A backslash or leading
+    './' in a string is refused with the root-relative form to write instead,
+    so a relative path never depends on the working directory.
     """
     from production_diagnostics import ProductionError
-    text = str(value)
+    text = value.as_posix() if isinstance(value, Path) and not value.is_absolute() else str(value)
 
     def refuse(code: str, message: str, action: str):
         raise ProductionError(code, message, phase='arguments', file=text, required_action=action, option=option)

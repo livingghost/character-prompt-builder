@@ -2262,7 +2262,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             import execution_contract as execution
             plan_file = args.image_input_plan_file
             if not plan_file.is_absolute():
-                plan_file = execution.local(args.studio, str(plan_file))
+                plan_file = execution.local(args.studio, plan_file.as_posix())
             prepared = prepare_image_input_references(read_json_object(plan_file),
                 studio=args.studio, model=args.model, output_dir=args.output_dir,
                 max_side=args.max_side, transport_mode=args.transport_mode)

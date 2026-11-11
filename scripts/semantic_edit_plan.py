@@ -102,8 +102,8 @@ def main() -> int:
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     try:
-        source = args.plan if args.plan.is_absolute() else c.local(args.root, str(args.plan))
-        inputs = args.image_input if args.image_input.is_absolute() else c.local(args.root, str(args.image_input))
+        source = args.plan if args.plan.is_absolute() else c.local(args.root, args.plan.as_posix())
+        inputs = args.image_input if args.image_input.is_absolute() else c.local(args.root, args.image_input.as_posix())
         output = new_output(args.root, args.out, option='--out')
         result = validate(c.load(source), image_input.validate(c.load(inputs), args.root))
         write_new(output, c.encoded(result), option='--out', value=str(args.out))

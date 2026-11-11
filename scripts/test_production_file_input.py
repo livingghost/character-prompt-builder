@@ -77,11 +77,28 @@ class ObjectInputTests(unittest.TestCase):
         outside=self.root.parent/'chosen file.json';outside.write_text('{"steps":20}',encoding='utf-8')
         self.assertEqual(c.read_json_object(outside,root=self.root),{'steps':20})
 
+    def test_relative_path_objects_use_the_same_slash_contract_as_strings(self):
+        from production_binding import studio_file
+        from production_diagnostics import ProductionError
+        relative = Path('inputs') / 'choices.json'
+        target = self.root / relative
+        target.parent.mkdir()
+        raw = c.encoded({'text': 'Canonical relative input.'})
+        target.write_bytes(raw)
+        for source in (relative.as_posix(), relative):
+            with self.subTest(source_type=type(source).__name__):
+                self.assertEqual(c.read_json_object(source, root=self.root), c.decode(raw))
+                self.assertEqual(studio_file(self.root, source, option='--file'), target)
+        with self.assertRaises(ProductionError) as caught:
+            studio_file(self.root, 'inputs\\choices.json', option='--file')
+        self.assertEqual(caught.exception.diagnostic.code, 'INPUT_SCHEMA_INVALID')
+
 
 class PackageFileInputTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.base=Path(self.temp.name)
+        self.enterContext(production_fixtures.scratch_home(self.base/'fixture-home'))
         self.case=cases.create(self.base/'日本語 studio',self.base/'runtime')
         self.root=self.case['root']
         self.script=Path(__file__).resolve().parent/'build_generation_payload.py'

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.11.11.2
+
+- Normalize relative `Path` inputs to `/` separators on Windows. This accepts
+  nested paths in the shared file readers, semantic edit CLI and reference
+  preparation CLI. Strings containing backslashes remain invalid.
+
 ## 2026.11.11.1
 
 - Preserve explicit work-task bindings and parent lineage when reopening saved

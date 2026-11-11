@@ -1,6 +1,6 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.11.11.1",
+  "version": "2026.11.11.2",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
   "generated_at": "2026-11-11",
@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1088,
-  "total_bytes_excluding_manifest": 20260597,
+  "total_bytes_excluding_manifest": 20262954,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -97,12 +97,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "98f3040e9b568d1f9f529752efec9348946d0b3a8682bae7c0e2290d3dc8300a"
+      "sha256": "c1e9262c6f73d684cd901233730e8e1ee929651ca9dd025bfc37bf0d142293aa"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "61c1e0604ece1da407b8aa5906547d0ac8009640d38a8fb0932dbfe8038e96ff"
+      "sha256": "faeccfd89f09a4d4163963dfce2b7c2e711a8f87bb06275a6f3dd21a99ecb7f9"
     },
     {
       "path": ".python-version",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 103158,
-      "sha256": "86a8ffef3b1abf1a993dbdf1537b51df9e8d082b3db004e299ffb720ad54e0af"
+      "bytes": 103395,
+      "sha256": "4add117c452925c4dd08f9c7253f78e3644f387d3bb0c3b1e8933e39a499ebdf"
     },
     {
       "path": "CLAUDE.md",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 31802,
-      "sha256": "0e81a5ba50ac82420c9b312880b7fc3c737b55a3490876b3a2aebf3da64ed63a"
+      "sha256": "22132ef50811c889a88310853beadf4c1da864df35888e76683f370f21c3d8db"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -1472,7 +1472,7 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2115,
-      "sha256": "d39540d083e1277f3ece494ac43bf0ebb8292fc3bdfbac348dfec63b6e22bc0e"
+      "sha256": "9fcf0348dbd2e61688f2db65858ac460f65324f511a040199fbb0629e1b8a7ad"
     },
     {
       "path": "packs/commons/pack.json",
@@ -2292,7 +2292,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 825,
-      "sha256": "eec10345930b0a38a66d93e3f0c94210496daff59740e9a586633b93713a2e28"
+      "sha256": "a99c5dc036a0b4ea964775a9ffd6cbbb2c6fa2a1b38f0d7023a65ee48dddd687"
     },
     {
       "path": "references/adapters/gpt-image.md",
@@ -3631,8 +3631,8 @@
     },
     {
       "path": "scripts/execution_contract.py",
-      "bytes": 25888,
-      "sha256": "4305a6629751f852a000e90b5d8421e77d517f99d281258d6c92422a24948c67"
+      "bytes": 25892,
+      "sha256": "29f9f0f5cac7cba259f920f2b2f09f062dbaa0b35eda795f816d7b18b593656f"
     },
     {
       "path": "scripts/execution_lifecycle.py",
@@ -3991,8 +3991,8 @@
     },
     {
       "path": "scripts/prepare_generation_references.py",
-      "bytes": 107283,
-      "sha256": "0a3de968b2b6e85199dbfc9280ddfda231124a4b4ec28f977382f42e4ed24535"
+      "bytes": 107289,
+      "sha256": "b087dbb7d75a7116115a8395059b2e5b1d15f71a81eed566f4ae8de68b96863f"
     },
     {
       "path": "scripts/preset_maintenance.py",
@@ -4041,8 +4041,8 @@
     },
     {
       "path": "scripts/production_binding.py",
-      "bytes": 18034,
-      "sha256": "21611ad6f466286474c227b8de74a5b7cb79cfd352f21c74d85581f9dc082890"
+      "bytes": 18175,
+      "sha256": "d63c1f14851bc660a797468c1e3b75150d68fe8647f8f38537aa051380390b5d"
     },
     {
       "path": "scripts/production_case_fixtures.py",
@@ -4611,13 +4611,13 @@
     },
     {
       "path": "scripts/semantic_edit_plan.py",
-      "bytes": 5574,
-      "sha256": "4ec6391c84b3bad11f6c4460e7a070313f368f3589aaada4a7e7286a891f6955"
+      "bytes": 5586,
+      "sha256": "1fad45bfd25f10d3fd0d177418bbdb5305f7a928091b06f3ca854b0c373509c5"
     },
     {
       "path": "scripts/semantic_edit_plan_smoke_test.py",
-      "bytes": 138834,
-      "sha256": "1ac0d946655983719d8466cd21f97c4f1dfbc0ab6780240dfd4bef6452a0efbc"
+      "bytes": 139778,
+      "sha256": "ac78f10585b2b564d4630cb45b8ffcb8a544160060e8cd217a094a18968c9352"
     },
     {
       "path": "scripts/service_auth.py",
@@ -4996,8 +4996,8 @@
     },
     {
       "path": "scripts/test_production_file_input.py",
-      "bytes": 13232,
-      "sha256": "91074f6616aa1e8b132688f1876cb563c05d467be5ea6e089efeb3c647c445c0"
+      "bytes": 14245,
+      "sha256": "07ab51d3d844efd5c7bbf61bf173b8b7b04419112291a492f1a5a50a16cf95cf"
     },
     {
       "path": "scripts/test_production_foundation.py",
@@ -5522,7 +5522,7 @@
     {
       "path": "uv.lock",
       "bytes": 113758,
-      "sha256": "d0fea3acead3591cf4ceb64886eee731fb611b80a94ccdce4063acfd062aff62"
+      "sha256": "3af719d3f33f8d77ab6eb895aec08da8d603b394c1adc253671556b711dac044"
     }
   ]
 }
