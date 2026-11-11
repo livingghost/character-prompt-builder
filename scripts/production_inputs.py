@@ -20,6 +20,7 @@ from input_evidence import InputEvidence
 import route_reading
 import production_input_adapters as adapters
 import production_authoring as authoring
+import production_edit_inputs
 import production_target
 from production_diagnostics import ProductionError, choice_required, from_exception, from_unresolved
 from production_diagnostics import guidance as phase_guidance
@@ -136,8 +137,37 @@ def _sources(root: Path, task: dict, reader: InputEvidence) -> list[dict]:
     return output
 
 
+def _draft_context(root: Path, task: dict, choices: dict | None) -> dict:
+    """What a draft's identity view reads from its choices before the inputs are built.
+
+    A task without a built image input or prepared set takes its reference rows
+    from the selected reference choices, and its subjects from an inline
+    Production Specification. Building the inputs replaces both with their
+    derived files.
+    """
+    if choices is None:
+        return {}
+    import production_reference_inputs
+    result = {}
+    authored = choices.get('authoring') or {}
+    if not task.get('image_input') and not (task.get('generation') or {}).get('references'):
+        external = choices.get('external') or {}
+        for selection in (authored.get('references'), (external.get('reference_delivery') or {}).get('choices')):
+            if isinstance(selection, dict):
+                provisional = production_reference_inputs.provisional_inputs(selection, root=root)
+                if provisional is not None and provisional['references']:
+                    result['inputs'] = provisional
+                    break
+    specification = (authored.get('documents') or {}).get('production_spec')
+    if (isinstance(specification, dict) and not set(specification) <= {'file', 'field'}
+            and not (task.get('generation') or {}).get('production_spec')):
+        result['production_spec'] = specification
+    return result
+
+
 def _identity_view(root: Path, task: dict, reader: InputEvidence, *, saved: dict | None = None,
-                   files: dict[str, bytes] | None = None, out_dir: str | None = None) -> dict | None:
+                   files: dict[str, bytes] | None = None, out_dir: str | None = None,
+                   choices: dict | None = None) -> dict | None:
     """Expose original identity evidence beside choices, including saved runs.
 
     Authoring can be incomplete. Return its precise gaps without certifying
@@ -172,7 +202,7 @@ def _identity_view(root: Path, task: dict, reader: InputEvidence, *, saved: dict
         captured[path] = raw
         return raw
     try:
-        value = production_identity.inspect(task, read)
+        value = production_identity.inspect(task, read, **_draft_context(root, task, choices))
     except (ValueError, OSError, KeyError, TypeError) as exc:
         return {'status': 'unresolved', 'request_verified': False,
                 'diagnostics': [from_exception(exc, phase='identity-coverage')]}
@@ -310,9 +340,21 @@ def _unresolved(choices: dict, task: dict, *, root: Path, runtime_arguments: dic
             'evidence paths for an acquired schema, a bounded probe or an adopted observed profile.',
             adapters.VALIDATION_GUIDE))
     unresolved.extend(authoring.unresolved(choices.get('authoring'), task))
+    if (choices['visual'] is None and task.get('execution') == 'dispatcher'
+            and task.get('route') != 'upscale' and choices.get('authoring') is not None):
+        unresolved.extend(authoring.continuity_unresolved(choices['authoring']))
     if choices['external'] is not None:
         import production_external_inputs
         unresolved.extend(production_external_inputs.unresolved(choices['external']))
+    if isinstance(task.get('semantic_edit'), str):
+        import semantic_edit_plan
+        try:
+            plan = c.load(c.local(root, task['semantic_edit']))
+        except (OSError, ValueError):
+            # An unreadable plan is reported where preparation reads it.
+            plan = None
+        unresolved.extend(semantic_edit_plan.unresolved(plan, path=task['semantic_edit'],
+                                                        criteria=task.get('criteria', [])))
     return unresolved
 
 
@@ -573,6 +615,12 @@ def _captured_image_source(root: Path, run: str, candidate: str) -> dict:
                      'sha256': item['sha256'], 'size': len(raw)}, 'review': reviewed, 'media': measured}
 
 
+def _upscale_refusal(message: str, required_action: str) -> ProductionError:
+    """A selector of the upscale draft used outside it."""
+    return ProductionError('INPUT_CONSISTENCY_ERROR', message, phase='authoring', required_action=required_action,
+                           guidance=dict(authoring.UPSCALE_GUIDE))
+
+
 def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: str | None = None,
                  runtime_arguments: dict | None = None, route: str | None = None,
                  artifact: str | None = None, execution: str | None = None,
@@ -580,18 +628,32 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                  model: str | None = None, service: str | None = None,
                  source_image: Path | None = None, scale: float | None = None,
                  purpose: str | None = None, new_task: str | None = None,
-                 source_run: str | None = None, source_candidate: str | None = None) -> dict:
+                 source_run: str | None = None, source_candidate: str | None = None,
+                 edit_character: str | None = None, edit_slot: str | None = None) -> dict:
     _destination(root, out_dir)
     reader = InputEvidence(root)
     initial = task_path is None and from_run is None
     source_result = None
+    edit = None
+    if edit_character is not None or edit_slot is not None:
+        production_edit_inputs.require_arguments(character=edit_character, slot=edit_slot, initial=initial,
+            route=route, artifact=artifact, execution=execution,
+            upscale={'source-image': source_image, 'source-run': source_run,
+                     'source-candidate': source_candidate, 'scale': scale, 'purpose': purpose})
+        edit = production_edit_inputs.select(root, edit_character, edit_slot)
+        features = production_edit_inputs.features(edit, features)
+        artifact = 'image'
     if source_run is not None or source_candidate is not None:
         if source_run is None or source_candidate is None:
-            raise ValueError('select both --source-run and --source-candidate for a captured image')
+            raise _upscale_refusal('A captured image is selected by its run and candidate together.',
+                'Give both --source-run RUN and --source-candidate CANDIDATE with --route upscale.')
         if not initial or route != 'upscale' or source_image is not None:
-            raise ValueError('a captured image selects a new upscale input; use --route upscale without --task, --from-run or --source-image')
+            raise _upscale_refusal('--source-run and --source-candidate select the image of a new upscale draft.',
+                'Use them with --route upscale, without --task, --from-run or --source-image. To edit an adopted '
+                'image instead, select it with --edit-character CHARACTER --edit-slot SLOT and --route generation.')
         if execution not in {None, 'dispatcher'}:
-            raise ValueError('captured image inputs use dispatcher upscale execution')
+            raise _upscale_refusal('A captured image is enlarged by a dispatcher upscale.',
+                'Omit --execution or select --execution dispatcher for the upscale draft.')
         source_result = _captured_image_source(root, source_run, source_candidate)
         source_image = Path(source_result['file']['path'])
     if not initial and any(value is not None for value in (route, artifact, execution, features)):
@@ -626,10 +688,16 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     if new_task is not None:
         if task_id is not None:
             raise ValueError('select --new-task or --task-id, not both')
-        if initial and source_result is None:
+        if initial and source_result is None and edit is None:
             raise ValueError('--new-task reopens a selected task or run; start initial work with work_ledger begin')
         opening = (c.text(new_task, 'new work goal'),
+                   production_edit_inputs.STEPS if edit is not None else
                    ['Prepare the requested revision.', 'Assess and finish the selected result.'])
+    elif edit is not None and task_id is None and production_authoring_state.active_task_id(root) is None:
+        raise ProductionError('INPUT_CONSISTENCY_ERROR', 'No work task is open for the edit.', phase='authoring',
+            guidance=production_edit_inputs.GUIDE,
+            required_action='Add --new-task GOAL with the requested edit as its goal; the task opens when the draft '
+                            'is published. A refused command opens no work.')
     elif not initial and task_id is not None:
         if production_authoring_state.active_task_id(root)!=task_id:
             raise ValueError('--task-id must select the current open work task when reopening inputs')
@@ -700,6 +768,10 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     if initial and task.get('execution') == 'external':
         import production_external_inputs
         choices['external'] = production_external_inputs.template()
+    if edit is not None:
+        edit_files = production_edit_inputs.apply(root, edit, choices, task, out_dir, reader=reader)
+    else:
+        edit_files = production_edit_inputs.reopen(root, task, choices, out_dir, reader=reader, saved=saved)
     if not initial and task.get('execution') == 'external' and task.get('image_input'):
         import production_external_inputs
         plan = c.decode(authoring.source_bytes(root, task['image_input'], reader, saved))
@@ -711,6 +783,8 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
             prepared=prepared, root=root,
             package_root=c.local(root, prepared_path, exists=False).parent if prepared_path else None)
     choices['target'] = production_target.extract(copy.deepcopy(task), choices['authoring'], choices['external'])
+    if edit is not None and choices['target'] is None:
+        choices['target'] = production_edit_inputs.target(edit)
     _select_target(choices, model=model, service=service)
     previous = saved['route_reading'] if saved is not None else None
     if previous is None and not initial and saved is None:
@@ -720,13 +794,15 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     if previous is not None:
         route_reading.validate_record_content(previous)
         choices['reading']['reading_key'] = previous['reading_key']
-    editable=dict(imported)
+    editable={**imported,**edit_files}
     delivery=choices['authoring']['delivery']
+    empty_delivery=False
     if choices['authoring'].get('upscale') is None:
         raw=delivery.pop('content',None)
         raw=b'' if raw is None else raw.encode('utf-8') if isinstance(raw,str) else c.encoded(raw)
         delivery['file']=(Path(out_dir)/'prompt.txt').as_posix()
         editable['prompt.txt']=raw
+        empty_delivery=not raw.strip()
     for field in authoring.TEXT_DOCUMENTS:
         raw=choices['authoring']['documents'].get(field)
         if isinstance(raw,str):
@@ -736,9 +812,14 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     import production_reference_inputs
     production_reference_inputs.identify_choices(choices)
     chosen = _chosen_task(task, choices)
-    identity = _identity_view(root, chosen, reader, saved=saved, files=editable, out_dir=out_dir)
+    identity = _identity_view(root, chosen, reader, saved=saved, files=editable, out_dir=out_dir, choices=choices)
     projected = production_target.project(choices, chosen, root, reader, out_dir)
-    gaps = _unresolved(choices, task, root=root, runtime_arguments=runtime_arguments) + _identity_gaps(identity)
+    with _staged_files(root, out_dir, editable):
+        # The draft's editable files are read where they will be published.
+        gaps = _unresolved(choices, task, root=root, runtime_arguments=runtime_arguments)
+    if empty_delivery and not any(row['field'] == 'authoring.delivery.content' for row in gaps):
+        gaps.append(authoring.authored_choice('delivery.content'))
+    gaps += _identity_gaps(identity)
     gaps.extend(item for item in projected['unresolved'] if item not in gaps)
     gaps.extend(_target_gaps(choices, chosen, projected))
     gaps.extend(_guidance_gap(root, task, choices, projected, runtime_arguments))
@@ -746,6 +827,7 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     result = {'state': 'draft', 'choices': choices,
               'unresolved': gaps, 'target_knowledge': projected['knowledge'], 'next_actions': actions,
               'selected_image': selected_image,
+              **({'edit_source': production_edit_inputs.report(edit)} if edit is not None else {}),
               **({'identity_coverage': identity} if identity is not None else {}),
               'derived_from': {'task': task_ref, 'source_run': saved},
               'external_effect': False}
@@ -764,7 +846,8 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         context_sha256=c.digest(context_raw), input_arguments=({key: str(value) for key, value in {
             'source-run': source_run, 'source-candidate': source_candidate,
             'source-image': source_image if source_result is None else None, 'scale': scale,
-            'purpose': purpose, 'model': model, 'service': service}.items() if value is not None} if initial else None))
+            'purpose': purpose, 'edit-character': edit_character, 'edit-slot': edit_slot,
+            'model': model, 'service': service}.items() if value is not None} if initial else None))
     _publish(root, out_dir, {**editable,'choices.json': c.encoded(choices),
                             'context.json': context_raw}, reader=reader)
     production_authoring_state.published_draft(root, task, out_dir)
@@ -1244,12 +1327,17 @@ def _assemble_current(root: Path, task_path: str | None, choices_path: str, out_
                 material_choices['external'], copied_task, reader, root, out_dir, delivery,
                 derived_files=target_files)
         encoded.update(external_files)
-        copied_task['image_input'] = (Path(out_dir) / 'image-input.json').as_posix()
+        if 'image-input.json' in external_files:
+            copied_task['image_input'] = (Path(out_dir) / 'image-input.json').as_posix()
+        else:
+            # A reference that still awaits its upload has no image input yet;
+            # the identity view reads its rows from the reference choices.
+            copied_task.pop('image_input', None)
         route_reading.require_route_reading(reading, studio=root, routes={copied_task['route']},
             features=copied_task['features'], execution=copied_task['execution'], dialect=external_context['dialect'])
     else:
         external_context = None
-    identity = _identity_view(root, copied_task, reader, files=encoded, out_dir=out_dir)
+    identity = _identity_view(root, copied_task, reader, files=encoded, out_dir=out_dir, choices=choices)
     identity_gaps = _identity_gaps(identity)
     def recheck():
         _reading(choices['reading'], root=root, task=task)
@@ -1483,22 +1571,34 @@ def add_arguments(subparsers) -> None:
         if name == 'draft-inputs':
             image_source = parser.add_mutually_exclusive_group()
             image_source.add_argument('--source-image', type=Path,
-                help='Existing raster image, Studio-relative or an absolute local path to import.')
-            image_source.add_argument('--source-candidate', help='Exact captured candidate ID to enlarge.')
-            parser.add_argument('--source-run', help='Run owning the selected --source-candidate for a new upscale input.')
-            parser.add_argument('--scale', type=float, help='Requested upscale factor.')
-            parser.add_argument('--purpose', help='Actual upscale request; initializes unanswered purpose and criteria.')
+                help='Upscale only (--route upscale): the raster image to enlarge, Studio-relative or an absolute '
+                     'local path to import.')
+            image_source.add_argument('--source-candidate',
+                help='Upscale only (--route upscale): the exact captured candidate ID to enlarge, with --source-run.')
+            parser.add_argument('--source-run', help='Upscale only: the run owning the selected --source-candidate.')
+            parser.add_argument('--scale', type=float, help='Upscale only: the requested upscale factor.')
+            parser.add_argument('--purpose',
+                help='Upscale only: the actual upscale request; initializes unanswered purpose and criteria.')
+            parser.add_argument('--edit-character', metavar='CHARACTER',
+                help='Start an instruction edit of the accepted image of this Studio character, with --edit-slot, '
+                     '--route generation and --execution dispatcher or external. The draft selects the image with '
+                     'its adoption evidence and leaves the edit, prompt and criteria for the author.')
+            parser.add_argument('--edit-slot', metavar='SLOT',
+                help='The slot of --edit-character whose current accepted image is edited.')
             parser.add_argument('--model',help='Select the canonical model in a new or reopened draft.')
             parser.add_argument('--service',help='Select the offering service in a new or reopened draft.')
             parser.add_argument('--route', help='Initial production route; no prebuilt task is needed.')
             parser.add_argument('--artifact', dest='artifact_kind',
                 choices=('text', 'json', 'image', 'video', 'audio', 'binary'),
-                help='Initial output kind; defaults to image for upscale, otherwise text. Existing tasks retain their kind.')
+                help='Initial output kind; defaults to image for upscale and for an edit of an adopted image, otherwise '
+                     'text. Existing tasks retain their kind.')
             parser.add_argument('--execution', choices=('authored', 'external', 'dispatcher'),
-                help='Initial execution method; defaults to dispatcher for upscale, otherwise authored. Existing tasks retain their method.')
+                help='Initial execution method; defaults to dispatcher for upscale, otherwise authored. An edit of an '
+                     'adopted image selects dispatcher or external. Existing tasks retain their method.')
             parser.add_argument('--task-id', help='Existing work task ID; defaults to the open work task.')
             parser.add_argument('--new-task', metavar='GOAL',
-                help='Open a new work task for this selected saved source; preserves the earlier task and completion.')
+                help='Open a new work task for this selected saved source, captured upscale image or adopted image to '
+                     'edit; preserves the earlier task and completion.')
             parser.add_argument('--feature', action='append', dest='features',
                 help='Feature applied to an initial task; repeat for several features.')
         if name != 'inspect-inputs':
@@ -1524,5 +1624,6 @@ def command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
                             execution=args.execution, task_id=args.task_id, features=args.features,
                             model=args.model,service=args.service,source_image=args.source_image,
                             scale=args.scale,purpose=args.purpose,new_task=args.new_task,
-                            source_run=args.source_run,source_candidate=args.source_candidate)
+                            source_run=args.source_run,source_candidate=args.source_candidate,
+                            edit_character=args.edit_character,edit_slot=args.edit_slot)
     return build_inputs(root, args.task, args.choices, args.out_dir, from_run=args.from_run, runtime_arguments=runtime_arguments)

@@ -273,6 +273,61 @@ class StatusViewTests(unittest.TestCase):
         result = execution.execute(self.root, run, decisions_file=decisions(self.root, run))
         self.assertTrue(result['execution_completed'])
 
+    def test_run_logs_come_from_each_operation_record_alone(self):
+        import operation_context
+        settings = self.case['settings']
+        runtime = ['--state-file', str(settings.state_file.resolve()), '--cache-dir', str(settings.cache_dir.resolve()),
+                   '--managed-root', str(settings.managed_root.resolve()), '--pack-root', str(self.case['pack'].resolve())]
+        prepared = self.cli('prepare', '--root', str(self.root), '--task', 'task.json', *runtime)
+        self.cli('status', '--root', str(self.root), '--run', prepared['run'])
+        expected = {}
+        for row in operation_context.list_operations(self.root):
+            context = (row.get('metadata') or {}).get('context') or {}
+            if isinstance(context.get('run'), str):
+                expected.setdefault(context['run'], []).append(row['operation_id'])
+        self.assertIn(prepared['run'], expected)
+        # The run of each operation is in its operation.json; no event stream is read for it.
+        with patch.object(operation_context, '_operation_last_event', side_effect=AssertionError('event stream read')):
+            self.assertEqual(operation_context.operations_by_run(self.root), expected)
+            report = execution.status(self.root, prepared['run'])
+        self.assertEqual(report['runs'][0]['logs'], expected[prepared['run']])
+
+    def test_an_unimported_authority_edit_is_reported_before_execution(self):
+        from production_diagnostics import ProductionError
+        run = workflow.prepare(self.root, 'task.json')['run']
+        state = execution.status(self.root, run)['runs'][0]
+        self.assertIsNone(state['authority']['source_edited'])
+        self.assertNotIn('AUTHORITY_SOURCE_NOT_IMPORTED', [item['code'] for item in state['readiness_diagnostics']])
+        decision_file = decisions(self.root, run)
+        source = state['authority']['source_path']
+        path = self.root / source
+        imported = path.read_bytes()
+        # The author adds a grant in the file and forgets to import it.
+        document = json.loads(imported)
+        document['grants'].append({**copy.deepcopy(document['grants'][0]), 'id': 'added-in-file-only'})
+        fixtures.write(path, document)
+        state = execution.status(self.root, run)['runs'][0]
+        edited = state['authority']['source_edited']
+        self.assertEqual((edited['path'], edited['imported_sha256']), (source, c.digest(imported)))
+        self.assertEqual(edited['current_sha256'], c.digest(path.read_bytes()))
+        self.assertIn('changed after its import', state['authority']['update_action']['reason'])
+        [warning] = [item for item in state['readiness_diagnostics'] if item['code'] == 'AUTHORITY_SOURCE_NOT_IMPORTED']
+        self.assertEqual((warning['severity'], warning['file']), ('warning', source))
+        self.assertIn('authority-import', warning['required_action'])
+        drafted = execution.draft_execution(self.root, run, 'fixture-grant')
+        self.assertEqual(drafted['authority']['source_edited'], edited)
+        chosen = c.load(self.root / decision_file)
+        for item in chosen['decisions']:
+            item['grant'] = 'added-in-file-only'
+        fixtures.write(self.root / decision_file, chosen)
+        with self.assertRaises(ProductionError) as caught:
+            execution.execute(self.root, run, decisions_file=decision_file)
+        self.assertTrue(caught.exception.diagnostic.required_action.startswith(source + ' changed after its import'))
+        self.assertEqual(caught.exception.diagnostic.details['authority_source_edited'], edited)
+        # Restoring the imported bytes clears the report.
+        path.write_bytes(imported)
+        self.assertIsNone(execution.status(self.root, run)['runs'][0]['authority']['source_edited'])
+
     def test_unsent_run_without_registered_authority_names_its_import(self):
         case = fixtures.create(self.base / 'unregistered', self.base / 'unregistered-runtime', with_authority=False)
         run = workflow.prepare(case['root'], 'task.json')['run']

@@ -906,6 +906,35 @@ def _secrets() -> tuple[str, ...]:
     return known_secrets(active.secrets if active is not None else ())
 
 
+def operations_by_run(root: Path) -> dict[str, list[str]]:
+    """The operation IDs of each run, in log order, read from each operation.json alone.
+
+    It reads no event stream and copies no metadata, so it costs one small
+    file per operation; list_operations gives the complete rows. The running
+    operation and an unreadable folder are left out, as list_operations lists
+    neither under a run.
+    """
+    import execution_contract as c
+    active = current()
+    buckets: dict[str, list[str]] = {}
+    try:
+        for folder in _log_folders(root):
+            if active and folder.name == active.id:
+                continue
+            try:
+                metadata = c.load(c.local(folder, 'operation.json'))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(metadata, dict) or metadata.get('operation_id') != folder.name:
+                continue
+            run = (metadata.get('context') or {}).get('run') if isinstance(metadata.get('context'), dict) else None
+            if isinstance(run, str):
+                buckets.setdefault(run, []).append(folder.name)
+    except (OSError, ValueError):
+        return buckets
+    return buckets
+
+
 def list_operations(root: Path | None = None, *, run: str | None = None, failed: bool = False,
                     operation_id: str | None = None) -> list[dict]:
     """List diagnostics of a Studio, or of the configuration directory when `root` is None.

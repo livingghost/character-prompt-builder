@@ -4,7 +4,7 @@
       "label": "Runware",
       "documentation": "https://runware.ai/docs",
       "observed_at": "2026-11-03",
-      "source": "Runware Models API documentation: https://runware.ai/docs/models-api/media-storage for media upload and deletion; https://runware.ai/docs/models-api/authentication for HTTP requests and authentication. Other operation knowledge is attributed to the service's API documentation and parameter schemas.",
+      "source": "Runware Models API documentation: https://runware.ai/docs/models-api/media-storage for media upload and deletion; https://runware.ai/docs/models-api/authentication for HTTP requests and authentication; https://runware.ai/docs/models-api/task-polling and https://runware.ai/docs/models-api/rate-limits for polling and the processing answer of a long request, with the polling defaults of the official Python SDK runware 0.5.24 (https://pypi.org/project/runware/). Other operation knowledge is attributed to the service's API documentation and parameter schemas.",
       "transport": "runware",
       "endpoint": {
         "base_url": "https://api.runware.ai/v1",
@@ -50,14 +50,18 @@
       "delivery": {
         "video": {
           "mode": "deliveryMethod async",
-          "poll": "getResponse by taskUUID at an interval of about ten seconds; a five-second clip returns in two to three minutes",
+          "poll": "getResponse by taskUUID. The task polling guide recommends a first delay for a task of predictable duration such as a clip, and gives no number for it, then intervals of one to two seconds that grow; the official Python SDK waits a fixed 3 seconds between video status checks by default, which this record follows. A five-second clip returns in two to three minutes.",
           "terminal": "videoURL present in the data entry",
+          "poll_interval_seconds": 3,
           "note": "A task refused at submission (an error entry in the submission response) answers processing when polled afterwards and never finishes. Read the submission response before polling."
         },
         "image": {
           "mode": "synchronous by default",
-          "poll": "none",
-          "terminal": "imageURL in the submission response"
+          "poll": "A request still running after 120 seconds answers its tasks as processing, and getResponse by taskUUID retrieves their outputs. The task polling guide recommends intervals that start at one to two seconds and grow with exponential backoff; this record starts at 2 seconds and grows each wait by half, up to 10 seconds.",
+          "terminal": "imageURL in the submission response, or in the getResponse data entry of a task that answered processing",
+          "poll_interval_seconds": 2,
+          "poll_backoff_factor": 1.5,
+          "poll_max_interval_seconds": 10
         }
       },
       "errors": {

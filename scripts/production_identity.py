@@ -100,15 +100,16 @@ def _reference_subjects(row: dict, subjects: list[str]) -> tuple[list[str], list
 def context(task: dict, read, *, package: dict | None = None,
             rendered: dict | None = None, inputs: dict | None = None,
             reference_set: dict | None = None, visual: dict | None = None,
-            source_reader=None) -> dict:
+            source_reader=None, production_spec: dict | None = None) -> dict:
     """Resolve source inventories and carriers from the owners already selected.
 
     With no rendered request the result is an authoring view. Text and media
     are not certified as model input until the compiler supplies the exact
-    rendered request or the validated external input binding.
+    rendered request or the validated external input binding. A draft that has
+    not written its Production Specification yet supplies it as production_spec.
     """
     source_reader = source_reader or read
-    specification = _specification(task, read, package)
+    specification = production_spec if production_spec is not None else _specification(task, read, package)
     subjects = [row['id'] for row in specification['subjects']] if specification else []
     if not subjects:
         subjects = list((task.get('recording') or {}).get('subject_map', {}))

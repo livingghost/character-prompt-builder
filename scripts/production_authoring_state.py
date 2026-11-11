@@ -24,8 +24,12 @@ def active_task_id(root: Path | None) -> str | None:
 
 
 def current_task(root: Path, *, task: dict | None = None, report: dict | None = None,
-                 read_run=None) -> dict | None:
-    """Expose one continuation from the current work and its actual saved state."""
+                 read_run=None, run: str | None = None) -> dict | None:
+    """Expose one continuation from the current work and its actual saved state.
+
+    With `run`, the authoring state covers the drafts of that run alone, as
+    inspect describes, and `authoring_action` names the view of the whole work task.
+    """
     import work_ledger
     from production_diagnostics import from_exception
     try:
@@ -35,12 +39,18 @@ def current_task(root: Path, *, task: dict | None = None, report: dict | None = 
                 'diagnostics': [from_exception(exc, phase='status', file='work/current.json')]}
     if task is None:
         return None
-    authoring = inspect(root, task, read_run=read_run) if report is None else report
+    authoring = inspect(root, task, read_run=read_run, run=run) if report is None else report
     focus = ('authoring' if authoring['pending'] or not task.get('production_run') else
              'authored' if authoring['saved'] is not None else 'execution')
-    return {'task_id': task.get('task_id'), 'goal': task.get('goal'), 'next': task.get('next'),
-            'production_run': task.get('production_run'), 'focus': focus,
-            'next_actions': authoring['next_actions'], 'authoring': authoring}
+    result = {'task_id': task.get('task_id'), 'goal': task.get('goal'), 'next': task.get('next'),
+              'production_run': task.get('production_run'), 'focus': focus,
+              'next_actions': authoring['next_actions'], 'authoring': authoring}
+    if run is not None:
+        result['authoring_action'] = {'command': 'status',
+            'argv': python_argv(ROOT / 'scripts/production_workflow.py', 'status', '--root', str(c._root(root))),
+            'reason': f'This view inspected the drafts of run {run} alone. status without --run inspects every draft '
+                      'of this work task, its readings and its last check.'}
+    return result
 
 
 def _directory(root: Path, task_id: str) -> Path:
@@ -785,8 +795,25 @@ def _context(root: Path, task: dict, selected: dict | None, *, read_run) -> dict
     return result
 
 
-def inspect(root: Path, task: dict | None = None, *, read_run=None, choices: str | None = None) -> dict:
-    """Describe saved work for this ledger task, without producing inputs, keys or permissions."""
+def _run_draft_directories(read_run, run: str) -> set[str]:
+    """The folders of the draft or export whose choices or task prepared `run`."""
+    prepared = read_run(run).prepared
+    folders = {Path(prepared['task_path']).parent.as_posix()}
+    choices = (prepared.get('authoring') or {}).get('choices_ref')
+    if choices is not None:
+        folders.add(Path(choices['path']).parent.as_posix())
+    return folders
+
+
+def inspect(root: Path, task: dict | None = None, *, read_run=None, choices: str | None = None,
+            run: str | None = None) -> dict:
+    """Describe saved work for this ledger task, without producing inputs, keys or permissions.
+
+    With `run`, only the drafts of that run are inspected: those reopened from
+    it and the draft or export whose choices or task prepared it. The other
+    drafts and the work task's last check are left out, so `status --run` does
+    not compile every draft of the work task again.
+    """
     import work_ledger
     root = c._root(root)
     task = work_ledger.read_current(root) if task is None else task
@@ -813,11 +840,23 @@ def inspect(root: Path, task: dict | None = None, *, read_run=None, choices: str
     from production_inputs import SourceRuns
     if not isinstance(read_run, SourceRuns):
         read_run = SourceRuns(read_run)
+    run_folders = None
+    if run is not None:
+        try:
+            run_folders = _run_draft_directories(read_run, run)
+        except READ_ERRORS as exc:
+            run_folders = set()
+            result['diagnostics'].append(_problem('production/' + run, exc))
+
+    def of_run(row: dict) -> bool:
+        details = row['details']
+        return run_folders is None or details.get('source_run') == run or details['directory'] in run_folders
+
     for row in records:
         try:
             if row['kind'] in {'draft-inputs', 'build-inputs'}:
                 # A published draft whose directory the author removed is no longer a branch of this work.
-                if not _withdrawn(root, row):
+                if not _withdrawn(root, row) and of_run(row):
                     result['inputs'].append(_input(root, row, include_working=True, read_run=read_run))
             elif row['kind'] == 'route-reading':
                 result['readings'].append(_reading(root, row, records))
@@ -835,10 +874,11 @@ def inspect(root: Path, task: dict | None = None, *, read_run=None, choices: str
                                            'records': [str(path)], 'remaining_bytes': 0, 'next_actions': []})
         except READ_ERRORS as exc:
             result['diagnostics'].append(_problem(str(row['details']), exc))
-    try:
-        result['last_check'] = _last_check(root, task['task_id'])
-    except READ_ERRORS as exc:
-        result['diagnostics'].append(_problem('logs/operations', exc))
+    if run is None:
+        try:
+            result['last_check'] = _last_check(root, task['task_id'])
+        except READ_ERRORS as exc:
+            result['diagnostics'].append(_problem('logs/operations', exc))
     built = {c.content_id(row['assembly_basis']): row for row in result['inputs'] if row['state'] == 'built'}
     for row in result['inputs']:
         prior = built.get(c.content_id(row.get('assembly_basis')))

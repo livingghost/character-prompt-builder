@@ -357,6 +357,111 @@ class DispatchRecoveryTests(unittest.TestCase):
         self.assertEqual(plain['runs'],result['runs'])
         self.assertEqual((self.send.call_count,len(seen)),(1,4))
 
+    def test_watch_waits_the_interval_its_sealed_service_record_declares(self):
+        self.send.side_effect=self.unfinished
+        self.call()
+        lookup,seen=self.finishing(0,0,2);clock=WatchClock()
+        result=self.watch(lookup,clock,limit=300)
+        self.assertTrue(result['execution_completed'])
+        # The synthetic service record declares 10 seconds for image output.
+        self.assertEqual((clock.waits,len(seen)),([10.0,10.0],3))
+
+    def test_lookups_that_find_nothing_new_never_read_the_run(self):
+        self.send.side_effect=self.unfinished
+        self.call()
+        lookup,seen=self.finishing(1)
+        with patch.object(transport_synthetic,'lookup',side_effect=lookup):
+            execution.resume(self.root,self.run)
+        reads=[]
+        actual=workflow.read_run
+        def counted(*args,**kwargs):
+            reads.append(1);return actual(*args,**kwargs)
+        counts=[]
+        for limit in (25,65):
+            reads.clear()
+            with patch.object(workflow,'read_run',side_effect=counted):
+                result=self.watch(lookup,WatchClock(),interval=10,limit=limit)
+            self.assertEqual(result['runs'][0]['submission'],'pending')
+            counts.append(len(reads))
+        # Three lookups and seven lookups read the run the same number of times:
+        # only the first pass, the lookup setup and the final report read it.
+        self.assertEqual(len(seen),1+3+7)
+        self.assertEqual(counts[0],counts[1])
+        self.assertEqual(len(list(self.journal().path.glob('lookup-*-answer.json'))),1)
+
+    def test_a_record_without_poll_interval_leaves_the_interval_to_the_caller(self):
+        from production_diagnostics import ProductionError
+        self.send.side_effect=self.unfinished
+        self.call()
+        lookup,seen=self.finishing(1)
+        with patch.object(execution,'poll_schedule',return_value=None):
+            item=execution.status(self.root,self.run)['runs'][0]
+            self.assertEqual(item['next_action']['argv'][2:],['resume','--root',str(self.root.resolve()),'--run',self.run])
+            self.assertIn('--interval',item['next_action']['reason'])
+            with self.assertRaises(ProductionError) as caught:
+                self.watch(lookup,WatchClock(),limit=300)
+        diagnostic=caught.exception.diagnostic
+        self.assertEqual(diagnostic.code,'INPUT_ARGUMENT_INVALID')
+        self.assertIn('--interval SECONDS',diagnostic.required_action)
+        self.assertIn('delivery.image.poll_interval_seconds',diagnostic.required_action)
+        # The first pass registered the finished output before the watch stopped.
+        self.assertEqual((len(seen),len(self.candidates())),(1,1))
+
+    def test_waits_grow_by_the_declared_factor_up_to_the_declared_maximum(self):
+        self.send.side_effect=self.unfinished
+        self.call()
+        lookup,seen=self.finishing(0,0,0,0,0,2);clock=WatchClock()
+        with patch.object(execution,'poll_schedule',return_value=execution.PollSchedule(0,2,1.5,5)):
+            result=self.watch(lookup,clock,limit=300)
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual((clock.waits,len(seen)),([2.0,3.0,4.5,5.0,5.0],6))
+
+    def test_the_first_lookup_waits_out_the_declared_delay_after_acceptance(self):
+        self.send.side_effect=self.unfinished
+        self.call()
+        lookup,seen=self.finishing(0,2);clock=WatchClock()
+        # The provider accepted the task 5 seconds ago; the record asks for 30 before the first lookup.
+        with patch.object(execution,'poll_schedule',return_value=execution.PollSchedule(30,10,1,10)), \
+                patch.object(execution,'_seconds_since',return_value=5.0):
+            result=self.watch(lookup,clock,limit=300)
+            self.assertTrue(result['execution_completed'])
+            self.assertEqual((clock.waits,len(seen)),([25.0,10.0],2))
+            # A run that is no longer pending is answered at once, without the delay.
+            settled=WatchClock()
+            self.watch(AssertionError('A settled run is not asked again'),settled,limit=300)
+            self.assertEqual(settled.waits,[])
+
+    def test_a_first_delay_beyond_the_limit_asks_nothing(self):
+        self.send.side_effect=self.unfinished
+        self.call()
+        lookup,seen=self.finishing(2);clock=WatchClock()
+        with patch.object(execution,'poll_schedule',return_value=execution.PollSchedule(200,10,1,10)), \
+                patch.object(execution,'_seconds_since',return_value=0.0):
+            result=self.watch(lookup,clock,limit=60)
+        self.assertEqual((clock.waits,len(seen)),([60.0],0))
+        item=result['runs'][0]
+        self.assertEqual((item['submission'],result['ok']),('pending',False))
+        self.assertEqual(item['next_action']['argv'][-1],'--watch')
+        self.assertIn('first 200 seconds after the provider accepted it',item['next_action']['reason'])
+
+    def test_the_schedule_comes_from_the_delivery_entry_of_the_task_artifact(self):
+        from production_diagnostics import ProductionError
+        def target(**entry):
+            return {'offering':{'service':'synthetic'},'service':{'delivery':{'image':entry}}}
+        self.assertIsNone(execution.poll_schedule(target(mode='m',poll='p',terminal='t'),'image'))
+        self.assertIsNone(execution.poll_schedule(target(poll_interval_seconds=2),'video'))
+        schedule=execution.poll_schedule(target(poll_first_delay_seconds=30,poll_interval_seconds=2,
+                                                poll_backoff_factor=2,poll_max_interval_seconds=10),'image')
+        self.assertEqual(schedule,execution.PollSchedule(30.0,2.0,2.0,10.0))
+        self.assertEqual(schedule.describe(),'first 30 seconds after the provider accepted it, then after 2 seconds, '
+                         'each later wait 2 times the one before, up to 10 seconds')
+        for entry in ({'poll_interval_seconds':2,'poll_backoff_factor':2},
+                      {'poll_interval_seconds':2,'poll_backoff_factor':0.5,'poll_max_interval_seconds':10},
+                      {'poll_interval_seconds':5,'poll_max_interval_seconds':2}):
+            with self.subTest(entry=entry),self.assertRaises(ProductionError) as caught:
+                execution.poll_schedule(target(**entry),'image')
+            self.assertIn('--interval SECONDS',caught.exception.diagnostic.required_action)
+
     def test_interruption_during_the_wait_keeps_registered_outputs_and_the_run_resumable(self):
         self.send.side_effect=self.unfinished
         self.call()

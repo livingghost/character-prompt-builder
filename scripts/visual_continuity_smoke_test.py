@@ -52,6 +52,19 @@ class SubjectTests(unittest.TestCase):
     def test_arbitrary_display_words_do_not_change_set(self):
         value=self.visual({'two figures and an overview':self.subject('undecided')})
         self.check(value)
+    def test_problems_of_every_subject_are_reported_together(self):
+        from production_diagnostics import ProductionError
+        with self.assertRaises(ProductionError) as caught:
+            self.check(self.visual({'subject-a':self.subject('recurring','CHAR-A'),'subject-b':self.subject('unknown')}))
+        diagnostic=caught.exception.diagnostic.as_dict()
+        self.assertEqual((diagnostic['code'],diagnostic['phase']),('INPUT_CONSISTENCY_ERROR','visual-continuity'))
+        self.assertEqual(diagnostic['guidance']['document_path'],'references/runtime/generation-package.md#generation-package')
+        self.assertEqual(len(diagnostic['problems']),2)
+        self.assertIn('subject-a: recurring needs an accepted identity image',diagnostic['message'])
+        self.assertIn('subject-b: select recurring, one-off or undecided',diagnostic['message'])
+        # Each problem keeps its own repair: the identity image for subject-a, the decision field for subject-b.
+        self.assertIn('studio_reference.py',diagnostic['required_action'])
+        self.assertIn('recording.subject_map',diagnostic['required_action'])
 
 class DecisionTests(unittest.TestCase):
     """Stated decisions become a recorded basis and the same record a person would write."""
@@ -94,6 +107,17 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(record['subjects']['subject-a']['identity_refs'],[{'slot':'base.front','iteration_id':'I1'}])
     def test_character_for_unknown_subject_refused(self):
         with self.assertRaises(ValueError):self.decide({'subject-a':'one-off'},characters={'other':'C01'})
+    def test_missing_decisions_and_characters_are_reported_together(self):
+        from production_diagnostics import ProductionError
+        self.spec={'subjects':[{'id':'subject-a'},{'id':'subject-b'}]}
+        with self.assertRaises(ProductionError) as caught:
+            self.decide({'subject-a':'recurring'},characters={'other':'C01'})
+        diagnostic=caught.exception.diagnostic.as_dict()
+        self.assertEqual(diagnostic['phase'],'visual-continuity')
+        self.assertEqual(len(diagnostic['problems']),3)
+        for field in ('generation.continuity','recording.subject_map'):
+            self.assertIn(field,diagnostic['required_action'])
+        self.assertIn('each recurring subject: subject-a',diagnostic['message'])
     def test_changed_decision_record_refused(self):
         record=self.decide({'subject-a':'one-off'});path=self.root/record['basis']['path']
         path.write_bytes(path.read_bytes().replace(b'one-off',b'recurring'))

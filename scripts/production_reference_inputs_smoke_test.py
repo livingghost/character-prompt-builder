@@ -391,6 +391,41 @@ class ReferenceInputTests(unittest.TestCase):
         self.assertEqual(empty['selected_references'], [])
         self.assertFalse((self.root / 'mirror-empty/image-input.json').exists())
 
+    def test_explicit_image_input_names_the_rows_of_an_existing_set_by_its_own_ids(self):
+        # An explicit image input over an existing prepared set labels each
+        # inherited row with its own reference ID; the set's authority is unchanged.
+        import image_input
+        from model_prompt_input_fixtures import prompt_input
+        from reference_delivery import prepared_origin_projection
+        evidence = (self.pack / 'records/models.json').read_bytes()
+        (self.root / 'model.json').write_bytes(evidence)
+        choices = inputs.draft(None, package_root=self.root)
+        choices['additional_references'] = [self.direct(0)]
+        original = self.build(choices, 'origin')
+        self.assertEqual(original['selected_references'][0]['reference_id'], 'image-0')
+        row = original['selected_references'][0]
+        choices = inputs.draft(None, package_root=self.root)
+        choices['image_input'] = {'artifact_type': 'image-input-plan', 'model': {
+            'requested': MODEL_ID, 'catalog_status': 'defined', 'catalog_model': MODEL_ID,
+            'prompt_input': prompt_input('descriptive'),
+            'target': {'service': 'synthetic', 'model_identifier': 'synthetic:robot', 'operation': 'generate'},
+            'evidence': {'path': 'model.json', 'sha256': c.digest(evidence), 'locator': 'whole synthetic model record'}},
+            'references': [{'id': 'edit-source', 'role': row['role'], 'file': 'image-0.png',
+                'use_for': row['authority']['controls'], 'do_not_transfer': row['authority']['must_not_control'],
+                'subject_uses': row['subject_uses']}],
+            'prepared_references': 'origin/prepared-reference-set.json', 'external_request': None}
+        built = self.build(choices, 'relabeled')
+        selected = built['selected_references'][0]
+        self.assertEqual(selected['reference_id'], 'edit-source')
+        self.assertEqual((selected['source'], selected['authority']), (row['source'], row['authority']))
+        self.assertEqual(prepared_origin_projection(built), prepared_origin_projection(original))
+        generated = c.load(self.root / 'relabeled/image-input.json')
+        self.assertEqual(generated['references'][0]['id'], 'edit-source')
+        binding = image_input.validate(generated, self.root)
+        image_input.require_prepared(binding, refs.validate_prepared_reference_set(
+            built, package_root=self.root / 'relabeled'), model_id=MODEL_ID,
+            target=binding['model']['target'])
+
     def test_removing_state_coverage_remains_an_unresolved_choice(self):
         from state_protocol import finalize_artifact
         source = refs._prepare_supplied_source({'kind': 'supplied-file', 'reference_id': 'state',

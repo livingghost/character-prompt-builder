@@ -162,6 +162,16 @@ argument. Edit that declaration from the actual instruction and use the returned
 action. A concurrent authority change requires another inspection and
 reconciliation; no `current` shortcut replaces the observed predecessor.
 
+An edit of the authority file takes effect only through `authority-import`:
+`draft-execution`, `execute` and `status` read the imported authority. When the
+file of the latest import now differs from the bytes that import recorded,
+`authority.source_edited` gives its path and both digests and the update action
+says so. An unsent run then also reports the warning
+`AUTHORITY_SOURCE_NOT_IMPORTED`, and an authorization that `execute` refuses
+names the unimported edit ahead of its own repair. Import the edit when it
+records an actual authority change, then draft the execution decisions again;
+the stop assessments of a draft follow the imported stop conditions.
+
 A review repair binds its changed creative scopes and revised input hash. An
 authority-only update is separate from a creative variant, and a revoked grant
 stops consumption of an edit receipt as `GRANT_REVOKED`.

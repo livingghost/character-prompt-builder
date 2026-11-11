@@ -153,6 +153,16 @@ class SemanticEditPlanTests(unittest.TestCase):
         self.assertTrue(result['ok'])
         self.assertEqual(result['binding'], str(self.root / 'bindings/edit.json'))
         edits.validate_binding(c.load(self.root / 'bindings/edit.json'))
+        # A backslash path is refused with the /-separated form to write, as every studio file option does.
+        refused = io.StringIO()
+        arguments = ['semantic_edit_plan.py', 'plans\\edit-plan.json',
+            '--image-input', 'plans/image-input.json', '--root', str(self.root), '--out', 'bindings/other.json']
+        with patch('sys.argv', arguments), contextlib.redirect_stdout(refused):
+            self.assertNotEqual(edits.main(), 0)
+        diagnostic = json.loads(refused.getvalue())['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'INPUT_SCHEMA_INVALID')
+        self.assertIn('plans/edit-plan.json', diagnostic['required_action'])
+        self.assertFalse((self.root / 'bindings/other.json').exists())
 
     def test_binding_keeps_generic_roles_exact_target_and_all_original_hashes(self):
         result = self.validate()
@@ -2030,9 +2040,59 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(workflow.claim_external(self.root, run, 1, token)['data']['count'], 1)
 
     def test_scene_must_match_the_applied_task_source(self):
+        from production_diagnostics import DEFAULT_ACTION, ProductionError
         self.task['sources'][0]['path'] = 'design.png'
+        with self.assertRaisesRegex(ProductionError, 'applied accepted-source') as caught:
+            edits.task_binding(self.root, self.task, lambda base, path: (base / path).read_bytes())
+        diagnostic = caught.exception.diagnostic
+        self.assertEqual((diagnostic.phase, diagnostic.pointer, diagnostic.file),
+                         ('semantic-edit', '$.source', 'edit-plan.json'))
+        self.assertNotEqual(diagnostic.required_action, DEFAULT_ACTION)
+        self.assertIn('accepted-source', diagnostic.required_action)
+        self.assertEqual(diagnostic.details['reference_sha256'], c.sha256_file(self.root / 'scene.png'))
+
+    def test_scene_carrier_at_another_path_matches_the_accepted_source_by_its_bytes(self):
+        # A prepared reference set delivers the scene from a derived carrier
+        # path; the same bytes identify the applied accepted-source.
+        write(self.root, 'carriers/sources/scene-copy', (self.root / 'scene.png').read_bytes())
+        self.plan['references'][0]['file'] = 'carriers/sources/scene-copy'
+        write(self.root, 'image-input.json', self.plan)
+        result = edits.task_binding(self.root, self.task, lambda base, path: (base / path).read_bytes())
+        self.assertEqual(result['source'], 'scene')
+        write(self.root, 'carriers/sources/scene-copy', png((200, 10, 10)))
         with self.assertRaisesRegex(ValueError, 'applied accepted-source'):
             edits.task_binding(self.root, self.task, lambda base, path: (base / path).read_bytes())
+
+    def test_undeclared_review_criterion_names_its_repair(self):
+        from production_diagnostics import DEFAULT_ACTION, ProductionError
+        self.task['criteria'] = self.task['criteria'][:1]
+        with self.assertRaises(ProductionError) as caught:
+            edits.task_binding(self.root, self.task, lambda base, path: (base / path).read_bytes())
+        diagnostic = caught.exception.diagnostic
+        self.assertEqual((diagnostic.phase, diagnostic.pointer), ('semantic-edit', '$.review_criteria'))
+        self.assertEqual(diagnostic.details['criteria'], ['geometry'])
+        self.assertNotEqual(diagnostic.required_action, DEFAULT_ACTION)
+        self.assertIn('review_criteria in edit-plan.json', diagnostic.required_action)
+
+    def test_editable_plan_names_each_unanswered_part_together(self):
+        plan = {'artifact_type': 'semantic-edit-plan', 'source': 'scene',
+                'edit': {'target': None, 'change': None, 'preserve': None, 'required_reference_roles': ['scene']},
+                'review_criteria': None}
+        entries = edits.unresolved(plan, path='draft/edit-plan.json', criteria=self.task['criteria'])
+        self.assertEqual([row['field'] for row in entries],
+                         ['task_changes.semantic_edit.' + part for part in
+                          ('edit.target', 'edit.change', 'edit.preserve', 'review_criteria')])
+        for row in entries:
+            self.assertEqual((row['code'], row['reason'], row['file']),
+                             ('AUTHORED_CHOICE_REQUIRED', 'authored-choice-required', 'draft/edit-plan.json'))
+            self.assertIn('draft/edit-plan.json', row['required_action'])
+        plan['edit'].update(target='wall', change='paint it', preserve=[])
+        plan['review_criteria'] = ['wall', 'absent']
+        entries = edits.unresolved(plan, path='draft/edit-plan.json', criteria=self.task['criteria'])
+        self.assertEqual([row['field'] for row in entries], ['task_changes.semantic_edit.review_criteria'])
+        self.assertIn('absent', entries[0]['message'])
+        plan['review_criteria'] = ['wall']
+        self.assertEqual(edits.unresolved(plan, path='draft/edit-plan.json', criteria=self.task['criteria']), [])
 
     def test_external_readiness_requires_exact_current_submission_authority(self):
         import production_workflow as workflow

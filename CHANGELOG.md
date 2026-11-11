@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026.11.11.3
+
+- Start instruction edits from accepted Studio images with
+  `draft-inputs --edit-character --edit-slot`, retaining the source adoption
+  and applicable choices of its producing run.
+- Bind each semantic edit to its scene bytes and declared review criteria.
+  Show unanswered edit, recording and continuity decisions before preparation.
+- Poll pending work on the service record's declared schedule. Avoid rereading
+  a run when the provider returns an unchanged answer.
+- Report authority edits that were not imported. Limit `status --run` authoring
+  inspection to drafts related to that run.
+
 ## 2026.11.11.2
 
 - Normalize relative `Path` inputs to `/` separators on Windows. This accepts

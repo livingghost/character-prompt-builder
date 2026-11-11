@@ -12,6 +12,70 @@ if TYPE_CHECKING:
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTINUITIES = {'recurring', 'one-off', 'undecided'}
+DECISIONS = 'generation.continuity (authoring.generation.continuity in editable choices)'
+SUBJECT_MAP = 'recording.subject_map (authoring.task.recording.subject_map in editable choices)'
+# Where a production task states visual continuity; every refusal below names the field to change.
+REPAIR = ('Correct the visual continuity this message names. A task gives each production subject one decision, '
+          'recurring, one-off or undecided, in generation.continuity, and maps a recurring subject to its Studio '
+          'character in recording.subject_map; editable choices hold them at authoring.generation.continuity and '
+          'authoring.task.recording.subject_map. A complete record can instead stand at '
+          'generation.visual_continuity, or at visual in editable choices. A recurring subject also needs its '
+          'character\'s current accepted identity image among the prepared references with the identity use. '
+          'Then run check, build-inputs or prepare again.')
+IDENTITY_IMAGE = ('Add the current accepted identity image of the subject\'s Studio character to the prepared references '
+                  'with the identity use (scripts/studio_reference.py --studio STUDIO --character CHARACTER --slot SLOT '
+                  'source --out FILE writes its Studio source), or decide the subject one-off or undecided in '
+                  'generation.continuity (authoring.generation.continuity in editable choices). '
+                  'Then run check, build-inputs or prepare again.')
+
+
+class Refusal(ValueError):
+    """One visual continuity problem, with the change that settles it."""
+
+    def __init__(self, message: str, action: str = REPAIR) -> None:
+        super().__init__(message)
+        self.action = action
+
+
+def _refuse(problems: list[ValueError]) -> None:
+    """Report every collected problem in one diagnostic of the visual-continuity phase."""
+    if not problems:
+        return
+    from production_diagnostics import ProductionError
+    actions = list(dict.fromkeys(getattr(problem, 'action', REPAIR) for problem in problems))
+    messages = [str(problem).rstrip('.') + '.' for problem in problems]
+    raise ProductionError('INPUT_CONSISTENCY_ERROR', ' '.join(messages), phase='visual-continuity',
+                          required_action=' '.join(actions), problems=[str(problem) for problem in problems])
+
+
+def _owned(function):
+    """Give a plain refusal of this module the visual-continuity phase and its repair."""
+    import functools
+
+    @functools.wraps(function)
+    def call(*args, **kwargs):
+        from production_diagnostics import ProductionError
+        try:
+            return function(*args, **kwargs)
+        except ProductionError:
+            raise
+        except ValueError as exc:
+            _refuse([exc])
+    return call
+
+
+def _each(subjects, check, problems: list[ValueError] | None = None) -> None:
+    """Check every subject, then report the problems of all of them together, after `problems` already found."""
+    from production_diagnostics import ProductionError
+    problems = list(problems or [])
+    for ident, item in subjects:
+        try:
+            check(ident, item)
+        except ProductionError:
+            raise
+        except ValueError as exc:
+            problems.append(exc)
+    _refuse(problems)
 
 
 def file_ref(root: Path, path: str, *, locator: str | None = None) -> dict:
@@ -33,8 +97,12 @@ def check_file(root: Path, value: Any, *, basis: bool = False) -> Path:
     return path
 
 
+@_owned
 def validate_content(value: Any, production_spec: dict) -> None:
-    """Validate the declared relationships without consulting current adoptions."""
+    """Validate the declared relationships without consulting current adoptions.
+
+    The problems of all subjects are reported together.
+    """
     c.exact(value, {'purpose', 'basis', 'subjects'}, 'visual continuity')
     if value['purpose'] not in {'sheet-panel', 'image'}:
         raise ValueError('visual purpose must be sheet-panel or image')
@@ -49,11 +117,13 @@ def validate_content(value: Any, production_spec: dict) -> None:
     ids = [item.get('id') for item in originals if isinstance(item, dict)]
     if len(ids) != len(originals) or len(ids) != len(set(ids)) or any(not isinstance(x, str) or not x for x in ids):
         raise ValueError('production subjects need unique explicit IDs')
+    problems = []
     if set(value['subjects']) != set(ids):
-        raise ValueError('continuity subjects must match production subjects exactly')
+        problems.append(ValueError('continuity subjects must match production subjects exactly'))
     if value['purpose'] == 'sheet-panel' and len(ids) != 1:
-        raise ValueError('a sheet panel requires exactly one production subject')
-    for ident, item in value['subjects'].items():
+        problems.append(ValueError('a sheet panel requires exactly one production subject'))
+
+    def subject(ident: str, item: Any) -> None:
         c.exact(item, {'continuity', 'character_id', 'studio_character', 'identity_refs'}, 'subject ' + ident)
         if item['continuity'] not in CONTINUITIES:
             raise ValueError(ident + ': select recurring, one-off or undecided explicitly')
@@ -85,9 +155,10 @@ def validate_content(value: Any, production_spec: dict) -> None:
         if item['identity_refs'] and item['studio_character'] is None:
             raise ValueError(ident + ': identity selectors need their studio character')
         if item['continuity'] == 'recurring' and not item['identity_refs']:
-            raise ValueError(ident + ': recurring needs an accepted identity image among the references. '
-                             'The first images of a new recurring character are undecided exploration; '
-                             'they become recurring once the author accepts one.')
+            raise Refusal(ident + ': recurring needs an accepted identity image among the references. '
+                          'The first images of a new recurring character are undecided exploration; '
+                          'they become recurring once the author accepts one', IDENTITY_IMAGE)
+    _each(value['subjects'].items(), subject, problems)
 
 
 def _studio_read(root: Path, read: StudioRead | None) -> StudioRead:
@@ -266,9 +337,14 @@ def verify_studio_bindings(value: dict, prepared: dict, *, package_root: Path) -
 
 
 @runtime_snapshot.operation
+@_owned
 def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | None,
             recording_character: str | None = None, recording_slot: str | None = None, basis_reader=None,
             read: StudioRead | None = None) -> dict:
+    """Check the record against the prepared references and the Studio's current adoptions.
+
+    The problems of all subjects are reported together.
+    """
     validate_content(value, production_spec)
     if root is None:
         raise ValueError('visual continuity requires an explicit source or studio root')
@@ -292,11 +368,13 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
     evidence = []
     from reference_delivery import bindings
     delivered = bindings(prepared['transport_mode'], prepared['selected_references'], prepared['single_board'])
-    for ident, subject in subjects.items():
+    def check(ident: str, subject: dict) -> None:
         character = subject['studio_character']
         if subject['continuity'] == 'recurring' or value['purpose'] == 'sheet-panel':
             if character is None:
-                raise ValueError(ident + ': select the studio record for this subject')
+                raise Refusal(ident + ': select the studio record for this subject',
+                              'Map the subject to its Studio character in ' + SUBJECT_MAP + ', or decide it one-off '
+                              'in ' + DECISIONS + '. Then run check, build-inputs or prepare again.')
         if character is not None:
             import studio
             studio.validate_recording_target(root, character, recording_slot or 'candidate', writable=False, read=read)
@@ -306,7 +384,7 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
                 raise ValueError(ident + ': reference workflow is incomplete: ' + '; '.join(index['errors']))
             current = [x for x in index['bindings'] if x['influence'] == 'identity' and x['image_path']]
             if current and not subject['identity_refs']:
-                raise ValueError(ident + ': generation must include the current accepted identity')
+                raise Refusal(ident + ': generation must include the current accepted identity', IDENTITY_IMAGE)
         for ref in subject['identity_refs']:
             if ref.get('kind') == 'studio-artifact':
                 selected = _identity_scope(prepared, ref['reference_number'], ident)
@@ -329,10 +407,12 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
             evidence.append({'subject_id': ident, 'character_id': adopted['character_id'],
                              'approval_sha256': accepted['approval_sha256'],
                              'image_sha256': ref['source_sha256'], **delivered[ref['reference_number'] - 1]})
+    _each(subjects.items(), check)
     return {'subjects': len(subjects), 'identity_bindings': evidence}
 
 
 @runtime_snapshot.operation
+@_owned
 def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: Path,
                  read: StudioRead | None = None) -> dict:
     """Resolve only explicitly selected records; preserve all authored decisions."""
@@ -373,6 +453,7 @@ def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: 
 
 
 @runtime_snapshot.operation
+@_owned
 def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared: dict, root: Path,
                    characters: dict[str, str] | None = None, work_ids: dict[str, str] | None = None,
                    sheet_panel: bool = False, basis: dict | None = None,
@@ -387,18 +468,27 @@ def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared
     work_ids = dict(work_ids or {})
     ids = ([item.get('id') for item in production_spec.get('subjects') or [] if isinstance(item, dict)]
            if production_spec is not None else list(decisions))
+    problems = []
     if set(decisions) != set(ids):
-        raise ValueError('state one continuity decision for each production subject: ' + ', '.join(map(str, ids)))
+        problems.append(Refusal('state one continuity decision for each production subject: ' + ', '.join(map(str, ids)),
+            'Give ' + DECISIONS + ' exactly one decision, recurring, one-off or undecided, for each listed '
+            'production subject and no other key. Then run check, build-inputs or prepare again.'))
     if set(characters) - set(ids):
-        raise ValueError('studio characters name no production subject: ' + ', '.join(sorted(set(characters) - set(ids))))
+        problems.append(Refusal('studio characters name no production subject: ' + ', '.join(sorted(set(characters) - set(ids))),
+            'Remove the listed keys from ' + SUBJECT_MAP + ', or rename them to production subject IDs. '
+            'Then run check, build-inputs or prepare again.'))
+    unmapped = [ident for ident in ids if decisions.get(ident) == 'recurring' and characters.get(ident) is None]
+    if unmapped:
+        problems.append(Refusal('name the studio character of each recurring subject: ' + ', '.join(map(str, unmapped)),
+            'Map each listed subject to its Studio character in ' + SUBJECT_MAP + ', or decide it one-off in '
+            + DECISIONS + '. Then run check, build-inputs or prepare again.'))
+    _refuse(problems)
     subjects = {}
     for ident in ids:
         character = characters.get(ident)
         if character is not None:
             read = _studio_read(root, read)
         continuity = decisions[ident]
-        if continuity == 'recurring' and character is None:
-            raise ValueError(ident + ': name the studio character of a recurring subject')
         refs = []
         direct = [row for number, row in enumerate(prepared['selected_references'], 1) if row['source'].get('kind') == 'studio-artifact'
                   and row['source']['character'] == character and

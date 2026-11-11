@@ -203,6 +203,11 @@
         "poll",
         "terminal"
       ],
+      "dependentRequired": {
+        "poll_first_delay_seconds": ["poll_interval_seconds"],
+        "poll_backoff_factor": ["poll_interval_seconds", "poll_max_interval_seconds"],
+        "poll_max_interval_seconds": ["poll_interval_seconds"]
+      },
       "properties": {
         "mode": {
           "$ref": "#/$defs/text"
@@ -212,6 +217,26 @@
         },
         "terminal": {
           "$ref": "#/$defs/text"
+        },
+        "poll_first_delay_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Least seconds between the provider's acceptance of a task and its first lookup, for a task of predictable duration. resume --watch waits out the rest of this time before its first pass. Leave it out to ask at once."
+        },
+        "poll_interval_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds of the first wait between lookups of a task whose outputs are unfinished, from the service's own polling guidance. resume --watch follows this schedule for a run whose task artifact names this delivery entry; an entry without it declares no schedule."
+        },
+        "poll_backoff_factor": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Each later wait is the wait before it times this factor. 1, or leaving it out, waits poll_interval_seconds every time."
+        },
+        "poll_max_interval_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Longest wait between lookups, at least poll_interval_seconds. Required with poll_backoff_factor."
         },
         "note": {
           "$ref": "#/$defs/text"

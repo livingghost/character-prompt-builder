@@ -65,11 +65,20 @@ class ModelInputTests(unittest.TestCase):
         self.assertEqual(actual['continuity'], 'undecided')
         self.assertIsNone(actual['character_id'])
 
+    def refused(self, message):
+        """The build stops before publication and returns the continuity problem with its repair."""
+        result = self.build()
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['state'], 'draft')
+        [entry] = result['unresolved']
+        self.assertEqual((entry['code'], entry['phase']), ('INPUT_CONSISTENCY_ERROR', 'visual-continuity'))
+        self.assertIn(message, entry['message'])
+        self.assertIn('visual in editable choices', entry['required_action'])
+        self.assertFalse((self.root / 'built').exists())
+
     def test_an_unselected_subject_is_not_inferred(self):
         self.choices['visual']['subjects'] = {}
-        with self.assertRaises(ValueError):
-            self.build()
-        self.assertFalse((self.root / 'built').exists())
+        self.refused('continuity subjects must match production subjects exactly')
 
     def test_no_recurring_identity_is_invented_for_two_subjects(self):
         spec = copy.deepcopy(self.package['production_spec'])
@@ -79,14 +88,13 @@ class ModelInputTests(unittest.TestCase):
         self.write('production-spec.json', spec)
         original = next(iter(self.choices['visual']['subjects'].values()))
         self.choices['visual']['subjects'][second['id']] = dict(original, continuity='recurring', character_id='synthetic-character')
-        with self.assertRaises(ValueError):
-            self.build()
-        self.assertFalse((self.root / 'built').exists())
+        # One report holds the panel rule and every subject's problem, including the identity it does not invent.
+        self.refused('a sheet panel requires exactly one production subject')
+        self.refused('synthetic-second-subject: recurring needs an accepted identity image')
 
     def test_forged_basis_hash_is_not_silently_repaired(self):
         self.choices['visual']['basis']['sha256'] = 'a' * 64
-        with self.assertRaises(ValueError):
-            self.build()
+        self.refused('visual basis choice')
 
     def test_validation_evidence_must_cover_the_selected_target(self):
         path = self.choices['validation']['contract']

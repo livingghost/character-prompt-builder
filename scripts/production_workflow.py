@@ -2939,7 +2939,7 @@ def build_parser():
         if name == 'execute':
             p.add_argument('--decisions-file')
         if name == 'resume':
-            from production_execution import WATCH_INTERVAL_SECONDS, WATCH_LIMIT_SECONDS
+            from production_execution import WATCH_LIMIT_SECONDS
             recovery = p.add_mutually_exclusive_group()
             recovery.add_argument('--outcome-file')
             recovery.add_argument('--watch', action='store_true',
@@ -2947,7 +2947,10 @@ def build_parser():
                                        'stays pending, registering each output as it finishes, until none is pending '
                                        'or --limit ends.')
             p.add_argument('--interval', type=float, metavar='SECONDS',
-                           help=f'Seconds --watch waits between lookups; {WATCH_INTERVAL_SECONDS} when left out.')
+                           help='Seconds --watch waits between lookups, the same every time, asking at once. When left '
+                                'out, the run\'s sealed service record declares the schedule for its kind of output: '
+                                'a first delay after the provider accepted the task, a first wait, and a factor and '
+                                'upper bound by which later waits grow. A record that declares none needs --interval.')
             p.add_argument('--limit', type=float, metavar='SECONDS',
                            help='Seconds --watch keeps asking in all, after which it returns the run as a plain resume '
                                 f'leaves it; {WATCH_LIMIT_SECONDS} when left out.')

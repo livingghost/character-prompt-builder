@@ -493,7 +493,8 @@
     },
     "semantic-instruction-edit": {
       "reads": [
-        "references/runtime/semantic-instruction-edit.md"
+        "references/runtime/semantic-instruction-edit.md",
+        "references/runtime/studio-canon-references.md"
       ],
       "source_roles": [
         "accepted-source"

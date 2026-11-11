@@ -9,7 +9,10 @@ recorded as one.
 """
 from __future__ import annotations
 
+import contextlib
 import copy
+import dataclasses
+import datetime
 import functools
 import math
 import os
@@ -33,7 +36,6 @@ SCRIPT = str(Path(__file__).with_name('production_workflow.py'))
 # service record polls an asynchronous task about every ten seconds. The limit keeps one watch within
 # about two minutes, a common time limit of an agent's command; a pending run is watched again from
 # its next action.
-WATCH_INTERVAL_SECONDS = 10
 WATCH_LIMIT_SECONDS = 120
 
 
@@ -92,6 +94,27 @@ def draft_execution(root: Path, run: str, grant: str | None = None) -> dict:
 def authorize_decisions(root: Path, run: str, path: str, prepared: dict, plan: dict) -> None:
     import production_decisions
     production_decisions.authorize(root, run, path, prepared, plan)
+
+
+@contextlib.contextmanager
+def _imported_authority_note(root: Path, authority: store.CurrentAuthority | None):
+    """Name an unimported edit of the authority file in a refused authorization, ahead of its own repair.
+
+    Decisions are checked against the imported authority, so a grant or stop
+    condition added only in the file shows here as a mismatch.
+    """
+    try:
+        yield
+    except ProductionError as exc:
+        edited = store.edited_authority_source(root, authority)
+        if edited is not None:
+            exc.diagnostic.required_action = (
+                f'{edited["path"]} changed after its import and this check read the imported authority; when the '
+                'edit records an actual authority change, import it with authority-import (status --run gives the '
+                'exact command in authority.update_action) and draft the decisions again. '
+                + exc.diagnostic.required_action)
+            exc.diagnostic.details['authority_source_edited'] = edited
+        raise
 
 
 def receipts(root: Path, prepared: dict, rows: list[dict], plan: dict, *,
@@ -246,10 +269,11 @@ def _execute_external(root: Path, run: str, *, decisions_file: str | None) -> di
                 phase='execution', run=run,
                 required_action='Recover that host call and receive its actual result. A new call needs a newly prepared run.')
         authority = workflow.current_authority(root, prepared)
-        if decisions_file is not None:
-            production_decisions._authorize_from(root, loaded, authority, decisions_file, plan)
-            loaded = workflow.read_run(root, run)
-        tokens = receipts(root, loaded.prepared, loaded.rows, plan, authority=authority, loaded=loaded)
+        with _imported_authority_note(root, authority):
+            if decisions_file is not None:
+                production_decisions._authorize_from(root, loaded, authority, decisions_file, plan)
+                loaded = workflow.read_run(root, run)
+            tokens = receipts(root, loaded.prepared, loaded.rows, plan, authority=authority, loaded=loaded)
         hand = plan['handoff']
         workflow._handoff_from(root, loaded, authority, hand['recipient'], hand['method'], tokens['direction'])
         loaded = workflow.read_run(root, run)
@@ -298,11 +322,12 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
         boundary = workflow.read_current(root, run)
         loaded = boundary.view
         authority = workflow.current_authority(root, loaded.prepared)
-        if decisions_file is not None:
-            import production_decisions
-            production_decisions._authorize_from(root, loaded, authority, decisions_file, plan)
-            loaded = workflow.read_run(root, run)
-        tokens = receipts(root, loaded.prepared, loaded.rows, plan, authority=authority, loaded=loaded)
+        with _imported_authority_note(root, authority):
+            if decisions_file is not None:
+                import production_decisions
+                production_decisions._authorize_from(root, loaded, authority, decisions_file, plan)
+                loaded = workflow.read_run(root, run)
+            tokens = receipts(root, loaded.prepared, loaded.rows, plan, authority=authority, loaded=loaded)
         # The journal is the dispatcher's own copy of the consumer, so writing it
         # is the handoff. It is written only after every check above passed, right
         # before the claim. A transaction that fails after this point leaves a
@@ -934,20 +959,24 @@ def _recorded_observation(root: Path, run: str, journal, claim: dict, transport:
     return None
 
 
-def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transport: Any) -> dict:
+def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transport: Any, *,
+               found: dict | None = None) -> dict:
     """Ask the provider once for the answer of the started send, and record what it said when that is new.
 
     A lookup that observes what the run already records for the send, the same
     reading of an answer or no answer again for the same reason, records nothing.
+    `found` is what a lookup of resume --watch already received, as
+    transport_contract.lookup_once gives it; it is recorded instead of asking again.
     """
     import transport_contract
     import dispatch
     request = c.load(journal.path / 'request.json')
-    selected = claim_authentication(claim, transport, target['offering']['service'])
-    credential = _credential(root, transport, target['offering']['service'], expected=selected)
-    key = credential.value if credential is not None else ''
-    with stage('provider-lookup'):
-        found = transport_contract.lookup_once(transport, request, target['service'], key)
+    if found is None:
+        selected = claim_authentication(claim, transport, target['offering']['service'])
+        credential = _credential(root, transport, target['offering']['service'], expected=selected)
+        key = credential.value if credential is not None else ''
+        with stage('provider-lookup'):
+            found = transport_contract.lookup_once(transport, request, target['service'], key)
     if _lookup_observation(transport, found) == _recorded_observation(root, run, journal, claim, transport):
         result = status(root, run)
         result.update(ok=False, execution_completed=False, external_effect=False)
@@ -1069,6 +1098,11 @@ def _record_not_executed(root: Path, run: str, journal, claim: dict, execution_s
 @_public_call
 def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
     """Recover the same claim, without freshness gates on already received bytes."""
+    return _resume(root, run, outcome_file=outcome_file)
+
+
+def _resume(root: Path, run: str, *, outcome_file: str | None = None, found: dict | None = None) -> dict:
+    """resume, where `found` is a lookup answer resume --watch received for the started send."""
     import dispatch
     import production_workflow as workflow
     import transport_contract
@@ -1149,7 +1183,7 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
             result = status(root, run)
             result.update(execution_completed=False)
             return result
-        return _reconcile(root, run, journal, claim, target, transport)
+        return _reconcile(root, run, journal, claim, target, transport, found=found)
     # Only completed, durably saved uploads may be reused before the first send.
     # A started upload without a saved answer stays unknown and is never reissued.
     blocker = _upload_blocker(root, claims, rows, execution_state)
@@ -1186,34 +1220,229 @@ def _pending(report: dict, run: str) -> bool:
     return any(item.get('run') == run and item.get('submission') == 'pending' for item in report['runs'])
 
 
-def watch(root: Path, run: str, *, interval: float = WATCH_INTERVAL_SECONDS,
-          limit: float = WATCH_LIMIT_SECONDS) -> dict:
-    """Resume the run, then resume it again every `interval` seconds while its provider task is pending.
+@dataclasses.dataclass(frozen=True)
+class PollSchedule:
+    """When resume --watch asks the provider again for a pending task.
 
-    Each pass is one resume in a read boundary of its own: it asks the provider
-    through the transport's lookup, registers the outputs that finished, records
-    nothing when the provider reports what the run already holds, and never
-    sends or uploads again. The watch returns the result of its last pass once
-    the run is no longer pending, or when the next pass would start more than
-    `limit` seconds after the watch began; the run is then exactly as that
-    resume left it. A KeyboardInterrupt ends the watch where it arrives, and
-    what the passes before it registered stays registered.
+    The first lookup comes no sooner than `first_delay` seconds after the
+    provider accepted the task. The wait after it is `interval` seconds, and
+    each later wait is the one before times `factor`, never longer than
+    `maximum`. A factor of 1 waits the same interval every time.
+    """
+    first_delay: float
+    interval: float
+    factor: float
+    maximum: float
+
+    def waits(self):
+        """The waits between lookups, in order."""
+        wait = self.interval
+        while True:
+            yield wait
+            wait = min(wait * self.factor, self.maximum)
+
+    def describe(self) -> str:
+        first = (f'first {self.first_delay:g} seconds after the provider accepted it, then ' if self.first_delay
+                 else '')
+        if self.factor == 1:
+            return first + f'every {self.interval:g} seconds'
+        return (first + f'after {self.interval:g} seconds, each later wait {self.factor:g} times the one before, '
+                f'up to {self.maximum:g} seconds')
+
+
+POLL_FIELDS = ('poll_first_delay_seconds', 'poll_interval_seconds', 'poll_backoff_factor', 'poll_max_interval_seconds')
+
+
+def poll_schedule(target: dict, artifact: str) -> PollSchedule | None:
+    """The lookup schedule that the sealed service record declares for this kind of output, or None.
+
+    The service record's `delivery` holds one entry per kind of output, the
+    task's `artifact`, and its poll fields come from the service's own polling
+    guidance. An entry without `poll_interval_seconds` declares no schedule.
+    """
+    service = target['offering']['service']
+    entry = (target['service'].get('delivery') or {}).get(artifact) or {}
+    values = {name: entry.get(name) for name in POLL_FIELDS}
+    if values['poll_interval_seconds'] is None:
+        return None
+
+    def number(name: str, default: float, *, least: float, inclusive: bool) -> float:
+        value = values[name]
+        if value is None:
+            return default
+        if (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+                or value < least or (not inclusive and value == least)):
+            raise ProductionError('INPUT_CONSISTENCY_ERROR',
+                f'delivery.{artifact}.{name} of the service record {service!r} sealed in this run is not a valid '
+                'number of seconds or factor.', phase='resume', pointer=f'$.delivery.{artifact}.{name}',
+                actual=value, required_action=f'Run resume --watch with --interval SECONDS for this run. Correct '
+                f'delivery.{artifact}.{name} in the service record {service!r} for runs prepared later, as '
+                'schemas/service-profile.schema.json describes.')
+        return float(value)
+    interval = number('poll_interval_seconds', 0, least=0, inclusive=False)
+    factor = number('poll_backoff_factor', 1, least=1, inclusive=True)
+    maximum = number('poll_max_interval_seconds', interval, least=interval, inclusive=True)
+    if factor > 1 and values['poll_max_interval_seconds'] is None:
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            f'delivery.{artifact}.poll_backoff_factor of the service record {service!r} sealed in this run grows the '
+            'wait without poll_max_interval_seconds.', phase='resume', pointer=f'$.delivery.{artifact}',
+            required_action=f'Run resume --watch with --interval SECONDS for this run. Add '
+                            f'delivery.{artifact}.poll_max_interval_seconds to the service record {service!r} for '
+                            'runs prepared later.')
+    return PollSchedule(number('poll_first_delay_seconds', 0, least=0, inclusive=True), interval, factor, maximum)
+
+
+def _accepted_at(rows: list[dict], claim: dict) -> datetime.datetime | None:
+    """When the run first recorded the provider's acceptance of the claim's send as pending."""
+    for row in rows:
+        if (row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
+                and row['data'].get('submission') == 'pending'):
+            return datetime.datetime.fromisoformat(row['created_at'])
+    return None
+
+
+def _seconds_since(moment: datetime.datetime) -> float:
+    return (datetime.datetime.now(datetime.timezone.utc) - moment).total_seconds()
+
+
+class _WatchLookup:
+    """One lookup of the started send per call, without reading or checking the run again.
+
+    It is built from a run that resume has just read and checked. A lookup has
+    no effect at the provider; whatever it finds is recorded only by a resume,
+    which reads and checks the run again.
+    """
+
+    def __init__(self, root: Path, run: str) -> None:
+        import dispatch
+        import production_workflow as workflow
+        loaded = workflow.read_run(root, run)
+        _, prepared, _, rows, _, _, _, target, transport = compiled(root, run, loaded=loaded)
+        self.claim = [row for row in rows if row['event'] == 'dispatch-claim'][-1]
+        self.journal = dispatch.RunJournal.open(c.local(root, self.claim['data']['journal']))
+        self.request = c.load(self.journal.path / 'request.json')
+        self.root, self.run, self.target, self.transport = root, run, target, transport
+        self.artifact = prepared['task']['artifact']
+        selected = claim_authentication(self.claim, transport, target['offering']['service'])
+        credential = _credential(root, transport, target['offering']['service'], expected=selected)
+        self.key = credential.value if credential is not None else ''
+
+    def ask(self) -> dict:
+        import transport_contract
+        with stage('provider-lookup'):
+            return transport_contract.lookup_once(self.transport, self.request, self.target['service'], self.key)
+
+    def is_new(self, found: dict) -> bool:
+        """Whether resume would record this lookup: it differs from the latest observation the run records."""
+        return (_lookup_observation(self.transport, found)
+                != _recorded_observation(self.root, self.run, self.journal, self.claim, self.transport))
+
+
+def watch(root: Path, run: str, *, interval: float | None = None,
+          limit: float = WATCH_LIMIT_SECONDS) -> dict:
+    """Resume the run, then ask for its provider task again while that task is pending.
+
+    The first pass is one resume. While the task stays pending, each later pass
+    is one lookup through the transport, with no reading of the run: a lookup
+    that reports what the run already records is dropped, and a lookup that
+    reports something new goes to a resume in a read boundary of its own, which
+    records that answer and registers the outputs that finished. The watch never
+    sends or uploads again. `interval` fixes every wait; without it the run's
+    sealed service record declares the schedule for its kind of output, its
+    first delay after the provider's acceptance and its growing waits, as
+    PollSchedule describes.
+
+    The watch returns once the run is no longer pending, or when the next lookup
+    would start more than `limit` seconds after the watch began. The run is then
+    exactly as a plain resume leaves it, and the result is what that resume
+    returns. A KeyboardInterrupt ends the watch where it arrives, and what the
+    passes before it registered stays registered.
     """
     import runtime_snapshot
-    for option, value, default in (('--interval', interval, WATCH_INTERVAL_SECONDS),
-                                   ('--limit', limit, WATCH_LIMIT_SECONDS)):
+    for option, value in (('--interval', interval), ('--limit', limit)):
+        if value is None and option == '--interval':
+            continue
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            default = ('the interval the service record declares' if option == '--interval'
+                       else f'{WATCH_LIMIT_SECONDS}')
             raise ProductionError('INPUT_ARGUMENT_INVALID', f'{option} of resume --watch is not a positive number of seconds.',
                                   phase='resume', run=run,
                                   required_action=f'Give {option} a positive number of seconds, or leave it out for {default}.')
+    import production_workflow as workflow
+    root = c._root(root)
     deadline = time.monotonic() + limit
-    while True:
+
+    def as_resume_leaves_it() -> dict:
+        # Nothing new was recorded since the last pass, as a plain resume would find the run.
         with runtime_snapshot.public_call(fresh=True):
-            result = resume(root, run)
-        if not _pending(result, run) or time.monotonic() + interval > deadline:
+            report = _status(root, run)
+        report.update(ok=False, execution_completed=False, external_effect=False)
+        return report
+
+    with runtime_snapshot.public_call(fresh=True):
+        schedule, delay = _watch_start(workflow.read_run(root, run), run, interval)
+    if delay > 0:
+        # The service record asks for this time between the provider's acceptance and the first lookup.
+        wait = min(delay, max(deadline - time.monotonic(), 0.0))
+        with stage('provider-watch', seconds=wait):
+            time.sleep(wait)
+        if wait < delay:
+            return as_resume_leaves_it()
+    with runtime_snapshot.public_call(fresh=True):
+        result = _resume(root, run)
+        if not _pending(result, run):
             return result
-        with stage('provider-watch', seconds=interval):
-            time.sleep(interval)
+        asking = _WatchLookup(root, run)
+    if schedule is None:
+        service = asking.target['offering']['service']
+        raise ProductionError('INPUT_ARGUMENT_INVALID',
+            f'The service record {service!r} sealed in this run declares no poll interval for {asking.artifact} '
+            'output, so resume --watch has no time to wait between lookups.', phase='resume', run=run,
+            required_action=f'Run resume --watch again with --interval SECONDS for this run. The first pass already '
+                            f'registered what had finished. Runs prepared after delivery.{asking.artifact}.'
+                            f'poll_interval_seconds is added to the service record {service!r}, from the service\'s own '
+                            f'polling guidance, wait that schedule; python scripts/service_profile.py {service} prints the record.')
+    waits = schedule.waits()
+    wait = next(waits)
+    unchanged = False
+    while time.monotonic() + wait <= deadline:
+        with stage('provider-watch', seconds=wait):
+            time.sleep(wait)
+        found = asking.ask()
+        if asking.is_new(found):
+            with runtime_snapshot.public_call(fresh=True):
+                result = _resume(root, run, found=found)
+            unchanged = False
+            if not _pending(result, run):
+                return result
+        else:
+            unchanged = True
+        wait = next(waits)
+    return as_resume_leaves_it() if unchanged else result
+
+
+def _watch_start(loaded, run: str, interval: float | None) -> tuple[PollSchedule | None, float]:
+    """The schedule of a watch and the seconds it waits before its first pass.
+
+    `--interval` fixes every wait and asks at once. Otherwise the run's sealed
+    service record declares the schedule, and a pending task that the provider
+    accepted less than its first delay ago is asked only when that delay ends.
+    """
+    if interval is not None:
+        return PollSchedule(0.0, float(interval), 1.0, float(interval)), 0.0
+    prepared, rows = loaded.prepared, loaded.rows
+    if prepared['task']['execution'] != 'dispatcher' or 'execution-target.json' not in loaded.artifacts:
+        return None, 0.0
+    schedule = poll_schedule(loaded.artifacts['execution-target.json'], prepared['task']['artifact'])
+    claims = [row for row in rows if row['event'] == 'dispatch-claim']
+    if schedule is None or not schedule.first_delay or not claims:
+        return schedule, 0.0
+    if submission_state(rows, prepared, run)[0] != 'pending':
+        return schedule, 0.0
+    accepted = _accepted_at(rows, claims[-1])
+    if accepted is None:
+        return schedule, 0.0
+    return schedule, max(0.0, schedule.first_delay - _seconds_since(accepted))
 
 
 def unclaimed_journals(root: Path) -> list[dict]:
@@ -1267,13 +1496,8 @@ def unclaimed_journals(root: Path) -> list[dict]:
 
 
 def _logs_by_run(root: Path) -> dict[str, list[str]]:
-    from operation_context import list_operations
-    buckets: dict[str, list[str]] = {}
-    for row in list_operations(root):
-        context = (row.get('metadata') or {}).get('context') or {}
-        if isinstance(context.get('run'), str):
-            buckets.setdefault(context['run'], []).append(row['operation_id'])
-    return buckets
+    from operation_context import operations_by_run
+    return operations_by_run(root)
 
 
 def _argv(command: str, root: Path, *arguments: str) -> list[str]:
@@ -1598,21 +1822,30 @@ def _cleanup_action(root: Path, run: str, cleanup: dict) -> dict:
 
 
 def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, execution_state: dict | None,
-                 authority: store.CurrentAuthority | None, transport: Any = None) -> dict | None:
+                 authority: store.CurrentAuthority | None, transport: Any = None,
+                 schedule: PollSchedule | None = None) -> dict | None:
     """The one concrete command that moves this run forward, with why.
 
     `transport` is the module a dispatcher run sends through; an external or
-    authored run has none.
+    authored run has none. `schedule` is the lookup schedule its sealed service
+    record declares for its kind of output, or None.
     """
     import production_workflow as workflow
     run = report['run']
     mode = prepared['task']['execution']
     events = {row['event'] for row in rows}
     if mode == 'dispatcher' and report['submission'] == 'pending':
+        if schedule is None:
+            return _action('resume', root, ['--run', run],
+                'The provider accepted this task and is still processing it. resume asks for it once and registers '
+                'each output that finished. The service record sealed in this run declares no usable poll schedule '
+                f'for its output, so resume --watch needs --interval SECONDS to keep asking, for at most '
+                f'{WATCH_LIMIT_SECONDS} seconds unless --limit changes that. Neither sends again.')
         return _action('resume', root, ['--run', run, '--watch'],
-            f'The provider accepted this task and is still processing it. resume --watch asks for the same task every '
-            f'{WATCH_INTERVAL_SECONDS} seconds, registers each output as it finishes and returns when none is pending, '
-            f'or after {WATCH_LIMIT_SECONDS} seconds; --interval and --limit change those times. It never sends again.')
+            f'The provider accepted this task and is still processing it. resume --watch asks for the same task '
+            f'{schedule.describe()}, as its service record declares, registers each output as it finishes and '
+            f'returns when none is pending, or after {WATCH_LIMIT_SECONDS} seconds; --interval fixes every wait and '
+            '--limit changes that time. It never sends again.')
     if mode == 'dispatcher' and report['submission'] == 'outcome_unknown':
         return _unknown_outcome_action(root, run, rows)
     cleanup = report['cleanup']
@@ -1910,16 +2143,33 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
             report['readiness_diagnostics'].append(from_exception(exc, phase='authorization', file=draft_paths[0]['path']))
     report['authority'] = store.authority_snapshot(root, task_id, authority,
                                                   source_path=prepared['task'].get('authority'))
+    edited = report['authority']['source_edited']
+    if edited is not None and unsent:
+        from cli_invocation import shown
+        from production_diagnostics import Diagnostic
+        report['readiness_diagnostics'].append(Diagnostic('AUTHORITY_SOURCE_NOT_IMPORTED',
+            f'The authority file {edited["path"]} changed after its import. Execution decisions are checked '
+            'against the imported authority, so the edit has no effect yet.', severity='warning',
+            phase='authority', file=edited['path'],
+            required_action='Import the edit with ' + shown(report['authority']['update_action']['argv'])
+                            + ' when it records an actual authority change, then draft the execution decisions '
+                            'again; otherwise restore the imported content of the file.').as_dict())
     report['authorization_requirements'] = (production_permissions.grant_requirements(
         authority.document if authority is not None else None, plan['operations'], selections=selections)
         if unsent else None)
     import production_cleanup
     report['cleanup'] = {'state': 'not-needed', 'eligible': False, 'uploaded': 0, 'deleted': 0, 'retained': 0, 'items': []}
     transport = None
+    schedule = None
     if mode == 'dispatcher':
         import transport_contract
         target = loaded.artifacts['execution-target.json']
         transport = transport_contract.load(target['service']['transport'])
+        try:
+            schedule = poll_schedule(target, prepared['task']['artifact'])
+        except ProductionError:
+            # An unusable sealed schedule leaves the choice to the caller, as a missing one does.
+            schedule = None
         media_directory = c.local(root, claims[-1]['data']['journal']) if claims else directory
         rendered = c.load(media_directory / 'request-contract.json') if claims else loaded.artifacts['request-contract.json']
         report['cleanup'] = production_cleanup.inspect(directory, rendered, execution_state, transport)
@@ -1931,7 +2181,7 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         'draft-inputs --from-run when the commission continues.')
         if unchecked and submission in {'unclaimed', 'claimed'} and not external_claims else
         _next_action(root, report, prepared, rows, execution_state=execution_state, authority=authority,
-                     transport=transport))
+                     transport=transport, schedule=schedule))
     action = report['next_action']
     if (action and 'read_context' not in action
             and action['command'] in {'draft-execution', 'execute', 'draft-review', 'review', 'draft-acceptance', 'accept'}):
@@ -1981,7 +2231,7 @@ def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime
     root = c._root(root)
     def read_task_run(identifier):
         return loaded if loaded is not None and loaded.prepared['run'] == identifier else workflow.read_run(root, identifier)
-    result = {'ok': True, 'current_task': production_authoring_state.current_task(root, read_run=read_task_run),
+    result = {'ok': True, 'current_task': production_authoring_state.current_task(root, read_run=read_task_run, run=run),
               'runs': [], 'diagnostics': [],
               'external_effect': False}
     if run is not None:

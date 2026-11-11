@@ -484,6 +484,17 @@
         },
         "work_completion": {
           "type": "object"
+        },
+        "authoring_action": {
+          "description": "In status --run: the status command that inspects every draft of the work task, where this view inspected the drafts of the selected run alone.",
+          "type": "object",
+          "required": ["command", "argv", "reason"],
+          "properties": {
+            "command": {"const": "status"},
+            "argv": {"type": "array", "items": {"type": "string"}},
+            "reason": {"type": "string"}
+          },
+          "additionalProperties": false
         }
       },
       "required": [

@@ -587,9 +587,38 @@ def authority_record(root: Path, task_id: str) -> dict | None:
     return rows[-1] if rows else None
 
 
+def edited_authority_source(root: Path, current: CurrentAuthority | None) -> dict | None:
+    """The authority file of the latest import, when its bytes now differ from the bytes that import recorded.
+
+    Execution reads the imported authority, so an edit of that file takes effect
+    only through authority-import. A missing file changes nothing and is None.
+    """
+    if current is None:
+        return None
+    sources = [item for item in current.evidence if item['purpose'] == 'authority-source']
+    if not sources:
+        return None
+    imported = sources[-1]
+    path = Path(imported['path'])
+    try:
+        path = path if path.is_absolute() else c.local(root, imported['path'], exists=False)
+        if not path.is_file():
+            return None
+        actual = c.digest(path.read_bytes())
+    except (OSError, ValueError):
+        return None
+    if actual == imported['sha256']:
+        return None
+    return {'path': imported['path'], 'imported_sha256': imported['sha256'], 'current_sha256': actual}
+
+
 def authority_snapshot(root: Path, task_id: str, current: CurrentAuthority | None, *,
                        source_path: str | None = None) -> dict:
-    """Expose the already acquired authority and its exact update predecessor."""
+    """Expose the already acquired authority and its exact update predecessor.
+
+    `source_edited` names the authority file when it changed after its import;
+    the update action then imports that edit.
+    """
     from cli_invocation import python_argv
     if current is not None and current.task_id != task_id:
         raise ValueError('current authority belongs to another work task')
@@ -600,14 +629,21 @@ def authority_snapshot(root: Path, task_id: str, current: CurrentAuthority | Non
     arguments = ['authority-import', '--root', str(root), '--file', source_path or '<authority-file>']
     if current is not None:
         arguments += ['--expected-event', current.event['sha256']]
+    edited = edited_authority_source(root, current)
+    reason = ('Edit the current declaration from actual authority, then import it with this observed predecessor. '
+              'Author input can be supplied by the acting agent from already-established user authorization; '
+              'ask the user only if necessary authority remains unresolved. Reinspect if another update wins.')
+    if edited is not None:
+        reason = (f'{edited["path"]} changed after its import, and draft-execution, execute and status read the '
+                  'imported authority. Import the edit with this command when it records an actual authority change; '
+                  'otherwise restore the imported content. ' + reason)
     return {'document': mutable(current.document) if current is not None else None,
         'event_sha256': current.event['sha256'] if current is not None else None,
         'source_path': source_path,
+        'source_edited': edited,
         'update_action': {'command': 'authority-import',
             'argv': python_argv(Path(__file__).with_name('production_workflow.py'), *arguments),
-            'reason': 'Edit the current declaration from actual authority, then import it with this observed predecessor. '
-                      'Author input can be supplied by the acting agent from already-established user authorization; '
-                      'ask the user only if necessary authority remains unresolved. Reinspect if another update wins.',
+            'reason': reason,
             'requires_author_input': True}}
 
 

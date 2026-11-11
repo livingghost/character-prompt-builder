@@ -160,7 +160,24 @@ Preparation records the selected candidate as the parent basis while the
 actual source image still matches it. Selecting another source later changes
 that binding. Nothing is sent, selected or adopted by drafting or preparation.
 Use `--source-image` instead for an explicit local image; it cannot be combined
-with the captured-candidate selector.
+with the captured-candidate selector. These upscale selectors, `--scale` and
+`--purpose` apply only to `--route upscale`.
+
+To change depicted content of an accepted Studio image, select the image by its
+Studio character and slot:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --route generation --execution dispatcher --edit-character CHARACTER --edit-slot SLOT --new-task "Replace the background of the adopted image." --out-dir work/edit
+```
+
+Use `--execution external` for a host call. The draft selects the image with
+its adoption evidence as the scene reference and the applied `accepted-source`,
+writes an editable edit plan beside the choices and carries the applicable
+Production Specification, controls and validation selection of the run that
+produced the image. What changes and stays, the instruction text, criteria and
+recording slot remain unanswered and are reported together. Follow
+[Semantic instruction editing](semantic-instruction-edit.md#start-from-the-adopted-image)
+for the complete flow.
 
 When the target differs from the source run's prepared request, the next action
 uses `retarget` with that parent run. Supply its actual reason. Reopened choices
@@ -180,6 +197,30 @@ beside its choices. Inspect the emitted request before preparing or sending it.
 | `authoring.references` | Ordered source selection, uses, exclusions, subject scope and transport choice | Rebuild the prepared set, attachment order, board placement and content hashes |
 | `authoring.upscale` | Selected source, scale, settings, guidance and applicable evidence | Build the upscale declaration for the selected target and reuse its valid evidence |
 | `validation` | The request-validation mode, selected contract or evidence, and execution policy | Resolve that evidence against the same acquired target and derive its exact binding |
+| `task_changes.semantic_edit` | The Studio path of the editable edit plan of an existing-image edit | Bind the plan to the scene reference, the applied `accepted-source` and the declared criteria |
+
+`authoring.references.image_input` selects how a dispatcher image input is
+formed from the references. `null` writes no image input. The mirrored form `{}`
+uses the other reference choices, such as a Studio source in
+`additional_references`: preparation writes one image-input row per prepared
+source, with its reference ID, role, prepared carrier and the authority that
+preparation gave it as `use_for` and `do_not_transfer`. The carriers lie under
+the new input's directory; a semantic edit matches its scene reference to the
+applied `accepted-source` by the file's bytes. The explicit form is a plan with
+its own `references` rows (`id`, `role`, `file`, `use_for`, `do_not_transfer`,
+optional `subject_uses`), `external_request: null` and an optional
+`prepared_references` path. It then owns the reference order, and the other
+reference selections stay empty. Without `prepared_references`, each file is an
+ordinary supplied image. With it, the existing set keeps its sources, adoption
+and authority and each row takes the plan's reference ID. `choices.target`
+supplies the plan's model in both forms.
+
+`task_changes.semantic_edit` names the edit plan
+(`schemas/authoring/semantic-edit-plan.schema.json`) whose `source` is the scene
+reference ID. The edit draft writes it beside the choices; the draft and
+preparation report each unanswered part as
+`task_changes.semantic_edit.edit.target`, `.edit.change`, `.edit.preserve` or
+`.review_criteria`, with `file` naming the plan. Edit the plan file in place.
 
 These are separate meanings within one editable source. Criteria remain based
 on the commission. A selected plot or other adopted specialist artifact retains its own approval and version; work that does not use it needs no empty substitute. A prompt

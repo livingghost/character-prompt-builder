@@ -92,6 +92,9 @@ class ObjectInputTests(unittest.TestCase):
         with self.assertRaises(ProductionError) as caught:
             studio_file(self.root, 'inputs\\choices.json', option='--file')
         self.assertEqual(caught.exception.diagnostic.code, 'INPUT_SCHEMA_INVALID')
+        # The shared reader keeps the caller's string as written on every platform.
+        with self.assertRaisesRegex(ValueError, 'canonical studio-relative POSIX path required'):
+            c.read_json_object('inputs\\choices.json', root=self.root)
 
 
 class PackageFileInputTests(unittest.TestCase):

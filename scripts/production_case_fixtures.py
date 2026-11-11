@@ -89,7 +89,9 @@ def create_pack(path:Path, *, with_alternate:bool=False,with_upscale:bool=False,
     write(path/'records/models.json',{'kind':'model','records':models})
     write(path/'resources/services.json',{'services':{'synthetic':{'label':'Synthetic non-network fixture','transport':'synthetic',
         'endpoint':{'base_url':'http://localhost/cpb-synthetic-no-network','method':'POST'},
-        'operations':{'generate':{},'upscale':{}},'auth':{'scheme':'bearer','header':'Authorization'}}}})
+        'operations':{'generate':{},'upscale':{}},'auth':{'scheme':'bearer','header':'Authorization'},
+        'delivery':{'image':{'mode':'synchronous; an unfinished output is pending','poll':'lookup by request_id',
+                             'terminal':'every output final','poll_interval_seconds':10}}}}})
     packs.write_lock(path)
     return path
 
@@ -164,6 +166,55 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
     reading=fixture_reading(route='generation',studio=root,ledger=root/'work/reads.jsonl',model=MODEL_ID,service='synthetic', execution='dispatcher')
     write(root/'reading.json',reading);task['route_reading']='reading.json';write(root/'task.json',task)
     return {'root':root,'task':task,'settings':settings,'pack':pack,'model':MODEL_ID}
+
+
+def adopted_case(root:Path,runtime_root:Path)->dict:
+    """Generate, review, select and adopt the synthetic robot as the identity of slot base.front.
+
+    Every decision is the labeled synthetic fixture author's, never user consent.
+    The returned case adds the adopted run, candidate, iteration and its current
+    Studio source to the case that `create` returns.
+    """
+    import production_execution as execution
+    import production_fixtures
+    import production_workflow as workflow
+    import studio
+    import studio_reference
+    from visual_continuity import file_ref
+    case=create(root,runtime_root)
+    root=case['root'];task=case['task']
+    task['recording'].update(slot='base.front',sheet_panel=True,subject_map={'robot':'robot'})
+    task['generation']['continuity']['robot']='undecided'
+    write(root/'task.json',task)
+    run=workflow.prepare(root,'task.json')['run']
+    candidate=execution.execute(root,run,decisions_file=fill_decisions(root,run,f'decisions-{run}.json'))['runs'][0]['candidates'][0]
+    row=studio.read_iterations(studio.character_home(root,'robot'))[0]
+    review=workflow.draft_review(root,run,candidate)
+    review.update(reviewer='Synthetic test reviewer',observations=[{'evidence':'candidate','locator':{'kind':'whole'},
+        'observation':'A real local synthetic PNG was captured.','interpretation':'Protocol fixture only.',
+        'limitations':['No generative quality or user approval is asserted.']}],conclusion='Synthetic test decision.')
+    for check in review['checks']:
+        check.update(verdict='pass',observation_indices=[0],reason='Explicit synthetic fixture assessment.')
+    write(root/'review.json',review);workflow.review(root,run,'review.json')
+    write(root/'adoption-basis.txt','Explicit synthetic author decision to adopt this fixture identity. Not user consent.')
+    approval={'scope':'sheet','influence':'identity','character':'robot','iteration_id':row['iteration_id'],
+        'slot':row['slot'],'image_sha256':row['result']['sha256'],'by':ACTOR,'at':'2000-01-01T00:00:00Z',
+        'continuity_decision':{'character_id':'robot','continuity':'recurring',
+            'basis':file_ref(root,'adoption-basis.txt',locator='whole'),'by':ACTOR,'at':'2000-01-01T00:00:00Z'}}
+    write(root/'approval.json',approval)
+    choice=workflow.draft_selection(root,run,candidate)
+    choice.update(reason='Synthetic delivery-only selection.')
+    production_fixtures.selection(root,run,choice);write(root/'selection.json',choice)
+    workflow.select(root,run,'selection.json')
+    token=production_fixtures.grant(root,run,workflow.adoption_intent(root,run,candidate,'robot',row['iteration_id'],approval))
+    workflow.adopt(root,run,candidate,'robot',row['iteration_id'],'approval.json',token)
+    workflow.complete(root,run)
+    import work_ledger
+    for number in (1,2,3):
+        work_ledger.step_done(root,number)
+    work_ledger.finish(root,run)
+    return {**case,'run':run,'candidate':candidate,'iteration_id':row['iteration_id'],'slot':row['slot'],
+            'source':studio_reference.current_source(root,'robot',row['slot'])}
 
 
 def reference_retarget_case(case: dict) -> dict:

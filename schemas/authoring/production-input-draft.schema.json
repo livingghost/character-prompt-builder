@@ -302,6 +302,11 @@
       "properties": {
         "upload_sources": {
           "$ref": "authoring/production-task.schema.json#/properties/upload_sources"
+        },
+        "semantic_edit": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Studio-relative path of the editable semantic edit plan (schemas/authoring/semantic-edit-plan.schema.json). Its source names the scene reference of the image being edited; a draft that starts an edit writes the plan beside its choices with the author's target, change, preserved properties and review criteria unanswered."
         }
       }
     },
@@ -471,9 +476,138 @@
           "additionalProperties": false
         },
         "references": {
-          "type": [
-            "object",
-            "null"
+          "description": "Ordered reference sources, their uses and the transport for a dispatcher image. The builder prepares the reference set, carriers, attachment order and hashes from these choices. Null selects no references.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "transport_mode",
+                "max_side",
+                "reference_use_plan",
+                "reference_selection",
+                "additional_references",
+                "image_input",
+                "zero_reference_reason",
+                "source_files"
+              ],
+              "properties": {
+                "transport_mode": {
+                  "enum": [
+                    "multi-image",
+                    "single-board",
+                    "prompt-artifacts",
+                    "svg-bundle"
+                  ]
+                },
+                "max_side": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "reference_use_plan": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "description": "Ordered pack reference items with their surface-lighting decisions."
+                },
+                "reference_selection": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "description": "A state-aware reference selection."
+                },
+                "additional_references": {
+                  "type": "array",
+                  "description": "Direct sources in delivery order. A source is a supplied-file selector, or a studio-artifact source that scripts/studio_reference.py source writes for a current adopted slot; preparation verifies its adoption.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "role",
+                      "source"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The use ID that identity bindings and an edit plan name; assigned when the selection is first saved."
+                      },
+                      "role": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source": {
+                        "type": "object"
+                      },
+                      "subject_uses": {
+                        "type": "array",
+                        "items": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                },
+                "image_input": {
+                  "description": "Null for no image input. {} (or only a derived model) mirrors the prepared sources into the image input: the builder writes one row per prepared source, with its authority as use_for and do_not_transfer. An explicit plan instead lists its own references (id, role, file, use_for, do_not_transfer, subject_uses) and an optional prepared_references set, and then owns the reference order without other selections. choices.target supplies its model.",
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "artifact_type": {
+                      "const": "image-input-plan"
+                    },
+                    "references": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "prepared_references": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "external_request": {
+                      "type": "null"
+                    }
+                  }
+                },
+                "zero_reference_reason": {
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "source_files": {
+                  "type": "object",
+                  "description": "Recorded measurements of supplied files by their resolved paths; drafting derives them.",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "sha256",
+                      "media_type"
+                    ],
+                    "properties": {
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "media_type": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
           ]
         },
         "upscale": {

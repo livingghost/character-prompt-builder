@@ -21,6 +21,8 @@ The navigation view is not evidence for a submission or review decision.
 `schemas/authoring/production-status.schema.json` defines full status.
 One unreadable run does not hide the others.
 `current_task` names the open work task: `task_id`, `goal`, `next` and `production_run`.
+Its `authoring` state covers every draft of the work task, its readings and its last check.
+`status --run RUN`, and the result of `execute` or `resume`, inspect only the drafts of that run: those reopened from it and the draft or export whose choices or task prepared it. They leave out the last check and give `current_task.authoring_action`, the `status` command that inspects the whole work task.
 Each run reports these state axes:
 
 | Axis | Values |
@@ -185,22 +187,37 @@ After such a send ended without an answer, the first `resume` records that the s
 A further `resume` records nothing while the service still gives none.
 
 `resume --watch` waits for a pending provider task, so the agent does not repeat `resume` until its outputs finish.
-It does what `resume` does. While the run stays `pending`, it waits `--interval` seconds (10 when left out) and runs the same recovery again: one lookup, the registration of each output that finished, and no record when the provider reports nothing new.
-It returns the result of its last pass once the run is no longer pending, because every output is final or the provider reported a failure, or when the next pass would start more than `--limit` seconds (120 when left out) after the watch began.
-The run is then exactly as a plain `resume` leaves it, with its next action: a task still processing stays `pending`, with `resume --watch` as its next action again.
-The interval follows the polling guidance of the included service record, which asks for an asynchronous task about every ten seconds. The limit keeps one watch within about two minutes, a common time limit of an agent's command; a task that takes longer stays `pending` and is watched again from its next action.
+Its first pass is one `resume`. While the run stays `pending`, it waits `--interval` seconds and asks the provider once through the transport's lookup, without reading or checking the run.
+A lookup that reports what the run already records is dropped. A lookup that reports something new goes to a `resume`, which reads and checks the run, records that answer and registers each output that finished, so every pass makes exactly one lookup and only a new answer costs a reading of the run.
+It returns once the run is no longer pending, because every output is final or the provider reported a failure, or when the next lookup would start more than `--limit` seconds (120 when left out) after the watch began.
+The run is then exactly as a plain `resume` leaves it, and the result is what that `resume` returns, with its next action: a task still processing stays `pending`, with `resume --watch` as its next action again.
+
+Without `--interval`, the watch follows the schedule that the run's sealed service record declares in the `delivery` entry of the task's `artifact`, from the service's own polling guidance. Any service record can declare these fields, and `python scripts/service_profile.py SERVICE` prints the schedule of each entry:
+
+| Field | Meaning |
+|---|---|
+| `poll_first_delay_seconds` | Least time between the provider's acceptance of the task, the first `pending` record of the run, and the first lookup. The watch waits out the rest of it before its first pass. Left out: ask at once. |
+| `poll_interval_seconds` | The first wait between lookups. An entry without it declares no schedule. |
+| `poll_backoff_factor` | Each later wait is the wait before it times this factor. Left out or 1: every wait is `poll_interval_seconds`. |
+| `poll_max_interval_seconds` | The longest wait, at least `poll_interval_seconds`; required with `poll_backoff_factor`. |
+
+`--interval SECONDS` replaces the whole schedule: the watch asks at once and waits that many seconds every time.
+The included service record declares, for images, a first wait of 2 seconds that grows by half each time up to 10 seconds, and for video a fixed 3 seconds.
+A record that declares no schedule leaves the choice to the caller: the next action of a pending run is then a plain `resume`, and `resume --watch` without `--interval` stops after its first pass with `INPUT_ARGUMENT_INVALID`, whose repair names `--interval` and the record's field.
+When the first delay outlasts `--limit`, the watch waits until the limit, asks nothing and returns the run as it is, with `resume --watch` as its next action again.
+The limit keeps one watch within about two minutes, a common time limit of an agent's command; a task that takes longer stays `pending` and is watched again from its next action.
 The command prints its result only when it returns, so allow it `--limit` seconds and one more lookup, or pass a shorter `--limit`.
 
 The watch never sends or uploads again. Ctrl+C ends it with exit 130; what its earlier passes registered stays registered, and `status --run RUN` gives the next action.
 `--interval` or `--limit` without `--watch`, or a value that is not a positive number of seconds, reports `INPUT_ARGUMENT_INVALID`, and `--watch` excludes `--outcome-file`.
 
-A synthetic run of two outputs, whose first output is final at the first lookup and whose second never finishes, watched with `--interval 10 --limit 25`, looks up at 0, 10 and 20 seconds and returns `ok: false` (exit 4). Its journal keeps `lookup-001.json` and `lookup-001-answer.json` alone, because the two later lookups found nothing new. The run reports (the scenario of `test_watch_limit_leaves_the_run_as_a_plain_resume_leaves_it` in `scripts/dispatch_recovery_smoke_test.py`; trimmed, the run ID and studio path shortened):
+A synthetic run of two outputs, whose first output is final at the first lookup and whose second never finishes, watched with `--interval 10 --limit 25`, looks up at 0, 10 and 20 seconds and returns `ok: false` (exit 4). Its journal keeps `lookup-001.json` and `lookup-001-answer.json` alone, because the two later lookups found nothing new and never reached a `resume`. The run reports (the scenario of `test_watch_limit_leaves_the_run_as_a_plain_resume_leaves_it` in `scripts/dispatch_recovery_smoke_test.py`, whose synthetic service record declares 10 seconds; trimmed, the run ID and studio path shortened):
 
 ```json
 {"submission": "pending", "capture": "partial", "execution": {"status": "captured"},
  "next_action": {"command": "resume",
   "argv": ["python", "scripts/production_workflow.py", "resume", "--root", "STUDIO", "--run", "01a1c6d5-9fad-...", "--watch"],
-  "reason": "The provider accepted this task and is still processing it. resume --watch asks for the same task every 10 seconds, registers each output as it finishes and returns when none is pending, or after 120 seconds; --interval and --limit change those times. It never sends again."}}
+  "reason": "The provider accepted this task and is still processing it. resume --watch asks for the same task every 10 seconds, as its service record declares, registers each output as it finishes and returns when none is pending, or after 120 seconds; --interval fixes every wait and --limit changes that time. It never sends again."}}
 ```
 
 Recovery uses the exact transport implementation sealed at preparation.

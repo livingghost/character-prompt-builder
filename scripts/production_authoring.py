@@ -130,7 +130,12 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
         path = generation.get('references')
         prepared = c.decode(source_bytes(root, path, reader, saved)) if path else None
         package_root = c.local(root, path, exists=False).parent if path else root
-        references = production_reference_inputs.draft(prepared, package_root=package_root, root=root)
+        mirrored = False
+        if path and task.get('image_input'):
+            # An image input written from this set's rows is selected again as the mirrored form.
+            mirrored = c.decode(source_bytes(root, task['image_input'], reader, saved)).get('prepared_references') == path
+        references = production_reference_inputs.draft(prepared, package_root=package_root, root=root,
+                                                       mirrored_input=mirrored)
     sources = {}
     owned_paths = {task['delivery']['path'], *(generation.get(key) for key in DOCUMENTS), generation.get('references'), generation.get('request_validation')}
     if not initial:
@@ -222,8 +227,15 @@ def select_upscale(root: Path, authored: dict, out_dir: str, *,
     from production_evidence import inspect
     task = authored['task']
     if task.get('route') != 'upscale' or task.get('execution') != 'dispatcher':
-        if any(value is not None for value in (source_image, scale, purpose)):
-            raise ValueError('source-image, scale and purpose select dispatcher upscale inputs')
+        chosen = [name for name, value in (('--source-image', source_image), ('--scale', scale),
+                                           ('--purpose', purpose)) if value is not None]
+        if chosen:
+            from production_diagnostics import ProductionError
+            raise ProductionError('INPUT_CONSISTENCY_ERROR', ', '.join(chosen) + ' select a dispatcher upscale '
+                'input, and this draft is not a dispatcher upscale.', phase='authoring', guidance=dict(UPSCALE_GUIDE),
+                options=chosen, required_action='Omit ' + ', '.join(chosen) + ', or draft the enlargement with '
+                '--route upscale (dispatcher execution). To edit an adopted Studio image, select it with '
+                '--edit-character CHARACTER --edit-slot SLOT and --route generation.')
         return {}, None
     upscale = authored['upscale']
     files, selected = {}, None
@@ -335,15 +347,74 @@ AUTHORED_FIELDS = {
 }
 
 
+RECORDING_GUIDE = {'document_path': 'references/runtime/studio.md#production-owned-candidates'}
+RECORDING_FIELDS = {
+    'slot': ('so the result has no Studio slot to be recorded in.',
+             'Set authoring.task.recording.slot to the slot of Studio character {character} that records the '
+             'result. A slot of its character sheet (scripts/studio.py status lists them) records it as a new '
+             'candidate of that slot, which stays separate from the slot\'s accepted image until the author accepts '
+             'it; another slot, such as candidate, keeps it out of the sheet.'),
+    'sheet_panel': ('so the recording does not state whether the result is a sheet panel.',
+                    'Set authoring.task.recording.sheet_panel to true when authoring.task.recording.slot is a slot '
+                    'of the character sheet, and to false for any other slot.'),
+    'role': ('so the recording does not say what the result is for.',
+             'Set authoring.task.recording.role to a short label of what the recorded image is for.'),
+}
+
+
+def authored_choice(field: str) -> dict:
+    """The unanswered entry of one AUTHORED_FIELDS choice."""
+    consequence, required_action, owner = AUTHORED_FIELDS[field]
+    empty = 'is null' if field.startswith(('upscale.', 'generation.')) else 'is empty'
+    return choice_required('authoring.' + field, 'authored-choice-required',
+                           'authoring.' + field + ' ' + empty + ', ' + consequence, required_action, owner)
+
+
+def _expression_unresolved(specification: dict) -> list[dict]:
+    """A rendering declaration whose prompt spans are not chosen yet."""
+    intent = specification.get('render_intent') if isinstance(specification, dict) else None
+    if not isinstance(intent, dict) or 'prompt_expression' not in intent:
+        return []
+    base = 'authoring.documents.production_spec.render_intent'
+    spans = [(base + '.prompt_expression', intent['prompt_expression'])]
+    spans += [(base + '.regional_overrides.' + str(index) + '.prompt_expression', row.get('prompt_expression'))
+              for index, row in enumerate(intent.get('regional_overrides') or []) if isinstance(row, dict)]
+    return [choice_required(field, 'authored-choice-required',
+        field + ' is null, so the rendering declaration names no passage of the delivered prompt.',
+        'Set ' + field + ' to the exact passage of the delivered prompt that states this finish, or remove the '
+        'rendering fields (preset, axes, presentation, selection, prompt_expression and regional_overrides) from '
+        'the render intent so that only artifact_type and execution_mode remain and the finish stays with the '
+        'model and its source images.', RENDER_GUIDE) for field, value in spans if value is None]
+
+
+def continuity_unresolved(authored: dict) -> list[dict]:
+    """Subjects of the selected Production Specification without a continuity decision."""
+    specification = (authored.get('documents') or {}).get('production_spec')
+    if (not isinstance(specification, dict) or set(specification) <= {'file', 'field'}
+            or (authored.get('documents') or {}).get('visual_continuity') is not None):
+        return []
+    decided = (authored.get('generation') or {}).get('continuity') or {}
+    result = []
+    for subject in specification.get('subjects') or []:
+        identifier = subject.get('id') if isinstance(subject, dict) else None
+        if isinstance(identifier, str) and identifier not in decided:
+            field = 'authoring.generation.continuity.' + identifier
+            result.append(choice_required(field, 'continuity-choice-required',
+                field + ' is not set, so Production Specification subject ' + identifier + ' has no continuity '
+                'decision.', 'Set ' + field + ' to the author\'s decision: "recurring" for a subject that is a Studio '
+                'character with an accepted identity image among the references (map it to that character in '
+                'authoring.task.recording.subject_map), "one-off" for a subject that does not recur, or '
+                '"undecided" for a single-subject exploration before an identity image is accepted.',
+                {'document_path': 'references/runtime/generation-package.md#generation-package'}))
+    return result
+
+
 def unresolved(authored: dict | None, task: dict) -> list[dict]:
     if authored is None:
         return []
     result = []
     def missing(field):
-        consequence, required_action, owner = AUTHORED_FIELDS[field]
-        empty = 'is null' if field.startswith(('upscale.', 'generation.')) else 'is empty'
-        result.append(choice_required('authoring.' + field, 'authored-choice-required',
-            'authoring.' + field + ' ' + empty + ', ' + consequence, required_action, owner))
+        result.append(authored_choice(field))
     for key in ('purpose', 'intended_effect'):
         if not (task.get('direction') or {}).get(key):
             missing('task.direction.' + key)
@@ -351,6 +422,14 @@ def unresolved(authored: dict | None, task: dict) -> list[dict]:
         missing('task.criteria')
     if authored['upscale'] is None and not authored['delivery'].get('file') and not authored['delivery'].get('content'):
         missing('delivery.content')
+    result.extend(_expression_unresolved((authored.get('documents') or {}).get('production_spec')))
+    recording = task.get('recording')
+    if isinstance(recording, dict):
+        for key, (consequence, required_action) in RECORDING_FIELDS.items():
+            if recording.get(key) is None:
+                field = 'authoring.task.recording.' + key
+                result.append(choice_required(field, 'authored-choice-required', field + ' is null, ' + consequence,
+                    required_action.format(character=recording.get('character')), RECORDING_GUIDE))
     if execution_dispatcher(task):
         if task.get('route') == 'upscale':
             upscale = authored.get('upscale') or {}

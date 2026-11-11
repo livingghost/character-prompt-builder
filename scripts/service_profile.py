@@ -69,6 +69,18 @@ def select_service(service: str, data: Any, *, label: Any = 'service-profiles') 
     return record
 
 
+def _watch_schedule(delivery: dict[str, Any]) -> str:
+    """How resume --watch asks again for a pending task of this delivery entry."""
+    interval = delivery.get("poll_interval_seconds")
+    if interval is None:
+        return "no poll schedule declared, so resume --watch needs --interval"
+    from production_execution import PollSchedule
+    schedule = PollSchedule(float(delivery.get("poll_first_delay_seconds") or 0), float(interval),
+                            float(delivery.get("poll_backoff_factor") or 1),
+                            float(delivery.get("poll_max_interval_seconds") or interval))
+    return "resume --watch asks " + schedule.describe()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("service")
@@ -99,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"    {name:<16} {operation.get('purpose')}; returns {operation.get('returns')}")
     print("  delivery")
     for name, delivery in (record.get("delivery") or {}).items():
-        print(f"    {name:<16} {delivery.get('mode')}; poll {delivery.get('poll')}")
+        print(f"    {name:<16} {delivery.get('mode')}; poll {delivery.get('poll')}; {_watch_schedule(delivery)}")
     return 0
 
 

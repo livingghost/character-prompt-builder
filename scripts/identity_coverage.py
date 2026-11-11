@@ -22,10 +22,14 @@ DERIVED_PREFIXES = ('reference:', 'state:')
 ReadSource = Callable[[str], bytes]
 
 
+REPAIR = ('Correct the identity field this message names in the task: the identity of an applied source in '
+          'sources[].identity (subject_ids and selectors), or a criterion\'s identity_bindings or identity_review in '
+          'criteria[], as the guidance section describes. In a draft these fields sit under authoring.task of '
+          'choices.json. Then run check or prepare again.')
+
+
 def _fail(message: str, *, code: str = 'IDENTITY_CONTRACT_INVALID', **details: Any) -> None:
-    raise ProductionError(code, message, phase='identity-coverage',
-        required_action='Revise the owning source selection or criterion, then rebuild the actual inputs.',
-        **details)
+    raise ProductionError(code, message, phase='identity-coverage', required_action=REPAIR, **details)
 
 
 def _strings(value: Any, label: str, *, empty: bool = False) -> list[str]:

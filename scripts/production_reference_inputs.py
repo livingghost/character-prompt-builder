@@ -35,8 +35,13 @@ def _image_plan(binding: dict) -> dict:
     return plan
 
 
-def draft(prepared: dict | None, *, package_root: Path, root: Path | None = None) -> dict:
-    """Expose choices from a saved set without carrying its generated layout."""
+def draft(prepared: dict | None, *, package_root: Path, root: Path | None = None,
+          mirrored_input: bool = False) -> dict:
+    """Expose choices from a saved set without carrying its generated layout.
+
+    `mirrored_input` states that the task's image input was written from this
+    set's own rows, so the choices select the mirrored image input again.
+    """
     if prepared is None:
         prepared = references.empty_stateless_reference_set()
     prepared = references.validate_prepared_reference_set(prepared, package_root=package_root)
@@ -114,7 +119,7 @@ def draft(prepared: dict | None, *, package_root: Path, root: Path | None = None
     result = {'transport_mode': mode if mode != 'none' else 'multi-image',
             'max_side': maximum, 'reference_use_plan': authored_plan,
             'reference_selection': state, 'additional_references': direct,
-            'image_input': _image_plan(binding) if binding is not None else None,
+            'image_input': _image_plan(binding) if binding is not None else {} if mirrored_input else None,
             'zero_reference_reason': copy.deepcopy(prepared['zero_reference_reason']),
             'source_files': {}}
     # Supplied-file bytes are observations of a selected path, not an extra
@@ -279,6 +284,38 @@ def _authored_rows(choices: dict) -> list[dict]:
                if row['source']['kind'] != 'pack-artifact']
     result += choices['additional_references']
     return result
+
+
+def provisional_inputs(choices: dict, *, root: Path) -> dict | None:
+    """The image-input rows that the selected sources will deliver, before any carrier exists.
+
+    A draft's identity view reads these rows. An explicit image input names
+    its own rows. A direct source takes the authority that preparation gives it
+    from its role and subject uses. Plan and state rows keep their authority
+    with those owners, so a selection that uses them has no provisional rows.
+    """
+    native = choices.get('image_input')
+    if isinstance(native, dict) and isinstance(native.get('references'), list):
+        return {'references': [{key: copy.deepcopy(row[key]) for key in
+                                ('id', 'role', 'file', 'use_for', 'do_not_transfer', 'subject_uses') if key in row}
+                               for row in native['references']]}
+    if choices.get('reference_use_plan') is not None or choices.get('reference_selection') is not None:
+        return None
+    rows = []
+    for row in choices.get('additional_references') or []:
+        path = (row.get('source') or {}).get('resolved_path')
+        if not isinstance(row.get('id'), str) or not isinstance(path, str) or path.startswith('@'):
+            return None
+        if Path(path).is_absolute():
+            try:
+                path = Path(path).resolve().relative_to(root.resolve()).as_posix()
+            except ValueError:
+                return None
+        authority = references.direct_reference_authority(row['role'], row.get('subject_uses', []))
+        rows.append({'id': row['id'], 'role': row['role'], 'file': path, 'use_for': authority['controls'],
+                     'do_not_transfer': authority['must_not_control'],
+                     **({'subject_uses': copy.deepcopy(row['subject_uses'])} if 'subject_uses' in row else {})})
+    return {'references': rows}
 
 
 def identify(choices: dict) -> bool:

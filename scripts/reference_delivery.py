@@ -118,12 +118,18 @@ def delivered_reference_count(reference_set: Mapping[str, Any]) -> int:
 
 
 def prepared_origin_projection(reference_set: Mapping[str, Any]) -> dict[str, Any]:
-    """Preserve source authority while allowing committed carriers to be relocated."""
+    """Preserve source authority while allowing committed carriers to be relocated.
+
+    A row's `reference_id` is the use label that the image input naming the set
+    gives it. An image input that inherits an existing set labels the same
+    source with its own reference ID, so the label is not compared as authority.
+    """
     result = copy.deepcopy(dict(reference_set))
     for field in ('image_input_binding', 'set_id', 'prepared_reference_set_sha256'):
         result.pop(field, None)
     for row in result.get('selected_references', []):
         row['transport'].pop('resolved_path', None)
+        row.pop('reference_id', None)
     for row in result.get('prompt_artifacts', []):
         row.pop('delivered_path', None)
     if result.get('single_board') is not None:

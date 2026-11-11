@@ -627,7 +627,10 @@ def read_input_bytes(source: str | Path, *, root: Path | None = None) -> bytes:
         stream=getattr(sys.stdin,'buffer',None)
         return stream.read() if stream is not None else sys.stdin.read().encode('utf-8')
     path=Path(source)
-    if root is not None and not path.is_absolute():path=local(root,path.as_posix())
+    if root is not None and not path.is_absolute():
+        # A Path built by code joins its parts with the platform separator; a
+        # string is the caller's own text and keeps the '/'-separated contract.
+        path=local(root,source if isinstance(source,str) else path.as_posix())
     return read(path)
 
 

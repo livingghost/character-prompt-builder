@@ -2228,8 +2228,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     selection_group.add_argument('--studio-selection-file', type=Path,
         help='Ordered {character, slot, role} choices; resolve each exact current Studio acceptance')
-    selection_group.add_argument('--image-input-plan-file', type=Path,
-        help='Authored dispatcher image-input-plan; derive supplied files, order and exact scopes from this plan')
+    selection_group.add_argument('--image-input-plan-file',
+        help='Authored dispatcher image-input-plan: an absolute path, or a /-separated path below --studio; '
+             'derive supplied files, order and exact scopes from this plan')
     parser.add_argument('--studio', type=Path,
         help='Studio root for --studio-selection-file or --image-input-plan-file; edit plan file paths are relative to it')
     parser.add_argument('--transport-mode', choices=['multi-image', 'single-board'], default='multi-image')
@@ -2259,10 +2260,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.image_input_plan_file is not None:
             if args.studio is None:
                 raise ValueError('--studio is required for an image input plan')
-            import execution_contract as execution
-            plan_file = args.image_input_plan_file
-            if not plan_file.is_absolute():
-                plan_file = execution.local(args.studio, plan_file.as_posix())
+            from production_binding import studio_file
+            plan_file = studio_file(args.studio, args.image_input_plan_file,
+                                    option='--image-input-plan-file', root_option='--studio')
             prepared = prepare_image_input_references(read_json_object(plan_file),
                 studio=args.studio, model=args.model, output_dir=args.output_dir,
                 max_side=args.max_side, transport_mode=args.transport_mode)
@@ -2285,7 +2285,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(prepared, ensure_ascii=False, indent=2, allow_nan=False))
         return 0
     except (ValueError, OSError, RuntimeError, json.JSONDecodeError) as exc:
-        print(json.dumps({"ok": False, "errors": [str(exc)]}, ensure_ascii=False, indent=2, allow_nan=False))
+        diagnostic = getattr(exc, "diagnostic", None)
+        # A diagnostic's repair names the exact form to write; print it with the message.
+        message = str(exc) + (" " + diagnostic.required_action if diagnostic is not None else "")
+        print(json.dumps({"ok": False, "errors": [message]}, ensure_ascii=False, indent=2, allow_nan=False))
         return 1
     finally:
         configure_pack_runtime(None)

@@ -45,6 +45,7 @@ PHASE_DOCUMENTS = {
     'scene-materials': 'references/runtime/story-context.md#prepared-scene-persona-material',
     'image-input': 'references/runtime/production-image-inputs.md#image-input',
     'identity-coverage': 'references/character-identity-contract.md#source-to-input-and-review-coverage',
+    'visual-continuity': 'references/runtime/generation-package.md#generation-package',
     'semantic-edit': 'references/runtime/semantic-instruction-edit.md#author-and-bind-the-task',
     'scene-mask-binding': 'references/runtime/scene-mask-planning.md#use-the-existing-production-pipeline',
     'authority-evidence': 'references/runtime/production-permissions.md#authorization-and-execution-records',
