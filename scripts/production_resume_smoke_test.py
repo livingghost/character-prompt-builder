@@ -506,7 +506,7 @@ class AuthoringContinuationTests(unittest.TestCase):
         self.assertEqual(selected['choices'], self.choices_path)
         self.assertEqual(selected['unresolved'][0]['code'], 'authored-input-unreadable')
         self.assertEqual(selected['unresolved'][0]['path'], self.choices_path)
-        self.assertEqual(selected['next_actions'][0]['path'], str(self.root / self.choices_path))
+        self.assertEqual(selected['next_actions'][0]['path'], str((self.root / self.choices_path).resolve()))
         self.assertEqual(current['next_actions'][0], selected['next_actions'][0])
         self.assertIn('choices_diagnostic', current['authoring']['context']['input'])
         self.assertEqual(report['runs'][0]['run'], self.run)

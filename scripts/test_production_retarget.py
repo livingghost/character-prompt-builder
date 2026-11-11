@@ -23,6 +23,8 @@ class RetargetTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         b=Path(self.temp.name);self.base=b
+        environment = production_fixtures.scratch_home(self.base / 'home')
+        environment.start();self.addCleanup(environment.stop)
         self.case=f.create(b/'日本語 studio',b/'runtime',with_alternate=True)
         self.root=self.case['root'];self.parent=workflow.prepare(self.root,'task.json');self.run=self.parent['run']
 
@@ -79,8 +81,8 @@ class RetargetTests(unittest.TestCase):
 
     def test_public_continuation_tracks_edited_targets_and_retains_the_parent(self):
         settings = self.case['settings']
-        runtime = ['--state-file', str(settings.state_file), '--cache-dir', str(settings.cache_dir),
-                   '--managed-root', str(settings.managed_root), '--pack-root', str(self.case['pack'])]
+        runtime = ['--state-file', str(settings.state_file.resolve()), '--cache-dir', str(settings.cache_dir.resolve()),
+                   '--managed-root', str(settings.managed_root.resolve()), '--pack-root', str(self.case['pack'].resolve())]
         cli = [sys.executable, str(Path(__file__).resolve().parent / 'production_workflow.py')]
         environment = {**os.environ, 'PYTHONDONTWRITEBYTECODE': '1',
             'CPB_HOME': str(production_fixtures.scratch_home_dir(self.base / 'continuation-home'))}

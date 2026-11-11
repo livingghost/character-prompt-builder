@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1088,
-  "total_bytes_excluding_manifest": 20260386,
+  "total_bytes_excluding_manifest": 20260597,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -4161,8 +4161,8 @@
     },
     {
       "path": "scripts/production_resume_smoke_test.py",
-      "bytes": 40711,
-      "sha256": "54818ae5ed74b5fcc5ef2d9fca89adb83bcdbe440714c376cef0f1715107e4dd"
+      "bytes": 40723,
+      "sha256": "ff8fe94b0f52cedc9a999b1bb1b271454a7724bbf598800def8b001b91275fd2"
     },
     {
       "path": "scripts/production_series_smoke_test.py",
@@ -4426,8 +4426,8 @@
     },
     {
       "path": "scripts/render_contract_smoke_test.py",
-      "bytes": 41815,
-      "sha256": "b6939d286d14d31f08bc29914497e2c39dd27d93254af700a83c985d03ddf456"
+      "bytes": 41837,
+      "sha256": "56a0537e0c91d435a2a5a1cabeb99d47dd59b642f923a20d1476b89cab439b96"
     },
     {
       "path": "scripts/repair_analysis.py",
@@ -5031,8 +5031,8 @@
     },
     {
       "path": "scripts/test_production_retarget.py",
-      "bytes": 26608,
-      "sha256": "d55fe0b3f1894176562db324209d726730042a70882c7760fd3358f3720eb861"
+      "bytes": 26785,
+      "sha256": "c4d113990e7d2bc22d8ec8e13a1084993f3b3c15734867f1ce5f3469ef909a3b"
     },
     {
       "path": "scripts/test_production_review.py",

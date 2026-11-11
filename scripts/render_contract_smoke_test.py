@@ -563,11 +563,11 @@ class ExternalPackGuidanceTests(unittest.TestCase):
         path.write_text(json.dumps(value, indent=2)+'\n', encoding='utf-8')
 
     def selectors(self, variant='registered'):
-        base = self.root / variant
+        base = (self.root / variant).resolve()
         args = ['--state-file',str(base/'state.json'), '--cache-dir',str(base/'cache'),
                 '--managed-root',str(base/'managed')]
         if variant == 'extra':
-            args += ['--pack-root',str(self.pack)]
+            args += ['--pack-root',str(self.pack.resolve())]
         return args
 
     def command(self, script, *args, variant='registered', succeeds=True):
