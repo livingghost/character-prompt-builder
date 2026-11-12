@@ -19,6 +19,8 @@
   Keep board panels, source roles, native controls and exact recorded-call comparison.
 - Align maintenance instructions, readiness help and recovery guidance with
   the distinction between current authoring and a selected saved revision.
+- Resolve saved external carrier paths to the canonical run directory, keeping
+  Windows short and long path spellings equivalent in actual host requests.
 
 ## 2026.11.11.8
 

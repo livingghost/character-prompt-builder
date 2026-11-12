@@ -1178,7 +1178,7 @@ class ReadingTests(unittest.TestCase):
 
     def test_out_of_order_section_recovery_preserves_selected_continuation_and_work(self):
         import production_authoring_state,studio,work_ledger
-        studio_root=self.root/'studio'
+        studio_root=self.root.resolve()/'studio'
         studio.init(studio_root,'section-continuation','Section continuation')
         work_ledger.begin(studio_root,'Keep the authored choices and continue the source reading.',['Compose'])
         work_before=(studio_root/'work/current.json').read_bytes()

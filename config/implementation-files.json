@@ -369,7 +369,7 @@
     "scripts/execution_routes.py": "c2c7ade3a257a727a641846fc3c1ebf97cfb92c04f1e3232b0a17c06e3071fa6",
     "scripts/generation_inputs.py": "15803ddcdc2ce0f5cdb4c6f2c7effe5a282d07a8a2a9a88d03d1630e7c774f43",
     "scripts/identity_coverage.py": "50f51978a76e526f8896010ade3ee0b6e816ca523106335d31115e7e59c0d691",
-    "scripts/image_input.py": "222caa28c40bd0d67a181668c285794b95c3cb07a19c8a070c6b8ba57a76e979",
+    "scripts/image_input.py": "9cb43c1c940efe7e1cf51288139ac7f38ca158f5d50588af5f914aad550cd711",
     "scripts/input_contracts.py": "153dadd3fad6e08091cceb4e138557f7ee3c85b2be17d800342f0eefa63204be",
     "scripts/input_evidence.py": "20bd089b273c4eb02e014b0106b9751daeeb99cbbd28ff9a4e23dd5ecbd6df40",
     "scripts/io_budget.py": "0fd5c746e6dec385138afb2d2482af3a47dc0c9f458df5f0a54a5c3d1a42b4ad",

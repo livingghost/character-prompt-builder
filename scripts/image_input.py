@@ -781,6 +781,7 @@ def external_delivery(binding: dict, *, run_directory: Path, read_object) -> dic
     """
     from production_evidence import inspect
 
+    run_directory = run_directory.resolve()
     validate_binding(binding)
     external = binding['external_request']
     if external is None:

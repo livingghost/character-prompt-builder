@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1126,
-  "total_bytes_excluding_manifest": 20995067,
+  "total_bytes_excluding_manifest": 20995624,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 109152,
-      "sha256": "bef87b6660dedb733d94bb24eb5d140043219fc2446752bd634e082cc4022cdf"
+      "bytes": 109307,
+      "sha256": "96443ff2952b3b5bfba5b94d3202175cd1afc457cecc9850ca850259ec787a4c"
     },
     {
       "path": "CLAUDE.md",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 32757,
-      "sha256": "07496219da6d73e33366eadc27e00c693d56612fc16668a35a89296d59211c3b"
+      "sha256": "5f40ccb377f5592193bdaf3e92f274d29564505a32d471b9a50478e66503b085"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -3846,8 +3846,8 @@
     },
     {
       "path": "scripts/image_input.py",
-      "bytes": 49245,
-      "sha256": "222caa28c40bd0d67a181668c285794b95c3cb07a19c8a070c6b8ba57a76e979"
+      "bytes": 49289,
+      "sha256": "9cb43c1c940efe7e1cf51288139ac7f38ca158f5d50588af5f914aad550cd711"
     },
     {
       "path": "scripts/input_contracts.py",
@@ -4306,8 +4306,8 @@
     },
     {
       "path": "scripts/production_resume_smoke_test.py",
-      "bytes": 42346,
-      "sha256": "a91a003e5b549d9aafa71692a0093736d0911e0d5a49fc3af6970169ece2ac22"
+      "bytes": 42358,
+      "sha256": "bd207499d426b5be1a21d6a24456be756cd30b9afaf2b17a3cce4e6057940101"
     },
     {
       "path": "scripts/production_saved_inputs.py",
@@ -4641,8 +4641,8 @@
     },
     {
       "path": "scripts/route_reading_smoke_test.py",
-      "bytes": 88949,
-      "sha256": "b71b38bf80e7a42b6341284e4d2c72ef3b2087c66677430db4a2d9e61f172c04"
+      "bytes": 88959,
+      "sha256": "b6a511178cba683d0f4fa7bb2cd488236947eb491059055a9c5a6d8fe011b53a"
     },
     {
       "path": "scripts/run_checks.py",
@@ -5086,8 +5086,8 @@
     },
     {
       "path": "scripts/test_external_delivery.py",
-      "bytes": 21800,
-      "sha256": "7ae601a7b065666619b20b4bd65e1b74a3dc417054d98718e45f76831737c192"
+      "bytes": 22136,
+      "sha256": "13353fa4aa66195be2fb9e1e156c23df968d431e6f1881d91d63d312028818cc"
     },
     {
       "path": "scripts/test_identity_coverage.py",

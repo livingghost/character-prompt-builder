@@ -540,7 +540,7 @@ class AuthoringContinuationTests(unittest.TestCase):
         retained=Path(source['current_file'])
         self.assertTrue(source['current_available'])
         self.assertEqual(retained,(self.root/source['path']).resolve())
-        self.assertTrue(retained.is_relative_to(self.root/'next-draft'))
+        self.assertTrue(retained.is_relative_to((self.root/'next-draft').resolve()))
         self.assertEqual(retained.read_bytes(),captured)
         self.assertEqual(c.sha256_file(retained),dependency['sha256'])
         self.assertEqual(workflow.read_run(self.root,self.run).prepared,saved.prepared)

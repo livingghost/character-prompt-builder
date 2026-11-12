@@ -80,6 +80,15 @@ class ExternalDeliveryTests(DeliveryFixture, unittest.TestCase):
         self.assertEqual([row['file'] for row in delivery['references']], delivery['request']['images'])
         self.assertEqual([row['role'] for row in delivery['reference_bindings']], ['scene', 'geometry'])
 
+    def test_saved_carrier_paths_are_canonical(self):
+        self.local_plan()
+        binding = self.capture_binding()
+        delivery = self.delivery(binding)
+        for item in delivery['media']:
+            path = Path(item['path'])
+            self.assertTrue(path.is_file())
+            self.assertEqual(path, path.resolve())
+
     def test_provider_values_remain_opaque_even_when_spelled_as_a_source_filename(self):
         request = c.load(self.root / 'request.json')
         request['images'] = ['scene.png', 'https://example.invalid/design.png']
