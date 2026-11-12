@@ -413,8 +413,6 @@ class _ReferenceContext:
 
     def path(self, source: Mapping[str, Any], field: str) -> Path:
         declared = _require_string(source.get('resolved_path'), field + '.resolved_path')
-        if self.active:
-            return _canonical_existing_file(declared, field + '.resolved_path', require_canonical=True)
         digest = _require_sha256(source.get('sha256'), field + '.sha256')
         if self.source_archive is not None:
             import execution_contract as execution
@@ -423,6 +421,8 @@ class _ReferenceContext:
                 if sha256_file(archived) != digest:
                     raise ValueError(field + ' archived source byte hash mismatch')
                 return archived
+        if self.active:
+            return _canonical_existing_file(declared, field + '.resolved_path', require_canonical=True)
         # An unchanged original can also supply the recorded byte evidence.
         # Active catalog membership and ownership are not consulted here.
         path = _canonical_existing_file(declared, field + '.resolved_path', require_canonical=True)
@@ -1281,9 +1281,11 @@ def _validate_single_board(
 
 @runtime_snapshot.operation
 def validate_prepared_reference_set(value: Any, *, model: str | None = None,
-                                    package_root: Path | None = None) -> dict[str, Any]:
+                                    package_root: Path | None = None,
+                                    source_archive: Path | None = None) -> dict[str, Any]:
     """Validate source activity, target constraints and every delivered byte."""
-    return _validate_prepared_reference_set(value, model=model, package_root=package_root)
+    context = _ReferenceContext(True, source_archive, _ReferenceContext.live().reads)
+    return _validate_prepared_reference_set(value, model=model, package_root=package_root, context=context)
 
 
 @runtime_snapshot.operation
@@ -1525,6 +1527,7 @@ def finalize_prepared_reference_set(
     *,
     model: str | None = None,
     package_root: Path | None = None,
+    source_archive: Path | None = None,
 ) -> dict[str, Any]:
     """Seal and validate one canonical prepared-reference-set artifact."""
 
@@ -1537,6 +1540,7 @@ def finalize_prepared_reference_set(
         sealed,
         model=model,
         package_root=package_root,
+        source_archive=source_archive,
     )
 
 
@@ -1598,6 +1602,7 @@ def build_prepared_reference_set(
     single_board: Mapping[str, Any] | None = None,
     set_id: str | None = None,
     package_root: Path | None = None,
+    source_archive: Path | None = None,
 ) -> dict[str, Any]:
     """Build the sole canonical prepared-reference-set shape."""
 
@@ -1640,6 +1645,7 @@ def build_prepared_reference_set(
         raw,
         model=target_model,
         package_root=package_root,
+        source_archive=source_archive,
     )
 
 

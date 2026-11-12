@@ -630,26 +630,14 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
     if c.content_id(snapshot) != details['snapshot'] or snapshot.get('task_id') != row['task_id']:
         raise ValueError('reading snapshot differs from its saved task pointer')
     base['documents'] = snapshot['manifest']['documents']
-    total = sum(item['size'] for item in snapshot['bodies'])
-    pages = []
-    for path in (folder / 'pages').glob('*.json'):
-        page = c.load(path)
-        if c.content_id(page) != path.stem or page['snapshot'] != details['snapshot']:
-            raise ValueError('reading page differs from its saved address')
-        if (type(page['start']) is not int or type(page['end']) is not int
-                or not 0 <= page['start'] <= page['end'] <= total):
-            raise ValueError('reading page has an invalid delivered range')
-        pages.append((page['start'], page['end'], path.stem))
-    reach = 0
-    for start, end, _ in sorted(pages):
-        if start > reach:
-            break
-        reach = max(reach, end)
+    coverage = route_reading.snapshot_coverage(folder, snapshot)
+    pages = coverage['pages']
+    total, delivered = coverage['total_bytes'], coverage['delivered_bytes']
     result = {**base,
-              'delivered_bytes': reach, 'remaining_bytes': total - reach,
+              'delivered_bytes': delivered, 'remaining_bytes': total - delivered,
               'required_bytes': sum(item['size'] for item in snapshot['required_bodies']),
               'reused_bytes': sum(item['body']['size'] for item in snapshot['reused_bodies']),
-              'same_context_required': bool(snapshot['context_keys']),
+              'same_context_required': bool(snapshot['context_keys'] or delivered),
               'source_freshness': 'not-rechecked',
               'next_actions': []}
     saved = [item['details']['path'] for item in records if item['kind'] == 'reading-record'
@@ -666,18 +654,38 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
         fresh = restart('Deliver the complete current contract when this agent or context has not read it.')
         result.update(state='recorded', records=present, fresh_context_action=fresh['next_actions'][0])
         return result
-    cursors = [(start, end, page) for start, end, page in pages if end == reach]
-    if not cursors:
+    if not pages:
         return restart('The snapshot has no delivered page receipt. Start its declared route reading; the existing snapshot stays available for inspection.')
-    _, _, page = max(cursors)
-    result['cursor'] = details['snapshot'] + ':' + page
+    continuation = folder / 'continuation.json'
+    if not continuation.is_file():
+        argv = python_argv(Path(details['skill_root']) / 'scripts/execution_routes.py', 'read',
+            '--snapshot', details['snapshot'], '--reading-ledger', details['ledger'],
+            '--root', str(c._root(root)), '--page-bytes', str(details['page_bytes']))
+        runtime = route_reading._runtime_context(details['runtime'])
+        if runtime is not None:
+            argv.extend(runtime.command_arguments())
+        action = {'argv': argv, 'command': shown(argv),
+                  'reason': 'No delivery continuation is selected; inspect the exact retained coverage and choose a source or section.'}
+        result.update(state='partial' if delivered < total else 'delivered', mode='index',
+                      actions={'index': action}, next_actions=[action],
+                      fresh_context_action=restart('Index current sources when their text is no longer available in this context.')['next_actions'][0])
+        return result
+    selected = c.load(continuation)
+    c.exact(selected, {'snapshot', 'page'}, 'selected reading continuation')
+    page_id = route_reading._hex(selected['page'], 64, 'reading page')
+    page = dict(pages).get(page_id)
+    if selected['snapshot'] != details['snapshot'] or page is None:
+        raise ValueError('selected reading continuation has no matching delivery page')
+    result['cursor'] = details['snapshot'] + ':' + page_id
     actions = route_reading._reading_actions(result, ledger=ledger, studio=root,
-                                            page_bytes=details['page_bytes'])
-    result.update(state='partial' if reach < total else 'delivered', actions=actions)
-    result['next_actions'] = [actions['continue'] or actions['replay']]
+        page_bytes=page.get('page_bytes', details['page_bytes']),
+        acquired=(folder, snapshot, page), coverage=coverage)
+    result.update(state='partial' if delivered < total else 'delivered', actions=actions,
+                  mode='index' if page.get('index') else 'section' if 'section' in page else 'all')
+    result['next_actions'] = [actions['continue'] or actions['next'] or actions['all']]
     result['fresh_context_action'] = restart(
         'Read the complete current contract after a context change; saved receipts and pages do not establish retained knowledge.')['next_actions'][0]
-    if reach == total:
+    if delivered == total:
         result['assessment_required'] = ['No saved reading record is available. Replaying the final page is an explicit reading action.']
     return result
 

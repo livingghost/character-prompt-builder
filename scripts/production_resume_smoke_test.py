@@ -235,7 +235,9 @@ class ResumeTests(unittest.TestCase):
         item=checked(result)['runs'][0]
         self.assertEqual(item['integrity'],'intact')
         self.assertEqual(item['submission'],'outcome_unknown')
-        self.assertTrue(item['freshness_diagnostics'])
+        self.assertEqual(item['freshness_diagnostics'],[])
+        self.assertIn(('SOURCE_CHANGED','warning','prompt.txt'),
+                      [(notice['code'],notice['severity'],notice['file']) for notice in item['freshness_notices']])
         # The provider was asked and gave no answer; the evidenced statement is the next step.
         self.assertEqual(item['next_action']['command'],'draft-outcome')
 
@@ -296,21 +298,25 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(group['submissions'],1)
         self.assertIsInstance(result['unregistered_publications'],list)
 
-    def test_every_freshness_problem_is_reported(self):
+    def test_every_current_draft_change_is_reported_without_blocking_saved_execution(self):
         task=c.load(self.root/'task.json');task['criteria'][0]['text']='A deliberately different current task criterion.'
         fixtures.write(self.root/'task.json',task)
         (self.root/'prompt.txt').write_text('A deliberately changed synthetic prompt.',encoding='utf-8')
         report=status(self.root,self.run)['runs'][0]
-        self.assertTrue({'task.json','prompt.txt'} <= {d['file'] for d in report['freshness_diagnostics']})
-        self.assertEqual(report['next_action']['command'],'prepare')
+        self.assertEqual(report['freshness_diagnostics'],[])
+        self.assertTrue({'task.json','prompt.txt'} <= {d['file'] for d in report['freshness_notices']})
+        self.assertEqual(report['next_action']['command'],'draft-execution')
 
-    def test_changed_task_scope_is_blocked_without_corrupting_history(self):
+    def test_changed_draft_scope_leaves_the_saved_task_and_history_intact(self):
+        before=workflow.read_run(self.root,self.run).prepared
         task=c.load(self.root/'task.json');task['criteria'][0]['text']='A deliberately different current task criterion.'
         fixtures.write(self.root/'task.json',task)
         report=status(self.root,self.run)['runs'][0]
         self.assertEqual(report['integrity'],'intact')
-        self.assertEqual(report['readiness'],'blocked')
-        self.assertTrue(any(d['file']=='task.json' for d in report['freshness_diagnostics']))
+        self.assertEqual(report['readiness'],'authorization_required')
+        self.assertEqual(report['freshness_diagnostics'],[])
+        self.assertTrue(any(d['file']=='task.json' for d in report['freshness_notices']))
+        self.assertEqual(workflow.read_run(self.root,self.run).prepared,before)
 
 
 class OutcomeStatementCliTests(unittest.TestCase):
@@ -514,15 +520,30 @@ class AuthoringContinuationTests(unittest.TestCase):
 
     def test_a_new_draft_from_an_existing_run_is_the_session_continuation(self):
         import session_entry_points
+        saved=workflow.read_run(self.root,self.run)
+        original=next(item for item in saved.prepared['task']['sources'] if item['id']=='brief')
+        dependency=next(item for item in saved.prepared['dependencies'] if item['path']==original['path'])
+        captured=saved.evidence.read(dependency['sha256'])
+        fixtures.write(self.root/original['path'],'A later brief belongs to another intended revision.')
         drafted = self.inputs.draft_inputs(self.root, None, 'next-draft', from_run=self.run)
         report = status(self.root)
         current = report['current_task']
         self.assertEqual(current['focus'], 'authoring')
         context = current['authoring']['context']['input']
         self.assertEqual(context['choices_file'], str((self.root / drafted['choices_file']).resolve()))
+        self.assertEqual(context['source_run'],self.run)
+        parent=drafted['derived_from']['source_run']
+        self.assertEqual((parent['run'],parent['input_sha256']),(self.run,saved.prepared['input_sha256']))
         source = next(item for item in context['sources'] if item['id'] == 'brief')
-        self.assertEqual(source['source_run_file']['run'], self.run)
-        self.assertTrue(Path(source['source_run_file']['path']).is_file())
+        self.assertEqual({key:source[key] for key in original if key!='path'},
+                         {key:value for key,value in original.items() if key!='path'})
+        retained=Path(source['current_file'])
+        self.assertTrue(source['current_available'])
+        self.assertEqual(retained,(self.root/source['path']).resolve())
+        self.assertTrue(retained.is_relative_to(self.root/'next-draft'))
+        self.assertEqual(retained.read_bytes(),captured)
+        self.assertEqual(c.sha256_file(retained),dependency['sha256'])
+        self.assertEqual(workflow.read_run(self.root,self.run).prepared,saved.prepared)
         lines = '\n'.join(session_entry_points.authoring_lines(self.root))
         self.assertLess(lines.index(str(self.root / drafted['choices_file'])), lines.index('Saved authored revision: ' + self.run))
 

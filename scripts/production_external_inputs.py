@@ -73,12 +73,12 @@ def unresolved(selection: Any) -> list[dict]:
         for index, row in enumerate(plan.get('references', []) if selection['reference_delivery'] is None else []):
             transport = row.get('transport')
             field = f'image_input.references.{index}.transport'
-            required(transport, field, f'external.{field} is null, so reference {index} has no upload.',
-                     "Upload the reference file through the service's actual upload operation and keep its saved "
-                     f'response, then set external.{field} to {{"value": RETURNED_MEDIA_VALUE, "evidence": '
-                     '{"path": SAVED_RESPONSE_FILE, "locator": SECTION}}; add "field" when the request has more '
-                     'than one media array.')
-            if isinstance(transport, dict):
+            required(transport, field, f'external.{field} is null, so reference {index} has no delivery transport.',
+                     f'Set external.{field} to {{"local_file": true}} when the host accepts a local file; otherwise '
+                     "upload the selected carrier through the service's actual upload operation and use "
+                     '{"value": RETURNED_MEDIA_VALUE, "evidence": {"path": SAVED_RESPONSE_FILE, "locator": SECTION}}. '
+                     'Add "field" when the request has more than one media array.')
+            if isinstance(transport, dict) and transport.get('local_file') is not True:
                 required(transport.get('value'), field + '.value', f'external.{field}.value is null.',
                          f'Set external.{field}.value to the media value that the provider returned for the '
                          'uploaded reference file.')
@@ -89,7 +89,8 @@ def unresolved(selection: Any) -> list[dict]:
 
 
 def draft(plan: dict, request: Any, *, prepared: dict | None = None,
-          package_root: Path | None = None, root: Path | None = None) -> dict:
+          package_root: Path | None = None, root: Path | None = None,
+          source_archive: Path | None = None) -> dict:
     """Extract editable content and retain the request's declared media slots.
 
     A transport stays beside the reference it sends. The repeated reference ID,
@@ -108,12 +109,16 @@ def draft(plan: dict, request: Any, *, prepared: dict | None = None,
         if prepared is None or package_root is None:
             raise ValueError('draft the prepared reference content with its package root')
         import production_reference_inputs
-        from prepare_generation_references import resolve_prepared_reference_paths
+        from prepare_generation_references import _resolve_packaged_file
         reference_delivery = production_reference_inputs.draft_external(
-            plan, prepared, package_root=package_root, root=root)
-        resolved = resolve_prepared_reference_paths(prepared, package_root=package_root)
-        carriers = [resolved['single_board'] if resolved['transport_mode'] == 'single-board' else row['transport']
-                    for row in resolved['selected_references']]
+            plan, prepared, package_root=package_root, root=root, source_archive=source_archive)
+        carriers = []
+        for row in prepared['selected_references']:
+            carrier = copy.deepcopy(prepared['single_board'] if prepared['transport_mode'] == 'single-board'
+                                    else row['transport'])
+            _, resolved = _resolve_packaged_file(carrier['resolved_path'], 'external carrier', package_root=package_root)
+            carrier['resolved_path'] = str(resolved)
+            carriers.append(carrier)
         selected.pop('prepared_references')
     external = selected['external_request']
     fields = external.pop('reference_fields')
@@ -140,32 +145,35 @@ def draft(plan: dict, request: Any, *, prepared: dict | None = None,
             unpin(external[field])
     native = copy.deepcopy(request)
     for index, (row, binding) in enumerate(zip(references, fields, strict=True)):
-        row['transport'] = {key: copy.deepcopy(binding[key]) for key in ('field', 'value', 'evidence')}
+        local = binding.get('local_file') is True
+        keys = ('field', 'local_file') if local else ('field', 'value', 'evidence')
+        row['transport'] = {key: copy.deepcopy(binding[key]) for key in keys}
         original_digest = row.get('sha256')
-        evidence_digest = binding['evidence'].get('sha256')
+        evidence_digest = None if local else binding['evidence'].get('sha256')
         if root is not None:
             if original_digest is None:
                 original_digest = c.sha256_file(c.local(root, row['file']))
-            if evidence_digest is None:
+            if not local and evidence_digest is None:
                 evidence_digest = c.sha256_file(c.local(root, binding['evidence']['path']))
         if carriers is not None:
             original_digest = carriers[index]['sha256']
         if original_digest is not None and evidence_digest is not None:
             source_uploads.append({'carrier_sha256': original_digest, 'evidence_sha256': evidence_digest,
                 'locator': binding['evidence']['locator'], 'value': binding['value']})
-        unpin(row['transport']['evidence'])
-        uploaded = row['file']
-        if carriers is not None:
-            uploaded = Path(carriers[index]['resolved_path'])
-            if root is not None:
-                try:
-                    uploaded = uploaded.relative_to(root.resolve()).as_posix()
-                except ValueError:
+        if not local:
+            unpin(row['transport']['evidence'])
+            uploaded = row['file']
+            if carriers is not None:
+                uploaded = Path(carriers[index]['resolved_path'])
+                if root is not None:
+                    try:
+                        uploaded = uploaded.relative_to(root.resolve()).as_posix()
+                    except ValueError:
+                        uploaded = str(uploaded)
+                else:
                     uploaded = str(uploaded)
-            else:
-                uploaded = str(uploaded)
-            pin(uploaded, carriers[index]['sha256'])
-        row['transport']['uploaded_file'] = uploaded
+                pin(uploaded, carriers[index]['sha256'])
+            row['transport']['uploaded_file'] = uploaded
         unpin(row, 'file')
         path = rc._path(binding['field'])
         if path not in slots:
@@ -204,6 +212,55 @@ def read_selection(selection: dict, reader, root: Path) -> tuple[dict, dict]:
     choices = draft(existing, reader.json(request_file), prepared=prepared,
         package_root=c.local(root, prepared_path).parent if prepared_path else None, root=root)
     return choices, source
+
+
+def relocate_sources(selection: dict, paths: dict[str, str]) -> dict:
+    """Point editable input owners at exported saved files without rewriting content."""
+    result = copy.deepcopy(selection)
+
+    def locator(row, field='path'):
+        if isinstance(row, dict) and isinstance(row.get(field), str):
+            row[field] = paths.get(row[field], row[field])
+
+    def pins(value):
+        moved = {}
+        for path, witness in value.items():
+            target = paths.get(path, path)
+            if target in moved and moved[target] != witness:
+                raise ValueError('exported external source has conflicting saved witnesses')
+            moved[target] = witness
+        return moved
+
+    def plan_sources(plan):
+        if not isinstance(plan, dict):
+            return
+        model = plan.get('model')
+        if isinstance(model, dict):
+            locator(model.get('evidence'))
+        external = plan.get('external_request')
+        if isinstance(external, dict):
+            for name in ('schema', 'vocabulary_record'):
+                locator(external.get(name))
+            identity = external.get('model_identity')
+            if isinstance(identity, dict):
+                locator(identity.get('evidence'))
+        for reference in plan.get('references', []):
+            locator(reference, 'file')
+            transport = reference.get('transport')
+            if isinstance(transport, dict):
+                locator(transport.get('evidence'))
+                locator(transport, 'uploaded_file')
+
+    if isinstance(result.get('image_input'), str):
+        locator(result, 'image_input')
+        return result
+    plan_sources(result.get('image_input'))
+    result['source_files'] = pins(result.get('source_files', {}))
+    delivery = result.get('reference_delivery')
+    if isinstance(delivery, dict):
+        import production_reference_inputs
+        delivery['choices'] = production_reference_inputs.relocate_sources(delivery['choices'], paths)
+    return result
 
 
 def _at(value: Any, path: list) -> Any:
@@ -551,6 +608,13 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
             identifier = reference['id']
             carrier = carrier_map[identifier]
             transport = copy.deepcopy(transports.get(identifier))
+            if isinstance(transport, dict) and 'local_file' in transport:
+                c.exact(transport, {'local_file'} | ({'field'} if 'field' in transport else set()),
+                        'external local file transport')
+                if transport['local_file'] is not True:
+                    raise ValueError('external local file transport requires local_file: true')
+                rows.append({'reference': identifier, **transport, 'value': carrier['path']})
+                continue
             reason = None
             if transport is None or any(transport.get(key) is None for key in ('value', 'evidence')):
                 reason = 'has no recorded upload: its provider media value or upload evidence is missing.'

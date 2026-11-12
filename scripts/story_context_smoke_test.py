@@ -262,15 +262,20 @@ class ProductionTests(MomentTests):
         fixture.write(self.root,'task.json',spec);return production.prepare(self.root,'task.json')['run']
     def test_production_selects_only_view(self):
         run=self.setup_run();consumer=production.load_run(self.root,run)[2];self.assertEqual(len(consumer['moment_views']),1);self.assertNotIn('PRIVATE',json.dumps(consumer));self.assertEqual(consumer['world_views'],[])
-    def test_source_change_invalidates_prepared_run(self):
+    def assert_saved_input_with_draft_notice(self,run):
+        production.assert_current(self.root,run)
+        failures,notices=production.freshness(self.root,run)
+        self.assertEqual(failures,[])
+        self.assertIn(('SOURCE_CHANGED','warning'),[(item['code'],item['severity']) for item in notices])
+    def test_source_change_is_a_notice_for_prepared_run(self):
         run=self.setup_run();fixture.write(self.root,'persona.md','changed persona')
-        with self.assertRaisesRegex(ValueError,'SOURCE_CHANGED'):production.assert_current(self.root,run)
-    def test_query_change_invalidates_prepared_run(self):
+        self.assert_saved_input_with_draft_notice(run)
+    def test_query_change_is_a_notice_for_prepared_run(self):
         run=self.setup_run();self.query['at']['story_order']=16;self.save()
-        with self.assertRaisesRegex(ValueError,'SOURCE_CHANGED'):production.assert_current(self.root,run)
-    def test_bundle_change_invalidates_prepared_run(self):
+        self.assert_saved_input_with_draft_notice(run)
+    def test_bundle_change_is_a_notice_for_prepared_run(self):
         run=self.setup_run();fixture.write(self.root,'bundle/report.json',{})
-        with self.assertRaisesRegex(ValueError,'SOURCE_CHANGED'):production.assert_current(self.root,run)
+        self.assert_saved_input_with_draft_notice(run)
     def test_generation_binding_carries_selected_moment(self):
         import production_binding
         run=self.setup_run();binding=production_binding.create(self.root,run,'Follow the selected moment.\n')
@@ -278,6 +283,58 @@ class ProductionTests(MomentTests):
         self.assertEqual(binding['consumer']['instructions'], 'Follow the selected moment.\n')
         self.assertEqual(len(binding['consumer']['moment_views']), 1)
         production_binding.validate_live(self.root,run,{'production_binding':binding,'composition_prompt':'Follow the selected moment.\n'})
+
+    def test_repeat_and_export_keep_selected_moment_after_original_graph_removal(self):
+        import shutil
+        import production_case_fixtures as cases
+        import production_variation as variation
+        import production_inputs
+        import production_compiler
+        from reading_fixtures import task_reading
+        from catalog_retrieval import runtime
+        self.addCleanup(runtime.configure_pack_runtime,None)
+        # Compose the existing synthetic dispatcher and moment fixtures; the
+        # domain's relative query and bundle paths remain the selected paths.
+        self.root=self.root.parent/'dispatcher-studio'
+        case=cases.create(self.root,self.root.parent/'dispatcher-runtime')
+        self.query=fixture.write_inputs(self.root)
+        self.build()
+        task=case['task']
+        task['features'].append('story-context')
+        task['moment_views']=[{'query':'query.json','bundle':'bundle','view_id':'depiction.main'}]
+        task_reading(self.root,task)
+        cases.write(self.root/'task.json',task)
+        run=production.prepare(self.root,'task.json')['run']
+        saved=production.read_run(self.root,run)
+        selected=saved.consumer['moment_views']
+        self.assertEqual(len(selected),1)
+        self.assertNotIn('PRIVATE',json.dumps(selected))
+        removed=['query.json','persona.md','design.md','events.jsonl','base.json','coverage.json']
+        for relative in removed:
+            (self.root/relative).unlink()
+        shutil.rmtree(self.root/'bundle')
+        repeated=variation.derive(self.root,run,prepare=True)
+        current=production.read_run(self.root,repeated['run'])
+        self.assertEqual(current.consumer['moment_views'],selected)
+        self.assertEqual(current.artifacts['package.json']['composition_prompt'],
+                         saved.artifacts['package.json']['composition_prompt'])
+        self.assertEqual(repeated['derivation']['run'],run)
+        self.assertFalse(repeated['authorization_inherited'])
+        self.assertTrue(all(not (self.root/relative).exists() for relative in removed))
+        self.assertFalse((self.root/'bundle').exists())
+
+        draft=production_inputs.draft_inputs(self.root,None,'reopened',from_run=run)
+        exported=production_inputs.build_inputs(self.root,None,draft['choices_file'],'exported')
+        self.assertTrue(exported['ok'],exported)
+        task_path=exported['inputs']['production-task']['path']
+        checked=production_compiler.check_task(self.root,task_path)
+        self.assertTrue(checked['publishable'],checked['diagnostics'])
+        prepared=production.prepare(self.root,task_path)
+        exported_run=production.read_run(self.root,prepared['run'])
+        self.assertEqual(exported_run.consumer['moment_views'],selected)
+        self.assertEqual(exported_run.prepared['parent']['run'],run)
+        self.assertTrue(all(not (self.root/relative).exists() for relative in removed))
+        self.assertFalse((self.root/'bundle').exists())
 
     def test_failed_view_cannot_prepare(self):
         self.query['requirements'][0]['value']='unmet'

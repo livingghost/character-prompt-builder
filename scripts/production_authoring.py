@@ -7,16 +7,15 @@ receipts. Original task identity and approval scope remain independently owned.
 from __future__ import annotations
 
 import copy
+from contextlib import contextmanager
 from pathlib import Path
 import tempfile
 
 import execution_contract as c
 from production_diagnostics import choice_required
+import production_document_contracts
 
-DOCUMENTS = frozenset({'parameters', 'production_spec', 'plot', 'retrieval_record',
-    'creative_intent', 'negative', 'integrated_prompt', 'native_negative',
-    'negative_provenance', 'state_lineage', 'state_snapshot', 'state_graphs',
-    'visual_continuity', 'mask_binding'})
+DOCUMENTS = production_document_contracts.DOCUMENT_KEYS
 TEXT_DOCUMENTS = frozenset({'negative', 'integrated_prompt', 'native_negative'})
 TEXT_SOURCE_SUFFIXES = frozenset({'.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.tsv'})
 GENERATED_TASK_FIELDS = frozenset({'delivery', 'generation', 'route_reading', 'image_input', 'authored_basis'})
@@ -91,7 +90,10 @@ def _plot_choice(value: dict) -> dict:
 
 
 def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
-          initial: bool = False) -> dict:
+          initial: bool = False, captured=None, retained_prefix: str | None = None) -> dict:
+    def selected_bytes(path):
+        return captured.bytes(path) if captured is not None else source_bytes(root, path, reader, saved)
+
     authored_task = {key: copy.deepcopy(value) for key, value in task.items()
                      if key not in GENERATED_TASK_FIELDS and key != 'execution_decisions'}
     documents = {}
@@ -99,7 +101,7 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
     for field in DOCUMENTS:
         path = generation.get(field)
         if path:
-            raw = source_bytes(root, path, reader, saved)
+            raw = selected_bytes(path)
             value = raw.decode('utf-8') if field in TEXT_DOCUMENTS else c.decode(raw)
             if field == 'plot':
                 value = _plot_choice(value)
@@ -115,7 +117,7 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
                 value.pop('context', None)
                 value.pop('settled', None)
             documents[field] = value
-    content = None if initial else source_bytes(root, task['delivery']['path'], reader, saved).decode('utf-8')
+    content = None if initial else selected_bytes(task['delivery']['path']).decode('utf-8')
     upscale = None
     if task.get('route') == 'upscale' and task.get('execution') == 'dispatcher' and content is not None:
         value = c.decode(content.encode('utf-8'))
@@ -128,14 +130,17 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
     if task.get('execution') == 'dispatcher' and task.get('route') != 'upscale':
         import production_reference_inputs
         path = generation.get('references')
-        prepared = c.decode(source_bytes(root, path, reader, saved)) if path else None
+        prepared = c.decode(selected_bytes(path)) if path else None
         package_root = c.local(root, path, exists=False).parent if path else root
         mirrored = False
         if path and task.get('image_input'):
             # An image input written from this set's rows is selected again as the mirrored form.
-            mirrored = c.decode(source_bytes(root, task['image_input'], reader, saved)).get('prepared_references') == path
-        references = production_reference_inputs.draft(prepared, package_root=package_root, root=root,
-                                                       mirrored_input=mirrored)
+            mirrored = c.decode(selected_bytes(task['image_input'])).get('prepared_references') == path
+        if captured is not None and path:
+            references = captured.reference_choices(retained_prefix, mirrored_input=mirrored)
+        else:
+            references = production_reference_inputs.draft(prepared, package_root=package_root, root=root,
+                                                           mirrored_input=mirrored)
     sources = {}
     owned_paths = {task['delivery']['path'], *(generation.get(key) for key in DOCUMENTS), generation.get('references'), generation.get('request_validation')}
     if not initial:
@@ -143,17 +148,25 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
             path = source['path']
             if source.get('identity') or path in owned_paths or Path(path).suffix.lower() not in TEXT_SOURCE_SUFFIXES:
                 continue
-            raw = source_bytes(root, path, reader, saved)
+            raw = selected_bytes(path)
             format = 'json' if Path(path).suffix.lower() == '.json' else 'text'
             sources[source['id']] = {'format': format,
                 'content': c.decode(raw) if format == 'json' else raw.decode('utf-8')}
+    originals = {item['source']['id']: item for item in
+                 (task.get('authored_basis') or {}).get('sources', [])}
+    for source in authored_task.get('sources', []):
+        original = originals.get(source['id'])
+        if original is not None:
+            # The source selector owns the comparison basis; the editable
+            # body above retains the separately authored adaptation.
+            source['path'] = original['file']['path']
     source_files = {}
     for source in task.get('sources', []):
         if source.get('identity'):
-            source_files[source['path']] = c.digest(source_bytes(root, source['path'], reader, saved))
+            source_files[source['path']] = c.digest(selected_bytes(source['path']))
     for source in task.get('upload_sources', []):
         c.exact(source, {'file', 'url'}, 'upload source selection')
-        source_files[source['file']] = c.digest(source_bytes(root, source['file'], reader, saved))
+        source_files[source['file']] = c.digest(selected_bytes(source['file']))
     result = {'task': authored_task, 'sources': sources,
         'delivery': {'content': content, 'translation_notes': task['delivery']['translation_notes']},
         'documents': documents,
@@ -177,11 +190,12 @@ def read_editable(authored: dict, reader) -> tuple[dict, dict, list[dict]]:
     value=copy.deepcopy(authored)
     locations={}
     missing=[]
-    def selected(item, field, *, text=False):
-        if not isinstance(item,dict) or 'file' not in item or set(item)-{'file','field'}:
-            return item
+    def selected(item, field, *, text=False, document=None):
+        c.exact(item, {'file', 'field'} if isinstance(item, dict) and 'field' in item else {'file'},
+                field + ' selection')
         path=c.text(item['file'],field+' file')
-        locations[field]={'file':path,'pointer':item.get('field')}
+        owner = production_document_contracts.guidance(document) if document is not None else dict(EDITING_GUIDE)
+        locations[field]={'file':path,'pointer':item.get('field'),'guidance':owner}
         try:
             raw=reader.read(reader.select(path))
             result=raw.decode('utf-8') if text and 'field' not in item else c.decode(raw)
@@ -195,7 +209,7 @@ def read_editable(authored: dict, reader) -> tuple[dict, dict, list[dict]]:
                 'message':'The editable file that '+field+' selects cannot be read as selected.',
                 'required_action':'Make '+path+' a readable file holding the selected content, or change '+
                     field+'.file (and '+field+'.field for a JSON selection) to the file and value to use.',
-                'guidance':dict(EDITING_GUIDE)})
+                'guidance':owner})
             return None
     delivery=value['delivery']
     if 'file' in delivery:
@@ -203,7 +217,8 @@ def read_editable(authored: dict, reader) -> tuple[dict, dict, list[dict]]:
                                      'authoring.delivery',text='field' not in delivery)
         delivery.pop('file',None);delivery.pop('field',None)
     for name,item in value['documents'].items():
-        value['documents'][name]=selected(item,'authoring.documents.'+name,text=name in TEXT_DOCUMENTS)
+        value['documents'][name]=selected(item,'authoring.documents.'+name,text=name in TEXT_DOCUMENTS,
+                                          document=name)
     for name,item in value['sources'].items():
         if 'file' in item:
             item['content']=selected({key:item[key] for key in ('file','field') if key in item},
@@ -213,6 +228,75 @@ def read_editable(authored: dict, reader) -> tuple[dict, dict, list[dict]]:
     if isinstance(intent,dict) and intent.get('prompt_expression')=={'document':'delivery'}:
         intent['prompt_expression']=delivery.get('content') or ''
     return value,locations,missing
+
+
+def export_documents(authored: dict, out_dir: str) -> dict[str, bytes]:
+    """Give every selected document one editable file, retaining only its selector in choices.
+
+    Draft construction uses resolved values until this publication boundary.
+    Compilation measures the selected current bytes and captures those hashes;
+    an editable selector does not ask the author to maintain a content hash.
+    """
+    files = {}
+    documents = authored['documents']
+    for name in sorted(documents):
+        value = documents[name]
+        filename = name.replace('_', '-') + ('.txt' if name in TEXT_DOCUMENTS else '.json')
+        files[filename] = value.encode('utf-8') if name in TEXT_DOCUMENTS else c.encoded(value)
+        documents[name] = {'file': (Path(out_dir) / filename).as_posix()}
+    return files
+
+
+def locate_unresolved(items: list[dict], locations: dict) -> list[dict]:
+    """Locate an authored-content repair at the file that owns the selected value."""
+    result = copy.deepcopy(items)
+    for item in result:
+        field = item.get('field', '')
+        selected = next((key for key in sorted(locations, key=len, reverse=True)
+                         if field == key or field.startswith(key + '.')), None)
+        if selected is None:
+            continue
+        location = locations[selected]
+        item['file'] = location['file']
+        suffix = field[len(selected):].lstrip('.')
+        if selected == 'authoring.delivery' or selected.startswith('authoring.sources.'):
+            suffix = suffix.removeprefix('content.').removeprefix('content')
+        pointer = list(location.get('pointer') or [])
+        if suffix:
+            pointer.extend(int(part) if part.isdecimal() else part for part in suffix.split('.'))
+        item['source_field'] = pointer
+        guidance = {**location['guidance'], **(item.get('guidance') or {})}
+        if location['guidance'].get('schema'):
+            guidance['schema'] = location['guidance']['schema']
+        item['guidance'] = guidance
+        destination = location['file'] + (' at ' + '.'.join(map(str, pointer)) if pointer else '')
+        item['message'] = item['message'].replace(field, destination)
+        item['required_action'] = 'Edit ' + destination + '. ' + item['required_action'].replace(field, destination)
+    return result
+
+
+@contextmanager
+def _document_context(name: str, locations: dict):
+    """Keep a document builder's refusal attached to its editable source."""
+    from production_diagnostics import ProductionError, from_exception, DIAGNOSTIC_FIELDS
+    field = 'authoring.documents.' + name
+    location = locations.get(field)
+    try:
+        yield
+    except UnresolvedChoice:
+        raise
+    except (ValueError, OSError, KeyError, TypeError, IndexError, AttributeError) as exc:
+        if location is None:
+            raise
+        diagnostic = from_exception(exc, phase='authoring', file=location['file'], pointer=field)
+        owner = {**location['guidance'], **(diagnostic.get('guidance') or {})}
+        if location['guidance'].get('schema'):
+            owner['schema'] = location['guidance']['schema']
+        raise ProductionError(diagnostic['code'], diagnostic['message'], phase=diagnostic['phase'],
+            file=location['file'], pointer=diagnostic['pointer'] or field, guidance=owner,
+            required_action='Edit ' + location['file'] + '. ' + diagnostic['required_action'],
+            authoring_field=field, source_field=location.get('pointer'),
+            **{key: value for key, value in diagnostic.items() if key not in DIAGNOSTIC_FIELDS}) from exc
 
 
 def execution_dispatcher(task: dict) -> bool:
@@ -393,7 +477,7 @@ def _expression_unresolved(specification: dict) -> list[dict]:
 def continuity_unresolved(authored: dict) -> list[dict]:
     """Subjects of the selected Production Specification without a continuity decision."""
     specification = (authored.get('documents') or {}).get('production_spec')
-    if (not isinstance(specification, dict) or set(specification) <= {'file', 'field'}
+    if (not isinstance(specification, dict)
             or (authored.get('documents') or {}).get('visual_continuity') is not None):
         return []
     decided = (authored.get('generation') or {}).get('continuity') or {}
@@ -536,10 +620,12 @@ def _upload_sources(task: dict, witnesses: dict, carriers: set[str], reader) -> 
 
 
 def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: str,
-                *, saved: dict | None = None, validation: dict | None = None) -> tuple[dict, dict[str, bytes], bytes | None]:
+                *, saved: dict | None = None, validation: dict | None = None,
+                locations: dict | None = None) -> tuple[dict, dict[str, bytes], bytes | None]:
     if authored is None:
         return copy.deepcopy(task), {}, None
     result = copy.deepcopy(task)
+    locations = locations or {}
     files = {}
     for index, source in enumerate(result.get('sources', []), 1):
         selected = authored['sources'].get(source['id'])
@@ -589,8 +675,9 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
         raise ValueError('authoring.documents names an unknown production document')
     if isinstance(documents.get('state_graphs'),dict):
         from state_protocol import acquire_subject_state_graphs
-        documents['state_graphs']=acquire_subject_state_graphs(documents['state_graphs'],
-            lambda path:reader.read(reader.select(path)),production_spec=documents.get('production_spec'))
+        with _document_context('state_graphs', locations):
+            documents['state_graphs']=acquire_subject_state_graphs(documents['state_graphs'],
+                lambda path:reader.read(reader.select(path)),production_spec=documents.get('production_spec'))
     if documents.get('state_graphs') is not None and old_generation.get('state_graphs'):
         from production_identity import IDENTITY_NODES
         previous_graphs = c.decode(source_bytes(root, old_generation['state_graphs'], reader, saved))
@@ -610,14 +697,16 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     if plot is not None:
         original = old_generation.get('plot')
         previous = c.decode(source_bytes(root, original, reader, saved)) if original else None
-        documents['plot'] = _approved_plot(plot, previous)
+        with _document_context('plot', locations):
+            documents['plot'] = _approved_plot(plot, previous)
     delivery = authored['delivery']['content']
     if delivery is not None:
         delivery = delivery.encode('utf-8') if isinstance(delivery, str) else c.encoded(delivery)
     if documents.get('retrieval_record') is not None and delivery is not None:
         from prompt_retrieval import settle_retrieval_record
-        documents['retrieval_record'] = settle_retrieval_record(documents['retrieval_record'],
-            prompt=delivery.decode('utf-8'), plot=documents.get('plot'))
+        with _document_context('retrieval_record', locations):
+            documents['retrieval_record'] = settle_retrieval_record(documents['retrieval_record'],
+                prompt=delivery.decode('utf-8'), plot=documents.get('plot'))
     visual_choices = documents.pop('visual_continuity', None)
     for field in DOCUMENTS:
         if field not in documents or documents[field] is None:
@@ -632,7 +721,8 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     carriers = set()
     if references is not None:
         import production_reference_inputs
-        model = (documents.get('production_spec') or {}).get('target_model') or generation.get('model')
+        specification = documents.get('production_spec')
+        model = (specification.get('target_model') if isinstance(specification, dict) else None) or generation.get('model')
         if model is None:
             raise ValueError('select choices.target before preparing references')
         with tempfile.TemporaryDirectory(prefix='production-reference-inputs-') as folder:
@@ -666,9 +756,10 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
         if prepared is None:
             from prepare_generation_references import empty_stateless_reference_set
             prepared = empty_stateless_reference_set()
-        visual = visual_continuity.build_record(visual_choices,
-            production_spec=documents.get('production_spec'), prepared=prepared, root=root)
-        reader.basis(visual['basis'])
+        with _document_context('visual_continuity', locations):
+            visual = visual_continuity.build_record(visual_choices,
+                production_spec=documents.get('production_spec'), prepared=prepared, root=root)
+            reader.basis(visual['basis'])
         files['visual-continuity.json'] = c.encoded(visual)
         generation['visual_continuity'] = (Path(out_dir) / 'visual-continuity.json').as_posix()
         _redirect(result, old_generation.get('visual_continuity'), generation['visual_continuity'])
@@ -685,8 +776,9 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
         carriers.add(request['source']['sha256'])
     if documents.get('mask_binding') is not None and result.get('upload_sources'):
         import scene_mask_planner
-        mask = scene_mask_planner.check_task(root, result, documents['mask_binding'],
-            read=lambda path: reader.read(reader.select(path)))
+        with _document_context('mask_binding', locations):
+            mask = scene_mask_planner.check_task(root, result, documents['mask_binding'],
+                read=lambda path: reader.read(reader.select(path)))
         carriers.add(mask['bundle']['mask']['sha256'])
         if mask['binding']['guidance'] is not None:
             carriers.add(mask['binding']['guidance']['sha256'])

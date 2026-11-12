@@ -68,6 +68,10 @@ ROOT_KEYS = {
     "proposition", "approved", "beats", "placement", "must_preserve", "free",
     "state_changes", "relationship_delta", "realization",
 }
+CONTRACT_GUIDANCE = {
+    'document_path': 'references/narrative-protocol.md#scene-plot',
+    'validator_source': 'scripts/scene_plot.py:validate_scene_plot',
+}
 # Screenplay practice settled the parts of a scene heading long ago: whether it is
 # inside or out, where, and what hour. The first of those decides light, sound and
 # what the weather can reach, and a scene that never says it leaves each of those
@@ -588,7 +592,7 @@ def validate_scene_plot(value: Any) -> dict[str, Any]:
         "chapter": "", "order": 0, "arcs": [], "characters": [], "themes": [],
         "focalization": {}, "setting": {}, "narrative_sha256": "",
         "state_changes": 0, "relationship_delta": 0,
-        "approved": False, "approval_errors": [],
+        "approved": False, "approval_errors": [], "guidance": dict(CONTRACT_GUIDANCE),
     }
     approval_errors: list[str] = report["approval_errors"]
 
@@ -604,7 +608,7 @@ def validate_scene_plot(value: Any) -> dict[str, Any]:
         )
         unknown = [key for key in unknown if key not in {"target", "model"}]
     if unknown:
-        errors.append(f"scene plot has unknown keys: {unknown}")
+        errors.append(f"scene plot has unknown keys: {unknown}; permitted keys: {sorted(ROOT_KEYS)}")
     if value.get("artifact_type") != ARTIFACT_TYPE:
         errors.append(f"artifact_type must be {ARTIFACT_TYPE!r}, got {value.get('artifact_type')!r}")
     report["scene_id"] = _text(value.get("scene_id"), "scene_id", errors)
@@ -803,7 +807,10 @@ def load_scene_plot(path: Path) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = _operation_context.ArgumentParser(description="Validate one scene plot.")
+    parser = _operation_context.ArgumentParser(description="Validate one scene plot.",
+        epilog='Contract: references/narrative-protocol.md#scene-plot. This logical validator owns the '
+               'field and relationship rules; no separate JSON Schema is published. '
+               'Inspect permitted fields with production_document_contracts.py explain scene_plot.')
     parser.add_argument("plot", type=Path)
     parser.add_argument("--content-sha256", action="store_true",
                         help="Print the hash an approval has to carry, and nothing else")
@@ -811,7 +818,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         value = json.loads(args.plot.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        print(json.dumps({"ok": False, "errors": [str(exc)]}, ensure_ascii=False, indent=2))
+        print(json.dumps({"ok": False, "errors": [str(exc)], "file": str(args.plot),
+                          "guidance": CONTRACT_GUIDANCE}, ensure_ascii=False, indent=2))
         return 1
     if args.content_sha256:
         print(content_sha256(value))

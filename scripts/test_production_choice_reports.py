@@ -18,6 +18,7 @@ import tempfile
 import unittest
 
 import execution_contract as c
+import production_case_fixtures as cases
 import production_diagnostics
 import production_inputs
 import production_inputs_smoke_test as input_fixtures
@@ -42,7 +43,8 @@ class ChoiceReports:
         self.assertEqual((entry['code'], entry.get('reason'), entry['field']), (CODE, reason, field), entry)
         self.assertIn(reason, production_diagnostics.CHOICE_REASONS)
         self.assertTrue(entry['message'].strip(), entry)
-        self.assertIn(named or field, entry['required_action'], entry)
+        location = entry['file'] if 'source_field' in entry else field
+        self.assertIn(named or location, entry['required_action'], entry)
         for text in mentions:
             self.assertIn(text, entry['required_action'], entry)
         self.assert_guidance(entry['guidance'])
@@ -225,13 +227,15 @@ class DispatcherChoiceReportTests(ChoiceReports, unittest.TestCase):
 
     def test_plot_without_approval_names_the_approval_to_record(self):
         result, choices = self.draft()
-        choices['authoring']['documents']['plot']['approved'] = None
+        with cases.edit_document(self.root, choices, 'plot') as document:
+            document['approved'] = None
         self.assert_reported(self.write(result, choices), [
             ('plot-approval-required', 'authoring.documents.plot.approved', {'mentions': ('"by"', '"at"')})])
 
     def test_changed_plot_under_its_earlier_approval_asks_for_current_judgment(self):
         result, choices = self.draft()
-        choices['authoring']['documents']['plot']['story'][0]['beat'] = 'The synthetic robot turns toward the viewer.'
+        with cases.edit_document(self.root, choices, 'plot') as document:
+            document['story'][0]['beat'] = 'The synthetic robot turns toward the viewer.'
         self.assert_reported(self.write(result, choices), [
             ('current-judgment-required', 'authoring.documents.plot.approved', {'mentions': ('"by"', '"at"')})],
             inspect=False)

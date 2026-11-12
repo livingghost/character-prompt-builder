@@ -105,7 +105,7 @@ missing targets and the current granted set without narrowing the requested work
 An execution claim records the unique owner of an authorized submission. The
 owner, request hash and requested output count are durable before external I/O.
 Each upload and send has a unique step, committed immediately before I/O after
-current source, authority and implementation checks. One execution can start its
+saved request, media, runtime, current authority and transport implementation checks. One execution can start its
 send only once. A transport wait holds no Studio transaction.
 
 The exact per-request count remains part of the sealed request and is checked
@@ -181,7 +181,10 @@ and artifact evidence together with current authority. Completion and recovery
 verify that saved selection, its authorization and required destination evidence.
 They do not renew an already recorded decision or require live creative sources
 to remain at their original paths. Missing or corrupt retained evidence still
-blocks them. New preparation and execution retain their live-source checks.
+blocks them. New preparation acquires its selected sources. Execution of an
+already prepared run consumes that saved revision and current imported
+authority; edits or removal of its original authoring files are not a new
+authorization decision and do not block it.
 
 The selection's nullable `owner_acceptance` records an explicit decision by the
 current authority issuer to use the candidate despite identified assessed

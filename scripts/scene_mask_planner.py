@@ -22,6 +22,7 @@ from publication_artifacts import ArtifactSet
 FORMAT = 'cpb-scene-mask-plan'
 BUNDLE = 'cpb-scene-mask-bundle'
 BINDING = 'cpb-scene-mask-binding'
+BINDING_FIELDS = frozenset({'format', 'bundle', 'review', 'guidance'})
 FEATURE = 'scene-mask-planning'
 
 
@@ -201,7 +202,7 @@ def build(root: Path, plan_path: str, out: str) -> dict:
 
 
 def validate_binding(root: Path, binding: dict, *, read: Callable | None = None) -> dict:
-    c.exact(binding, {'format', 'bundle', 'review', 'guidance'}, 'scene mask binding')
+    c.exact(binding, BINDING_FIELDS, 'scene mask binding')
     if binding['format'] != BINDING:
         raise ValueError('Unknown mask binding format.')
     read_ref, captured = _reader(root, read=read)

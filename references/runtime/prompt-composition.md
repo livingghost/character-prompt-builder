@@ -286,6 +286,19 @@ revision.
 
 Use canonical English describing the chosen direction and one coherent unresolved craft question. Preserve every anchor and modifier relationship. Prefer three to six distinctive content words for a focused query when they express the complete craft question; retain longer wording whenever it is needed to preserve a load-bearing relationship, negation, or modifier scope. Never truncate anchors merely to satisfy a word count. Use one `batch` process so the catalog loads once.
 
+A batch is a top-level JSON array. Each object supplies a unique `request_id`,
+`command` and `canonical_query`; add more objects for further questions. This
+synthetic minimum is also printed by `catalog_cli.py batch --help`:
+
+```sh
+python scripts/catalog_cli.py batch --input '[{"request_id":"identity","command":"search","canonical_query":"muscular black panther"}]'
+```
+
+`--input` also accepts a JSON file path or `-` for standard input. Add the
+selected command's options directly to its object, such as
+`"kind": ["archetype"]`, `"domain": "anthropomorphic-animal"` or `"limit": 6`.
+The supported commands are `search`, `recommend` and `inspire`.
+
 Choose the search that serves the selected question:
 
 - For a question about character design, use `search --kind archetype` with the
@@ -557,6 +570,30 @@ revision within its authorized scope. When editing a canonical record, reread
 the whole record for coherence and update the affected relationships together.
 
 ## Negative output
+
+The optional negative provenance document is a JSON object with three permitted
+keys: `activated_sources`, `diagnostic_sources_retained` and
+`semantic_exclusions_user_supplied`. Each value is an array. Omitted arrays
+normalize to empty; an empty object selects no recorded sources or exclusions.
+This is a provenance object rather than a discriminated public artifact, so
+it has no `artifact_type` field. A prompt plot and a retrieval record each
+retain the discriminator required by their own schema.
+
+The [completed synthetic record](../../examples/state-aware-pilot/generated/negative-provenance.json)
+shows filled entries. Keep its editable content in one file and select that
+file from `authoring.documents.negative_provenance`. Inspect and validate it
+before compiling the complete task:
+
+```sh
+python scripts/production_document_contracts.py explain negative_provenance
+python scripts/production_document_contracts.py validate negative_provenance STUDIO/inputs/negative-provenance.json
+```
+
+The command calls the same logical validator as preparation and lists all
+permitted fields on an unexpected-field error. `explain` identifies the owning
+document, schema when one exists, logical validator otherwise, and available
+examples for each selected document. This structural check does not assess
+whether an exclusion is applicable to the picture.
 
 Read `cpb-resource:negative-policy` and record the exclusions selected for this
 composition. First establish whether a source constraint governs this depiction,

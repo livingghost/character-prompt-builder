@@ -202,9 +202,10 @@ may instead authorize an edit of an existing candidate.
 
 Work through every reported entry in the draft directory:
 
-1. Read the route with the read action the draft returns, follow each
-   `actions.continue` until it is null, and set `reading.reading_key` to the
-   issued key.
+1. Inspect the route index from the draft's read action. Choose `actions.all`
+   for complete paged delivery, or read required sections with `actions.next`
+   and their `actions.continue`. Completion is a non-null `reading`; set
+   `reading.reading_key` to its issued `reading.key`.
 2. Write the edit instruction in the draft's `prompt.txt`. Express each
    source's assigned use against the images the target receives.
 3. Fill `edit.target`, `edit.change`, `edit.preserve` and `review_criteria`

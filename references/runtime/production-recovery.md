@@ -42,14 +42,22 @@ Each run reports these state axes:
 `readiness` reports current authority, credentials, input and recording diagnostics before any send.
 `task_disposition` belongs to the run: `completed` after its completion, `abandoned` after its abandonment and `open` otherwise.
 A work task closes on its own record, so a run stays `open` when the work task that prepared it finished with another run.
-A blocked unsent run that was prepared from editable choices has `prepare --choices` on those choices as its next action, so the new run takes their current content.
 Status compares the current sources, installation and packs with the prepared ones for every open run of active or suspended work, and for an open run selected with `--run`.
-A changed or missing author source, a replaced Studio reference and a damaged fixed runtime are listed in `freshness_diagnostics` and make the run `blocked`.
-A changed installation, a changed pack and a preparation reading that no longer verifies are listed in `freshness_notices` as warnings. The run keeps its sealed request and fixed runtime, so `execute`, `resume`, review and acceptance continue; `retarget` prepares against the current packs.
+A changed or missing author source, a changed Studio reference, installation,
+pack or preparation reading is listed in `freshness_notices` as a warning.
+The selected run keeps its saved request, media and fixed runtime, so these
+changes leave `execute`, `resume`, review and acceptance available. Preparing
+the current choices explicitly selects a new revision. A damaged fixed runtime
+is listed in `freshness_diagnostics` and makes the saved run `blocked`; its
+repair identifies the saved data to restore, without selecting new creative
+input on the operator's behalf. `retarget` prepares against current packs.
 A completed or abandoned run reports `readiness: not-applicable` with empty `freshness_diagnostics`: it is shown from its retained records, and a later source edit does not change them.
 An open run whose work task is completed or abandoned reports `unchecked` in the view of the whole Studio.
 When that run was not sent, its next action is `status --run RUN`, which compares it and gives its continuation; a sent one keeps its recovery, review or selection action.
-`execute`, `resume` and every other effect check the current inputs of their own run at their boundary and stop on a freshness diagnostic, not on a notice.
+Each execution effect checks its saved publication and runtime, current
+imported authority and execution ownership. It does not reread original
+authoring files as an execution prerequisite. Recovery uses the recorded
+request and effect evidence and never sends again merely because a source changed.
 One status call observes each source run of the open task's drafts once and resolves their targets against one acquisition of the selected packs.
 `authorization_requirements` lists every prepared operation and target with its
 current candidate grants and missing scope. It is null once the request was sent,
@@ -85,7 +93,8 @@ It is null when nothing is left: a completed or abandoned run with no unresolved
 Later reference adoption has its own status in [Adoption Workflow](adoption-workflow.md).
 It retains the source run's completed or abandoned disposition.
 A step that needs an authored file names its draft command, and the reason names the command that consumes the file.
-A run whose live sources changed before anything was handed over points to `prepare`.
+A run whose original sources changed keeps the continuation for its saved
+request. Select the editable choices explicitly to prepare their newer content.
 A synthetic prepared run that waits for authority shows (trimmed, the studio path shortened):
 
 ```json

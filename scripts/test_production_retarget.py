@@ -45,19 +45,24 @@ class RetargetTests(unittest.TestCase):
         choices['reading']['reading_key'] = c.load(self.root / 'retarget/reading.json')['reading_key']
         choices['validation'] = request_validation.draft_choices(
             c.load(self.root / 'retarget/validation.json'), runtime_evidence.reader(self.root))
-        choices['authoring']['documents']['parameters']['steps'] = 22
+        with f.edit_document(self.root, choices, 'parameters') as parameters:
+            parameters['steps'] = 22
         f.write(self.root / 'editor/choices.json', choices)
 
     def test_reopened_target_retains_authored_work_and_exposes_current_guidance(self):
         result, choices = self.editable_target()
         parent = workflow.read_run(self.root, self.run)
         self.assertEqual(choices['target'], {'kind': 'catalog', 'model': f.ALTERNATE_MODEL_ID, 'service': 'synthetic'})
-        for field in ('criteria', 'direction', 'sources'):
+        for field in ('criteria', 'direction'):
             self.assertEqual(choices['authoring']['task'][field], parent.prepared['task'][field])
+        for actual, original_source in zip(choices['authoring']['task']['sources'], parent.prepared['task']['sources'], strict=True):
+            self.assertEqual({key: value for key, value in actual.items() if key != 'path'},
+                             {key: value for key, value in original_source.items() if key != 'path'})
+            self.assertEqual((self.root / actual['path']).read_bytes(), (self.root / original_source['path']).read_bytes())
         self.assertEqual((self.root / choices['authoring']['delivery']['file']).read_text(encoding='utf-8'), f.PROMPT)
         original = parent.artifacts['package.json']['request_validation']
-        self.assertEqual(choices['validation']['execution_policy'], original['execution_policy']['path'])
-        self.assertEqual(choices['validation']['contract'], original['contract']['path'])
+        self.assertEqual(choices['validation']['execution_policy'], '@run/' + self.run + '/' + original['execution_policy']['path'])
+        self.assertEqual(choices['validation']['contract'], '@run/' + self.run + '/' + original['contract']['path'])
         self.assertEqual(choices['reading']['reading_key'], parent.prepared['route_reading']['reading_key'])
         gap = next(item for item in result['unresolved'] if item['code'] == 'TARGET_GUIDANCE_REQUIRED')
         self.assertEqual(gap['next_action']['args']['model'], f.ALTERNATE_MODEL_ID)
@@ -147,14 +152,26 @@ class RetargetTests(unittest.TestCase):
             self.assertEqual((self.root / source['path']).read_bytes(), raw)
         self.assertEqual(store.event_rows(self.root, self.run), [])
 
-    def test_applicable_reopened_evidence_and_reading_produce_the_same_validation(self):
+    def test_applicable_reopened_evidence_preserves_validation_content_and_reading(self):
         import production_inputs
         parent = workflow.read_run(self.root, self.run)
         result = production_inputs.draft_inputs(self.root, None, 'unchanged', from_run=self.run)
         self.assertEqual(result['unresolved'], [])
         child = workflow.prepare(self.root, choices=result['choices_file'])
         actual = workflow.read_run(self.root, child['run'])
-        self.assertEqual(actual.artifacts['package.json']['request_validation'], parent.artifacts['package.json']['request_validation'])
+        before = parent.artifacts['package.json']['request_validation']
+        after = actual.artifacts['package.json']['request_validation']
+        expected = copy.deepcopy(before)
+        for field in ('contract', 'evidence', 'execution_policy'):
+            if expected[field] is not None:
+                expected[field]['path'] = '@run/' + self.run + '/' + before[field]['path']
+        self.assertEqual(after, expected)
+        from input_evidence import InputEvidence
+        snapshots = actual.artifacts['package.json']['input_snapshots']
+        for field in ('contract', 'evidence', 'execution_policy'):
+            if after[field] is not None:
+                raw = InputEvidence._decode(snapshots[after[field]['path']])
+                self.assertEqual(c.digest(raw), before[field]['sha256'])
         self.assertEqual(actual.prepared['route_reading'], parent.prepared['route_reading'])
         self.assertEqual({key: value for key, value in child['request_preview'].items() if key != 'request_id'},
                          {key: value for key, value in self.parent['request_preview'].items() if key != 'request_id'})
@@ -166,8 +183,8 @@ class RetargetTests(unittest.TestCase):
         (self.root / validation['contract']['path']).unlink()
         (self.root / 'validation.json').unlink()
         result = production_inputs.draft_inputs(self.root, None, 'restored', from_run=self.run)
-        self.assertEqual(result['choices']['validation']['contract'], validation['contract']['path'])
-        self.assertEqual(result['choices']['validation']['execution_policy'], validation['execution_policy']['path'])
+        self.assertEqual(result['choices']['validation']['contract'], '@run/' + self.run + '/' + validation['contract']['path'])
+        self.assertEqual(result['choices']['validation']['execution_policy'], '@run/' + self.run + '/' + validation['execution_policy']['path'])
         self.assertEqual(result['choices']['authoring']['task']['criteria'], self.case['task']['criteria'])
 
     def test_selected_policy_reports_its_scope_when_the_target_changes(self):
@@ -312,6 +329,18 @@ class RetargetTests(unittest.TestCase):
 
 
 class ReferenceRetargetTests(unittest.TestCase):
+    def assert_identity_retained(self, root, before, after):
+        expected = copy.deepcopy(before)
+        for previous, current in zip(expected['sources'], after['sources'], strict=True):
+            self.assertEqual(c.digest((root / current['path']).read_bytes()), previous['sha256'])
+            previous['path'] = current['path']
+            origin = (previous.get('authority') or {}).get('source')
+            if origin is not None and origin['kind'] == 'supplied-file':
+                selected = current['authority']['source']['resolved_path']
+                self.assertEqual(c.digest((root / selected).read_bytes()), origin['sha256'])
+                origin['resolved_path'] = selected
+        self.assertEqual(after, expected)
+
     def test_reference_mode_switch_and_plain_prompt_retry_keep_authored_work(self):
         import production_inputs
         with tempfile.TemporaryDirectory(prefix='cpb-reference-retarget-') as temporary:
@@ -325,7 +354,7 @@ class ReferenceRetargetTests(unittest.TestCase):
             authority = store.authority_record(root, before.prepared['task']['task_id'])
             inherited = scenario['inherited_choices']
             self.assertEqual(inherited['validation'], {'mode': 'target-schema', 'contract': None, 'evidence': None,
-                'execution_policy': before.artifacts['package.json']['request_validation']['execution_policy']['path']})
+                'execution_policy': '@run/' + parent['run'] + '/' + before.artifacts['package.json']['request_validation']['execution_policy']['path']})
             self.assertEqual(inherited['authoring']['task']['criteria'], before.prepared['task']['criteria'])
             self.assertEqual((root / inherited['authoring']['delivery']['file']).read_text(encoding='utf-8'), f.REFERENCE_RETRY_PROMPT)
 
@@ -345,7 +374,7 @@ class ReferenceRetargetTests(unittest.TestCase):
                 self.assertEqual({key: value for key, value in old.items() if key != 'path'},
                                  {key: value for key, value in new.items() if key != 'path'})
                 self.assertEqual((root / old['path']).read_bytes(), (root / new['path']).read_bytes())
-            self.assertEqual(after.prepared['identity_coverage'], before.prepared['identity_coverage'])
+            self.assert_identity_retained(root, before.prepared['identity_coverage'], after.prepared['identity_coverage'])
             self.assertEqual(after.prepared['parent']['run'], parent['run'])
             self.assertEqual(after.prepared['parent']['kind'], 'retarget')
             self.assertEqual(store.authority_record(root, before.prepared['task']['task_id']), authority)
@@ -369,8 +398,18 @@ class ReferenceRetargetTests(unittest.TestCase):
             revised_view = workflow.read_run(root, revised['run'])
             self.assertEqual(revised['request_preview']['prompt'], prompt)
             self.assertEqual(revised_view.prepared['task']['criteria'], before.prepared['task']['criteria'])
-            self.assertEqual(revised_view.prepared['identity_coverage'], before.prepared['identity_coverage'])
-            self.assertEqual(revised_view.artifacts['package.json']['request_validation'], new_validation)
+            self.assert_identity_retained(root, before.prepared['identity_coverage'], revised_view.prepared['identity_coverage'])
+            expected_validation = copy.deepcopy(new_validation)
+            from input_evidence import InputEvidence
+            package = revised_view.artifacts['package.json']
+            for field in ('contract', 'evidence', 'execution_policy'):
+                witness = expected_validation[field]
+                if witness is not None:
+                    if not witness['path'].startswith('@'):
+                        witness['path'] = '@run/' + child['run'] + '/' + witness['path']
+                    self.assertEqual(c.digest(InputEvidence._decode(package['input_snapshots'][witness['path']])),
+                                     witness['sha256'])
+            self.assertEqual(package['request_validation'], expected_validation)
             self.assertEqual(Path(parent['package']).read_bytes(), original_package)
             self.assertEqual(workflow.read_run(root, parent['run']).prepared, before.prepared)
             self.assertEqual(len(store.runs(root)), 3)

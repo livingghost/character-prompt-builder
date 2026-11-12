@@ -10,12 +10,14 @@ from owned_json import freeze
 from private_state import assert_public_path
 
 class InputEvidence:
-    """A content verifier uses stored bytes; an execution verifier checks current bytes."""
+    """Read current or explicitly named captured evidence, retaining its exact bytes."""
     def __init__(self,root:Path|None,*,snapshots:dict|None=None,live:bool=True,named_roots:dict[str,Path]|None=None,space:str="",
-                 read_source:Callable[[str],bytes]|None=None):
+                 read_source:Callable[[str],bytes]|None=None,retained_snapshots:dict|None=None):
         self.named_roots=named_roots or {};self.space=space
         self.read_source=read_source
         self.root=root;self.live=live;self.snapshots={} if snapshots is None else snapshots
+        self.retained_snapshots=({path:item for path,item in self.snapshots.items() if path.startswith('@run/')}
+                                 if retained_snapshots is None else retained_snapshots)
         self.read_paths=set();self.locators={}
         for path,item in self.snapshots.items():
             if not isinstance(path,str):raise ValueError('input snapshot path must be a string')
@@ -37,18 +39,29 @@ class InputEvidence:
         return c.local(self.root,path)
     def at(self,parent:dict)->'InputEvidence':
         path=self.qualify(parent['path']);space=''
-        if path.startswith('@pack/'):
+        if path.startswith(('@pack/', '@run/')):
             parts=path.split('/')
-            if len(parts)<3:raise ValueError('pack input has no relative path')
+            if len(parts)<3:raise ValueError('named input has no relative path')
             space='/'.join(parts[:2])
         elif path.startswith('@skill/'):space='@skill'
         result=InputEvidence(self.root,snapshots=self.snapshots,live=self.live,named_roots=self.named_roots,space=space,
-                             read_source=self.read_source)
+                             read_source=self.read_source,retained_snapshots=self.retained_snapshots)
         result.read_paths=self.read_paths;result.locators=self.locators
         return result
     def _live(self,path:str)->bytes:
-        """Read current bytes as one stable file, so a file being written is never taken as complete."""
+        """Acquire the named revision, reading current files as one stable file."""
         path=self.qualify(path)
+        if path.startswith('@run/'):
+            held=self.retained_snapshots.get(path) or self.snapshots.get(path)
+            if held is not None:
+                raw=self._decode(held)
+                if c.digest(raw)!=held['sha256'] or len(raw)!=held['size']:
+                    raise ValueError('retained source revision differs from its captured bytes: '+path)
+                return raw
+            if self.root is None:
+                raise ValueError('a captured run source requires its owning Studio: '+path)
+            from production_saved_inputs import read_named
+            return read_named(self.root,path)
         if path.startswith('@pack/') and self.read_source is not None:
             return self.read_source(path)
         from production_store import stable_read
@@ -102,12 +115,13 @@ class EvidenceAcquisition(InputEvidence):
                  read_source:Callable[[str],bytes]|None=None):
         self.root=root;self.named_roots=named_roots or {};self.space=''
         self.read_source=read_source
+        self.retained_snapshots={}
         self._owner=self;self._files={};self._failure=None;self._closed=False
         self.read_paths=set();self.locators={}
 
     def at(self,parent:dict)->'EvidenceAcquisition':
         path=self.qualify(parent['path'])
-        space='/'.join(path.split('/')[:2]) if path.startswith('@pack/') else '@skill' if path.startswith('@skill/') else ''
+        space='/'.join(path.split('/')[:2]) if path.startswith(('@pack/', '@run/')) else '@skill' if path.startswith('@skill/') else ''
         result=object.__new__(type(self));result.__dict__.update(self.__dict__);result.space=space
         return result
 
@@ -210,7 +224,7 @@ class EvidenceInputs:
 
     def at(self,parent:dict)->'EvidenceInputs':
         path=self.qualify(parent['path'])
-        space='/'.join(path.split('/')[:2]) if path.startswith('@pack/') else '@skill' if path.startswith('@skill/') else ''
+        space='/'.join(path.split('/')[:2]) if path.startswith(('@pack/', '@run/')) else '@skill' if path.startswith('@skill/') else ''
         result=object.__new__(type(self))
         for name in ('_files','root','named_roots','read_paths','locators'):
             object.__setattr__(result,name,getattr(self,name))

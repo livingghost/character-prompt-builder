@@ -4,6 +4,14 @@ Use this contract for `execution: external`, together with [Prepared request exe
 
 For an external image task, the same `draft-execution` and `execute` commands validate the two decisions, record their separate authorizations, hand the input to its declared service and claim one host call. `execute` returns an `external-execution-instruction` with `host_request` with the exact request, target and supplied-media bindings. The host invokes its named tool once with that input, then receives the actual result as described below. The local command itself does not invoke an external host tool. A claimed external run cannot be executed again; recover that call after interruption.
 
+The request shown by `draft-execution`, the input workspace and execution uses
+the same saved-media projection. Declared `local_file: true` media fields name
+the run's captured carrier files; every other native field retains its saved
+value. The host view also exposes saved original sources, delivered carriers
+and their scope/board bindings. It does not ask the host to reopen original
+authoring files. The explicit `claim-external` command returns the same host
+instruction for an image request while retaining the original claim event.
+
 ## External and manually executed work
 
 External non-image work uses `handoff-intent`, `draft-authorization`, `authorize` and `handoff` for its actual handoff, followed by its separately authorized `external-intent` and `claim-external` boundary. Locally authored text uses the saved-revision operation described in [Authored storage](production-authored-storage.md).
@@ -27,7 +35,9 @@ For a further external trial, use `draft-inputs --from-run RUN`, edit the releva
 ## Prepared JSON and recorded host-call evidence
 
 `request-preview.json` and `execution-plan.prepared_request_sha256` identify
-exact prepared arguments. They do not prove that a host invoked its tool.
+the authored prepared arguments. Explicit local media fields are realized as
+the saved carrier paths in `host_request.request`; its `request_sha256` records
+that actual argument object. Neither view proves that a host invoked its tool.
 The external claim pins those arguments and grants one call under the ordinary
 handoff and authorization lifecycle. Keep the actual response and saved call
 record when the host exposes it.
@@ -41,7 +51,7 @@ python scripts/production_workflow.py receive-external --root STUDIO --run RUN -
 `request_pointer` selects the actual recorded argument object. For endpoint or
 tool identity, `model_identity_pointer` selects its exact recorded value; use
 null when identity lives in the request's model field. The saved call must
-match the prepared request and declared endpoint/tool. Using the prepared JSON
+match the projected host request and declared endpoint/tool. Using the prepared JSON
 itself, another file with the same bytes, or the runtime's generated execution instruction fails as call evidence.
 
 Settlement returns `request_evidence.status: matched-recorded-call` when the

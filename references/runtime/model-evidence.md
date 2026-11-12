@@ -140,14 +140,24 @@ null selector pair only when the original target identifies that exact schema
 as its offering source, so a later target change resolves that target's schema.
 An explicitly selected different schema keeps its selector and supported scope.
 An acquired schema, probe, observed profile or execution policy keeps its own
-source and scope. A target change requires a current selection when those
+source and scope. A reopened Studio source uses an automatically selected
+`@run/RUN/STUDIO_PATH` locator for the captured revision. Relative source
+locators inside that document resolve in the same captured revision, including
+nested policy bases and acquisition evidence. The new package retains the
+qualified source bytes it used, so reopening that package does not depend on
+reading a chain of earlier runs. To replace the evidence, select the current
+Studio file explicitly; that selection and its nested sources are acquired
+from their current contents. These editable selectors require no manually
+maintained hashes.
+
+A target change requires a current selection when those
 sources do not apply; it never rewrites their target or turns a historical
 result into new evidence. Earlier run records remain intact.
 
 Retain every selection that remains valid for the requested operation. Reopening
-the same target with unchanged source evidence can produce an identical
-validation record. A change of target alone does not discard reusable authoring,
-and rebuilding derived evidence does not require a different result. Check the
+the same target preserves the evidence bytes and validation judgment; a retained
+source locator records which captured revision supplied those bytes. A change
+of target alone does not discard reusable authoring. Check the
 actual target, dialect, source scope and execution contract before deciding
 which choices need new judgment.
 
@@ -208,7 +218,8 @@ transport using the applicable model and service guidance; retain its source
 bytes and identify the relevant section in each `basis`. The two bases may
 share a source when it supports both choices. Studio paths inside these files
 are relative to the Studio root, not to the JSON file's directory; named
-`@pack/...` selectors retain their active pack root. Compute hashes from the
+`@pack/...` selectors retain their active pack root, and `@run/...` selectors
+retain their captured Studio revision. Compute hashes from the
 final saved file bytes and update the references whenever those bytes change.
 
 With `mode: "authored-rendition"`, the agent interprets the checked attachment

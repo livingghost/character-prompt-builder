@@ -1,7 +1,7 @@
 """Derive a fresh input from a prepared run, independently of captured images.
 
-Changes address compiler-declared fields. Unchanged sources and the fixed pack
-runtime retain their identity. A changed request never inherits authorization,
+Changes address compiler-declared fields. Unchanged sources come from the
+selected run; current model knowledge compiles the child. A changed request never inherits authorization,
 claims, reviews or selections from its parent. A change made after looking at
 an image names that candidate and its review as the basis.
 """
@@ -71,27 +71,22 @@ def _target_change(root: Path, run: str, pointer: str, message: str) -> Producti
         required_action='Retarget with a reassessed task: ' + RETARGET.format(root=studio, run=run))
 
 
-def _unchanged(root: Path, run: str, prepared: dict, replaced: set[str], dependencies: list[dict]) -> list[dict]:
-    """Stop on an author source that changed without being replaced; return a notice for a changed installation."""
+def _implementation_notices(root: Path, run: str, prepared: dict, dependencies: list[dict]) -> list[dict]:
+    """Explain a current installation change independently of retained source selection."""
     import production_workflow as workflow
     from production_diagnostics import from_exception
     retained = {(d['space'], d['path']) for d in dependencies}
     installation = []
     for source in prepared['dependencies']:
         if ((source['space'], source['path']) not in retained
-                or source['space'] not in {'studio', 'skill'} or source['path'] in replaced):
+                or source['space'] != 'skill'):
             continue
         try:
             actual = workflow.current_sha256(root, source)
         except (ValueError, OSError):
             actual = None
-        if actual != source.get('selection_sha256', source['sha256']) and source['space'] == 'skill':
-            installation.append((source, actual, None))
-            continue
         if actual != source.get('selection_sha256', source['sha256']):
-            raise ProductionError('SOURCE_CHANGED', 'An unchanged source differs from the prepared input.',
-                phase='variation', file=source['path'], expected=source['sha256'], actual=actual,
-                required_action='Review the source and replace it through its declared field, or restore the pinned contents.')
+            installation.append((source, actual, None))
     if not installation:
         return []
     return [{**from_exception(workflow.implementation_error(installation, run=run), phase='implementation'),
@@ -180,11 +175,16 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
                 phase='variation', pointer='$.changes.' + field, actual=field, expected=sorted(fields),
                 required_action='Name a field that expected lists; they are the mutable_fields of the source run\'s execution plan. '
                                 'Make any other change through draft-inputs --from-run.')
-        errors = validate_against_schema(value, fields[field]['schema'])
+        # New task values follow their current owning contract. The source
+        # plan remains historical evidence, including its exported schemas.
+        task_field = TASK_FIELDS.get(field, 'recording' if field == 'recording' else None)
+        schema = compiler.task_field_schema(task_field) if task_field else fields[field]['schema']
+        errors = validate_against_schema(value, schema)
         if errors:
             raise ProductionError('CHANGES_TYPE_INVALID', '; '.join(errors), phase='variation', pointer='$.changes.' + field,
-                required_action='Give this field a value its schema accepts; mutable_fields of the source run\'s execution plan '
-                                'holds the schema of each field.')
+                expected=schema,
+                required_action='Give this field a value accepted by expected; schema references resolve under schemas/. '
+                                'Correct --changes-file and run variant again.')
         checks.update(fields[field]['checks'])
         if field in TASK_FIELDS:
             name = TASK_FIELDS[field]
@@ -193,10 +193,13 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
                 raise no_op(field, 'The authored task field is unchanged.')
             if field == 'route-reading':
                 replaced.add(task['route_reading'])
+                replaced.add(value)
             elif field == 'source-materials':
                 replaced.update(source['path'] for source in task['sources'])
+                replaced.update(source['path'] for source in value)
             elif field == 'upload-sources':
                 replaced.update(source['file'] for source in task.get('upload_sources', []))
+                replaced.update(source['file'] for source in value)
             task[name] = copy.deepcopy(value)
             return before
         if field == 'prompt':
@@ -211,6 +214,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
             if after.get('model') != before['model']:
                 raise _target_change(root, run, '$.changes.upscale-input.path', 'Another upscale target needs retargeting with a reassessed task.')
             replaced.add(task['delivery']['path']);replacements['upscale-input']=raw
+            replaced.add(after['source']['path'])
             if after.get('source',{}).get('path') != before['source']['path']:
                 replaced.add(before['source']['path'])
                 for source in task['sources']:
@@ -274,6 +278,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
             # Referencing the actual supplied document preserves relative
             # media locators. The compiler snapshots the full dependency set.
             generation[name] = value['path']
+            replaced.add(value['path'])
             if field == 'production-spec':
                 generation.pop('model', None)
                 generation.pop('render_intent', None)
@@ -324,24 +329,29 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     parent = {'run': run, 'input_sha256': prepared['input_sha256'], 'request_sha256': plan['request_sha256'],
               'kind': 'variant' if changes_file is not None else 'repeat', 'reason': reason, 'changes': difference,
               'basis': basis}
-    # Compile once, compare only dependencies the child actually retains, and
-    # publish that exact result. Removed references must not remain live pins.
-    # A repeat mismatch is detected before any formal run can be registered.
+    # Select each unchanged input owner from the captured parent revision.
+    # Explicit replacements acquire their own current source graphs.
     import work_ledger
     import shutil
+    from production_saved_inputs import CapturedInputs
+    current_fields = {TASK_FIELDS.get(field, DOCUMENT_FIELDS.get(field, field)) for field in changes}
+    if {'prompt', 'upscale-input'} & changes.keys():
+        current_fields.add('delivery')
+    retained = CapturedInputs(root, loaded).selected(task, current_paths=replaced,
+                                                   current_fields=current_fields, inherit_task_inputs=True)
     current_task = work_ledger.require_open(root) if prepare else None
     compiled = compiler.compile_task(root, task_path, persist=prepare, identity=identity,
-                                     runtime_inputs=runtime_inputs, derived=derived)
+                                     runtime_inputs=runtime_inputs, derived=derived, retained_inputs=retained)
     if not compiled.report['publishable']:
         raise CompilationError(compiled.report)
     try:
-        notices = _unchanged(root, run, prepared, replaced, compiled.prepared['dependencies'])
+        notices = _implementation_notices(root, run, prepared, compiled.prepared['dependencies'])
         if changes_file is None and (compiler.authored_input_digest(compiled.prepared, compiled.consumer)
                                      != compiler.authored_input_digest(prepared, loaded.consumer)):
             raise ProductionError('REPEAT_INPUT_MISMATCH',
                 'Repeated preparation did not retain the authored input.', phase='variation',
-                required_action='Restore the task, sources and references of the run to the content it pinned, or '
-                                'declare the difference with variant.')
+                required_action='Inspect the reported input and current compilation requirements. Use variant or '
+                                'draft-inputs --from-run to declare an intended change to the retained input.')
         if prepare:
             result = compiler.publish_compilation(root, compiled, parent=parent, current_task=current_task)
         else:

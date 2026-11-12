@@ -224,7 +224,7 @@ class StatusViewTests(unittest.TestCase):
         self.assertEqual(c.load(self.root / custom)['claim'], draft['claim'])
         self.assertEqual(workflow.read_run(self.root, run).rows, before)
 
-    def test_current_sources_are_compared_only_while_a_send_can_follow(self):
+    def test_open_work_reports_draft_edits_and_keeps_each_saved_run_continuation(self):
         waiting = workflow.prepare(self.root, 'task.json')['run']
         sent, _ = self.captured()
         brief = self.root / 'brief.md'
@@ -232,11 +232,12 @@ class StatusViewTests(unittest.TestCase):
         report = execution.status(self.root)
         workflow.schema_check(report, 'status')
         runs = {item['run']: item for item in report['runs']}
-        self.assertEqual(runs[waiting]['readiness'], 'blocked')
-        self.assertEqual([item['code'] for item in runs[waiting]['freshness_diagnostics']], ['SOURCE_CHANGED'])
-        self.assertEqual(runs[waiting]['next_action']['command'], 'prepare')
+        self.assertEqual(runs[waiting]['readiness'], 'authorization_required')
+        self.assertEqual(runs[waiting]['freshness_diagnostics'], [])
+        self.assertEqual([item['code'] for item in runs[waiting]['freshness_notices']], ['SOURCE_CHANGED'])
+        self.assertEqual(runs[waiting]['next_action']['command'], 'draft-execution')
         # The sent run reports the edit and still continues from its retained candidate.
-        self.assertEqual(runs[sent]['readiness'], 'blocked')
+        self.assertEqual(runs[sent]['readiness'], 'ready')
         self.assertEqual(runs[sent]['next_action']['command'], 'draft-review')
         self.assertIsNone(runs[sent]['authorization_requirements'])
         self.assertIsNotNone(runs[waiting]['authorization_requirements'])
@@ -250,31 +251,36 @@ class StatusViewTests(unittest.TestCase):
         self.assertEqual(left['next_action']['command'], 'status')
         self.assertEqual(left['next_action']['argv'][-2:], ['--run', waiting])
         chosen = execution.status(self.root, waiting)['runs'][0]
-        self.assertEqual(chosen['readiness'], 'blocked')
-        self.assertEqual([item['code'] for item in chosen['freshness_diagnostics']], ['SOURCE_CHANGED'])
+        self.assertEqual(chosen['readiness'], 'authorization_required')
+        self.assertEqual(chosen['freshness_diagnostics'], [])
+        self.assertEqual([item['code'] for item in chosen['freshness_notices']], ['SOURCE_CHANGED'])
         # A sent one keeps its own continuation without the comparison.
         kept = next(item for item in execution.status(self.root)['runs'] if item['run'] == sent)
         self.assertEqual((kept['readiness'], kept['freshness_diagnostics']), ('unchecked', []))
         self.assertEqual(kept['next_action']['command'], 'draft-review')
 
-    def test_blocked_run_prepared_from_choices_prepares_those_choices_again(self):
+    def test_saved_run_and_new_preparation_keep_their_respective_inputs_after_draft_edits(self):
         draft = production_inputs.draft_inputs(self.root, 'task.json', 'authored')
         run = workflow.prepare(self.root, choices=draft['choices_file'])['run']
         prepared = workflow.read_run(self.root, run).prepared
         source = self.root / prepared['authoring']['source_map']['authoring.delivery']['file']
         source.write_bytes(source.read_bytes() + b'\nA later synthetic addition.\n')
         state = execution.status(self.root, run)['runs'][0]
-        self.assertEqual(state['readiness'], 'blocked')
+        self.assertEqual(state['readiness'], 'authorization_required')
+        self.assertEqual(state['freshness_diagnostics'], [])
+        self.assertIn('SOURCE_CHANGED', [item['code'] for item in state['freshness_notices']])
         action = state['next_action']
-        self.assertEqual((action['command'], action['argv'][-2:]), ('prepare', ['--choices', draft['choices_file']]))
+        self.assertEqual((action['command'], action['argv'][-4:-2]), ('draft-execution', ['--run', run]))
         # The run's own task file is its published copy and does not hold the edit.
         self.assertNotEqual(prepared['task_path'], 'task.json')
         again = workflow.prepare(self.root, choices=draft['choices_file'])['run']
         self.assertIn('A later synthetic addition.',
                       workflow.read_run(self.root, again).artifacts['package.json']['generation_payload']['prompt'])
+        self.assertNotIn('A later synthetic addition.',
+                         workflow.read_run(self.root, run).artifacts['package.json']['generation_payload']['prompt'])
         (self.root / draft['choices_file']).unlink()
         restored = execution.status(self.root, run)['runs'][0]['next_action']
-        self.assertEqual((restored['command'], restored['argv'][-4:-2]), ('draft-inputs', ['--from-run', run]))
+        self.assertEqual(restored, action)
 
     def test_removed_published_draft_is_no_longer_a_branch_of_the_work(self):
         import shutil

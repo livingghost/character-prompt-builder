@@ -634,16 +634,35 @@ class ExternalPackGuidanceTests(unittest.TestCase):
                 self.check_card(result['execution_guidance'][0])
 
     def test_route_reading_shows_external_model_card(self):
+        import subprocess
         studio = self.root/'studio'
         studio.mkdir(exist_ok=True)
         output = self.command('execution_routes.py','read','generation','--execution','external','--feature','prompt-dialect',
                                '--model',self.alias,'--root',str(studio),'--page-bytes','1048576').stdout
-        result = json.loads(output)
+        indexed = json.loads(output)
+        self.assertEqual(indexed['mode'], 'index')
+        self.assertEqual(indexed['body'], [])
+        self.assertIsNone(indexed['reading'])
+        model_source = next(item for item in indexed['index'] if item['kind'] == 'model')
+        argv = [*indexed['section_selection']['argv'], '--section', model_source['selector']]
+        delivered = subprocess.run(argv, cwd=self.root, capture_output=True, text=True,
+            encoding='utf-8', timeout=60)
+        self.assertEqual(delivered.returncode, 0, delivered.stdout + delivered.stderr)
+        result = json.loads(delivered.stdout)
         segment = next(item for item in result['body'] if item['metadata']['kind'] == 'model')
         metadata = segment['metadata']
         self.assertEqual(metadata['path'], 'model-guidance/' + self.model_id)
+        self.assertEqual(metadata['start'], 0)
+        self.assertEqual(metadata['end'], metadata['total'])
         cards = json.loads(segment['text'])
         self.check_card(cards[0])
+        expected = json.loads(self.command('render_contract.py', 'model', '--model', self.alias).stdout)
+        self.assertEqual(cards, [expected])
+        self.assertIsNone(result['reading'])
+        completed = subprocess.run(result['actions']['all']['argv'], cwd=self.root,
+            capture_output=True, text=True, encoding='utf-8', timeout=60)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        result = json.loads(completed.stdout)
         self.assertEqual(result['metadata']['route'], 'generation')
         self.assertTrue(result['reading']['key'])
         self.assertIsNone(result['actions']['continue'])

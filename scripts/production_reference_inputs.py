@@ -36,7 +36,7 @@ def _image_plan(binding: dict) -> dict:
 
 
 def draft(prepared: dict | None, *, package_root: Path, root: Path | None = None,
-          mirrored_input: bool = False) -> dict:
+          mirrored_input: bool = False, source_archive: Path | None = None) -> dict:
     """Expose choices from a saved set without carrying its generated layout.
 
     `mirrored_input` states that the task's image input was written from this
@@ -44,7 +44,8 @@ def draft(prepared: dict | None, *, package_root: Path, root: Path | None = None
     """
     if prepared is None:
         prepared = references.empty_stateless_reference_set()
-    prepared = references.validate_prepared_reference_set(prepared, package_root=package_root)
+    context = references._ReferenceContext(False, source_archive) if source_archive is not None else None
+    prepared = references._validate_prepared_reference_set(prepared, package_root=package_root, context=context)
     mode = prepared['transport_mode']
     maximum = 1536
     raster_sizes = [row['transport']['derivation'].get('max_side')
@@ -69,8 +70,13 @@ def draft(prepared: dict | None, *, package_root: Path, root: Path | None = None
             source['single_board']['resolved_path'] = prepared['single_board']['resolved_path']
         for old, current in zip(source.get('prompt_artifacts', []), prepared['prompt_artifacts'], strict=True):
             old['delivered_path'] = current['delivered_path']
-        source = references.finalize_prepared_reference_set(source, package_root=package_root)
-        result = draft(source, package_root=package_root, root=root)
+        if source_archive is None:
+            source = references.finalize_prepared_reference_set(source, package_root=package_root)
+        else:
+            from state_protocol import finalize_artifact
+            source = references._validate_prepared_reference_set(finalize_artifact(source),
+                package_root=package_root, context=context)
+        result = draft(source, package_root=package_root, root=root, source_archive=source_archive)
         result.update(transport_mode=mode, max_side=maximum)
         if result['image_input'] is None:
             result['image_input'] = {'model': copy.deepcopy(binding['model'])}
@@ -286,6 +292,26 @@ def _authored_rows(choices: dict) -> list[dict]:
     return result
 
 
+def relocate_sources(choices: dict, paths: dict[str, str]) -> dict:
+    """Redirect declared editable media locators to a restored source revision."""
+    result = copy.deepcopy(choices)
+    result['source_files'] = {paths.get(path, path): value
+                              for path, value in result.get('source_files', {}).items()}
+    rows = list((result.get('reference_use_plan') or {}).get('items', []))
+    rows += list((result.get('reference_selection') or {}).get('selected_references', []))
+    rows += list(result.get('additional_references') or [])
+    for row in rows:
+        source = row.get('source') or {}
+        if source.get('kind') == 'supplied-file':
+            source['resolved_path'] = paths.get(source['resolved_path'], source['resolved_path'])
+    native = result.get('image_input') or {}
+    for row in native.get('references', []):
+        row['file'] = paths.get(row['file'], row['file'])
+    if native.get('prepared_references') is not None:
+        native['prepared_references'] = paths.get(native['prepared_references'], native['prepared_references'])
+    return result
+
+
 def provisional_inputs(choices: dict, *, root: Path) -> dict | None:
     """The image-input rows that the selected sources will deliver, before any carrier exists.
 
@@ -320,6 +346,8 @@ def provisional_inputs(choices: dict, *, root: Path) -> dict | None:
 
 def identify(choices: dict) -> bool:
     """Assign stable use identities at the editable selection boundary."""
+    # The public ID and coverage contract is explained in
+    # references/runtime/reference-delivery.md#reference-identities-and-coverage.
     from pack_manager import generate_uuid7
     changed=False
     seen=set()
@@ -414,15 +442,20 @@ def build(choices: dict, *, model: str, root: Path, output_dir: Path, reader=Non
     """Build portable bytes in an unpublished directory; perform no generation."""
     c.exact(choices, set(FIELDS), 'reference input choices')
     identify(choices)
-    source_files = choices['source_files']
-    if not isinstance(source_files, dict):
+    selected_files = choices['source_files']
+    if not isinstance(selected_files, dict):
         raise ValueError('reference source_files must contain original file witnesses')
-    for path, witness in source_files.items():
-        if not Path(c.text(path, 'reference witness path')).is_absolute():
-            raise ValueError('reference source witnesses require their resolved original paths')
+    source_files = {}
+    for path, witness in selected_files.items():
+        c.text(path, 'reference witness path')
         c.exact(witness, {'sha256', 'media_type'}, 'reference source witness')
         c.sha(witness['sha256'])
         c.text(witness['media_type'], 'reference source media type')
+        selected = Path(path).resolve() if Path(path).is_absolute() else c.local(root, path, exists=False)
+        key = str(selected)
+        if key in source_files and source_files[key] != witness:
+            raise ValueError('one reference source has different recorded byte witnesses')
+        source_files[key] = witness
     output_dir = Path(output_dir).resolve()
     if output_dir.exists() and (not output_dir.is_dir() or any(output_dir.iterdir())):
         raise ValueError('reference input output directory must be new or empty')
@@ -513,7 +546,7 @@ def build(choices: dict, *, model: str, root: Path, output_dir: Path, reader=Non
 
 
 def draft_external(plan: dict, prepared: dict, *, package_root: Path,
-                   root: Path | None = None) -> dict:
+                   root: Path | None = None, source_archive: Path | None = None) -> dict:
     """Keep canonical source choices separate from an external upload's evidence.
 
     The preparation target belongs to the saved reference set. It does not
@@ -521,11 +554,12 @@ def draft_external(plan: dict, prepared: dict, *, package_root: Path,
     identify those logical references without replacing native source IDs.
     """
     import image_input
-    prepared = references.validate_prepared_reference_set(prepared, package_root=package_root)
+    context = references._ReferenceContext(False, source_archive) if source_archive is not None else None
+    prepared = references._validate_prepared_reference_set(prepared, package_root=package_root, context=context)
     if prepared['transport_mode'] not in {'none', 'multi-image', 'single-board'}:
         raise ValueError('external image inputs require model-facing prepared references')
     image_input._reference_rows(plan, prepared, require_hash=False)
-    choices = draft(prepared, package_root=package_root, root=root)
+    choices = draft(prepared, package_root=package_root, root=root, source_archive=source_archive)
     authored_rows = _authored_rows(choices)
     if len(authored_rows) != len(plan['references']):
         raise ValueError('canonical source choices differ from the external reference order')

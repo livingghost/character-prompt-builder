@@ -13,7 +13,7 @@ For external image work, a draft selects its actual target at `choices.target`
 and restores `external.image_input`, the native
 `external.request` object or array, and the recorded `external.media_slots`.
 The request holds independent provider controls. Each reference owns its
-intended uses and actual `transport.value` with evidence; add, remove or
+intended uses and delivery transport; add, remove or
 reorder those rows in the image-input choice. The builder derives media fields
 and attachment positions from the declared mapping, preserving unrelated text
 and controls. With one homogeneous media-array mapping, a new reference can
@@ -35,6 +35,15 @@ canonical preparation target from `choices.target`. An unregistered external
 interface can retain its independent preparation model at `target.reference_model`. The image-input rows then retain only each
 reference ID and its actual transport evidence. The builder derives the full
 reference scope and source bindings from the canonical choices.
+
+When the selected host accepts local files, set a reference's editable
+`transport` to `{"local_file": true}`. Add `field` only when its native media
+mapping is ambiguous. The builder derives the path from the selected source or
+prepared carrier, including a shared board; it requires no invented upload
+response. A provider upload instead uses `transport.value` and `evidence`.
+These are distinct representations: provider values remain opaque even when
+their spelling happens to be a local filename. Changing the transport form
+does not change the reference's role, source authority or intended uses.
 
 A changed carrier cannot reuse an earlier upload merely by updating a hash.
 The input report names each generated carrier and the unresolved transport
@@ -65,7 +74,12 @@ Save one exact request JSON. `external_request` names its relative file and
 field paths as arrays of keys and array indices. It declares `prompt_field`,
 `model_field`, optional `operation_field`, optional `count_field`, expected
 `count` and ordered `reference_fields`. Each reference field includes the
-reference ID, exact uploaded value and pinned upload evidence. Every selected
+reference ID and native `field` path, plus one of two representations:
+
+- `value` and `evidence` bind an opaque provider value and its actual upload evidence.
+- `value` and `local_file: true` declare a local carrier path. Preparation verifies its bytes against the selected delivery carrier; this form has no upload evidence.
+
+Every selected
 reference is covered. Each declared media field shape is checked across all
 array positions. For example, `images[*].uri` covers every such URI, including
 inside nested arrays. A mixed content array may retain text-only entries.
@@ -74,6 +88,18 @@ the same media field when its value also matches. This includes different
 sources assigned to regions of one prepared board. Their distinct logical
 scopes, attachment number and board regions remain recorded. For direct
 inputs without a prepared set, shared fields require identical source bytes.
+Shared fields also require the same delivery representation.
+
+For a prepared run, `workspace`, `draft-execution` and `execute` expose the same
+host request. Explicit local-file fields receive absolute paths to the run's
+saved carrier bytes. Original source edits, moves or deletion therefore do not
+change what the host reads. The projection changes only those declared local
+media fields. Prompt text, negative text, provider identifiers, URLs and
+independent native controls retain their saved values. The original authored
+request remains in the saved consumer as provenance. Any acquired native schema
+also applies to the actual projected request, using its saved schema evidence.
+An external URL or provider identifier retains the service's own availability
+and content contract; a local filename-shaped value does not make it a local file.
 
 For tag-based input, also declare `negative_field` (null when absent), the
 interface's `prompt_syntax`, and `vocabulary_record` with `path`, `sha256` and

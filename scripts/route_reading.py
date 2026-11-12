@@ -7,6 +7,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import secrets
 import sys
 from pathlib import Path
@@ -18,6 +19,12 @@ from cli_invocation import python_argv, shown
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PAGE_BYTES = 16384
+INDEX_SOURCE_STATES = {
+    'pending': 'No source bytes have been delivered in this snapshot.',
+    'partial': 'Some exact source ranges have been delivered; remaining ranges are required.',
+    'delivered': 'This snapshot has complete delivery evidence for this source.',
+    'known': 'An explicitly selected complete reading supplies the unchanged source in this context.',
+}
 _NO_MODEL = object()
 # A reading made without a model holds every family's guide sections.
 
@@ -767,6 +774,204 @@ def _publish_page(path: Path, value: dict) -> None:
             raise ValueError('reading page collision')
 
 
+def _remember_page(folder: Path, snapshot: str, page: str) -> None:
+    """Own the selected continuation explicitly, independently of source order."""
+    c.atomic(folder / 'continuation.json', c.encoded({'snapshot': snapshot, 'page': page}), replace=True)
+
+
+def _merged_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    merged = []
+    for start, end in sorted(ranges):
+        if start == end:
+            continue
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def snapshot_coverage(folder: Path, snapshot: dict) -> dict:
+    """Read exact delivered ranges once for navigation, completion and recovery."""
+    sid = c.content_id(snapshot)
+    total, bodies = 0, {}
+    for metadata in snapshot['bodies']:
+        bodies[_body_identity(metadata)] = (total, metadata)
+        total += metadata['size']
+    pages, intervals = [], []
+    for path in (folder / 'pages').glob('*.json'):
+        page = c.load(path)
+        if c.content_id(page) != path.stem or page['snapshot'] != sid:
+            raise ValueError('reading page address mismatch')
+        start, end = page['start'], page['end']
+        if type(start) is not int or type(end) is not int or not 0 <= start <= end <= total:
+            raise ValueError('reading page has an invalid delivered range')
+        if 'page_bytes' in page and (type(page['page_bytes']) is not int or page['page_bytes'] < 4):
+            raise ValueError('reading page has an invalid source-byte budget')
+        reach = start
+        for item in page['ranges']:
+            metadata = {key: value for key, value in item.items()
+                        if key not in {'snapshot', 'start', 'end', 'total'}}
+            match = bodies.get(_body_identity(metadata))
+            if match is None or item['snapshot'] != sid:
+                raise ValueError('reading page differs from its source scope')
+            offset, source = match
+            low, high = item['start'], item['end']
+            if (type(low) is not int or type(high) is not int
+                    or not 0 <= low <= high <= source['size']
+                    or item['total'] != source['size'] or offset + low != reach):
+                raise ValueError('reading page has an invalid source range')
+            reach = offset + high
+        if reach != end:
+            raise ValueError('reading page does not contain its declared source bytes')
+        pages.append((path.stem, page))
+        intervals.append((start, end))
+    covered = _merged_ranges(intervals)
+    missing, reach = [], 0
+    for start, end in covered:
+        if start > reach:
+            missing.append((reach, start))
+        reach = end
+    if reach < total:
+        missing.append((reach, total))
+    delivered = sum(end - start for start, end in covered)
+    return {'pages': pages, 'covered': covered, 'missing': missing,
+            'total_bytes': total, 'delivered_bytes': delivered,
+            'remaining_bytes': total - delivered}
+
+
+def _markdown_headings(raw: bytes) -> list[tuple[int, str, int]]:
+    """Locate Markdown headings without interpreting examples as instructions."""
+    headings, offset, fence, previous = [], 0, None, None
+    for line in raw.splitlines(keepends=True):
+        text = line.decode('utf-8').rstrip('\r\n')
+        marker = re.match(r'^ {0,3}(`{3,}|~{3,})(.*)$', text)
+        if fence is not None:
+            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not marker[2].strip():
+                fence = None
+            previous = None
+        elif marker:
+            fence = marker[1]
+            previous = None
+        else:
+            heading = re.match(r'^ {0,3}(#{1,6})(?:[ \t]+(.*?)|[ \t]*)$', text)
+            underline = re.match(r'^ {0,3}(=+|-+)[ \t]*$', text)
+            if heading:
+                title = re.sub(r'[ \t]+#+[ \t]*$', '', heading[2] or '').strip()
+                headings.append((offset, title or 'Untitled heading', len(heading[1])))
+            elif underline and previous is not None:
+                headings.append((previous[0], previous[1], 1 if underline[1][0] == '=' else 2))
+            previous = (offset, text.strip()) if text.strip() and not heading and not underline else None
+        offset += len(line)
+    return headings
+
+
+def _json_headings(raw: bytes, metadata: dict) -> list[tuple[int, str, int]]:
+    """Locate exact resource sections or offering cards in their serialized body."""
+    text = raw.decode('utf-8')
+    decoder = json.JSONDecoder()
+    def whitespace(index):
+        while index < len(text) and text[index].isspace():
+            index += 1
+        return index
+    index = whitespace(0)
+    if metadata['kind'] == 'resource':
+        wanted = 'sections' if metadata['resource'] == 'prompt-writing-guide' else 'dialects'
+        if text[index:index + 1] != '{':
+            return []
+        index = whitespace(index + 1)
+        while text[index:index + 1] != '}':
+            key, index = decoder.raw_decode(text, index)
+            index = whitespace(index)
+            if text[index:index + 1] != ':':
+                raise ValueError('invalid resource section boundary')
+            index = whitespace(index + 1)
+            if key == wanted:
+                break
+            _, index = decoder.raw_decode(text, index)
+            index = whitespace(index)
+            if text[index:index + 1] == ',':
+                index = whitespace(index + 1)
+        else:
+            return []
+    if text[index:index + 1] != '[':
+        return []
+    headings = []
+    index = whitespace(index + 1)
+    while text[index:index + 1] != ']':
+        start = index
+        value, index = decoder.raw_decode(text, index)
+        title = None
+        if isinstance(value, dict):
+            title = value.get('title') or value.get('heading') or value.get('id') or value.get('service')
+        headings.append((len(text[:start].encode('utf-8')), str(title or 'Item ' + str(len(headings) + 1)), 1))
+        index = whitespace(index)
+        if text[index:index + 1] == ',':
+            index = whitespace(index + 1)
+    return headings
+
+
+def _sections(folder: Path, snapshot: dict, read_body=None) -> list[dict]:
+    """Partition every pending body exactly; headings select delivery, not scope."""
+    required = {_body_identity(metadata): number
+                for number, metadata in enumerate(snapshot['required_bodies'], 1)}
+    read_body = read_body or (lambda digest: c.object_read(folder, digest))
+    result, offset = [], 0
+    for metadata in snapshot['bodies']:
+        raw = read_body(metadata['sha256'])
+        if len(raw) != metadata['size']:
+            raise ValueError('reading source size differs from its snapshot')
+        source = str(required[_body_identity(metadata)])
+        headings = (_markdown_headings(raw) if metadata['kind'] == 'document'
+                    else _json_headings(raw, metadata))
+        if not headings or headings[0][0] > 0:
+            headings.insert(0, (0, 'Source opening' if headings else 'Complete source', 0))
+        for number, (start, heading, level) in enumerate(headings, 1):
+            end = headings[number][0] if number < len(headings) else len(raw)
+            result.append({'selector': source + '.' + str(number), 'source': source,
+                           'heading': heading, 'level': level, 'start': start, 'end': end,
+                           'low': offset + start, 'high': offset + end})
+        offset += len(raw)
+    return result
+
+
+def _section_scope(sections: list[dict], selector: str) -> dict:
+    exact = [row for row in sections if row['selector'] == selector]
+    if exact:
+        return exact[0]
+    source = [row for row in sections if row['source'] == selector]
+    if source:
+        return {'selector': selector, 'source': selector, 'heading': 'Complete source', 'level': 0,
+                'start': 0, 'end': source[-1]['end'], 'low': source[0]['low'], 'high': source[-1]['high']}
+    raise ValueError('unknown pending source or section: ' + selector +
+                     '; open the snapshot index and select an exact returned selector')
+
+
+def _remaining_in(low: int, high: int, missing: list[tuple[int, int]]) -> int:
+    return sum(max(0, min(high, end) - max(low, start)) for start, end in missing)
+
+
+def _navigation(snapshot: dict, coverage: dict, sections: list[dict]) -> list[dict]:
+    known = {_body_identity(item['body']) for item in snapshot['reused_bodies']}
+    sources = []
+    for number, metadata in enumerate(snapshot['required_bodies'], 1):
+        source = str(number)
+        rows = [row for row in sections if row['source'] == source]
+        state = 'known' if _body_identity(metadata) in known else 'delivered'
+        remaining = sum(_remaining_in(row['low'], row['high'], coverage['missing']) for row in rows)
+        if remaining:
+            state = 'pending' if remaining == metadata['size'] else 'partial'
+        selected_by = snapshot.get('read_owners', {}).get(metadata.get('path'),
+                        ['selected:' + metadata['kind']])
+        sources.append({'selector': None if state == 'known' else source, **metadata, 'selected_by': selected_by,
+                        'state': state, 'remaining_bytes': remaining,
+                        'sections': [{'selector': row['selector'], 'heading': row['heading'],
+                                      'level': row['level'], 'bytes': row['end'] - row['start'],
+                                      'remaining_bytes': _remaining_in(row['low'], row['high'], coverage['missing'])}
+                                     for row in rows]})
+    return sources
+
+
 def read_page(*, route: str | None = None, features: list[str] | None = None,
               cursor: str | None = None, replay: bool = False, page_bytes: int = DEFAULT_PAGE_BYTES,
               root: Path = ROOT, studio: Path | None = None, ledger: Path | None = None,
@@ -774,21 +979,29 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
               dialect: str | None = None, operation: str | None = None, execution: str | None = None,
               model: str | None = None, service: str | None = None,
               model_file: Path | None = None, known_reading_keys: list[str] | None = None,
-              publish_record: bool = False) -> dict:
-    """Deliver a complete current scope from explicit known bodies and new pages."""
+              publish_record: bool = False, navigation: bool = False,
+              snapshot_id: str | None = None, section: str | None = None) -> dict:
+    """Index or deliver exact source ranges; only complete coverage issues a record."""
     if isinstance(page_bytes, bool) or not isinstance(page_bytes, int) or page_bytes < 4:
         raise ValueError('page-bytes must be an integer of at least four')
+    if navigation and (cursor is not None or section is not None):
+        raise ValueError('choose a snapshot index or a delivery action')
+    if cursor is not None and (snapshot_id is not None or section is not None):
+        raise ValueError('a page cursor fixes its source selection; use --snapshot with --section to choose another')
     stream = sys.stdout if stream is None else stream
     ledger = ledger if ledger is not None else ledger_candidates(studio=studio)[0]
     authoring_studio = studio or _studio(ledger.parent)
-    if cursor is None:
+    previous = None
+    if cursor is None and snapshot_id is None:
         if route is None:
             raise ValueError('a route is required to start reading')
-        # The reading ends by appending to this ledger. Report a ledger that
-        # cannot be read before any body is delivered.
         ledger_rows(ledger)
+        read_source = _read_once(root)
         manifest, acquired = capture(route, features, root=root, dialect=dialect, operation=operation,
-                                    execution=execution, model=model, service=service, model_file=model_file)
+                                    execution=execution, model=model, service=service, model_file=model_file,
+                                    read_source=read_source)
+        resolved = execution_routes.resolve(route, features, operation=operation, execution=execution,
+                                            root=root, read_source=read_source)
         context_keys = list(dict.fromkeys(known_reading_keys or []))
         known, available = _known_bodies(context_keys, ledger)
         required = [dict(meta, size=len(raw)) for meta, raw in acquired]
@@ -799,7 +1012,8 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         snapshot = {'manifest': manifest, 'root': str(root.absolute()), 'runtime': runtime,
                     'task_id': task_id, 'model_file': str(model_file.absolute()) if model_file is not None else None,
                     'nonce': secrets.token_hex(16), 'bodies': bodies, 'required_bodies': required,
-                    'reused_bodies': reused, 'known_readings': known, 'context_keys': context_keys}
+                    'reused_bodies': reused, 'known_readings': known, 'context_keys': context_keys,
+                    'read_owners': resolved['read_owners']}
         _validate_body_scope(manifest, required)
         sid = c.content_id(snapshot)
         production_authoring_state.remember_reading(authoring_studio, ledger, sid, snapshot, page_bytes)
@@ -810,33 +1024,62 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         for meta, raw in acquired:
             if meta['sha256'] in pending_hashes:
                 c.object_store(folder, raw)
-        start = 0
     else:
         if (route is not None or features or dialect is not None or operation is not None or execution is not None
                 or model is not None or service is not None or model_file is not None or known_reading_keys):
-            raise ValueError('a cursor fixes its route, operation, execution, features, model scope and known readings')
-        folder, snapshot, page = _cursor(ledger, cursor)
+            raise ValueError('a snapshot fixes its route, operation, execution, features, model scope and known readings')
+        if cursor is not None:
+            folder, snapshot, previous = _cursor(ledger, cursor)
+        else:
+            folder = _snapshot_dir(ledger, snapshot_id)
+            snapshot = c.load(c.local(folder, 'snapshot.json'))
+            if c.content_id(snapshot) != snapshot_id:
+                raise ValueError('reading snapshot address mismatch')
         sid = c.content_id(snapshot)
         if str(root.absolute()) != snapshot['root']:
-            raise ValueError('reading cursor belongs to a different skill root')
+            raise ValueError('reading snapshot belongs to a different skill root')
         _restore_runtime(snapshot['runtime'])
         _check_reused_bodies(snapshot, ledger)
-        start = page['start'] if replay else page['end']
-    total = sum(item['size'] for item in snapshot['bodies'])
-    if cursor is not None and start == total and not replay:
-        raise ValueError('reading is complete; replay the final page to receive a new key')
+    coverage = snapshot_coverage(folder, snapshot)
+    total = coverage['total_bytes']
+    read_body = _read_once(folder, lambda digest: c.object_read(folder, digest))
+    sections = _sections(folder, snapshot, read_body)
+    selection = section if section is not None else (previous or {}).get('section')
+    selected = _section_scope(sections, selection) if selection is not None else None
+    if previous is not None and previous.get('index'):
+        raise ValueError('an index has no delivered source page; use its next-section or --all action')
+    if navigation:
+        start, limit = 0, 0
+    elif replay:
+        start, limit = previous['start'], previous.get('replay_until', previous['end'])
+    elif previous is not None and previous.get('replay_until', previous['end']) > previous['end']:
+        start, limit = previous['end'], previous['replay_until']
+    elif selected is not None:
+        start = selected['low'] if previous is None else previous['end']
+        limit = selected['high']
+        if start >= limit:
+            raise ValueError('selected section is complete; open the snapshot index or choose its next required section')
+    else:
+        start, limit = coverage['missing'][0] if coverage['missing'] else (total, total)
     index, offset = _position(snapshot, start)
     budget, end = page_bytes, start
     ranges, body = [], []
-    pending = {'snapshot': sid, 'start': start, 'end': start, 'ranges': []}
+    pending = {'snapshot': sid, 'start': start, 'end': start, 'ranges': [], 'page_bytes': page_bytes}
+    if selected is not None:
+        pending['section'] = selection
+    if navigation:
+        pending['index'] = True
+    if replay or (previous is not None and previous.get('replay_until', previous['end']) > previous['end']):
+        pending['replay_until'] = limit
     pending_id = c.content_id(pending)
     _publish_page(folder / 'pages' / (pending_id + '.json'), pending)
-    while index < len(snapshot['bodies']) and budget:
+    _remember_page(folder, sid, pending_id)
+    while index < len(snapshot['bodies']) and budget and end < limit:
         meta = snapshot['bodies'][index]
-        raw = c.object_read(folder, meta['sha256'])
+        raw = read_body(meta['sha256'])
         if len(raw) != meta['size']:
             raise ValueError('reading source size differs from its snapshot')
-        stop = min(len(raw), offset + budget)
+        stop = min(len(raw), offset + budget, offset + limit - end)
         while stop > offset and stop < len(raw) and raw[stop] & 0xC0 == 0x80:
             stop -= 1
         if stop == offset and offset < len(raw):
@@ -852,41 +1095,44 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
             offset = 0
         else:
             offset = stop
-    page = {'snapshot': sid, 'start': start, 'end': end, 'ranges': ranges}
+    page = {**pending, 'end': end, 'ranges': ranges}
     page_id = c.content_id(page)
-    reused_bytes = sum(item['body']['size'] for item in snapshot['reused_bodies'])
+    metadata = {key: snapshot['manifest'][key] for key in ('route', 'operation', 'execution', 'features', 'model')}
+    # Only knowledge retained before this response creates a context dependency;
+    # newly emitted source text is available in this response itself.
     result = {'ok': True, 'snapshot': sid, 'cursor': sid + ':' + page_id,
-              'body': body, 'delivered': ranges, 'remaining_bytes': total - end,
-              'metadata': {key: snapshot['manifest'][key] for key in ('route', 'operation', 'execution', 'features', 'model')},
-              'progress': {'page_start': start, 'page_end': end, 'delivered_bytes': end,
-                           'total_bytes': total, 'remaining_bytes': total - end,
-                           'required_bytes': total + reused_bytes, 'reused_bytes': reused_bytes,
-                           'required_bodies': len(snapshot['required_bodies']),
-                           'reused_bodies': len(snapshot['reused_bodies'])},
+              'mode': 'index' if navigation else 'section' if selected is not None else 'all',
+              'body': body, 'delivered': ranges, 'metadata': metadata,
+              'section': ({key: selected[key] for key in ('selector', 'heading', 'start', 'end')}
+                          if selected is not None else None),
               'reading': None, 'context_reuse': None,
-              'same_context_required': bool(snapshot['context_keys'])}
-    # Only a successfully flushed body becomes a committed delivery page.
-    _begin_output(stream, body, result['metadata'])
+              'same_context_required': bool(snapshot['context_keys'] or coverage['delivered_bytes'])}
+    # Navigation never contributes delivered bytes. Actual text is flushed
+    # before its page receipt can contribute to whole-source coverage.
+    _begin_output(stream, body, metadata)
     try:
         _publish_page(folder / 'pages' / (page_id + '.json'), page)
-        result['actions'] = _reading_actions(result, ledger=ledger, studio=studio, page_bytes=page_bytes)
-        if end == total:
-            covered = []
-            for path in (folder / 'pages').glob('*.json'):
-                observed = c.load(path)
-                if c.content_id(observed) != path.stem or observed['snapshot'] != sid:
-                    raise ValueError('reading page address mismatch')
-                low, high = observed['start'], observed['end']
-                if type(low) is not int or type(high) is not int or not 0 <= low <= high <= total:
-                    raise ValueError('reading page has an invalid delivered range')
-                covered.append((low, high))
-            reach = 0
-            for low, high in sorted(covered):
-                if low > reach:
-                    raise ValueError('undelivered range in reading snapshot')
-                reach = max(reach, high)
-            if reach != total:
-                raise ValueError('reading snapshot is incomplete')
+        _remember_page(folder, sid, page_id)
+        coverage = snapshot_coverage(folder, snapshot)
+        reused_bytes = sum(item['body']['size'] for item in snapshot['reused_bodies'])
+        result['remaining_bytes'] = coverage['remaining_bytes']
+        result['progress'] = {key: coverage[key] for key in ('total_bytes', 'delivered_bytes', 'remaining_bytes')}
+        result['progress'].update(page_start=start, page_end=end,
+            required_bytes=total + reused_bytes, reused_bytes=reused_bytes,
+            required_bodies=len(snapshot['required_bodies']), reused_bodies=len(snapshot['reused_bodies']),
+            section_remaining_bytes=selected['high'] - end if selected is not None else None,
+            replay_remaining_bytes=max(0, pending.get('replay_until', end) - end))
+        result['actions'] = _reading_actions(result, ledger=ledger, studio=studio, page_bytes=page_bytes,
+                                            acquired=(folder, snapshot, page), coverage=coverage, sections=sections)
+        if navigation:
+            result['index'] = _navigation(snapshot, coverage, sections)
+            result['source_states'] = dict(INDEX_SOURCE_STATES)
+            result['section_selection'] = {
+                'argv': result['actions']['index']['argv'], 'append': ['--section', 'SELECTOR'],
+                'reason': 'Append --section and an exact source or section selector from this index; only source bodies count toward delivery.'}
+        if (not navigation and not coverage['remaining_bytes']
+                and (selected is None or end == selected['high'])
+                and not result['progress']['replay_remaining_bytes']):
             current, acquired = capture(snapshot['manifest']['route'], snapshot['manifest']['features'], root=root,
                                  dialect=bound_dialect(snapshot['manifest']), operation=snapshot['manifest']['operation'],
                                  execution=snapshot['manifest']['execution'],
@@ -960,7 +1206,9 @@ def _selected_model(model: str) -> tuple[str, dict]:
 
 
 def add_read_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument('route', nargs='?', help='Route to begin; a cursor supplies the saved route for continuation')
+    parser.epilog = ('Index source states: ' + ' '.join(name + ': ' + meaning for name, meaning in INDEX_SOURCE_STATES.items())
+                     + ' An index issues no reading; completion is a non-null reading record.')
+    parser.add_argument('route', nargs='?', help='Route to index; omit for a saved snapshot or page action')
     parser.add_argument('--feature', action='append', default=[], help='Feature to include when beginning a route')
     parser.add_argument('--root', type=Path, help='Studio root for the reading ledger')
     parser.add_argument('--operation', choices=execution_routes.OPERATIONS,
@@ -981,7 +1229,14 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     group.add_argument('--replay', dest='replay', metavar='CURSOR',
                        help='Read the selected snapshot page again using the emitted action')
     group.add_argument('--restart', metavar='CURSOR',
-                       help='Read the current sources using the saved route and runtime selections')
+                       help='Index current sources for a fresh context using saved selections, with no known readings')
+    group.add_argument('--snapshot', dest='snapshot_id', metavar='ID',
+                       help='Open the saved source index, or deliver its selected --section or --all scope')
+    delivery = parser.add_mutually_exclusive_group()
+    delivery.add_argument('--all', action='store_true',
+                          help='Explicitly deliver all still-required source bytes in bounded pages; indexes issue no reading')
+    delivery.add_argument('--section', metavar='SELECTOR',
+                          help='With --snapshot, deliver the exact source or heading selector from its index; complete coverage is still required')
     parser.add_argument('--known-reading', action='append', default=[], metavar='KEY',
                         help='Complete reading still known in this context; repeat to combine readings and deliver only missing current bodies')
     parser.add_argument('--reading-ledger', type=Path,
@@ -989,9 +1244,13 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     _add_runtime_arguments(parser)
 
 
-def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_bytes: int) -> dict:
+def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_bytes: int,
+                     acquired: tuple | None = None, coverage: dict | None = None,
+                     sections: list[dict] | None = None) -> dict:
     """Build executable next actions from the delivered snapshot's own context."""
-    _, snapshot, _ = _cursor(ledger, result['cursor'])
+    folder, snapshot, page = acquired or _cursor(ledger, result['cursor'])
+    coverage = coverage if coverage is not None else snapshot_coverage(folder, snapshot)
+    sections = sections if sections is not None else _sections(folder, snapshot)
     context = _runtime_context(snapshot['runtime'])
     base = python_argv(ROOT / 'scripts' / 'execution_routes.py', 'read',
                        '--reading-ledger', str(ledger.absolute()), '--page-bytes', str(page_bytes))
@@ -1000,15 +1259,33 @@ def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_by
     if context is not None:
         base.extend(context.command_arguments())
 
-    def action(option: str, reason: str) -> dict:
-        argv = [*base, option, result['cursor']]
+    def action(*arguments: str, reason: str) -> dict:
+        argv = [*base, *arguments]
         return {'argv': argv, 'command': shown(argv), 'reason': reason}
 
-    actions = {'continue': None}
-    if result['remaining_bytes']:
-        actions['continue'] = action('--continue', f"Read the remaining {result['remaining_bytes']} source bytes.")
-    actions['replay'] = action('--replay', 'Read this delivered page again; reduce --page-bytes if the host truncated it.')
-    actions['restart'] = action('--restart', 'Begin a complete reading of the current sources with these selections.')
+    sid = c.content_id(snapshot)
+    actions = {'continue': None, 'next': None, 'replay': None}
+    if not page.get('index'):
+        remaining = page.get('replay_until', page['end']) - page['end']
+        if not remaining:
+            remaining = (_section_scope(sections, page['section'])['high'] - page['end']
+                         if 'section' in page else coverage['remaining_bytes'])
+        if remaining:
+            actions['continue'] = action('--continue', result['cursor'],
+                reason=f'Read the remaining {remaining} bytes of this selected delivery.')
+        actions['replay'] = action('--replay', result['cursor'],
+            reason='Read this delivered page again; reduce --page-bytes if the host truncated it.')
+    if coverage['missing']:
+        position = coverage['missing'][0][0]
+        selected = next(row for row in sections if row['low'] <= position < row['high'])
+        actions['next'] = action('--snapshot', sid, '--section', selected['selector'],
+            reason='Read the next required section: ' + selected['heading'] + '.')
+    actions['index'] = action('--snapshot', sid,
+        reason='Inspect source headings, selection owners and exact remaining coverage without issuing a reading.')
+    actions['all'] = action('--snapshot', sid, '--all',
+        reason='Deliver all remaining required source bytes in bounded pages, then check current sources and issue the reading.')
+    actions['restart'] = action('--restart', result['cursor'],
+        reason='Index current sources for a fresh context; keep task work and make no assertion of retained knowledge.')
     return actions
 
 
@@ -1047,11 +1324,15 @@ def _context_reuse(result: dict, *, snapshot: dict, ledger: Path,
 
 
 def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
-    """Deliver one structured page and publish its record on complete current coverage."""
-    continuation = args.cursor is not None or args.replay is not None or args.restart is not None
+    """Start with navigation unless the caller selects exact source delivery."""
+    continuation = args.cursor is not None or args.replay is not None or args.restart is not None or args.snapshot_id is not None
     if continuation and (args.route is not None or args.feature or args.model is not None or args.model_file is not None or args.dialect is not None
                          or args.operation is not None or args.execution is not None or args.service is not None or args.known_reading):
-        raise ValueError('a cursor fixes its route, operation, execution, features, model scope and known readings; execute its complete reading action')
+        raise ValueError('a cursor or snapshot fixes its route, operation, execution, features, model scope and known readings; execute its complete reading action')
+    if args.section is not None and args.snapshot_id is None:
+        raise ValueError('--section requires --snapshot ID from the source index; begin with read ROUTE and its actual task selections')
+    if args.all and (args.cursor is not None or args.replay is not None):
+        raise ValueError('a cursor fixes its delivery selection; use --snapshot ID --all to select all remaining bytes')
     if not continuation and args.execution is None:
         raise ValueError('a new reading requires --execution authored, external or dispatcher from the task')
     runtime = _configure_runtime(args, parser)
@@ -1059,7 +1340,7 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
     studio = args.root.absolute() if args.root is not None else (_studio(Path.cwd()) or _studio(ledger.parent))
     dialect = args.dialect
     if not continuation and args.route is None:
-        raise ValueError('read requires a route or a continuation cursor')
+        raise ValueError('read requires a route, saved snapshot or continuation cursor')
     page_bytes = DEFAULT_PAGE_BYTES if args.page_bytes is None else args.page_bytes
     cursor = args.cursor if args.cursor is not None else args.replay
     model_file = args.model_file
@@ -1076,13 +1357,16 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
             dialect=bound_dialect(manifest), model_file=Path(snapshot['model_file']) if snapshot['model_file'] else None,
             model=(manifest['model'] or {}).get('id') if snapshot['model_file'] is None else None,
             service=(manifest['model'] or {}).get('service'), page_bytes=page_bytes,
-            ledger=ledger, studio=studio, runtime=snapshot['runtime'], publish_record=True)
+            ledger=ledger, studio=studio, runtime=snapshot['runtime'], publish_record=True,
+            navigation=not args.all)
     else:
         result = read_page(route=args.route, features=args.feature, cursor=cursor,
                            replay=args.replay is not None, page_bytes=page_bytes,
                            ledger=ledger, studio=studio, runtime=runtime, dialect=dialect,
                            operation=args.operation, execution=args.execution, model=args.model, service=args.service,
-                           model_file=model_file, known_reading_keys=args.known_reading, publish_record=True)
+                           model_file=model_file, known_reading_keys=args.known_reading, publish_record=True,
+                           snapshot_id=args.snapshot_id, section=args.section,
+                           navigation=cursor is None and not args.all and args.section is None)
     return result
 
 

@@ -319,7 +319,7 @@ endings normalised:
 
 ```text
 scripts/narrative.py           b345ffdddc822dd9a5ad790b4a7386c8ef8627d249ec6e30d3dceff179a7e889
-scripts/scene_plot.py          5ca1e875c100b72e2bc0496df8e0699907d5efa16929c1805d2c0d3ee38509d0
+scripts/scene_plot.py          9b4b6f0106a7dea852549cf8b269bb35be69f8cfe503a59e6ed4f32f938cb70b
 scripts/narrative_corpus.json  eec0a5a58c7a67131be3df3cd752d51a35d388bddcd2410ae486a65316c510db
 ```
 

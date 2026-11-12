@@ -71,11 +71,14 @@ class SceneIntegration(unittest.TestCase):
         actual = value['consumer']['instructions']
         self.assertEqual(actual,(self.root/'delivery.txt').read_text(encoding='utf-8'))
 
-    def test_unquoted_source_edit_invalidates_reuse(self):
+    def test_unquoted_source_edit_is_visible_but_new_preparation_requires_current_material(self):
         run=self.prepare()
         p=self.root/'originals/subject.md'
         p.write_text(p.read_text(encoding='utf-8')+'A newly declared exception outside the selected excerpt.\n', encoding='utf-8')
-        self.assertEqual(workflow.status(self.root,run)['runs'][0]['readiness'],'blocked')
+        state=workflow.status(self.root,run)['runs'][0]
+        self.assertNotEqual(state['readiness'],'blocked')
+        self.assertEqual(state['freshness_diagnostics'],[])
+        self.assertIn('SOURCE_CHANGED',[item['code'] for item in state['freshness_notices']])
         with self.compilation_error('complete source changed'):
             self.prepare()
 
@@ -187,12 +190,18 @@ class UpscaleIntegration(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostic.code,'INPUT_CONSISTENCY_ERROR')
         self.upload.assert_not_called()
 
-    def test_source_changed_after_preparation_blocks_before_upload(self):
+    def test_prepared_upscale_uses_saved_image_after_original_source_changes(self):
+        original=self.source.read_bytes()
         self.source.write_bytes(b'changed')
-        with self.assertRaises(ValueError):self.call()
+        self.assertEqual(self.call(),0)
+        self.assertEqual(self.upload.call_args.args[0],original)
+        self.assertEqual(self.send.call_count,1)
+
+    def test_upscale_preview_requires_the_current_supplied_source(self):
+        self.source.write_bytes(b'changed')
         with contextlib.redirect_stdout(io.StringIO()),self.assertRaises(ValueError) as caught:
             dispatch.dispatch_upscale(self.options,self.root)
-        self.assertEqual(caught.exception.diagnostic.code,'SOURCE_CHANGED')
+        self.assertEqual(caught.exception.diagnostic.code,'INPUT_CONSISTENCY_ERROR')
         self.upload.assert_not_called()
 
     def test_extra_outputs_are_candidates_but_not_complete(self):
@@ -219,7 +228,9 @@ class UpscaleIntegration(unittest.TestCase):
         self.source.unlink()
         result=self.execution.resume(self.root,self.run)
         self.assertTrue(result['execution_completed']);self.assertEqual(self.send.call_count,1)
-        self.assertTrue(result['runs'][0]['freshness_diagnostics'])
+        self.assertEqual(result['runs'][0]['freshness_diagnostics'],[])
+        self.assertIn(('SOURCE_CHANGED','warning','upscale/source.png'),
+                      [(item['code'],item['severity'],item['file']) for item in result['runs'][0]['freshness_notices']])
 
     def test_missing_image_acquisition_retains_response_then_resumes(self):
         with patch.object(dispatch,'inline_image',side_effect=ValueError('Synthetic failed transfer')):

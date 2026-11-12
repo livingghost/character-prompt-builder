@@ -1935,7 +1935,8 @@ def run() -> dict[str, Any]:
                 and unexpected_subject_report["errors"]
                 == [
                     "$.subjects[0]: unexpected properties "
-                    "['fixture_unexpected_subject_field']",
+                    "['fixture_unexpected_subject_field']; permitted properties "
+                    + str(sorted(production_spec.PRODUCTION_SPEC_SCHEMA['properties']['subjects']['items']['properties'])),
                 ],
                 "unexpected production subject field was not reported exactly once by the subject contract",
             )
@@ -1965,7 +1966,8 @@ def run() -> dict[str, Any]:
             checked(
                 unexpected_property_report["ok"] is False
                 and unexpected_property_report["errors"]
-                == ["$: unexpected properties ['unsupported_property']"],
+                == ["$: unexpected properties ['unsupported_property']; permitted properties "
+                    + str(sorted(production_spec.PRODUCTION_SPEC_SCHEMA['properties']))],
                 "unsupported production property did not produce current schema errors",
             )
 
@@ -3140,7 +3142,7 @@ def run() -> dict[str, Any]:
 
 
 def run_derived_inputs() -> dict[str, Any]:
-    """Derived CLI inputs equal hand-supplied ones, and a changed run or package fails closed."""
+    """Derived CLI inputs retain the saved request and validate explicitly supplied inputs."""
     import production_fixtures
     import production_workflow
     import request_contract
@@ -3293,7 +3295,7 @@ def run_derived_inputs() -> dict[str, Any]:
             checked(verify_exit == 2 and diagnostic_messages(verified_out.getvalue()) == errors,
                     "verifier specification errors differ from the builder's")
             refused("each production subject", "--continuity", "C02=one-off")
-            # A tampered package or a changed prepared run fails closed.
+            # Captured schema evidence remains part of package verification.
             verify_live(derived, package_root=base, studio=root)
             tampered = copy.deepcopy(derived)
             snapshot = tampered["input_snapshots"][schema_path]
@@ -3304,7 +3306,10 @@ def run_derived_inputs() -> dict[str, Any]:
                 accepted = False
             checked(not accepted, "verifier accepted a tampered pack schema snapshot")
             (root / "fixture-delivery.txt").write_text(PROMPT + " changed", encoding="utf-8")
-            refused("SOURCE_CHANGED", "--continuity", "C01=one-off")
+            saved = build("saved-delivery.json", "--continuity", "C01=one-off")
+            checked(saved["composition_prompt"] == derived["composition_prompt"]
+                    and saved["production_binding"] == derived["production_binding"],
+                    "a current delivery edit replaced the selected run's saved prompt or binding")
     finally:
         configure_pack_runtime(None)
         catalog_cli.clear_runtime_caches()

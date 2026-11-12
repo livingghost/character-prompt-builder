@@ -682,7 +682,7 @@
   },
   "validator": {
     "path": "scripts/protocol_contract.py",
-    "sha256": "8cc7be004c10df1c8303860bb573da2404fb0f4c4afdfaf59324d834957a9d2e"
+    "sha256": "2adc4ab9b07d2789c8946b2249bccf5df263f008ee6a88d0e06b4ad50c323e4f"
   },
-  "contract_set_sha256": "21f724df1dd00da24bf17835fdb826a865e8118ded84fcaefd7d464716930366"
+  "contract_set_sha256": "92fabf800ec8e08c211bb1083403452f30d3c6567b31dca6ac4d59c4560f9b24"
 }

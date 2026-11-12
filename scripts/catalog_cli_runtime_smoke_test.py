@@ -935,6 +935,15 @@ class CatalogRuntimeTest(unittest.TestCase):
             "identity",
         )
 
+    def test_minimal_batch_help_example_executes_without_invented_wrapper_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            entries, _ = self._install_fixture_catalog(Path(temporary))
+            requests = catalog_cli.load_batch_requests(catalog_cli.batch_help_example())
+            report = catalog_cli.execute_batch(entries, requests)
+            self.assertEqual(report['request_count'], 1)
+            self.assertEqual(report['error_count'], 0, report)
+            self.assertTrue(report['results'][0]['ok'])
+
     def test_batch_returns_query_errors_without_losing_later_results(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             entries, _ = self._install_fixture_catalog(Path(temporary))

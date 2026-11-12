@@ -258,6 +258,17 @@ python scripts/scene_plot.py <directory>/narrative/scenes/<scene>.json
 python scripts/scene_plot.py <directory>/narrative/scenes/<scene>.json --content-sha256
 ```
 
+The [scene-plot contract](narrative-protocol.md#scene-plot) describes its complete
+field structure and source rules. `scripts/scene_plot.py:validate_scene_plot`
+owns the logical validation; this artifact has no separate JSON Schema file.
+Its report identifies both owners, and an unknown root field reports the full
+permitted key set. Discover the contract directly with
+`python scripts/production_document_contracts.py explain scene_plot`.
+The downstream prompt plot has the distinct canonical schema
+[`schemas/prompt-plot.schema.json`](../schemas/prompt-plot.schema.json);
+`python scripts/production_document_contracts.py explain plot` locates its
+fields and filled example. Use the validator for the artifact being edited.
+
 The shared contract requires typed arrays even when empty. An explicit character arc needs its
 character references; an explicit thematic arc needs theme references. On any arc, `want` and
 `need` are independently optional authored text; preserve each when declared. Other work may

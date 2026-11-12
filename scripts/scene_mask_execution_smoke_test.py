@@ -62,21 +62,50 @@ class ProductionMaskTests(unittest.TestCase):
         paths={d['path'] for d in prepared['dependencies'] if d['space']=='studio'}
         self.assertTrue({'mask-binding.json','mask-review.json','masks/a/bundle.json','masks/a/mask.png',
                          'source.png','front.png','sleeve-a.png','sleeve-b.png','protected.png','guidance.png'}<=paths)
-    def test_mutated_region_prevents_send(self):
-        run=self.prepare();Image.new('L',(32,32),255).save(self.root/'front.png')
-        with patch.object(transport,'send',side_effect=AssertionError('must not send')) as sender:
-            with self.assertRaises(ValueError):self.execute(run)
-        sender.assert_not_called()
-    def test_mutated_review_prevents_send(self):
-        run=self.prepare();review=c.load(self.root/'mask-review.json');review['verdict']='reject';self.write('mask-review.json',review)
-        with patch.object(transport,'send',side_effect=AssertionError('must not send')) as sender:
-            with self.assertRaises(ValueError):self.execute(run)
-        sender.assert_not_called()
-    def test_mutated_mask_prevents_send(self):
-        run=self.prepare();Image.new('L',(32,32),255).save(self.root/'masks/a/mask.png')
-        with patch.object(transport,'send',side_effect=AssertionError('must not send')) as sender:
-            with self.assertRaises(ValueError):self.execute(run)
-        sender.assert_not_called()
+    def assert_saved_execution_after_edit(self,path,edit):
+        run=self.prepare();directory=self.directory(run)
+        original=c.read(self.root/path)
+        loaded=w.read_run(self.root,run)
+        source=next(row for row in loaded.prepared['dependencies'] if row['space']=='studio' and row['path']==path)
+        self.assertEqual(loaded.evidence.read(source['sha256']),original)
+        immutable={row['path']:c.read(directory/row['path']) for row in loaded.manifest['files']}
+        immutable['manifest.json']=c.read(directory/'manifest.json')
+        contract=c.load(directory/'request-contract.json')
+        carriers=[c.read(Path(row['path'])) for row in contract['media']]
+        edit()
+        changed=c.read(self.root/path);self.assertNotEqual(changed,original)
+        self.assertFalse(self.check()['ok'])
+        with patch.object(transport,'send',wraps=transport.send) as sender, \
+             patch.object(transport,'upload_media',wraps=transport.upload_media) as upload:
+            result=self.execute(run)
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual(sender.call_count,1);self.assertEqual(upload.call_count,3)
+        self.assertEqual([row.args[0] for row in upload.call_args_list],carriers)
+        [journal]=list((self.root/'runs').glob('*/request-contract.json'))
+        self.assertEqual(c.load(journal)['request_sha256'],contract['request_sha256'])
+        receipts=[c.load(journal.parent/f'upload-{index+1:03d}.json') for index in range(3)]
+        wire=sender.call_args.args[0]
+        expected=copy.deepcopy(contract['request']);expected['request_id']=wire['request_id']
+        expected['seed_image'],expected['mask_image']=receipts[0]['provider_id'],receipts[1]['provider_id']
+        expected['inputs']['references'][0]=receipts[2]['provider_id']
+        self.assertEqual(wire,expected)
+        report=result['runs'][0];self.assertEqual(report['freshness_diagnostics'],[])
+        [notice]=[row for row in report['freshness_notices'] if row['code']=='SOURCE_CHANGED' and row['file']==path]
+        self.assertEqual((notice['severity'],notice['expected'],notice['actual']),
+                         ('warning',c.digest(original),c.digest(changed)))
+        self.assertEqual(c.read(self.root/path),changed)
+        for name,raw in immutable.items():
+            self.assertEqual(c.read(directory/name),raw,name)
+    def test_changed_region_keeps_saved_execution(self):
+        self.assert_saved_execution_after_edit('front.png',
+            lambda:Image.new('L',(32,32),255).save(self.root/'front.png'))
+    def test_changed_review_keeps_saved_execution(self):
+        def edit():
+            review=c.load(self.root/'mask-review.json');review['verdict']='reject';self.write('mask-review.json',review)
+        self.assert_saved_execution_after_edit('mask-review.json',edit)
+    def test_changed_mask_keeps_saved_execution(self):
+        self.assert_saved_execution_after_edit('masks/a/mask.png',
+            lambda:Image.new('L',(32,32),255).save(self.root/'masks/a/mask.png'))
     def test_optional_guidance_is_not_fabricated(self):
         binding=c.load(self.root/'mask-binding.json');binding['guidance']=None;self.write('mask-binding.json',binding)
         run=self.prepare();contract=c.load(self.directory(run)/'request-contract.json')

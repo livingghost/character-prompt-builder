@@ -1,6 +1,7 @@
 """Current low-level request and formal-event boundaries; no network generation."""
 from __future__ import annotations
 import copy
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -168,22 +169,26 @@ class BoundaryTests(unittest.TestCase):
         def compare(*args, **kwargs):
             comparisons.append(True)
             return original_notices(*args, **kwargs)
+        original_send = transport_synthetic.send
+        def send_saved(*args, **kwargs):
+            self.assertEqual(comparisons, [])
+            return original_send(*args, **kwargs)
         token = operations._CURRENT.set(None)
         try:
             with patch.object(runtime_snapshot, 'acquire_runtime', side_effect=observe), \
                  patch.object(runtime_snapshot, 'current_notices', side_effect=compare), \
-                 patch.object(transport_synthetic, 'send', wraps=transport_synthetic.send) as send:
+                 patch.object(transport_synthetic, 'send', side_effect=send_saved) as send:
                 result = execution.execute(self.root, self.run, decisions_file=decision_file)
             self.assertTrue(result['execution_completed'])
             self.assertEqual(len(forced), 1)
             self.assertEqual(send.call_count, 1)
-            # The claim transaction and returned status each inspect current
-            # inputs; the external step performs its own forced acquisition.
-            self.assertLessEqual(len(comparisons), 5)
+            # Only the returned navigation report compares current drafts;
+            # the effect boundary verifies the saved runtime instead.
+            self.assertEqual(len(comparisons), 1)
         finally:
             operations._CURRENT.reset(token)
 
-    def test_draft_execution_checks_live_sources_once(self):
+    def test_draft_execution_uses_the_prepared_request_without_reading_live_sources(self):
         import runtime_snapshot
         original_notices = runtime_snapshot.current_notices
         compared = []
@@ -193,7 +198,7 @@ class BoundaryTests(unittest.TestCase):
         with patch.object(runtime_snapshot, 'current_notices', side_effect=compare):
             drafted = execution.draft_execution(self.root, self.run, 'fixture-grant')['choices']
         self.assertEqual(len(drafted['decisions']), len(self.data[6]['operations']))
-        self.assertEqual(len(compared), 1)
+        self.assertEqual(compared, [])
 
     def test_nested_rollback_rechecks_sources_left_changed_by_the_interrupted_writer(self):
         import runtime_snapshot
@@ -208,16 +213,30 @@ class BoundaryTests(unittest.TestCase):
                     self.assertEqual(workflow.read_run(self.root, self.run).rows[-1]['event'], 'abandoned')
                     raise RuntimeError('synthetic interrupted writer')
             self.assertEqual(workflow.read_run(self.root, self.run).rows, [])
-            with self.assertRaises(ProductionError) as caught:
-                workflow.assert_current(self.root, self.run)
-            self.assertEqual(caught.exception.diagnostic.code, 'SOURCE_CHANGED')
+            workflow.assert_current(self.root, self.run)
+            failures, notices = workflow.freshness(self.root, self.run)
+            self.assertEqual(failures, [])
+            [notice] = [item for item in notices if item['code'] == 'SOURCE_CHANGED']
+            self.assertEqual((notice['file'], notice['severity']), ('prompt.txt', 'warning'))
+
+    def assert_saved_request_sent(self, send, result):
+        self.assertEqual(send.call_count, 1)
+        expected = copy.deepcopy(self.data[5]['request'])
+        actual = send.call_args.args[0]
+        # The synthetic transport fills this declared management field once.
+        expected['request_id'] = actual['request_id']
+        self.assertEqual(actual, expected)
+        self.assertTrue(result['execution_completed'])
+        report = result['runs'][0]
+        self.assertEqual(report['readiness'], 'ready')
+        self.assertEqual(report['freshness_diagnostics'], [])
+        self.assertIn(('SOURCE_CHANGED', 'warning'),
+                      [(row['code'], row['severity']) for row in report['freshness_notices']])
 
     def source_changed_after_preflight(self, *, preauthorized: bool) -> None:
         decision_file = decisions(self.root, self.run)
         if preauthorized:
             execution.authorize_decisions(self.root, self.run, decision_file, self.data[1], self.data[6])
-        before = store.event_rows(self.root, self.run)
-        journals = set((self.root / 'runs').iterdir())
         original_preflight = execution.require_recording
 
         def edit_after_preflight(*args, **kwargs):
@@ -226,40 +245,56 @@ class BoundaryTests(unittest.TestCase):
             return result
 
         with patch.object(execution, 'require_recording', side_effect=edit_after_preflight), \
-             patch.object(transport_synthetic, 'send') as send:
-            with self.assertRaises(ProductionError) as caught:
-                execution.execute(self.root, self.run, decisions_file=None if preauthorized else decision_file)
-        self.assertEqual((caught.exception.diagnostic.code, caught.exception.diagnostic.file), ('SOURCE_CHANGED', 'prompt.txt'))
-        send.assert_not_called()
-        self.assertEqual(store.event_rows(self.root, self.run), before)
-        self.assertEqual(set((self.root / 'runs').iterdir()), journals)
-        self.assertFalse(any(row['event'] in {'handoff', 'dispatch-claim', 'external-step'}
-                             for row in store.event_rows(self.root, self.run)))
+             patch.object(transport_synthetic, 'send', wraps=transport_synthetic.send) as send:
+            result = execution.execute(self.root, self.run, decisions_file=None if preauthorized else decision_file)
+        self.assert_saved_request_sent(send, result)
 
-    def test_source_edited_during_preflight_is_refused_before_authorizing(self):
+    def test_source_edited_during_preflight_keeps_the_saved_request_when_authorizing(self):
         self.source_changed_after_preflight(preauthorized=False)
 
-    def test_source_edited_during_preflight_is_refused_with_existing_authorizations(self):
+    def test_source_edited_during_preflight_keeps_the_saved_request_with_existing_authorizations(self):
         self.source_changed_after_preflight(preauthorized=True)
 
-    def test_pinned_source_edited_after_claim_blocks_the_send(self):
+    def test_editable_choices_and_reading_key_do_not_replace_an_explicit_saved_request(self):
+        import production_inputs
+        draft = production_inputs.draft_inputs(self.root, 'task.json', 'work/editable')
+        self.run = workflow.prepare(self.root, choices=draft['choices_file'])['run']
+        self.data = execution.compiled(self.root, self.run)
+        prepared = self.data[1]
+        choices = self.root / draft['choices_file']
+        authored = c.load(choices)
+        # Formatting and a new context's reading selection belong to the
+        # editable draft; neither changes the request selected by run ID.
+        choices.write_text(json.dumps(authored, indent=4) + '\n', encoding='utf-8')
+        workflow.assert_current(self.root, self.run)
+        authored['reading']['reading_key'] = 'a-new-context-will-fill-its-own-reading-key'
+        choices.write_bytes(c.encoded(authored))
+        source = self.root / prepared['authoring']['source_map']['authoring.delivery']['file']
+        source.unlink()
+        approved = decisions(self.root, self.run)
+        with patch.object(transport_synthetic, 'send', wraps=transport_synthetic.send) as send:
+            result = execution.execute(self.root, self.run, decisions_file=approved)
+        self.assert_saved_request_sent(send, result)
+        self.assertEqual(workflow.read_run(self.root, self.run).prepared['input_sha256'], prepared['input_sha256'])
+        self.assertTrue({draft['choices_file'], source.relative_to(self.root).as_posix()} <=
+                        {item['file'] for item in result['runs'][0]['freshness_notices']})
+
+    def test_source_deleted_after_claim_keeps_the_saved_request(self):
         decision_file = decisions(self.root, self.run)
         original_claim = workflow._claim_dispatch_from
         def edit_after_claim(*args, **kwargs):
             claim = original_claim(*args, **kwargs)
-            (self.root / 'prompt.txt').write_text('A prompt edited after the claim.\n', encoding='utf-8')
+            (self.root / 'prompt.txt').unlink()
             return claim
         with patch.object(workflow, '_claim_dispatch_from', side_effect=edit_after_claim), \
-             patch.object(transport_synthetic, 'send') as send:
-            with self.assertRaises(ProductionError) as caught:
-                execution.execute(self.root, self.run, decisions_file=decision_file)
-        self.assertEqual((caught.exception.diagnostic.code, caught.exception.diagnostic.file), ('SOURCE_CHANGED', 'prompt.txt'))
-        send.assert_not_called()
+             patch.object(transport_synthetic, 'send', wraps=transport_synthetic.send) as send:
+            result = execution.execute(self.root, self.run, decisions_file=decision_file)
+        self.assert_saved_request_sent(send, result)
         rows = store.event_rows(self.root, self.run)
         self.assertTrue(any(row['event'] == 'dispatch-claim' for row in rows))
-        self.assertFalse(any(row['event'] == 'external-step' for row in rows))
+        self.assertEqual(len([row for row in rows if row['event'] == 'external-step']), 1)
 
-    def test_source_edited_during_the_send_blocks_the_returned_status(self):
+    def test_source_edited_during_the_send_is_reported_without_blocking_the_saved_run(self):
         decision_file = decisions(self.root, self.run)
         original_send = transport_synthetic.send
         def edit_during_send(*args, **kwargs):
@@ -267,13 +302,9 @@ class BoundaryTests(unittest.TestCase):
             return original_send(*args, **kwargs)
         with patch.object(transport_synthetic, 'send', side_effect=edit_during_send) as send:
             result = execution.execute(self.root, self.run, decisions_file=decision_file)
-        self.assertEqual(send.call_count, 1)
-        report = result['runs'][0]
-        self.assertEqual(report['readiness'], 'blocked')
-        self.assertIn('SOURCE_CHANGED', [row['code'] for row in report['freshness_diagnostics']])
+        self.assert_saved_request_sent(send, result)
 
-    def refused_external_claim(self, change) -> tuple[str, object]:
-        """Claim an external run while `change(run)` runs right after the claim row; return the run and refusal."""
+    def prepared_external_claim(self) -> tuple[str, str]:
         import production_fixtures as fixture
         task = c.load(self.root / 'task.json')
         task['execution'] = 'external'
@@ -285,6 +316,11 @@ class BoundaryTests(unittest.TestCase):
         run = workflow.prepare(self.root, 'task.json')['run']
         fixture.handoff(self.root, run, 'synthetic external host', 'manual')
         token = fixture.grant(self.root, run, workflow.external_intent(self.root, run, 1))
+        return run, token
+
+    def refused_external_claim(self, change) -> tuple[str, object]:
+        """Refuse saved-artifact damage applied just after an external claim row."""
+        run, token = self.prepared_external_claim()
         original_commit = accounting.commit_effect
         def change_after_commit(*args, **kwargs):
             row = original_commit(*args, **kwargs)
@@ -297,11 +333,23 @@ class BoundaryTests(unittest.TestCase):
         self.assertFalse(events & {'external-claim', 'external-step'})
         return run, caught.exception.diagnostic
 
-    def test_source_edited_inside_the_external_claim_blocks_the_send_boundary(self):
-        def edit(run):
+    def test_source_edited_inside_the_external_claim_keeps_the_saved_request(self):
+        run, token = self.prepared_external_claim()
+        before = workflow.read_run(self.root, run).consumer
+        original_commit = accounting.commit_effect
+        def edit_after_commit(*args, **kwargs):
+            row = original_commit(*args, **kwargs)
             (self.root / 'brief.md').write_text('A brief edited inside the claim transaction.\n', encoding='utf-8')
-        _, diagnostic = self.refused_external_claim(edit)
-        self.assertEqual((diagnostic.code, diagnostic.file), ('SOURCE_CHANGED', 'brief.md'))
+            return row
+        with patch.object(accounting, 'commit_effect', side_effect=edit_after_commit):
+            claim = workflow.claim_external(self.root, run, 1, token)
+        loaded = workflow.read_run(self.root, run)
+        self.assertEqual(loaded.consumer, before)
+        self.assertEqual(claim['data']['external_request_sha256'], before['image_input']['external_request']['sha256'])
+        self.assertEqual(len([row for row in loaded.rows if row['event'] == 'external-step']), 1)
+        failures, notices = workflow.freshness(self.root, run)
+        self.assertEqual(failures, [])
+        self.assertIn(('SOURCE_CHANGED', 'brief.md'), [(item['code'], item.get('file')) for item in notices])
 
     def test_run_object_corrupted_inside_the_external_claim_blocks_the_send_boundary(self):
         def corrupt(run):

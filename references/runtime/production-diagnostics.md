@@ -1,54 +1,22 @@
 # Production diagnostics
 
-Use these exit statuses and diagnostic codes to resolve a reported failure at its owning input. A successful structural check establishes neither artistic success nor permission.
+Use [diagnostic navigation](production-diagnostic-navigation.md) for exit statuses and the complete report-handling contract. This catalog owns the conditions and repairs of individual codes; consult the reported code when a failure occurs.
 
-## Exit codes
-
-`production_workflow.py`, the package builder, the verifier, the dispatcher preview, `production_binding.py`, `adoption_workflow.py` and `studio_reference.py` share these exit statuses.
-Each diagnostic code selects one; [Diagnostic codes](#diagnostic-codes) lists the codes by family.
-
-| Exit | Meaning | Examples |
-|---|---|---|
-| 0 | Success. | none |
-| 2 | Input defect: a declared input, a stored record or an argument needs correcting. Every code not listed for 3 or 4 exits 2. | `INPUT_UNREADABLE`, `SOURCE_CHANGED`, `IMPLEMENTATION_CHANGED` |
-| 3 | Waiting for permission or configuration. | `AUTHORIZATION_REQUIRED`, `GRANT_SCOPE_EXCEEDED`, `CREDENTIAL_UNAVAILABLE` |
-| 4 | Execution failure, or an outcome that is not known yet. | `REMOTE_OUTCOME_UNKNOWN`, `PROVIDER_REJECTION`, `ARTIFACT_PUBLISH_FAILED` |
-| 1 | Unexpected internal error. | none |
-| 130 | Interrupted. | none |
-
-A failed result with several error diagnostics exits with the first of 2, 4 and 3 that applies.
-Warnings and `CHECK_NOT_PERFORMED` do not choose the status.
-`execute` or `resume` that returns `ok: false` without an error diagnostic exits 4.
-A synthetic `execute` without a decision file exits 3 and prints (trimmed):
-
-```json
-{"ok": false, "diagnostics": [{"code": "AUTHORIZATION_REQUIRED", "severity": "error", "phase": "authorization",
-  "pointer": "$.operations.direction", "message": "No exact authorization covers this prepared operation.",
-  "required_action": "Fill the execution decision file from the actual approval or delegation, then execute with --decisions-file.",
-  "expected": ["decision:expression", "purpose"], "actual": []}]}
-```
 ## Diagnostic codes
-
-Every failure after argument parsing prints a JSON object with `ok: false` and `diagnostics`.
-Each diagnostic has `code`, `severity`, `phase`, `file`, `pointer`, `message`, `required_action` and `blocked_checks`. A phase or producing contract with a declared owner also supplies `guidance`; unmapped phases omit it.
-When present, `guidance.document_path` identifies that owning document and section. `guidance.schema` names the schema when the check declares one; specification diagnostics include an optional `guidance.validation` action with executable `argv`, quoted `command` and `reason`. The action runs the same validator on the named specification alone. It is available for a focused correction, and is not an additional prerequisite for `check` or `prepare`.
-The compiler reports each structural defect of every declared external specification in one result, including when a separate request binding fails. Only checks that depend on an invalid source wait for its correction. Each specification diagnostic names that source file and its field, rather than the enclosing task file.
-Some add `run`, `expected`, `actual` or other details.
-Exit 2 applies unless a row says otherwise.
 
 **Input and stored records**
 
 | Code | Reports |
 |---|---|
 | `INPUT_ARGUMENT_INVALID` | The arguments do not match the command. The usage goes to stderr, and the operation log records this code. `logs-cleanup` prints it for an invalid date or selector, and `resume` for `--interval` or `--limit` given without `--watch` or with a value that is not a positive number of seconds. |
-| `INPUT_SCHEMA_INVALID` | A JSON input breaks its schema. |
+| `INPUT_SCHEMA_INVALID` | A JSON input breaks its schema. Closed-object errors include the complete permitted property list from that schema. The diagnostic guidance names the actual schema; `production_document_contracts.py explain NAME` exposes its required fields, nested schema pointers, examples and validation command. |
 | `INPUT_UNREADABLE` | A declared input or the task cannot be read; adds `file`, `pointer` and `cause`, and `line` for a JSONL line that is not one JSON value. `required_action` gives the repair that fits the cause, as for `EVIDENCE_CAPTURE_FAILED`. An authoring report also gives it, with `field`, for an editable file that the choices select, a declared task source or an authored target file that cannot be read as selected. |
 | `INPUT_CONSISTENCY_ERROR` | Inputs contradict each other or a contract they must satisfy. In phase `semantic-edit` it reports a task whose edit plan has no image input, a scene reference whose bytes no applied `accepted-source` of the task holds (`reference`, `reference_sha256` and `accepted_sources`), or review criteria the task does not declare (`criteria`); `required_action` names the task source or the plan field to correct. `draft-inputs` reports it in phase `authoring` for selectors that do not start one draft, such as `--edit-character` without `--edit-slot`, an edit with `--task`, `--from-run`, another route or execution, or an upscale option, an edit slot without a current accepted image, an edit with no open work task and no `--new-task`, and an upscale selector outside `--route upscale`; `required_action` gives the selector to use. |
 | `PROMPT_DELIVERY_MISMATCH` | The exact external prompt text differs from its delivery source. Reports both files, the request field, newline counts and whether line endings alone differ. Use `build-inputs` to derive both from the delivery; manual UTF-8 byte writes preserve LF across platforms. |
 | `CHECK_NOT_PERFORMED` | A check did not run because a prerequisite did not pass; `blocked_by` names the prerequisites it waits for. When one of them did not run either, `failed_prerequisites` names the failed checks behind it. `required_action` names the failed one to resolve first, by its own diagnostic in the same report; the check runs once that passes. The entry of phase `compilation` names in `blocked_by` the phases of the errors that stop the compilation. |
-| `SOURCE_CHANGED` | A source differs from the bytes read or pinned earlier, or a pinned live source can no longer be read. `resume --outcome-file` reports it when the statement's evidence file differs from the digest the statement declares, or changed while it was read. |
+| `SOURCE_CHANGED` | A newly selected source differs from the bytes read or pinned earlier, or cannot be read during acquisition; preparation and newly selected evidence can fail for this reason. A prepared run's status reports later changes or removal of the originals as a warning in `freshness_notices`; its saved request and media remain executable. `resume --outcome-file` reports an error when the newly supplied statement's evidence differs from its declared digest or changes while it is read. |
 | `TASK_CHANGED` | The task names another work task than the open one, or the open work task changed during preparation. In the first case `expected` is the open work task and `actual` the one the task names; `file` and `pointer` locate it when the task is a Studio file. In the second, `expected` is the work task that was open when preparation started and `actual` the one open now; run the same command again. |
-| `STUDIO_REFERENCE_CHANGED` | The exact Studio selection that the run bound is no longer current, or its evidence cannot be verified; `cause` gives the difference. A `studio-artifact` source binds canonical adoption, while a `studio-accepted-image` source binds Studio acceptance for scene use. Replacement, withdrawal of the selected adoption, or relocation can invalidate that selected source. Select and assess the current source before preparing a new request. `resume` still recovers an already sent run from retained proof. |
+| `STUDIO_REFERENCE_CHANGED` | The current Studio selection differs from the captured selection, or its current evidence cannot be verified; `cause` gives the difference. A `studio-artifact` source binds canonical adoption, while a `studio-accepted-image` source binds Studio acceptance for scene use. A prepared run reports replacement, withdrawal or relocation as a provenance warning and uses its saved source and carrier bytes. Selecting a source for new preparation still checks its current eligibility. Saved evidence corruption and current authority revocation have their own blocking diagnostics. |
 | `UPLOAD_SOURCE_INVALID` | An `upload_sources` entry of the task is not `{"file", "url"}`, repeats a file, names a file that cannot be read or that matches no prepared carrier, gives a URL that is not https (http only on a loopback address) or that carries credentials, a fragment or whitespace, or gives one carrier two URLs. `pointer` names the entry's `file` or `url`; a carrier mismatch lists `carriers`. |
 | `UPLOAD_SOURCE_REQUIRED` | The transport takes uploads by URL, and a prepared media carrier has no `upload_sources` entry; `carriers` lists each one. Select its exact file and URL in `upload_sources`. |
 | `PROMPT_SYNTAX_SELECTION_REQUIRED` | The interfaces an authored text can target use different prompt grammars. Select the service or execution mode at `$.authored.target`, then check the text again. |
@@ -245,7 +213,7 @@ The compiler reports problems of the continuity record in the `visual-continuity
 | Code | Reports |
 |---|---|
 | `CHANGES_UNKNOWN_FIELD` | A changed field is not declared mutable. |
-| `CHANGES_TYPE_INVALID` | A changed value breaks the field's schema. |
+| `CHANGES_TYPE_INVALID` | A changed value breaks the field's schema. `expected` gives that schema; its references resolve under `schemas/`. Task-owned fields use the current complete task schema. Correct the value in `--changes-file` and rerun `variant`. |
 | `CHANGES_NO_OP` | A changed value equals the current one; use `repeat` for another run. |
 | `CHANGES_CONFLICT` | The changes set both a complete specification and its execution-mode field. |
 | `CHANGES_PATH_INVALID` | A `{"path": ...}` value names a missing or unreadable document. |

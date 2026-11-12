@@ -97,8 +97,8 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
                 'prompt_syntax': {'default': 'literal', 'control': None}}
             external['request'] = {'width': 32, 'height': 32, 'inputs': {'references': [None]}}
             external['media_slots'] = [['inputs', 'references', 0]]
-        choices['authoring']['documents']['production_spec']['render_intent']['prompt_expression'] = \
-            'its flat graphic finish'
+        with cases.edit_document(self.root, choices, 'production_spec') as specification:
+            specification['render_intent']['prompt_expression'] = 'its flat graphic finish'
         plan_path = self.root / choices['task_changes']['semantic_edit']
         plan = c.load(plan_path)
         plan['edit'].update(target='background behind the robot',
@@ -121,7 +121,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
                          [('edit-source', path, 'accepted-source', 'applied')])
         self.assertEqual(result['edit_source']['source'], source)
         self.assertEqual(result['edit_source']['origin'], {'run': self.case['run'], 'candidate': self.case['candidate']})
-        specification = authored['documents']['production_spec']
+        specification = cases.read_document(self.root, choices, 'production_spec')
         self.assertEqual(specification['render_intent']['execution_mode'], 'instruction-edit')
         self.assertIsNone(specification['render_intent']['prompt_expression'])
         self.assertEqual([row['id'] for row in specification['subjects']], ['robot'])
@@ -161,7 +161,8 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         self.assertEqual(authored['generation']['continuity'], {'robot': 'recurring'})
         self.assertEqual(authored['task']['recording'], {'character': 'robot', 'slot': None,
             'subject_map': {'robot': 'robot'}, 'sheet_panel': None, 'role': None})
-        self.assertEqual(authored['documents']['parameters'], {'width': 32, 'height': 32, 'steps': 20})
+        self.assertEqual(cases.read_document(self.root, choices, 'parameters'),
+                         {'width': 32, 'height': 32, 'steps': 20})
         self.assertEqual(choices['validation']['mode'], 'target-schema')
         self.assert_reports_together(result, {
             'reading.reading_key', 'authoring.task.direction.purpose', 'authoring.task.direction.intended_effect',
@@ -273,7 +274,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         task['criteria'] = [{'id': 'requested-background', 'strength': 'hard', 'evidence': 'image',
                              'text': 'The visible backdrop is pale green.'}]
         task['recording'].update(slot='candidate', sheet_panel=False, role='background-edit')
-        authored['documents']['parameters'] = {'width': 32, 'height': 32, 'steps': 20}
+        cases.write_document(self.root, choices, 'parameters', {'width': 32, 'height': 32, 'steps': 20})
         import request_validation
         import runtime_evidence
         from request_validation_fixtures import fixture_validation
@@ -354,7 +355,8 @@ class AcceptedSceneEditTests(ReviewCase):
         self.assertIsNone(result['edit_source']['identity'])
         self.assertEqual(task['recording']['subject_map'], {'robot': 'robot', 'partner': 'partner'})
         self.assertEqual(authored['generation']['continuity'], {'robot': 'one-off', 'partner': 'one-off'})
-        self.assertEqual([row['id'] for row in authored['documents']['production_spec']['subjects']], ['robot', 'partner'])
+        self.assertEqual([row['id'] for row in cases.read_document(self.root, choices, 'production_spec')['subjects']],
+                         ['robot', 'partner'])
         reading = fixture_reading(route='generation', features=task['features'], studio=self.root,
             ledger=self.root / 'work/reads.jsonl', execution='dispatcher', model=cases.MODEL_ID, service='synthetic')
         choices['reading']['reading_key'] = reading['reading_key']
@@ -368,7 +370,8 @@ class AcceptedSceneEditTests(ReviewCase):
             {'id': 'participants', 'strength': 'hard', 'evidence': 'image',
              'text': 'Both source robots, their positions, camera framing and flat graphic finish remain unchanged.'}]
         task['recording'].update(slot=destination, sheet_panel=False, role='scene-edit')
-        authored['documents']['production_spec']['render_intent']['prompt_expression'] = 'flat graphic finish'
+        with cases.edit_document(self.root, choices, 'production_spec') as specification:
+            specification['render_intent']['prompt_expression'] = 'flat graphic finish'
         plan = c.load(self.root / choices['task_changes']['semantic_edit'])
         plan['edit'].update(target='scene backdrop', change='make the backdrop pale green',
                             preserve=['both source robots', 'subject positions', 'camera framing', 'flat graphic finish'])
@@ -407,7 +410,7 @@ class AcceptedSceneEditTests(ReviewCase):
         package = c.load(Path(result['package']))
         self.assertEqual(set(package['visual_continuity']['subjects']), {'robot', 'partner'})
 
-    def test_acceptance_change_during_upload_stops_before_a_new_send(self):
+    def test_acceptance_change_during_upload_preserves_saved_scene_input(self):
         import production_execution as execution
         import production_store as store
         import studio
@@ -430,13 +433,15 @@ class AcceptedSceneEditTests(ReviewCase):
             return uploaded
 
         with patch.object(transport, 'upload_media', side_effect=replace_acceptance), \
-             patch.object(transport, 'send', side_effect=AssertionError('A stale accepted scene must not be sent')) as send:
-            with self.assertRaisesRegex(ValueError, 'STUDIO_REFERENCE_CHANGED'):
-                execution.execute(self.root, run, decisions_file=approved)
-        self.assertEqual(send.call_count, 0)
+             patch.object(transport, 'send', wraps=transport.send) as send:
+            result = execution.execute(self.root, run, decisions_file=approved)
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(send.call_count, 1)
+        self.assertIn('STUDIO_REFERENCE_CHANGED',
+                      [item['code'] for item in result['runs'][0]['freshness_notices']])
         operations = [row['data']['operation'] for row in store.event_rows(self.root, run)
                       if row['event'] == 'external-step']
-        self.assertEqual(operations, ['upload'])
+        self.assertEqual(operations, ['upload', 'send', 'delete'])
         directory, saved, _, _ = workflow.load_run(self.root, run)
         self.assertIn(source, saved['studio_reference_sources'])
         proof = next(directory.glob('package.*.references/studio/' + source['proof_sha256'] + '/proof.json'))

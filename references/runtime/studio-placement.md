@@ -11,6 +11,10 @@ recording destination was mistaken. A different destination can also be an
 intentional choice for an edited variant. The edit source and the result's
 destination need not be the same slot.
 
+Select feature `studio-placement` when reading the route for this correction.
+The feature delivers this complete placement contract; ordinary image creation
+uses the Studio contract without selecting a placement change.
+
 ## Draft the exact correction
 
 Read `studio.py status` for current placement and acceptance. A moved image

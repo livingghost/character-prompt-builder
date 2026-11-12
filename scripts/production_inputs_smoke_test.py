@@ -22,6 +22,112 @@ import route_reading as reading
 from private_state import PrivateStateError
 
 
+class EditableChoiceAcquisitionTests(unittest.TestCase):
+    """Decoded choices and their evidence belong to the same authored revision."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.path = self.root / 'choices.json'
+        self.choices = {'target': None, 'reading': None, 'visual': None,
+                        'validation': None, 'task_changes': {'direction': {'purpose': 'First revision.'}},
+                        'external': None}
+        self.path.write_bytes(c.encoded(self.choices))
+
+    def load(self, reader, *, register=True):
+        return tool._load_editable(self.root, self.path.name, reader, register=register)
+
+    def test_edit_between_decoding_and_capture_cannot_record_a_different_revision(self):
+        changed = copy.deepcopy(self.choices)
+        changed['task_changes']['direction']['purpose'] = 'Second revision.'
+        changed_raw = c.encoded(changed)
+        read = c.read
+        for register in (False, True):
+            with self.subTest(register=register):
+                self.path.write_bytes(c.encoded(self.choices))
+                reader = InputEvidence(self.root)
+                edited = False
+
+                def edit_after_read(path, *args, **kwargs):
+                    nonlocal edited
+                    raw = read(path, *args, **kwargs)
+                    if path == self.path and not edited:
+                        edited = True
+                        self.path.write_bytes(changed_raw)
+                    return raw
+
+                with patch.object(c, 'read', side_effect=edit_after_read):
+                    with self.assertRaisesRegex(ValueError, 'input reference bytes differ'):
+                        self.load(reader, register=register)
+                self.assertTrue(edited)
+                self.assertEqual(reader.snapshots, {})
+                self.assertEqual(self.path.read_bytes(), changed_raw)
+
+    def references(self):
+        self.choices['external'] = {'image_input': {'references': [
+            {'id': 'chosen-use', 'file': 'first.png', 'role': 'palette'},
+            {'file': 'second.png', 'role': 'geometry'}]}}
+        self.path.write_bytes(c.encoded(self.choices))
+
+    def test_assigned_reference_ids_are_saved_captured_and_reused(self):
+        self.references()
+        reader = InputEvidence(self.root)
+        choices, reference, _, _ = self.load(reader)
+        raw = self.path.read_bytes()
+        rows = choices['external']['image_input']['references']
+        self.assertEqual(rows[0]['id'], 'chosen-use')
+        self.assertTrue(rows[1]['id'].startswith('reference-'))
+        self.assertNotEqual(rows[0]['id'], rows[1]['id'])
+        self.assertEqual(c.decode(raw), choices)
+        self.assertEqual(reference['sha256'], c.digest(raw))
+        self.assertEqual(reader._decode(reader.snapshots[self.path.name]), raw)
+        with patch.object(c, 'atomic', side_effect=AssertionError('unchanged choices were rewritten')):
+            again, _, _, _ = self.load(InputEvidence(self.root))
+        self.assertEqual(again, choices)
+        self.assertEqual(self.path.read_bytes(), raw)
+
+    def test_edit_after_reference_assignment_is_not_captured_as_the_assigned_revision(self):
+        self.references()
+        atomic = c.atomic
+        replacement = None
+
+        def edit_after_assignment(path, raw, **kwargs):
+            nonlocal replacement
+            atomic(path, raw, **kwargs)
+            if path == self.path:
+                changed = c.decode(raw)
+                changed['task_changes']['direction']['purpose'] = 'Later authored revision.'
+                replacement = c.encoded(changed)
+                path.write_bytes(replacement)
+
+        reader = InputEvidence(self.root)
+        with patch.object(c, 'atomic', side_effect=edit_after_assignment):
+            with self.assertRaisesRegex(ValueError, 'input reference bytes differ'):
+                self.load(reader)
+        self.assertIsNotNone(replacement)
+        self.assertEqual(reader.snapshots, {})
+        self.assertEqual(self.path.read_bytes(), replacement)
+
+    def test_selected_document_edits_are_read_as_new_authored_content(self):
+        self.choices['authoring'] = {'task': {}, 'delivery': {
+            'content': 'Synthetic prompt.', 'translation_notes': 'Use the selected prompt.'},
+            'documents': {'parameters': {'file': 'parameters.json'}}, 'generation': {},
+            'references': None, 'upscale': None, 'sources': {}, 'source_files': {}}
+        self.path.write_bytes(c.encoded(self.choices))
+        for steps in (12, 18):
+            with self.subTest(steps=steps):
+                raw = c.encoded({'steps': steps})
+                (self.root / 'parameters.json').write_bytes(raw)
+                reader = InputEvidence(self.root)
+                choices, reference, _, gaps = self.load(reader)
+                self.assertEqual(gaps, [])
+                self.assertEqual(choices['authoring']['documents']['parameters'], {'steps': steps})
+                self.assertEqual(reference['files']['parameters.json'], c.digest(raw))
+                self.assertEqual(reader._decode(reader.snapshots['parameters.json']), raw)
+                self.assertEqual(self.path.read_bytes(), c.encoded(self.choices))
+
+
 class PrivateAuthenticationInputTests(unittest.TestCase):
     """Private Studio state stops at each ordinary input publication boundary."""
     def setUp(self):
@@ -237,8 +343,20 @@ class InputToolsTests(unittest.TestCase):
     def test_caller_supplied_document_hashes_are_refused(self):
         self.choices['reading']['documents'] = []
         self.save_choices()
-        with self.assertRaises(ValueError):
-            self.build()
+        before = self.files()
+        result = self.build()
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['state'], 'draft')
+        self.assertEqual(result['inputs'], {})
+        diagnostic = result['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'INPUT_CONSISTENCY_ERROR')
+        self.assertEqual(diagnostic['file'], 'choices.json')
+        self.assertIn('$.reading', diagnostic['message'])
+        self.assertEqual(diagnostic['guidance']['schema'],
+                         'schemas/authoring/production-input-draft.schema.json')
+        self.assertFalse(result['external_effect'])
+        self.assertFalse((self.root / 'built').exists())
+        self.assertEqual(self.files(), before)
 
     def test_incomplete_continuity_names_its_field(self):
         self.choices['visual'] = {'subjects': {'person': {'continuity': None}}}
@@ -406,9 +524,9 @@ class InputToolsTests(unittest.TestCase):
         before = self.files()
         result = tool.inspect_inputs(self.root, from_run=run)
         fresh = result['source_run']['freshness']
-        self.assertFalse(fresh['current'])
+        self.assertEqual(fresh['diagnostics'], [])
         self.assertTrue({'task.json', 'delivery.txt'} <=
-            {item['file'] for item in fresh['diagnostics'] if item['code'] == 'SOURCE_CHANGED'}, fresh)
+            {item['file'] for item in fresh['notices'] if item['code'] == 'SOURCE_CHANGED'}, fresh)
         self.assertEqual(before, self.files())
 
     def test_edited_saved_draft_builds_without_reusing_authority(self):

@@ -51,7 +51,7 @@ from package import resolve_archive_path
 from package_metadata import (
     host_manifests,
     LICENSE_ID, PACKAGE_NAME, PACKAGE_VERSION,
-    GENERATED_RELEASE_ARTIFACT_NAMES, iter_release_files, load_package_metadata,
+    BINARY_RELEASE_SUFFIXES, GENERATED_RELEASE_ARTIFACT_NAMES, iter_release_files, load_package_metadata,
     pep440_version_for_calver,
     validate_skill_frontmatter_contract,
     validate_pack_gitignore_contract,
@@ -710,9 +710,18 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
     ),
     "references/runtime/production-authoring.md": (
         "# Production authoring",
-        "### Read the route to completion",
+        "### Select and read the current knowledge",
         "## Use the delivered knowledge",
-        "preserves every required source byte",
+        '`mode: "index"`',
+        "establishes no source delivery and issues no reading key",
+        "--snapshot SNAPSHOT --section SELECTOR",
+        "`actions.all` explicitly delivers every remaining required byte",
+        "A null continuation alone does not establish completion. Completion is a non-null",
+        "preserves every required byte and issues a reading only after complete",
+        "coverage and a fresh check of actual documents, resources and selected-model",
+        "whole-source hashes and the original issuance",
+        "content and resource/model scope",
+        "operation now needed, with no `--known-reading` selections",
         "same complete, paged snapshot",
     ),
     "references/runtime/narrative-development.md": (
@@ -1630,7 +1639,7 @@ def verify_release_manifest(
 
 
 def verify_release_line_endings(root: Path, metadata: Any) -> dict[str, Any]:
-    """Verify the release inventory is LF-normalized.
+    """Verify release text is LF-normalized, retaining binary assets byte-for-byte.
 
     MANIFEST records working-tree bytes and digests, so a source file left with
     CRLF yields a manifest that only reproduces on the platform that wrote it.
@@ -1645,7 +1654,11 @@ def verify_release_line_endings(root: Path, metadata: Any) -> dict[str, Any]:
         ),
         key=lambda value: value.relative_to(root).as_posix(),
     )
+    binary_files = 0
     for path in paths:
+        if path.suffix.lower() in BINARY_RELEASE_SUFFIXES:
+            binary_files += 1
+            continue
         data = path.read_bytes()
         carriage_returns = data.count(b"\r")
         if not carriage_returns:
@@ -1658,6 +1671,8 @@ def verify_release_line_endings(root: Path, metadata: Any) -> dict[str, Any]:
     return {
         "ok": not findings,
         "checked_files": len(paths),
+        "text_files": len(paths) - binary_files,
+        "binary_files": binary_files,
         "errors": findings,
     }
 
@@ -2594,7 +2609,7 @@ def validate(
         "license": LICENSE_ID,
         "ok": not errors,
         "validation_scope": (
-            "explicit release inventory, full MANIFEST integrity, LF-normalized release inventory, "
+            "explicit release inventory, full MANIFEST integrity, LF-normalized release text, "
             "lean SKILL router and authoritative documentation routing, "
             "product-release identity, versionless internal artifacts, "
             "default-pack catalog integrity and authoring conformance, direct canonical-ID integrity, "

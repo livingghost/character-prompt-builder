@@ -85,15 +85,20 @@ Select `author`, `save`, `prepare`, `execute`, `review` or `adopt` for the curre
 operation and take `authored`, `external` or `dispatcher` from the task's execution
 kind. Add the applicable specialist features. Include `--model MODEL`
 and the selected `--service SERVICE`, `--model-file FILE` for an acquired model,
-or `--dialect ID` for family-only work. The reader delivers the complete operation
-and execution contract and selected knowledge. Continue every page to its delivery record.
+or `--dialect ID` for family-only work. The reader indexes the complete operation and execution contract and selected
+knowledge. Inspect that scope, then use actions.all for complete paged delivery
+or select exact sections. Continue until reading.record is issued.
 An earlier source-delivery record alone does not supply knowledge to a new context.
-The reader returns JSON: read each `body` segment, follow `actions.continue`
-until null, and retain `reading.record`. In the same context, supply complete
+The reader returns JSON: its initial index contains no delivered source body.
+Read each `body` segment, follow `actions.continue` within a selected section and
+`actions.next` for remaining required material, and retain the issued
+`reading.record`. A null continuation alone does not establish completion. In the same context, supply complete
 prior keys with repeatable `--known-reading` or follow `context_reuse.operations`;
 the reader delivers missing or changed bodies and records their provenance.
 Fresh contexts read the applicable bodies again without discarding production work.
 
+Use the draft's `authoring_guide` and `explain-inputs --root STUDIO --choices FILE`
+to locate its editable files, schemas, logical contracts and complete examples.
 Edit the draft's files and authored choices. Task direction, independent criteria,
 source use, expression and controls stay with their responsible author. The
 compiler derives bindings, reference positions and file hashes:
@@ -228,6 +233,28 @@ display only under its complete content-dependency contract; it supplies no
 permission or validation result to an effect boundary. Author meaningful
 adoption choices once and derive their operation bindings without requiring
 manual hashes or intermediate authorization documents.
+
+Make first input authoring possible without Studio history or implementation
+inspection. Keep each selected authoring document at one editable file and
+derive its captured hashes at compilation. Expose actual schemas or logical
+validators, permitted fields, complete examples and source-aware repairs from
+the draft and public help. Required route knowledge has explicit indexed scope;
+indexes and partial sections never certify complete delivery.
+
+Describe content checks by the bytes and operation they actually cover. Local
+hashes and event records establish comparisons with a recorded baseline, not
+authenticated issuance or user signatures. Keep editable choices, retained
+revisions and actual authority distinct. Correct an inconsistent read at its
+owner; additional gates or duplicated author input need a demonstrated purpose
+and a cost proportionate to the failure they address.
+
+An explicitly selected prepared run executes its saved revision. Changes to
+editable choices, reading records, original files or current Studio placement
+are navigation and impact information, not a reason to require restoration of
+the originals. New preparation acquires the selected revision; a variant,
+repeat or reopened draft retains the source run's meaningful saved input until
+the author replaces it. Keep current authority, saved-content validity and
+execution ownership as their own effect-boundary responsibilities.
 
 Preserve necessary requirements, authored knowledge and the material needed for
 judgment under [Writing for a reader](#writing-for-a-reader). Update producers,

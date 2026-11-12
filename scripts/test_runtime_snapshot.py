@@ -351,14 +351,16 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertIsNot(restored.runtime.file_bytes, owned.file_bytes)
         self.assertEqual(restored.runtime.read_pack(fixtures.PACK_ID, 'records/models.json'), original)
 
-        # Fixed metadata supplies no proof that current pack sources still
-        # match. Each boundary reads the current packs and reports the
-        # difference as a notice, with or without the earlier acquisition.
+        # The execution boundary uses saved pack bytes. Navigation reports
+        # current pack differences with or without earlier saved metadata.
         live = self.models.read_bytes()
         try:
             self.models.write_bytes(live + b'\n')
             current = workflow.read_current(self.root, self.run, previous_runtime=owned)
-            self.assertEqual([(item['code'], item['severity']) for item in current.notices],
+            self.assertEqual(current.runtime.read_pack(fixtures.PACK_ID, 'records/models.json'), original)
+            failures,notices=workflow.freshness(self.root,self.run,previous_runtime=owned)
+            self.assertEqual(failures,[])
+            self.assertEqual([(item['code'], item['severity']) for item in notices],
                              [('PACK_CONTENT_MISMATCH', 'warning')])
             self.assertEqual(workflow.freshness(self.root, self.run, previous_runtime=owned),
                              workflow.freshness(self.root, self.run))
@@ -754,8 +756,11 @@ class RuntimeSnapshotTests(unittest.TestCase):
             self.assertEqual((c.sha256_file(view), c.sha256_file(stored)), (item['sha256'], item['sha256']))
         self.assertEqual(self.codes(run), [])
 
-    def test_execute_hashes_only_the_live_files_the_run_uses(self):
+    def test_execution_effects_use_saved_inputs_and_navigation_compares_only_bound_live_files(self):
         from collections import Counter
+        import execution_lifecycle
+        import live_source_read
+        import route_reading
         decision_file = decisions(self.root, self.run)
         bound = {((self.case['pack'] if row['pack'] == fixtures.PACK_ID else ROOT / 'packs' / 'commons') / row['path']).resolve()
                  for row in runtime_snapshot.dependencies(self.descriptor['binding'])}
@@ -765,6 +770,8 @@ class RuntimeSnapshotTests(unittest.TestCase):
         original = store.stable_bytes
         original_pack = pack_manager.sha256_file
         original_current=runtime_snapshot.current_notices
+        original_step=execution_lifecycle.begin_step
+        checked_steps=[]
         def counted(root,relative,*args,**kwargs):
             resolved = (Path(root)/relative).resolve()
             if any(root in resolved.parents for root in live_roots):
@@ -781,10 +788,17 @@ class RuntimeSnapshotTests(unittest.TestCase):
             boundaries.append(active)
             try:return original_current(*args,**kwargs)
             finally:active=previous
+        def saved_step(*args,**kwargs):
+            checked_steps.append(kwargs['operation'])
+            with patch.object(live_source_read.LiveSourceRead,'__init__',side_effect=AssertionError('An effect does not read the current draft')), \
+                 patch.object(runtime_snapshot,'current_notices',side_effect=AssertionError('An effect does not compare current packs')), \
+                 patch.object(route_reading,'require_route_reading',side_effect=AssertionError('An effect uses the saved preparation reading')):
+                return original_step(*args,**kwargs)
         with patch.dict(os.environ, {'CPB_HOME': str(self.base / 'home')}), \
              patch.object(store, 'stable_bytes', side_effect=counted), \
              patch.object(pack_manager, 'sha256_file', side_effect=counted_pack), \
-             patch.object(runtime_snapshot,'current_notices',side_effect=current_boundary):
+             patch.object(runtime_snapshot,'current_notices',side_effect=current_boundary), \
+             patch.object(execution_lifecycle,'begin_step',side_effect=saved_step):
             operation, token = self.operation('bounded-execute')
             try:
                 result = execution.execute(self.root, self.run, decisions_file=decision_file)
@@ -793,11 +807,11 @@ class RuntimeSnapshotTests(unittest.TestCase):
                 operations._CURRENT.reset(token)
         self.assertTrue(result['execution_completed'])
         self.assertEqual(rescans, [])
+        self.assertEqual(checked_steps,['send'])
         self.assertTrue(set(hashed) <= bound, set(hashed) - bound)
-        # Every actual current-input boundary owns one pass over exactly the
-        # bound live files. A separate boolean comparison cache must not hide
-        # an intervening edit from a later transaction or returned status.
-        self.assertTrue(boundaries)
+        # The returned navigation report makes one current comparison. Each
+        # effect above instead verifies the actual saved request and runtime.
+        self.assertEqual(len(boundaries),1)
         self.assertEqual(sum(map(len,boundaries)),len(hashed))
         for boundary in boundaries:
             self.assertEqual(Counter(boundary),Counter({path:1 for path in bound}))
@@ -822,7 +836,7 @@ class ForcedReadBoundaryTests(unittest.TestCase):
                     with self.assertRaisesRegex(OSError, 'Synthetic discovery failure'):
                         runtime_snapshot.current_diagnostics(root, descriptor)
 
-    def test_failed_source_force_cannot_reuse_the_previous_success(self):
+    def test_each_navigation_comparison_observes_source_edits_without_blocking_saved_input(self):
         import route_reading
         from production_read_model import RunSnapshot
         with tempfile.TemporaryDirectory() as temporary:
@@ -836,11 +850,18 @@ class ForcedReadBoundaryTests(unittest.TestCase):
             with runtime_snapshot.public_call(), patch.object(workflow, 'read_run', return_value=loaded), \
                  patch.object(route_reading, 'require_route_reading'):
                 workflow.assert_current(root, 'synthetic-run')
+                self.assertEqual(workflow.freshness(root, 'synthetic-run'), ([], []))
                 source.write_bytes(b'changed synthetic source')
-                with self.assertRaisesRegex(ProductionError, 'SOURCE_CHANGED'):
-                    workflow.assert_current(root, 'synthetic-run', force=True)
-                with self.assertRaisesRegex(ProductionError, 'SOURCE_CHANGED'):
+                workflow.assert_current(root, 'synthetic-run', force=True)
+                for removed in (False, True):
+                    if removed:
+                        source.unlink()
                     workflow.assert_current(root, 'synthetic-run')
+                    failures, notices = workflow.freshness(root, 'synthetic-run')
+                    self.assertEqual(failures, [])
+                    [notice] = notices
+                    self.assertEqual((notice['code'], notice['severity']), ('SOURCE_CHANGED', 'warning'))
+                    self.assertEqual(notice['actual'], None if removed else c.sha256_file(source))
 
     def test_failed_registration_force_cannot_return_the_previous_run(self):
         from execution_lifecycle import ReplayState

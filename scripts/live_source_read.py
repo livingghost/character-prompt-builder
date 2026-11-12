@@ -1,4 +1,4 @@
-"""The exact source bytes acquired by one current-input check boundary."""
+"""Current authoring bytes acquired for one navigation comparison."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -105,10 +105,11 @@ def _acquire_root(root: Path, paths: set[str]) -> dict[str, SourceBytes | Except
 
 
 class LiveSourceRead:
-    """Eager input ownership for a single transaction or external boundary.
+    """Own the current declared source bytes for a navigation observation.
 
-    Consumers can read only the declared set. A subsequent boundary constructs
-    a new owner and reads current bytes; there is no lookup by age or revision.
+    Consumers can read only the declared set. Another observation reads new
+    bytes, without an age or revision cache. A prepared execution reads its
+    saved input objects instead and does not construct this current-draft view.
     """
 
     def __init__(self,root:Path,skill_root:Path,dependencies):
@@ -120,7 +121,7 @@ class LiveSourceRead:
     @staticmethod
     def _take(values:dict,path:str) -> SourceBytes:
         try:found=values[path]
-        except KeyError as exc:raise ValueError('source was not declared for this current-input check: '+path) from exc
+        except KeyError as exc:raise ValueError('source was not declared for this current-draft comparison: '+path) from exc
         if isinstance(found,Exception):raise found
         return found
 

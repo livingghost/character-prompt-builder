@@ -16,6 +16,19 @@ The command response keeps that editing document under `choices`, alongside
 Only `choices` is written to `--out`. The returned execute action names that
 exact file.
 
+Inspect the decision fields or check the file's structure independently:
+
+```sh
+python scripts/production_document_contracts.py explain execution_decisions
+python scripts/production_document_contracts.py validate execution_decisions STUDIO/decisions.json
+```
+
+This reports `validation_scope: "document-shape"`: it runs the same schema
+check used by the decision owner. It does not inspect the prepared run, current
+grants, operation order or the recorded judgments. Those checks remain at the
+authorized execution boundary. `check --choices` validates production inputs
+and does not consume an execution decision file.
+
 The requirements list every operation, its complete target set, current grant
 candidates and their missing scope. An unanswered grant selector uses its sole
 eligible candidate; several eligible candidates remain an explicit choice.

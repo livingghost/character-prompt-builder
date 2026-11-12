@@ -41,11 +41,20 @@ ordinary content-addressed object store after checking its recorded hash.
 It also archives accepted Studio proofs and every transitive
 artwork, provenance and approval file through the existing Studio reference
 owner. The run stores these under `image-input.references/studio/` and in its
-ordinary snapshot object store. Recorded proof verification needs no live
-adoption after a call; a new send still checks the current accepted source.
-Historical review uses the saved source and carrier bytes even after their
-live files move. Preparation establishes the chosen input; the submission
+ordinary snapshot object store. The prepared run uses that saved source
+selection and its captured proof for execution and review. Later source edits,
+withdrawn placement or changed acceptance do not rewrite this selection. A new
+preparation resolves the eligibility of its newly selected references.
+Execution and review use saved source and carrier bytes even after their live
+files move. Preparation establishes the chosen input; the submission
 records establish the actual call and its transmitted media.
+
+External local-file transports are explicit in the request mapping through
+`local_file: true`. The host request receives paths to the captured carrier
+bytes, including a board or rasterized rendition when selected. An opaque
+provider value retains its original value and upload evidence. Source images,
+delivered media, logical roles and board regions remain separate in the host
+view; none is inferred from a filename or substituted for another.
 
 For original supplied files, the common input directly states task-specific
 scope. `prepare_generation_references.py --image-input-plan-file` projects it

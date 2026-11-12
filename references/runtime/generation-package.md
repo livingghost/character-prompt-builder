@@ -76,7 +76,7 @@ The builder derives the rest:
 
 The first images of a new character are `undecided` exploration. Once the author accepts one as its identity, later images are `recurring`. `--character SUBJECT=CHARACTER` records a subject under its studio character, which a recurring subject needs. That character's current accepted identity images must be among the prepared references, and the builder refuses `recurring` without one. `--sheet-panel` marks an image for a character sheet panel.
 
-A refused build prints the common diagnostics and exits 2 for an input defect; [Production diagnostics](production-diagnostics.md#exit-codes) lists every exit status. Naming a document the synthetic run already holds:
+A refused build prints the common diagnostics and exits 2 for an input defect; [Production diagnostics](production-diagnostic-navigation.md#exit-codes) lists every exit status. Naming a document the synthetic run already holds:
 
 ```json
 {"ok": false, "diagnostics": [{"code": "INPUT_CONSISTENCY_ERROR", "severity": "error", "phase": "arguments",
@@ -183,7 +183,7 @@ The preview refuses:
 
 - a package bound to no prepared run (`EXECUTION_NOT_APPLICABLE`);
 - a package or recording target that differs from the sealed run (`INPUT_CONSISTENCY_ERROR`);
-- a changed source (`SOURCE_CHANGED`);
+- newly supplied source arguments that differ from their declared input (`SOURCE_CHANGED`);
 - a run that already owns an execution (`DISPATCH_ALREADY_CLAIMED`).
 
 Otherwise it prints the rendering choice, a few plain lines and the exact request the service would receive. The lines name:

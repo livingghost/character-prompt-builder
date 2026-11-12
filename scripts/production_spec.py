@@ -19,7 +19,7 @@ import copy
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from state_protocol import find_non_finite_numbers, parse_json, validate_against_schema
 
@@ -137,10 +137,10 @@ def require_layout(layout: Any, *, subject_ids: set[str] | None = None) -> None:
         raise SpecificationError(errors)
 
 
-def validate(data: dict[str, Any], *, require_content: bool = False) -> dict[str, Any]:
+def _validate(data: dict[str, Any], schema: Mapping[str, Any], *, require_content: bool) -> dict[str, Any]:
     non_finite = find_non_finite_numbers(data)
     errors = [f"{path}: number must be finite" for path in non_finite]
-    for error in validate_against_schema(data, PRODUCTION_SPEC_SCHEMA):
+    for error in validate_against_schema(data, schema):
         path = error.split(":", 1)[0]
         if path in STATE_AWARE_ONLY and error.endswith("value satisfies a forbidden schema"):
             error = f"{path}: only a state-aware specification names this; the builder seals the stateless lineage"
@@ -177,10 +177,32 @@ def validate(data: dict[str, Any], *, require_content: bool = False) -> dict[str
     errors = list(dict.fromkeys(errors))
     return {
         "ok": not errors,
+        "schema": "protocols/shared-state/schemas/production-spec.schema.json",
         "errors": errors,
         "sha256": digest(data) if not non_finite else None,
         "state_mode": state_context.get("mode") if isinstance(state_context, dict) else None,
     }
+
+
+def validate(data: dict[str, Any], *, require_content: bool = False) -> dict[str, Any]:
+    """Validate the complete published specification, including its selected target."""
+    return _validate(data, PRODUCTION_SPEC_SCHEMA, require_content=require_content)
+
+
+def authored_schema(schema: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Project the published schema onto the editable specification's owned fields.
+
+    choices.target owns the selected model. Every other rule remains the same,
+    and an explicitly supplied target_model still has its declared constraints.
+    """
+    result = dict(PRODUCTION_SPEC_SCHEMA if schema is None else schema)
+    result['required'] = [key for key in result.get('required', []) if key != 'target_model']
+    return result
+
+
+def validate_authored(data: dict[str, Any], *, require_content: bool = True) -> dict[str, Any]:
+    """Check editable depiction content while compilation owns its target binding."""
+    return _validate(data, authored_schema(), require_content=require_content)
 
 
 def require(data: Any, *, require_content: bool = True) -> dict[str, Any]:
@@ -264,7 +286,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                       help="one-off, or undecided for the first images of a character that may recur; "
                            "recurring once the author has accepted an identity image")
     make.add_argument("--character", help="The studio character the subject is recorded under; needed for recurring")
-    val = sub.add_parser("validate")
+    val = sub.add_parser("validate", help="Validate the specification through its schema and relationship checks",
+                        epilog='Schema: protocols/shared-state/schemas/production-spec.schema.json. '
+                               'Inspect required and permitted fields with production_document_contracts.py explain production_spec.')
     val.add_argument("spec")
     val.add_argument("--require-content", action="store_true")
     show = sub.add_parser("show")
@@ -300,6 +324,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         diagnostic = getattr(exc, "diagnostic", None)
         action = f" {diagnostic.required_action}" if diagnostic is not None else ""
         result = {"ok": False, "errors": getattr(exc, "errors", None) or [str(exc) + action]}
+    if args.command == 'validate':
+        result['schema'] = 'protocols/shared-state/schemas/production-spec.schema.json'
+        result['file'] = str(args.spec)
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
     return 0 if not isinstance(result, dict) or result.get("ok", True) else 1
 

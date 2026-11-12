@@ -10,6 +10,7 @@ import io
 import json
 import os
 from pathlib import Path
+from contextlib import contextmanager
 
 import execution_contract as c
 import pack_manager as packs
@@ -29,6 +30,46 @@ REFERENCE_RETRY_PROMPT='A blue robot carrying a small yellow toolbox.'
 
 def write(path:Path,value)->None:
     c.atomic(path,value.encode('utf-8') if isinstance(value,str) else c.encoded(value),replace=True)
+
+
+def read_document(root: Path, choices: dict, name: str):
+    """Read the selected editable fixture document through its public selector."""
+    import production_authoring
+    selected = choices['authoring']['documents'][name]
+    path = c.local(root, selected['file'])
+    value = path.read_text(encoding='utf-8') if name in production_authoring.TEXT_DOCUMENTS and 'field' not in selected else c.load(path)
+    for part in selected.get('field', []):
+        value = value[part]
+    return value
+
+
+def write_document(root: Path, choices: dict, name: str, value) -> None:
+    """Author a fixture document in its standalone file and select it once."""
+    import production_authoring
+    documents = choices['authoring']['documents']
+    if name not in documents:
+        parent = Path(choices['authoring']['delivery']['file']).parent
+        suffix = '.txt' if name in production_authoring.TEXT_DOCUMENTS else '.json'
+        documents[name] = {'file': (parent / (name.replace('_', '-') + suffix)).as_posix()}
+    selected = documents[name]
+    path = c.local(root, selected['file'], exists=False)
+    pointer = selected.get('field') or []
+    if pointer:
+        content = c.load(path)
+        owner = content
+        for part in pointer[:-1]:
+            owner = owner[part]
+        owner[pointer[-1]] = value
+        value = content
+    write(path, value)
+
+
+@contextmanager
+def edit_document(root: Path, choices: dict, name: str):
+    """Keep a test's selected file edit explicit without copying bodies into choices."""
+    value = read_document(root, choices, name)
+    yield value
+    write_document(root, choices, name, value)
 
 
 def synthetic_profile()->dict:
@@ -301,8 +342,10 @@ def reference_retarget_case(case: dict) -> dict:
         model=ALTERNATE_MODEL_ID, service='synthetic', execution='dispatcher')
     choices['reading']['reading_key'] = reading['reading_key']
     choices['validation']['execution_policy'] = policies[ALTERNATE_MODEL_ID]
-    choices['authoring']['documents']['production_spec']['render_intent']['execution_mode'] = 'instruction-edit'
-    choices['authoring']['documents']['parameters']['steps'] = 22
+    with edit_document(root, choices, 'production_spec') as document:
+        document['render_intent']['execution_mode'] = 'instruction-edit'
+    with edit_document(root, choices, 'parameters') as document:
+        document['steps'] = 22
     write(root / draft['choices_file'], choices)
     return {'parent': parent, 'parent_choices_file': authored['choices_file'],
         'choices_file': draft['choices_file'], 'inherited_choices': inherited}

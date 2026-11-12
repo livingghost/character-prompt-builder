@@ -258,7 +258,7 @@ def validate_upscale_input(root: Path, request: dict, *, input_source=None) -> N
     if request['artifact_type'] != 'upscale-request':
         raise ValueError('expected an upscale-request declaration')
     c.exact(request['source'], {'path', 'sha256'}, 'upscale source')
-    expected = upscale_request(root, c.local(root, request['source']['path']), request['model'],
+    expected = upscale_request(root, root / request['source']['path'], request['model'],
                                request['scale_factor'], request['settings'], request['guidance_prompt'],
                                request_validation=request['request_validation'], render_intent=request['render_intent'],
                                input_source=input_source)

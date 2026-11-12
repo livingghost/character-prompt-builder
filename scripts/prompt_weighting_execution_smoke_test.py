@@ -116,13 +116,38 @@ class PreparationTests(unittest.TestCase):
         self.assertFalse(audit['applied'])
         self.assertEqual(execution.compiled(self.root, result['run'])[5]['request']['negative_prompt'], fixture.NEGATIVE)
 
-    def test_native_syntax_change_invalidates_current_preparation(self):
-        self.create()
+    def test_native_syntax_change_keeps_saved_request_and_applies_to_new_preparation(self):
+        case = self.create(prompt='solo, blue eyes', negative='lettering')
         result = self.prepare()
+        run = result['run']
+        saved = workflow.read_run(self.root, run)
+        request = execution.compiled(self.root, run)[5]['request']
+        self.assertEqual(result['execution_plan']['prompt_check']['syntax'], 'compel')
         parameters = c.load(self.root / 'parameters.json'); parameters['controls']['parser'] = 'emphasis'
         base.write(self.root / 'parameters.json', parameters)
-        with self.assertRaises(ValueError):
-            execution.execute(self.root, result['run'], decisions_file=base.fill_decisions(self.root, result['run'], 'approval.json'))
+        with patch.object(transport_synthetic, 'send', wraps=transport_synthetic.send) as send:
+            done = execution.execute(self.root, run, decisions_file=base.fill_decisions(self.root, run, 'approval.json'))
+        self.assertTrue(done['execution_completed'], done)
+        self.assertEqual(send.call_count, 1)
+        sent = send.call_args.args[0]
+        self.assertEqual((sent['prompt'], sent['negative_prompt'], sent['controls']['parser']),
+                         ('solo, blue eyes', 'lettering', 'clauses'))
+        self.assertEqual(workflow.assert_current(self.root, run).prepared, saved.prepared)
+        self.assertEqual(execution.compiled(self.root, run)[5]['request'], request)
+        diagnostics, notices = workflow.freshness(self.root, run)
+        self.assertEqual(diagnostics, [])
+        self.assertIn(('SOURCE_CHANGED', 'warning', 'parameters.json'),
+                      [(item['code'], item['severity'], item['file']) for item in notices])
+
+        fixture.refresh(case)
+        current = self.prepare()
+        current_request = execution.compiled(self.root, current['run'])[5]['request']
+        self.assertNotEqual(current['run'], run)
+        self.assertEqual(current['execution_plan']['prompt_check']['syntax'], 'sdEmbeds')
+        self.assertEqual(current_request['controls']['parser'], 'emphasis')
+        self.assertEqual(current_request['prompt'], request['prompt'])
+        self.assertEqual(current_request['negative_prompt'], request['negative_prompt'])
+        self.assertEqual(execution.compiled(self.root, run)[5]['request'], request)
 
     def test_approved_send_and_resume_reuse_exact_original_text(self):
         self.create()

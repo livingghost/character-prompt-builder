@@ -70,7 +70,8 @@ def _structure(plan: Any) -> None:
                 left, right = refs[row['reference']], refs[other['reference']]
                 same_bytes = (left.get('sha256') is not None and left.get('sha256') == right.get('sha256')) or left['file'] == right['file']
                 prepared_origin = plan.get('prepared_references') is not None
-                if path != other['field'] or row['value'] != other['value'] or not (same_bytes or prepared_origin):
+                if (path != other['field'] or row['value'] != other['value']
+                        or row.get('local_file') != other.get('local_file') or not (same_bytes or prepared_origin)):
                     raise ValueError('external media fields overlap without identical bytes and value: '
                         f"reference {row['reference']!r} at {json.dumps(path, ensure_ascii=False)} conflicts with "
                         f"reference {other['reference']!r} at {json.dumps(other['field'], ensure_ascii=False)}")
@@ -380,6 +381,29 @@ def _request_image_metadata(binding: dict, source_metadata: dict) -> dict:
     return result
 
 
+def _delivery_carriers(binding: dict) -> list[dict]:
+    """Select actual delivered bytes, keeping source images distinct from boards."""
+    prepared = binding.get('prepared_reference_set')
+    if prepared is None:
+        return [{'sha256': row['sha256'], 'resolved_path': row['file']} for row in binding['references']]
+    if prepared['transport_mode'] == 'single-board':
+        return [prepared['single_board'] for _ in binding['references']]
+    return [row['transport'] for row in prepared['selected_references']]
+
+
+def _schema_media_metadata(request: Any, external: dict, image_metadata: dict) -> dict:
+    metadata = {}
+    for row in external['reference_fields']:
+        path = row['field']
+        if type(path[-1]) is int and all(isinstance(part, str) for part in path[:-1]):
+            key = '.'.join(path[:-1])
+            values = metadata.setdefault(key, [None] * len(rc.get(request, path[:-1])))
+            values[path[-1]] = image_metadata[row['reference']]
+        elif all(isinstance(part, str) for part in path):
+            metadata['.'.join(path)] = [image_metadata[row['reference']]]
+    return metadata
+
+
 def validate(plan: dict, base: Path, *, read=None) -> dict:
     """Read each input once and pin prepared provenance and exact request bytes.
 
@@ -435,8 +459,23 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
         _offering_text_fields(external, request, offering)
         if external.get('model_identity') is not None:
             evidence(external['model_identity']['evidence'])
-        for row in external['reference_fields']:
-            evidence(row['evidence'])
+        from production_store import stable_bytes
+        for row, carrier in zip(external['reference_fields'], _delivery_carriers(result), strict=True):
+            if row.get('local_file') is True:
+                selected = Path(row['value'])
+                if selected.is_absolute():
+                    try:
+                        relative = selected.relative_to(base).as_posix()
+                    except ValueError:
+                        raw_media = stable_bytes(selected.parent, selected.name)
+                    else:
+                        raw_media = file(relative)
+                else:
+                    raw_media = file(row['value'])
+                if c.digest(raw_media) != carrier['sha256']:
+                    raise ValueError('external local file differs from its selected delivery carrier: ' + row['reference'])
+            else:
+                evidence(row['evidence'])
         selector = external.get('schema')
         if selector is None:
             validation = {'mode': 'bounded-probe', 'unmeasured': ['schema-unavailable']}
@@ -448,15 +487,7 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
             if not isinstance(schema, dict):
                 raise ValueError('external schema selector must resolve to an acquired JSON Schema')
             image_metadata = _request_image_metadata(result, image_metadata)
-            metadata = {}
-            for row in external['reference_fields']:
-                path = row['field']
-                if type(path[-1]) is int and all(isinstance(part, str) for part in path[:-1]):
-                    key = '.'.join(path[:-1])
-                    values = metadata.setdefault(key, [None] * len(rc.get(request, path[:-1])))
-                    values[path[-1]] = image_metadata[row['reference']]
-                elif all(isinstance(part, str) for part in path):
-                    metadata['.'.join(path)] = [image_metadata[row['reference']]]
+            metadata = _schema_media_metadata(request, external, image_metadata)
             from model_schema_numeric import validate_against_schema, unsupported_schema_keywords
             errors = validate_against_schema(request, schema, media=metadata)
             if errors:
@@ -563,7 +594,8 @@ def revision_scopes(before: Any, after: Any) -> dict | None:
         if identity is not None:
             evidence(identity['evidence'])
         for row in external['reference_fields']:
-            evidence(row['evidence'])
+            if 'evidence' in row:
+                evidence(row['evidence'])
         vocabulary = external.pop('vocabulary_record', None)
         if vocabulary is not None:
             paths.add(vocabulary['path'])
@@ -693,13 +725,6 @@ def external_documents(root: Path, task: dict, add, *, inputs: dict | None = Non
     return {'production_specifications': specs, 'render_intents': intents}
 
 
-def require_live(root: Path, task: dict, binding: dict) -> None:
-    import production_store
-    current = task_binding(root, task, lambda base, path: production_store.stable_bytes(base, path))
-    if current != binding:
-        raise ValueError('image inputs differ from the prepared binding')
-
-
 def require_external_authority(binding: dict, grant: dict) -> None:
     from production_diagnostics import ProductionError
     validate_binding(binding)
@@ -747,7 +772,67 @@ def request_context(binding: dict) -> dict:
             'references': refs}
 
 
-def submission_evidence(binding: dict | None, selector: dict | None, read) -> dict:
+def external_delivery(binding: dict, *, run_directory: Path, read_object) -> dict:
+    """Project an external call from saved bytes through explicitly typed media fields.
+
+    Provider values remain opaque even when they look like local paths. Only a
+    field declared ``local_file: true`` receives a path to its saved carrier.
+    The saved authored request and binding remain the provenance of this call.
+    """
+    from production_evidence import inspect
+
+    validate_binding(binding)
+    external = binding['external_request']
+    if external is None:
+        raise ValueError('external delivery requires its prepared request binding')
+    request = copy.deepcopy(external['request'])
+    references, media, carriers = [], {}, _delivery_carriers(binding)
+    metadata = {}
+
+    def saved(key: str) -> tuple[str, bytes]:
+        raw = read_object(key)
+        if c.digest(raw) != key:
+            raise ValueError('saved external media checksum mismatch')
+        return str(run_directory / 'objects' / key), raw
+
+    for reference, field, carrier in zip(binding['references'], external['reference_fields'], carriers, strict=True):
+        source, _ = saved(reference['sha256'])
+        references.append({**copy.deepcopy(reference), 'file': source})
+        key = carrier['sha256']
+        if key not in media:
+            path, raw = saved(key)
+            media[key] = {'path': path, 'sha256': key, 'size': len(raw),
+                          'request_fields': [], 'media': inspect(raw, 'image')}
+        item = media[key]
+        if field['field'] not in item['request_fields']:
+            item['request_fields'].append(list(field['field']))
+        metadata[reference['id']] = {**item['media'], 'size': item['size']}
+        if field.get('local_file') is True:
+            rc.put(request, field['field'], item['path'])
+
+    # Native constraints apply to the actual field values handed to the host.
+    # Their captured evidence remains usable after authoring files change.
+    selector = external.get('schema')
+    if selector is not None and request != external['request']:
+        _, raw_schema = saved(selector['sha256'])
+        document = c.decode(raw_schema)
+        schema = rc.get(document, selector['pointer']) if selector['pointer'] else document
+        if isinstance(schema, str):
+            schema = c.decode(schema.encode('utf-8'))
+        from model_schema_numeric import validate_against_schema
+        errors = validate_against_schema(request, schema,
+            media=_schema_media_metadata(request, external, metadata))
+        if errors:
+            raise ValueError('saved external delivery violates acquired schema: ' + '; '.join(errors))
+    identity = copy.deepcopy(external.get('model_identity'))
+    if identity is not None:
+        identity['evidence']['path'], _ = saved(identity['evidence']['sha256'])
+    return {'target': copy.deepcopy(binding['model']['target']), 'request': request,
+            'request_sha256': c.content_id(request), 'references': references, 'media': list(media.values()),
+            'reference_bindings': _reference_bindings(binding, external), 'model_identity': identity}
+
+
+def submission_evidence(binding: dict | None, selector: dict | None, read, *, expected_request: Any = None) -> dict:
     """Compare an actual recorded host call, never infer sending from saved input.
 
     Evidence remains an actor-attested host record; matching proves the recorded
@@ -767,7 +852,8 @@ def submission_evidence(binding: dict | None, selector: dict | None, read) -> di
         raise ValueError('a prepared host instruction is not evidence of an actual host call')
     request = rc.get(document, selector['request_pointer']) if selector['request_pointer'] else document
     external = binding['external_request']
-    if c.content_id(request) != c.content_id(external['request']):
+    expected = external['request'] if expected_request is None else expected_request
+    if c.content_id(request) != c.content_id(expected):
         raise ValueError('recorded external call differs from the prepared request')
     identity = external.get('model_identity')
     pointer = selector['model_identity_pointer']
@@ -777,4 +863,5 @@ def submission_evidence(binding: dict | None, selector: dict | None, read) -> di
     elif pointer is not None:
         raise ValueError('request-field model identity does not declare an endpoint or tool selector')
     return {'status': 'matched-recorded-call', 'submission_sha256': selector['sha256'],
-            'image_input_sha256': binding['binding_sha256'], 'request_sha256': external['sha256']}
+            'image_input_sha256': binding['binding_sha256'], 'request_sha256': external['sha256'],
+            'submitted_request_sha256': c.content_id(expected)}

@@ -113,6 +113,44 @@ Without pack sources, combine `--state-selection-file` with either direct input.
 State eligibility covers the managed rows; other subjects require no invented history.
 The state row retains its subject assignment in the binding. The authored prompt identifies that subject through the delivered inputs.
 
+## Reference identities and coverage
+
+A reference use has one stable ID, separate from its position among delivered
+images. In editable dispatcher choices, select it at
+`authoring.references.additional_references[].id`; an explicit image-input plan
+uses `references[].id`. Give each use a distinct ID such as `keeper-face`.
+When a selection first needs an ID, the authoring builder preserves a unique
+`source.reference_id` when available, or assigns `reference-` followed by a
+UUID. Read the assigned value in the saved choices. Reordering attachments
+keeps the use ID and derives the new attachment positions.
+
+The compiled prepared reference row records that use as `reference_id`, and
+the image-input row records the same value as `id`. A supplied file's
+`source.reference_id` identifies its original source; several uses of one
+source can have different use IDs. Existing native prepared rows without an
+explicit use ID retain their declared source reference, state binding ID or
+pack artifact ID. Inspect the selected rows or the input guide when continuing
+such work; file names and attachment numbers do not assign those identities.
+
+Identity coverage adds the prefix `reference:` to the use ID when it exposes
+the source inventory. That prefix belongs to the coverage source, and is not
+added to the reference use or the `carriers[].reference` field.
+
+| Location | Synthetic value | Meaning |
+| --- | --- | --- |
+| `additional_references[].id` | `keeper-face` | Stable selected reference use |
+| Prepared row `reference_id` / image-input row `id` | `keeper-face` | The same use through preparation |
+| Identity inventory source `id` | `reference:keeper-face` | Original image and scope that identity coverage must account for |
+| Identity binding `carriers[].reference` | `keeper-face` | The selected reference carrying that identity |
+| Delivered image | `Image 1` | Current model-facing attachment position, derived from transport |
+
+For example, a binding can cite `"source": "reference:keeper-face"` and carry
+that source with `{"kind": "reference", "reference": "keeper-face", "use": "identity"}` in
+`carriers`. Use the inventory's exact source ID when selecting coverage;
+the [identity coverage contract](../character-identity-contract.md#source-to-input-and-review-coverage)
+defines the rest of that binding. Prompt wording identifies delivered images
+by their actual positions and relevant visual content.
+
 ## Bind the actual transport
 
 The following prepared-set commands apply to reference-runtime and Generation Package delivery.
@@ -216,7 +254,9 @@ stays unknown.
 
 External host interfaces follow their actual upload and deletion contracts.
 Pass a local file only when the available host interface explicitly accepts
-one; otherwise use a documented input it supports. Bind the identifier returned
+one, selecting `transport: {"local_file": true}` in the external input choices;
+the builder derives its carrier path and execution uses its saved bytes.
+Otherwise use a documented input it supports. Bind the identifier returned
 for this generation and its upload evidence in the image-input plan's
 `external_request.reference_fields`, then record the actual deletion result
 after capturing the output. A provider response and an arbitrary local image
@@ -226,8 +266,9 @@ operation needs an explicitly available interface; do not assume one exists.
 Production preparation preserves the original source images and the actual
 prepared carriers in the run. The review draft exposes both, with their
 source assignments and transformations, so later review can inspect the same
-pixels after live files move. Saved bytes remain subject to integrity checks.
-A new send validates the live prepared inputs again. Use the recorded
+pixels after live files move. A prepared run checks its saved bytes and current
+execution authority when it sends; a new preparation resolves its selected
+source eligibility. Use the recorded
 submission evidence to establish which prepared media reached the target.
 
 For prompt-artifacts, SVG-bundle, or no-reference delivery, never claim that model-visible attachments were sent. An unsupported target or missing selected transport is an explicit failure rather than silent reference omission. Targets and their observed limits are resolved from actual model records rather than fixed service names in this procedure.

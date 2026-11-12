@@ -58,7 +58,7 @@ Use the `reading_key` issued after the complete route, operation and specialist 
 | --- | --- |
 | `task` | Direction, criteria, source roles and other applicable task choices |
 | `delivery` | Exact text through `{file, field?}` or inline `content`; `translation_notes` only for a translation |
-| `documents` | Only selected specialist bodies; editable text can use `{file, field?}` selectors |
+| `documents` | Selected specialist documents at one editable `{file, field?}` source each |
 | `sources` | Text or JSON source bodies keyed by their declared source ID, with `content` and `format` |
 | `generation` | Count, seed, continuity, rendering and other declared generation choices |
 | `references` | Ordered reference choices, source authority, uses and transport choice |
@@ -68,6 +68,12 @@ Changing a declared source's body preserves its ID, role and locator while the
 builder creates the new file and updates its task reference. The original file
 stays intact. Binary source material keeps its existing selector. A source that
 is no longer selected is not copied into the new input.
+
+Use the [complete image input example](../input-authoring/README.md) for a
+filled choices document, authority, original direction, specialist documents,
+reference policy and request evidence in a Studio with no previous run.
+`explain-inputs --root STUDIO --choices FILE` locates each actual editable owner
+and its specification before writing or correcting it.
 
 The builder writes repeated file references and measured hashes. It rebuilds
 reference attachment positions and board placement from the ordered choice.

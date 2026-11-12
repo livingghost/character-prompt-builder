@@ -1,21 +1,13 @@
 {
   "after_change": {
-    "current_inputs": false,
-    "freshness_codes": [
-      "SOURCE_CHANGED"
+    "freshness_diagnostic_codes": [],
+    "freshness_notices": [
+      {
+        "code": "SOURCE_CHANGED",
+        "file": "delivery.txt",
+        "severity": "warning"
+      }
     ],
-    "integrity": "intact",
-    "next_action": {
-      "command": "prepare",
-      "reason": "This file was edited after the run was prepared. If the edit is intended, run prepare on the current files to make a new run; status --run gives the exact command. To keep this run, restore the file to its prepared content."
-    },
-    "readiness": "blocked",
-    "submission": "unclaimed",
-    "task_disposition": "open"
-  },
-  "before_change": {
-    "current_inputs": true,
-    "freshness_codes": [],
     "integrity": "intact",
     "next_action": {
       "command": "handoff",
@@ -25,6 +17,20 @@
     "submission": "unclaimed",
     "task_disposition": "open"
   },
+  "before_change": {
+    "freshness_diagnostic_codes": [],
+    "freshness_notices": [],
+    "integrity": "intact",
+    "next_action": {
+      "command": "handoff",
+      "reason": "Hand the consumer to its recipient under an exact direction authorization from handoff-intent and authorize."
+    },
+    "readiness": "ready",
+    "submission": "unclaimed",
+    "task_disposition": "open"
+  },
+  "recorded_history_retained": true,
   "reservation_count": 0,
+  "saved_input_retained": true,
   "synthetic": true
 }

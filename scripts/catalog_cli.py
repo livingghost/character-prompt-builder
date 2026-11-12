@@ -237,7 +237,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "Supported commands: search, recommend, and inspire. "
             "Each request requires request_id, command, and canonical_query. "
             "Command-specific options use the same names as the individual CLI.\n"
-            "Example JSON:\n" + batch_help_example()
+            "Minimal example JSON:\n" + batch_help_example() +
+            "\nRun it with: python scripts/catalog_cli.py batch --input '" + batch_help_example() + "'\n"
+            "Add more objects to the same array with distinct request_id values."
         ),
     )
     batch_parser.add_argument(

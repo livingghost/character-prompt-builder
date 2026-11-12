@@ -226,21 +226,30 @@ class RunReadBoundaryTests(unittest.TestCase):
             self.assertIsNot(recovered, observed)
             self.assertEqual(recovered.consumer, observed.consumer)
 
-    def test_another_current_acquisition_reads_changed_sources_without_a_success_marker(self):
+    def test_execution_reads_saved_sources_and_navigation_observes_each_current_edit(self):
+        from live_source_read import LiveSourceRead
         with runtime_snapshot.public_call(), store.transaction(self.root):
             first = workflow.read_current(self.root, self.run_id)
             source = self.root / 'prompt.txt'
             before = source.read_bytes()
             dependency = next(item for item in first.view.prepared['dependencies']
                               if item['space'] == 'studio' and item['path'] == 'prompt.txt')
-            self.assertEqual(first.sources.dependency(dependency).content, before)
+            self.assertEqual(first.view.evidence.read(dependency['sha256']), before)
             source.write_bytes(before + b' A changed source.')
-            with self.assertRaises(ProductionError) as changed:
-                workflow.read_current(self.root, self.run_id)
-            self.assertEqual(changed.exception.diagnostic.code, 'SOURCE_CHANGED')
-            self.assertEqual(first.sources.dependency(dependency).content, before)
-            with self.assertRaises(ProductionError):
-                workflow.assert_current(self.root, self.run_id)
+            for remove in (False, True):
+                with self.subTest(removed=remove):
+                    if remove:
+                        source.unlink()
+                    with patch.object(LiveSourceRead, '__init__', side_effect=AssertionError('Execution reads saved input')):
+                        current = workflow.read_current(self.root, self.run_id, force=True)
+                        self.assertEqual(current.view.evidence.read(dependency['sha256']), before)
+                        workflow.assert_current(self.root, self.run_id)
+                    failures, notices = workflow.freshness(self.root, self.run_id)
+                    self.assertEqual(failures, [])
+                    [changed] = [item for item in notices if item['file'] == 'prompt.txt']
+                    self.assertEqual((changed['code'], changed['severity']), ('SOURCE_CHANGED', 'warning'))
+                    self.assertEqual(changed['actual'], None if remove else c.sha256_file(source))
+            self.assertEqual(first.view.evidence.read(dependency['sha256']), before)
 
     def test_rechecked_publication_reacquires_evidence_added_after_publication(self):
         loaded = workflow.read_run(self.root, self.run_id)

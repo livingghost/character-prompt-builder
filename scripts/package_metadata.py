@@ -27,6 +27,9 @@ GENERATED_RELEASE_ARTIFACT_NAMES = frozenset(
 DEVELOPMENT_ARTIFACT_SUFFIXES = frozenset(
     {".pyc", ".pyo", ".bak", ".orig", ".tmp"}
 )
+BINARY_RELEASE_SUFFIXES = frozenset(
+    {".bin", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".avif"}
+)
 VCS_DIR_NAMES = frozenset({".git", ".hg", ".svn"})
 CORE_EVALUATION_INCLUDES: frozenset[str] = frozenset()
 # The declared retrieval contract for the bundled commons pack. It is core
@@ -37,7 +40,7 @@ CORE_EXAMPLE_INCLUDES = frozenset(
     {"examples/render-contract", "examples/composed-artifact", "examples/prompt-weighting", "examples/pack-authoring", "examples/feature-walkthrough", "examples/generation",
     "examples/scene-mask", "examples/state-aware-pilot", "examples/declared-structures",
      "examples/authorial-intent", "examples/world-realization", "examples/production-execution", "examples/protocol-exchange", "examples/story-context", "examples/story-timeline", "examples/story-flow", "examples/reusable-authoring",
-     "examples/cast-admission", "examples/resume-recording", "examples/input-assembly", "examples/craft-consultation", "examples/model-evidence", "examples/candidate-recipe"}
+     "examples/cast-admission", "examples/resume-recording", "examples/input-assembly", "examples/input-authoring", "examples/craft-consultation", "examples/model-evidence", "examples/candidate-recipe"}
 )
 CORE_PACK_INCLUDES = frozenset({"packs/commons"})
 DEPENDENCY_DEFINITIONS = {

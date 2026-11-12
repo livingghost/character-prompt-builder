@@ -349,13 +349,26 @@
                   },
                   "evidence": {
                     "$ref": "#/$defs/evidence"
+                  },
+                  "local_file": {
+                    "const": true,
+                    "description": "The declared media field accepts a local file. Its value is a path to the selected carrier; execution derives the path to the run's saved copy. This variant has no provider upload evidence."
                   }
                 },
                 "required": [
                   "reference",
                   "field",
-                  "value",
-                  "evidence"
+                  "value"
+                ],
+                "oneOf": [
+                  {
+                    "required": ["evidence"],
+                    "not": {"required": ["local_file"]}
+                  },
+                  {
+                    "required": ["local_file"],
+                    "not": {"required": ["evidence"]}
+                  }
                 ],
                 "additionalProperties": false
               },

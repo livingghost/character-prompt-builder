@@ -64,7 +64,7 @@ Unknown secrets embedded in free text cannot be detected with a universal guaran
 
 Textual exit diagnostics go to stderr after credential redaction.
 An exception keeps its code and phase in the JSON on stdout, with a short safe explanation on stderr.
-[Production diagnostics](production-diagnostics.md#exit-codes) lists the exit status of each diagnostic code.
+[Production diagnostics](production-diagnostic-navigation.md#exit-codes) lists the exit status of each diagnostic code.
 An argument error's final record carries `INPUT_ARGUMENT_INVALID`.
 
 ## Logs and formal records

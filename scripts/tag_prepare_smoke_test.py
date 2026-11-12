@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Final wire-text checks with an isolated, explicitly authored synthetic tag pack."""
 from __future__ import annotations
+import copy
 from pathlib import Path
 import tempfile
 import unittest
@@ -146,12 +147,49 @@ class TagPreparationTests(unittest.TestCase):
         self.assertTrue(any(row['channel'] == 'negative' and row['authored_term'] == 'plain backdrop'
                             for row in report['meanings']))
 
-    def test_changed_dictionary_invalidates_prepared_request(self):
-        run = workflow.prepare(self.root, 'task.json')['run']
+    def test_changed_dictionary_keeps_saved_request_and_meaning(self):
+        import runtime_snapshot
+        import transport_synthetic as transport
+        result = workflow.prepare(self.root, 'task.json')
+        run = result['run']
+        fixture.fill_decisions(self.root, run, 'decisions.json')
+        loaded = workflow.read_run(self.root, run)
+        immutable = {row['path']: c.read(loaded.directory / row['path']) for row in loaded.manifest['files']}
+        immutable['manifest.json'] = c.read(loaded.directory / 'manifest.json')
+        contract = c.load(loaded.directory / 'request-contract.json')
+        descriptor = loaded.prepared['runtime_snapshot']
+        bound = next(row for row in descriptor['binding']['resources'] if row['name'] == 'prompt-vocabulary')
+        saved_dictionary = runtime_snapshot.path(self.root, descriptor) / 'packs' / bound['pack'] / bound['path']
+        original = c.read(saved_dictionary)
+        self.assertEqual(original, c.read(self.pack / 'resources/dictionary.json'))
+        old_meaning = next(row for row in result['execution_plan']['prompt_check']['meanings'] if row['authored_term'] == 'collar')
+        self.assertIn('garment', old_meaning['description'])
         data = c.load(self.pack / 'resources/dictionary.json')
         data['categories'][0]['entries'][1]['description'] = 'A changed fixture meaning.'
         fixture.write(self.pack / 'resources/dictionary.json', data); self.refresh()
-        with self.assertRaises(ValueError): workflow.assert_current(self.root, run)
+        changed = c.read(self.pack / 'resources/dictionary.json')
+        self.assertNotEqual(changed, original)
+        workflow.assert_current(self.root, run)
+        with patch.object(transport, 'send', wraps=transport.send) as sender:
+            executed = workflow.execute(self.root, run, decisions_file='decisions.json')
+        self.assertTrue(executed['execution_completed'])
+        self.assertEqual(sender.call_count, 1)
+        expected = copy.deepcopy(contract['request'])
+        expected['request_id'] = sender.call_args.args[0]['request_id']
+        self.assertEqual(sender.call_args.args[0], expected)
+        report = executed['runs'][0]
+        self.assertEqual(report['freshness_diagnostics'], [])
+        [notice] = [row for row in report['freshness_notices']
+                    if row['code'] == 'PACK_CONTENT_MISMATCH' and row.get('resource') == 'resources/dictionary.json']
+        self.assertEqual((notice['severity'], notice['expected'], notice['actual']),
+                         ('warning', c.digest(original), c.digest(changed)))
+        current = workflow.prepare(self.root, 'task.json')
+        new_meaning = next(row for row in current['execution_plan']['prompt_check']['meanings'] if row['authored_term'] == 'collar')
+        self.assertEqual(new_meaning['description'], 'A changed fixture meaning.')
+        self.assertEqual(c.read(saved_dictionary), original)
+        self.assertEqual(c.read(self.pack / 'resources/dictionary.json'), changed)
+        for name, raw in immutable.items():
+            self.assertEqual(c.read(loaded.directory / name), raw, name)
 
 
 if __name__ == '__main__':

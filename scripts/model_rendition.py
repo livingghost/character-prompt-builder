@@ -92,6 +92,9 @@ def validate_bindings(rows:Any)->list[dict]:
     return rows
 
 
+REFERENCE_CONTRACT_FIELDS = frozenset({'artifact_type', 'target', 'dialects', 'mode', 'fields', 'basis'})
+
+
 def reference_contract(policy:dict|None,reader:InputEvidence,expected_target:dict,dialect:str|None,rows:list[dict])->dict|None:
     validate_bindings(rows)
     if not rows:return None
@@ -106,7 +109,7 @@ def reference_contract(policy:dict|None,reader:InputEvidence,expected_target:dic
     mode=policy['mode']
     if mode not in {'native-fields','authored-rendition','not-supported'}:raise ValueError('unknown reference instruction transport')
     document=reader.json(policy['contract']);local=reader.at(policy['contract'])
-    c.exact(document,{'artifact_type','target','dialects','mode','fields','basis'},'reference render contract')
+    c.exact(document,REFERENCE_CONTRACT_FIELDS,'reference render contract')
     if document['artifact_type']!='reference-render-contract' or document['target']!=expected_target or document['mode']!=mode:
         raise ValueError('reference render contract target or mode differs from selected execution')
     if not isinstance(document['dialects'],list) or not document['dialects']:raise ValueError('reference contract requires explicit supported dialects')

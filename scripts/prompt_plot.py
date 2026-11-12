@@ -12,6 +12,7 @@ from __future__ import annotations
 import operation_context as _operation_context
 
 import argparse
+import copy
 import hashlib
 import json
 import re
@@ -99,6 +100,7 @@ def validate_prompt_plot(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {
             "ok": False, "errors": ["plot root must be an object"],
+            "schema": "schemas/prompt-plot.schema.json",
             "beats": 0, "visible_beats": 0, "derived": 0, "kinds": {},
             "source": None, "approved": False, "approval_errors": [],
         }
@@ -229,6 +231,7 @@ def validate_prompt_plot(value: Any) -> dict[str, Any]:
     visible = sum(1 for visibility in beats.values() if visibility == "visible")
     return {
         "ok": not errors,
+        "schema": "schemas/prompt-plot.schema.json",
         "errors": errors,
         "beats": len(beats),
         "visible_beats": visible,
@@ -240,6 +243,23 @@ def validate_prompt_plot(value: Any) -> dict[str, Any]:
     }
 
 
+def validate_authored_prompt_plot(value: Any) -> dict[str, Any]:
+    """Check editable plot choices while leaving prior-approval checks to compilation.
+
+    The author records who approved the plot and when. Compilation supplies the
+    binding digest. An already supplied digest remains a constraint and is
+    checked against the current content.
+    """
+    candidate = copy.deepcopy(value)
+    approval = candidate.get('approved') if isinstance(candidate, dict) else None
+    if isinstance(approval, dict) and 'content_sha256' not in approval:
+        approval['content_sha256'] = content_sha256(candidate)
+    report = validate_prompt_plot(candidate)
+    report['errors'] = list(dict.fromkeys(report['errors'] + report['approval_errors']))
+    report['ok'] = not report['errors']
+    return report
+
+
 def load_prompt_plot(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     report = validate_prompt_plot(value)
@@ -249,7 +269,10 @@ def load_prompt_plot(path: Path) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = _operation_context.ArgumentParser(description=__doc__)
+    parser = _operation_context.ArgumentParser(description=__doc__,
+        epilog='Schema: schemas/prompt-plot.schema.json. Inspect fields with '
+               'production_document_contracts.py explain plot; validate editable approval choices with '
+               'production_document_contracts.py validate plot FILE.')
     parser.add_argument("plot", type=Path)
     parser.add_argument("--content-sha256", action="store_true",
                         help="Print the hash an approval has to carry, and nothing else")
@@ -263,6 +286,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, json.JSONDecodeError) as exc:
         report = {"ok": False, "errors": [str(exc)], "beats": 0, "visible_beats": 0,
                   "derived": 0, "kinds": {}, "approved": False, "approval_errors": []}
+    report['schema'] = 'schemas/prompt-plot.schema.json'
     print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False))
     return 0 if report["ok"] else 1
 

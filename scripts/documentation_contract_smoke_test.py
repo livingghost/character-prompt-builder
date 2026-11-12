@@ -360,7 +360,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn("batch --input", sparse)
         self.assertIn('"request_id":"identity"', sparse)
         self.assertIn("Supported commands: search, recommend, and inspire", result.stdout)
-        example_line = result.stdout.strip().splitlines()[-1]
+        example_line = result.stdout.split("Minimal example JSON:\n", 1)[1].splitlines()[0]
         example = json.loads(example_line)
         self.assertIsInstance(example, list)
         self.assertEqual("identity", example[0]["request_id"])
@@ -489,17 +489,23 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn("## Open the current work", workflow)
         self.assertIn("complete contract for the current operation", workflow)
 
-    def test_paged_reading_guidance_matches_the_continuation_cli(self) -> None:
+    def test_indexed_reading_guidance_matches_the_delivery_cli(self) -> None:
         document = (ROOT / "references/runtime/production-authoring.md").read_text(encoding="utf-8")
-        reading = document.partition("### Read the route to completion")[2].partition("\n### ")[0]
+        reading = document.partition("### Select and read the current knowledge")[2].partition("\n## ")[0]
         for marker in ("actions.continue", "`argv`", "`command`", "`reason`", "`body`", "`null`",
-                       "--reading-ledger", "CPB_READS_LEDGER", "reading.record", "--known-reading"):
+                       "--reading-ledger", "CPB_READS_LEDGER", "reading.record", "--known-reading",
+                       "actions.next", "actions.all", "--snapshot", "--section", "--all", "non-null"):
             self.assertIn(marker, reading)
         run = subprocess.run([sys.executable, str(ROOT / "scripts/execution_routes.py"), "read", "--help"],
                              cwd=self.root, env=UNPAINTED, capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        for option in ("--page-bytes", "--continue", "--replay", "--reading-ledger", "--known-reading"):
+        for option in ("--page-bytes", "--continue", "--replay", "--reading-ledger", "--known-reading",
+                       "--snapshot", "--section", "--all"):
             self.assertIn(option, run.stdout)
+        from route_reading import INDEX_SOURCE_STATES
+        for state in INDEX_SOURCE_STATES:
+            self.assertIn('`' + state + '`', reading)
+            self.assertIn(state + ':', run.stdout)
 
     def test_pack_quickstart_registration_example_runs_in_its_selected_runtime(self) -> None:
         from shutil import copytree

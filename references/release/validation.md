@@ -204,6 +204,11 @@ Build them from the source tree, not from the release stage or `release.include`
 Release exclusions never authorize deleting source files.
 Keep source archives and release archives separately named.
 
+Release text uses LF line endings. Binary reference assets retain their exact
+bytes; their image-format carriage returns are not text to normalize. The
+canonical binary suffix set in `package_metadata.py` supplies this distinction
+to validation, and source-control attributes retain those asset bytes.
+
 Commit release metadata only after code, documentation, tests, pack locks, and generated inventories agree. Canonical pack records and visual evidence stay unchanged when the goal is merely to make a core documentation or runtime test pass.
 
 ## Release reports

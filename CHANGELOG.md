@@ -1,5 +1,56 @@
 # Changelog
 
+## 2026.11.12.1
+
+- Execute an explicitly selected prepared revision from its saved request,
+  source bytes, media and fixed runtime. Report later authoring edits, deleted
+  originals and Studio placement changes as navigation notices, without
+  requiring the original files to be restored. Keep current authority,
+  saved-content validity and unique execution ownership at their own boundaries.
+- Derive variants and intentional repeats from the parent's captured inputs.
+  Reopen saved sources and reference carriers into an editable draft, preserve
+  nested source graphs, and acquire explicit replacements through their owners.
+  Retain earlier requests, criteria, source identities and execution history.
+  Keep original authored sources beside their editable adaptations when reopening
+  work, so the original comparison basis survives the next saved revision.
+- Declare local-file delivery separately from opaque external provider values.
+  Derive local carrier paths from saved media, and expose the same actual host
+  request through execution decisions, workspace, claiming and result capture.
+  Keep board panels, source roles, native controls and exact recorded-call comparison.
+- Align maintenance instructions, readiness help and recovery guidance with
+  the distinction between current authoring and a selected saved revision.
+
+## 2026.11.11.8
+
+- Validate task-owned variant values against their complete canonical schema.
+  Reassess identity bindings in criteria and source materials without losing
+  nested references, including when continuing an existing prepared run.
+  Preserve the earlier run and report actual invalid nested values.
+- Bind editable choices to the exact revision parsed or written during reference
+  assignment. Detect an intervening edit through the existing input reader
+  without independently selecting a different revision as its evidence.
+- Clarify what prepared content and local comparisons establish, including
+  their limits for original issuance, authority and external host calls.
+  Keep maintenance changes proportional to demonstrated failures and their
+  effect on ordinary authoring.
+
+## 2026.11.11.7
+
+- Discover current input files, field contracts, validators and complete examples
+  from a draft or `explain-inputs`, without recovering formats from Studio history.
+  Include a complete, checked first-input example with one supplied reference.
+- Keep each selected authoring document at one editable file. Compile its current
+  content once, retain source-aware diagnostics and immutable earlier inputs,
+  and reopen captured files through the ordinary drafting workflow.
+- Inspect exact route source and heading indexes before delivery. Read selected
+  sections or explicitly request all required bodies, resume their recorded
+  coverage, and issue reading records only after complete current delivery.
+  Keep placement-specific guidance and the full diagnostic catalog at their
+  actual operation and failure scopes.
+- Show canonical schemas or logical contracts, complete permitted-key errors,
+  reference-use versus identity-source identifiers, and a minimal catalog batch.
+  Distinguish editable document checks from target and prepared-run validation.
+
 ## 2026.11.11.6
 
 - Author a canonical adoption in one draft and apply that decision directly.

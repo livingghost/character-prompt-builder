@@ -1,5 +1,10 @@
 # State-aware pilot fixture
 
+For complete editable choices, original direction, authority and reference policy
+in a fresh Studio, use the [first-input authoring example](../input-authoring/README.md).
+This pilot supplies the additional state-derived artifacts and their full
+relationship checks; ordinary image input does not require that state graph.
+
 This fixture exercises Shared State Protocol without claiming generated image quality. It includes an offscreen persistent injury, a temporary masked emotion, a healing process, an atomic cross-character prop transfer, a hot/humid environment adaptation proposal, a scene context, a visual projection, and a coverage-driven reference bundle plan.
 
 The generated request-validation record uses an explicitly synthetic

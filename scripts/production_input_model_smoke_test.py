@@ -112,9 +112,24 @@ class ModelInputTests(unittest.TestCase):
         self.assertFalse((self.root / 'built').exists())
 
     def test_supplied_unknowns_cannot_remove_unmeasured_conditions(self):
+        validation_path = self.root / self.spec['generation']['request_validation']
+        validation_before = validation_path.read_bytes()
+        package_before = self.package_path.read_bytes()
         self.choices['validation']['unmeasured'] = []
-        with self.assertRaises(ValueError):
-            self.build()
+        result = self.build()
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['state'], 'draft')
+        self.assertEqual(result['inputs'], {})
+        diagnostic = result['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'INPUT_CONSISTENCY_ERROR')
+        self.assertEqual(diagnostic['file'], self.choice_path)
+        self.assertIn('$.validation', diagnostic['message'])
+        self.assertEqual(diagnostic['guidance']['schema'],
+                         'schemas/authoring/production-input-draft.schema.json')
+        self.assertFalse(result['external_effect'])
+        self.assertFalse((self.root / 'built').exists())
+        self.assertEqual(validation_path.read_bytes(), validation_before)
+        self.assertEqual(self.package_path.read_bytes(), package_before)
 
     def test_prepared_reference_integrity_is_checked(self):
         prepared = copy.deepcopy(self.package['prepared_reference_set'])

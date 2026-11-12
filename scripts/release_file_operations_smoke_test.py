@@ -14,6 +14,7 @@ import tomllib
 import zipfile
 from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import package as package_module
@@ -42,6 +43,7 @@ from package_metadata import (
     validate_skill_frontmatter_contract,
 )
 from rebuild_metadata import build_catalog_document
+from validate import verify_release_line_endings
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +72,25 @@ def main() -> int:
         # Resolve once: the inventories compared below are resolved, so a
         # non-canonical temporary directory would fail relative_to().
         root = Path(temp).resolve()
+        normalization_root = root / "normalization"
+        normalization_root.mkdir()
+        reference = normalization_root / "reference.png"
+        reference_bytes = (ROOT / "examples/input-authoring/filled/reference.png").read_bytes()
+        reference.write_bytes(reference_bytes)
+        text_file = normalization_root / "source.md"
+        text_file.write_bytes(b"An authored source.\n")
+        text_metadata = SimpleNamespace(release_include=("reference.png", "source.md"), release_exclude_names=())
+        normalized = verify_release_line_endings(normalization_root, text_metadata)
+        if normalized["ok"] and normalized["binary_files"] == 1 and reference.read_bytes() == reference_bytes:
+            checks += 1
+        else:
+            errors.append("binary reference bytes must not be treated as text line endings")
+        text_file.write_bytes(b"An authored source.\r\n")
+        non_normalized = verify_release_line_endings(normalization_root, text_metadata)
+        if not non_normalized["ok"] and len(non_normalized["errors"]) == 1 and "source.md" in non_normalized["errors"][0] and text_file.read_bytes().endswith(b"\r\n"):
+            checks += 1
+        else:
+            errors.append("release text with CRLF must be reported without altering its bytes")
         metadata = load_package_metadata(ROOT)
         expected_pyproject_version = pep440_version_for_calver(metadata.version)
         observed_identity = {

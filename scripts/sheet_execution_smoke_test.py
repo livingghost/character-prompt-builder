@@ -26,6 +26,7 @@ class SheetExecutionTests(unittest.TestCase):
         task['sources'][0]['path'] = self.sheet.relative_to(self.root).as_posix()
         fixture.write(self.root / 'task.json', task)
         run = workflow.prepare(self.root, 'task.json')['run']
+        saved = workflow.read_run(self.root, run)
         other = make_artifact(self.sheet, marker='redo')
         fills.register_candidates(self.sheet, [('canon.primary', other)])
         workflow.assert_current(self.root, run)
@@ -33,8 +34,24 @@ class SheetExecutionTests(unittest.TestCase):
         dependency = next(row for row in prepared['dependencies'] if row['path'] == task['sources'][0]['path'])
         self.assertNotEqual(dependency['sha256'], c.sha256_file(self.sheet))
         self.assertEqual(c.digest(c.object_read(directory, dependency['sha256'])), dependency['sha256'])
+        diagnostics, notices = workflow.freshness(self.root, run)
+        self.assertEqual(diagnostics, [])
+        self.assertFalse(any(item['code'] == 'SOURCE_CHANGED' and item['file'] == dependency['path']
+                             for item in notices))
         fills.adopt(self.sheet, decision(self.sheet, 'canon.primary', other), evidence_root=self.sheet.parent)
-        with self.assertRaises(ValueError): workflow.assert_current(self.root, run)
+        retained = workflow.assert_current(self.root, run)
+        self.assertEqual(retained.prepared, saved.prepared)
+        self.assertEqual(retained.consumer, saved.consumer)
+        diagnostics, notices = workflow.freshness(self.root, run)
+        self.assertEqual(diagnostics, [])
+        self.assertIn(('SOURCE_CHANGED', 'warning', dependency['path']),
+                      [(item['code'], item['severity'], item['file']) for item in notices])
+        current = workflow.prepare(self.root, 'task.json')['run']
+        current_dependency = next(row for row in workflow.read_run(self.root, current).prepared['dependencies']
+                                  if row['path'] == dependency['path'])
+        self.assertEqual(current_dependency['sha256'], c.sha256_file(self.sheet))
+        self.assertNotEqual(current_dependency['selection_sha256'], dependency['selection_sha256'])
+        self.assertEqual(c.digest(c.object_read(directory, dependency['sha256'])), dependency['sha256'])
 
     def test_cropped_source_model_upscale_retains_full_lineage(self):
         original = accepted(self.sheet, size=(32, 32))

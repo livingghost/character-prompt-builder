@@ -20,11 +20,12 @@ def summary(value):
     action = row['next_action']
     # The action's argv names the temporary Studio, so the recorded summary keeps its command and reason.
     return {'integrity': row['integrity'],
-            'current_inputs': not row['freshness_diagnostics'],
             'readiness': row['readiness'], 'submission': row['submission'],
             'task_disposition': row['task_disposition'],
             'next_action': None if action is None else {'command': action['command'], 'reason': action['reason']},
-            'freshness_codes': [item['code'] for item in row['freshness_diagnostics']]}
+            'freshness_diagnostic_codes': [item['code'] for item in row['freshness_diagnostics']],
+            'freshness_notices': [{key: item[key] for key in ('code', 'severity', 'file')}
+                                  for item in row['freshness_notices']]}
 
 
 def build():
@@ -37,6 +38,7 @@ def build():
                              'translation_notes': 'Synthetic authored fixture.'},
                 'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect retained output.'}]}
         run = prepare_fixture(root, task)
+        saved = w.load_run(root, run)
         command = [sys.executable, str(ROOT / 'scripts/production_workflow.py'), 'resume', '--root', str(root), '--run', run]
         before = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False, timeout=environment_seconds("EXAMPLE_COMMAND_TIMEOUT_SECONDS"))
         if before.returncode != 0:
@@ -46,13 +48,24 @@ def build():
         if after.returncode != 0:
             raise ValueError('A changed live source must not make saved history unreadable: ' + after.stdout + after.stderr)
         before_summary, after_summary = summary(json.loads(before.stdout)), summary(json.loads(after.stdout))
-        if after_summary['integrity'] != 'intact' or after_summary['readiness'] != 'blocked' or after_summary['current_inputs']:
-            raise ValueError('The changed fixture must retain history and diagnose execution freshness.')
+        if before_summary['integrity'] != 'intact' or before_summary['readiness'] != 'ready' or before_summary['freshness_diagnostic_codes'] or before_summary['freshness_notices']:
+            raise ValueError('The prepared fixture must have intact saved inputs and ready execution.')
+        expected_after = {**before_summary, 'freshness_notices': [
+            {'code': 'SOURCE_CHANGED', 'severity': 'warning', 'file': 'delivery.txt'}]}
+        if after_summary != expected_after:
+            raise ValueError('The changed draft must produce a notice while retaining saved-run readiness and its next action.')
+        retained = w.load_run(root, run)
+        saved_input_retained = (retained.prepared, retained.consumer) == (saved.prepared, saved.consumer)
+        recorded_history_retained = retained.rows == saved.rows
+        if not saved_input_retained or not recorded_history_retained:
+            raise ValueError('Reading resume after a draft edit must retain the exact saved input and recorded history.')
         import production_store as store
         reservations = [row for row in store.event_rows(root, run) if row['event'] == 'execution-created']
         if reservations:
             raise ValueError('Preparing or authorizing a local example must not reserve a generation request.')
         return {'synthetic': True, 'reservation_count': len(reservations),
+                'saved_input_retained': saved_input_retained,
+                'recorded_history_retained': recorded_history_retained,
                 'before_change': before_summary, 'after_change': after_summary}
 
 

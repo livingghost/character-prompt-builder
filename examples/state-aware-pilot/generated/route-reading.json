@@ -2,7 +2,7 @@
   "documents": [
     {
       "path": "references/runtime/production-workflow.md",
-      "sha256": "a7644ec0263eadfe02cc8c5a62de315acf745e32cbfeedc8ef40ea512ab5f929"
+      "sha256": "ee229313226a76541fad6da863ba506212e26edfa42876a6b19e04f506c1cb3a"
     },
     {
       "path": "references/runtime/production-direction.md",
@@ -10,23 +10,23 @@
     },
     {
       "path": "references/runtime/production-authoring.md",
-      "sha256": "cf172c956c02684ac38ac3074bc6eba25be8cae0729c9dc64d016a1c2ffea468"
+      "sha256": "79aead2a203e69d2cc68ab3152e3e77353e4de81ea76a831e3a3d57aefb2b5fc"
     },
     {
       "path": "references/runtime/production-preparation.md",
-      "sha256": "47110093bca324e974f8cbb134a05bbfcce0b277c747e241f6ab533934d9a68d"
+      "sha256": "b6421da6610fffef8d4a6bd639c27891fe811382904c8299854d25dc3ec31c1d"
     },
     {
-      "path": "references/runtime/production-diagnostics.md",
-      "sha256": "23d2519d6d7d4e6cf041b76cd423916c7c66a2cad3cefe80e275dd330862c295"
+      "path": "references/runtime/production-diagnostic-navigation.md",
+      "sha256": "01341cea73075ae7d9000b066622c242450867e97f00e7f368bc88141652bbaf"
     },
     {
       "path": "references/runtime/production-permissions.md",
-      "sha256": "935af2faf999642bc4c757ecc5b466fe436ead9431092ce65fcf6c2df2bf7d5f"
+      "sha256": "8d11979469adfb34553b30d2ebbf68ecf6dbf85223ebc0b434e5ffd15cff4ead"
     },
     {
       "path": "references/runtime/production-image-inputs.md",
-      "sha256": "84b0bac4efbdc6a7df332de096185c319f473d84856d2dbf1fe2a597276b3fda"
+      "sha256": "08489395193ab54e5a77067a6765280dba9f1c49638f089e83dc6f1afd14df39"
     },
     {
       "path": "references/runtime/state-aware-series.md",
@@ -38,11 +38,11 @@
     },
     {
       "path": "references/runtime/studio-canon-references.md",
-      "sha256": "aa4c721001cd3ba48283e5d80e89d445f613308ddc64e4f78785b8c86a0c5b08"
+      "sha256": "d585bb459c88be2fe7782ffdbc7b26df34159f1b350dac4850a12558697c03c1"
     },
     {
       "path": "references/runtime/generation-package.md",
-      "sha256": "55b1dc61d0afa2594a4a15145afc24455c7fad5e779ef6dbf7940c9e22c1eae0"
+      "sha256": "5ac720e25087adf22f9e98cdab7b85028746c80463167f603c213d3f1933c146"
     },
     {
       "path": "references/runtime/prompt-writing-guide.md",
@@ -54,7 +54,7 @@
     },
     {
       "path": "references/runtime/reference-delivery.md",
-      "sha256": "b4e7b2473d6bf17d3616eb64c79b22d3b5a144370ff1b3d580ba42861b62e2af"
+      "sha256": "3a85edf207da8a7ddd580d6e0341d0c0347ce16f43c525511430744f4660cafa"
     },
     {
       "path": "references/runtime/render-contract.md",
@@ -62,11 +62,7 @@
     },
     {
       "path": "references/runtime/studio.md",
-      "sha256": "4dbbe0f61e2faf35db344a66e9a88c6c800e29b1117e8fbf2423513d7312c370"
-    },
-    {
-      "path": "references/runtime/studio-placement.md",
-      "sha256": "b50f62d43342eee04f946d35e0985d9c99f30519cabfcfedf4368912dc006417"
+      "sha256": "067389b9427ac244d3280323b2099102695043a25b391dccea4f3f67666a9fa8"
     },
     {
       "path": "references/runtime/world-realization.md",
@@ -106,5 +102,5 @@
     }
   },
   "route": "state-series",
-  "reading_key": "bc471192a7b10c6048ca9cbe49ec2422"
+  "reading_key": "0e13c99ac66042688c669571aa81b61d"
 }

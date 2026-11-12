@@ -46,8 +46,8 @@ def _public_call(function):
     root given through a directory junction names the same files as the paths
     the run and the Studio record. The stages of the call reuse what the call
     already verified. Each production transaction still starts its own scope.
-    `accounting.begin_step` checks the run and its live sources again even
-    inside a caller's transaction.
+    `accounting.begin_step` checks the saved run, fixed runtime and current
+    imported authority again even inside a caller's transaction.
     """
     @functools.wraps(function)
     def call(*args, **kwargs):
@@ -268,6 +268,9 @@ def _execute_external(root: Path, run: str, *, decisions_file: str | None) -> di
             raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'This run already handed its request to the host.',
                 phase='execution', run=run,
                 required_action='Recover that host call and receive its actual result. A new call needs a newly prepared run.')
+        from image_input import external_delivery
+        delivery = external_delivery(consumer['image_input'], run_directory=loaded.directory,
+                                     read_object=loaded.evidence.read)
         authority = workflow.current_authority(root, prepared)
         with _imported_authority_note(root, authority):
             if decisions_file is not None:
@@ -278,16 +281,28 @@ def _execute_external(root: Path, run: str, *, decisions_file: str | None) -> di
         workflow._handoff_from(root, loaded, authority, hand['recipient'], hand['method'], tokens['direction'])
         loaded = workflow.read_run(root, run)
         claim = workflow._claim_external_from(root, loaded, authority, plan['quantities']['outputs'], tokens['submit'])
-    binding = consumer['image_input']
+    return _external_instruction(run, claim, delivery)
+
+
+def _external_instruction(run: str, claim: dict, delivery: dict) -> dict:
     return {'artifact_type': 'external-execution-instruction',
             'run': run, 'state': 'host-call-required', 'external_effect': False,
-            'host_request': {'claim': claim['sha256'], 'target': binding['model']['target'],
-                          'request': copy.deepcopy(binding['external_request']['request']),
-                          'references': copy.deepcopy(binding['references']),
-                          'prepared_reference_set': copy.deepcopy(binding.get('prepared_reference_set')),
-                          'model_identity': copy.deepcopy(binding['external_request'].get('model_identity'))},
+            'host_request': {'claim': claim['sha256'], **delivery},
             'instruction': 'Invoke this exact host request once. Save the actual response and returned media, '
                            'then use receive-external. After interruption, recover the same call; do not invoke it again.'}
+
+
+def external_instruction(root: Path, run: str, *, claim: dict) -> dict:
+    """Expose the same saved host call for the explicit handoff/claim commands."""
+    import image_input
+    import production_workflow as workflow
+    loaded = workflow.read_run(root, run)
+    binding = loaded.consumer.get('image_input')
+    if binding is None:
+        return claim
+    delivery = image_input.external_delivery(binding, run_directory=loaded.directory,
+                                             read_object=loaded.evidence.read)
+    return _external_instruction(run, claim, delivery)
 
 
 @_public_call
@@ -302,7 +317,7 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
     with stage('execution-preflight'):
         # The publication read above verified the sealed package, request and
         # target by content. They are sent as prepared, not built again. The
-        # claim transaction checks live sources before any journal or handoff
+        # claim transaction checks the saved run before any journal or handoff
         # is written; each later external step checks them again.
         data = compiled(root, run, loaded=loaded)
         directory, prepared, _, rows, package, rendered, plan, target, transport = data
@@ -1917,20 +1932,7 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
             'draft from this run; existing candidates and decisions remain saved.')
     if report['submission'] == 'unclaimed' and 'handoff' not in events and report['readiness'] == 'blocked':
         diagnostic = report['readiness_diagnostics'][0]
-        if not report['freshness_diagnostics']:
-            # Only the committed authority is unreadable; the run's own inputs are current.
-            return _action('status', root, ['--run', run], diagnostic['required_action'])
-        # Nothing was handed over yet, so a changed source is prepared again instead of passed on.
-        # A run prepared from editable choices names them: its own task file is the published
-        # copy, which a later edit of the choices does not reach.
-        choices = (prepared.get('authoring') or {}).get('choices')
-        if choices is None:
-            return _action('prepare', root, ['--task', prepared['task_path']], diagnostic['required_action'])
-        if c.local(root, choices, exists=False).is_file():
-            return _action('prepare', root, ['--choices', choices], diagnostic['required_action'])
-        return _action('draft-inputs', root, ['--from-run', run, '--out-dir', '<editable-directory>'],
-            'The editable choices of this run are no longer at ' + choices + '. Restore them from the run, apply the '
-            'intended change, then prepare those choices.')
+        return _action('status', root, ['--run', run], diagnostic['required_action'])
     if mode == 'external' and prepared['task'].get('image_input') and 'external-claim' not in events:
         if report['readiness'] == 'authorization_required':
             return _execution_draft_action(root, prepared)
@@ -2184,8 +2186,8 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         media_directory = c.local(root, claims[-1]['data']['journal']) if claims else directory
         rendered = c.load(media_directory / 'request-contract.json') if claims else loaded.artifacts['request-contract.json']
         report['cleanup'] = production_cleanup.inspect(directory, rendered, execution_state, transport)
-    # Recovery of a sent request never depends on the comparison; only an
-    # unsent run needs it to choose between sending and preparing again.
+    # Authoring-source observations explain later edits without changing the
+    # saved request. Recovery and a new claim use their own effect boundaries.
     report['next_action'] = (_action('status', root, ['--run', identifier],
         'This unsent run belongs to closed work, so this view did not compare its current sources. '
         'Select the run to compare them and receive its next action; reopen its inputs in new work with '

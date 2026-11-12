@@ -83,13 +83,19 @@ PHASE_SCHEMAS = {
     'task-contract': 'schemas/authoring/production-task.schema.json',
     'identity-coverage': 'schemas/authoring/production-task.schema.json',
     'image-input': 'schemas/authoring/image-input-plan.schema.json',
-    'specification': 'protocols/shared-state/schemas/production-spec.schema.json',
-    'render-intent': 'schemas/render-intent.schema.json',
+}
+PHASE_DOCUMENT_CONTRACTS = {
+    'specification': 'production_spec', 'plot': 'plot', 'creative-intent': 'creative_intent',
+    'negative-provenance': 'negative_provenance', 'retrieval': 'retrieval_record',
+    'render-intent': 'render_intent', 'visual-continuity': 'visual_continuity',
 }
 
 
 def guidance(phase: str) -> dict[str, str] | None:
     """Return only the owner explicitly declared for this phase."""
+    if phase in PHASE_DOCUMENT_CONTRACTS:
+        from production_document_contracts import guidance as document_guidance
+        return document_guidance(PHASE_DOCUMENT_CONTRACTS[phase])
     document = PHASE_DOCUMENTS.get(phase)
     if document is None:
         return None

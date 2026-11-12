@@ -110,11 +110,15 @@ class ExecutionLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'DISPATCH_ALREADY_CLAIMED'):
             life.claim_execution(self.root, self.run, other)
 
-    def test_claim_rechecks_source_bytes(self):
+    def test_claim_uses_saved_input_after_a_draft_source_edit(self):
+        saved=w.read_run(self.root,self.run).consumer
         (self.root / 'delivery.txt').write_text('Changed source.', encoding='utf-8')
-        with self.assertRaisesRegex(ValueError, 'SOURCE_CHANGED'):
-            life.claim_execution(self.root, self.run, self.token)
-        self.assertEqual(life.all_states(self.root), [])
+        claimed=life.claim_execution(self.root,self.run,self.token)
+        self.assertEqual(claimed['status'],'claimed')
+        self.assertEqual(w.read_run(self.root,self.run).consumer,saved)
+        failures,notices=w.freshness(self.root,self.run)
+        self.assertEqual(failures,[])
+        self.assertIn('SOURCE_CHANGED',[item['code'] for item in notices])
 
     def test_claim_rechecks_current_authority(self):
         document = copy.deepcopy(store.authority(self.root, w.load_run(self.root, self.run)[1]['task']['task_id']))
@@ -131,12 +135,11 @@ class ExecutionLifecycleTests(unittest.TestCase):
             life.begin_step(self.root, self.run, self.token, claim=claim, step='send', operation='send')
         self.assertEqual(life.summary(self.root)['submissions'], 1)
 
-    def test_new_step_rechecks_authorized_sources(self):
+    def test_new_step_keeps_authorized_saved_input_after_a_source_edit(self):
         claim = self.start(step='upload:0', operation='upload')
         (self.root / 'delivery.txt').write_text('Changed after upload.', encoding='utf-8')
-        with self.assertRaisesRegex(ValueError, 'SOURCE_CHANGED'):
-            life.begin_step(self.root, self.run, self.token, claim=claim, step='send', operation='send')
-        self.assertEqual(life.summary(self.root)['submissions'], 0)
+        life.begin_step(self.root,self.run,self.token,claim=claim,step='send',operation='send')
+        self.assertEqual(life.summary(self.root)['submissions'],1)
 
     def test_unknown_step_stays_durable(self):
         self.start()

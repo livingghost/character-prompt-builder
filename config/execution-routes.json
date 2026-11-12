@@ -284,8 +284,7 @@
     },
     "studio": {
       "reads": [
-        "references/runtime/studio.md",
-        "references/runtime/studio-placement.md"
+        "references/runtime/studio.md"
       ],
       "source_roles": []
     },
@@ -504,6 +503,12 @@
     "generation-package": {
       "reads": [
         "references/runtime/generation-package.md"
+      ],
+      "source_roles": []
+    },
+    "studio-placement": {
+      "reads": [
+        "references/runtime/studio-placement.md"
       ],
       "source_roles": []
     }
@@ -1088,14 +1093,14 @@
         ],
         "external": [
           "references/runtime/production-preparation.md",
-          "references/runtime/production-diagnostics.md",
+          "references/runtime/production-diagnostic-navigation.md",
           "references/runtime/production-permissions.md",
           "references/runtime/production-image-inputs.md",
           "references/runtime/production-external-inputs.md"
         ],
         "dispatcher": [
           "references/runtime/production-preparation.md",
-          "references/runtime/production-diagnostics.md",
+          "references/runtime/production-diagnostic-navigation.md",
           "references/runtime/production-permissions.md",
           "references/runtime/production-image-inputs.md"
         ]
@@ -1114,14 +1119,14 @@
           "references/runtime/production-request-execution.md",
           "references/runtime/production-external-execution.md",
           "references/runtime/production-recovery.md",
-          "references/runtime/production-diagnostics.md"
+          "references/runtime/production-diagnostic-navigation.md"
         ],
         "dispatcher": [
           "references/runtime/production-permissions.md",
           "references/runtime/production-request-execution.md",
           "references/runtime/production-dispatch.md",
           "references/runtime/production-recovery.md",
-          "references/runtime/production-diagnostics.md"
+          "references/runtime/production-diagnostic-navigation.md"
         ]
       }
     },

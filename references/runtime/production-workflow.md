@@ -18,18 +18,27 @@ provide complete declarations and source content. When several drafts remain,
 select the intended `inspect-inputs --choices FILE` action. Do not treat the
 latest timestamp or first listed candidate as the author's choice.
 
-Read the complete contract for the current operation with
-`execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO`, adding
-applicable features and the selected model or writing family. Take `authored`,
-`external` or `dispatcher` from the task's actual execution kind. The operation
-and execution together select complete owning documents; route and specialist
-knowledge remain complete. Follow every
-returned continuation until the delivery record is issued. An existing record
-establishes earlier source delivery. A new context still needs the complete
-knowledge required for its present judgment.
-In the same context, `context_reuse.operations` carries explicit complete
-reading keys into the next operation and delivers its remaining bodies. Read
-each JSON `body` and continue until `actions.continue` is null. This reuses
+Index the complete contract for the current operation with
+`execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO`,
+adding applicable features and the selected model or writing family. Take
+`authored`, `external` or `dispatcher` from the task. The index shows exact source
+sizes, headings and selection owners; it delivers no source bodies and issues no
+reading. Select a returned source or heading with `--snapshot ID --section SELECTOR`,
+follow `actions.next`, or choose `actions.all` for complete paged delivery. The
+explicit `--all` option also starts a complete read directly.
+
+Read every returned JSON `body`. Follow `actions.continue` through a selected
+section, then choose the next required section or all remaining material.
+Completion requires non-null `reading`; a null continuation can mean only that
+one section ended. The required operation, route and specialist contracts remain
+complete, and the record is issued only after exact complete coverage and current
+source checks. [Production authoring](production-authoring.md#select-and-read-the-current-knowledge)
+owns the index, section, replay and recovery contract.
+
+An existing record establishes earlier source delivery. A new context still
+needs the complete knowledge required for its present judgment. In the same
+context, `context_reuse.operations` indexes the next operation with explicit
+complete reading keys and delivers only missing or changed bodies. This reuses
 delivered knowledge, not an earlier successful source or permission check.
 
 | Requested work | Operation and owning result |

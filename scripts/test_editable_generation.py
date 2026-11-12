@@ -151,7 +151,7 @@ class EditableGenerationTests(unittest.TestCase):
         operation=render_contract_lib.operation_intent('text-to-image')
         specification=c.load(self.root/'spec.json')
         specification['render_intent']=operation
-        self.choices['authoring']['documents']['production_spec']=specification
+        fixtures.write_document(self.root, self.choices, 'production_spec', specification)
         self.choices['authoring']['generation']['render_intent']=None
         self.choices['authoring']['generation']['continuity']={'robot':'one-off'}
         fixtures.write(self.root/self.choice_path,self.choices)

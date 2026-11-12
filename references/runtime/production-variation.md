@@ -29,7 +29,7 @@ Each declaration has these keys:
 | Key | Value |
 |---|---|
 | `description` | What the field changes. |
-| `schema` | The JSON Schema of an accepted value, with the execution profile's allowed values. |
+| `schema` | The JSON Schema of an accepted value, inline or a reference to its owning schema. Model controls carry the execution profile's allowed values. |
 | `required` | Whether the compiled request needs a value. |
 | `nullable` | Whether `null` is accepted, which removes that input. |
 | `value_form` | `inline` for a JSON value, or `studio-file` for `{"path": "studio-relative-file.json"}`. |
@@ -38,17 +38,34 @@ Each declaration has these keys:
 | `rebuild` | The artifacts built again: `package`, `request` or both. |
 | `protected_criteria` | `unchanged` for seed and count, `redefine` for direction and criteria, `recheck` otherwise. |
 
+Task-owned fields reference their property in
+`schemas/authoring/production-task.schema.json`. Validation resolves that
+property within the complete owning schema, including nested references such
+as identity bindings in `criteria` and `source-materials`. The variant uses
+the current installation's task contract, as its subsequent compilation does.
+An earlier run's execution plan remains a record of its preparation; its
+exported task-field schemas do not replace that current authoring contract.
+Model controls retain the source plan's selected profile constraints.
+
 Every field problem is collected before the variant stops, and no formal run is created.
+`CHANGES_TYPE_INVALID` reports the applicable schema in `expected`, with
+references relative to `schemas/`, and the nested location of the invalid value.
 [Diagnostic codes](production-diagnostics.md#diagnostic-codes) lists the variation codes.
 `references: null` removes the selected reference set and reruns the required contracts.
 Replacing a named document also updates the task source role that points at it.
-A removed dependency stops being a freshness requirement, and unchanged dependencies stay checked.
+A removed dependency has no remaining use in the child. Unchanged inputs come
+from the parent's captured revision, including nested source material and
+prepared reference bytes. A changed file, deleted original or moved original
+does not require restoration before a variant or repeat. An explicit
+replacement selects current inputs through that field's owner; it does not
+silently draw other retained inputs from edited originals.
 For URL-import transports, `upload-sources` selects the same `[{"file": "studio-relative-carrier.png", "url": "https://assets.example.org/carrier.png"}]` contract as `task.upload_sources`. Select the actual hosted carrier file; the compiler derives its hash and current media position.
 
 A prompt edit is checked again against retrieval and render intent.
 Supply an explicitly reassessed `retrieval-record` when the original record does not apply to the new wording.
 The runtime invents no lookup or approval evidence.
-Unchanged evidence stays reusable; current source applicability and pack choices still apply.
+Unchanged evidence stays reusable. New reference selection still checks current
+source eligibility, and current pack choices apply to the new compilation.
 A variant or repeat compiles against the current installation and packs and fixes its own runtime from what it used.
 It keeps the model and service of its parent; `retarget` selects another.
 Where the installation or the packs differ from what the parent pinned, the result lists each difference in `runtime_warnings` as a warning.

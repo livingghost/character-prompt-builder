@@ -68,11 +68,11 @@ class PreviewTests(unittest.TestCase):
         import dispatch
         self.assertEqual(dispatch.open_run(self.root), self.run)
 
-    def test_preview_refuses_what_execute_refuses(self):
+    def test_preview_checks_supplied_upscale_arguments_against_the_saved_request(self):
         self.assertEqual(self.refused(scale=4), 'INPUT_CONSISTENCY_ERROR')
         self.assertEqual(self.refused(slot='another-candidate'), 'INPUT_CONSISTENCY_ERROR')
         self.source.write_bytes(self.source.read_bytes() + b'changed')
-        self.assertEqual(self.refused(), 'SOURCE_CHANGED')
+        self.assertEqual(self.refused(), 'INPUT_CONSISTENCY_ERROR')
 
     def test_preview_refuses_a_run_that_owns_an_execution(self):
         with contextlib.redirect_stdout(io.StringIO()):

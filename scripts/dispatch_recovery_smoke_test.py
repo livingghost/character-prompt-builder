@@ -122,10 +122,20 @@ class DispatchRecoveryTests(unittest.TestCase):
         options=self.low_level_options();options.slot='another-candidate'
         self.assertEqual(self.preview_refusal(options),'INPUT_CONSISTENCY_ERROR')
 
-    def test_low_level_preview_refuses_changed_input(self):
+    def test_low_level_preview_keeps_the_saved_request_after_a_draft_edit(self):
         options=self.low_level_options()
+        options.preview_out='saved-preview.json'
+        before=self.rows()
+        saved=workflow.read_run(self.root,self.run)
         (self.root/'prompt.txt').write_text('A different, unreviewed source.',encoding='utf-8')
-        self.assertEqual(self.preview_refusal(options),'SOURCE_CHANGED')
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(dispatch.dispatch_generation(options,self.root),0)
+        preview=c.load(self.root/options.preview_out)
+        self.assertEqual(preview['request_contract']['request_sha256'],
+                         saved.artifacts['execution-plan.json']['request_sha256'])
+        self.assertEqual(self.rows(),before)
+        self.no_effect()
 
     def test_low_level_preview_refuses_another_package(self):
         options=self.low_level_options();package=c.load(options.package);package['source_brief']='Changed brief.'
@@ -140,10 +150,23 @@ class DispatchRecoveryTests(unittest.TestCase):
         with patch.object(studio,'validate_recording_target',side_effect=check),self.assertRaises(PermissionError):self.call()
         self.no_effect();self.assertEqual(self.rows(),[])
 
-    def test_changed_input_is_not_sent(self):
+    def test_draft_edit_keeps_the_saved_request_sent_once(self):
+        saved=workflow.read_run(self.root,self.run)
+        expected=copy.deepcopy(saved.artifacts['request-contract.json']['request'])
         (self.root/'prompt.txt').write_text('A different, unreviewed source.',encoding='utf-8')
-        with self.assertRaises(ValueError):self.call()
-        self.no_effect()
+        result=self.call()
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual(self.send.call_count,1)
+        sent=self.send.call_args.args[0]
+        expected['request_id']=sent['request_id']
+        self.assertEqual(sent,expected)
+        current=workflow.read_run(self.root,self.run)
+        self.assertEqual((current.prepared,current.consumer),(saved.prepared,saved.consumer))
+        report=result['runs'][0]
+        self.assertEqual(report['readiness'],'ready')
+        self.assertEqual(report['freshness_diagnostics'],[])
+        self.assertIn(('SOURCE_CHANGED','warning','prompt.txt'),
+                      [(item['code'],item['severity'],item['file']) for item in report['freshness_notices']])
 
     def test_incomplete_permission_rolls_back_before_claim(self):
         value=c.load(self.root/self.decision_file);value['decisions']=value['decisions'][:1]

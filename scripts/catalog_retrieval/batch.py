@@ -55,7 +55,7 @@ _BATCH_OPTION_FIELDS = {
 
 
 def batch_help_example() -> str:
-    """Return one copyable ordered-query example for CLI discovery."""
+    """Return the smallest complete ordered-query example for CLI discovery."""
 
     return json.dumps(
         [
@@ -63,17 +63,6 @@ def batch_help_example() -> str:
                 "request_id": "identity",
                 "command": "search",
                 "canonical_query": "muscular black panther",
-                "kind": ["archetype"],
-                "domain": "anthropomorphic-animal",
-                "limit": 6,
-            },
-            {
-                "request_id": "scene",
-                "command": "search",
-                "canonical_query": "low-angle athletic action",
-                "kind": ["scene"],
-                "domain": "anthropomorphic-animal",
-                "limit": 6,
             },
         ],
         ensure_ascii=True,
@@ -301,7 +290,8 @@ def execute_batch(
             }
             unknown = sorted(set(item) - allowed)
             if unknown:
-                raise ValueError("unknown request fields: " + ", ".join(unknown))
+                raise ValueError("unknown request fields: " + ", ".join(unknown)
+                                 + "; permitted fields: " + ", ".join(sorted(allowed)))
             request = _batch_query_request(item)
             result = execute_query_command(
                 entries,

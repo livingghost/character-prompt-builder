@@ -30,28 +30,6 @@ def _reading(prepared: dict) -> dict:
                            'active context, then apply them to this phase.'}
 
 
-def _external_media(loaded, binding: dict) -> list[dict]:
-    external = binding['external_request']
-    prepared = binding.get('prepared_reference_set')
-    found = set()
-    result = []
-    for index, (reference, field) in enumerate(zip(binding['references'], external['reference_fields'], strict=True)):
-        if prepared is None:
-            key = reference['sha256']
-        elif prepared['transport_mode'] == 'single-board':
-            key = prepared['single_board']['sha256']
-        else:
-            key = prepared['selected_references'][index]['transport']['sha256']
-        identity = (key, tuple(field['field']))
-        if identity in found:
-            continue
-        found.add(identity)
-        raw = loaded.evidence.read(key)
-        result.append({'path': str(loaded.directory / 'objects' / key), 'sha256': key,
-                       'request_fields': [field['field']], 'media': media.inspect(raw, 'image')})
-    return result
-
-
 def _input(loaded) -> dict:
     """Expose provider-facing text, parameters and media without assessment context."""
     directory, prepared, consumer, _ = loaded
@@ -79,12 +57,9 @@ def _input(loaded) -> dict:
     binding = consumer.get('image_input')
     external = binding.get('external_request') if binding else None
     if external is not None:
-        result = {'execution': execution, 'target': binding['model']['target'],
-                  'request': external['request'], 'request_sha256': external['sha256'],
-                  'media': _external_media(loaded, binding), 'outputs': external['count']}
-        if external.get('model_identity') is not None:
-            result['model_identity'] = external['model_identity']
-        return result
+        from image_input import external_delivery
+        delivery = external_delivery(binding, run_directory=directory, read_object=loaded.evidence.read)
+        return {'execution': execution, **delivery, 'outputs': external['count']}
     return {'execution': execution, 'delivery': consumer['instructions'],
             'media': [], 'request': plan.get('request')}
 

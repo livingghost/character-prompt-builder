@@ -1,0 +1,3 @@
+Prepare one image of a blue service robot lifting a yellow toolbox onto a workbench. Use the supplied image only for the blue color of the robot. Keep text overlays out of this illustration. Stop at the inspectable request.
+
+Synthetic interface exercise; the colored reference exercises a color-use contract, not provider behavior.

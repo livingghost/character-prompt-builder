@@ -71,7 +71,16 @@ The run also pins the installed implementation: the files listed in `config/impl
 `package-manifest.toml` is not pinned, so a release bump keeps a prepared run current.
 A pinned implementation file or a bound pack file that changes later is reported as a notice, `IMPLEMENTATION_CHANGED` or a pack code: the prepared run keeps its sealed request and fixed runtime and still sends.
 The transport module that sends is the exception; `TRANSPORT_IMPLEMENTATION_CHANGED` stops the send.
-Live creative sources, persona applicability, accepted Studio references and fixed runtime integrity are checked again before execution, and a change in them stops it.
+Execution uses the selected run's saved request, source bytes, reference carriers
+and fixed runtime. It does not reread the editable choices, prompt, reading key
+or original media files to decide whether that request can run. Editing,
+reformatting, moving or removing those originals leaves the saved run usable.
+Status and impact views compare the originals when relevant and report changes
+as notices. A later Studio acceptance or adoption change likewise describes
+current source placement; it does not rewrite the selected run's captured use.
+New preparation resolves the newly selected sources and their applicability.
+Execution still checks the saved publication, media and fixed runtime, current
+imported authority, and the unique execution claim and step before each effect.
 
 Publication is an atomic, no-replace directory rename.
 Each producer declares the exact files it writes. The manifest persists that complete set with each file's content hash and size.
@@ -108,6 +117,34 @@ A studio root given on the command line may be an alias; it is resolved once, an
 `production_binding.py`, the upscale declaration command, resolves `--source`, `--settings-file`, `--render-intent`, `--request-validation-file` and `--out` against `--root`.
 Authored upscale guidance keeps its exact whitespace and line endings in the request and the result package.
 An absent guidance channel is null, never emulated by whitespace.
+
+## What the saved content establishes
+
+An editable authoring document supplies the current revision. Compilation
+captures that revision and derives its hashes; a later edit does not rewrite
+an earlier run. Preparing the edited content creates another run. The saved
+bytes establish what that preparation used. They do not establish who first
+issued the document or that it was unchanged before acquisition. A previously
+selected source or imported authority retains its own recorded baseline and
+applicability rules; editing an authoring document does not replace those
+records or approve the new request.
+
+Choose a run explicitly to execute its saved revision. Choose editable inputs
+to prepare their current revision. A change notification connects those two
+views; it is not an execution prerequisite or an instruction to restore the
+old files. The compiler still refuses a newly selected input that changes
+during its own acquisition and publication.
+
+Content checks compare files and requests with these local records. They are
+not user signatures or an independent guarantee against a writer that can
+also replace the records and checking code. Dispatcher execution checks its
+prepared request before starting each owned external step. That check and the
+subsequent network operation are separate events. An external execution gives
+the host a prepared request to invoke; it does not intercept the host's actual
+tool call. [Execution permissions](production-permissions.md) describes the
+authority and recorded execution boundaries. Report the observed comparison
+and submission evidence within those limits.
+
 ## Digests
 
 Every digest is the SHA-256 of canonical JSON or of exact file bytes.

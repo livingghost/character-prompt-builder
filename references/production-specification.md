@@ -20,6 +20,34 @@ The related artifacts have different jobs:
 
 A Production Specification may be regenerated whenever scene-visible semantic inputs change. Stable identity and approved history remain in their owning artifacts rather than being overwritten inside the scene specification.
 
+The canonical shape is
+[`protocols/shared-state/schemas/production-spec.schema.json`](../protocols/shared-state/schemas/production-spec.schema.json).
+Inspect required and permitted fields before writing, then open a precise
+schema fragment for a nested record:
+
+```sh
+python scripts/production_document_contracts.py explain production_spec
+python scripts/production_document_contracts.py explain production_spec --pointer /properties/subjects/items
+python scripts/production_document_contracts.py validate production_spec STUDIO/inputs/production-spec.json
+```
+
+The discovery output lists nested schema pointers and references, and the
+validator reports this same schema with its errors. It delegates to
+`production_spec.py`, preserving subject-ID, layout, morphology and render-intent
+checks beyond the schema. Editable specifications may omit `target_model`:
+`choices.target` owns that selection, and compilation supplies it in the
+published specification. The registry validates this authored projection while
+checking any supplied target value's type and content. The standalone
+`production_spec.py validate` command checks a complete published specification,
+including its target. Neither local check verifies the selected model's actual
+compatibility with the task. The
+[filled state-aware example](../examples/state-aware-pilot/generated/production-specification.json)
+shows one complete specification within its declared example scope. The
+[first-image example](../examples/input-authoring/README.md) prepares a filled
+stateless specification with its prompt, references and choices in a new Studio.
+Use the stateless draft below when that scope fits the current work; selecting a
+specification remains optional for an ordinary image.
+
 ## State modes
 
 ### Stateless

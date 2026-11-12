@@ -125,11 +125,11 @@ def recheck_roots() -> None:
 
 # Run inputs written into a staging directory before its publication:
 # (resolved studio root, studio-relative prefix, staging directory).
-_STAGED: contextvars.ContextVar[tuple[tuple[str, str, Path], ...]] = contextvars.ContextVar('cpb_staged_inputs', default=())
+_STAGED: contextvars.ContextVar[tuple[tuple[str, str, Path, Any], ...]] = contextvars.ContextVar('cpb_staged_inputs', default=())
 
 
 @contextlib.contextmanager
-def staged_inputs(root: Path, prefix: str, directory: Path) -> Iterator[None]:
+def staged_inputs(root: Path, prefix: str, directory: Path, *, on_resolve=None) -> Iterator[None]:
     """Resolve studio paths below `prefix` inside `directory` until it is published there.
 
     A derived run declares its inputs at their published place inside the run.
@@ -138,7 +138,7 @@ def staged_inputs(root: Path, prefix: str, directory: Path) -> Iterator[None]:
     rel = PurePosixPath(prefix)
     if rel.is_absolute() or rel.as_posix() != prefix or any(x in {'.', '..'} for x in rel.parts):
         raise ValueError('staged input prefix must be a canonical studio-relative path')
-    token = _STAGED.set(_STAGED.get() + ((str(_root(root)), prefix, Path(directory).absolute()),))
+    token = _STAGED.set(_STAGED.get() + ((str(_root(root)), prefix, Path(directory).absolute(), on_resolve),))
     try:
         yield
     finally:
@@ -146,7 +146,7 @@ def staged_inputs(root: Path, prefix: str, directory: Path) -> Iterator[None]:
 
 
 def _staged(resolved: Path, rel: PurePosixPath) -> Path | None:
-    for owner, prefix, directory in _STAGED.get():
+    for owner, prefix, directory, on_resolve in _STAGED.get():
         if owner != str(resolved):
             continue
         try:
@@ -160,6 +160,8 @@ def _staged(resolved: Path, rel: PurePosixPath) -> Path | None:
             if p.is_symlink():
                 raise ValueError("symbolic link in studio path")
         target.resolve().relative_to(directory.resolve())
+        if on_resolve is not None:
+            on_resolve(rel.as_posix())
         return target
     return None
 

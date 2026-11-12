@@ -74,6 +74,8 @@ def _specification(task: dict, read, package: dict | None) -> dict | None:
 
 def reference_id(row: dict) -> str:
     """Use the owning reference identity, independent of its transport position."""
+    # references/runtime/reference-delivery.md#reference-identities-and-coverage
+    # distinguishes this use ID from the reference: identity-source prefix.
     selected=row.get('reference_id') or row['source'].get('reference_id')
     if selected is None:
         selected=row.get('binding_id') or row['source'].get('artifact_id')
@@ -241,6 +243,7 @@ def context(task: dict, read, *, package: dict | None = None,
         rows.append(carrier)
         if identity_subjects:
             required.update(identity_subjects)
+            # Coverage source IDs add a namespace; the reference use keeps row['id'].
             source = {'id': 'reference:' + row['id'], 'path': source_path,
                 'subject_ids': identity_subjects, 'selectors': [''], 'format': 'image',
                 'sha256': source_hash, 'value': None,

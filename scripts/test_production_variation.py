@@ -1,9 +1,11 @@
 """Input-derived variants and repeats of the current prepared-run contract."""
 from __future__ import annotations
 import copy
+from contextlib import redirect_stdout
 import io
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -29,6 +31,15 @@ class VariationTests(unittest.TestCase):
     def change(self, values):
         fixtures.write(self.root / 'changes.json', {'changes': values, 'reason': 'Explicit synthetic input variation.'})
         return variation.derive(self.root, self.run, changes_file='changes.json', prepare=True)
+
+    def identity_task(self):
+        task = c.load(self.root / 'task.json')
+        task['sources'][0]['identity'] = {'subject_ids': ['robot'], 'selectors': ['']}
+        task['criteria'][0].update(evidence='image', identity_review=['robot'], identity_bindings=[{
+            'source': 'brief', 'subject_ids': ['robot'], 'selectors': [''], 'treatment': 'preserve',
+            'reason': 'Retain the original synthetic definition.', 'variation': None,
+            'carriers': [{'kind': 'text', 'surface': 'primary', 'selection': {'text': 'synthetic robot', 'occurrence': 1}}]}])
+        return task
 
     def test_parameter_variant_needs_no_candidate_or_claim(self):
         child = self.change({'parameter:steps': 22})
@@ -108,6 +119,67 @@ class VariationTests(unittest.TestCase):
         child = self.change({'direction': task['direction']})
         self.assertEqual(workflow.load_run(self.root, child['run'])[1]['task']['direction'], task['direction'])
         self.assertFalse(child['authorization_inherited'])
+
+    def test_saved_field_schemas_validate_nested_identity_and_recording_values(self):
+        from state_protocol import validate_against_schema
+        task = self.identity_task()
+        fields = workflow.read_run(self.root, self.run).artifacts['execution-plan.json']['mutable_fields']
+        for field, name in [('criteria', 'criteria'), ('source-materials', 'sources'), ('recording', 'recording')]:
+            with self.subTest(field=field):
+                self.assertEqual(validate_against_schema(task[name], fields[field]['schema']), [])
+
+    def test_cli_reassesses_identity_fields_from_retained_plan_without_changing_parent(self):
+        import production_compiler as compiler
+        task = self.identity_task()
+        fixtures.write(self.root / 'identity-task.json', task)
+        schema = c.load(Path(__file__).resolve().parents[1] / 'schemas/authoring/production-task.schema.json')
+        # A retained field projection may omit its document context. The new
+        # authored values still follow the current complete task contract.
+        with patch.object(compiler, 'task_field_schema', side_effect=lambda name: copy.deepcopy(schema['properties'][name])):
+            parent = workflow.prepare(self.root, 'identity-task.json')
+        before = workflow.load_run(self.root, parent['run'])[1]
+        plan_path = workflow.run_dir(self.root, parent['run']) / 'execution-plan.json'
+        plan_bytes = plan_path.read_bytes()
+        for field, name, changed_key in [('criteria', 'criteria', 'text'), ('source-materials', 'sources', 'reason')]:
+            with self.subTest(field=field):
+                value = copy.deepcopy(task[name])
+                value[0][changed_key] += ' The synthetic wording is explicitly reassessed.'
+                fixtures.write(self.root / 'changes.json', {'changes': {field: value}, 'reason': 'Synthetic identity reassessment.'})
+                output = io.StringIO()
+                argv = ['production_workflow.py', 'variant', '--root', str(self.root), '--from', parent['run'],
+                        '--changes-file', 'changes.json', '--prepare']
+                with patch.object(sys, 'argv', argv), redirect_stdout(output):
+                    exit_code = workflow.main()
+                self.assertEqual(exit_code, 0, output.getvalue())
+                child = json.loads(output.getvalue())
+                prepared = workflow.load_run(self.root, child['run'])[1]
+                self.assertEqual(prepared['task'][name], value)
+                self.assertEqual(prepared['parent']['run'], parent['run'])
+                self.assertEqual(store.event_rows(self.root, child['run']), [])
+                self.assertFalse(child['authorization_inherited'])
+        self.assertEqual(workflow.load_run(self.root, parent['run'])[1], before)
+        self.assertEqual(plan_path.read_bytes(), plan_bytes)
+        self.assertEqual(c.load(self.root / 'identity-task.json'), task)
+
+    def test_invalid_nested_identity_values_report_field_errors_without_a_run(self):
+        task = self.identity_task()
+        criteria = copy.deepcopy(task['criteria'])
+        criteria[0]['identity_bindings'][0]['subject_ids'] = [7]
+        sources = copy.deepcopy(task['sources'])
+        sources[0]['identity']['selectors'] = ['/invalid~2escape']
+        conditional = copy.deepcopy(task['criteria'])
+        conditional[0]['identity_bindings'][0]['treatment'] = 'authorized-variation'
+        for field, value, fragment in [('criteria', criteria, 'subject_ids[0]'),
+                                      ('source-materials', sources, 'selectors[0]'),
+                                      ('criteria', conditional, '.variation')]:
+            with self.subTest(field=field, invalid=fragment):
+                with self.assertRaises(ProductionError) as caught:
+                    self.change({field: value})
+                diagnostic = caught.exception.diagnostic
+                self.assertEqual((diagnostic.code, diagnostic.pointer), ('CHANGES_TYPE_INVALID', '$.changes.' + field))
+                self.assertIn(fragment, diagnostic.message)
+                self.assertIn('expected', diagnostic.required_action)
+        self.assertEqual(len(store.runs(self.root)), 1)
 
     def test_replaced_named_source_is_not_left_pointing_at_the_old_file(self):
         task = c.load(self.root/'task.json')
@@ -352,11 +424,149 @@ class VariationTests(unittest.TestCase):
                 self.assertEqual(recorded['data']['review']['evidence'], evidence)
                 self.assertEqual(len(recorded['data']['review']['observations']), 2)
 
-    def test_changed_unreplaced_source_is_not_silently_reused(self):
+    def test_changed_unreplaced_source_uses_the_selected_parent_revision(self):
+        parent = workflow.read_run(self.root, self.run)
+        original = variation._captured(parent, 'creative-intent.json')
         fixtures.write(self.root / 'creative-intent.json', {'image_promise': 'A different current author intent.'})
-        with self.assertRaises(ProductionError) as caught:
-            self.change({'parameter:steps': 22})
-        self.assertEqual(caught.exception.diagnostic.code, 'SOURCE_CHANGED')
+        current = (self.root / 'creative-intent.json').read_bytes()
+        child = self.change({'parameter:steps': 22})
+        self.assertEqual(variation._captured(workflow.read_run(self.root, child['run']), 'creative-intent.json'), original)
+        self.assertEqual((self.root / 'creative-intent.json').read_bytes(), current)
+        self.assertEqual(workflow.read_run(self.root, self.run).prepared, parent.prepared)
+
+    def test_repeat_uses_captured_sources_after_original_files_disappear(self):
+        parent = workflow.read_run(self.root, self.run)
+        removed = []
+        for row in parent.prepared['dependencies']:
+            if row['space'] == 'studio' and row['path'] != 'work/reads.jsonl':
+                selected = self.root / row['path']
+                if selected.is_file():
+                    selected.unlink()
+                    removed.append(selected)
+        child = variation.derive(self.root, self.run, prepare=True)
+        self.assertEqual(child['input_sha256'], self.parent['input_sha256'])
+        self.assertEqual(child['execution_plan']['request_sha256'], self.parent['execution_plan']['request_sha256'])
+        self.assertTrue(removed)
+        self.assertTrue(all(not path.exists() for path in removed))
+        self.assertEqual(store.event_rows(self.root, child['run']), [])
+
+    def test_explicit_document_replacement_uses_current_bytes_at_the_same_path(self):
+        original = c.load(self.root / 'creative-intent.json')
+        current = {**original, 'image_promise': 'The authored synthetic character has a deliberately revised image promise.'}
+        fixtures.write(self.root / 'creative-intent.json', current)
+        child = self.change({'creative-intent': {'path': 'creative-intent.json'}})
+        selected = c.decode(variation._captured(workflow.read_run(self.root, child['run']), 'creative-intent.json'))
+        self.assertEqual(selected, current)
+        self.assertEqual(c.decode(variation._captured(workflow.read_run(self.root, self.run), 'creative-intent.json')), original)
+
+    def test_reopened_choices_explicitly_reselect_current_original_source(self):
+        import production_inputs
+        task = c.load(self.root / 'task.json')
+        task['sources'].append({'id': 'auxiliary-source', 'path': 'source.bin', 'role': 'design',
+            'disposition': 'applied', 'locator': 'whole file', 'reason': 'Explicit synthetic source selection.'})
+        fixtures.write(self.root / 'source.bin', 'Original selected content.\n')
+        original = (self.root / 'source.bin').read_bytes()
+        fixtures.write(self.root / 'source-task.json', task)
+        parent = workflow.prepare(self.root, 'source-task.json')
+        fixtures.write(self.root / 'source.bin', 'Current content explicitly selected for this draft.\n')
+        current = (self.root / 'source.bin').read_bytes()
+        draft = production_inputs.draft_inputs(self.root, None, 'work/reselect-source', from_run=parent['run'])
+        choices = draft['choices']
+        row = next(row for row in choices['authoring']['task']['sources'] if row['id'] == 'auxiliary-source')
+        restored_path = row['path']
+        self.assertEqual((self.root / restored_path).read_bytes(), original)
+        row['path'] = 'source.bin'
+        fixtures.write(self.root / draft['choices_file'], choices)
+        child = workflow.prepare(self.root, choices=draft['choices_file'])
+        self.assertEqual(variation._captured(workflow.read_run(self.root, child['run']), 'source.bin'), current)
+        self.assertEqual(variation._captured(workflow.read_run(self.root, parent['run']), 'source.bin'), original)
+        self.assertEqual((self.root / restored_path).read_bytes(), original)
+        self.assertEqual((self.root / 'source.bin').read_bytes(), current)
+
+    def test_reopened_validation_retains_its_nested_graph_and_selects_current_replacements(self):
+        import shutil
+        import production_inputs
+        import production_saved_inputs
+        from input_evidence import InputEvidence
+        parent = workflow.read_run(self.root, self.run)
+        record = parent.artifacts['package.json']['request_validation']
+        graph = {row['path']: parent.evidence.read(row['sha256'])
+                 for row in parent.prepared['dependencies'] if row['path'].startswith('synthetic-validation/')}
+        policy_path = record['execution_policy']['path']
+        policy = c.decode(graph[policy_path])
+        basis_path = policy['basis']['path']
+        shutil.rmtree(self.root / 'synthetic-validation')
+        draft = production_inputs.draft_inputs(self.root, None, 'work/retained-validation', from_run=self.run)
+        self.assertEqual(draft['choices']['validation']['execution_policy'], '@run/' + self.run + '/' + policy_path)
+        child = workflow.prepare(self.root, choices=draft['choices_file'])
+        saved = workflow.read_run(self.root, child['run'])
+        snapshots = saved.artifacts['package.json']['input_snapshots']
+        self.assertEqual(InputEvidence._decode(snapshots['@run/' + self.run + '/' + basis_path]), graph[basis_path])
+        self.assertFalse((self.root / 'synthetic-validation').exists())
+
+        # Reopening this child consumes the graph it already owns. The named
+        # source keeps its identity without rereading an ancestor publication.
+        again = production_inputs.draft_inputs(self.root, None, 'work/validation-again', from_run=child['run'])
+        with patch.object(production_saved_inputs, 'read_named', side_effect=AssertionError('ancestor source reread')):
+            grandchild = workflow.prepare(self.root, choices=again['choices_file'])
+        self.assertTrue(grandchild['formal_run_created'])
+        self.assertEqual(again['choices']['validation'], draft['choices']['validation'])
+
+        for path, raw in graph.items():
+            c.atomic(self.root / path, raw)
+        current_basis = b'Explicitly selected current synthetic interface evidence.\n'
+        fixtures.write(self.root / basis_path, current_basis.decode('utf-8'))
+        reference_path = policy['reference_instruction_transport']['contract']['path']
+        reference = c.decode(graph[reference_path])
+        reference['basis']['sha256'] = c.digest(current_basis)
+        fixtures.write(self.root / reference_path, reference)
+        policy['basis']['sha256'] = c.digest(current_basis)
+        policy['reference_instruction_transport']['contract']['sha256'] = c.digest(c.encoded(reference))
+        fixtures.write(self.root / policy_path, policy)
+        choices = c.load(self.root / draft['choices_file'])
+        choices['validation']['execution_policy'] = policy_path
+        fixtures.write(self.root / draft['choices_file'], choices)
+        changed = workflow.prepare(self.root, choices=draft['choices_file'])
+        current = workflow.read_run(self.root, changed['run']).artifacts['package.json']
+        self.assertEqual(current['request_validation']['execution_policy']['path'], policy_path)
+        self.assertEqual(InputEvidence._decode(current['input_snapshots'][basis_path]), current_basis)
+        self.assertEqual(parent.evidence.read(c.digest(graph[basis_path])), graph[basis_path])
+
+    def test_retained_reference_graph_survives_removal_and_explicit_replacement_uses_current_media(self):
+        import shutil
+        from prepare_generation_references import prepare_references
+        from transport_synthetic import _png
+        folder = self.root / 'reference-revision'
+        path = folder / 'source.png'
+        old = _png(32, 32, b'\x50\x78\xa0')
+        c.atomic(path, old)
+        def reference_document(output):
+            return prepare_references([{'role': 'palette', 'source': {'kind': 'supplied-file',
+                'reference_id': 'synthetic-palette', 'resolved_path': str(path)}}],
+                model=fixtures.MODEL_ID, output_dir=output)
+        fixtures.write(folder / 'references.json', reference_document(folder / 'prepared'))
+        parent = self.change({'references': {'path': 'reference-revision/references.json'},
+                              'execution-mode': 'reference-guided'})
+        parent_run = parent['run']
+        parent_prepared = workflow.read_run(self.root, parent_run).prepared
+        shutil.rmtree(folder)
+        try:
+            repeated = variation.derive(self.root, parent_run, prepare=True)
+        except CompilationError as exc:
+            self.fail(json.dumps(exc.report['diagnostics'], indent=2))
+        self.assertEqual(repeated['input_sha256'], parent['input_sha256'])
+        repeated_set = workflow.read_run(self.root, repeated['run']).artifacts['package.json']['prepared_reference_set']
+        self.assertEqual(repeated_set['selected_references'][0]['source']['sha256'], c.digest(old))
+        self.assertFalse(folder.exists())
+        new = _png(32, 32, b'\xa0\x78\x50')
+        c.atomic(path, new)
+        fixtures.write(folder / 'references.json', reference_document(folder / 'new-prepared'))
+        fixtures.write(self.root / 'changes.json', {'changes': {'references': {'path': 'reference-revision/references.json'}},
+            'reason': 'Select the current source revision explicitly.'})
+        changed = variation.derive(self.root, parent_run, changes_file='changes.json', prepare=True)
+        changed_set = workflow.read_run(self.root, changed['run']).artifacts['package.json']['prepared_reference_set']
+        self.assertEqual(changed_set['selected_references'][0]['source']['sha256'], c.digest(new))
+        self.assertEqual(workflow.read_run(self.root, parent_run).prepared, parent_prepared)
 
     def test_changed_installation_is_a_notice_for_a_variant_and_a_repeat(self):
         import shutil
@@ -378,6 +588,26 @@ class VariationTests(unittest.TestCase):
             self.assertEqual((notice['code'], notice['severity'], notice['file']),
                              ('IMPLEMENTATION_CHANGED', 'warning', changed))
         self.assertEqual(len(store.runs(self.root)), 3)
+
+
+class RetainedUpscaleTests(unittest.TestCase):
+    def test_repeat_keeps_upscale_source_and_validation_after_original_removal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = fixtures.create(base / 'studio', base / 'runtime', with_upscale=True)['root']
+            parent = workflow.prepare(root, fixtures.upscale_task(root))
+            loaded = workflow.read_run(root, parent['run'])
+            removed = []
+            for source in loaded.prepared['dependencies']:
+                path = root / source['path']
+                if source['space'] == 'studio' and path.is_file() and source['path'] != 'work/reads.jsonl':
+                    path.unlink()
+                    removed.append(path)
+            child = variation.derive(root, parent['run'], prepare=True)
+            self.assertEqual(child['input_sha256'], parent['input_sha256'])
+            self.assertEqual(child['execution_plan']['request_sha256'], parent['execution_plan']['request_sha256'])
+            self.assertTrue(all(not path.exists() for path in removed))
+            self.assertEqual(store.event_rows(root, child['run']), [])
 
 
 class HierarchicalParameterTests(unittest.TestCase):

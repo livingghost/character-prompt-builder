@@ -1291,8 +1291,10 @@ class ImplementationPinTests(unittest.TestCase):
                 module=copied/'scripts/production_compiler.py'
                 module.write_bytes(module.read_bytes()+b'\n')
                 # The prepared run keeps its sealed request: a changed installation is a notice.
-                current=workflow.read_current(root,run)
-            [notice]=[item for item in current.notices if item['code']=='IMPLEMENTATION_CHANGED']
+                workflow.read_current(root,run)
+                failures,notices=workflow.freshness(root,run)
+            self.assertEqual(failures,[])
+            [notice]=[item for item in notices if item['code']=='IMPLEMENTATION_CHANGED']
             self.assertEqual((notice['severity'],notice['phase'],notice['file']),
                              ('warning','implementation','scripts/production_compiler.py'))
             self.assertNotIn('changed_files',notice)

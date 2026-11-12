@@ -366,6 +366,9 @@ def normalize_negative_provenance(value: dict[str, Any] | None) -> dict[str, Any
     if unexpected:
         raise ValueError(
             "negative provenance contains unexpected fields: " + ", ".join(unexpected)
+            + "; permitted fields: " + ", ".join(sorted(NEGATIVE_PROVENANCE_FIELDS))
+            + ". See references/runtime/prompt-composition.md#negative-output; "
+              "validate with production_document_contracts.py validate negative_provenance FILE."
         )
     for key in (
         "activated_sources",
@@ -1121,6 +1124,7 @@ def materialize_cli_reference_bundle(
     staging_root: Path,
     companion_name: str,
     artifacts: ArtifactSet | None = None,
+    source_archive: Path | None = None,
 ) -> tuple[dict[str, Any], Path | None]:
     """Copy every portable carrier and return a set rebased to the final companion name."""
 
@@ -1128,6 +1132,7 @@ def materialize_cli_reference_bundle(
         prepared_reference_set,
         model=model,
         package_root=source_root,
+        source_archive=source_archive,
     )
     selected = copy.deepcopy(validated["selected_references"])
     prompt_artifacts = copy.deepcopy(validated["prompt_artifacts"])
@@ -1144,7 +1149,9 @@ def materialize_cli_reference_bundle(
                 for item in archived:
                     artifacts.add_record({**item, 'path': companion_name + '/' + item['path']})
         import execution_contract as execution
-        raw = execution.read(Path(source['resolved_path']))
+        from prepare_generation_references import _ReferenceContext
+        source_path = _ReferenceContext(True, source_archive).path(source, 'reference source')
+        raw = execution.read(source_path)
         if execution.digest(raw) != source['sha256']:
             raise ValueError('reference source changed while recording its snapshot')
         destination = staging_root / companion_name / 'sources' / source['sha256']
@@ -1206,6 +1213,7 @@ def materialize_cli_reference_bundle(
         prompt_artifacts=prompt_artifacts,
         single_board=board,
         package_root=staging_root,
+        source_archive=staging_root / companion_name / 'sources' if source_archive is not None else None,
     )
     companion = staging_root / companion_name
     return rebased, (companion if carrier_count else None)

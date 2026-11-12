@@ -16,6 +16,7 @@ import tempfile
 import unittest
 
 import execution_contract as c
+import production_case_fixtures as cases
 import identity_coverage
 import production_identity
 import production_inputs
@@ -385,6 +386,30 @@ class IdentityAuthoringTests(unittest.TestCase):
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
         self.assertEqual(task['criteria'], self.task['criteria'])
 
+    def test_reopened_run_keeps_identity_bytes_after_original_removal(self):
+        import production_workflow
+        result, choices = self.draft_identity()
+        choices['authoring']['task']['authority'] = None
+        (self.root / choices['authoring']['delivery']['file']).write_text(
+            'Keep the adopted conditional details.\n', encoding='utf-8')
+        (self.root / result['choices_file']).write_bytes(c.encoded(choices))
+        parent = production_workflow.prepare(self.root, choices=result['choices_file'])['run']
+        before = production_workflow.read_run(self.root, parent).prepared['input_sha256']
+        (self.root / 'canon.json').unlink()
+
+        reopened = production_inputs.draft_inputs(self.root, None, 'reopened-identity', from_run=parent)
+        selected = reopened['choices']['authoring']['task']['sources'][0]
+        self.assertEqual(selected['id'], 'canon')
+        self.assertNotEqual(selected['path'], 'canon.json')
+        self.assertEqual((self.root / selected['path']).read_bytes(), self.raw)
+        self.assertEqual(reopened['identity_coverage']['sources'][0]['sha256'], c.digest(self.raw))
+        compiled = production_inputs.compile_choices(self.root, reopened['choices_file'])
+        if compiled.directory is not None:
+            self.addCleanup(shutil.rmtree, compiled.directory, ignore_errors=True)
+        self.assertTrue(compiled.report['publishable'], compiled.report)
+        self.assertEqual(compiled.prepared['task']['criteria'], self.task['criteria'])
+        self.assertEqual(production_workflow.read_run(self.root, parent).prepared['input_sha256'], before)
+
     def test_missing_whole_subject_review_names_the_criterion_to_add(self):
         from validate import markdown_anchor_slugs
         result, choices = self.draft_identity()
@@ -528,18 +553,20 @@ class IdentityAuthoringTests(unittest.TestCase):
 
     def test_editing_graph_owner_requires_its_existing_authority_workflow(self):
         result, choices = self.draft_identity(graph=True)
-        choices['authoring']['documents']['state_graphs'][0]['identity_contract']['identity']['outline'] = 'A closed solid disc.'
+        with cases.edit_document(self.root, choices, 'state_graphs') as document:
+            document[0]['identity_contract']['identity']['outline'] = 'A closed solid disc.'
         built = self.build_identity(result, choices)
         self.assertFalse(built['ok'])
         gap = built['unresolved'][0]
         self.assertEqual((gap['code'], gap['reason'], gap['field']),
                          ('AUTHORED_CHOICE_REQUIRED', 'current-judgment-required', 'authoring.documents.state_graphs'))
-        self.assertIn('authoring.documents.state_graphs', gap['required_action'])
+        self.assertIn(choices['authoring']['documents']['state_graphs']['file'], gap['required_action'])
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
 
     def test_scene_snapshot_edit_preserves_original_graph_identity_source(self):
         result, choices = self.draft_identity(graph=True)
-        choices['authoring']['documents']['state_graphs'][0]['state_snapshot']['scene_state'] = 'Under the selected tension.'
+        with cases.edit_document(self.root, choices, 'state_graphs') as document:
+            document[0]['state_snapshot']['scene_state'] = 'Under the selected tension.'
         built = self.build_identity(result, choices)
         self.assertTrue(built['ok'], built.get('unresolved'))
         task = c.load(self.root / built['inputs']['production-task']['path'])
@@ -551,9 +578,10 @@ class IdentityAuthoringTests(unittest.TestCase):
 
     def test_optional_visual_owner_scope_cannot_be_rewritten_in_a_retained_scene_draft(self):
         result, choices = self.draft_identity(graph=True, visual_context=True)
-        graph = choices['authoring']['documents']['state_graphs'][0]
-        graph['visual_authority']['authority_scope'] = 'Now governs every permanent shape without the original limit.'
-        graph['visual_evidence_bundle']['disposition'] = 'adopted'
+        with cases.edit_document(self.root, choices, 'state_graphs') as graphs:
+            graph = graphs[0]
+            graph['visual_authority']['authority_scope'] = 'Now governs every permanent shape without the original limit.'
+            graph['visual_evidence_bundle']['disposition'] = 'adopted'
         built = self.build_identity(result, choices)
         self.assertFalse(built['ok'])
         gap = built['unresolved'][0]

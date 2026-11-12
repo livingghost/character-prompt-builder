@@ -304,13 +304,10 @@ def freshness_error(dependency: dict, actual: str | None, *, run: str | None, ph
     if actual is None:
         return ProductionError('SOURCE_CHANGED', 'A live creative source is unavailable.', phase=phase,
                                file=dependency['path'], run=run, expected=dependency.get('selection_sha256', dependency['sha256']), actual=None,
-                               required_action='Restore the file at this path to keep this run. If another file replaces it, select '
-                                               'that file in the choices or the task, then run prepare to make a new run.')
-    return ProductionError('SOURCE_CHANGED', 'A live creative source changed after preparation.', phase=phase,
+                               required_action='Restore or reselect the source, then prepare the current inputs as a new run.')
+    return ProductionError('SOURCE_CHANGED', 'A live creative source differs from the captured input.', phase=phase,
                            file=dependency['path'], run=run, expected=dependency.get('selection_sha256', dependency['sha256']), actual=actual,
-                           required_action='This file was edited after the run was prepared. If the edit is intended, run prepare '
-                                           'on the current files to make a new run; status --run gives the exact command. '
-                                           'To keep this run, restore the file to its prepared content.')
+                           required_action='Prepare the current source files again to capture the intended content.')
 
 
 def implementation_error(changed: list[tuple], *, run: str | None) -> ProductionError:
@@ -731,19 +728,18 @@ def current_sha256(root: Path, dependency: dict, *, read=None) -> str:
 
 @dataclass(frozen=True)
 class CurrentRunRead:
-    """The actual run and source inputs acquired at one command boundary."""
+    """The saved run and fixed runtime acquired at one execution boundary."""
 
     view: RunView
-    sources: Any
     runtime: runtime_snapshot.FixedRuntimeRead | None
-    reference_proofs: tuple
-    notices: tuple = ()
 
 
 # A prepared run sends its sealed request and reads its fixed runtime, so a
 # later change of the installation or of the packs is reported and does not stop it.
 INSTALLATION_NOTICE = ('No action is needed to send or continue this run: it keeps its sealed request. '
                        'Prepare the task again to compile it with the current installation.')
+DRAFT_NOTICE = ('No action is needed to send or continue this run: it keeps its saved request and inputs. '
+                'Prepare the current draft as a new run when you want to use those changes.')
 
 
 def _notice(error: BaseException, *, phase: str, required_action: str) -> dict:
@@ -751,28 +747,30 @@ def _notice(error: BaseException, *, phase: str, required_action: str) -> dict:
     return {**from_exception(error, phase=phase), 'severity': 'warning', 'required_action': required_action}
 
 
-def _current_source_inputs(root: Path, run: str, prepared: dict, *, force: bool = False,
-                           previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None):
-    """Acquire current inputs with what stops the run and what it is only told.
+def _fixed_runtime(root: Path, prepared: dict, *, force: bool = False,
+                   previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None):
+    """Verify the saved runtime that the prepared request actually uses."""
+    descriptor = prepared.get('runtime_snapshot')
+    if descriptor is None:
+        return None
+    return runtime_snapshot.acquire_runtime(runtime_snapshot.path(root, descriptor), descriptor,
+                                            force_verify=force, previous=previous_runtime)
 
-    A changed or missing author source, a replaced Studio reference and a
-    damaged fixed runtime are failures. A changed installation, changed
-    packs and a preparation reading that no longer verifies are notices.
+
+def _current_draft_notices(root: Path, run: str, prepared: dict,
+                           fixed: runtime_snapshot.FixedRuntimeRead | None) -> list[dict]:
+    """Observe current authoring locators for navigation, without changing a run.
+
+    A prepared request owns its sources, reference media and runtime. Later
+    draft edits, installation changes and Studio placements help the author
+    choose what to prepare next; executing this saved request does not read
+    them. Current imported submission authority has its own effect boundary.
     """
     import route_reading
-    import runtime_snapshot
     from live_source_read import LiveSourceRead
     sources=LiveSourceRead(root,ROOT,prepared['dependencies'])
-    failures=[]
     notices=[]
     descriptor=prepared.get('runtime_snapshot')
-    fixed=None
-    try:
-        if descriptor is not None:
-            fixed=runtime_snapshot.acquire_runtime(runtime_snapshot.path(root,descriptor),descriptor,
-                                                   force_verify=force,previous=previous_runtime)
-    except (ValueError,OSError) as exc:
-        failures.append(exc)
     if fixed is not None:
         try:
             notices.extend(runtime_snapshot.current_notices(root,descriptor,fixed,run=run))
@@ -811,52 +809,51 @@ def _current_source_inputs(root: Path, run: str, prepared: dict, *, force: bool 
             continue
         error=freshness_error(dependency,actual,run=run)
         error.__cause__=cause
-        failures.append(error)
+        notices.append(_notice(error,phase='source-freshness',required_action=DRAFT_NOTICE))
     if implementation:
         notices.append(_notice(implementation_error(implementation,run=run),phase='implementation',
                                required_action=INSTALLATION_NOTICE))
     from studio_reference import ReferenceReads, validate_source
     reference_reads = ReferenceReads()
-    proofs=[]
     for source in prepared.get('studio_reference_sources', []):
         try:
-            proofs.append(validate_source(source, read=reference_reads.studio(Path(source['studio_root']))))
+            validate_source(source, read=reference_reads.studio(Path(source['studio_root'])))
         except (ValueError, OSError, KeyError, TypeError) as exc:
-            failures.append(ProductionError('STUDIO_REFERENCE_CHANGED',
-                'The exact accepted Studio reference is no longer current or verifiable.',
+            error=ProductionError('STUDIO_REFERENCE_CHANGED',
+                'The current Studio reference placement differs from the saved reference or is unavailable.',
                 phase='source-freshness', run=run,
                 file=source.get('sheet') or 'characters/' + source['character'] + '/iterations.jsonl',
                 expected=source['proof_sha256'], character=source['character'], slot=source['slot'],
                 **({'artifact_id': source['artifact_id']} if source['kind'] == 'studio-artifact' else
                    {'iteration_id': source['iteration_id']}),
-                required_action='Select the current accepted artwork and prepare a new approved request; resume a sent run to recover its recorded result.',
-                cause=str(exc)))
-    return sources,fixed,tuple(proofs),failures,notices
+                cause=str(exc))
+            notices.append(_notice(error,phase='source-freshness',
+                required_action='No action is needed to send or continue this run: it keeps its saved reference media. '
+                                'Select an eligible current reference when preparing a new request.'))
+    return notices
 
 
 def read_current(root: Path, run: str, *, force: bool = False,
                  previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None) -> CurrentRunRead:
-    """Acquire actual live inputs for one command or external effect boundary.
+    """Acquire the saved request, its evidence and runtime for an effect boundary.
 
-    Internal steps receive these values explicitly. Another call checks actual
-    current bytes again, including after a failed earlier acquisition. A prior
-    runtime can supply immutable metadata only after its actual bytes match.
-    The first failure stops the boundary; notices travel with the result.
+    Internal steps receive these values explicitly. A forced call verifies
+    actual stored bytes again, including after a failed earlier acquisition.
+    A prior runtime supplies metadata only after its actual bytes match.
+    Current drafts and installation comparisons belong to navigation; current
+    imported authority is checked separately before each external effect.
     """
     loaded=read_run(root,run,force=force)
-    sources,fixed,proofs,failures,notices=_current_source_inputs(root,run,loaded.prepared,force=force,
-                                                              previous_runtime=previous_runtime)
-    if failures:
-        raise failures[0]
-    return CurrentRunRead(loaded,sources,fixed,proofs,tuple(notices))
+    fixed=_fixed_runtime(root,loaded.prepared,force=force,previous_runtime=previous_runtime)
+    return CurrentRunRead(loaded,fixed)
 
 
 def assert_current(root: Path, run: str, *, force: bool = False,
                    previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None) -> RunView:
-    """The loaded run after acquiring and checking its actual current sources.
+    """The saved run after checking its publication, evidence and fixed runtime.
 
-    `force` loads the run and checks its live sources again, even inside a
-    caller's transaction, as the check before an external effect does.
+    `force` acquires those stored bytes again, even inside a caller's
+    transaction, as the check before an external effect does.
     """
     # Event evidence is checked against owned snapshots by read_run, not its
     # deletable provenance locator. Current grants are checked separately.
@@ -865,15 +862,22 @@ def assert_current(root: Path, run: str, *, force: bool = False,
 
 def freshness(root: Path, run: str, *, loaded: tuple | None = None,
               previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None) -> tuple[list[dict], list[dict]]:
-    """The run's freshness problems and its notices, as diagnostics, without stopping at the first.
+    """Report saved-runtime failures and current-draft notices for navigation.
 
-    A problem stops the run's next effect. A notice reports a change of the
-    installation or the packs that the prepared run does not depend on.
+    The saved request remains executable when current authoring files,
+    reference placements or the installation differ. Actual corruption of
+    its fixed runtime is a failure; current authority is checked separately.
     """
     from production_diagnostics import from_exception
     loaded=loaded or read_run(root,run)
-    failures,notices=_current_source_inputs(root,run,loaded[1],previous_runtime=previous_runtime)[3:]
-    return [from_exception(failure,phase='freshness') for failure in failures],list(notices)
+    failures=[]
+    fixed=None
+    try:
+        fixed=_fixed_runtime(root,loaded[1],previous_runtime=previous_runtime)
+    except (ValueError,OSError) as exc:
+        failures.append(from_exception(exc,phase='freshness'))
+    notices=_current_draft_notices(root,run,loaded[1],fixed)
+    return failures,notices
 
 
 def require_mutable(records: list[dict]) -> None:
@@ -1128,7 +1132,7 @@ def handoff(root: Path, run: str, recipient: str, method: str, authorization: st
 
 def _handoff_from(root: Path, loaded: RunView, authority: store.CurrentAuthority,
                   recipient: str, method: str, authorization: str, *, journal: Path | None = None) -> dict:
-    """Record the performed handoff using this command's current source values."""
+    """Record the performed handoff of the saved consumer under current authority."""
     directory, prepared, _, rows = loaded
     run = prepared['run']
     intent = _handoff_intent_from(loaded, recipient, method)
@@ -1162,9 +1166,9 @@ def _external_intent_from(root: Path, loaded: RunView, count: int) -> dict:
         raise ValueError('positive output count required')
     payload = {'consumer_sha256': c.content_id(consumer), 'recipient': hand['data']['recipient'], 'count': count}
     if consumer.get('image_input'):
-        from image_input import require_live
+        from image_input import validate_binding
         binding = consumer['image_input']
-        require_live(root, prepared['task'], binding)
+        validate_binding(binding)
         external = binding['external_request']
         if count != external['count']:
             raise ValueError('external claim count differs from the image input request')
@@ -1182,13 +1186,17 @@ def claim_external(root: Path, run: str, count: int, authorization: str) -> dict
     """
     with store.transaction(root):
         loaded = assert_current(root, run)
+        if loaded.consumer.get('image_input'):
+            from image_input import external_delivery
+            external_delivery(loaded.consumer['image_input'], run_directory=loaded.directory,
+                              read_object=loaded.evidence.read)
         authority = current_authority(root, loaded.prepared)
         return _claim_external_from(root, loaded, authority, count, authorization)
 
 
 def _claim_external_from(root: Path, loaded: RunView, authority: store.CurrentAuthority,
                          count: int, authorization: str) -> dict:
-    """Claim a host invocation from the command's current inputs and authority."""
+    """Claim a host invocation of the saved request under current authority."""
     directory, prepared, _, rows = loaded
     run = prepared['run']
     intent = _external_intent_from(root, loaded, count)
@@ -1892,9 +1900,8 @@ def select(root: Path, run: str, selection_file: str) -> dict:
 def select_value(root: Path, run: str, data: dict, *, files: list[dict] | None = None) -> dict:
     """Select an exact reviewed result through either a file or a compact owner decision.
 
-    Existing captured results use their saved input and review. Source freshness
-    remains a boundary for new creative execution, not a reason to regenerate
-    pixels merely to record their selection.
+    Existing captured results use their saved input and review. Later draft
+    edits leave that request and its captured pixels available for selection.
 
     Submitting the run's latest selection again records nothing new and returns
     it while it is current. Any other selection names that latest selection in
@@ -2859,13 +2866,14 @@ COMMAND_HELP = {
 }
 # Every readiness value status reports, with what it tells about the run.
 READINESS_HELP = {
-    'ready': 'The compared current inputs match the prepared ones and nothing reported here blocks the next action.',
+    'ready': 'The saved run is usable and nothing reported here blocks the next action; '
+             'source-change notices do not select a different revision.',
     'authorization_required': 'A prepared operation of this unsent run has no exact authorization yet; '
                               'draft-execution writes the decision file that execute applies.',
     'configuration_required': 'The next provider step needs a credential that its selected authentication source '
                               'does not supply.',
-    'blocked': 'A source, the installation or a pack differs from the prepared one, or the authority of the work '
-               'task cannot be read; readiness_diagnostics names which.',
+    'blocked': 'The saved run or fixed runtime cannot be used, or current authority or another execution '
+               'requirement prevents continuation; readiness_diagnostics names the required repair.',
     'not-applicable': 'The run is completed or abandoned; it is shown from its retained records and is not compared.',
     'unchecked': 'The run is open and its work task is completed or abandoned, so the view of the whole Studio did '
                  'not compare it; --run RUN compares it.',
@@ -3300,7 +3308,9 @@ def main() -> int:
         elif name == 'external-intent':
             result = external_intent(root, args.run, args.count)
         elif name == 'claim-external':
-            result = claim_external(root, args.run, args.count, args.authorization)
+            from production_execution import external_instruction
+            claim = claim_external(root, args.run, args.count, args.authorization)
+            result = external_instruction(root, args.run, claim=claim)
         elif name == 'draft-authorization':
             result = draft_authorization(root, args.run, args.grant, c.load(c.local(root, args.intent)))
             _write_new(root, args.out, result)

@@ -5,10 +5,13 @@ synthetic authorization, and reads the real `resume` result before and after
 changing its delivery source. Neither preparation nor authorization reserves a
 generation request. The example checks that no reservation was created.
 
-Saved history stays intact and readable. The changed source is independently
-reported through `freshness_codes` and blocked execution readiness; a successful
-status read is not permission to execute stale inputs. Inspect the changed source
-before preparing its intended replacement. The fixture uses local files and
+The saved input and recorded history stay intact. After the delivery source is
+edited, `freshness_notices` reports `SOURCE_CHANGED` with warning severity,
+`freshness_diagnostic_codes` stays empty, and readiness and the next action stay
+the same. The selected run continues with its saved input. Prepare a new run when
+the edited delivery is the intended input. Execution still uses the operation's
+current authorization. The example also compares the exact saved prepared data,
+consumer and event history before and after the edit. It uses local files and
 makes no service calls.
 
 Run from the skill directory:

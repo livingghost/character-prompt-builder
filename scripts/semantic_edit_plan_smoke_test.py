@@ -2253,16 +2253,21 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual([item['sha256'] for item in recorded['data']['evidence']],
                          [item['sha256'] for item in bound['references']])
 
-    def test_changed_required_reference_blocks_claim_before_any_send(self):
+    def test_changed_original_reference_keeps_the_saved_external_claim(self):
         import production_workflow as workflow
+        import production_execution as execution
         import execution_lifecycle as lifecycle
-        from production_diagnostics import ProductionError
         run, token = self.prepared()
+        saved = workflow.read_run(self.root, run).consumer['image_input']
         write(self.root, 'design.png', png((1, 2, 3)))
-        with self.assertRaises(ProductionError) as caught:
-            workflow.claim_external(self.root, run, 1, token)
-        self.assertEqual(caught.exception.diagnostic.code, 'SOURCE_CHANGED')
-        self.assertEqual(lifecycle.summary(self.root)['submissions'], 0)
+        claim = workflow.claim_external(self.root, run, 1, token)
+        self.assertEqual(claim['data']['image_input_sha256'], saved['binding_sha256'])
+        delivery = execution.external_instruction(self.root, run, claim=claim)['host_request']
+        self.assertEqual(delivery['request'], saved['external_request']['request'])
+        reference = delivery['references'][1]
+        self.assertEqual(c.sha256_file(Path(reference['file'])), saved['references'][1]['sha256'])
+        self.assertNotEqual(c.sha256_file(self.root / 'design.png'), reference['sha256'])
+        self.assertEqual(lifecycle.summary(self.root)['submissions'], 1)
 
     def test_claim_count_and_delivery_prompt_must_match_exact_request(self):
         import production_workflow as workflow

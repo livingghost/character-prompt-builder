@@ -64,17 +64,23 @@ def resolve(route: str, features: list[str] | None = None, *, execution: str,
         # Reuse is valid only after production verifies explicit scene_materials.
         selected = [f for f in selected if f not in {'persona', 'authorial-intent'}]
     context = manifest['operation_contexts'][operation]
-    paths = list(context['reads']) + context['executions'][execution] + entry['reads']
+    selections: dict[str, list[str]] = {}
+    def include(paths: list[str], owner: str) -> None:
+        for path in paths:
+            selections.setdefault(path, []).append(owner)
+    include(context['reads'], 'operation:' + operation)
+    include(context['executions'][execution], 'execution:' + execution)
+    include(entry['reads'], 'route:' + route)
     roles: set[str] = set()
     for feature in selected:
         f = manifest['features'][feature]
-        paths += f['reads']
+        include(f['reads'], 'feature:' + feature)
         roles.update(f['source_roles'])
     if 'scene-persona' in selected:
         roles.difference_update({'persona', 'authorial-intent'})
-    paths = list(dict.fromkeys(paths))
     return {'route':route,'operation':operation,'execution':execution,'features':selected,'source_roles':sorted(roles),
-            'reads':[{'path':p,'sha256':digest(read_source(p))} for p in paths],
+            'reads':[{'path':p,'sha256':digest(read_source(p))} for p in selections],
+            'read_owners': selections,
             'stages':entry['stages'],'manifest_sha256':digest(raw)}
 
 
@@ -144,7 +150,7 @@ def main() -> int:
     p=sub.add_parser('inspect'); p.add_argument('route'); p.add_argument('--feature',action='append',default=[])
     p.add_argument('--operation', choices=OPERATIONS, help='Current operation; defaults to the route owner')
     p.add_argument('--execution', required=True, choices=EXECUTIONS, help='Execution kind selected by the task')
-    reading = sub.add_parser('read', help='Deliver structured pages of complete current operation knowledge and its reading record')
+    reading = sub.add_parser('read', help='Index the selected knowledge; choose sections or --all for exact paged delivery')
     from route_reading import ReadingSourcesChanged, add_read_arguments, read_command
     add_read_arguments(reading)
     sub.add_parser('validate')

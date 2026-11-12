@@ -226,16 +226,20 @@ class ConsultationTests(unittest.TestCase):
         result = self.apply(); run = workflow.prepare(self.root, result['task'])['run']
         _, candidate = self.fixture.candidate(run=run, name='result.txt',
                                               content='One lamp with readable shadow detail.')
+        saved=workflow.read_run(self.root,run)
         app = c.load(self.root / result['application'])
         app['applications'][0]['review_question'] = 'Changed after preparation.'
         self.write(result['application'], app)
         basis = workflow.review_basis(self.root, run, candidate['sha256'])
         self.assertIn('shadow side', ' '.join(basis['criteria'][0]['craft_questions']))
         self.assertNotIn('Changed after', ' '.join(basis['criteria'][0]['craft_questions']))
-        with self.assertRaises(ValueError):
-            workflow.assert_current(self.root, run)
-        # Historical review reads the same immutable application, without claiming
-        # the changed live source is ready for a new external execution.
+        current=workflow.assert_current(self.root,run)
+        self.assertEqual((current.prepared,current.consumer),(saved.prepared,saved.consumer))
+        failures,notices=workflow.freshness(self.root,run)
+        self.assertEqual(failures,[])
+        self.assertIn(('SOURCE_CHANGED','warning',result['application']),
+                      [(item['code'],item['severity'],item['file']) for item in notices])
+        # Review and execution retain this run's captured application.
         self.assertEqual(basis, workflow.review_basis(self.root, run, candidate['sha256']))
 
     def test_recipe_dependencies_are_opened_not_selected(self):

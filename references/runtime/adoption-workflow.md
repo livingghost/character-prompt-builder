@@ -24,7 +24,7 @@ Use `python scripts/adoption_workflow.py --help` and `adopt --help`. `adoption_w
 ```
 
 Every failure of this command prints that form, with the exit status its codes
-select in [Production diagnostics](production-diagnostics.md#exit-codes). A
+select in [Production diagnostics](production-diagnostic-navigation.md#exit-codes). A
 diagnostic whose producer knows the repair, such as `ADOPTION_PACKAGE_REQUIRED`
 or `ADOPTION_RECORD_CORRUPT`, names it in `required_action`.
 

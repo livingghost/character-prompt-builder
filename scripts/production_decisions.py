@@ -3,10 +3,22 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+from typing import Any
 
 import execution_contract as c
 import production_store as store
 from production_diagnostics import ProductionError, compare_exact
+
+SCHEMA = 'schemas/authoring/production-execution-decisions.schema.json'
+
+
+def validate_shape(choices: Any) -> dict:
+    """Check document structure without inspecting a run or granting authority."""
+    from state_protocol import read_schema, validate_against_schema
+    schema = read_schema(Path(__file__).resolve().parents[1] / SCHEMA)
+    errors = validate_against_schema(choices, schema)
+    return {'ok': not errors, 'errors': errors, 'schema': SCHEMA,
+            'validation_scope': 'document-shape'}
 
 
 def context(root: Path, run: str, *, fresh: bool = True):
@@ -55,12 +67,17 @@ def draft(root: Path, run: str, grant: str | None = None) -> dict:
             if decision is not None:
                 choice['request_decision'] = _request_choices({'request_decision': decision})
         decisions.append(choice)
-    return {'choices': {'run': run, 'input_sha256': prepared['input_sha256'],
+    result = {'choices': {'run': run, 'input_sha256': prepared['input_sha256'],
             'request_sha256': plan['request_sha256'], 'decisions': decisions},
             'authorization_requirements': requirements,
             'authority': store.authority_snapshot(root, prepared['task']['task_id'], held,
                                                   source_path=prepared['task'].get('authority')),
             'request_scope_template': production_request.delegation_template(prepared, plan['operations'], authority)}
+    if prepared['task']['execution'] == 'external' and loaded.consumer.get('image_input') is not None:
+        from image_input import external_delivery
+        result['host_request'] = external_delivery(loaded.consumer['image_input'],
+            run_directory=loaded.directory, read_object=loaded.evidence.read)
+    return result
 
 
 def _request_decision(root: Path, request: dict, choice: dict, authority: dict) -> dict:
@@ -93,7 +110,9 @@ def expand(root: Path, run: str, choices: dict, loaded, authority) -> list[dict]
     import production_workflow as workflow
     prepared = loaded.prepared
     plan = loaded.artifacts['execution-plan.json']
-    workflow.schema_check(choices, 'execution-decisions')
+    report = validate_shape(choices)
+    if not report['ok']:
+        raise ValueError('production execution-decisions: ' + '; '.join(report['errors']))
     compare_exact({'run': run, 'input_sha256': prepared['input_sha256'], 'request_sha256': plan['request_sha256']},
                   {key: choices[key] for key in ('run', 'input_sha256', 'request_sha256')})
     selected = choices['decisions']

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exact Studio acceptance at send boundaries and independent recorded recovery."""
+"""Saved Studio reference media, current placement notices and recorded recovery."""
 from __future__ import annotations
 import copy
 from pathlib import Path
@@ -50,35 +50,69 @@ class StudioExecutionTests(unittest.TestCase):
         self.assertEqual(send.call_count,1)
         self.assertTrue(result['execution_completed'])
 
-    def test_withdrawal_after_prepare_stops_before_a_new_send(self):
+    def test_withdrawal_after_prepare_sends_the_saved_media_and_reports_current_placement(self):
         approved=decisions(self.root,self.run)
         self.withdraw()
-        with patch.object(transport,'send',side_effect=AssertionError('No send after identity withdrawal')):
-            with self.assertRaises(ValueError):execution.execute(self.root,self.run,decisions_file=approved)
-        self.assertFalse(any(row['event']=='external-step' for row in store.event_rows(self.root,self.run)))
+        with patch.object(transport,'send',wraps=transport.send) as send, \
+             patch.object(transport,'upload_media',wraps=transport.upload_media) as upload:
+            result=execution.execute(self.root,self.run,decisions_file=approved)
+        self.assertEqual(send.call_count,1)
+        self.assertEqual(c.digest(upload.call_args.args[0]),self.source['sha256'])
+        self.assertTrue(result['execution_completed'])
+        self.assertEqual(result['runs'][0]['freshness_diagnostics'],[])
+        self.assertIn(('STUDIO_REFERENCE_CHANGED','warning'),
+            [(item['code'],item['severity']) for item in result['runs'][0]['freshness_notices']])
 
-    def test_owned_reference_replacement_discards_same_call_freshness_success(self):
+    def test_reference_replacement_is_observed_without_replacing_saved_media(self):
         extra = make_artifact(self.sheet, marker='explicit-replacement')
         fills.register_candidates(self.sheet, [(self.case.row['slot'], extra)])
-        # An ordinary current check may reuse its result only until an owner
-        # changes an input. The later check here is not a forced effect check.
+        # A new navigation observation sees the replacement within this same
+        # call; the selected run still owns its original reference media.
         with runtime_snapshot.public_call(), store.transaction(self.root):
-            workflow.assert_current(self.root, self.run)
+            saved=workflow.assert_current(self.root,self.run)
+            self.assertEqual(workflow.freshness(self.root,self.run),([],[]))
             fills.adopt(self.sheet, decision(self.sheet, self.case.row['slot'], extra),
                         evidence_root=self.sheet.parent)
-            from production_diagnostics import ProductionError
-            with self.assertRaises(ProductionError) as caught:
-                workflow.assert_current(self.root, self.run)
-            self.assertIn(caught.exception.diagnostic.code, {'SOURCE_CHANGED', 'STUDIO_REFERENCE_CHANGED'})
+            current=workflow.assert_current(self.root,self.run)
+            self.assertEqual(current.prepared,saved.prepared)
+            failures,notices=workflow.freshness(self.root,self.run)
+            self.assertEqual(failures,[])
+            self.assertIn('STUDIO_REFERENCE_CHANGED',[item['code'] for item in notices])
 
-    def test_identity_change_during_upload_stops_the_send_boundary(self):
+    def test_identity_change_during_upload_preserves_the_saved_send(self):
         approved=decisions(self.root,self.run); original=transport.upload_media
         def upload(*args,**kwargs):
             result=original(*args,**kwargs); self.withdraw(); return result
-        with patch.object(transport,'upload_media',side_effect=upload), patch.object(transport,'send',side_effect=AssertionError('Boundary must recheck Studio adoption')) as send:
-            with self.assertRaisesRegex(ValueError,'STUDIO_REFERENCE_CHANGED'):
+        with patch.object(transport,'upload_media',side_effect=upload) as uploaded, \
+             patch.object(transport,'send',wraps=transport.send) as send:
+            result=execution.execute(self.root,self.run,decisions_file=approved)
+        self.assertEqual(c.digest(uploaded.call_args.args[0]),self.source['sha256'])
+        self.assertEqual(send.call_count,1)
+        self.assertTrue(result['execution_completed'])
+        self.assertIn('STUDIO_REFERENCE_CHANGED',[item['code'] for item in result['runs'][0]['freshness_notices']])
+        steps=[row for row in store.event_rows(self.root,self.run) if row['event']=='external-step']
+        self.assertEqual([row['data']['operation'] for row in steps],['upload','send','delete'])
+
+    def test_imported_authority_revocation_during_upload_stops_the_send(self):
+        from production_diagnostics import ProductionError
+        approved=decisions(self.root,self.run)
+        original=transport.upload_media
+        def revoke_after_upload(*args,**kwargs):
+            result=original(*args,**kwargs)
+            task=workflow.read_run(self.root,self.run).prepared['task']['task_id']
+            authority=copy.deepcopy(store.authority(self.root,task))
+            for grant in authority['grants']:
+                grant['revoked_at']='2000-01-01T00:00:00Z'
+            prior=store.authority_record(self.root,task)
+            (self.root/'revoked-during-upload.json').write_bytes(c.encoded(authority))
+            store.import_authority(self.root,'revoked-during-upload.json',expected=prior['sha256'])
+            return result
+        with patch.object(transport,'upload_media',side_effect=revoke_after_upload), \
+             patch.object(transport,'send') as send:
+            with self.assertRaises(ProductionError) as caught:
                 execution.execute(self.root,self.run,decisions_file=approved)
-        self.assertEqual(send.call_count,0)
+        self.assertEqual(caught.exception.diagnostic.code,'GRANT_REVOKED')
+        send.assert_not_called()
         steps=[row for row in store.event_rows(self.root,self.run) if row['event']=='external-step']
         self.assertEqual([row['data']['operation'] for row in steps],['upload'])
 

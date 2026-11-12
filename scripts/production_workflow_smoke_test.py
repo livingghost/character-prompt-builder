@@ -137,13 +137,37 @@ class ProductionTests(unittest.TestCase):
         run=self.prepare(); fixture.handoff(self.root,run,'test','manual'); self.write('empty','')
         with self.assertRaises(ValueError): w.capture(self.root,run,'empty','test')
     def test_changed_source(self):
-        run=self.prepare(); self.write('brief.md','changed'); self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
+        run=self.prepare(); saved=w.load_run(self.root,run)
+        self.write('brief.md','changed')
+        report=w.status(self.root,run)['runs'][0]
+        self.assertEqual((report['readiness'],report['freshness_diagnostics']),('ready',[]))
+        self.assertIn(('SOURCE_CHANGED','warning','brief.md'),
+                      [(item['code'],item['severity'],item['file']) for item in report['freshness_notices']])
+        self.assertEqual(w.load_run(self.root,run),saved)
     def test_changed_delivery(self):
-        run=self.prepare(); self.write('delivery.txt','changed'); self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
+        run=self.prepare(); saved=w.load_run(self.root,run)
+        self.write('delivery.txt','changed')
+        report=w.status(self.root,run)['runs'][0]
+        self.assertEqual((report['readiness'],report['freshness_diagnostics']),('ready',[]))
+        self.assertIn(('SOURCE_CHANGED','warning','delivery.txt'),
+                      [(item['code'],item['severity'],item['file']) for item in report['freshness_notices']])
+        self.assertEqual(w.load_run(self.root,run),saved)
     def test_changed_criteria(self):
-        run=self.prepare(); self.spec['criteria'][0]['text']='changed'; self.save_spec(); self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
+        run=self.prepare(); saved=w.load_run(self.root,run)
+        self.spec['criteria'][0]['text']='changed'; self.save_spec()
+        report=w.status(self.root,run)['runs'][0]
+        self.assertEqual((report['readiness'],report['freshness_diagnostics']),('ready',[]))
+        self.assertIn(('SOURCE_CHANGED','warning','task.json'),
+                      [(item['code'],item['severity'],item['file']) for item in report['freshness_notices']])
+        self.assertEqual(w.load_run(self.root,run),saved)
     def test_changed_task_only_note(self):
-        run=self.prepare(); self.spec['delivery']['translation_notes']='Different meaning'; self.save_spec(); self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
+        run=self.prepare(); saved=w.load_run(self.root,run)
+        self.spec['delivery']['translation_notes']='Different meaning'; self.save_spec()
+        report=w.status(self.root,run)['runs'][0]
+        self.assertEqual((report['readiness'],report['freshness_diagnostics']),('ready',[]))
+        self.assertIn(('SOURCE_CHANGED','warning','task.json'),
+                      [(item['code'],item['severity'],item['file']) for item in report['freshness_notices']])
+        self.assertEqual(w.load_run(self.root,run),saved)
     def test_unknown_feature(self):
         self.spec['features']=['missing']; self.write('task.json',self.spec)
         with self.assertRaises(ValueError): self.prepare()
@@ -395,7 +419,10 @@ class ProductionTests(unittest.TestCase):
                 w.assert_current(self.root,run)
                 changed.write_bytes(changed.read_bytes()+b'\n')
                 # A changed installation is reported and leaves the prepared run usable.
-                [notice]=w.read_current(self.root,run).notices
+                w.read_current(self.root,run)
+                failures,notices=w.freshness(self.root,run)
+                self.assertEqual(failures,[])
+                [notice]=notices
                 self.assertEqual((notice['code'],notice['severity'],notice['file']),
                                  ('IMPLEMENTATION_CHANGED','warning','scripts/production_workflow.py'))
                 state=w.status(self.root,run)['runs'][0]
@@ -475,9 +502,13 @@ class ProductionTests(unittest.TestCase):
         compiled=world.compile_plan(self.root,'plan.json'); world.publish(compiled,self.root/'bundle')
         u=compiled['units'][0]; v=u['views'][0]
         self.spec['route']='world-realization'; self.spec['world_views']=[{'plan':'plan.json','bundle':'bundle','unit_id':u['unit_id'],'view_id':v['view_id']}]; self.save_spec()
-        run=self.prepare(); self.assertTrue(w.status(self.root,run)['ok'])
+        run=self.prepare(); self.assertTrue(w.status(self.root,run)['ok']); saved=w.load_run(self.root,run)
         plan=c.load(self.root/'plan.json'); plan['units'][0]['review_note']='Only this instruction changed.'; self.write('plan.json',plan)
-        self.assertEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
+        report=w.status(self.root,run)['runs'][0]
+        self.assertEqual((report['readiness'],report['freshness_diagnostics']),('ready',[]))
+        self.assertIn(('SOURCE_CHANGED','warning','plan.json'),
+                      [(item['code'],item['severity'],item['file']) for item in report['freshness_notices']])
+        self.assertEqual(w.load_run(self.root,run),saved)
 
 
 class CopyProjectTests(unittest.TestCase):
@@ -647,8 +678,16 @@ class PackageIntegrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):binding.validate_live(None,None,self.package)
 
     def test_live_input_drift(self):
+        saved=w.load_run(self.root,self.run)
+        expected=copy.deepcopy(self.package['production_binding'])
         (self.root/'prompt.txt').write_text('changed',encoding='utf-8')
-        with self.assertRaises(ValueError):binding.validate_live(self.root,self.run,self.package)
+        binding.validate_live(self.root,self.run,self.package)
+        self.assertEqual(self.package['production_binding'],expected)
+        self.assertEqual(w.load_run(self.root,self.run),saved)
+        failures,notices=w.freshness(self.root,self.run)
+        self.assertEqual(failures,[])
+        self.assertIn(('SOURCE_CHANGED','warning','prompt.txt'),
+                      [(item['code'],item['severity'],item['file']) for item in notices])
 
     def test_claim_prevents_duplicate_send(self):
         import production_execution as execution

@@ -296,6 +296,11 @@
           "type": "string",
           "minLength": 1
         },
+        "validator_source": {
+          "description": "The owning logical validator as a script path and function name when no JSON Schema is published for the document.",
+          "type": "string",
+          "minLength": 1
+        },
         "validation": {
           "type": "object",
           "properties": {

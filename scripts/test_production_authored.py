@@ -119,6 +119,28 @@ class AuthoredRevisionTests(unittest.TestCase):
         self.assertEqual(workflow.verify_completion(self.root, saved['run'], self.task['task_id'])['sha256'],
                          completion['sha256'])
 
+    def test_reopened_target_keeps_captured_model_after_original_removal(self):
+        from model_prompt_input_fixtures import prompt_input
+        model = {'id': 'synthetic-authored-model', 'prompt_input': prompt_input('descriptive')}
+        self.write('model.json', model)
+        self.task['authored'] = {'target': {'model_file': 'model.json'}}
+        fixtures.task(self.root, self.task)
+        self.write('task.json', self.task)
+        parent = workflow.prepare(self.root, 'task.json')
+        original = workflow.read_run(self.root, parent['run'])
+        (self.root / 'model.json').unlink()
+
+        draft = inputs.draft_inputs(self.root, None, 'reopened-target', from_run=parent['run'])
+        selected = draft['choices']['target']['model_file']
+        self.assertNotEqual(selected, 'model.json')
+        self.assertEqual((self.root / selected).read_bytes(), c.encoded(model))
+        self.assertEqual(draft['unresolved'], [])
+        child = workflow.prepare(self.root, choices=draft['choices_file'])
+        continued = workflow.read_run(self.root, child['run'])
+        self.assertEqual(continued.consumer['instructions'], original.consumer['instructions'])
+        self.assertEqual(continued.prepared['parent']['run'], parent['run'])
+        self.assertEqual(workflow.read_run(self.root, parent['run']).prepared, original.prepared)
+
     def test_requested_delivery_and_review_are_actual_separate_results(self):
         path, _ = self.choices(requirements=['save', 'delivery', 'review'])
         saved = workflow.save(self.root, path)
@@ -307,6 +329,11 @@ class AuthoredRevisionTests(unittest.TestCase):
         exported_evidence = {item['id']: item for item in workflow.review_basis(self.root, exported_run)['evidence']}
         self.assertEqual((self.root / exported_evidence['source:commission']['path']).read_text(encoding='utf-8'), original)
         self.assertEqual((self.root / exported_evidence['adaptation:commission']['path']).read_text(encoding='utf-8'), adaptation)
+        exported_draft = inputs.draft_inputs(self.root, exported['inputs']['production-task']['path'], 'exported-draft')
+        exported_revision = workflow.save(self.root, exported_draft['choices_file'])['run']
+        exported_basis = {item['id']: item for item in workflow.review_basis(self.root, exported_revision)['evidence']}
+        self.assertEqual((self.root / exported_basis['source:commission']['path']).read_text(encoding='utf-8'), original)
+        self.assertEqual((self.root / exported_basis['adaptation:commission']['path']).read_text(encoding='utf-8'), adaptation)
         self.review(run, finding='fail')
         self.assertEqual(workflow.read_run(self.root, run).rows[-1]['data']['review']['checks'][0]['verdict'], 'fail')
         (self.root / 'commission.txt').unlink()
@@ -315,6 +342,30 @@ class AuthoredRevisionTests(unittest.TestCase):
         retained = {item['id']: item for item in workflow.review_basis(self.root, revised)['evidence']}
         self.assertEqual((self.root / retained['source:commission']['path']).read_text(encoding='utf-8'), original)
         self.assertEqual((self.root / retained['adaptation:commission']['path']).read_text(encoding='utf-8'), adaptation)
+
+    def test_explicit_current_source_reselection_becomes_the_review_basis(self):
+        original = 'The original selected source.\n'
+        replacement = 'The explicitly selected current source.\n'
+        self.write('source.bin', original)
+        self.task['sources'] = [{'id': 'commission', 'path': 'source.bin', 'role': 'design',
+            'disposition': 'applied', 'locator': 'whole document', 'reason': 'Synthetic source.'}]
+        path, _ = self.choices(requirements=['save', 'review'])
+        parent = workflow.save(self.root, path)['run']
+        before = workflow.read_run(self.root, parent).prepared
+        self.write('source.bin', replacement)
+        draft = inputs.draft_inputs(self.root, None, 'reselected-source', from_run=parent)
+        choices = draft['choices']
+        retained_path = choices['authoring']['task']['sources'][0]['path']
+        self.assertEqual((self.root / retained_path).read_text(encoding='utf-8'), original)
+        choices['authoring']['task']['sources'][0]['path'] = 'source.bin'
+        self.write(draft['choices_file'], choices)
+
+        child = workflow.save(self.root, draft['choices_file'])['run']
+        evidence = {item['id']: item for item in workflow.review_basis(self.root, child)['evidence']}
+        self.assertEqual((self.root / evidence['source:commission']['path']).read_text(encoding='utf-8'), replacement)
+        self.assertNotIn('adaptation:commission', evidence)
+        self.assertEqual((self.root / retained_path).read_text(encoding='utf-8'), original)
+        self.assertEqual(workflow.read_run(self.root, parent).prepared, before)
 
     def test_unfinished_steps_block_closure_before_creating_completion(self):
         path, _ = self.choices()

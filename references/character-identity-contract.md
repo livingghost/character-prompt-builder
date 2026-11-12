@@ -204,6 +204,12 @@ reused. Recurring subjects require source coverage and independent review.
 Identity mentioned only in unrestricted prose still requires the author's
 explicit subject and source selection; the runtime does not infer it by words.
 
+`REFERENCE_ID` is the stable reference use, not an attachment number. For use
+`keeper-face`, the inventory source is `reference:keeper-face`, while
+`carriers[].reference` remains `keeper-face`. The
+[reference identity procedure](runtime/reference-delivery.md#reference-identities-and-coverage)
+shows where to select or discover each ID and how the builder preserves it.
+
 When a state graph supplies a Visual Authority or Visual Evidence Bundle,
 include its complete scope, priority notes, evidence relation and disposition
 in the same inventory. These documents remain authority or evidence context

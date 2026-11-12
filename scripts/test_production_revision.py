@@ -174,8 +174,10 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
         right = c.load(self.root / second['choices_file'])
         prompt = 'A flat graphic portrait of a simple synthetic robot beside a bench.\r\n'
         (self.root / left['authoring']['delivery']['file']).write_bytes(prompt.encode('utf-8'))
-        left['authoring']['documents']['production_spec']['render_intent']['prompt_expression'] = prompt.strip()
-        left['authoring']['documents']['retrieval_record']['elements'][0]['composed_wording'] = prompt.strip()
+        with cases.edit_document(self.root, left, 'production_spec') as document:
+            document['render_intent']['prompt_expression'] = prompt.strip()
+        with cases.edit_document(self.root, left, 'retrieval_record') as document:
+            document['elements'][0]['composed_wording'] = prompt.strip()
         cases.write(self.root / first['choices_file'], left)
         cases.alternate_task(self.root)
         import request_validation
@@ -183,7 +185,8 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
         right['reading']['reading_key'] = c.load(self.root / 'retarget/reading.json')['reading_key']
         right['validation'] = request_validation.draft_choices(
             c.load(self.root / 'retarget/validation.json'), runtime_evidence.reader(self.root))
-        right['authoring']['documents']['parameters']['steps'] = 22
+        with cases.edit_document(self.root, right, 'parameters') as document:
+            document['steps'] = 22
         cases.write(self.root / second['choices_file'], right)
         state = self.invoke('inspect-inputs', '--root', self.root, *self.runtime)
         self.assertTrue(state['selection_required'])
@@ -211,7 +214,8 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
     def test_invalid_changed_choice_preserves_the_compilation_diagnostic(self):
         drafted = self.draft('invalid-control')
         choices = c.load(self.root / drafted['choices_file'])
-        choices['authoring']['documents']['parameters']['width'] = 0
+        with cases.edit_document(self.root, choices, 'parameters') as document:
+            document['width'] = 0
         cases.write(self.root / drafted['choices_file'], choices)
         checked = self.invoke('check', '--root', self.root, '--choices', drafted['choices_file'],
             *self.runtime, expected=2)
@@ -233,7 +237,8 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
             'references': [{'id': name, 'role': 'palette', 'file': name + '.png',
                 'use_for': ['selected palette'], 'do_not_transfer': ['identity', 'pose']}
                 for name in ('red', 'blue')], 'external_request': None}
-        choices['authoring']['documents']['production_spec']['render_intent']['execution_mode'] = 'reference-guided'
+        with cases.edit_document(self.root, choices, 'production_spec') as document:
+            document['render_intent']['execution_mode'] = 'reference-guided'
         cases.write(self.root / draft['choices_file'], choices)
         first = self.invoke('prepare', '--root', self.root, '--choices', draft['choices_file'], *self.runtime)['run']
         parent = workflow.read_run(self.root, first)
@@ -252,7 +257,8 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
         final = self.draft('without-images', source=second)
         choices = c.load(self.root / final['choices_file'])
         choices['authoring']['references'] = None
-        choices['authoring']['documents']['production_spec']['render_intent']['execution_mode'] = 'text-to-image'
+        with cases.edit_document(self.root, choices, 'production_spec') as document:
+            document['render_intent']['execution_mode'] = 'text-to-image'
         cases.write(self.root / final['choices_file'], choices)
         (self.root / 'blue.png').unlink()
         third = self.run_action(self.current_action(final['choices_file']))['run']
@@ -278,7 +284,8 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
         choices['reading']['reading_key'] = c.load(self.root / 'retarget/reading.json')['reading_key']
         choices['validation'] = request_validation.draft_choices(
             c.load(self.root / 'retarget/validation.json'), runtime_evidence.reader(self.root))
-        choices['authoring']['documents']['parameters']['steps'] = 22
+        with cases.edit_document(self.root, choices, 'parameters') as document:
+            document['steps'] = 22
         cases.write(self.root / draft['choices_file'], choices)
         exported = self.invoke('build-inputs', '--root', self.root, '--from-run', self.run,
             '--choices', draft['choices_file'], '--out-dir', 'target-export', *self.runtime)

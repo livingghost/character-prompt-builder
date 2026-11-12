@@ -686,8 +686,8 @@ def _differs(what: str, pointer: str) -> Exception:
 def sealed_run(root: Path, run: str, character: str | None = None, slot: str | None = None) -> tuple:
     """The sealed run execute would send, refused where execute refuses it before authorization.
 
-    `production_execution.compiled` checks the run's integrity and every live
-    source. A run that already owns an execution, another recording target, or
+    `production_execution.compiled` checks the saved publication, evidence and
+    fixed runtime. A run that already owns an execution, another recording target, or
     an endpoint the network rules refuse stops here as well.
     """
     from production_diagnostics import ProductionError, same_json

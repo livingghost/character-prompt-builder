@@ -12,6 +12,7 @@ import tempfile
 import unittest
 
 import execution_contract as c
+import production_case_fixtures as cases
 import production_authoring as authored
 import production_inputs as inputs
 import production_inputs_smoke_test as fixtures
@@ -237,6 +238,60 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.root = self.case['root']
         self.addCleanup(runtime.configure_pack_runtime, None)
 
+    def test_standalone_document_edits_change_new_inputs_and_preserve_captured_revisions(self):
+        import production_workflow as workflow
+        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        choices = drafted['choices']
+        for selected in choices['authoring']['documents'].values():
+            self.assertEqual(set(selected), {'file'})
+            self.assertTrue((self.root / selected['file']).is_file())
+        path = self.root / drafted['choices_file']
+        choices_raw = path.read_bytes()
+        parameters_path = choices['authoring']['documents']['parameters']['file']
+        first = workflow.prepare(self.root, choices=drafted['choices_file'])
+        original = workflow.read_run(self.root, first['run'])
+        self.assertEqual(first['request_preview']['steps'], 20)
+        with cases.edit_document(self.root, choices, 'parameters') as parameters:
+            parameters['steps'] = 22
+        current_raw = (self.root / parameters_path).read_bytes()
+        self.assertEqual(path.read_bytes(), choices_raw)
+        checked = inputs.compile_choices(self.root, drafted['choices_file'])
+        self.assertTrue(checked.report['publishable'], checked.report['diagnostics'])
+        self.assertEqual(checked.report['request_preview']['steps'], 22)
+        second = workflow.prepare(self.root, choices=drafted['choices_file'])
+        revised = workflow.read_run(self.root, second['run'])
+        self.assertEqual(second['request_preview']['steps'], 22)
+        self.assertNotEqual(original.prepared['input_sha256'], revised.prepared['input_sha256'])
+        self.assertEqual(revised.prepared['authoring']['choices_ref']['files'][parameters_path],
+                         c.digest(current_raw))
+        self.assertEqual(workflow.read_run(self.root, first['run']).artifacts['request-contract.json']['request']['steps'], 20)
+        reopened = inputs.draft_inputs(self.root, None, 'reopened', from_run=first['run'])
+        self.assertEqual(cases.read_document(self.root, reopened['choices'], 'parameters')['steps'], 20)
+        self.assertEqual((self.root / parameters_path).read_bytes(), current_raw)
+
+    def test_document_repair_names_its_source_contract_and_needs_no_choices_copy(self):
+        import production_document_contracts
+        import production_workflow as workflow
+        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        choices = drafted['choices']
+        cases.write_document(self.root, choices, 'negative_provenance', {'activated_sources': 'invalid'})
+        cases.write(self.root / drafted['choices_file'], choices)
+        choices_raw = (self.root / drafted['choices_file']).read_bytes()
+        source = choices['authoring']['documents']['negative_provenance']['file']
+        failed = inputs.compile_choices(self.root, drafted['choices_file']).report
+        workflow.schema_check(failed, 'compilation-report')
+        diagnostics = [item for item in failed['diagnostics'] if item.get('file') == source]
+        self.assertTrue(diagnostics, failed['diagnostics'])
+        owner = production_document_contracts.guidance('negative_provenance')
+        self.assertTrue(all(all(item['guidance'][key] == value for key, value in owner.items())
+                            for item in diagnostics))
+        self.assertTrue(all(source in item['required_action'] for item in diagnostics))
+        cases.write_document(self.root, choices, 'negative_provenance', {'activated_sources': [],
+            'diagnostic_sources_retained': [], 'semantic_exclusions_user_supplied': []})
+        self.assertEqual((self.root / drafted['choices_file']).read_bytes(), choices_raw)
+        repaired = inputs.compile_choices(self.root, drafted['choices_file']).report
+        self.assertTrue(repaired['publishable'], repaired['diagnostics'])
+
     def reference_task(self):
         from PIL import Image
         import prepare_generation_references as references
@@ -305,7 +360,8 @@ class DispatcherAuthoringTests(unittest.TestCase):
         original, _ = self.reference_task()
         draft = inputs.draft_inputs(self.root, 'task.json', 'draft')
         choices = c.load(self.root / draft['choices_file'])
-        choices['authoring']['documents']['production_spec']['render_intent']['execution_mode'] = 'reference-guided'
+        with cases.edit_document(self.root, choices, 'production_spec') as document:
+            document['render_intent']['execution_mode'] = 'reference-guided'
         choices['authoring']['references']['additional_references'].pop(0)
         removed, retained = original['upload_sources']
         (self.root / removed['file']).unlink()
@@ -359,7 +415,8 @@ class DispatcherAuthoringTests(unittest.TestCase):
             'references': [{'id': 'palette', 'role': 'palette', 'file': 'palette.png',
                 'use_for': ['selected color palette'], 'do_not_transfer': ['subject identity', 'pose']}],
             'external_request': None}
-        choices['authoring']['documents']['production_spec']['render_intent']['execution_mode'] = 'reference-guided'
+        with cases.edit_document(self.root, choices, 'production_spec') as document:
+            document['render_intent']['execution_mode'] = 'reference-guided'
         (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
         initial = inputs.build_inputs(self.root, None, draft['choices_file'], 'image-built')
         self.assertTrue(initial['ok'], initial)
@@ -395,7 +452,8 @@ class DispatcherAuthoringTests(unittest.TestCase):
                 references = choices['authoring']['references']
                 references.update(image_input=None, additional_references=[], reference_selection=None,
                     reference_use_plan=None, source_files={}, zero_reference_reason=zero_reason)
-                choices['authoring']['documents']['production_spec']['render_intent']['execution_mode'] = 'text-to-image'
+                with cases.edit_document(self.root, choices, 'production_spec') as document:
+                    document['render_intent']['execution_mode'] = 'text-to-image'
                 self.assertEqual(choices['task_changes'], {})
                 (self.root / removed['choices_file']).write_bytes(c.encoded(choices))
                 cleared = inputs.build_inputs(self.root, None, removed['choices_file'], origin + '-cleared')
@@ -424,7 +482,8 @@ class DispatcherAuthoringTests(unittest.TestCase):
         original = c.load(self.root / 'task.json')
         prompt = 'A flat graphic portrait of one synthetic robot beside a simple bench.'
         (self.root / choices['authoring']['delivery']['file']).write_text(prompt, encoding='utf-8')
-        choices['authoring']['documents']['parameters'].update(width=64, height=64)
+        with cases.edit_document(self.root, choices, 'parameters') as document:
+            document.update(width=64, height=64)
         choices['authoring']['task']['direction']['purpose'] = 'Compare an authored local composition.'
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
         built = inputs.build_inputs(self.root, None, result['choices_file'], 'built')
@@ -439,7 +498,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
         from prompt_retrieval import retrieval_context
         retrieval = c.load(self.root / task['generation']['retrieval_record'])
         self.assertEqual(retrieval['context'], retrieval_context(prompt, new_plot))
-        self.assertEqual(choices['authoring']['documents']['retrieval_record']['elements'], retrieval['elements'])
+        self.assertEqual(cases.read_document(self.root, choices, 'retrieval_record')['elements'], retrieval['elements'])
         next_draft = inputs.draft_inputs(self.root, built['inputs']['production-task']['path'], 'second-draft')
         self.assertEqual((self.root / next_draft['choices']['authoring']['delivery']['file']).read_text(encoding='utf-8'), prompt)
 

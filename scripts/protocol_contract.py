@@ -976,7 +976,7 @@ def _validate_schema(
             extras = sorted(set(value) - set(properties))
             additional = schema.get("additionalProperties", True)
             if additional is False and extras:
-                errors.append(f"{path}: unexpected properties {extras}")
+                errors.append(f"{path}: unexpected properties {extras}; permitted properties {sorted(properties)}")
             elif isinstance(additional, Mapping):
                 for name in extras:
                     errors.extend(

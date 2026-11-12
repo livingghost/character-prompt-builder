@@ -11,7 +11,7 @@ Use English prompts/retrieval and the user's language. Preserve meaning, modifie
 
 ## Mandatory execution environment
 
-Resolve `<skill-root>` to the absolute directory containing this installed `SKILL.md`. Before running a skill script, enter its complete locked environment:
+`<skill-root>` is this installed `SKILL.md`'s absolute directory. Run scripts in its complete locked environment:
 
 ```bash
 uv run --project <skill-root> --locked python <skill-root>/scripts/check_dependencies.py
@@ -73,9 +73,9 @@ Before prompt, reference, sheet, generation or visual-state series work (not per
 
 ## Artifact-bearing production gate
 
-Saved work reads `python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO` with features. Execution: `authored`, `external`, `dispatcher`; operation: `author`, `save`, `prepare`, `execute`, `review`, `adopt`. Read [full contracts](references/runtime/production-execution.md) and specialists. Select `--model MODEL [--service SERVICE]`, `--model-file FILE` or `--dialect ID`. Read JSON `body`; follow `actions.continue` until null and `reading.record` is issued. Explicit `--known-reading` keys reuse complete current context; fresh contexts reread. Delivery is not comprehension.
+Saved work reads through its draft action or `python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO` with applicable features and `--model MODEL [--service SERVICE]`, `--model-file FILE` or `--dialect ID`. Read [operation contracts](references/runtime/production-execution.md) and specialists. Inspect the index; read `body` through `actions.all` or sections, following `actions.continue` and `actions.next` until `reading.record` exists. Null continuation is not completion. `--known-reading` reuses complete current context; fresh contexts reread. Delivery is not comprehension.
 
-Edit `draft-inputs` files; use `save --choices FILE` for text (`--draft` if unfinished), or `prepare --choices FILE` for images. `status` locates sources and next actions. `build-inputs` is an optional export.
+`draft-inputs` supplies editable files and `authoring_guide`; `explain-inputs --root STUDIO --choices FILE` locates contracts and filled examples. Edit the owning files. Use `save --choices FILE` for text (`--draft` if unfinished), or `prepare --choices FILE` for images. `status` locates sources and actions; `build-inputs` exports when needed.
 
 ## Choose a runtime path
 
@@ -104,6 +104,7 @@ Conversation-only prompts read no route: read [Prompt-Only Core](references/runt
 - enlarging a finished image: route `upscale`; offer enlargement when its intended use needs more resolution;
 - canonical identity, a character sheet, its panels, candidates or reference board: route `character-sheet`, [Sheet fills](references/runtime/sheet-fill-workflow.md); a new pose or scene for an accepted character uses `repose` or `generation` instead;
 - sheet, iteration, or accepted-image work, which lives in a studio: feature `studio` first;
+- an iteration's scene or slot correction: feature `studio-placement`;
 - explicit selection for a canonical owner: route or feature `adoption`;
 - artifact review: feature `evidence-review` and Production direction; changes: route `revise` or feature `revision-guidance`;
 - reports or evidence studies: feature `evidence-review`; originals, host trials or repair hypotheses: feature `source-material`, `agent-evaluation` or `repair-analysis`;
@@ -138,7 +139,7 @@ Scene-specific character state is an open class: any visible or performance-rele
 
 ## Catalog and pack runtime
 
-Keep one runtime through retrieval, planning, preparation and verification. Use `recommend` for expressive scope, `search`/`inspire` for known needs, and `batch` for queries. Read records/assets with `inspect-many` or `inspect` plus `asset-lookup`. Run catalog CLI calls sequentially.
+Use one runtime for retrieval, planning, preparation and verification. Use `recommend` for expressive scope, `search`/`inspire` for known needs, and `batch` for queries. Read records/assets with `inspect-many` or `inspect` plus `asset-lookup`. Run catalog CLI calls sequentially.
 
 ## Visual Reference Activation Gate
 
@@ -152,16 +153,14 @@ Deliver actual selected reference files under [Prompt Artifact References](refer
 
 ## Maintenance and release
 
-For maintenance and release:
-
-- core changes and checks: [Testing](references/maintenance/testing.md);
+- core checks: [Testing](references/maintenance/testing.md);
 - records, taxonomy or evidence: [Preset Maintenance](references/maintenance/presets.md);
-- search profiles and retrieval evaluation: [Search Discovery Maintenance](references/maintenance/search-discovery.md);
+- search profiles and retrieval evaluation: [Search Discovery](references/maintenance/search-discovery.md);
 - pack creation, installation, updates, removal, locks or lifecycle: [Pack Maintenance](references/maintenance/packs.md);
-- core or pack publication and complete gates: [Release Validation](references/release/validation.md).
+- publication gates: [Release Validation](references/release/validation.md).
 
-Ordinary reference-free prompt-only work leaves maintenance, pack-release, release-validation, state-aware and unselected-model documents unloaded.
+Reference-free prompt-only work reads no maintenance, pack-release, release-validation, state-aware or unselected-model material.
 
 ## Resource handling
 
-Read complete material by default. For reads, imports, evaluation, review exports or resource limits, use [Resource handling](references/resource-handling.md).
+Read complete material by default. Follow [Resource handling](references/resource-handling.md).

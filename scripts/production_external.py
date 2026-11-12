@@ -62,7 +62,8 @@ def _settle(root: Path, run: str, receipt: dict) -> dict:
     if errors:
         raise ValueError('external result receipt: ' + '; '.join(errors))
     with store.transaction(root):
-        directory, prepared, consumer, rows = workflow.read_run(root, run)
+        loaded = workflow.read_run(root, run)
+        directory, prepared, consumer, rows = loaded
         claim = workflow.find(rows, 'external-claim', receipt['claim'])
         authorization = claim['data']['authorizations'][0]
         approved = workflow.find(rows, 'authorization', authorization)['data']['request']
@@ -86,8 +87,12 @@ def _settle(root: Path, run: str, receipt: dict) -> dict:
         if submission is not None:
             submission_record = workflow.file_record(root, directory, submission['path'])
             evidence.append(submission_record)
-        request_evidence = image_input.submission_evidence(consumer.get('image_input'), submission,
-            lambda path: c.object_read(directory, submission_record['sha256']))
+        binding = consumer.get('image_input')
+        delivery = image_input.external_delivery(binding, run_directory=directory,
+            read_object=loaded.evidence.read) if submission is not None and binding is not None else None
+        request_evidence = image_input.submission_evidence(binding, submission,
+            lambda path: c.object_read(directory, submission_record['sha256']),
+            expected_request=delivery['request'] if delivery is not None else None)
         if receipt['final']:
             lifecycle.record_effect(root, run, authorization, claim=claim['sha256'], step='external-send',
                 usage={**receipt['cost'], 'final': True} if receipt['cost'] is not None else None, evidence=evidence)

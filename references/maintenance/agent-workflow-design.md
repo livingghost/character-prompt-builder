@@ -69,6 +69,15 @@ location. A failure must identify that location and a concrete recovery action.
 Adding another report that describes manual coordination does not transfer
 responsibility for that coordination to the implementation.
 
+A fresh Studio must be able to author its first input from public instructions,
+contract discovery and complete executable examples. Earlier task files are
+useful creative sources, never the only available specification of an input.
+Selected specialist documents keep one editable file; choices select that file
+and any JSON field, while compilation owns hashes and immutable copies.
+Expose the actual owning schema or logical contract, permitted and required
+fields, remaining contextual checks and the exact file to repair. A generated
+context view must not become a second document body to update manually.
+
 ## Changes and dependencies
 
 Recompute deterministic consequences of a changed selection in the owning
@@ -152,9 +161,10 @@ proceed, not to the Studio's history. Compare current sources with prepared
 ones for the open runs of open work. A completed or abandoned run is shown
 from its retained records, and an open run left by closed work is compared
 when it is selected. A prepared run keeps its sealed request and fixed
-runtime, so a later change of the installation or the packs is a notice
-that leaves it usable; stop on what the author changed and on damage to the
-run's own records. A variant or repeat compiles against the current
+runtime, so later changes to authoring files, reading records, source placement,
+the installation or the packs are notices that leave that saved revision
+usable. Damage to the run's saved records and current authority restrictions
+remain separate execution blockers. A variant or repeat compiles against the current
 installation and packs and is told what differs from its parent. Report one
 cause once: files that changed
 together and share one remedy form one finding that lists them. An inspection
@@ -190,8 +200,9 @@ fact. Keep these boundaries visible in the API:
 | Pack state, discovery and selected file contents | `pack_manager.RuntimeInputs` and `PackInput` | Validation, record/resource resolution, catalog persistence and Production snapshot capture use the same acquired input |
 | Installed builder sources and schema documents | `builder_inputs.BuilderInputs`, `state_protocol.SchemaDocuments` and `protocol_contract.ContractSet` | One pure evaluator consumes immutable documents and lazy reference resolution bound to their exact contents |
 | Registered run and immutable publication | `production_read_model.RunReader` | A shared `RunView` owns prepared inputs, consumer data, manifest-verified bytes, the compiled documents its consumers use and event history |
+| Selected saved input revision | `production_saved_inputs.CapturedInputs` and `RetainedSelection` | Variants, reopened choices and registered exports acquire unchanged sources from the selected run; explicit replacements acquire current files. `InputEvidence` retains `@run` source identities and nested evidence bytes in each resulting package, without walking ancestor history. |
 | Acquired compilation inputs and fixed runtime files | `runtime_snapshot.CompileRuntime` and `FixedRuntimeRead` | Compilation consumes owned catalog and file values; publication preserves the runtime inputs the compilation bound or read; a route receipt reads its named resources without reconstructing the catalog |
-| Current route documents and prepared live sources | `live_source_read.LiveSourceRead` | One current-input boundary acquires the declared files and passes the same bytes to route receipts and dependency comparisons |
+| Current route documents and original source files | `live_source_read.LiveSourceRead` | A navigation or impact observation acquires the declared files and passes the same bytes to route receipts and dependency comparisons |
 | Lifecycle transitions and event lookups | `execution_lifecycle.ReplayState` and `EventHistory` | One ordered replay publishes read-only indexes and applies the same rules to a proposed append |
 | Current authority | `production_store.CurrentAuthority` | Permission checks consume the checked grant document, owning event and evidence bytes without changing prepared input |
 | Studio manifest, iterations, sidecars and run states | `studio.StudioRead` and `studio_reference.ReferenceReads` | Source, identity, continuity, gallery, readiness and status share a read model per canonical Studio root and read phase |
@@ -214,14 +225,15 @@ returning, including when acquisition fails. Persistent
 caches require their own consistency contract and maintenance cost; a new
 representation alone is not a reason to add one.
 A forced check rereads both publication and event evidence.
-The external-effect boundary still forces the current source, authority and
-runtime checks before committing its one durable start.
+The external-effect boundary checks the saved publication and runtime together
+with current authority before committing its one durable start. It does not
+reacquire mutable authoring files or current Studio placement.
 
-`production_workflow.read_current` acquires actual live sources, fixed runtime
-inputs and reference proofs. Authorization, handoff and claim helpers receive
-these values and the transaction's current authority explicitly. They do not
-look up a retained successful freshness check. A subsequent current-input
-acquisition checks the actual files again. Result projection preserves the
+`production_workflow.read_current` acquires the stored run and its fixed runtime.
+Authorization, handoff and claim helpers receive these values and the
+transaction's current authority explicitly. Source comparisons belong to
+`freshness` for navigation and impact; their warnings neither select another
+revision nor stop the saved request. Result projection preserves the
 same readiness checks, complete audit and next actions as explicit status.
 Result capture and sheet publication use the recorded execution target. A
 later model-definition edit affects readiness for new work, not recovery of
@@ -229,7 +241,7 @@ an image already returned under the prepared target.
 
 One execution may pass its immutable fixed-runtime metadata as an explicit
 prior value. Acquisition still reads `snapshot.json` and every declared member,
-checks exact membership and current sources, and acquires current authority.
+checks exact membership, and acquires current authority separately.
 It shares the decoded metadata only after the actual JSON bytes match exactly.
 The newly acquired owner contains newly read member bytes. No run publication,
 event state, authority or successful check crosses a transaction through this
@@ -240,6 +252,21 @@ inside the current operation or transaction; it is not persisted or numbered.
 Do not introduce a version counter or a generated identifier to stand in for
 content equality. Keep current grant state distinct from published creative
 input, and use the existing event digest to identify a committed predecessor.
+
+State the baseline and scope of each content comparison. Capturing an edited
+authoring file records its current revision; it does not establish the file's
+original issuance, the author's identity or approval. Hashes and event chains
+stored with the editable local data are consistency records, not an independent
+authentication boundary. A dispatcher check covers the acquired request and
+the steps it owns; an external host's actual call remains outside that check.
+Keep these limits explicit when describing execution evidence.
+
+Resolve inconsistent observations by giving the operation one owner for the
+bytes it parses and records. Deriving both values from that acquisition avoids
+another comparison and another opportunity for them to disagree. Evaluate
+added checks against a demonstrated failure, their blocking scope and their
+reading, writing and authoring cost. A stronger integrity claim alone does not
+justify more gates, duplicate editable content or manual hash maintenance.
 
 Pack acquisition hashes each selected file while retaining the text that
 validation needs. All-file validation, parsed records, resource conflicts and

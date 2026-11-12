@@ -109,9 +109,29 @@ class ExternalRetargetTests(unittest.TestCase):
         self.assertEqual(child.prepared['task']['criteria'], self.task['criteria'])
         self.assertEqual(child.prepared['task']['direction'], self.task['direction'])
         self.assertEqual(child.prepared['authority']['grants'], self.loaded.prepared['authority']['grants'])
-        self.assertEqual(child.consumer['image_input']['references'], self.loaded.consumer['image_input']['references'])
+        old_references = self.loaded.consumer['image_input']['references']
+        references = child.consumer['image_input']['references']
+        self.assertEqual(len(references), len(old_references))
+        for reference, original in zip(references, old_references, strict=True):
+            self.assertEqual({key: value for key, value in reference.items() if key != 'file'},
+                             {key: value for key, value in original.items() if key != 'file'})
+            self.assertNotEqual(reference['file'], original['file'])
+            source = self.loaded.evidence.read(original['sha256'])
+            self.assertEqual((self.root / reference['file']).read_bytes(), source)
+            self.assertEqual(child.evidence.read(reference['sha256']), source)
         old_fields = self.loaded.consumer['image_input']['external_request']['reference_fields']
-        self.assertEqual(child.consumer['image_input']['external_request']['reference_fields'], old_fields)
+        fields = child.consumer['image_input']['external_request']['reference_fields']
+        self.assertEqual(len(fields), len(old_fields))
+        for field, original in zip(fields, old_fields, strict=True):
+            self.assertEqual({key: value for key, value in field.items() if key != 'evidence'},
+                             {key: value for key, value in original.items() if key != 'evidence'})
+            evidence, old_evidence = field['evidence'], original['evidence']
+            self.assertEqual({key: value for key, value in evidence.items() if key != 'path'},
+                             {key: value for key, value in old_evidence.items() if key != 'path'})
+            self.assertNotEqual(evidence['path'], old_evidence['path'])
+            upload = self.loaded.evidence.read(old_evidence['sha256'])
+            self.assertEqual((self.root / evidence['path']).read_bytes(), upload)
+            self.assertEqual(child.evidence.read(evidence['sha256']), upload)
         self.assertEqual(child.consumer['semantic_edit']['edit'], self.loaded.consumer['semantic_edit']['edit'])
         self.assertEqual(inherited['authoring']['sources']['model-card'], choices['authoring']['sources']['model-card'])
         sources = {row['id']: row for row in child.prepared['task']['sources']}

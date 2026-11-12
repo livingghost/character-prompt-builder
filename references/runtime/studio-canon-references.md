@@ -88,7 +88,7 @@ the resolved layout and its explicit aliases own character-panel requirements.
 
 A refusal of `source` or `bind` writes no output file and prints
 `{"ok": false, "diagnostics": [...]}` with the exit status its codes select in
-[Production diagnostics](production-diagnostics.md#exit-codes). For a synthetic
+[Production diagnostics](production-diagnostic-navigation.md#exit-codes). For a synthetic
 Production adoption whose adoption record was deleted, `source` exits 2 and
 prints (trimmed, with the run, candidate and authorization digests written as
 RUN, CANDIDATE and AUTHORIZATION):

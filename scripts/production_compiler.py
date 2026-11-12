@@ -7,6 +7,7 @@ and credentials are execution readiness, not malformed input.
 from __future__ import annotations
 import copy
 from collections.abc import Mapping
+from contextlib import nullcontext
 from dataclasses import dataclass
 import hashlib
 import json
@@ -90,6 +91,7 @@ class Compilation:
     identity: str | None = None
     artifacts: ArtifactSet | None = None
     runtime_read: Any = None
+    retained_inputs: dict[str, bytes] | None = None
 
 
 def input_digest(prepared: dict, consumer: dict) -> str:
@@ -166,7 +168,7 @@ def _resolve_first(prerequisites: list[str], waiting: str) -> str:
             f'this report directs; {waiting} runs once they pass. Then run the same command again.')
 
 
-def inspect_task(root: Path, task_path: str) -> tuple[dict | None,list[dict],dict[str,bytes]]:
+def inspect_task(root: Path, task_path: str, *, context, retained_inputs=None):
     """Read the task and every file it declares once, keeping each failure with its pointer and cause."""
     diagnostics=[]; captured={}
     def no_task(diagnostic: dict):
@@ -175,7 +177,7 @@ def inspect_task(root: Path, task_path: str) -> tuple[dict | None,list[dict],dic
         diagnostics.append(Diagnostic('CHECK_NOT_PERFORMED','No task object is available for dependent checks.',phase='task-read',
                                       file=task_path,blocked_checks=NO_TASK_CHECKS,details={'blocked_by':blocked},
                                       required_action=_resolve_first(blocked,'every check in blocked_checks')).as_dict())
-        return None,diagnostics,captured
+        return None,diagnostics,captured,retained_inputs
     try:
         raw=read_input(root,task_path,pointer=None,phase='task-read')
     except ProductionError as exc:
@@ -193,13 +195,20 @@ def inspect_task(root: Path, task_path: str) -> tuple[dict | None,list[dict],dic
         diagnostics.append(Diagnostic('INPUT_SCHEMA_INVALID',message,phase='task-schema',file=task_path,pointer=pointer).as_dict())
     if not isinstance(task,dict):
         return no_task(Diagnostic('INPUT_SCHEMA_INVALID','The task must be a JSON object.',phase='task-schema',file=task_path,pointer='$').as_dict())
+    if retained_inputs is None and isinstance(task.get('task_id'),str):
+        from production_inputs import retained_export_inputs
+        retained_inputs=retained_export_inputs(root,task_path,task['task_id'],
+            acquired={task_path:c.digest(raw)},task=task)
+    if retained_inputs is not None:
+        context.enter_context(retained_inputs.staging())
     for pointer,path in _file_inputs(task):
         if path in captured:continue
         try:
-            captured[path]=read_input(root,path,pointer=pointer)
+            captured[path]=(retained_inputs.read(path) if retained_inputs is not None
+                            and retained_inputs.selected_path(path) else read_input(root,path,pointer=pointer))
         except ProductionError as exc:
             diagnostics.append(exc.diagnostic.as_dict())
-    return task,diagnostics,captured
+    return task,diagnostics,captured,retained_inputs
 
 
 def _status_code(status: Any) -> str | None:
@@ -322,7 +331,7 @@ class InputChecks:
 
 def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[str, bytes],
                          checks: InputChecks, *, runtime_ready: bool, directory: Path, artifacts: ArtifactSet,
-                         runtime_source=None,evidence=None) -> None:
+                         runtime_source=None,evidence=None,retained_inputs=None) -> None:
     """Use existing domain validators before package assembly, without short-circuiting peers.
 
     A task schema error blocks only the checks that need the whole task. Every
@@ -386,25 +395,38 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                      requires=['task-contract', 'delivery-content'], file=task_path, pointer='$.authored')
     # Bounded views and scene material: each is checked against its own scope
     # here, and the bytes read are kept for the immutable capture.
-    def bounded(function):
+    def bounded(function, field):
         reads = {}
+        retained = retained_inputs is not None and retained_inputs.selected_field(field)
+        source_root = (retained_inputs.source_root(field) if retained and field in
+                       {'world_views', 'moment_views', 'scene_materials'} else root)
         def add(base: Path, path: str, space: str = 'studio') -> bytes:
-            raw = cached(path) if Path(base) == root else store.stable_bytes(base, path)
+            if retained and Path(base) in {root, source_root} and space == 'studio':
+                raw = retained_inputs.read(path)
+                if path in captured and captured[path] != raw:
+                    raise ValueError('one source path selects different input revisions: ' + path)
+                captured[path] = raw
+            else:
+                raw = cached(path) if Path(base) == root else store.stable_bytes(base, path)
             reads[(space, path)] = raw
             return raw
-        return function(root, task, add), reads
+        with retained_inputs.scope(field) if retained_inputs is not None else nullcontext():
+            if retained and field == 'image_input' and task.get('execution') == 'dispatcher':
+                return retained_inputs.image_input(task, add), reads
+            return function(source_root, task, add), reads
     for name, pointer, function in (('world-views', '$.world_views', workflow.world_views),
                                     ('moment-views', '$.moment_views', workflow.moment_views),
                                     ('scene-materials', '$.scene_materials', workflow.authoring_materials)):
-        checks.check(name, lambda function=function: bounded(function), requires=['task-contract'], file=task_path, pointer=pointer)
+        checks.check(name, lambda function=function, field=pointer.removeprefix('$.'): bounded(function, field),
+                     requires=['task-contract'], file=task_path, pointer=pointer)
     if task.get('image_input'):
         import image_input
-        checks.check('image-input', lambda: bounded(image_input.task_binding),
+        checks.check('image-input', lambda: bounded(image_input.task_binding, 'image_input'),
                      requires=['task-contract', dependency('$.image_input')],
                      file=task['image_input'], pointer='$.image_input')
     if task.get('semantic_edit'):
         from semantic_edit_plan import task_binding
-        checks.check('semantic-edit', lambda: bounded(task_binding),
+        checks.check('semantic-edit', lambda: bounded(task_binding, 'semantic_edit'),
                      requires=['task-contract', dependency('$.semantic_edit'), 'image-input'],
                      file=task['semantic_edit'], pointer='$.semantic_edit')
     if task.get('execution') == 'external':
@@ -436,7 +458,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
             documents.append({**source, 'value': value})
         checks.check('external-image-contract', lambda: bounded(lambda base, value, add:
             image_input.external_documents(base, value, add,
-                inputs=checks.values.get('image-input', (None, {}))[0], documents=documents)),
+                inputs=checks.values.get('image-input', (None, {}))[0], documents=documents), 'image_input'),
             requires=['task-contract', 'delivery-content', *document_checks] + (['image-input'] if task.get('image_input') else []),
             file=task_path)
     if task.get('authority'):
@@ -452,8 +474,10 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                          pointer='$.authority')
     if selected and selected.get('mask_binding'):
         import scene_mask_planner
-        checks.check('scene-mask-binding', lambda: scene_mask_planner.check_task(
-            root, task, doc('mask_binding'), read=cached),
+        def mask_binding():
+            with retained_inputs.scope('mask_binding') if retained_inputs is not None else nullcontext():
+                return scene_mask_planner.check_task(root, task, doc('mask_binding'), read=cached)
+        checks.check('scene-mask-binding', mask_binding,
             requires=['task-contract', dependency('$.generation.mask_binding')],
             file=selected['mask_binding'], pointer='$.generation.mask_binding')
     elif 'scene-mask-planning' in task.get('features', []):
@@ -478,7 +502,10 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         request=checks.check('upscale-document',lambda:c.decode(captured[delivery_path]),
                              requires=[prompt_key],file=delivery_path,pointer='$.delivery.path')
         if request is not None:
-            checks.check('upscale-source', lambda: production_binding.validate_upscale_input(root, request,input_source=runtime_source),
+            def upscale_source():
+                with retained_inputs.scope('delivery') if retained_inputs is not None else nullcontext():
+                    return production_binding.validate_upscale_input(root, request,input_source=runtime_source)
+            checks.check('upscale-source', upscale_source,
                          requires=['upscale-document'],file=delivery_path)
             resolved=checks.check('target-contract',lambda:target(request['model'],upscale['service']),
                                  requires=['runtime-resolution','upscale-document']+gate((upscale or {}).get('service')),
@@ -540,9 +567,13 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                 missing=exc.report.get('missing_packages') or [],incompatible=exc.report.get('incompatible_packages') or [],
                 required_action='Complete the project environment with '+exc.report['check_command']+' --install, then check again.') from exc
     def references():
-        prepared,_=builder.materialize_cli_reference_bundle(documents['references'],model=values['model'],
-            source_root=c.local(root,selected['references']).parent,staging_root=directory,
-            companion_name='package.'+c.content_id(documents['references'])[:24]+'.references',artifacts=artifacts)
+        retained = retained_inputs.reference(selected['references']) if retained_inputs is not None else None
+        prepared,_=builder.materialize_cli_reference_bundle(
+            retained['prepared'] if retained is not None else documents['references'],model=values['model'],
+            source_root=retained['root'] if retained is not None else c.local(root,selected['references']).parent,
+            staging_root=directory,
+            companion_name='package.'+c.content_id(documents['references'])[:24]+'.references',artifacts=artifacts,
+            source_archive=retained['source_archive'] if retained is not None else None)
         return prepared
     def validation(selected_target):
         reference_document=documents.get('references')
@@ -589,6 +620,11 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         elif name in {'target-contract','execution-profile'}:options['pointer']='$.target_model'
         elif name=='render-intent':options['pointer']='$.render_intent'
         elif name=='execution-controls':options['pointer']='$.generation.parameters'
+        if retained_inputs is not None and name == 'request-validation-evidence':
+            original = action
+            def action():
+                with retained_inputs.scope(field):
+                    return original()
         return checks.check(name,action,**options)
     resolved=GenerationInputs.acquire(values,resolve_target=selected_target,prepare_references=references,
         preflight_references=preflight,evidence=evidence,check=report,validation_factory=validation)
@@ -629,7 +665,7 @@ def _runtime_binding(root:Path,prepared:dict,*,runtime_inputs,directory:Path,per
 
 def _generation(root: Path, task: dict, prepared: dict, consumer: dict, directory: Path, identity: str, blobs: dict, *,
                 inspected: InputChecks, captured: dict[str, bytes], artifacts: ArtifactSet,
-                runtime_inputs,evidence,persist:bool) -> tuple:
+                runtime_inputs,evidence,persist:bool,retained_inputs=None) -> tuple:
     import build_generation_payload as builder
     import request_renderer
     from route_reading import copy_issuance, ledger_candidates
@@ -655,12 +691,16 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
     issued=copy_issuance(prepared['route_reading'],directory/'reads.jsonl',ledgers=ledger_candidates(studio=root))
     artifacts.add('reads.jsonl',c.encoded(issued))
     with stage('package-compilation'):
-        content=builder.acquire_generation(inputs,prepared_reference_root=directory,visual_root=root,
-            production_root=root,evidence=evidence,visual_continuity=visual,recording=task.get('recording'))
+        with retained_inputs.scope('visual_continuity') if retained_inputs is not None else nullcontext():
+            content=builder.acquire_generation(inputs,prepared_reference_root=directory,visual_root=root,
+                production_root=root,evidence=evidence,visual_continuity=visual,recording=task.get('recording'))
         from sheet_artifacts import dependency
         known={(d['space'],d['path']):d for d in prepared['dependencies']}
         for path,raw in content.evidence.bytes.items():
             if not path.startswith('@') and path!=prepared['task_path']:
+                if path in captured and captured[path] != raw:
+                    raise ValueError('one source path selects different input revisions: ' + path)
+                captured[path] = raw
                 space=dependency_space(path)
                 known[(space,path)]=dependency(space,path,raw)
                 blobs[c.digest(raw)]=raw
@@ -686,7 +726,7 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
     package=content.package(bind_consumer({'run':identity,'input_sha256':prepared['input_sha256'],'consumer':consumer},
                                          consumer['instructions']))
     package,rendered,plan=_execution_plan(root,task,prepared,package,rendered,directory,identity,target,
-        seed=selected['seed'],count=selected['count'],fields=mutable_fields(package,rendered),artifacts=artifacts,
+        seed=selected['seed'],count=selected['count'],fields=mutable_fields(package),artifacts=artifacts,
         prompt_check=prompt_check)
     return package,rendered,plan,runtime_read,warnings
 
@@ -702,8 +742,8 @@ def _external_reference_evidence(prepared: dict, consumer: dict, directory: Path
 
     The production object store owns the exact prepared carriers. Studio proof
     retains every transitive source file through its existing archive owner.
-    Live source activity still gates a new send; saved evidence supports later
-    review after a source or its prepared carrier moves.
+    New preparation checks source eligibility; saved evidence supports later
+    execution, review and source restoration after original files move.
     """
     inputs = consumer.get('image_input') or {}
     canonical = inputs.get('prepared_reference_set') or {}
@@ -711,7 +751,9 @@ def _external_reference_evidence(prepared: dict, consumer: dict, directory: Path
     known = {(row['space'], row['path']): row for row in prepared['dependencies']}
     if canonical:
         from prepare_generation_references import host_reference_transports
-        for carrier in host_reference_transports(canonical):
+        carriers = [*host_reference_transports(canonical),
+                    *(row['transport'] for row in canonical['selected_references'])]
+        for carrier in {row['sha256']: row for row in carriers}.values():
             path = Path(carrier['resolved_path'])
             raw = store.stable_bytes(path.parent, path.name)
             if c.digest(raw) != carrier['sha256']:
@@ -820,13 +862,15 @@ def _upscale_scale_problem(item: dict, *, scale: str, model_id: str, offering: d
 
 
 def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,identity:str,blobs:dict,*,
-             captured:dict[str,bytes],artifacts:ArtifactSet,inspected:InputChecks,runtime_inputs,persist:bool)->tuple:
+             captured:dict[str,bytes],artifacts:ArtifactSet,inspected:InputChecks,runtime_inputs,persist:bool,
+             retained_inputs=None)->tuple:
     import dispatch, request_renderer, runtime_evidence
     from input_evidence import InputEvidence
     from route_reading import copy_issuance,ledger_candidates
     package=copy.deepcopy(inspected.values['upscale-document'])
     import sheet_artifacts
-    source_artifact = sheet_artifacts.upscale_source(root, task, package)
+    with retained_inputs.scope('delivery') if retained_inputs is not None else nullcontext():
+        source_artifact = sheet_artifacts.upscale_source(root, task, package)
     if source_artifact is not None:
         artifacts.write('sheet-derivation.json', c.encoded(source_artifact))
     target=inspected.values['target-contract']
@@ -837,8 +881,10 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     dispatch.require_guidance_key(offering,package['guidance_prompt'])
     settings=dispatch.mapped_settings(model,offering,package['settings'])
     path=package['source']['path']
-    source=c.local(root,path)
-    raw=captured[path] if path in captured else read_input(root,path,pointer='$.source.path')
+    source=c.local(root,path,exists=False)
+    raw=(captured[path] if path in captured else retained_inputs.read(path)
+         if retained_inputs is not None and retained_inputs.selected_field('delivery')
+         else read_input(root,path,pointer='$.source.path'))
     compare=c.digest(raw)
     if compare!=package['source']['sha256']:
         raise ProductionError('SOURCE_CHANGED','The upscale source changed during capture.',phase='source-read',file=str(source),expected=package['source']['sha256'],actual=compare,
@@ -863,7 +909,7 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     with stage('recording-validation'):validate_recording(root,task,{})
     issued=copy_issuance(prepared['route_reading'],directory/'reads.jsonl',ledgers=ledger_candidates(studio=root))
     artifacts.add('reads.jsonl',c.encoded(issued))
-    with stage('request-compilation'):
+    with stage('request-compilation'), (retained_inputs.scope('delivery') if retained_inputs is not None else nullcontext()):
         rendered=request_renderer.upscale(package,model,offering,service,transport,carrier,settings,
             root=root,upload_sources=task.get('upload_sources', []),upload_source_read=lambda path:captured[path],
             input_source=runtime_inputs.runtime)
@@ -878,14 +924,13 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     runtime_read,warnings=_runtime_binding(root,prepared,runtime_inputs=runtime_inputs,directory=directory,persist=persist,
         target=target,package=package)
     prepared['input_sha256']=input_digest(prepared,consumer)
-    task_schema=c.load(ROOT/'schemas/authoring/production-task.schema.json')
     package,rendered,plan=_execution_plan(root,task,prepared,package,rendered,directory,identity,target,
                            seed=None,count=1,artifacts=artifacts,prompt_check=prompt_check,fields={
             'upscale-input':_field('An explicitly authored upscale input declaration; the target model stays fixed.',PATH_VALUE,
                 required=True,value_form='studio-file',document_type='upscale-request',
                 checks=['upscale-document','upscale-source','target-contract','upscale-model-controls','execution-controls',
                         'request-compilation','recording-validation']),
-            'recording':_field('The complete output recording contract.',task_schema['properties']['recording'],
+            'recording':_field('The complete output recording contract.',task_field_schema('recording'),
                 required=True,checks=['recording-validation'])})
     return package,rendered,plan,runtime_read,warnings
 
@@ -939,7 +984,13 @@ def _field(description: str, schema: dict, *, required: bool, nullable: bool = F
             'document_type':document_type,'checks':list(checks),'rebuild':list(rebuild),'protected_criteria':protected}
 
 
-def mutable_fields(package: dict, rendered: dict) -> dict:
+def task_field_schema(name: str) -> dict:
+    """Keep a task property's nested references bound to its owning schema root."""
+    pointer=name.replace('~','~0').replace('/','~1')
+    return {'$ref':'authoring/production-task.schema.json#/properties/'+pointer}
+
+
+def mutable_fields(package: dict) -> dict:
     """Every field a variant may change, with its value form and the checks a change runs again."""
     from production_variation import DOCUMENT_FIELDS, TASK_FIELDS
     profile=package['render_contract']['model_card']['execution_profile']
@@ -955,12 +1006,11 @@ def mutable_fields(package: dict, rendered: dict) -> dict:
         removal=', or null to remove it' if nullable else ''
         fields[label]=_field(f'A studio file holding a complete {document_type} document{removal}.',schema,required=required,
                              nullable=nullable,value_form='studio-file',document_type=document_type,checks=checks)
-    task_schema=c.load(ROOT/'schemas/authoring/production-task.schema.json')
     for label,name in TASK_FIELDS.items():
         required,checks,protected=TASK_DECLARATIONS[label]
-        fields[label]=_field('The complete reassessed '+label+' declaration of the task.',task_schema['properties'][name],
+        fields[label]=_field('The complete reassessed '+label+' declaration of the task.',task_field_schema(name),
                              required=required,checks=checks,protected=protected)
-    fields['recording']=_field('The complete Studio recording contract.',task_schema['properties']['recording'],
+    fields['recording']=_field('The complete Studio recording contract.',task_field_schema('recording'),
                                required=False,nullable=True,checks=['recording-validation'])
     mode=package['render_contract']['intent']['execution_mode']
     for name,control in profile['modes'][mode]['controls'].items():
@@ -994,7 +1044,7 @@ STAGES=['source-validation','package-compilation','request-compilation','executi
 
 def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: str | None=None,
                  runtime_inputs=None, derived: dict[str, bytes] | None=None,
-                 source_inputs: dict[str,bytes] | None=None) -> Compilation:
+                 source_inputs: dict[str,bytes] | None=None, retained_inputs=None) -> Compilation:
     """Check and compile one task in one context, reading each declared input once.
 
     `derived` holds the inputs a derivation writes for this run, by file name.
@@ -1024,7 +1074,8 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                     artifacts.write('inputs/'+name,raw)
                 context.enter_context(c.staged_inputs(root,run_inputs(identity),directory/'inputs'))
             with stage('input-validation'):
-                task,found,captured=inspect_task(root,task_path)
+                task,found,captured,retained_inputs=inspect_task(root,task_path,context=context,
+                                                               retained_inputs=retained_inputs)
             diagnostics.extend(found)
             if task is None:
                 raise CompilationError(report)
@@ -1046,12 +1097,15 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                         context.enter_context(runtime_source.using())
                         import runtime_evidence
                         evidence=runtime_evidence.acquisition(root,source=runtime_source)
+                        if retained_inputs is not None:
+                            retained_inputs.captured.bind(evidence)
                 except (ValueError,OSError,KeyError,TypeError) as exc:
                     runtime_ready=False
                     diagnostics.append(from_exception(exc,phase='runtime-resolution',file=task_path))
             active_phase='input-checks'
             inspect_dependencies(root,task,task_path,captured,checks,runtime_ready=runtime_ready,directory=directory,
-                                 artifacts=artifacts,runtime_source=runtime_source,evidence=evidence)
+                                 artifacts=artifacts,runtime_source=runtime_source,evidence=evidence,
+                                 retained_inputs=retained_inputs)
             if any(d.get('severity','error')=='error' for d in diagnostics):
                 raise CompilationError(report)
             active_phase='source-validation'
@@ -1077,11 +1131,12 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
             if task['execution']=='dispatcher':
                 if task['route']=='upscale':
                     package,rendered,execution_plan,runtime_read,warnings=_upscale(root,task,prepared,consumer,directory,identity,blobs,
-                        captured=captured,artifacts=artifacts,inspected=checks,runtime_inputs=runtime_inputs,persist=persist)
+                        captured=captured,artifacts=artifacts,inspected=checks,runtime_inputs=runtime_inputs,persist=persist,
+                        retained_inputs=retained_inputs)
                 else:
                     package,rendered,execution_plan,runtime_read,warnings=_generation(root,task,prepared,consumer,directory,identity,blobs,
                         inspected=checks,captured=captured,artifacts=artifacts,runtime_inputs=runtime_inputs,
-                        evidence=evidence,persist=persist)
+                        evidence=evidence,persist=persist,retained_inputs=retained_inputs)
                 if warnings:report['runtime_warnings']=warnings
             else:
                 if task['execution'] == 'external':
@@ -1121,14 +1176,33 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
             def identity_read(path):
                 if path not in captured:
                     selected_path = Path(path)
-                    captured[path] = (store.stable_bytes(selected_path.parent, selected_path.name)
+                    captured[path] = (retained_inputs.read(path) if retained_inputs is not None
+                                      and retained_inputs.selected_path(path) else
+                                      store.stable_bytes(selected_path.parent, selected_path.name)
                                       if selected_path.is_absolute() else read_input(root, path, pointer=None,
                                                                                   phase='identity-coverage'))
                 raw = captured[path]
                 blobs[c.digest(raw)] = raw
                 return raw
+            reference_sources = {}
+            if package is not None and package.get('prepared_reference_set') is not None:
+                from build_generation_payload import validate_generation_package_carrier_paths
+                reference_set = package['prepared_reference_set']
+                companion = validate_generation_package_carrier_paths(reference_set, package_root=directory)
+                if companion:
+                    reference_sources = {row['source']['resolved_path']:
+                                         companion + '/sources/' + row['source']['sha256']
+                                         for row in reference_set['selected_references']}
+            def identity_source_read(path):
+                if path not in reference_sources:
+                    return identity_read(path)
+                raw = artifacts.read(reference_sources[path])
+                captured[path] = raw
+                blobs[c.digest(raw)] = raw
+                return raw
             identity_context = production_identity.context(task, identity_read,
-                package=package, rendered=rendered, inputs=consumer.get('image_input'))
+                package=package, rendered=rendered, inputs=consumer.get('image_input'),
+                source_reader=identity_source_read)
             if task['execution'] == 'authored':
                 text = consumer['instructions']
                 identity_context['text']['primary'] = {'text': text, 'field': ['delivery'],
@@ -1153,7 +1227,8 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
             report.update(ok=True,publishable=True,readiness=execution_plan['readiness'],
                           request_preview=rendered['request'] if rendered else execution_plan.get('request'),execution_plan=execution_plan)
             compiled=Compilation(report,directory,prepared,consumer,package,rendered,execution_plan,identity,artifacts,
-                                 runtime_read)
+                                 runtime_read,retained_inputs.acquired_dependencies(prepared['dependencies'])
+                                 if retained_inputs is not None else None)
             if task['execution']=='authored':
                 import production_authored
                 production_authored.finalize_compilation(compiled)
@@ -1421,6 +1496,11 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
             prepared['criteria_predecessor']=workflow.criteria_predecessor(root,prepared['predecessor'],prepared['task'])
             for dependency in prepared['dependencies']:
                 if dependency['space'] in {'evidence','task-source'}:continue
+                retained = (compiled.retained_inputs or {}).get(dependency['path'])
+                if dependency['space'] == 'studio' and retained is not None:
+                    if c.digest(retained) != dependency['sha256']:
+                        raise ValueError('retained compilation input differs from its dependency: ' + dependency['path'])
+                    continue
                 try:actual=workflow.current_sha256(root,dependency)
                 except (ValueError,OSError):actual=None
                 if actual!=dependency.get('selection_sha256', dependency['sha256']):
