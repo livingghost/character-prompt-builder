@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import uuid
 from unittest.mock import patch
 
 from PIL import Image
@@ -32,6 +33,20 @@ def put(value, path, item):
     for key in parts[:-1]:
         value = value.setdefault(key, {})
     value[parts[-1]] = copy.deepcopy(item)
+
+
+def take(value, path):
+    parts = path.split(".")
+    nodes = []
+    node = value
+    for key in parts[:-1]:
+        nodes.append((node, key))
+        node = node[key]
+    result = node.pop(parts[-1])
+    for parent, key in reversed(nodes):
+        if not parent[key]:
+            parent.pop(key)
+    return result
 
 
 class ModelCapabilityTests(unittest.TestCase):
@@ -236,12 +251,41 @@ class ModelCapabilityTests(unittest.TestCase):
                             put(parameters, path, value)
                         self.assert_wire(fixture, prepared, media_ids, parameters)
 
+    def test_generated_identifiers_follow_selected_mode_and_availability(self):
+        import transport_runware as adapter
+        rule = {"binding": "dispatch-generated", "status": "required"}
+        offering = {"service": "runware", "model_identifier": "synthetic:mode-scoped-identifiers",
+            "request_keys": {"prompt": ["positivePrompt"]},
+            "execution_profile": {"modes": {
+                "reference-guided": {"media": "references", "controls": {
+                    "referenceIdentifier": dict(rule),
+                    "unavailableIdentifier": {**rule, "status": "not-applicable"},
+                    "backendIdentifier": {**rule, "status": "backend-managed"}}},
+                "instruction-edit": {"media": "references", "controls": {
+                    "editIdentifier": dict(rule)}}}}}
+        forwarding = {"effective_prompt": PROMPT, "parameters": {},
+            "execution_mode": "reference-guided", "reference_media_role": "references",
+            "selected_references": [],
+            "selected_transport": {"mode": "retained-only", "rendition": {}}}
+        service = {"operations": {"imageInference": {}}}
+        with patch.object(adapter, "_post", side_effect=AssertionError("local request test makes no service request")):
+            first = adapter.compile_request({"host_forwarding": forwarding}, offering, service)["request"]
+            second = adapter.compile_request({"host_forwarding": forwarding}, offering, service)["request"]
+            edit = adapter.compile_request({"host_forwarding": {**forwarding,
+                "execution_mode": "instruction-edit"}}, offering, service)["request"]
+        self.assertEqual(uuid.UUID(first["referenceIdentifier"]).version, 4)
+        self.assertNotEqual(first["referenceIdentifier"], second["referenceIdentifier"])
+        self.assertEqual({key for key in first if key.endswith("Identifier")}, {"referenceIdentifier"})
+        self.assertEqual({key for key in edit if key.endswith("Identifier")}, {"editIdentifier"})
+        self.assertEqual(uuid.UUID(edit["editIdentifier"]).version, 4)
+
     def assert_wire(self, fixture, prepared, media_ids, parameters):
         count = fixture["reference_limit"]
         contract = self.compile(fixture, parameters, mode="reference-guided", references=count)
         verified = {"host_forwarding": {
             "effective_prompt": PROMPT, "parameters": contract["parameters"],
             "selected_transport": {"mode": fixture["negative_transport_mode"], "rendition": {"text": PROMPT}},
+            "execution_mode": "reference-guided",
             "selected_references": refs.host_reference_transports(prepared),
             "reference_media_role": "references", "native_reference_controls": []},
             "bindings": bindings(prepared["transport_mode"], prepared["selected_references"], prepared["single_board"])}
@@ -252,6 +296,15 @@ class ModelCapabilityTests(unittest.TestCase):
         fields = self.cases["services"][fixture["service"]]
         for name in fields["management_fields"]:
             self.assertTrue(wire.pop(name))
+        for path in fixture.get("generated_fields", []):
+            value = take(wire, path)
+            self.assertIs(type(value), str)
+            self.assertEqual(uuid.UUID(value).version, 4)
+            again = self.transports[fixture["service"]].compile_request(
+                copy.deepcopy(verified), self.offering(fixture), self.services[fixture["service"]],
+                dict(media_ids), seed=fixture["dispatch_seed"], count=2)
+            self.assertNotEqual(value, take(again["request"], path),
+                                "dispatch-generated field must be fresh per request")
         expected = copy.deepcopy(parameters)
         for role, value in (("model", fixture["model_identifier"]), ("prompt", PROMPT),
                             ("references", self.provider_ids[:count]), ("count", 2)):

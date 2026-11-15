@@ -86,16 +86,16 @@
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
       "visual_function": "Use open space and directional balance to make an off-center portrait feel intentional while clarifying where the subject's attention extends.",
-      "prompt": "Place the subject off center and reserve a calm field of space along the gaze direction, balancing the head and shoulder mass with one restrained environmental cue and a simple value gradient.",
+      "prompt": "Place the subject off center with an open field extending along the direction of attention. Balance the visible subject mass against that field through its extent, value and shape. Arrange any environmental cues to support the gaze and the selected focal relationship while preserving a clear path into the open space.",
       "invariants": [
         "open space aligns with the subject's directional attention",
         "the displaced subject remains visually anchored",
-        "secondary environment shapes stay quieter than the face"
+        "secondary environment shapes support the selected direction of attention and focal hierarchy"
       ],
       "misreadings_to_avoid": [
         "arbitrary empty half of the frame",
         "subject pressed against the frame edge",
-        "background object placed as a competing focal point"
+        "an environmental cue creating an unintended competing focal point"
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
@@ -154,7 +154,12 @@
         "kind": "module",
         "category": "composition",
         "tier": "curated"
-      }
+      },
+      "interactions": [
+        "In a face-led portrait, keep secondary environment shapes quieter than the face so the gaze remains the point of departure.",
+        "One restrained environmental cue and a simple value gradient can balance a head-and-shoulders portrait; the scene can instead use another number of cues or background treatment while preserving the directional space.",
+        "A visible gaze target can complete the relationship; an off-frame target leaves its continuation outside the image."
+      ]
     },
     {
       "id": "composition-rule-of-thirds-placement",
@@ -1159,7 +1164,7 @@
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
       "visual_function": "Show spatial context and a small identifying or explanatory detail at readable scales.",
-      "prompt": "Give the overall subject or scene the main field, then place a distinct close view of one small region beside it or within a clearly bounded inset. Repeat the region's shape and color landmarks in both views, with the enlarged detail subordinate to the overall scene.",
+      "prompt": "Show the overall subject or scene together with a distinct enlarged view of one small region, placed beside it or within a clearly bounded inset. Repeat the region's shape and color landmarks so the detail can be located in the whole. Give each view enough scale and separation to convey its information, with relative area and contrast following whether the overview, the detail or their correspondence carries the explanation.",
       "invariants": [
         "the detail corresponds to an identifiable region of the whole",
         "the inset has its own crop and scale",
@@ -1173,7 +1178,8 @@
         "A connector is useful when the correspondence would otherwise be unclear.",
         "An alternate angle can expose a hidden surface while retaining identity.",
         "Text labels are optional and depend on the communication task.",
-        "An observed overview and a schematic detail can use distinct renderings while preserving the explained correspondence."
+        "An observed overview and a schematic detail can use distinct renderings while preserving the explained correspondence.",
+        "A dominant overview with a smaller, quieter inset preserves the overall scene as the main reading. When a small feature supplies the main explanation, its enlarged view can receive greater emphasis while the overview retains identifiable context."
       ],
       "misreadings_to_avoid": [
         "enlarging a detail inside the main perspective as if physically huge",
@@ -1724,8 +1730,8 @@
       "category": "composition",
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
-      "visual_function": "Coordinate a dominant image and meaningful text so their reading priorities support each other.",
-      "prompt": "Place the dominant image mass and the principal text block in complementary areas. Give the main wording a clear size and contrast advantage over supporting copy. Align secondary text to a shared edge, leaving calm spacing around the image's essential features and the text's readable shapes.",
+      "visual_function": "Coordinate image and meaningful text so their relative prominence and visible relationship support the intended reading.",
+      "prompt": "Give image and wording a deliberate reading order, establishing the entry point through the chosen combination of scale, contrast, placement and surrounding space. Connect their meaningful parts through proximity, alignment, overlap or a shared shape. Distinguish principal wording from supporting copy through size, weight, contrast and spacing at the intended viewing scale. Preserve required letter recognition and essential depicted features within the chosen relationship.",
       "invariants": [
         "image and text have intentional relative importance",
         "supporting copy is visually subordinate",
@@ -1736,6 +1742,8 @@
         "Text may carry literal content, act as graphic form, or be absent in a scoped variant."
       ],
       "interactions": [
+        "Complementary image and text areas give each an independent reading space. Aligning secondary copy to a shared edge and leaving calm spacing around essential forms supports that arrangement.",
+        "An image, wording or their combined relationship can supply the entry point. Relative prominence follows the communication purpose rather than requiring the image to dominate.",
         "The chosen text role determines whether exact readable wording is necessary.",
         "Overlap can integrate type and image when letter recognition and depicted meaning survive.",
         "Print grain and rendering style remain independent from layout hierarchy.",
@@ -1767,7 +1775,7 @@
           "make image and text work together",
           "clear headline and supporting information"
         ],
-        "outcome_summary": "Coordinate a dominant image and meaningful text so their reading priorities support each other.",
+        "outcome_summary": "Coordinate image and meaningful text so their relative prominence and visible relationship support the intended reading.",
         "discovery_group": "composition-image-type-hierarchy",
         "anchor_signature": {
           "domain": [
@@ -1782,7 +1790,7 @@
             "image and type hierarchy"
           ],
           "communication_goal": [
-            "Coordinate a dominant image and meaningful text so their reading priorities support each other."
+            "Coordinate image and meaningful text so their relative prominence and visible relationship support the intended reading."
           ],
           "expression_structure": [
             "image and type hierarchy"
@@ -1841,7 +1849,7 @@
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
       "visual_function": "Make the wording itself the dominant visual form of a poster.",
-      "prompt": "Build the principal wording into the largest shape on the page, with deliberate line breaks, spacing, and a strong typographic silhouette. Use a restrained secondary image or graphic accent aligned to the lettering. Place supporting information in a smaller, calmer region.",
+      "prompt": "Make the principal wording the visual entry point and organizing form of the poster. Shape its line breaks, spacing and typographic silhouette so it carries the message at the intended viewing scale. Establish its dominance through scale, contrast, isolation, position or their combination. Let images and graphic accents reinforce the lettering's shape, direction or meaning, and give supporting information a distinct subordinate reading level.",
       "invariants": [
         "the main wording is the dominant visual object",
         "letter arrangement carries an intentional shape rhythm",
@@ -1852,6 +1860,8 @@
         "Readable wording and abstract letterform experiments require different text contracts."
       ],
       "interactions": [
+        "Making the wording the largest page shape is one strong realization. A restrained secondary image aligned to the lettering and a smaller, calmer region for supporting information can reinforce that shape-led arrangement.",
+        "A larger low-contrast image can remain secondary to smaller, more isolated or contrasting type; assess the combined visual weight rather than equating prominence with area alone.",
         "Cropping or overlap can add force while retaining the requested degree of legibility.",
         "A character or object can become a secondary counterweight.",
         "Actual poster artwork differs from a photograph of a poster in a setting."

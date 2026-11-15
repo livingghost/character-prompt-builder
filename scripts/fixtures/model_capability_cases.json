@@ -39,16 +39,6 @@
       "case_sets": ["provider-size", "stepped-dimensions", "area-schema", "aspect-three", "alpha-background", "quality-settings", "backend-seed", "mask-guidance"]
     },
     {
-      "model": "seedream-5.0-pro", "service": "runware", "model_identifier": "bytedance:seedream@5.0-pro",
-      "aliases": ["seedream 5 pro", "bytedance:seedream@5.0-pro"],
-      "modes": {"text-to-image": 0, "reference-guided": 2},
-      "prompt_length": [2, 3000], "reference_limit": 10, "preparation_limit": 10, "output_count": [1, 20],
-      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
-      "dispatch_seed": null, "seed_values": {"accept": [null], "reject": [1]},
-      "wire_parameters": {"width": 2496, "height": 1664, "settings.thinking": true, "settings.background": "opaque", "outputFormat": "PNG"},
-      "case_sets": ["paired-profile", "text-size-required", "reference-resolution", "text-resolution", "exclusive-size", "continuous-dimensions", "area-profile", "aspect-sixteen", "boolean-thinking", "single-input-alpha", "promptless-operation", "backend-seed", "no-mask"]
-    },
-    {
       "model": "qwen-image-2.1-pro", "service": "runware", "model_identifier": "alibaba:qwen-image@2.1-pro",
       "aliases": ["qwen image 2.1 pro"],
       "modes": {"text-to-image": 0, "reference-guided": 2, "instruction-edit": 2},
@@ -57,6 +47,27 @@
       "dispatch_seed": 0, "seed_values": {"accept": [null, 0, 2147483647], "reject": [-1, 2147483648]},
       "wire_parameters": {"settings.promptExtend": false, "outputFormat": "PNG"},
       "case_sets": ["paired-profile", "provider-size", "continuous-dimensions", "area-schema", "aspect-eight", "boolean-thinking", "conditional-rewriting", "optional-seed", "no-mask"]
+    },
+    {
+      "model": "seedream-5.5", "service": "runware", "model_identifier": "bytedance:seedream@5.5",
+      "aliases": ["seedream 5.5", "bytedance:seedream@5.5"],
+      "modes": {"text-to-image": 0, "reference-guided": 2},
+      "prompt_length": [1, 10000], "reference_limit": 10, "preparation_limit": 10, "output_count": [1, 20],
+      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
+      "dispatch_seed": null, "seed_values": {"accept": [null], "reject": [1]},
+      "wire_parameters": {"width": 2496, "height": 1664, "settings.background": "opaque", "outputFormat": "PNG"},
+      "generated_fields": ["settings.safetyIdentifier"],
+      "case_sets": ["paired-profile", "text-size-required", "reference-resolution", "text-resolution", "exclusive-size", "continuous-dimensions", "area-profile", "aspect-sixteen", "alpha-background", "layered-operation", "generated-identifier", "backend-seed", "no-mask"]
+    },
+    {
+      "model": "minimax-h3-image", "service": "runware", "model_identifier": "minimax:h3@image",
+      "aliases": ["minimax h3 image", "minimax:h3@image"],
+      "modes": {"text-to-image": 0, "reference-guided": 2},
+      "prompt_length": [1, 32000], "reference_limit": 16, "preparation_limit": 16, "output_count": [1, 20],
+      "supports_negative_prompt": false, "negative_transport_mode": "integrated-critical",
+      "dispatch_seed": null, "seed_values": {"accept": [null], "reject": [1]},
+      "wire_parameters": {"settings.promptOptimizer": true, "outputFormat": "PNG"},
+      "case_sets": ["paired-profile", "provider-size", "reference-resolution", "text-resolution", "exclusive-size", "continuous-dimensions", "area-wide", "aspect-three", "forced-rewriting", "backend-seed", "no-mask"]
     }
   ],
   "common_cases": [
@@ -148,16 +159,6 @@
       {"name": "alpha output accepted", "set": {"settings.background": "transparent", "outputFormat": "PNG"}, "schema": true, "profile": true},
       {"name": "alpha requires an alpha format", "set": {"settings.background": "transparent", "outputFormat": "JPG"}, "schema": false}
     ],
-    "single-input-alpha": [
-      {"name": "alpha output with one input", "mode": "reference-guided", "references": 1, "set": {"settings.background": "transparent", "outputFormat": "PNG"}, "schema": true, "profile": true},
-      {"name": "alpha requires an input", "set": {"settings.background": "transparent", "outputFormat": "PNG"}, "schema": false},
-      {"name": "alpha takes only one input", "mode": "reference-guided", "references": 2, "set": {"settings.background": "transparent", "outputFormat": "PNG"}, "schema": false},
-      {"name": "alpha requires an alpha format", "mode": "reference-guided", "references": 1, "set": {"settings.background": "transparent", "outputFormat": "JPG"}, "schema": false}
-    ],
-    "promptless-operation": [
-      {"name": "separate operation is outside image modes", "mode": "reference-guided", "references": 1, "parameters": {"settings": {"layerDecomposition": true}}, "prompt": null, "schema": true, "profile": false, "profile_error": "settings.layerDecomposition"},
-      {"name": "separate operation refuses an image prompt", "mode": "reference-guided", "references": 1, "set": {"settings.layerDecomposition": true}, "schema": false, "profile": false, "profile_error": "settings.layerDecomposition"}
-    ],
     "conditional-rewriting": [
       {"name": "rewriting disabled", "set": {"settings.promptExtend": false}, "schema": true, "profile": true},
       {"name": "disabled rewriting excludes thinking true", "set": {"settings.promptExtend": false, "settings.thinking": true}, "schema": false, "profile": false},
@@ -165,6 +166,23 @@
       {"name": "text permits agent rewriting", "set": {"settings.promptExtendMode": "agent"}, "schema": true, "profile": true},
       {"name": "reference permits direct rewriting", "mode": "reference-guided", "references": 1, "set": {"settings.promptExtendMode": "direct"}, "schema": true, "profile": true},
       {"name": "reference excludes agent rewriting", "mode": "reference-guided", "references": 1, "set": {"settings.promptExtendMode": "agent"}, "schema": false, "profile": false}
+    ],
+    "forced-rewriting": [
+      {"name": "reference excludes disabled rewriting", "mode": "reference-guided", "references": 1, "set": {"settings.promptOptimizer": false}, "schema": false, "profile": false},
+      {"name": "reference allows explicit rewriting", "mode": "reference-guided", "references": 1, "set": {"settings.promptOptimizer": true}, "schema": true, "profile": true},
+      {"name": "omitted dimensions exclude disabled rewriting", "parameters": {"settings": {"promptOptimizer": false}}, "schema": false, "profile": false},
+      {"name": "explicit dimensions permit disabled rewriting", "set": {"settings.promptOptimizer": false}, "schema": true, "profile": true}
+    ],
+    "layered-operation": [
+      {"name": "separate operation is outside image modes", "mode": "reference-guided", "references": 1, "parameters": {"settings": {"layerDecomposition": true}}, "prompt": null, "schema": true, "profile": false, "profile_error": "settings.layerDecomposition"},
+      {"name": "layer operation excludes explicit dimensions", "mode": "reference-guided", "references": 1, "prompt": null, "set": {"settings.layerDecomposition": true}, "schema": false, "profile": false, "profile_error": "settings.layerDecomposition"}
+    ],
+    "area-wide": [
+      {"name": "area below the minimum", "parameters": {"width": 468, "height": 468}, "schema": false, "profile": false},
+      {"name": "area above the maximum", "parameters": {"width": 5000, "height": 4200}, "schema": false, "profile": false}
+    ],
+    "generated-identifier": [
+      {"name": "generated identifier stays out of the package", "set": {"settings.safetyIdentifier": "00000000-0000-4000-8000-000000000000"}, "schema": true, "profile": false, "profile_error": "settings.safetyIdentifier"}
     ],
     "mask-guidance": [
       {"name": "mask with a reference", "mode": "reference-guided", "references": 1, "set": {"inputs.maskImage": "00000000-0000-4000-8000-000000000000"}, "schema": true},

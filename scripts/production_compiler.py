@@ -269,8 +269,10 @@ class InputChecks:
               guidance=None, required_action=None):
         """Run one check unless a prerequisite failed; `code` names a failure that has no code of its own.
 
-        A `ParameterErrors` failure reports each problem at `$.PARAMETER` with
-        the code its status names. A check that knows more about one problem
+        A `ParameterErrors` failure reports each problem at `$.PARAMETER`, or
+        the selected source root for a combined constraint, with the code its
+        status names and its producer's repair and expected schema or selections.
+        A check that knows more about one problem
         adds `code`, `pointer` and `required_action` to it, and those apply.
         """
         blocked = [key for key in requires if self.states.get(key) != 'passed']
@@ -308,9 +310,11 @@ class InputChecks:
             if isinstance(exc, ParameterErrors):
                 for item in exc.problems:
                     problem = {**diagnostic, 'message': item['message'],
-                               'pointer': item.get('pointer', '$.' + item['parameter']),
+                               'pointer': item.get('pointer', '$.' + item['parameter'] if item['parameter'] is not None
+                                                   else diagnostic['pointer']),
                                'required_action': item.get('required_action', diagnostic['required_action'])}
                     problem['code'] = item.get('code') or _status_code(item.get('status')) or diagnostic['code']
+                    problem.update({key: item[key] for key in ('expected', 'recommendation') if key in item})
                     self.diagnostics.append(problem)
             elif isinstance(exc, SpecificationError):
                 for message in exc.errors:
@@ -619,7 +623,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         if name=='execution-quantity':options['pointer']='$.generation.count'
         elif name in {'target-contract','execution-profile'}:options['pointer']='$.target_model'
         elif name=='render-intent':options['pointer']='$.render_intent'
-        elif name=='execution-controls':options['pointer']='$.generation.parameters'
+        elif name=='execution-controls':options['pointer']='$' if selected.get('parameters') else '$.generation.parameters'
         if retained_inputs is not None and name == 'request-validation-evidence':
             original = action
             def action():
@@ -1014,9 +1018,10 @@ def mutable_fields(package: dict) -> dict:
                                required=False,nullable=True,checks=['recording-validation'])
     mode=package['render_contract']['intent']['execution_mode']
     for name,control in profile['modes'][mode]['controls'].items():
-        if control['status'] not in {'required','optional'}:continue
-        label='seed' if control.get('binding')=='dispatch-seed' else 'count' if control.get('binding')=='dispatch-count' else 'parameter:'+name
-        quantity=label in {'seed','count'}
+        binding=control['binding']
+        if control['status'] not in {'required','optional'} or binding not in {'package','dispatch-seed','dispatch-count'}:continue
+        label='parameter:'+name if binding=='package' else {'dispatch-seed':'seed','dispatch-count':'count'}[binding]
+        quantity=binding!='package'
         fields[label]=_field(control['reason'],control['schema'],required=control['status']=='required',
                              checks=['execution-profile','execution-quantity' if quantity else 'execution-controls']+REQUEST,
                              rebuild=('request',) if quantity else ('package','request'),protected='unchanged' if quantity else 'recheck')

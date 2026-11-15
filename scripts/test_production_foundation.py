@@ -1000,6 +1000,22 @@ class CompilerContractTests(unittest.TestCase):
         self.assertEqual((states['task-contract'],states['recording-validation']),('not-performed','not-performed'))
         self.assertEqual((states['plot'],states['retrieval'],states['target-contract']),('passed','passed','passed'))
 
+    def test_combined_parameter_error_locates_the_selected_parameter_document_root(self):
+        import production_compiler as compiler
+        schema = {'dependentRequired': {'height': ['width']}}
+        def coupled_dimensions(records):
+            records[0]['offerings'][0]['execution_profile']['modes']['text-to-image']['parameter_schema'] = schema
+        root = self.case_with(coupled_dimensions)['root']
+        self.fixtures.write(root / 'parameters.json', {'height': 32})
+        report = compiler.check_task(root, 'task.json')
+        [problem] = [row for row in report['diagnostics'] if row['phase'] == 'execution-controls']
+        self.assertEqual((problem['code'], problem['file'], problem['pointer']),
+                         ('INPUT_CONSISTENCY_ERROR', 'parameters.json', '$'))
+        self.assertEqual(problem['expected'], schema)
+        self.assertIn("'height' requires 'width'", problem['message'])
+        self.assertIn('Correct the combination of authored parameters', problem['required_action'])
+        self.assertFalse(report['publishable'])
+
     def test_unreadable_input_keeps_its_file_pointer_and_cause(self):
         self.edit('task.json',lambda task:task['generation'].update(plot='missing/plot.json',creative_intent='inputs\\intent.json'))
         report=self.check()
@@ -1125,6 +1141,38 @@ class CompilerContractTests(unittest.TestCase):
         self.assertEqual((fields['count']['protected_criteria'],fields['direction']['protected_criteria'],fields['prompt']['protected_criteria']),
                          ('unchanged','redefine','recheck'))
         self.assertIn('source-validation',fields['state-lineage']['checks']);self.assertNotIn('retrieval',fields['state-lineage']['checks'])
+
+    def test_mutable_controls_follow_authored_and_dispatch_ownership(self):
+        import production_workflow as workflow
+        import production_variation as variation
+        from render_contract_fixtures import control
+        def owned_controls(records):
+            model=records[0]
+            for profile in (model['execution_profile'],model['offerings'][0]['execution_profile']):
+                for mode in profile['modes'].values():
+                    controls=mode['controls']
+                    controls['request_id']=control('required',binding='dispatch-generated',schema={'type':'string','minLength':1})
+                    controls['trace_token']=control('optional',binding='dispatch-generated',schema={'type':'string','minLength':1})
+                    controls['seed']=control('optional',binding='dispatch-seed',schema={'type':'integer','minimum':0})
+                    controls['width']['status']='required'
+        root=self.case_with(owned_controls)['root']
+        prepared=workflow.prepare(root,'task.json')
+        fields=prepared['execution_plan']['mutable_fields']
+        self.assertNotIn('parameter:request_id',fields)
+        self.assertNotIn('parameter:trace_token',fields)
+        self.assertEqual({name:fields[name]['required'] for name in ('parameter:width','parameter:steps','seed','count')},
+                         {'parameter:width':True,'parameter:steps':False,'seed':False,'count':True})
+        self.assertEqual(fields['seed']['rebuild'],['request'])
+        self.assertEqual(fields['count']['protected_criteria'],'unchanged')
+        self.assertTrue(prepared['request_preview']['request_id'])
+        package=c.load(Path(prepared['package']))
+        self.assertNotIn('request_id',package['render_contract']['parameters'])
+        self.fixtures.write(root/'changes.json',{'changes':{'parameter:steps':22,'seed':17,'count':2},
+            'reason':'Compare authored controls while the transport owns request identifiers.'})
+        child=variation.derive(root,prepared['run'],changes_file='changes.json',prepare=True)
+        self.assertEqual({name:child['request_preview'][name] for name in ('steps','seed','count')},
+                         {'steps':22,'seed':17,'count':2})
+        self.assertNotIn('parameter:request_id',child['execution_plan']['mutable_fields'])
 
     def test_sheet_slot_conditions_are_checked_at_prepare(self):
         import production_workflow as workflow

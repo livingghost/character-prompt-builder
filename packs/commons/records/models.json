@@ -870,7 +870,7 @@
                       "type": "integer"
                     },
                     "recommendation": null,
-                    "reason": "Optional control from the observed provider schema; omission retains provider behavior."
+                    "reason": "Required by the text-to-image execution profile; supply an explicit value."
                   },
                   "height": {
                     "status": "required",
@@ -881,7 +881,7 @@
                       "type": "integer"
                     },
                     "recommendation": null,
-                    "reason": "Optional control from the observed provider schema; omission retains provider behavior."
+                    "reason": "Required by the text-to-image execution profile; supply an explicit value."
                   },
                   "resolution": {
                     "status": "not-applicable",
@@ -3169,647 +3169,6 @@
       }
     },
     {
-      "id": "seedream-5.0-pro",
-      "label": "ByteDance Seedream 5.0 Pro",
-      "aliases": [
-        "seedream 5.0 pro",
-        "seedream 5 pro",
-        "bytedance seedream 5.0 pro",
-        "bytedance:seedream@5.0-pro"
-      ],
-      "description": "Natural-language image generation and reference-guided editing with up to ten separately scoped input images. Normal image output, not the separate layer-decomposition operation.",
-      "operation_kind": "generation",
-      "supports_negative_prompt": false,
-      "negative_transport_mode": "integrated-critical",
-      "negative_transport_notes": "This interface has positivePrompt only. Write critical exclusions in the positive prose and retain any portable negative in package records without sending a negativePrompt field.",
-      "prompt_style": "natural-language image direction with explicit per-reference identity, pose, wardrobe, spatial relationship and preservation clauses",
-      "prompt_input": {
-        "mode": "descriptive",
-        "forms": [
-          "natural-language"
-        ],
-        "vocabularies": [],
-        "basis": [
-          {
-            "kind": "provider-documentation",
-            "source": "https://runware.ai/docs/models/bytedance-seedream-5-0-pro/guides/prompting",
-            "scope": "model",
-            "observed_at": "2026-11-02",
-            "statement": "The model-specific guide uses descriptive clauses for subject, composition, lighting, style, constraints and image-reference instructions."
-          },
-          {
-            "kind": "provider-documentation",
-            "source": "https://docs.byteplus.com/en/docs/ModelArk/image-generation-api",
-            "scope": "model",
-            "observed_at": "2026-11-02",
-            "statement": "The provider defines prompt as text describing image content or a requested image operation and documents natural-language input languages."
-          }
-        ]
-      },
-      "reference_input_media_types": [
-        "image/jpeg",
-        "image/png",
-        "image/webp"
-      ],
-      "max_reference_images": 10,
-      "max_outputs": 20,
-      "max_positive_prompt_chars": 3000,
-      "supported_resolutions": [
-        "1K",
-        "2K"
-      ],
-      "default_aspect_ratio_behavior": "Explicit width/height together, or a resolution preset, never both. Arbitrary pairs within provider area and aspect limits. With references a preset matches the input aspect; references may omit explicit sizing.",
-      "size_hints": {
-        "1:1": "1024x1024, 2048x2048",
-        "3:2": "1248x832, 2496x1664",
-        "2:3": "832x1248, 1664x2496",
-        "4:3": "1152x864, 2368x1776",
-        "3:4": "864x1152, 1776x2368",
-        "16:9": "1424x800, 2816x1584",
-        "9:16": "800x1424, 1584x2816"
-      },
-      "verified_on": "2026-10-12",
-      "recommended_uses": [
-        "natural-language text-to-image generation",
-        "role-scoped multiple-reference image editing",
-        "separately prepared character pose/outfit assets for later scene assembly"
-      ],
-      "avoid_uses": [
-        "hard pixel-preservation guarantees inferred from an instruction-only edit",
-        "carrying SDXL seed, sampler, CFG, denoising or prompt-weighting controls onto this interface",
-        "collecting layer-decomposition output through an ordinary prompted image package"
-      ],
-      "ordering": [
-        "format and purpose",
-        "each reference's content and authority",
-        "per-character invariants",
-        "requested pose, expression and wardrobe changes",
-        "spatial relationships and contacts",
-        "rendering",
-        "critical exclusions"
-      ],
-      "search_terms": [
-        {
-          "phrase": "seedream-5.0-pro",
-          "facet": "model",
-          "weight": 1.1,
-          "source": "author"
-        },
-        {
-          "phrase": "seedream 5.0 pro",
-          "facet": "model",
-          "weight": 1.0,
-          "source": "author"
-        },
-        {
-          "phrase": "seedream 5 pro",
-          "facet": "model",
-          "weight": 1.0,
-          "source": "author"
-        },
-        {
-          "phrase": "bytedance seedream",
-          "facet": "model",
-          "weight": 1.0,
-          "source": "author"
-        }
-      ],
-      "offerings": [
-        {
-          "service": "runware",
-          "model_identifier": "bytedance:seedream@5.0-pro",
-          "request_keys": {
-            "model": [
-              "model"
-            ],
-            "prompt": [
-              "positivePrompt"
-            ],
-            "reference images": [
-              "inputs.referenceImages"
-            ],
-            "width": [
-              "width"
-            ],
-            "height": [
-              "height"
-            ]
-          },
-          "constraints": {
-            "geometry": "width and height together, 256..16383 each; area 921600..4624220 pixels; aspect 1/16..16. A resolution 1K/2K preset is exclusive with explicit dimensions.",
-            "text": "Final positivePrompt length 2..3000 including reference instructions; no separate negativePrompt.",
-            "reference_images": {
-              "max": 10
-            },
-            "number_results": {
-              "min": 1,
-              "max": 20
-            },
-            "controls": "settings.thinking true/false; settings.background opaque/transparent. No seed, steps, scheduler, CFGScale, strength, promptWeighting, seedImage or maskImage.",
-            "transparent": "One reference containing transparent pixels, PNG/WEBP output; not a hard alpha-preservation guarantee.",
-            "layer_decomposition": "Provider exposes settings.layerDecomposition, a distinct no-prompt output-layer operation; not implemented by the ordinary image modes.",
-            "input_reference_order": "Order is binding; references remain separately scoped images, not an automatically averaged board."
-          },
-          "observed_at": "2026-10-12",
-          "schema_snapshot": "resources/observed-schemas/seedream-5.0-pro.runware.json",
-          "execution_profile": {
-            "id": "runware-seedream-5-0-pro-interface",
-            "basis": {
-              "kind": "provider-documentation",
-              "source": "resources/observed-schemas/seedream-5.0-pro.runware.json",
-              "limitations": [
-                "Interface evidence observed through Runware MCP on 2026-10-12; not a promise of drawing quality or unrestricted content acceptance.",
-                "Normal prompted image output only. Layer decomposition is recorded in the provider snapshot but deliberately unavailable in these Generation Package modes.",
-                "Reference count limits and dimensional constraints are validated against the observed schema. A transparent input's alpha pixels remain a provider/image-content requirement."
-              ]
-            },
-            "prompt_recipe": {
-              "order": [
-                "format and purpose",
-                "each reference's content and authority",
-                "per-character invariants",
-                "requested pose, expression and wardrobe changes",
-                "spatial relationships and contacts",
-                "rendering",
-                "critical exclusions"
-              ],
-              "guidance": [
-                "Write natural-language directions, not Compel or sdEmbeds syntax.",
-                "Describe each reference by content and ordered role. State what must remain and what may change; keep original identity separate from a prepared outfit or pose.",
-                "The final rendered positivePrompt, including any reference preamble, must contain 2 to 3000 characters.",
-                "Keep acceptance of identities, body proportions, clothing completeness and interaction separate from successful delivery."
-              ]
-            },
-            "modes": {
-              "text-to-image": {
-                "media": "none",
-                "controls": {
-                  "width": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "integer",
-                      "minimum": 256,
-                      "maximum": 16383
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "height": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "integer",
-                      "minimum": 256,
-                      "maximum": 16383
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "resolution": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "string",
-                      "enum": [
-                        "1K",
-                        "2K"
-                      ]
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "outputFormat": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "string",
-                      "enum": [
-                        "JPG",
-                        "PNG",
-                        "WEBP"
-                      ]
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "outputQuality": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "integer",
-                      "minimum": 20,
-                      "maximum": 99
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "settings.thinking": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "boolean"
-                    },
-                    "reason": "Provider default is true; false is also supported; no hidden author recommendation."
-                  },
-                  "settings.background": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "opaque"
-                        },
-                        {
-                          "const": "transparent"
-                        }
-                      ]
-                    },
-                    "reason": "Provider default is opaque. Transparent output requires one reference already containing transparent pixels and PNG/WEBP. Local schema checks do not certify input alpha content."
-                  },
-                  "numberResults": {
-                    "status": "required",
-                    "binding": "dispatch-count",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 20
-                    },
-                    "reason": "Explicit output count fixed by dispatch."
-                  },
-                  "seed": {
-                    "status": "backend-managed",
-                    "binding": "dispatch-seed",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "No seed input exists in the observed model schema; an output seed is not an input control."
-                  },
-                  "steps": {
-                    "status": "backend-managed",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
-                  },
-                  "CFGScale": {
-                    "status": "backend-managed",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
-                  },
-                  "scheduler": {
-                    "status": "backend-managed",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
-                  },
-                  "promptWeighting": {
-                    "status": "backend-managed",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
-                  },
-                  "strength": {
-                    "status": "not-applicable",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Reference-guided edits do not expose seedImage or a denoising-strength control."
-                  },
-                  "settings.layerDecomposition": {
-                    "status": "not-applicable",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "The separate no-prompt layer operation returns multiple PNG layers. The ordinary image Generation Package does not collect that output contract."
-                  },
-                  "safety.checkContent": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "boolean"
-                    },
-                    "reason": "Optional provider content-check flag; no local override is selected by default."
-                  }
-                },
-                "parameter_schema": {
-                  "type": "object",
-                  "allOf": [
-                    {
-                      "dependentRequired": {
-                        "width": [
-                          "height"
-                        ],
-                        "height": [
-                          "width"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "allOf": [
-                          {
-                            "required": [
-                              "resolution"
-                            ]
-                          },
-                          {
-                            "anyOf": [
-                              {
-                                "required": [
-                                  "width"
-                                ]
-                              },
-                              {
-                                "required": [
-                                  "height"
-                                ]
-                              }
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "anyOf": [
-                        {
-                          "required": [
-                            "width",
-                            "height"
-                          ]
-                        },
-                        {
-                          "required": [
-                            "resolution"
-                          ]
-                        }
-                      ]
-                    }
-                  ],
-                  "x-constraints": [
-                    {
-                      "operation": "area",
-                      "parameters": [
-                        "width",
-                        "height"
-                      ],
-                      "minimum": 921600,
-                      "maximum": 4624220
-                    },
-                    {
-                      "operation": "ratio",
-                      "parameters": [
-                        "width",
-                        "height"
-                      ],
-                      "minimum": 0.0625,
-                      "maximum": 16
-                    }
-                  ]
-                },
-                "prompt_syntax": {
-                  "default": "literal",
-                  "control": null
-                }
-              },
-              "reference-guided": {
-                "media": "references",
-                "controls": {
-                  "width": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "integer",
-                      "minimum": 256,
-                      "maximum": 16383
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "height": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "integer",
-                      "minimum": 256,
-                      "maximum": 16383
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "resolution": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "string",
-                      "enum": [
-                        "1K",
-                        "2K"
-                      ]
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "outputFormat": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "string",
-                      "enum": [
-                        "JPG",
-                        "PNG",
-                        "WEBP"
-                      ]
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "outputQuality": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "integer",
-                      "minimum": 20,
-                      "maximum": 99
-                    },
-                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
-                  },
-                  "settings.thinking": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "boolean"
-                    },
-                    "reason": "Provider default is true; false is also supported; no hidden author recommendation."
-                  },
-                  "settings.background": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "opaque"
-                        },
-                        {
-                          "const": "transparent"
-                        }
-                      ]
-                    },
-                    "reason": "Provider default is opaque. Transparent output requires one reference already containing transparent pixels and PNG/WEBP. Local schema checks do not certify input alpha content."
-                  },
-                  "numberResults": {
-                    "status": "required",
-                    "binding": "dispatch-count",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 20
-                    },
-                    "reason": "Explicit output count fixed by dispatch."
-                  },
-                  "seed": {
-                    "status": "backend-managed",
-                    "binding": "dispatch-seed",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "No seed input exists in the observed model schema; an output seed is not an input control."
-                  },
-                  "steps": {
-                    "status": "backend-managed",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
-                  },
-                  "CFGScale": {
-                    "status": "backend-managed",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
-                  },
-                  "scheduler": {
-                    "status": "backend-managed",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
-                  },
-                  "promptWeighting": {
-                    "status": "backend-managed",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
-                  },
-                  "strength": {
-                    "status": "not-applicable",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "Reference-guided edits do not expose seedImage or a denoising-strength control."
-                  },
-                  "settings.layerDecomposition": {
-                    "status": "not-applicable",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": null,
-                    "reason": "The separate no-prompt layer operation returns multiple PNG layers. The ordinary image Generation Package does not collect that output contract."
-                  },
-                  "safety.checkContent": {
-                    "status": "optional",
-                    "binding": "package",
-                    "recommendation": null,
-                    "schema": {
-                      "type": "boolean"
-                    },
-                    "reason": "Optional provider content-check flag; no local override is selected by default."
-                  }
-                },
-                "parameter_schema": {
-                  "type": "object",
-                  "allOf": [
-                    {
-                      "dependentRequired": {
-                        "width": [
-                          "height"
-                        ],
-                        "height": [
-                          "width"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "allOf": [
-                          {
-                            "required": [
-                              "resolution"
-                            ]
-                          },
-                          {
-                            "anyOf": [
-                              {
-                                "required": [
-                                  "width"
-                                ]
-                              },
-                              {
-                                "required": [
-                                  "height"
-                                ]
-                              }
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ],
-                  "x-constraints": [
-                    {
-                      "operation": "area",
-                      "parameters": [
-                        "width",
-                        "height"
-                      ],
-                      "minimum": 921600,
-                      "maximum": 4624220
-                    },
-                    {
-                      "operation": "ratio",
-                      "parameters": [
-                        "width",
-                        "height"
-                      ],
-                      "minimum": 0.0625,
-                      "maximum": 16
-                    }
-                  ]
-                },
-                "prompt_syntax": {
-                  "default": "literal",
-                  "control": null
-                }
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
       "id": "qwen-image-2.1-pro",
       "label": "Alibaba Qwen-Image-2.1-Pro",
       "aliases": [
@@ -4757,6 +4116,1345 @@
                           }
                         }
                       }
+                    }
+                  ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "seedream-5.5",
+      "label": "ByteDance Seedream 5.5",
+      "aliases": [
+        "seedream 5.5",
+        "bytedance seedream 5.5",
+        "bytedance:seedream@5.5"
+      ],
+      "description": "Natural-language image generation and reference-guided editing with up to ten separately scoped input images, with unedited areas kept stable across multi-turn edits. Normal image output, not the separate layer-decomposition operation.",
+      "operation_kind": "generation",
+      "supports_negative_prompt": false,
+      "negative_transport_mode": "integrated-critical",
+      "negative_transport_notes": "This interface has positivePrompt only. Write critical exclusions in the positive prose and retain any portable negative in package records without sending a negativePrompt field.",
+      "prompt_style": "natural-language image direction with explicit per-reference identity, pose, wardrobe, spatial relationship and preservation clauses",
+      "prompt_input": {
+        "mode": "descriptive",
+        "forms": [
+          "natural-language"
+        ],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/bytedance-seedream-5-5/guides/prompting",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The model-specific prompting guide structures the prompt as a brief: deliverable, subject, setting, light, lens and framing, each in its own clause, and relays the model author's recommendation to keep it under about 600 English words. Exact in-image copy is quoted line by line with a position, a type style and a color, and the brief closes on 'no other text'."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/bytedance-seedream-5-5/schema.json",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The published interface schema defines positivePrompt as text describing elements to include, 1 to 10000 characters, with up to ten reference images."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/bytedance-seedream-5-5/guides/editing-images",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The editing guide splits an instruction into what changes and what stays: fence a single-property change with 'only', hold the object's own parts, list what stays as categories rather than descriptions, name what surface fills a removal gap, and relight a moved subject with a light direction and a contact shadow. A chained edit restates the keep list because no round sees the prompts before it."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/bytedance-seedream-5-5/guides/multi-reference-composition",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The multi-reference guide numbers each reference by its array position in the prompt, gives every reference one role clause covering content, placement, preserved categories and light, and sends explicit width and height when the references differ in shape."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/bytedance-seedream-5-5/guides/transparent-backgrounds",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The transparent-background guide pins settings.background to transparent for a guaranteed alpha channel with PNG or WEBP output, rules out backdrop, surface and shadow in the prompt, cuts a subject out of a reference that has no alpha channel, and builds a pose series by passing the first cut-out back as the reference while keeping design, proportions, colors and line style as named categories."
+          }
+        ]
+      },
+      "reference_input_media_types": [
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+      ],
+      "max_reference_images": 10,
+      "max_outputs": 20,
+      "max_positive_prompt_chars": 10000,
+      "supported_resolutions": [
+        "1K",
+        "1.5K",
+        "2K"
+      ],
+      "default_aspect_ratio_behavior": "Explicit width/height together, or a resolution preset, never both; without references one of them is required. A preset matches the input aspect with references and follows the prompt without them.",
+      "size_hints": {
+        "1:1": "1024x1024, 2048x2048",
+        "3:2": "1248x832, 2496x1664",
+        "2:3": "832x1248, 1664x2496",
+        "4:3": "1152x864, 2368x1776",
+        "3:4": "864x1152, 1776x2368",
+        "16:9": "1424x800, 2816x1584",
+        "9:16": "800x1424, 1584x2816"
+      },
+      "verified_on": "2026-11-14",
+      "recommended_uses": [
+        "natural-language text-to-image generation",
+        "role-scoped multiple-reference image editing",
+        "multi-turn editing where unedited areas must stay stable",
+        "separately prepared character pose/outfit assets for later scene assembly",
+        "transparent-background subject cut-outs and pose series that reuse the first approved cut-out as the identity reference"
+      ],
+      "avoid_uses": [
+        "hard pixel-preservation guarantees inferred from an instruction-only edit",
+        "carrying SDXL seed, sampler, CFG, denoising or prompt-weighting controls onto this interface",
+        "collecting layer-decomposition output through an ordinary prompted image package"
+      ],
+      "ordering": [
+        "format and purpose",
+        "each reference's content and authority",
+        "per-character invariants",
+        "requested pose, expression and wardrobe changes",
+        "spatial relationships and contacts",
+        "rendering",
+        "critical exclusions"
+      ],
+      "search_terms": [
+        {
+          "phrase": "seedream-5.5",
+          "facet": "model",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "seedream 5.5",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "bytedance seedream 5.5",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ],
+      "offerings": [
+        {
+          "service": "runware",
+          "model_identifier": "bytedance:seedream@5.5",
+          "request_keys": {
+            "model": [
+              "model"
+            ],
+            "prompt": [
+              "positivePrompt"
+            ],
+            "reference images": [
+              "inputs.referenceImages"
+            ],
+            "width": [
+              "width"
+            ],
+            "height": [
+              "height"
+            ]
+          },
+          "constraints": {
+            "geometry": "width and height together, 256..16383 each; area 921600..4624220 pixels; aspect 1/16..16. A resolution 1K/1.5K/2K preset is exclusive with explicit dimensions. Without references, explicit dimensions or a resolution preset are required.",
+            "text": "Final positivePrompt length 1..10000 including reference instructions; no separate negativePrompt.",
+            "reference_images": {
+              "max": 10
+            },
+            "number_results": {
+              "min": 1,
+              "max": 20
+            },
+            "controls": "settings.background auto/opaque/transparent; settings.safetyIdentifier is generated per request at dispatch. No seed, steps, scheduler, CFGScale, strength, promptWeighting, seedImage or maskImage.",
+            "transparent": "Prompt-only or reference-guided transparent output; settings.background transparent requires PNG or WEBP output; not a hard alpha-preservation guarantee.",
+            "layer_decomposition": "Provider exposes settings.layerDecomposition, a distinct no-prompt output-layer operation; not implemented by the ordinary image modes.",
+            "input_reference_order": "Order is binding; references remain separately scoped images, not an automatically averaged board."
+          },
+          "observed_at": "2026-11-14",
+          "schema_snapshot": "resources/observed-schemas/seedream-5.5.runware.json",
+          "execution_profile": {
+            "id": "runware-seedream-5-5-interface",
+            "basis": {
+              "kind": "provider-documentation",
+              "source": "resources/observed-schemas/seedream-5.5.runware.json",
+              "limitations": [
+                "Interface evidence observed from the published Runware schema document on 2026-11-14; not a promise of drawing quality or unrestricted content acceptance.",
+                "Normal prompted image output only. Layer decomposition is recorded in the provider snapshot but deliberately unavailable in these Generation Package modes.",
+                "Reference count limits and dimensional constraints are validated against the observed schema. Transparent output requires PNG or WEBP when settings.background is transparent."
+              ]
+            },
+            "prompt_recipe": {
+              "order": [
+                "format and purpose",
+                "each reference's content and authority",
+                "per-character invariants",
+                "requested pose, expression and wardrobe changes",
+                "spatial relationships and contacts",
+                "rendering",
+                "critical exclusions"
+              ],
+              "guidance": [
+                "Write natural-language directions, not Compel or sdEmbeds syntax.",
+                "Describe each reference by content and ordered role. State what must remain and what may change; keep original identity separate from a prepared outfit or pose.",
+                "In an edit instruction, name what changes first and then what stays, listing preserved elements as categories rather than descriptions; a chained edit restates the keep list in every round.",
+                "Number each reference by its array position and give it one role clause; when references differ in shape, send explicit width and height.",
+                "The final rendered positivePrompt, including any reference preamble, must contain 1 to 10000 characters; the model author recommends staying under about 600 English words.",
+                "Keep acceptance of identities, body proportions, clothing completeness and interaction separate from successful delivery."
+              ]
+            },
+            "modes": {
+              "text-to-image": {
+                "media": "none",
+                "controls": {
+                  "width": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 256,
+                      "maximum": 16383
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "height": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 256,
+                      "maximum": 16383
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "resolution": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "enum": [
+                        "1K",
+                        "1.5K",
+                        "2K"
+                      ]
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "outputQuality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 20,
+                      "maximum": 99
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "settings.background": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "auto"
+                        },
+                        {
+                          "const": "opaque"
+                        },
+                        {
+                          "const": "transparent"
+                        }
+                      ]
+                    },
+                    "reason": "Provider default is auto. Transparent output requires PNG or WEBP output format."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "reason": "Explicit output count fixed by dispatch."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "No seed input exists in the observed model schema; an output seed is not an input control."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "promptWeighting": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Reference-guided edits do not expose seedImage or a denoising-strength control."
+                  },
+                  "settings.layerDecomposition": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The separate no-prompt layer operation returns multiple PNG layers. The ordinary image Generation Package does not collect that output contract."
+                  },
+                  "safety.checkContent": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "boolean"
+                    },
+                    "reason": "Optional provider content-check flag; no local override is selected by default."
+                  },
+                  "settings.safetyIdentifier": {
+                    "status": "required",
+                    "binding": "dispatch-generated",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "reason": "Provider end-user identifier for usage-policy enforcement. A freshly generated random identifier is sent with every request rather than a stable one; the transport generates it at dispatch, so the package never carries a value."
+                  },
+                  "settings.layerDecompositionMaxImages": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Belongs to the separate layer-decomposition operation, which these Generation Package modes do not expose."
+                  },
+                  "settings.layerDecompositionTextRecognition": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Belongs to the layer-decomposition operation, which these Generation Package modes do not expose."
+                  }
+                },
+                "parameter_schema": {
+                  "type": "object",
+                  "allOf": [
+                    {
+                      "dependentRequired": {
+                        "width": [
+                          "height"
+                        ],
+                        "height": [
+                          "width"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "allOf": [
+                          {
+                            "required": [
+                              "resolution"
+                            ]
+                          },
+                          {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "width"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "height"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "width",
+                            "height"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "resolution"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "x-constraints": [
+                    {
+                      "operation": "area",
+                      "parameters": [
+                        "width",
+                        "height"
+                      ],
+                      "minimum": 921600,
+                      "maximum": 4624220
+                    },
+                    {
+                      "operation": "ratio",
+                      "parameters": [
+                        "width",
+                        "height"
+                      ],
+                      "minimum": 0.0625,
+                      "maximum": 16
+                    }
+                  ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
+              },
+              "reference-guided": {
+                "media": "references",
+                "controls": {
+                  "width": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 256,
+                      "maximum": 16383
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "height": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 256,
+                      "maximum": 16383
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "resolution": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "enum": [
+                        "1K",
+                        "1.5K",
+                        "2K"
+                      ]
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "outputQuality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 20,
+                      "maximum": 99
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "settings.background": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "auto"
+                        },
+                        {
+                          "const": "opaque"
+                        },
+                        {
+                          "const": "transparent"
+                        }
+                      ]
+                    },
+                    "reason": "Provider default is auto. Transparent output requires PNG or WEBP output format."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "reason": "Explicit output count fixed by dispatch."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "No seed input exists in the observed model schema; an output seed is not an input control."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "promptWeighting": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Reference-guided edits do not expose seedImage or a denoising-strength control."
+                  },
+                  "settings.layerDecomposition": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "The separate no-prompt layer operation returns multiple PNG layers. The ordinary image Generation Package does not collect that output contract."
+                  },
+                  "safety.checkContent": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "boolean"
+                    },
+                    "reason": "Optional provider content-check flag; no local override is selected by default."
+                  },
+                  "settings.safetyIdentifier": {
+                    "status": "required",
+                    "binding": "dispatch-generated",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "reason": "Provider end-user identifier for usage-policy enforcement. A freshly generated random identifier is sent with every request rather than a stable one; the transport generates it at dispatch, so the package never carries a value."
+                  },
+                  "settings.layerDecompositionMaxImages": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Belongs to the separate layer-decomposition operation, which these Generation Package modes do not expose."
+                  },
+                  "settings.layerDecompositionTextRecognition": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Belongs to the layer-decomposition operation, which these Generation Package modes do not expose."
+                  }
+                },
+                "parameter_schema": {
+                  "type": "object",
+                  "allOf": [
+                    {
+                      "dependentRequired": {
+                        "width": [
+                          "height"
+                        ],
+                        "height": [
+                          "width"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "allOf": [
+                          {
+                            "required": [
+                              "resolution"
+                            ]
+                          },
+                          {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "width"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "height"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "x-constraints": [
+                    {
+                      "operation": "area",
+                      "parameters": [
+                        "width",
+                        "height"
+                      ],
+                      "minimum": 921600,
+                      "maximum": 4624220
+                    },
+                    {
+                      "operation": "ratio",
+                      "parameters": [
+                        "width",
+                        "height"
+                      ],
+                      "minimum": 0.0625,
+                      "maximum": 16
+                    }
+                  ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "minimax-h3-image",
+      "label": "MiniMax H3 Image",
+      "aliases": [
+        "minimax h3 image",
+        "minimax h3",
+        "minimax:h3@image"
+      ],
+      "description": "Natural-language image generation and multi-reference editing with up to sixteen separately scoped input images, at 1K, 2K or 4K, or at custom dimensions up to 20 megapixels. The provider prompt optimizer rewrites the submitted prompt on every reference-guided request and on any request without explicit dimensions.",
+      "operation_kind": "generation",
+      "supports_negative_prompt": false,
+      "negative_transport_mode": "integrated-critical",
+      "negative_transport_notes": "This interface has positivePrompt only. Write critical exclusions in the positive prose and retain any portable negative in package records without sending a negativePrompt field.",
+      "prompt_style": "natural-language image direction planned as purpose, layout, then details and light, with explicit per-reference identity, pose, wardrobe, spatial relationship and preservation clauses",
+      "prompt_input": {
+        "mode": "descriptive",
+        "forms": [
+          "natural-language"
+        ],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/minimax-h3-image/guides/prompting",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The model-specific prompting guide structures the prompt as a plan of the image: purpose, layout, then details and light, with counts written as numbers and positions anchored to the frame, and documents that settings.promptOptimizer, on by default, rewrites the prompt into a detailed scene description before generation without returning the rewritten text."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/minimax-h3-image/schema.json",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The published interface schema defines positivePrompt as text describing elements to include, 1 to 32000 characters, with up to sixteen reference images."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/minimax-h3-image/guides/prompt-optimizer",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The prompt optimizer guide restricts settings.promptOptimizer false to text-to-image requests with explicit width and height, notes that with the optimizer off the model reads only about the first 4096 tokens, and warns that copy the prompt does not quote comes back garbled with the optimizer off."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/minimax-h3-image/guides/editing-images",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The editing guide has no mask channel: point at the target by location or by a feature nothing else in the frame shares, then fence the change with the parts that hold and a keep list of named frame contents. Every edit round re-renders and sharpens the whole image, so chains stay short and a drifted result restarts from the earliest acceptable round."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/minimax-h3-image/guides/multi-reference-composition",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The multi-reference guide numbers each reference by its array position, gives every reference one role clause, says explicitly what may change, and scopes a color-only reference by ranked colors such as its dominant and darkest color."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/minimax-h3-image/guides/text-and-layouts",
+            "scope": "model",
+            "observed_at": "2026-11-14",
+            "statement": "The text and layouts guide quotes every exact string with a position, a relative size and its line breaks, names layout sections before their content, spells grids out as rows and columns, and notes that misspellings appear in small type first."
+          }
+        ]
+      },
+      "reference_input_media_types": [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif"
+      ],
+      "max_reference_images": 16,
+      "max_outputs": 20,
+      "max_positive_prompt_chars": 32000,
+      "supported_resolutions": [
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "default_aspect_ratio_behavior": "Explicit width/height together, or a resolution preset, never both; sizing may be omitted entirely, which the provider answers with 4K at a model-picked aspect. A preset matches the input aspect with references and follows the prompt without them.",
+      "size_hints": {
+        "1:1": "1024x1024, 2048x2048",
+        "3:2": "1248x832, 2496x1664",
+        "2:3": "832x1248, 1664x2496",
+        "4:3": "1152x864, 2368x1776",
+        "3:4": "864x1152, 1776x2368",
+        "16:9": "1424x800, 2816x1584",
+        "9:16": "800x1424, 1584x2816"
+      },
+      "verified_on": "2026-11-14",
+      "recommended_uses": [
+        "natural-language text-to-image generation",
+        "compositions merging several separately scoped reference subjects",
+        "text-heavy or layout-exact visuals such as posters and infographics"
+      ],
+      "avoid_uses": [
+        "identity-critical reference work where the authored prompt must reach the model verbatim; the forced prompt optimizer rewrites it",
+        "hard pixel-preservation guarantees inferred from an instruction-only edit",
+        "carrying SDXL seed, sampler, CFG, denoising or prompt-weighting controls onto this interface",
+        "long chained edit sessions; every round re-renders and sharpens the whole image, so quality drifts and the chain restarts from the earliest acceptable round"
+      ],
+      "ordering": [
+        "format and purpose",
+        "each reference's content and authority",
+        "per-character invariants",
+        "requested pose, expression and wardrobe changes",
+        "spatial relationships and contacts",
+        "rendering",
+        "critical exclusions"
+      ],
+      "search_terms": [
+        {
+          "phrase": "minimax-h3-image",
+          "facet": "model",
+          "weight": 1.1,
+          "source": "author"
+        },
+        {
+          "phrase": "minimax h3 image",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "minimax h3",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ],
+      "offerings": [
+        {
+          "service": "runware",
+          "model_identifier": "minimax:h3@image",
+          "request_keys": {
+            "model": [
+              "model"
+            ],
+            "prompt": [
+              "positivePrompt"
+            ],
+            "reference images": [
+              "inputs.referenceImages"
+            ],
+            "width": [
+              "width"
+            ],
+            "height": [
+              "height"
+            ]
+          },
+          "constraints": {
+            "geometry": "width and height together, 468..7745 each; area 655360..20000000 pixels; aspect 1/3..3. A resolution 1K/2K/4K preset is exclusive with explicit dimensions. Sizing may be omitted entirely; the provider then returns 4K at a model-picked aspect.",
+            "text": "Final positivePrompt length 1..32000 including reference instructions; no separate negativePrompt.",
+            "reference_images": {
+              "max": 16
+            },
+            "number_results": {
+              "min": 1,
+              "max": 20
+            },
+            "controls": "settings.promptOptimizer boolean; the observed schema fixes it to true whenever reference images are supplied or explicit width and height are omitted. No seed, steps, scheduler, CFGScale, strength, promptWeighting, seedImage or maskImage.",
+            "prompt_optimizer": "With the optimizer on, the model author rewrites the prompt into a detailed scene description before generating; the rewritten text is not returned.",
+            "input_reference_order": "Order is binding; references remain separately scoped images, not an automatically averaged board."
+          },
+          "observed_at": "2026-11-14",
+          "schema_snapshot": "resources/observed-schemas/minimax-h3-image.runware.json",
+          "execution_profile": {
+            "id": "runware-minimax-h3-image-interface",
+            "basis": {
+              "kind": "provider-documentation",
+              "source": "resources/observed-schemas/minimax-h3-image.runware.json",
+              "limitations": [
+                "Interface evidence observed from the published Runware schema document on 2026-11-14; not a promise of drawing quality or unrestricted content acceptance.",
+                "Reference-guided requests and requests without explicit dimensions always run the provider prompt optimizer; the model reads the rewritten prompt, not the authored text.",
+                "Reference count limits and dimensional constraints are validated against the observed schema."
+              ]
+            },
+            "prompt_recipe": {
+              "order": [
+                "format and purpose",
+                "each reference's content and authority",
+                "per-character invariants",
+                "requested pose, expression and wardrobe changes",
+                "spatial relationships and contacts",
+                "rendering",
+                "critical exclusions"
+              ],
+              "guidance": [
+                "Write natural-language directions, not Compel or sdEmbeds syntax; plan the image as purpose, layout, then details and light.",
+                "Describe each reference by content and ordered role. State what must remain and what may change; keep original identity separate from a prepared outfit or pose.",
+                "The final rendered positivePrompt, including any reference preamble, must contain 1 to 32000 characters.",
+                "Reference-guided requests always run the provider prompt optimizer, so the model reads a rewritten prompt rather than the authored text verbatim.",
+                "With the optimizer off, only about the first 4096 tokens are read and unquoted text comes back garbled; off requires explicit width and height and no references.",
+                "An edit names the target by location or unique feature, the change, the parts that hold and a keep list of named frame contents; every round re-renders and sharpens the whole image, so keep chains short.",
+                "Keep acceptance of identities, body proportions, clothing completeness and interaction separate from successful delivery."
+              ]
+            },
+            "modes": {
+              "text-to-image": {
+                "media": "none",
+                "controls": {
+                  "width": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 468,
+                      "maximum": 7745
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "height": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 468,
+                      "maximum": 7745
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "resolution": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "enum": [
+                        "1K",
+                        "2K",
+                        "4K"
+                      ]
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "outputQuality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 20,
+                      "maximum": 99
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "settings.promptOptimizer": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "boolean"
+                    },
+                    "reason": "Provider default true; the observed schema fixes it to true on reference-guided requests and on requests without explicit dimensions, so false is only effective on a dimensioned text-to-image request."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "reason": "Explicit output count fixed by dispatch."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "No seed input exists in the observed model schema; an output seed is not an input control."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "promptWeighting": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Reference-guided edits do not expose seedImage or a denoising-strength control."
+                  },
+                  "safety.checkContent": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "boolean"
+                    },
+                    "reason": "Optional provider content-check flag; no local override is selected by default."
+                  }
+                },
+                "parameter_schema": {
+                  "type": "object",
+                  "allOf": [
+                    {
+                      "dependentRequired": {
+                        "width": [
+                          "height"
+                        ],
+                        "height": [
+                          "width"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "allOf": [
+                          {
+                            "required": [
+                              "resolution"
+                            ]
+                          },
+                          {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "width"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "height"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "if": {
+                        "not": {
+                          "required": [
+                            "width",
+                            "height"
+                          ]
+                        }
+                      },
+                      "then": {
+                        "properties": {
+                          "settings": {
+                            "properties": {
+                              "promptOptimizer": {
+                                "const": true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "x-constraints": [
+                    {
+                      "operation": "area",
+                      "parameters": [
+                        "width",
+                        "height"
+                      ],
+                      "minimum": 655360,
+                      "maximum": 20000000
+                    },
+                    {
+                      "operation": "ratio",
+                      "parameters": [
+                        "width",
+                        "height"
+                      ],
+                      "minimum": 0.3333333333333333,
+                      "maximum": 3
+                    }
+                  ]
+                },
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
+              },
+              "reference-guided": {
+                "media": "references",
+                "controls": {
+                  "width": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 468,
+                      "maximum": 7745
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "height": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 468,
+                      "maximum": 7745
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "resolution": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "enum": [
+                        "1K",
+                        "2K",
+                        "4K"
+                      ]
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "outputFormat": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "string",
+                      "enum": [
+                        "JPG",
+                        "PNG",
+                        "WEBP"
+                      ]
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "outputQuality": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 20,
+                      "maximum": 99
+                    },
+                    "reason": "Use the explicit provider-supported value; dimension pairs and presets are mutually exclusive."
+                  },
+                  "settings.promptOptimizer": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "boolean"
+                    },
+                    "reason": "Provider default true; the observed schema fixes it to true on reference-guided requests and on requests without explicit dimensions, so false is only effective on a dimensioned text-to-image request."
+                  },
+                  "numberResults": {
+                    "status": "required",
+                    "binding": "dispatch-count",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "reason": "Explicit output count fixed by dispatch."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "No seed input exists in the observed model schema; an output seed is not an input control."
+                  },
+                  "steps": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "CFGScale": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "scheduler": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "promptWeighting": {
+                    "status": "backend-managed",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Not exposed by this model interface; do not carry diffusion-checkpoint parameters over."
+                  },
+                  "strength": {
+                    "status": "not-applicable",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": null,
+                    "reason": "Reference-guided edits do not expose seedImage or a denoising-strength control."
+                  },
+                  "safety.checkContent": {
+                    "status": "optional",
+                    "binding": "package",
+                    "recommendation": null,
+                    "schema": {
+                      "type": "boolean"
+                    },
+                    "reason": "Optional provider content-check flag; no local override is selected by default."
+                  }
+                },
+                "parameter_schema": {
+                  "type": "object",
+                  "allOf": [
+                    {
+                      "dependentRequired": {
+                        "width": [
+                          "height"
+                        ],
+                        "height": [
+                          "width"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "allOf": [
+                          {
+                            "required": [
+                              "resolution"
+                            ]
+                          },
+                          {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "width"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "height"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "properties": {
+                        "settings": {
+                          "properties": {
+                            "promptOptimizer": {
+                              "const": true
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "x-constraints": [
+                    {
+                      "operation": "area",
+                      "parameters": [
+                        "width",
+                        "height"
+                      ],
+                      "minimum": 655360,
+                      "maximum": 20000000
+                    },
+                    {
+                      "operation": "ratio",
+                      "parameters": [
+                        "width",
+                        "height"
+                      ],
+                      "minimum": 0.3333333333333333,
+                      "maximum": 3
                     }
                   ]
                 },

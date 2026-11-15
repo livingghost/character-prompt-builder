@@ -292,6 +292,28 @@ class DispatcherAuthoringTests(unittest.TestCase):
         repaired = inputs.compile_choices(self.root, drafted['choices_file']).report
         self.assertTrue(repaired['publishable'], repaired['diagnostics'])
 
+    def test_parameter_repair_does_not_direct_an_edit_to_a_blocked_negative_source(self):
+        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        choices = drafted['choices']
+        cases.write_document(self.root, choices, 'parameters', {'width': 'wide', 'height': 32, 'steps': 20})
+        cases.write_document(self.root, choices, 'negative', 'Synthetic exclusion text.')
+        cases.write(self.root / drafted['choices_file'], choices)
+        parameter_file = choices['authoring']['documents']['parameters']['file']
+        negative_file = choices['authoring']['documents']['negative']['file']
+        original = (self.root / negative_file).read_bytes()
+        report = inputs.compile_choices(self.root, drafted['choices_file']).report
+        [problem] = [row for row in report['diagnostics'] if row['phase'] == 'execution-controls']
+        self.assertEqual((problem['file'], problem['pointer']), (parameter_file, '$.width'))
+        self.assertEqual(problem['expected'], {'type': 'integer', 'minimum': 1})
+        self.assertIn('Edit ' + parameter_file + '. Replace width', problem['required_action'])
+        [blocked] = [row for row in report['diagnostics'] if row['phase'] == 'negative-transport']
+        self.assertEqual((blocked['code'], blocked['file'], blocked['blocked_by']),
+                         ('CHECK_NOT_PERFORMED', negative_file, ['execution-controls']))
+        self.assertTrue(blocked['required_action'].startswith('Resolve the error of execution-controls first'))
+        self.assertNotIn(negative_file, blocked['required_action'])
+        self.assertEqual((self.root / negative_file).read_bytes(), original)
+        self.assertFalse(report['publishable'])
+
     def reference_task(self):
         from PIL import Image
         import prepare_generation_references as references

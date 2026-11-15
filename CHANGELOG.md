@@ -1,5 +1,101 @@
 # Changelog
 
+## 2026.11.15.4
+
+- Give parameter failures specific supply, replace or remove instructions,
+  with the selected control schema or available controls. Carry those repairs
+  through production checks, package diagnostics and standalone compilation.
+- Locate combined parameter failures at the actual parameter document root.
+  Keep blocked checks focused on their failed prerequisite, without directing
+  an edit to an unrelated source. Explain required Grok dimensions consistently
+  and name the editable owners of seed and output-count choices.
+- Update Illustrious guidance to v1.0 and later creator documentation and
+  original community comparisons. Keep base releases and derivatives distinct
+  when explaining quality, rating, period, ordering and resolution choices,
+  with each observation scoped to its reported checkpoint and workflow.
+
+## 2026.11.15.3
+
+- Preserve the vocabulary's recorded visual effects and usage, including quality,
+  score, motion, perspective and character-name guidance. Keep concrete street
+  and period-label corrections separate from those descriptions.
+- Restore resolution-tag definitions, period controls in the negative channel
+  and the usable quality-first block-order baseline with its model-specific
+  overrides. Keep meaningful authored wording in the requested input form.
+- Carry dictionary knowledge into prompt construction without replacing it
+  with an author's investigation status or requiring a new proof of each term.
+
+## 2026.11.15.2
+
+- Deliver the selected model's declared prompt style and ordering through the
+  shared model guidance card, including complete route reads and standalone
+  inspection. Preserve those choices independently of an execution recipe.
+- Select learned quality controls, tag order, positive and negative wording,
+  and supported emphasis for the intended picture. Keep reusable automatic
+  recommendations distinct from an author's evidence-based rendition choices.
+- Explain SDXL text encoders, token windows and implementation-specific
+  weighting and long-prompt handling at their actual scope. Keep checkpoint
+  quality, period and resolution guidance specific to the documented version.
+
+## 2026.11.15.1
+
+- Keep requested tag prompts in tag form and descriptive prompts in prose.
+  Adapt the whole picture through concepts supported by the selected target,
+  preserving requirements and explaining detail beyond its available control.
+  Missing vocabulary does not select a natural-language extension or an
+  unverified production method.
+- Distinguish accepted text, training format, documented examples and measured
+  instruction following in model evidence. Scope Illustrious v0.1 guidance to
+  its documented action and prose limits without importing later capabilities.
+- Treat retained vocabulary as a lexical choice and assess its target-specific
+  use independently. Attribute generated images and similarity measurements
+  to the engine that actually produced them.
+- Resolve SDXL rendition, encoder handling and image controls from the selected
+  checkpoint and workflow. Keep text-only delivery available with specific
+  unresolved limits, without a mandatory generation probe or an inherited
+  universal block order.
+
+## 2026.11.14.1
+
+- Develop informal image requests through the requested experience and actual
+  preference information. Read reference images as connected constructions,
+  distinguish a whole-picture example from a narrow contribution, and carry
+  the selected relationships through the final prompt and delivered media.
+- Extend visual construction knowledge for large forms, intervals, bodily
+  performance, materials, typography, mixed treatments and recurring views.
+  Reconstruct their relationships when subjects, copy or canvas change, and
+  review the resulting whole against the commission and source evidence.
+  Keep whole-picture fulfillment distinct from local correctness and simulated
+  requester satisfaction, with actual dialogue and reference access recorded
+  as evaluation conditions. Ground independent direction and prompt assessment
+  in the original commission and raw sources before considering the proposed
+  realization or its author's interpretation, with applicable general craft
+  knowledge available to the assessor.
+- Compose visibility and surface order with the whole shape pattern. Distinguish
+  subject importance from front-to-back placement, and preserve the extent and
+  opacity of crossings among bodies, type, objects and graphic marks through
+  prompt rendition and review.
+- Represent stable character design through the selected visual treatment.
+  Resolve identity, local color and regional rendering at their own scopes
+  while preserving explicit appearance requirements. Compose color and value
+  across bodies, type and fields, including shared tones, selective chroma and
+  the boundaries between printed shapes, drawn detail and depicted light.
+  Carry form abstraction, line hierarchy and the scale of light shapes through
+  material descriptions, preserving detailed drawing without assuming complete
+  physical shading of every object.
+- Scope tag and hybrid prompting to the selected checkpoint and actual input
+  grammar. Distinguish vocabulary evidence, target controls and observed image
+  effects, including the limits of lettering and complex relationships. Choose
+  composition and rendering stages from actual reference capabilities, and
+  assess attribute separation and rendering strength in the selected interface.
+- Clarify perspective vocabulary and the model-dependent effect of character
+  names. Make near-to-far scale relationships discoverable through ordinary
+  wording, and scope incidental-mark exclusions to the selected depiction.
+- Update the commons catalog with Seedream 5.5 and MiniMax H3 Image records
+  and remove Seedream 5.0 Pro. Keep generated request identifiers at the
+  transport boundary and exclude them from editable model controls. Generate
+  only the exposed fields of the selected execution mode.
+
 ## 2026.11.12.1
 
 - Execute an explicitly selected prepared revision from its saved request,

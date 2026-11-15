@@ -23,7 +23,11 @@
         "best quality",
         "amazing quality",
         "very aesthetic",
-        "newest"
+        "newest",
+        "good quality",
+        "average quality",
+        "bad quality",
+        "worst quality"
       ],
       "rating_terms": [
         "general",
@@ -36,7 +40,9 @@
         "recent",
         "mid",
         "early",
-        "old"
+        "old",
+        "oldest",
+        "modern"
       ],
       "inert_terms": [
         "4k",
@@ -72,14 +78,39 @@
           "source": "author-selection:tag-vocabulary-lookup",
           "scope": "author-selection",
           "observed_at": "2026-11-02",
-          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Prefer a suitable established near-equivalent; use necessary descriptive extensions when it does not preserve the requested meaning. Dictionary scope does not assert model training provenance."
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. A missing tag does not authorize a descriptive extension. Dictionary scope does not assert model training provenance."
+        },
+        {
+          "kind": "model-author-documentation",
+          "source": "https://pixai.art/model/1844843518698131638",
+          "scope": "model",
+          "observed_at": "2026-11-15",
+          "statement": "The Onoma AI-attributed Illustrious XL v1.0 PixAI card recommends tag prompting, shows quality/aesthetic terms after subject content, and includes old and oldest in its negative field. It recommends Euler A, 28 steps, CFG 5.5-7.5 and dimensions divisible by 32. The example demonstrates use, not isolated token efficacy."
+        },
+        {
+          "kind": "model-author-documentation",
+          "source": "https://tensor.art/images/828871238924615785?model_id=828880417261278861",
+          "scope": "model",
+          "observed_at": "2026-11-15",
+          "statement": "Onoma AI's labelled v1.1 TensorArt generation publishes explicit year/period terms, reduced artist weights and trailing quality terms with a rendered output and metadata: DPM++ 2S Ancestral CFG++, 28 steps, CFG 3, seed 922014670, reported Clip Skip 0 and 1248x1824. This is example-use evidence, not an isolated token-effect test or a cross-host Clip Skip convention."
+        },
+        {
+          "kind": "model-author-documentation",
+          "source": "https://tensor.art/models/990778216270553015/WAI-illustrious-v17",
+          "scope": "model",
+          "observed_at": "2026-11-15",
+          "statement": "WAI0731's v17 card gives its own quality, negative, weighting and sampling recommendations; its history records a switch to the Illustrious 1.0 base at WAI v14. WAI release numbers and these recommendations remain derivative-specific."
         }
       ],
       "notes": [
-        "The block order is an authoring baseline. NoobAI caption order and exact checkpoint recommendations may place artist, quality and period terms differently; preserve the selected scene while applying that evidence.",
+        "The block order is a practical authoring baseline, not a universal quality-first requirement. Current Illustrious v1.0/v1.1 creator examples also place quality terms after subject content; original v1.x/v2.0 community guides use a leading quality block. NoobAI XL 1.0's caption order and its recommended inference prefix are separate evidence. Apply the exact target's practice and preserve the selected scene.",
         "Order relevant subject details from head toward feet where that sequence fits the subject. This ordering neither requires every region to be described nor selects which regions must be visible.",
         "Rating, quality and period controls are candidates with version-specific meaning. A dialect list does not require one token from every category.",
-        "The lookup includes e621 for useful established terminology even when an Illustrious derivative has no documented e621 training data. Search evidence and observed model behavior answer different questions."
+        "The lookup includes e621 for useful established terminology even when an Illustrious derivative has no documented e621 training data. Search evidence and observed model behavior answer different questions.",
+        "Period and quality controls retain version-specific uses. NoobAI XL 1.0 names old, early, mid, recent and newest with its own date bands. Illustrious XL v1.0 examples use old and oldest in negatives; a creator v1.1 example uses newest and year 2024. Date boundaries and the available quality controls belong to the selected checkpoint. Choose their roles for the selected picture without requiring every category.",
+        "Original community guidance: GrayMan's Illustrious XL v1.0/v1.1 guide (2025-03-18, https://www.seaart.ai/articleDetail/cvcdnn5e878c73fqe0s0) publishes paired outputs and prompts using a leading quality/aesthetic/period block and oldest in the negative. Its v2.0 follow-up (2025-03-18, https://www.seaart.ai/articleDetail/cvceb6le878c73bckfig) carries the practical ordering and active-negative workflow into its own v2.0 examples. These first-hand practices inform this dialect's authoring baseline; the examples do not isolate every token's effect.",
+        "Original community comparison: https://localai-kobo.com/illustrious-xl-setup/ tests the official v2.0 checkpoint on ComfyUI 0.42.1 with seeds 11/22/33/44/55, using a setup adapted from an earlier model card. Removing quality terms changed composition/background without major breakdown, and changing negative contents changed color/brightness. These are observations from the reported v2.0 runs. Preserve necessary negatives and use relevant comparisons to select content; no universal negative length follows from this setup.",
+        "Original community order comparisons differ with setup: https://lilting.ch/en/articles/wai-illustrious-v17-review reports a composition change when moving quality terms in WAI v17 at 28 steps and CFG 6; https://prompts.sirenrender.com/illustrious/prompt-guide/ reports little change from shuffling or extra quality terms with WAI v17+DMD2 at 8 steps, CFG 1 and seeds 101/202/303. Treat both as practical observations with their stated scope; do not turn either into a universal placement or token-efficacy rule."
       ]
     },
     {
@@ -99,7 +130,7 @@
         "character, series and artist",
         "subject appearance, body, hair, face and outfit",
         "action, camera, scene, lighting and effects",
-        "natural-language relationships where they best convey the selected image"
+        "natural-language relationships when a descriptive or mixed rendition is selected"
       ],
       "quality_terms": [
         "masterpiece",
@@ -149,7 +180,7 @@
           "source": "author-selection:tag-vocabulary-lookup",
           "scope": "author-selection",
           "observed_at": "2026-11-02",
-          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Prefer a suitable established near-equivalent; use necessary descriptive extensions when it does not preserve the requested meaning. Dictionary scope does not assert model training provenance."
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. A missing tag does not authorize a descriptive extension. Dictionary scope does not assert model training provenance."
         }
       ],
       "meta_terms": [
@@ -161,7 +192,7 @@
       ],
       "notes": [
         "Anima-Aesthetic guidance advises against score tags in both channels. Base quality groups are alternatives or optional combinations, not one required stack.",
-        "Natural language can carry the scene directly or combine with tags; it is not restricted to a final fallback line.",
+        "Natural language can carry the scene directly or combine with tags when that rendition is selected; it is not restricted to a final fallback line. The request selects among supported forms. A tag rendition retains its selected form and the source requirements that its concepts cannot fully express.",
         "The weight range is an author-selected trial band for a compatible interface, not a universal Anima optimum. Exact model and parser evidence may require a different value.",
         "This dialect supplies guidance only. It does not establish an executable Anima offering."
       ]
@@ -180,7 +211,7 @@
       "block_order": [
         "version-supported dataset control when selected",
         "count, character and series where applicable",
-        "scene, action, relationships and appearance in tags or natural language",
+        "scene, action, relationships and appearance in the requested, version-supported form",
         "optional quality and style controls under exact version guidance"
       ],
       "quality_terms": [
@@ -207,7 +238,7 @@
         "high complexity",
         "ultra complexity"
       ],
-      "negative_form": "Use the active interface's undesired-content field and its native parser. Search necessary negative tag concepts, select suitable established terms and preserve required meaning with descriptive wording when no suitable tag exists.",
+      "negative_form": "Use the active interface's undesired-content field and its native parser. For a tag rendition, search necessary negative concepts and select supported terms at their actual scope. For a selected descriptive or mixed rendition, use wording supported by that exact model and interface. Preserve exclusions that the input cannot fully express as unresolved requirements; a missing tag alone does not select a different input form.",
       "basis": [
         {
           "kind": "provider-documentation",
@@ -235,7 +266,7 @@
           "source": "author-selection:tag-vocabulary-lookup",
           "scope": "author-selection",
           "observed_at": "2026-11-02",
-          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Prefer a suitable established near-equivalent; use necessary descriptive extensions when it does not preserve the requested meaning. Dictionary scope does not assert model training provenance."
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. A missing tag does not authorize a descriptive extension. Dictionary scope does not assert model training provenance."
         }
       ],
       "notes": [
@@ -258,7 +289,7 @@
       "artist_tag_form": "The V6 XL author states that artist names were removed from training captions; do not assume bare artist tags have a documented learned role.",
       "block_order": [
         "optional native score controls",
-        "description of the requested image",
+        "the requested image in the selected, supported input form",
         "content tags and optional dataset or rating controls"
       ],
       "quality_terms": [
@@ -294,7 +325,7 @@
           "source": "author-selection:tag-vocabulary-lookup",
           "scope": "author-selection",
           "observed_at": "2026-11-02",
-          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Prefer a suitable established near-equivalent; use necessary descriptive extensions when it does not preserve the requested meaning. Dictionary scope does not assert model training provenance."
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. A missing tag does not authorize a descriptive extension. Dictionary scope does not assert model training provenance."
         }
       ],
       "notes": [

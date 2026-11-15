@@ -97,6 +97,18 @@
           "facet": "camera",
           "weight": 1.0,
           "source": "author"
+        },
+        {
+          "phrase": "near object large distant figure small",
+          "facet": "camera",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "hand or shoe reaching toward viewer",
+          "facet": "camera",
+          "weight": 1.0,
+          "source": "author"
         }
       ]
     }

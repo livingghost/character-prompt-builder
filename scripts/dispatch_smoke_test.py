@@ -44,6 +44,8 @@ OFFERING = {
     "request_keys": {**TEXT_KEYS, "reference images": ["inputs.referenceImages"]},
     "constraints": {},
     "observed_at": "2026-09-13",
+    "execution_profile": {"modes": {mode: {"controls": {}}
+        for mode in ("text-to-image", "reference-guided", "image-to-image")}},
 }
 SNAPSHOT = "resources/observed-schemas/fixture.svc.json"
 # A service that takes a count and no seed at all: what a dispatch adds is as
@@ -72,6 +74,7 @@ def verified(mode: str, negative: str, references: int, *, media_role: str | Non
             "effective_prompt": "a heron on a post",
             "parameters": {"width": 1024, "height": 1024, "settings": {"quality": "medium"}},
             "reference_media_role": media_role or ("references" if references else "none"),
+            "execution_mode": "image-to-image" if media_role == "seed-image" else "reference-guided" if references else "text-to-image",
             "selected_transport": {"mode": mode, "rendition": {"negative": negative}},
             "selected_references": [
                 {"role": "identity", "resolved_path": f"C:/refs/ref-{index}.png", "media_type": "image/png", "sha256": "0" * 64}

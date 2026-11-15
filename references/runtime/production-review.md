@@ -55,6 +55,25 @@ unsupported or uninspected scope in `limitations`. Record the actual reviewer
 input boundary and reading order in the review's `conclusion` and relevant
 observation limitations. These existing fields require no new record format.
 
+For a visual construction, begin with the whole viewing experience and the
+relationships that produce it. Observe the large shapes and intervals, spatial
+or graphic organization, degree of exaggeration, rendering behavior, and the
+way content holds together. Follow a consequential relationship into detail
+when needed. Describe what the image actually invites the viewer to see before
+checking whether named text, lights, props or other expected parts appear.
+Their presence can coexist with a substantially different kind of picture.
+Read crossings within that whole pattern: which mass interrupts another, what
+remains inferable, and how that changes pressure, depth or attention. Separate
+checking of a face, word and background can favor unobstructed displays while
+missing their intended interference. A hidden feature is not automatically a
+defect, nor is additional overlap automatically an improvement. Assess the
+commissioned relationship and its actual degree.
+
+Read color in the same connected way: where broad tones join different objects,
+where chroma is concentrated or withheld, and where shadow, light, line and
+printed surface use different treatments. Matching hue names or finding the
+right costume colors does not establish the same distribution or representation.
+
 Inspect at the scale the judgment requires. A whole-image view can establish
 composition while leaving a small connection, boundary or count unresolved.
 When that detail decides a criterion, inspect the available original pixels or
@@ -80,6 +99,22 @@ inspected criterion with inconclusive evidence and `not-assessed` for one not
 inspected. Do not infer a pass from the prompt, the intended story or a valid
 request. A valid prompt and a rejected candidate can coexist. A different
 composition may pass when it preserves the same anchors and allowed variation.
+
+For close reconstruction or a scoped transfer, compare the original and the
+candidate as complete constructions at comparable viewing sizes. Assess the
+commission's allowed changes separately from departures in the relationships
+that carry the source. General appeal, readable copy or a usable object cannot
+compensate for losing a required organization of the picture. Conversely, a
+source's incidental weakness is not an improvement requirement unless the
+commission assigns it one. Keep fidelity to supplied prompt text distinct
+from fidelity to the actual sample when those sources differ. Explain the
+overall match and the decisive differences; a checklist or average score does
+not replace that judgment. Extracted criteria must not narrow the original
+commission to the few qualities the author chose to describe.
+For a whole-picture example, an unmentioned feature is not automatically an
+allowed loss of its visual function. Separate compatible subject matter from
+correspondence of construction, and justify consequential changes at the scope
+the actual commission delegates.
 
 ### Apply the prepared review basis
 

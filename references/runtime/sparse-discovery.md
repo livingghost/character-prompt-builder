@@ -56,6 +56,15 @@ the subject or activity does not settle its design or visual treatment.
 A directed picture or bounded edit retains its fixed choices; investigate only
 what remains open or needs construction knowledge.
 
+Read [Creative core](../creative-core.md) and
+[Visual construction](../finishing-layers-specification.md) while developing
+an open picture. They connect intended effects to presentation, attention,
+form, material, light, type and relationships between regions. Start from the
+requester's ordinary description and actual use; an expert technique name is
+not a prerequisite for consulting this knowledge. Consider which relationships
+could carry the request before looking up a preferred scene or finish. Select
+deeper specialist material for a consequential question those sources expose.
+
 After the entry runtime check, use the existing discovery operations without
 creating a Studio or planning files. When authoring a visual treatment is part
 of the question, read the rendering envelopes and discover applicable knowledge

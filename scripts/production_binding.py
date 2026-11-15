@@ -101,7 +101,10 @@ def diagnostics_of(error: BaseException, *, phase: str) -> list[dict]:
     from render_contract_lib import ParameterErrors, problem_code
     if isinstance(error, ParameterErrors):
         rows = [Diagnostic(problem_code(item['status']), item['message'], phase=phase,
-                           pointer='$.' + item['parameter'], details={'status': item['status']}).as_dict()
+                           pointer='$.' + item['parameter'] if item['parameter'] is not None else '$',
+                           required_action=item['required_action'],
+                           details={key: item[key] for key in ('status', 'expected', 'recommendation')
+                                    if key in item}).as_dict()
                 for item in error.problems]
     elif isinstance(error, ProductionError):
         rows = [error.diagnostic.as_dict()]

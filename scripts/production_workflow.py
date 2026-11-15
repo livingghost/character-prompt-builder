@@ -3034,6 +3034,9 @@ def build_parser():
         if name in {'revision-intent', 'revise'}:
             p.add_argument('--task', required=True)
         if name in {'check', 'prepare'}:
+            p.epilog = ('Input diagnostics name the source file, field and required_action. Parameter failures include '
+                        'the expected value schema or available controls; a combined constraint points to the '
+                        'parameter document root. CHECK_NOT_PERFORMED names the failed prerequisite to repair first.')
             source = p.add_mutually_exclusive_group(required=True)
             source.add_argument('--task')
             source.add_argument('--choices')

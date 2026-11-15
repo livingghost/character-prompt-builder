@@ -38,6 +38,13 @@ Each diagnostic has `code`, `severity`, `phase`, `file`, `pointer`, `message`, `
 When present, `guidance.document_path` identifies that owning document and section. `guidance.schema` names the schema when the check declares one. A document without a published JSON Schema uses `guidance.validator_source` to identify its actual logical validator by script path and function; `production_document_contracts.py explain NAME` exposes its permitted fields and validation command. Specification diagnostics include an optional `guidance.validation` action with executable `argv`, quoted `command` and `reason`. The action runs the same validator on the named specification alone. It is available for a focused correction, and is not an additional prerequisite for `check` or `prepare`.
 The compiler reports each structural defect of every declared external specification in one result, including when a separate request binding fails. Only checks that depend on an invalid source wait for its correction. Each specification diagnostic names that source file and its field, rather than the enclosing task file.
 Some add `run`, `expected`, `actual` or other details.
+For parameter failures, `required_action` states whether to supply, replace or
+remove the value, or set the explicit dispatcher choice. `expected` gives the
+value schema or the available selections when relevant; `recommendation` holds
+a range from which the author must still choose one value. A combined parameter
+constraint locates the root (`$`) of a selected parameter file. A
+`CHECK_NOT_PERFORMED` entry can name the source of its waiting check; its repair
+addresses the failed prerequisite rather than asking for an edit to that source.
 Exit 2 applies unless a row says otherwise.
 
 The complete [diagnostic-code catalog](production-diagnostics.md#diagnostic-codes) owns each code and its repair conditions. Open the reported code and its owning `guidance` when resolving that failure. The catalog includes unrelated operations and is not part of every successful preparation or execution.

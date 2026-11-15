@@ -265,7 +265,9 @@
     },
     "sparse-retrieval": {
       "reads": [
-        "references/runtime/sparse-discovery.md"
+        "references/runtime/sparse-discovery.md",
+        "references/creative-core.md",
+        "references/finishing-layers-specification.md"
       ],
       "source_roles": []
     },
@@ -466,6 +468,7 @@
     },
     "finishing": {
       "reads": [
+        "references/creative-core.md",
         "references/finishing-layers-specification.md"
       ],
       "source_roles": []

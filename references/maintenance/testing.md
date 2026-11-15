@@ -136,6 +136,27 @@ or unsuitable choices.
 Do not treat purpose-directed success as evidence against a default in open
 creation, or label an agent's own scene detail as user-supplied intent.
 
+For a dialogue study, give the requester role the ordinary situation and raw
+material available to that person. Let it produce actual messages and choose
+attachments. Keep an unchanged record of each message and when each source
+became available to the author. A nonexpert role need not produce an inventory
+of immutable features, dislikes or design criteria. Requiring such an inventory
+can create constraints that the commissioned task never supplied. If a study
+uses a stipulated persona or preservation requirements, declare those as study
+conditions and limit its conclusions accordingly. Do not pass private notes or
+the evaluator's interpretation through the relay as user requirements.
+
+Distinguish discovering an unspoken preference through dialogue from rebuilding
+a supplied reference. A hidden favorite cannot govern an initial response that
+has not received it. For reconstruction, supply the source and actual change
+scope; distinguish author-only inspection from generator conditioning. Evaluate
+the whole source relationship after the declared changes, separately from the
+requester role's satisfaction and from compliance with its explicit words.
+Neither a satisfied simulated requester nor a matching feature list establishes
+close reconstruction. When the role setup or available information changes,
+retain it as a new condition. Compare Skill revisions on the same information
+boundary before attributing a difference to the revision.
+
 Also cover different stated purposes, a declared author style, a requested
 whole-design view and a local edit with scene and framing already fixed. First
 assess what each proposal actually develops and whether it retains the
@@ -173,6 +194,12 @@ dictionary hit establishes learned effect. A prompt proposal is no evidence of g
 guarantee across all agents and briefs. State recurring art direction plainly,
 including mood, expression patterns, visual language, palette/light, mark/surface
 and framing.
+Evaluate the requested input forms separately: tag output remains tags and
+descriptive output remains prose. A reader understanding a sentence does not
+establish that the selected image model can follow it. Separate prompt-form
+compliance, evidence for the selected vocabulary, and actual target-model image
+performance. Cross-engine illustrations and their scores belong to the engine
+that produced them; an unavailable target has no generated-image success rate.
 Different subject names or scenes, a few suitable counterexamples or answers
 prompted toward a target picture do not establish the absence of a habitual
 art direction. Observed recurrence alone does not identify its cause; limit

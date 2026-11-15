@@ -368,8 +368,10 @@ Production Specification owns the requested artifact and its construction.
 
 Author one coherent rendition of the selected depiction. The Production
 Specification supplies meaning and provenance; field order is not sentence
-order. Keep ordinary activities, reactions, relationships and design concepts
-intact in prose. Add local description where it makes a needed distinction,
+order. In descriptive input, keep ordinary activities, reactions, relationships
+and design concepts intact in prose. A tag rendition follows the target-aware
+adaptation in [Prompt Writing Guide](prompt-writing-guide.md#carry-the-construction-into-supported-means).
+Add local description where the selected form supports it and it makes a needed distinction,
 realizes chosen expression, preserves a fine requirement or addresses an
 evidenced interface weakness. Source fields and derived coordinates do not
 automatically become clauses. Preserve useful detail and applicable exclusions
@@ -443,7 +445,11 @@ including explicit details and permitted variation. Revisit the author's own
 derived criteria in that comparison; they are interpretations to justify, not
 additional authority. If the same separate reviewer performs this comparison,
 provide the request and sources after its input-only reading and distinguish
-that assessment from the renderer's available information. Do not substitute
+that assessment from the renderer's available information. This is an input
+diagnosis followed by comparison, with the proposal already known; it does not
+claim the independent source-first basis of a
+[commission-focused assessment](production-direction.md#observe-and-repair).
+Do not substitute
 an extracted list of hard conditions for the request it was meant to express.
 
 A reading that changes the requested meaning or violates a fixed property can

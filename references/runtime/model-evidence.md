@@ -32,6 +32,14 @@ facts and `author-direction` for an author's selected workflow. Keep
 may combine model evidence and author selection without merging their claims.
 Its date records when the evidence was checked; it is not a release date.
 
+Record what each source establishes: text accepted by the interface, caption
+format used in training, a documented input/output example, or measured behavior
+for a particular construction. A mixed-input example does not by itself show
+which part caused the result or establish precise instruction following. Read
+stated limitations with the example and keep later revisions separate. The
+selected rendition still follows the requested form; missing tag vocabulary
+does not authorize adding natural-language instructions.
+
 For an unlisted target, the same explicit input contract belongs to the
 image-input plan's model description and to the model file used by retrieval.
 `prompt_retrieval.py --model-file MODEL_JSON` accepts its exact identity and

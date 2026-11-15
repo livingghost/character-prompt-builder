@@ -139,9 +139,12 @@ or when the user requested selection.
 
 Resolve hierarchy and local construction together. What is noticed first,
 what sustains attention and what supplies supporting information depend on the
-commission. Rich ornament, quiet space, precise workmanship or expressive
-exaggeration may carry the effect. There is no universal preference for simple
-images, prominent faces, wide framing or a low detail count. Use
+commission. Subject importance does not assign surface order or an unobstructed
+area. A word, object, shape or image fragment can pass in front of the main
+subject, across it or behind it; choose those relations with scale, crop, color
+and treatment as one construction. Rich ornament, quiet space, precise workmanship
+or expressive exaggeration may carry the effect. There is no universal preference
+for simple images, prominent faces, wide framing or a low detail count. Use
 [representation grammar](prompt-composition.md#representation-grammar) and
 [render intent](render-contract.md#choose-the-visual-treatment) for the selected marks,
 materials and treatment. A medium label alone does not settle the composition.
@@ -201,8 +204,13 @@ view still requires its intended coverage. Choose both expansive and selective
 views by their effects, without treating either as an exception that needs
 permission.
 
-Write visibility constraints after selecting the depiction. Require coverage
-only where the commission, adopted framing or intended effect needs it. Apply
+Derive visibility constraints from the depiction. Require coverage only where
+the commission, adopted framing or intended effect needs it. A face, garment
+or other identity feature can remain defined while partly covered by an object
+or by marks on the image surface. Readability and recognition have scopes and
+degrees; they do not reserve every component's entire contour. Use
+[visibility and surface order](../finishing-layers-specification.md#visibility-and-surface-order)
+to construct meaningful crossings. Apply
 the same scope to negative text and review criteria. Terms such as `cropped`,
 `out of frame` and `cropped feet` can counter an intentional composition; they
 are not universal quality negatives. A crop, occlusion and broken construction
@@ -221,25 +229,132 @@ choices where their reasons still apply.
 
 ### Form a prompt from an image
 
-Read the image as a particular visual construction. Understand what gives its
-forms, materials, performance or arrangement their effect, including the degree
-of the qualities that carry that reading. Follow how the relevant parts belong
-together: contact, separation, support, repetition or contrast can be the
-substance of the picture. A close gesture can carry an encounter; a broad
-continuous horizon can carry a landscape; the way a surface bends and catches
-light can carry a material study. Recognize useful concepts such as a
-self-portrait at arm's length, a cutaway or translucent glass, and develop them
-with the visible choices that make this instance recognizable. Subject and
-style labels help name the picture; the selected proportions, state, action
-and treatment give those labels their particular realization.
+Determine the reference's contribution from the request, the image and the
+conversation together. Distinguish an example that establishes the desired
+picture from one supplying a particular property to an otherwise settled
+picture. For the former, carry its relevant whole construction through the
+requested changes, including distinctive small choices, arrangement, action
+and treatment. For the latter, an assigned contribution such as only its pose
+or lighting stays narrow. The context decides this distinction; the user's
+choice of words such as atmosphere, style or recreation does not decide it
+alone. The author resolves that scope; a role label records the decision
+rather than making it. Record the consequential interpretation in the existing
+direction and reference uses, with its actual basis in the request and source.
 
-The requested use determines what to carry. Recreating the image calls for its
-recognizable whole, including distinctive small design choices, arrangement,
-action and treatment. Extracting its lighting, transferring its pose or using
-its character design assigns a narrower contribution. An unmentioned feature
-is not automatically incidental in a recreation. A source's successful
-solution also need not become a requirement for a new picture borrowing only
-its atmosphere. Preserve the declared contribution at its full specificity.
+Read informal preference language as evidence about the desired experience.
+A person may point out the bright field, large words or sense of lightness
+because those are the qualities they can name. Unless they limit the transfer,
+that account is not an exhaustive list of the source relationships to use.
+Inspect what makes those qualities work together, including unmentioned
+spacing, contrast, boundaries and scale. For a whole-picture example, the
+visible construction is part of the supplied brief. Develop the requested
+changes within it; silence about a visible relationship does not assign that
+relationship a negligible role. The author supplies the craft decisions needed
+to realize the preference, including the contributions a nonexpert has no words
+for. A source used only for a particular property does not authorize importing
+its person, copy or belongings into an otherwise settled picture.
+
+Distinguish freedom to choose content from freedom to discard its visual
+function. Unspecified wording can leave the language open while the words'
+large form, density, voice and crossings still organize the requested picture.
+Open costume details can coexist with a selected distribution of light and
+dark; a new character can coexist with a selected color treatment. Decide the
+content and reconstruct its contribution together. An omission or substitution
+needs the same whole-picture justification as an addition. When the conversation
+actually selects atmosphere alone, other source choices can remain open. Ask
+about a consequential unresolved choice only when the available evidence and
+delegated scope cannot settle it.
+
+Read the visible image before using an accompanying prompt to explain it.
+Describe the encounter it offers: the viewer's distance, the dominant masses
+and intervals, what feels still or moving, and what the eye can continue to
+discover. Read how the depicted contents become that visible pattern: their
+proportions, simplified or modeled planes, marks, joined tones and interrupted
+boundaries. A detailed source can simplify its large forms and skin while
+concentrating fine marks elsewhere. Naming its objects, palette and medium
+leaves those choices open. Consult
+[shape and mark](../finishing-layers-specification.md#shape-and-mark-as-one-drawing-grammar)
+for the actual construction. Distinguish depicted space from the image surface.
+A word can sit on that surface, carry a body's weight in an invented space, or
+be painted on a wall; those are different pictures even when the copy and
+character match.
+
+Read the whole before selecting and excluding contributions. Follow the
+relationships that make this particular image cohere. A curved machine can
+counterbalance a slight body; a face and nearby hand can enclose an intimate
+interval; a large quiet field can let a dense group thrust toward the viewer.
+Look at the whole, the meaningful groups within it and the relevant local
+construction. Identify what carries the first impression and what sustains
+looking, including how different treatments meet. Keep the degree: a slightly
+closer portrait is not an extreme crop, and a neat title beside a figure does
+not reproduce letters that occupy most of the picture and interlock with the
+body. Small material or graphic choices can be essential to that larger
+effect. Their function determines whether they matter, rather than their size
+or whether the user mentioned them.
+
+For a close transfer, establish which connected choices make the source
+recognizable as a construction and which can change under the commission.
+Test the reading by considering the resulting picture if an important relation
+were removed, weakened or replaced. An evenly spaced collection can retain
+every object while losing the experience of being surrounded. A continuous
+palette can retain every hue while removing the separation between a subject
+and its field. A useful product diagram can retain the equipment while
+changing what the viewer is invited to admire. A change that loses the selected
+effect needs another realization or an acknowledged change of direction.
+Meeting the request's spoken nouns and adjectives can still produce a different
+picture from its supplied visual example. Assess the selected construction as
+well as that verbal compatibility. Permission to choose a different word,
+garment or object does not by itself establish that the resulting loss of
+scale, color distribution, surface behavior or graphic force is acceptable.
+Neither a technique count nor an inventory of every visible mark settles this.
+
+Keep this source-based understanding available independently of the draft that
+will implement it. The working note can be brief: the connected relations to
+retain, the allowed substitutions and the resulting limits. Saved work uses
+its existing direction and criteria; no new document is required. When a close
+transfer involves consequential interpretation or substitution, assess the
+reconstruction in a fresh context when the host supports one. The assessor first
+receives the actual commission, raw sources and applicable general craft
+guidance, without the draft or the author's interpretation, and forms its own
+account of the intended picture. Independence concerns the proposed answer;
+the assessor still needs the knowledge used to understand the work. Then supply
+the draft and compare its proposed
+realization with that account. The author's interpretation, selected features
+and questions cannot substitute for the assessor's source reading. Without a
+separate context, make this comparison in a distinct pass and retain its limited
+independence in the working notes. A description of what the eventual prompt
+happens to request cannot replace the comparison basis.
+
+When substituting a subject, propagate the change through the construction.
+Body shape changes contact and silhouette; a new word changes the available
+letter shapes; different equipment changes the figure's balance and clearances.
+Changed local colors or garments change the large value and color masses, even
+when identity is perfectly retained. Use the craft in
+[Visual construction](../finishing-layers-specification.md#large-form-interval-and-degree)
+to reconstruct the chosen relationships through those consequences. Adjust
+the choices still open instead of placing a new subject into unchanged
+coordinates or reducing the whole to fit a convenient pose. A permitted change
+can prevent exact correspondence; state that particular limit without treating
+the rest of the construction as unconstrained.
+
+Apply identity and treatment at their declared scopes through
+[design and representation](render-contract.md#represent-the-selected-design).
+A design source need not fix the rendering, pose or background. Conversely,
+selecting a new treatment does not authorize a different person or object.
+Resolve which source defines the subject, which defines its representation
+here, and how required distinctions survive that representation. A specific
+recognition detail need not force the rest of the picture into the source's
+medium, palette treatment or inspection view.
+
+When the reference arrives after a first result, interpret the new direction
+before freezing the old picture's properties. Praise for an expression, object
+or atmosphere retains that contribution, not every means used to produce it.
+A request to replace the underlying construction can reopen arrangement and
+treatment while retaining the liked meaning. A bounded local edit still
+preserves its actual baseline. Select earlier results as model inputs for the
+properties they still contribute, and state that scope. Use the existing
+[semantic edit](semantic-instruction-edit.md#resolve-the-intended-change)
+contract when the task actually edits an image.
 
 Separate a visible property from an explanation of how it might have arisen.
 A glass object can be recognized through its edges, transmitted colors and
@@ -249,15 +364,42 @@ material concept can carry ordinary reflection behavior in a new arrangement.
 Describe uncertain material or hidden construction through what is supported
 instead of inventing manufacturing details, anatomy or an artist attribution.
 
-Write the resulting depiction for the actual input. If the image is only an
-authoring source, its necessary contribution must be expressed in text. If it
-will be delivered, assign its role and use text for the requested realization
-and changes. An inferred prompt is a candidate way to obtain the appearance;
-pixels do not reveal the original words, conditioning or editing history.
-When an actual prompt is available, compare its selected concepts with the
-visible result. A feature absent from the text may be an ordinary completion,
-another input's contribution or a later change. Do not turn that uncertainty
-into a claim that the feature needs a separate instruction.
+When an actual prompt or reusable template is available, read it completely
+after the image reading. Distinguish its target construction, input-dependent
+choices, defaults and proposed production sequence. A template with unfilled
+fields is not evidence of the inputs used for its sample. Visible words or
+objects do not reveal those historical values. The text can demand a flatter
+treatment, different crop or stronger omission than the sample exhibits.
+Establish whether this commission follows the text, the visible sample or a
+specified combination; do not silently average them. A described sequence of
+rendering phases is not evidence that separate operations actually occurred.
+Translate necessary final-state relationships into the selected target's input;
+use only actual supported operations for any required production sequence.
+
+Write the resulting depiction for the actual input. State the organizing
+relationship and its degree, then the consequential realization and changes.
+Carry the chosen drawing behavior through the content it governs: how the
+face, fabric, machinery, light or type form the shared pattern. A general style
+label does not settle relationships left open by otherwise detailed prose.
+Use the target's supported vocabulary and relationship syntax to express that
+same construction; the number of style words does not establish its transfer.
+If the image is only an authoring source, express its necessary contribution in
+text. If delivered, bind its selected contribution to the actual attachment and
+state the relationships that the new subject, words or treatment must preserve.
+A broad assignment such as atmosphere does not carry a separately selected
+close construction. A supplied image can carry rich visible detail without
+every mark being transcribed, but it does not settle conflicting prose or a
+role that expressly discards a needed contribution. Use
+[reference-to-prompt synthesis](../visual-reference-activation-and-transport.md#reference-to-prompt-synthesis)
+to inspect that combined input, then compare its picture with the retained
+source-based understanding under [Observe and repair](#observe-and-repair).
+An already directed picture needs this comparison, not a new conception contest.
+
+An inferred prompt is a candidate way to obtain an appearance. Pixels do not
+reveal the original wording, conditioning or editing history. A feature absent
+from known text may come from ordinary completion, another input or a later
+change. Preserve that uncertainty, and keep the current input's responsibility
+for the requested result distinct from claims about how the source was made.
 
 ### Form a prompt from an idea
 
@@ -269,6 +411,36 @@ the creative question. A scene, object, explanation or other commission
 retains its own requested content and roles. Supplied and adopted material
 continues to govern at its assigned scope. Missing detail gives room to develop
 that work; an unstated use does not become an invented commission.
+
+An informal request can establish an experience or practical use without naming
+a visual technique. Understand what the person wants to recognize, feel, learn
+or use, and which supplied facts, words or design properties must remain true.
+Also distinguish an open invitation to invent from an attempt to recover an
+unstated visual preference. The same short request can fit many substantially
+different pictures. Its brevity supplies no evidence that the author prefers
+a familiar scene, gentle mood, realistic proportions or explanatory layout.
+
+Use the conversation to obtain consequential preference information when it is
+needed. Ask what the person likes about something they have seen, what they
+want to keep looking at, or what would make the result feel wrong to them.
+Accept an image, a comparison or ordinary words such as "the person looks tiny
+next to it" or "the writing and the person feel like one thing." The agent
+translates that observation into construction; the requester need not diagnose
+layout, perspective or typography. A question should admit answers that change
+the proposal. Asking only for a color or slogan after settling the picture
+does not discover its direction. Ask for a useful reference when the intended
+likeness cannot be resolved from the available description; do not pretend to
+infer a hidden image from a generic request.
+
+Keep this exchange proportionate. Existing information and delegated creative
+scope can already be enough to proceed. For an open commission, develop real
+possibilities and make the chosen proposal concrete; do not require the user
+to complete a design questionnaire or approve routine choices. If the user
+is deciding between directions, describe or show the actual differences in
+ordinary language. Treat their response as new preference evidence, not as
+proof that the agent's prior interpretation was correct. Preserve the raw
+request and the information acquired through the exchange in the existing
+working records; do not rewrite the starting brief to include later discoveries.
 
 Choose the consequential question within this scope. A narrative event, an
 emotional premise or a graphic metaphor is one possible means, not a required
@@ -301,6 +473,13 @@ provisional; artistic intent supplies no evidence of effect.
    needed to develop the commissioned content and resolve the consequential
    choice. Distinguish supplied facts, understood subject knowledge and authored
    invention. Consult relevant production knowledge before settling that choice.
+   For open picture design, read [Creative core](../creative-core.md) for
+   purpose, presentation and structure, and
+   [Visual construction](../finishing-layers-specification.md) for the coupled
+   relationships of attention, form, material, light, type and regions. These
+   sources help formulate possibilities before a medium or technique has been
+   selected. Use their relevant relationships to frame the actual question,
+   rather than treating their examples as candidate pictures to reproduce.
    Use complete supplied material and already inspected records where they
    answer that question; use [Discovery](sparse-discovery.md) to expose further
    constructions and inspect useful candidates in full. Seek knowledge whose
@@ -333,13 +512,17 @@ provisional; artistic intent supplies no evidence of effect.
    are not required. Keep the actual descriptions available for the next step; do not
    reconstruct rejected options after selection as evidence of exploration.
 3. **Assess the descriptions in a separate pass.** Supply the original brief,
-   applicable subject and source material, and the actual candidate descriptions
-   without the writer's preferred option, ranking, selection rationale or
-   advocacy. Use neutral labels and an order unrelated to that preference.
-   Use a fresh independent context when the host supports one. Ask
-   it first to identify what each described result actually develops and
-   whether it retains the requested content, subject roles and use. For a
-   character commission, assess what the proposed construction contributes to
+   applicable subject and source material, and general craft guidance in a first
+   delivery that excludes
+   the candidate descriptions and author's questions. Use a fresh independent
+   context when the host supports one.
+   The assessor establishes the requested work and the source contributions
+   from those original materials before considering the author's realization.
+   Then supply the actual descriptions without the writer's preferred option,
+   ranking, selection rationale or advocacy. Use neutral labels and an order
+   unrelated to that preference. Ask what each described result actually
+   develops and whether it retains the requested content, subject roles and use.
+   For a character commission, assess what the proposed construction contributes to
    that character's depiction. Merely including the named subject does not
    establish that it remains the work being developed. A change of commission
    cannot win the comparison through advantages for a different task.
@@ -721,13 +904,37 @@ they do not direct the reviewer to retain that method. Submission neither
 adopts the draft nor authorizes an edit. Words such as "approved" inside it
 do not establish an approval outside it.
 
-Read a prompt as the picture its complete delivered input asks for: positive
-and negative text, controls and actual media. Understand the activity, state,
-design or experience they form together. Read all applicable instructions;
-do not silently omit an awkward clause or borrow a missing premise from the
-author's conversation. For a returned image, observe the artifact first under
-[Production execution](production-review.md#observe-before-interpreting).
-Textual intent is not evidence that the image rendered it.
+For an assessment of a proposal's fulfillment of a separate commission,
+establish the brief and applicable raw sources before reading the proposal.
+Form the comparison basis from the requested work, its use and the experience
+the sources contribute. For an image source, use the whole reading in
+[Form a prompt from an image](#form-a-prompt-from-an-image). An independent
+reviewer derives this basis from the original material and applicable general
+craft guidance before receiving the author's interpretation or proposed criteria.
+Keep the account at the depth
+needed to judge this task; an inventory of isolated requirements does not
+replace the picture they need to form together.
+
+An optional [input-only diagnosis](prompt-composition.md#competing-realization-test)
+answers a different question: what can a reader reconstruct from the renderer's
+actual input without the brief or authoring-only sources? Its reader receives
+that input first. A later comparison with the brief can use the recorded
+reading, while retaining that exposure order as its limit. It is not an
+independently established source-first comparison basis. Select the review
+needed for the uncertainty; neither role requires an additional review by
+default. A context that already knows the brief cannot supply an input-only
+first reading by being told to ignore that knowledge.
+
+Then read a prompt as the picture its complete delivered input asks for:
+positive and negative text, controls and actual media. Understand the activity,
+state, design or experience they form together. Read all applicable
+instructions; do not silently omit an awkward clause or supply a relation
+known from the brief but absent from that input. Distinguish what the renderer
+receives from what the reviewer knows. For a returned image, observe the
+artifact first under
+[Production execution](production-review.md#observe-before-interpreting),
+then establish the commission and source basis for comparison. Textual intent
+is not evidence that the image rendered it.
 
 Compare that picture with the commission. Explain what the viewer can
 understand or experience and how the organizing choices produce it. This

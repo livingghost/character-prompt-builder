@@ -141,6 +141,9 @@ def main(argv=None) -> int:
         p.add_argument('--service')
         add_pack_runtime_arguments(p)
         if command == 'compile':
+            p.description = 'Resolve the selected interface controls and rendering intent without sending a request.'
+            p.epilog = ('Parameter failures report problems with a control name (null for a combined constraint), '
+                        'status, required_action and, when applicable, the expected schema or available selections.')
             p.add_argument('--intent', required=True);p.add_argument('--parameters', required=True)
             p.add_argument('--prompt-file', required=True);p.add_argument('--reference-count', required=True, type=int)
             p.add_argument('--out');p.add_argument('--text', action='store_true')
@@ -245,7 +248,10 @@ def main(argv=None) -> int:
         print(r.summary(result) if getattr(args,'text',False) else raw, end='\n' if getattr(args,'text',False) else '')
         return 0
     except (ValueError,OSError,KeyError,TypeError,PackError) as exc:
-        print(json.dumps({'ok':False,'errors':[str(exc)]},ensure_ascii=False));return 1
+        result = {'ok': False, 'errors': [str(exc)]}
+        if isinstance(exc, r.ParameterErrors):
+            result['problems'] = exc.problems
+        print(json.dumps(result,ensure_ascii=False));return 1
     finally:
         if configured:
             from catalog_cli import configure_pack_runtime

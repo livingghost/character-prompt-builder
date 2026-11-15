@@ -18,6 +18,15 @@ A prompt-only request does not call an image-generation API. It may still includ
 
 ## Semantic reading
 
+Use [Production direction](runtime/production-direction.md#form-a-prompt-from-an-image)
+to determine the source contribution from the whole image and actual request
+before dividing it into reference uses. Supplied raster images use that same
+interpretation through their existing image-input owner. A selected complete
+construction can span several roles. Those roles locate authority for its
+parts; the prompt must still express the relationships that make them one
+picture. A technical role boundary does not decide that an unmentioned source
+relationship is incidental.
+
 Treat an SVG as bounded visual evidence, not as the complete target image and not as a replacement for prompt authoring. Read three authorities together:
 
 1. The user brief and resolved image intent define the target.
@@ -72,6 +81,11 @@ Technical artifacts narrow authority; they never widen it.
 | `lighting` | source direction, apparent size, contrast, softness, color, shadow placement when preservation is authorized | object identity, base material, pose, local color not caused by light |
 | `surface-finish` | line economy, value grouping, edge handling, texture abstraction, highlight budget, rendering finish | subject identity, scene content, pose, wardrobe, source-specific text |
 
+Apply retained design and local-color facts through the selected
+[representation](runtime/render-contract.md#represent-the-selected-design).
+The table separates source authority; it does not require unchanged rendered
+pixels when the commission selects another treatment of those facts.
+
 For a request such as "use this character with that pose and this background," create three uses even if two uses originate from one SVG. Identity authority decides the target character. Pose-camera authority decides body geometry. Environment authority decides the setting. If the pose source depicts a different identity, body plan, outfit, expression, or room, those properties are contamination, not inspiration.
 
 ### Registered Character Sheet identity with other evidence
@@ -84,29 +98,36 @@ Generation Package preparation has two provenance paths: pack-backed Reference U
 
 ## Reference-to-prompt synthesis
 
-Select the target depiction under
-[Prompt Composition](runtime/prompt-composition.md#select-the-depiction), then
-bind the relevant source evidence to it.
+Develop the target depiction from the commission and selected sources under
+[Prompt Composition](runtime/prompt-composition.md#select-the-depiction).
+Use the resolved contribution and source-based comparison from Production
+direction while carrying that depiction into the actual input.
 
 1. State the intended event or visual purpose, its present situation and
-   necessary relationships. Establish any premise needed to understand the
-   chosen action or performance through the actual prompt and supplied media.
+   organizing relationships at the chosen degree. Establish any premise needed
+   to understand the action, performance or visual construction through the
+   actual prompt and supplied media.
 2. Assign the delivered references to their subjects and permitted uses in
-   the authored prompt, guided by the canonical bindings. Express required precedence.
+   the authored prompt, guided by the canonical bindings. Express required
+   precedence, including the distinction between the source of a subject's
+   design and the treatment applied to it here.
 3. Describe target changes as the chosen result. Keep a required exclusion when
    it has independent meaning; do not manufacture an opposite for every deletion.
-4. Specify geometry where ownership, contact, depth or framing carries the
-   intended action or a reconstruction-critical detail.
+4. Specify geometry where ownership, contact, depth, framing or the arrangement
+   of large forms and intervals carries the selected construction. Keep the
+   strength and scope of its contrast, movement and treatment relationships.
 5. Apply record knowledge according to its role in the selected depiction.
    Keep fuller histories, source decisions and conclusions outside that
    depiction at their owners. A record's defaults, possible failures and
    example objects are not automatic additions.
 6. Add required target properties absent from the references. Let a sheet's
    relevant views supply its declared identity or wardrobe information.
-7. Reconstruct the picture from the prompt and actual ordered inputs, then
-   compare it with the intended result. Check that necessary premises and
-   reference uses are available to the model and that each contextual
-   instruction serves the selected depiction.
+7. Reconstruct the picture from the final prompt, supported controls and actual
+   ordered media, using only source assignments conveyed in that input. A role
+   recorded in a working plan but absent from the request is not an instruction
+   the model has received. Compare that picture with the original commission
+   and the retained source-based reading, not only with the subset already
+   described in the prompt.
 
 Use the committed delivery mapping for that final comparison, including shared
 attachments and board regions. Inspect the actual carriers for legible evidence
@@ -115,6 +136,23 @@ adopted source regions before using words such as `exact` or `preserve`; express
 the specific shape, placement or relationship when it is needed to convey the
 target. Keep source decisions and unresolved coverage with the existing task
 records so that image review can assess the same requirements.
+
+Trace a consequential mismatch to its owner. A missing contribution calls for
+source interpretation or input repair. A softened relation calls for the
+intended degree. Competing source appearances call for scoped precedence and
+representation. An actual limitation of attachment handling or control calls
+for a supported transport or production method. A clear input followed by a
+different returned image is a realization issue to assess from that output.
+Attaching a rich reference does not guarantee that it restores a relation the
+prose weakens or excludes. Conversely, a visible match cannot be attributed to
+text alone when the model received the matching image.
+
+For a consequential unresolved reading of the combined input, use the existing
+[competing-realization test](runtime/prompt-composition.md#competing-realization-test).
+It can examine whether a materially different whole still satisfies the actual
+request sent to the model. Its later comparison with the commission and sources
+does not replace them with the author's interpretation. Use its declared
+independence limits; no additional form or general second review is required.
 
 Synthetic example with a character sheet and an environment source:
 
@@ -178,7 +216,36 @@ reference evidence.
 
 **Service records.** How a service is called is recorded once, in the `service-profiles` resource of the active pack: endpoint, authentication shape, request envelope, operations, asynchronous delivery and polling, error shape, and limits, with one observation date and one source for the whole record, because a record is refreshed as a whole from the service's documentation. A model's behaviour is not in that record; a model record carries it, and an offering inside the model record says how the model is exposed on one service (its identifier there, the request keys per input mode, and the limits that service enforces, such as a duration band). The same model on a second service is a second offering, not a second record. Scripts read the record rather than carrying endpoints of their own, and print its observation date beside what they send, so an ageing record is seen before it fails.
 
-**Two surfaces, one carrier.** Surfaces divide by what reaches them. A composition surface takes reference images and follows a prose description of the picture; a rendering surface holds a design's line, colour, and finish but takes no reference, or takes one only as a seed image for image-to-image. A registered sheet reaches a rendering surface in exactly one way: as an image. A tag prompt with the character's seed carries none of it. The seed reproduces one prompt's picture and, once the prompt changes, reproduces nothing; two stills of the same character made from tags and a seed are two designs, whatever the sheet says. So the standard path for a still of a recurring character on such a surface has two steps: the composition surface draws the picture from the sheet's panels and the scene references, with each figure's garments and state written in prose beside that figure; the rendering surface then redraws that picture as a seed image at a strength that keeps the composition and replaces the finish (about half). The rendering step's text names the style and what is already in the picture, and nothing else: a tag reaches every figure in the frame, so a garment or an expression tagged for one of two figures is drawn on both. What the composition decided is not restated at the rendering step, and what the picture does not show is not named at either. Register the composition and the rendering as two assets: the first can be accepted as the source even when the second is the frame that goes on.
+**Composition and rendering across interfaces.** Choose this path when the
+selected rendering interface cannot directly carry the required reference
+roles, but supports image-to-image input and the user permits an intermediate
+composition. Prepare one coherent picture from the assigned character panels
+and scene sources, expressing each figure's appearance and state with that
+figure. The rendering step receives that picture and the requested treatment.
+Preserve the composition and change the intended finish through the controls
+the exact interface actually provides. Choose strength from that control's
+documented meaning and inspected results: the amount that retains a required
+pose, face or garment while changing its treatment depends on the model,
+input and operation.
+
+A sampling seed supplies no character-sheet content. Carry a recurring design
+through the supported image, reference or trained-identity inputs and the
+description needed by the target. Record those inputs and evaluate identity
+across the resulting images; reusing a seed alone establishes no continuity.
+An interface that accepts only a holistic image-to-image input cannot thereby
+claim independently controlled character, pose and environment roles.
+
+In the rendering prompt, describe the selected finish and the visible content
+needed to preserve the intended picture. Bind attributes to their subjects
+using the target's supported syntax and controls. Attribute transfer between
+figures is a possible failure to inspect, not an inevitable effect of every
+tag. If it occurs, repair the affected relation through supported wording,
+regional controls, masks or another authorized operation. A proposed content
+change still needs the source authority and direction that justify it; an
+extra rendering step creates no new authority. Register the composition and
+rendering as separate assets, retaining their exact inputs and relationship.
+The composition can be accepted as a source even when the rendered image is
+the selected final frame.
 
 ## Surface and lighting
 
@@ -195,7 +262,10 @@ when inspected evidence cannot resolve a criterion, and `not-assessed` for a
 criterion that has yet to be inspected. Input integrity and visual realization
 remain separate findings.
 
-Review each declared role independently after generation:
+First compare the combined construction at its requested scope. Correct
+identity, readable words and plausible contact can coexist with a different
+balance, viewer relationship or visual force. Then inspect each declared role
+after generation:
 
 - identity drift: the target character changed or inherited the pose source's subject;
 - geometry drift: pose, support, contact, crop, or depth no longer matches the pose-camera authority;

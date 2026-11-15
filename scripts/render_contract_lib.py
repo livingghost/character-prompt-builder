@@ -18,7 +18,7 @@ AXES = ('medium', 'dimensionality', 'linework', 'shading', 'surface', 'detail')
 INTENT_FIELDS = {'artifact_type', 'execution_mode'}
 RENDERING_FIELDS = {'preset', 'axes', 'presentation', 'selection', 'prompt_expression', 'regional_overrides'}
 STATUSES = {'required', 'optional', 'not-applicable', 'backend-managed'}
-BINDINGS = {'package', 'dispatch-seed', 'dispatch-count'}
+BINDINGS = {'package', 'dispatch-seed', 'dispatch-count', 'dispatch-generated'}
 MODES = {'text-to-image', 'image-to-image', 'reference-guided', 'instruction-edit', 'upscale'}
 MEDIA = {'none', 'seed-image', 'references', 'input-image'}
 KEY = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$')
@@ -257,6 +257,8 @@ def validate_profile(profile: Any) -> None:
                 if rule['binding'] != 'package':
                     raise ValueError(key + ': dispatch values are explicit, not model recommendations')
             if rule['binding'] != 'package':
+                if rule['binding'] == 'dispatch-generated':
+                    continue
                 if rule['binding'] in special:
                     raise ValueError('dispatch binding repeats: ' + rule['binding'])
                 special.add(rule['binding'])
@@ -287,7 +289,8 @@ def selected_profile(record: Mapping, offering: Mapping | None) -> dict:
     profile = copy.deepcopy(owner.get('execution_profile'))
     if profile is None:
         raise ParameterErrors([problem('execution_profile', 'profile-missing',
-            'execution profile is missing for this exact interface; author it before generation')])
+            'execution profile is missing for this exact interface; author it before generation',
+            required_action='Author the execution_profile of this exact model interface from its request evidence before generation.')])
     validate_profile(profile)
     return profile
 
@@ -323,6 +326,8 @@ def model_card(record: Mapping, offering: Mapping | None = None, *, readiness: d
               'supported_scale_factors': copy.deepcopy(record.get('supported_scale_factors'))}
              if record.get('operation_kind') == 'upscale' else {})
     return {**_execution_card(record, offering), **prompt_input_card(record), **scale,
+            'prompt_style': record.get('prompt_style'),
+            'ordering': copy.deepcopy(record.get('ordering')),
             'use_case_suitability': guidance_card(record, offering),
             'readiness': copy.deepcopy(readiness) if readiness is not None else model_readiness(record, offering)}
 
@@ -364,7 +369,10 @@ def _paths(tree: dict, controls: dict, prefix: str = '') -> set[str]:
 class ParameterErrors(ValueError):
     """All independent control failures from a single parameter resolution.
 
-    Each problem names its `parameter`, its `status` and a `message`. The
+    Each problem names its `parameter`, its `status`, a `message` and its
+    `required_action`. A null parameter identifies the combined parameter
+    object. When relevant, `expected` holds the actual value schema or the
+    available selections, and `recommendation` retains an unselected range. The
     status says why the control failed: `profile-missing` and
     `mode-not-exposed` for an interface with no execution profile for the selected mode;
     `undeclared`, `not-applicable` and `backend-managed` for a control the
@@ -376,8 +384,9 @@ class ParameterErrors(ValueError):
         super().__init__('; '.join(item['message'] for item in problems))
 
 
-def problem(parameter: str, status: str, message: str) -> dict:
-    return {'parameter': parameter, 'status': status, 'message': message}
+def problem(parameter: str | None, status: str, message: str, *, required_action: str, **details) -> dict:
+    return {'parameter': parameter, 'status': status, 'message': message,
+            'required_action': required_action, **copy.deepcopy(details)}
 
 
 def problem_code(status: str) -> str:
@@ -386,8 +395,9 @@ def problem_code(status: str) -> str:
 
 
 class _Problem(ValueError):
-    def __init__(self, status: str, message: str):
+    def __init__(self, status: str, message: str, *, required_action: str, **details):
         self.status = status
+        self.details = {'required_action': required_action, **details}
         super().__init__(message)
 
 
@@ -395,7 +405,13 @@ def _checked(value: Any, schema: dict, key: str) -> None:
     try:
         _schema(value, schema, key)
     except ValueError as exc:
-        raise _Problem('schema-invalid', str(exc)) from None
+        raise _Problem('schema-invalid', str(exc), expected=schema,
+            required_action=f'Replace {key} with a value matching its expected schema, then run the same command again.') from None
+
+
+def _dispatch_choice(binding: str) -> str:
+    name = {'dispatch-seed': 'seed', 'dispatch-count': 'count'}[binding]
+    return f'authoring.generation.{name} in editable choices (generation.{name} in a direct task)'
 
 
 def resolve_parameters(record: Mapping, profile: dict, mode: str, parameters: dict) -> tuple[dict, list[dict]]:
@@ -414,7 +430,8 @@ def resolve_prompt_syntax(record: Mapping, profile: dict, mode: str, parameters:
     validate_profile(profile)
     if mode not in profile['modes']:
         raise ParameterErrors([problem('execution_profile.modes', 'mode-not-exposed',
-                                       'mode not exposed by this execution profile: ' + mode)])
+            'mode not exposed by this execution profile: ' + mode, expected=sorted(profile['modes']),
+            required_action='Select an execution_mode from the reported available modes, or select an interface that supports the intended mode.')])
     selected_mode = profile['modes'][mode]
     declaration = selected_mode['prompt_syntax']
     control = declaration['control']
@@ -430,13 +447,18 @@ def _parameters_from_profile(record: Mapping, profile: dict, mode: str,
     """Resolve values against one checked profile without changing that input."""
     if mode not in profile['modes']:
         raise ParameterErrors([problem('execution_profile.modes', 'mode-not-exposed',
-                                       'mode not exposed by this execution profile: ' + mode)])
+            'mode not exposed by this execution profile: ' + mode, expected=sorted(profile['modes']),
+            required_action='Select an execution_mode from the reported available modes, or select an interface that supports the intended mode.')])
     if not isinstance(parameters, dict):
         raise ValueError('parameters must be an object')
     encoded(parameters)
     controls = profile['modes'][mode]['controls']
     unknown = _paths(parameters, controls) - set(controls)
-    problems = [problem(key, 'undeclared', 'undeclared parameters for ' + mode + ': ' + key) for key in sorted(unknown)]
+    permitted = sorted(key for key, rule in controls.items()
+                       if rule['binding'] == 'package' and rule['status'] in {'required', 'optional'})
+    problems = [problem(key, 'undeclared', 'undeclared parameters for ' + mode + ': ' + key,
+        expected=permitted, required_action=f'Remove {key} from authored parameters; use only the reported controls '
+            f'declared for {mode}. Then run the same command again.') for key in sorted(unknown)]
     result, decisions = {}, []
     recommendations = record.get('recommended_parameters') or {}
     for key, rule in sorted(controls.items()):
@@ -445,13 +467,22 @@ def _parameters_from_profile(record: Mapping, profile: dict, mode: str,
             status = rule['status']
             if rule['binding'] != 'package':
                 if present:
-                    raise _Problem('dispatch-option', key + ': supply this through the explicit dispatcher option')
+                    if rule['binding'] == 'dispatch-generated':
+                        raise _Problem('dispatch-option', key + ': generated per request at dispatch; do not supply it',
+                            required_action=f'Remove {key} from authored parameters; the transport generates it for each request. '
+                                            'Then run the same command again.')
+                    raise _Problem('dispatch-option', key + ': supply this through the explicit dispatcher option',
+                        required_action=f'Remove {key} from authored parameters and set {_dispatch_choice(rule["binding"])}. '
+                                        'Then run the same command again.')
                 source = 'dispatch-required' if status in {'required', 'optional'} else status
                 decisions.append({'key': key, 'status': source, 'value': None, 'reason': rule['reason']})
                 continue
             if status in {'not-applicable', 'backend-managed'}:
                 if present:
-                    raise _Problem(status, key + ': ' + status + ' in mode ' + mode)
+                    reason = {'not-applicable': 'this mode does not take that control',
+                              'backend-managed': 'the service manages that control'}[status]
+                    raise _Problem(status, key + ': ' + status + ' in mode ' + mode,
+                        required_action=f'Remove {key} from authored parameters; {reason}. Then run the same command again.')
                 decisions.append({'key': key, 'status': status, 'value': None, 'reason': rule['reason']})
                 continue
             source = 'explicit'
@@ -461,22 +492,35 @@ def _parameters_from_profile(record: Mapping, profile: dict, mode: str,
                     continue
                 name = rule['recommendation']
                 if name is None or name not in recommendations:
-                    raise _Problem('value-required', key + ': required explicit value has no recommendation')
+                    raise _Problem('value-required', key + ': required explicit value has no recommendation',
+                        expected=rule['schema'], required_action=f'Supply an explicit {key} value matching its expected schema, '
+                                                                'then run the same command again.')
                 value = recommendations[name]
                 if isinstance(value, list):
-                    raise _Problem('range-required', key + ': recommendation is a range; choose one explicit value')
+                    raise _Problem('range-required', key + ': recommendation is a range; choose one explicit value',
+                        expected=rule['schema'], recommendation=value,
+                        required_action=f'Choose one explicit {key} value from the reported recommendation range that matches '
+                                        'its expected schema, then run the same command again.')
                 source = 'model-recommendation'
             _checked(value, rule['schema'], key)
             _put(result, key, value)
             decisions.append({'key': key, 'status': source, 'value': copy.deepcopy(value), 'reason': rule['reason']})
         except _Problem as exc:
-            problems.append(problem(key, exc.status, str(exc)))
+            problems.append(problem(key, exc.status, str(exc), **exc.details))
         except ValueError as exc:
-            problems.append(problem(key, 'schema-invalid', str(exc)))
+            problems.append(problem(key, 'schema-invalid', str(exc), expected=rule['schema'],
+                required_action=f'Use nested JSON objects for {key} and a value matching its expected schema, '
+                                'then run the same command again.'))
     if problems:
         raise ParameterErrors(problems)
     if required_controls is None:
-        _schema(result, profile['modes'][mode]['parameter_schema'], 'combined mode parameters')
+        schema = profile['modes'][mode]['parameter_schema']
+        try:
+            _schema(result, schema, 'combined mode parameters')
+        except ValueError as exc:
+            raise ParameterErrors([problem(None, 'schema-invalid', str(exc), expected=schema,
+                required_action=f'Correct the combination of authored parameters to satisfy the expected schema of {mode}, '
+                                'then run the same command again.')]) from None
     return result, decisions
 
 
@@ -554,25 +598,33 @@ def dispatch_values(contract: dict, *, seed: int | None, count: int) -> tuple[in
     problems = []
     for key, rule in rules.items():
         binding = rule['binding']
-        if binding == 'package':
+        if binding in {'package', 'dispatch-generated'}:
             continue
         value = seed if binding == 'dispatch-seed' else count
         if rule['status'] in {'backend-managed', 'not-applicable'}:
             if binding == 'dispatch-seed' and value is not None:
-                problems.append(problem(key, rule['status'], key + ': seed is ' + rule['status']))
+                problems.append(problem(key, rule['status'], key + ': seed is ' + rule['status'],
+                    required_action=f'Leave the seed unselected: set {_dispatch_choice(binding)} to null. '
+                                    'Then run the same command again.'))
             if binding == 'dispatch-count' and (type(value) is not int or value != 1):
                 problems.append(problem(key, rule['status'],
-                                        key + ': unavailable count accepts only one operation, not an invented batch'))
+                    key + ': unavailable count accepts only one operation, not an invented batch',
+                    required_action=f'Set {_dispatch_choice(binding)} to 1; this mode exposes no batch control. '
+                                    'Then run the same command again.'))
             continue
         if value is None:
             if binding == 'dispatch-seed' and rule['status'] == 'optional':
                 continue
-            problems.append(problem(key, 'value-required', key + ': choose an explicit seed with --seed before preview or submission'))
+            problems.append(problem(key, 'value-required', key + ': choose an explicit value before preparation',
+                expected=rule['schema'], required_action=f'Supply an explicit value matching the expected schema through '
+                    f'{_dispatch_choice(binding)}, then run the same command again.'))
             continue
         try:
             _schema(value, rule['schema'], key)
         except ValueError as exc:
-            problems.append(problem(key, 'schema-invalid', str(exc)))
+            problems.append(problem(key, 'schema-invalid', str(exc), expected=rule['schema'],
+                required_action=f'Set {_dispatch_choice(binding)} to a value matching the expected schema, '
+                                'then run the same command again.'))
     if problems:
         raise ParameterErrors(problems)
     return seed, count
@@ -593,17 +645,21 @@ def check_wire(contract: dict, request: dict, layout: dict | None = None, *,
             exists, value = _get(request, path)
             leaves = {path} if path in rules else (_paths(value, rules, path + '.') if isinstance(value, dict) else {path})
             if not exists or leaves - set(rules):
-                raise ParameterErrors([problem(path, 'undeclared', 'wire request added an undeclared control: ' + path)])
+                raise ParameterErrors([problem(path, 'undeclared', 'wire request added an undeclared control: ' + path,
+                    required_action=f'Correct the selected transport so its request omits undeclared control {path}, '
+                                    'then rebuild the request from the authored input.')])
     for key, rule in rules.items():
         present, value = _get(request, key)
         if rule['status'] in {'not-applicable', 'backend-managed'}:
             if present:
-                raise ParameterErrors([problem(key, rule['status'], 'wire request supplied unavailable control: ' + key)])
+                raise ParameterErrors([problem(key, rule['status'], 'wire request supplied unavailable control: ' + key,
+                    required_action=f'Correct the selected transport so its request omits unavailable control {key}, '
+                                    'then rebuild the request from the authored input.')])
         elif rule['status'] == 'required' and not present:
             raise ValueError('wire request omitted required control: ' + key)
         if present:
             _schema(value, rule['schema'], key)
-        if rule['binding'] != 'package' and rule['status'] in {'required', 'optional'}:
+        if rule['binding'] in {'dispatch-seed', 'dispatch-count'} and rule['status'] in {'required', 'optional'}:
             chosen_dispatch = seed if rule['binding'] == 'dispatch-seed' else count
             if present != (chosen_dispatch is not None) or (present and encoded(value) != encoded(chosen_dispatch)):
                 raise ValueError('wire dispatch value differs from the explicit choice: ' + key)

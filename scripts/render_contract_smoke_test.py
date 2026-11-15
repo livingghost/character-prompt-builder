@@ -135,6 +135,18 @@ class RenderContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'profile is missing'):
             r.selected_profile({'id':'unconfigured'},None)
 
+    def test_model_card_preserves_authored_style_and_owns_its_ordering(self):
+        self.model.update(prompt_style='Synthetic subject-first wording.',
+                          ordering=['subject', 'composition', 'rendering'])
+        card = r.model_card(self.model)
+        self.assertEqual(card['prompt_style'], self.model['prompt_style'])
+        self.assertEqual(card['ordering'], ['subject', 'composition', 'rendering'])
+        self.assertNotEqual(card['ordering'], card['execution_profile']['prompt_recipe']['order'])
+        card['ordering'].append('environment')
+        self.assertEqual(self.model['ordering'], ['subject', 'composition', 'rendering'])
+        self.model['ordering'].reverse()
+        self.assertEqual(card['ordering'], ['subject', 'composition', 'rendering', 'environment'])
+
     def test_promptless_upscale_recipe_describes_source_and_scale_without_rendering(self):
         from model_prompt_input_fixtures import prompt_input
         selected = profile()
@@ -269,11 +281,20 @@ class RenderContractTests(unittest.TestCase):
     def test_backend_managed_controls_refuse_fabricated_values(self):
         self.p['modes']['text-to-image']['controls']['seed']=control('backend-managed',binding='dispatch-seed')
         plan=self.compile()
-        with self.assertRaisesRegex(ValueError,'backend-managed'):r.dispatch_values(plan,seed=3,count=1)
+        with self.assertRaises(r.ParameterErrors) as caught:r.dispatch_values(plan,seed=3,count=1)
+        [problem] = caught.exception.problems
+        self.assertEqual(problem['status'], 'backend-managed')
+        self.assertIn('authoring.generation.seed', problem['required_action'])
+        self.assertIn('(generation.seed in a direct task) to null', problem['required_action'])
 
     def test_required_seed_is_explicit(self):
         plan=self.compile()
-        with self.assertRaisesRegex(ValueError,'explicit seed'):r.dispatch_values(plan,seed=None,count=1)
+        with self.assertRaises(r.ParameterErrors) as caught:r.dispatch_values(plan,seed=None,count=1)
+        [problem] = caught.exception.problems
+        self.assertEqual(problem['status'], 'value-required')
+        self.assertIn('authoring.generation.seed', problem['required_action'])
+        self.assertIn('(generation.seed in a direct task)', problem['required_action'])
+        self.assertEqual(problem['expected'], self.p['modes']['text-to-image']['controls']['seed']['schema'])
         self.assertEqual(r.dispatch_values(plan,seed=12,count=1),(12,1))
 
     def test_optional_seed_stays_absent_unless_selected(self):
@@ -337,7 +358,33 @@ class RenderContractTests(unittest.TestCase):
         mode['parameter_schema']={'oneOf':[{'required':['width','height'],'not':{'required':['size']}},{'required':['size'],'not':{'anyOf':[{'required':['width']},{'required':['height']}]}}]}
         with self.assertRaises(ValueError):self.compile()
         self.compile({'width':896,'height':1152});self.compile({'size':'896x1152'})
-        with self.assertRaises(ValueError):self.compile({'width':896})
+        with self.assertRaises(r.ParameterErrors) as caught:self.compile({'width':896})
+        [problem] = caught.exception.problems
+        self.assertIsNone(problem['parameter'])
+        self.assertEqual(problem['expected'], mode['parameter_schema'])
+        self.assertIn('Correct the combination of authored parameters', problem['required_action'])
+
+    def test_package_cli_failure_keeps_parameter_repairs_and_combined_root(self):
+        import contextlib
+        import io
+        from production_binding import report_failure
+        self.p['modes']['text-to-image']['parameter_schema'] = {'dependentRequired': {'height': ['width']}}
+        for parameters, pointer in (({'width': 'wide'}, '$.width'), ({'height': 1024}, '$')):
+            with self.subTest(parameters=parameters):
+                with self.assertRaises(r.ParameterErrors) as caught:
+                    self.compile(parameters)
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    status = report_failure(caught.exception, phase='package-construction')
+                self.assertEqual(status, 2)
+                result = json.loads(output.getvalue())
+                self.assertFalse(result['ok'])
+                [diagnostic] = result['diagnostics']
+                [problem] = caught.exception.problems
+                self.assertEqual(diagnostic['pointer'], pointer)
+                self.assertEqual(diagnostic['status'], 'schema-invalid')
+                self.assertEqual(diagnostic['required_action'], problem['required_action'])
+                self.assertEqual(diagnostic['expected'], problem['expected'])
 
     def test_profile_schema_defaults_are_refused(self):
         self.p['modes']['text-to-image']['controls']['steps']['schema']['default']=30
@@ -425,6 +472,33 @@ class RenderContractTests(unittest.TestCase):
         self.assertEqual([r.problem_code(status) for status in ('undeclared','not-applicable','backend-managed',
                           'profile-missing','mode-not-exposed','range-required','schema-invalid')],
                          ['CONTROL_NOT_AVAILABLE']*3+['MODEL_PROFILE_MISSING']*2+['INPUT_CONSISTENCY_ERROR']*2)
+
+    def test_authored_parameter_repairs_name_the_action_and_actual_value_contract(self):
+        controls = self.p['modes']['text-to-image']['controls']
+        controls['height'] = control('required', schema={'type': 'integer', 'minimum': 1})
+        controls['managed'] = control('backend-managed')
+        controls['taskUUID'] = control('required', schema={'type': 'string'}, binding='dispatch-generated')
+        self.model['recommended_parameters']['guidance'] = [4, 6]
+        with self.assertRaises(r.ParameterErrors) as caught:
+            self.compile({'width': 'wide', 'cfgScale': 7, 'strength': 0.5,
+                          'seed': 3, 'managed': 2, 'taskUUID': 'authored-id'})
+        problems = {item['parameter']: item for item in caught.exception.problems}
+        self.assertEqual(set(problems), {'width', 'height', 'cfgScale', 'strength', 'seed',
+                                        'managed', 'taskUUID', 'CFGScale'})
+        for key in ('width', 'height'):
+            self.assertEqual(problems[key]['expected'], {'type': 'integer', 'minimum': 1})
+        self.assertIn('Replace width', problems['width']['required_action'])
+        self.assertIn('Supply an explicit height value', problems['height']['required_action'])
+        for key in ('cfgScale', 'strength', 'managed', 'taskUUID'):
+            self.assertIn('Remove ' + key + ' from authored parameters', problems[key]['required_action'])
+        self.assertIn('width', problems['cfgScale']['expected'])
+        self.assertNotIn('cfgScale', problems['cfgScale']['expected'])
+        self.assertIn('authoring.generation.seed', problems['seed']['required_action'])
+        self.assertIn('(generation.seed in a direct task)', problems['seed']['required_action'])
+        self.assertIn('the transport generates it', problems['taskUUID']['required_action'])
+        self.assertEqual(problems['CFGScale']['recommendation'], [4, 6])
+        self.assertEqual(problems['CFGScale']['expected'], {'type': 'number', 'minimum': 0, 'maximum': 20})
+        self.assertIn('Choose one explicit CFGScale value', problems['CFGScale']['required_action'])
 
     def test_measured_basis_names_the_adopted_observed_profile(self):
         from state_protocol import validate_against_schema
@@ -585,6 +659,8 @@ class ExternalPackGuidanceTests(unittest.TestCase):
         return process
 
     def check_card(self, card):
+        self.assertEqual(card['prompt_style'], self.model['prompt_style'])
+        self.assertEqual(card['ordering'], self.model['ordering'])
         self.assertEqual(card['recommended_parameters'], self.model['recommended_parameters'])
         self.assertEqual(card['recommended_positive_prompt'], self.model['recommended_positive_prompt'])
         self.assertEqual(card['recommended_negative_prompt'], self.model['recommended_negative_prompt'])
@@ -601,6 +677,26 @@ class ExternalPackGuidanceTests(unittest.TestCase):
         self.check_card(offered)
         self.assertEqual(offered['model_identifier'],'synthetic:renderer')
         self.assertTrue(offered['ready_for_parameter_resolution'])
+
+    def test_compile_cli_keeps_parameter_repairs_and_expected_schema(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory(dir=self.root) as temporary:
+            base = Path(temporary)
+            self.write(base / 'intent.json', r.operation_intent('text-to-image'))
+            self.write(base / 'parameters.json', {'width': 'wide'})
+            (base / 'prompt.txt').write_text('synthetic observatory', encoding='utf-8')
+            process = self.command('render_contract.py', 'compile', '--model', self.model_id,
+                '--intent', str(base / 'intent.json'), '--parameters', str(base / 'parameters.json'),
+                '--prompt-file', str(base / 'prompt.txt'), '--reference-count', '0', succeeds=False)
+        result = json.loads(process.stdout)
+        self.assertEqual(process.returncode, 1)
+        self.assertFalse(result['ok'])
+        [problem] = result['problems']
+        self.assertEqual((problem['parameter'], problem['status']), ('width', 'schema-invalid'))
+        self.assertEqual(problem['expected'], {'type': 'integer', 'minimum': 1})
+        self.assertIn('Replace width', problem['required_action'])
+        self.assertEqual(result['errors'], [problem['message']])
 
     def test_upscaler_listing_returns_usable_inspection_in_the_same_runtime(self):
         import subprocess
@@ -632,40 +728,54 @@ class ExternalPackGuidanceTests(unittest.TestCase):
                 self.assertEqual(result['dialect']['id'],'external-family')
                 self.assertEqual(result['guide']['dialect'][0]['id'],'external-rule')
                 self.check_card(result['execution_guidance'][0])
+                for field in ('prompt_style', 'ordering'):
+                    self.assertEqual(result['record'][field], result['execution_guidance'][0][field])
 
     def test_route_reading_shows_external_model_card(self):
+        import hashlib
         import subprocess
-        studio = self.root/'studio'
-        studio.mkdir(exist_ok=True)
-        output = self.command('execution_routes.py','read','generation','--execution','external','--feature','prompt-dialect',
-                               '--model',self.alias,'--root',str(studio),'--page-bytes','1048576').stdout
-        indexed = json.loads(output)
-        self.assertEqual(indexed['mode'], 'index')
-        self.assertEqual(indexed['body'], [])
-        self.assertIsNone(indexed['reading'])
-        model_source = next(item for item in indexed['index'] if item['kind'] == 'model')
-        argv = [*indexed['section_selection']['argv'], '--section', model_source['selector']]
-        delivered = subprocess.run(argv, cwd=self.root, capture_output=True, text=True,
-            encoding='utf-8', timeout=60)
-        self.assertEqual(delivered.returncode, 0, delivered.stdout + delivered.stderr)
-        result = json.loads(delivered.stdout)
-        segment = next(item for item in result['body'] if item['metadata']['kind'] == 'model')
-        metadata = segment['metadata']
-        self.assertEqual(metadata['path'], 'model-guidance/' + self.model_id)
-        self.assertEqual(metadata['start'], 0)
-        self.assertEqual(metadata['end'], metadata['total'])
-        cards = json.loads(segment['text'])
-        self.check_card(cards[0])
-        expected = json.loads(self.command('render_contract.py', 'model', '--model', self.alias).stdout)
-        self.assertEqual(cards, [expected])
-        self.assertIsNone(result['reading'])
-        completed = subprocess.run(result['actions']['all']['argv'], cwd=self.root,
-            capture_output=True, text=True, encoding='utf-8', timeout=60)
-        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-        result = json.loads(completed.stdout)
-        self.assertEqual(result['metadata']['route'], 'generation')
-        self.assertTrue(result['reading']['key'])
-        self.assertIsNone(result['actions']['continue'])
+        cases = [(self.alias, self.model_id, []),
+                 ('fixture-external-offered', 'fixture-external-offered', ['--service', 'synthetic-service'])]
+        for model, model_id, service in cases:
+            with self.subTest(model=model_id, service=service):
+                studio = self.root / ('studio-' + model_id)
+                studio.mkdir(exist_ok=True)
+                output = self.command('execution_routes.py','read','generation','--execution','external','--feature','prompt-dialect',
+                    '--model',model,*service,'--root',str(studio),'--page-bytes','32768').stdout
+                indexed = json.loads(output)
+                self.assertEqual(indexed['mode'], 'index')
+                self.assertEqual(indexed['body'], [])
+                self.assertIsNone(indexed['reading'])
+                model_source = next(item for item in indexed['index'] if item['kind'] == 'model')
+                self.assertEqual(model_source['path'], 'model-guidance/' + model_id)
+                argv = indexed['actions']['all']['argv']
+                model_bytes = b''
+                for page_number in range(64):
+                    completed = subprocess.run(argv, cwd=self.root, capture_output=True, text=True,
+                        encoding='utf-8', timeout=60)
+                    self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+                    result = json.loads(completed.stdout)
+                    for body in result['body']:
+                        if body['metadata']['kind'] == 'model':
+                            self.assertEqual(body['metadata']['start'], len(model_bytes))
+                            model_bytes += body['text'].encode('utf-8')
+                            self.assertEqual(body['metadata']['end'], len(model_bytes))
+                    if result['reading'] is not None:
+                        break
+                    argv = result['actions']['continue']['argv']
+                else:
+                    self.fail('Returned continuation commands did not finish the model-scoped route reading')
+                self.assertGreater(page_number, 0)
+                self.assertEqual(result['metadata']['route'], 'generation')
+                self.assertTrue(result['reading']['key'])
+                self.assertIsNone(result['actions']['continue'])
+                self.assertEqual(len(model_bytes), model_source['size'])
+                self.assertEqual(model_source['sha256'], hashlib.sha256(model_bytes).hexdigest())
+                self.assertEqual(result['metadata']['model']['guidance_sha256'], hashlib.sha256(model_bytes).hexdigest())
+                cards = json.loads(model_bytes)
+                expected = json.loads(self.command('render_contract.py', 'model', '--model', model, *service).stdout)
+                self.assertEqual(cards, [expected])
+                self.check_card(cards[0])
 
     def test_missing_profile_keeps_advice_visible_but_blocks_compile(self):
         model = 'fixture-external-unconfigured'

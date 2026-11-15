@@ -1,7 +1,7 @@
 {
   "format": "character-prompt-builder-prompt-vocabulary",
   "name": "Prompt Vocabulary",
-  "description": "A broad English image-generation vocabulary organized by functional category for agent-selected prompt construction. Terms are danbooru and e621 tag vocabulary with a one-line description of the effect each has on a picture. A large part of the observed effects follows the Japanese prompt dictionaries published by studiomasakaki on pixivFANBOX (the 2024 edition for AnimagineXL and NovelAI v3, and the 2025 edition for illustrious-family models), paraphrased in English; an effect that was only observed on one model family is noted as such.",
+  "description": "A broad English image-generation vocabulary organized by functional category for agent-selected prompt construction. Terms include danbooru and e621 tag vocabulary with a one-line description of the effect each has on a picture. A large part of the observed effects follows the Japanese prompt dictionaries published by studiomasakaki on pixivFANBOX (the 2024 edition for AnimagineXL and NovelAI v3, and the 2025 edition for illustrious-family models), paraphrased in English; an effect that was only observed on one model family is noted as such.",
   "categories": [
     {
       "id": "quality",
@@ -262,7 +262,7 @@
         },
         {
           "term": "old",
-          "description": "NoobAI year-band tag for the 2005 to 2010 training slice; usually a negative-side term. Not a subject-age word on these families."
+          "description": "Period/style term used for older training imagery; usually placed in the negative when seeking a newer-looking finish. NoobAI XL 1.0 assigns old to its 2005-2010 band. Illustrious XL v1.0's public model card also uses old alongside oldest in the negative. In period-tag use, old describes the image's style period rather than specifying the subject's age."
         },
         {
           "term": "playstation5",
@@ -419,7 +419,7 @@
         },
         {
           "term": "oldest",
-          "description": "The earliest period band on the families whose period terms name it oldest. On Illustrious and NoobAI checkpoints the 2005 to 2010 band is old, and oldest is not one of their period terms."
+          "description": "The earliest period band on the families whose period terms name it oldest. Illustrious XL v1.0, v1.1 and v2.0 examples use it in negative prompts to discourage an older-looking finish. The exact date range belongs to the selected checkpoint. NoobAI XL 1.0 calls its 2005-2010 band old and does not list oldest among its period terms."
         },
         {
           "term": "hdr",
@@ -3514,7 +3514,7 @@
           "description": "Places the subject or viewpoint far above the ground, on a rooftop, cliff, or tower, with a long drop and a distant floor below."
         }
       ],
-      "single_valued": true
+      "single_valued": false
     },
     {
       "id": "subject-framing-and-focus",
@@ -41916,7 +41916,7 @@
         },
         {
           "term": "street",
-          "description": "A Japanese-style town street."
+          "description": "A street in a built settlement. Its architecture, region, period and activity follow the selected scene."
         },
         {
           "term": "summer",

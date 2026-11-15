@@ -147,6 +147,16 @@ def compile_request(verified: dict, offering: dict, service: dict, media_ids: di
         write(path, value, 'model-setting', 'selected-parameter')
         layout['fields'].append({'id': 'parameter:' + name, 'field': path, 'kind': 'parameter'})
 
+    controls = offering['execution_profile']['modes'][forwarding['execution_mode']]['controls']
+    for name, rule in sorted(controls.items()):
+        if rule['binding'] != 'dispatch-generated' or rule['status'] not in {'required', 'optional'}:
+            continue
+        path = path_parts(name)
+        # safetyIdentifier intentionally receives a fresh UUID for each newly
+        # compiled request, just like other dispatch-generated identifiers.
+        write(path, str(uuid.uuid4()), 'transport-envelope', 'generated-identifier')
+        layout['fields'].append({'id': 'generated:' + name, 'field': path, 'kind': 'fixed'})
+
     paths = _media_paths(verified)
     if paths:
         media = forwarding.get('reference_media_role')

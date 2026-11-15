@@ -1608,7 +1608,8 @@ def compile_choices(root: Path, choices_path: str, *, persist: bool = False,
                 diagnostic['guidance'] = {**owner, **(diagnostic.get('guidance') or {})}
                 if owner.get('schema'):
                     diagnostic['guidance']['schema'] = owner['schema']
-                diagnostic['required_action'] = 'Edit ' + origin['file'] + '. ' + diagnostic['required_action']
+                if diagnostic['code'] != 'CHECK_NOT_PERFORMED':
+                    diagnostic['required_action'] = 'Edit ' + origin['file'] + '. ' + diagnostic['required_action']
             elif generated and generated.startswith(output+'/'):
                 diagnostic['generated_file']=generated;diagnostic['file']=choices_path
                 diagnostic['authoring_field']=field or 'authoring.task'

@@ -168,12 +168,14 @@ class NativeRequestTests(unittest.TestCase):
     def data(self):
         from request_contract import MANAGEMENT_VALUE
         verified={'host_forwarding':{'effective_prompt':'Synthetic image-edit request for a constructed shape.',
+            'execution_mode':'instruction-edit',
             'parameters':{'width':32,'height':32,'strength':.7},'selected_transport':{'mode':'separate-field','rendition':{'negative':'synthetic unwanted marks'}},
             'reference_media_role':'seed-image','selected_references':[{'resolved_path':'/source.png'}],
             'technical_media':[{'resolved_path':'/mask.png','role':'mask image','field':['inputs','maskImage'],'many':False},
                                {'resolved_path':'/guide.png','role':'reference images','field':['inputs','referenceImages'],'many':True}]}}
         offering={'service':'runware','model_identifier':'synthetic:test-only','request_keys':{'prompt':['positivePrompt'],'negative prompt':['negativePrompt'],
-            'model':['model'],'seed image':['inputs.seedImage'],'mask image':['inputs.maskImage'],'reference images':['inputs.referenceImages']}}
+            'model':['model'],'seed image':['inputs.seedImage'],'mask image':['inputs.maskImage'],'reference images':['inputs.referenceImages']},
+            'execution_profile':{'modes':{'instruction-edit':{'controls':{}}}}}
         return verified,offering,{'operations':{'imageInference':{}}}
     def test_runware_request_uses_native_media_not_prompt_attachments(self):
         import transport_runware as rw

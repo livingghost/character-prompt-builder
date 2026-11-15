@@ -8,6 +8,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import io
+import itertools
 import json
 import os
 from pathlib import Path
@@ -270,6 +271,74 @@ class ChildProcessDeadlineTests(unittest.TestCase):
                 if isinstance(node, ast.keyword) and node.arg == 'timeout' and isinstance(node.value, ast.Constant) and node.value.value is not None:
                     fixed.append(f'{path.relative_to(ROOT).as_posix()}:{node.value.lineno}')
         self.assertEqual([], fixed)
+
+
+class TransientRefusalTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def test_refusal_classification(self):
+        self.assertTrue(contract._transient_refusal(PermissionError(13, 'denied')))
+        locked = OSError('locked'); locked.winerror = 32
+        self.assertTrue(contract._transient_refusal(locked))
+        self.assertFalse(contract._transient_refusal(FileExistsError(17, 'exists')))
+
+    def test_patiently_retries_a_transient_refusal(self):
+        calls = []
+        def flaky():
+            calls.append(1)
+            if len(calls) == 1:
+                raise PermissionError(13, 'denied')
+        with patch.object(contract.time, 'sleep', lambda _: None):
+            contract._patiently(flaky)
+        self.assertEqual(2, len(calls))
+
+    def test_patiently_gives_up_after_the_budget(self):
+        def refused():
+            raise PermissionError(13, 'denied')
+        moments = itertools.chain([0.0, 5.0], itertools.repeat(20.0))
+        with patch.object(contract.time, 'sleep', lambda _: None), \
+             patch.object(contract.time, 'monotonic', lambda: next(moments)):
+            with self.assertRaises(PermissionError):
+                contract._patiently(refused)
+
+    def test_patiently_raises_other_errors_at_once(self):
+        def broken():
+            raise FileExistsError(17, 'exists')
+        with self.assertRaises(FileExistsError):
+            contract._patiently(broken)
+
+    def test_atomic_replace_outlasts_a_transient_rename_refusal(self):
+        target = self.root / 'rows.jsonl'
+        target.write_bytes(b'old\n')
+        real_replace = os.replace
+        calls = []
+        def flaky(source, destination):
+            calls.append(1)
+            if len(calls) == 1:
+                raise PermissionError(13, 'Access is denied')
+            return real_replace(source, destination)
+        with patch.object(contract.os, 'replace', flaky), patch.object(contract.time, 'sleep', lambda _: None):
+            contract.atomic(target, b'new\n', replace=True)
+        self.assertEqual(b'new\n', target.read_bytes())
+        self.assertEqual(2, len(calls))
+
+    def test_lock_flushes_a_new_lock_file_through_the_patient_retry(self):
+        if os.name != 'nt':
+            self.skipTest('the lock-file byte is Windows-only')
+        calls = []
+        real = contract._patiently
+        def watching(operation, *, patience=10.0):
+            calls.append(operation)
+            return real(operation)
+        with patch.object(contract, '_patiently', watching):
+            with contract.lock(self.root / 'locked'):
+                pass
+        self.assertTrue(calls)
 
 
 if __name__ == '__main__':

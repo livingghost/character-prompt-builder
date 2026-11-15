@@ -11,8 +11,9 @@ it appropriate. Inspect applicable production records and use
 During prompt assembly, use the
 [selected construction and wording questions](prompt-composition.md#catalog-retrieval-and-inspection)
 as retrieval elements. Search their meanings together where a relationship or
-modifier determines the wording. Prefer a fitting term for a compact tag and
-keep authored wording wherever no term fits or prose carries the meaning (see
+modifier determines the wording. Select fitting terms under the requested
+input form and the exact target's evidence. Preserve unresolved meaning in the
+depiction and its limitations; lookup failure does not authorize another input form (see
 [Prompt Composition Runtime](prompt-composition.md), Prompt assembly and review).
 
 A prompt-vocabulary resource is ordinary pack-owned knowledge. It can contain
@@ -40,9 +41,12 @@ dictionary; a missing resource never changes the target's input mode.
 
 ## Select wording for a tag-based model
 
-Read the selected model's `prompt_input` and its basis first. The tag-based
-workflow requires real searches even when the author knows the terms or the
-model also supports natural language. Use the existing draft retrieval record;
+Read the selected model's `prompt_input` and its basis first. Keep a requested
+tag rendition in tag form even when another form is available. The tag-based
+workflow requires real searches even when the author knows the terms. Choose
+the concepts that work together to carry the commissioned picture: its broad
+organization, treatment and expressive effect as well as depicted objects.
+Use the existing draft retrieval record;
 initialize it with `python scripts/prompt_retrieval.py lookups.json --init` when
 needed. A conversation-only prompt can use temporary files without creating a
 Studio.
@@ -71,10 +75,10 @@ input contract, parser and resource hashes. Exact terms and aliases receive
 dictionary choices automatically. That is lexical resolution; the author still
 chooses the applicable sense and judges whether it serves the depiction.
 
-For unresolved expressions, prefer an existing term or close synonym when it
-preserves meaning, scope and degree. Revise the text and search the rendition
+For unresolved expressions, compare existing terms and close synonyms at their
+actual meaning, scope and degree. Revise the text and search the rendition
 again. When available vocabulary does not carry the required distinction,
-retain the authored expression with its reason:
+retain suitable authored wording in the requested input form with its reason:
 
 ```bash
 python scripts/prompt_retrieval.py lookups.json --retain-wording "AUTHORED_PHRASE" \
@@ -85,9 +89,17 @@ python scripts/prompt_retrieval.py lookups.json --retain-wording "AUTHORED_PHRAS
 
 `--query` is repeatable and optional; use it for a useful conceptual or synonym
 search. Retaining wording executes the searches again and keeps the candidate
-evidence beside the author's reason. An empty result does not forbid the
-expression, and a similar-looking result does not make it appropriate. Preserve
-necessary specificity instead of narrowing the picture to the dictionary.
+evidence beside the author's reason. This records a lexical decision; it does
+not establish that the target understands the expression or approve a switch
+from tags to prose. An empty result does not forbid a word, and a similar-looking
+result does not make it appropriate.
+
+When the target's available concepts cannot carry a distinction, use
+[interface rendition](prompt-writing-guide.md#carry-the-construction-into-supported-means)
+to choose the closest supported construction and explain its remaining limits.
+Keep required detail in the source specification without pretending that every
+part has entered the model's conditioning. Long instructions, sentence fragments
+separated by commas and invented tag spellings do not resolve a missing capability.
 
 For a conversation-only prompt, complete the searched choices and read back the
 rendition; no plot, approval or settlement artifact is needed. For saved

@@ -91,8 +91,11 @@ and its family through `scripts/prompt_dialect.py --model <model-id>`.
 An external target uses only parser behavior its evidence supports. Rules for
 another family stay unapplied.
 
-Preserve the depiction while applying the target's hierarchy and visible-scope
-guidance, including all necessary identity and construction detail. Apply
+Honor the requested input form within the target's evidenced capabilities.
+A request for tags receives tags; a request for descriptive direction receives
+prose. Evidence that a model accepts both forms does not select a mixture.
+Retain the complete intended depiction in the authoring context and adapt its
+realization to what the selected input can express. Apply
 parser-specific separators, attention syntax, LoRA notation, negative transport,
 embeddings or editor shortcuts only when the active interface supports that
 exact behavior.
@@ -103,8 +106,9 @@ source. For a tag-based rendition, use the mandatory search in
 actual positive and negative terms. Reading a dictionary or knowing a term
 does not replace that search. Inspect candidate definitions, usage notes and
 the selected model's evidence. Prefer existing vocabulary, including a close
-synonym, when it preserves the intended meaning, scope and degree. Retain an
-authored phrase when the available terms would lose or change the requirement.
+synonym, when it preserves the intended meaning, scope and degree. An unlisted
+expression can preserve a requirement that the available terms would lose or
+change. Retain such wording in the requested input form with its intended use.
 Descriptive input needs no invented terminology investigation when its sources
 already suffice.
 
@@ -115,6 +119,135 @@ or populated field needs no separate clause when its meaning is already carried
 by the prompt and supplied media.
 
 The Skill-using agent decides which rules are relevant. The exact model or provider contract decides what the interface can receive. The guide governs rendition; image intent and visual authority remain with their owning plans.
+
+### Carry the construction into supported means
+
+Transfer the intended picture, not the surface form of another model's prompt.
+A prose instruction can bind an actor, action, location, condition and degree
+in one sentence. A list of individually relevant tags may leave those relations
+unbound. Conversely, a model's learned compact term can express a useful visual
+construction more directly than an explanation. Resolve the actual target's
+behavior through its evidence and inspect the generated image.
+
+Before rendition, distinguish the requirements that must survive from the
+chosen means that can change. The request's subject, required copy, intended
+effect and adopted design remain applicable as requirements, even when a target
+cannot realize them all. A particular layout, lighting device or verbal
+formulation may be an agent-selected means. Change an open means when target
+evidence requires it. Keep an exact requirement unresolved when no available
+method can satisfy it; wording alone cannot remove that limitation.
+The [visual construction reference](../finishing-layers-specification.md)
+supplies relationships to consider while making that choice.
+
+| Construction to preserve | Rendition question |
+| --- | --- |
+| A recognizable subject in a new situation | Which appearance details are supported by actual delivered media, which must be expressed in text, and does the target support that reference operation? |
+| A gesture or interaction | Do the selected terms express who acts on what, or only name the participants and objects? Retain a supported phrase or conditioning method where the relationship needs it. |
+| A hierarchy of large shapes, light and detail | Which terms describe the visible organization? A mood or quality label alone does not carry the selected contrast, spacing or focal relationship. |
+| Interlocking bodies, lettering, objects or graphic marks | Which form covers which at the consequential crossing, with what opacity and extent? A generic overlap or foreground term can leave the intended relation unresolved. |
+| A designed object with a function | Which shape, attachment, contact or in-use evidence makes the function visible? Preserve that construction rather than reducing the design to its theme name. |
+| Several views or multiple subjects | Can this target bind the views and subjects coherently in one request? Use supported regional controls or actual separate operations when required and available. |
+| Exact readable copy | Can this target produce the required spelling, script, size and placement? Preserve the copy and choose an evidenced text or composition operation when generation alone is insufficient. |
+
+A tag rendition selects visual concepts using the dictionary's recorded meanings
+and usage, with the target's vocabulary and ordering. Start from what makes the whole reference
+recognizable: the relationship of large forms, the color and value treatment,
+the density and movement, the viewpoint and surface, and the depicted content.
+Choose a compatible combination that approaches that effect within the target's
+ability. This is a new rendition of the picture, not a sentence-by-sentence
+conversion of a descriptive prompt. More tags do not necessarily preserve more
+meaning; conflicting concepts, dilution and unbound attributes can move the
+whole result away from the source.
+
+Separate the depicted content from the checkpoint's learned controls. Subject,
+action, viewpoint, material, light and color terms describe the selected picture.
+Quality, aesthetic, period, rating and dataset controls can condition a different
+part of its learned distribution; they do not supply a missing composition or
+set output pixels. Select them for the intended treatment and exact version.
+A quality ladder supplies alternatives, not a requirement to stack every band;
+a period label refers to that model's corpus grouping, not the current date.
+Use the selected dialect's evidence and scoped guide to decide which controls
+contribute, and leave an unneeded category unfilled.
+
+Training-caption order, a publisher's example and a reusable recommended prefix
+are different evidence. Preserve the exact target's documented groups where
+applicable, then keep related content together under the selected encoder and
+parser. Neither a quality-first family baseline nor a training order proves a
+single optimal sequence for every picture. During a comparison, hold order fixed
+unless placement is the change being investigated.
+
+Use the available vocabulary to suggest a construction at the precision it can
+support. A perspective or motion term can influence a whole picture without
+specifying every limb; a palette or lighting term can influence its treatment
+without assigning each color to a precise region. Keep remaining uncertainty
+explicit in the handoff. Do not append prose instructions or turn them into
+comma-separated pseudo-tags. Use weights through the selected parser to adjust
+a concept's influence. An unlisted tag or parser token remains available under
+the selected input form and parser; the dictionary is not a whitelist. Quality prefixes,
+negative stacks and parser syntax retain their exact model and interface scope.
+
+If a requested detail is beyond the selected tag input, retain it in the
+source specification and say what the tag rendition approximates or cannot
+control. A useful approximation should still pursue the whole visual effect;
+it need not retreat to an ordinary unobscured character portrait. Offer another
+production method only when it serves an unmet requirement and its actual
+availability is established. An optional alternative does not silently replace
+a requested tag prompt, and a proposed later operation is not completed work.
+Natural-language direction remains a separate rendition for a compatible model.
+
+Treat reference images, regional conditioning, masks, pose controls, embeddings
+and composition tools as actual capabilities with separate contracts. A model
+family name supplies none of them. When a target has no suitable reference
+input, a text description may carry recognizable features, but it does not
+establish the same identity fidelity as an observed reference-conditioned
+result. Record the actual input and assess that limitation against the task.
+
+Readable text and integrated lettering can require different production
+methods. Typesetting can preserve an exact message placed on the image surface.
+It does not by itself create a character's contact with a letter, lettering
+wrapped around a curved object, or a sign's physical light and occlusion.
+Choose a supported operation that preserves the selected relationship, then
+inspect the complete assembled result. Keep the exact copy at its owner and
+record any separately executed generation, editing or composition. A proposed
+later step is unfinished work, not a successful rendition. Do not remove fixed
+copy or relabel decorative pseudo-lettering as the requested text to fit a
+target's weakness.
+
+Read compact wording for its effect on the complete construction. For example,
+a monochrome figure against a colored graphic field needs the treatments to
+remain in their assigned regions. Global color and monochrome terms can compete
+without expressing that division. A group thrusting from depth needs near and
+far figures, overlap and a shared direction; a group tag plus a foreshortening
+tag leaves those relations open. A small rider on a thick, compressed vehicle
+needs their scale contrast, not a global cute treatment that makes both equally
+small. Use searched terms for the parts they actually name and a supported
+phrase or control for the unresolved relation. Check the entire resulting
+picture, including any default framing or treatment that those terms introduce.
+When a crossing organizes the picture, preserve its specific parties and degree
+through rendition. An opaque mark across a body, an outlined word behind it and
+a pattern printed on clothing are different constructions. Dictionary terms
+for their parts do not establish that a particular target can bind the relation;
+use supported phrasing or controls and inspect the returned image. A readability
+repair must retain the commissioned construction or acknowledge the changed
+relationship.
+
+Keep a model's weak text handling separate from its visual vocabulary. A
+tag-oriented model may express an extreme crop, grouped dark masses, floating
+objects, colored rim light or a drawn surface without reliably forming a
+specific sentence. Preserve those expressive choices when resolving the text
+method. Equally, substituting an empty rectangle for lettering that supports a
+body loses a spatial relationship, even if the rectangle is reserved for later
+copy. Plan the actual image, glyph shape, support and final assembly together
+when that relationship is required. These are construction questions, not
+claims that any named checkpoint or unverified control can execute them.
+
+A picture made by a different engine establishes only that engine's response
+to its exact input. Its ability to interpret a tag sequence or additional prose
+cannot validate the target checkpoint's vocabulary response, binding, text,
+negative handling or reference support. Do not count such images or their
+similarity scores as target-model results. When a cross-engine illustration is
+useful and authorized, retain its exact input, actual engine and separate
+purpose. Target-specific generation remains untested until that target runs.
 
 ## Describe the intended result first
 
@@ -127,9 +260,10 @@ Supply the premises selected through
 they make dependent instructions intelligible. Narrative or emotional intent
 can guide the current performance, including subtlety or a requested double
 reading. Keep authoring conclusions beyond this depiction at their owners.
-A tag interface retains its evidenced hierarchy and conveys the same requirements
-through supported terms and channels. Preserve this connection through interface
-conversion rather than translating source notes into additional image tasks.
+A tag interface retains its evidenced hierarchy and uses supported terms and
+channels for the closest available realization. Keep requirements beyond that
+input's control in the handoff under the adaptation procedure above; do not
+translate source notes into additional image tasks.
 
 Write the selected depiction as direct instructions. Adopted design properties
 state what the subject is; the chosen scene states what it is doing and how it
@@ -194,13 +328,13 @@ decoration, then reread the complete input with its references.
 
 Use attention weighting only to express a real priority in a compatible parser. Large weights are the wrong repair for contradictory anatomy, camera, action, or reference roles. Parentheses, square brackets, and numeric weights are interface syntax rather than universal prompt language.
 
-A weight changes emphasis; it does not establish what a term means or which subject it concerns. Resolve ambiguous wording and reference roles before raising its weight. Use dictionary definitions and target observations as evidence, then inspect the result. An unlisted descriptive phrase may still be appropriate; absence from a dictionary is not a semantic verdict.
+A weight changes conditioning; it does not establish what a term means or which subject it concerns. Resolve ambiguous wording and reference roles before raising its weight. Reducing a positive weight, removing its term and moving the term to a negative channel are not generally equivalent; use [weight and channel semantics](prompt-weighting.md#weights-and-conditioning-channels) to choose the intended operation. Use dictionary definitions and target observations as evidence, then inspect the result. An unlisted descriptive phrase may still be appropriate; absence from a dictionary is not a semantic verdict.
 
-Assume nothing about a universal 75-token ceiling: prompt capacity, chunking, and truncation are properties of the active encoder and workflow. Keep high-priority construction early when the interface is tag-oriented, and keep required semantics even when a remembered number argues for cutting them.
+Assume nothing about a universal 75-token ceiling: prompt capacity, chunking, and truncation are properties of the active encoder and workflow. Read the applicable model adapter for its encoder, parser and guidance behavior, selected under [Interface rendition](#interface-rendition). A token is neither a word nor a tag, and concatenated chunks are not one long transformer context. Keep consequential concepts together within the supported path, and keep required semantics even when a remembered number argues for cutting them.
 
 Remove incidental detail that contributes no requirement or selected effect. Retain all specificity needed for identity, visible construction and the chosen depiction, even when that requires a detailed prompt. Preserve the complete canonical identity and scene state at their owners. An omitted detail needs no replacement permission, exclusion or instruction to reveal it.
 
-Use the `negative-policy` resource to assess applicable sources; a tag family's form is the `negative_form` that `scripts/prompt_dialect.py` returns. Keep required exclusions and corrections scoped to their intended subject, region or failure. Resolve a real contradiction by returning to the brief and source authority, then revise the conflicting wording. A repeated word across channels can carry different scopes; the author judges the combined meaning. When exclusions accumulate, use [Production direction](production-direction.md#observe-and-repair) to resolve a missing target or unclear scope before adding another boundary. Retain necessary exclusions.
+Use the `negative-policy` resource, available through `python scripts/pack_cli.py resource negative-policy`, to assess applicable sources; a tag family's form is the `negative_form` that `scripts/prompt_dialect.py` returns. Keep required exclusions and corrections scoped to their intended subject, region or failure. A source example's negative can exclude an intentional medium, layout or color treatment, so select its terms by their role in this picture. Resolve a real contradiction by returning to the brief and source authority, then revise the conflicting wording. A repeated word across channels can carry different scopes; the author judges the combined meaning. When exclusions accumulate, use [Production direction](production-direction.md#observe-and-repair) to resolve a missing target or unclear scope before adding another boundary. Retain necessary exclusions.
 
 ## Controlled comparison
 
@@ -235,9 +369,15 @@ Output is JSON on stdout with `syntax`, parsed `channels`, structural `findings`
 Four shortcuts are refused:
 
 - guessing parser support from a model family name;
-- copying a sample quality stack as a default;
+- automatically adopting a sample quality or negative stack as a reusable default;
 - converting a Textual Inversion token into generic prose;
 - assuming a negative channel exists.
+
+The default restriction does not prohibit selecting individual documented controls
+for the current rendition. The author chooses their content, channel, placement
+and supported weight from the intended picture and exact-target evidence, even
+when no reusable recommendation string is declared. Keep that decision distinct
+from an automatic merge and from a claim of measured improvement.
 
 When guide advice conflicts with a reviewed model record or adapter, the model record and adapter own the transport. When interface behavior is unknown, keep the semantic prompt portable and stop before claiming unsupported syntax or parameters.
 

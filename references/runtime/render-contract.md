@@ -3,7 +3,8 @@
 Carry the requested depiction and any selected rendering constraints into the
 actual model input, and resolve the exact interface for the request.
 Preserve applicable identity, age, proportions, wardrobe and story; a rendering
-choice supplies no authority to revise them.
+choice supplies no authority to revise those subject facts. Realize them through
+the selected [representation](#represent-the-selected-design).
 The agent decides meaning; the tools validate explicit choices and preserve their provenance.
 
 ## Choose the visual treatment
@@ -91,6 +92,71 @@ select a local constraint even when the corresponding base axis is absent.
 The agent may choose a mixed treatment within delegated creative space.
 An explicit fixed medium or protected source region remains authoritative.
 The registry is a discovery aid, not a closed list of media.
+
+### Represent the selected design
+
+Distinguish the subject's design from the marks and colors that represent it in
+this image. A material, local color, marking boundary, garment construction or
+body proportion can be a stable fact while its visible appearance changes with
+view, illumination and treatment. The
+[identity contract](../character-identity-contract.md#rendered-reference-transfer-boundary)
+owns those facts and authorized changes. Rendering owns their selected visual
+realization. Neither the identity source's entire appearance nor the treatment
+source's different subject becomes authoritative through that distinction.
+
+Resolve the mapping when it matters to the result. In an achromatic rendition,
+a colored garment can retain its cut, construction and pattern through distinct
+values and marks. Metal can retain its form and reflective behavior without
+retaining a gold hue. A flat rendition can distinguish materials through shape,
+value boundaries and selective marks rather than a photographic reflection.
+Foreshortening changes projected proportions without redefining the body.
+These are consequences of the selected representation. A redesign of the
+garment, an altered body plan or removal of a required marking remains a
+separate content decision.
+
+Choose the treatment's actual extent. Muting local colors, restricting them to
+a narrow hue range, and removing chroma from a region produce different
+relationships with its surroundings. A warm field need not warm every subject
+inside it. If the construction depends on different regions using different
+color or mark systems, define their boundaries and the resulting contrast in
+the prompt or assigned media. Qualifiers such as mostly or faint express real
+latitude; use them when that latitude is intended. Several small exceptions
+can together recolor most of a subject and undo the chosen regional contrast.
+Evaluate their combined area and visual weight before retaining them as
+recognition aids.
+
+Apply the mapping to the whole selected scope, including shadows, highlights,
+line color, lettering and surrounding fields when they share the treatment.
+Reconstruct their connections through
+[color and value](../finishing-layers-specification.md#color-and-value-as-a-shared-construction).
+A palette declaration followed by ordinary local-color descriptions can restore
+the source rendering object by object. Write the intended visible colors and
+their relationships; retain the underlying design facts at their source owner.
+The same applies to form and material. Resolve whether a surface uses flat
+planes, continuous volume, selective texture or another chosen behavior through
+the shared [drawing grammar](../finishing-layers-specification.md#shape-and-mark-as-one-drawing-grammar).
+A material's identity does not require its full physical shading. Detailed
+content can remain simplified at the scales where the picture depends on that
+simplification. Bind the selected behavior to the content in the actual input.
+
+Where the commission requires a local color to remain visibly that color,
+preserve it and compose the surrounding treatment accordingly. A color-coded
+comparison or faithful color inspection may require chromatic distinctions
+that an achromatic treatment cannot supply. Resolve that real conflict through
+Production direction. A request to retain a design without preserving its
+current rendering can instead support a new representation of the same facts.
+Do not require the user to restate every stable attribute as a technical
+rendering exception.
+
+Make source precedence executable in the actual rendition. Name the source of
+the form and the treatment applied to it, rather than combining an unrestricted
+instruction to preserve source appearance with a contradictory global style.
+Keep exact local-color requirements when applicable; otherwise express their
+selected appearance where repeating the source colors would direct the wrong
+picture. A regional override records that choice, but its text or media must
+also reach the model. Review identity and treatment separately and together:
+recognition must survive, and the old source rendering must not silently
+replace the treatment chosen for this image.
 
 ## Select the operation and optional rendering declaration
 
@@ -205,7 +271,7 @@ The required `prompt_input` contract distinguishes these workflows:
 
 | Mode | Input and authoring consequence |
 | --- | --- |
-| `tag-based` | The selected workflow uses tags and named vocabularies. Search existing wording before finalizing the rendition, even if the model also accepts prose. |
+| `tag-based` | Author a tag rendition using the selected vocabularies and exact target evidence. Search existing wording; availability of another input form does not select it for a tag request. |
 | `descriptive` | Use the declared natural-language or structured-caption form. Investigate construction and wording questions as needed. |
 | `unresolved` | The actual model, version or input behavior is not established. Retain a portable depiction and resolve the evidence before target-specific finalization. |
 | `none` | The selected operation has no text prompt surface. Supply its evidenced media and controls. |
@@ -218,9 +284,12 @@ Other modes omit `prompt_dialect`. These declarations are independent of the
 service's weighting parser and of whether an execution offering is configured.
 
 Read each basis statement at its stated model, family, adapter, operation or
-author-selection scope. An adapter that routes among several models does not
-establish the eventual model's input. A family may accept more than one form;
-this does not remove a selected tag workflow's search requirement. See
+author-selection scope. Distinguish accepted text, training format, a documented
+example and observed control of a requested relationship. A form's availability
+does not establish that every instruction written in it will work. An adapter
+that routes among several models does not establish the eventual model's input.
+The request selects the rendition from the available forms; a tag request remains
+tag-based even when the model also has descriptive capability. See
 [Model request evidence](model-evidence.md#prompt-input-evidence) for authoring
 the contract and [Vocabulary](prompt-vocabulary.md#select-wording-for-a-tag-based-model)
 for the existing retrieval and settlement flow.
@@ -343,6 +412,10 @@ The mapping belongs to this mode's interface evidence. A field's spelling never
 selects a parser by itself. See [Explicit prompt weighting](prompt-weighting.md)
 for the shared declaration and a synthetic nested-control example.
 Every mode states a seed and output-count disposition, including interfaces that expose neither.
+A `dispatch-generated` binding marks a control the transport writes fresh on every request, such as a
+per-request identifier; it stays out of authored parameters, and the sealed request records the generated value.
+Only exposed controls of the selected execution mode are generated. Modes that
+share a media transport retain their own control applicability.
 
 | Status | Behavior |
 | --- | --- |
@@ -357,6 +430,21 @@ Unsupported names, case mismatches, non-finite values, and unknown modes fail re
 Value schemas validate types and limits; the mode's `parameter_schema` validates cross-field combinations.
 For example, it can require either explicit width and height or a named resolution, but not both.
 Schema defaults never substitute for parameter decisions.
+
+Parameter failures name the control, its declared problem status and the
+specific `required_action`. Missing or invalid values include their actual
+schema in `expected`; an undeclared control includes the available authored
+control names there. A recommendation range stays in `recommendation` until
+the author selects one value. For example, an omitted required integer `width`
+reports `value-required`, `expected: {"type": "integer"}` and asks for an
+explicit width value matching that schema. A cross-field failure reports the
+combined parameter schema and asks for the parameter combination to be corrected.
+The standalone `render_contract.py compile` returns these entries in `problems`,
+with `parameter: null` for a combined constraint. Production `check` and
+`prepare` carry the same repair and expected contract in their diagnostics,
+located at the actual editable source; a combined constraint points to that
+parameter document's root. Repair the failed parameter check before repeating
+any dependent check marked `CHECK_NOT_PERFORMED`.
 
 For exposed sampling controls, declare steps, guidance, sampler, parser, and other meaningful controls.
 For a managed instruction model, mark unavailable controls as backend-managed instead of fabricating them.

@@ -28,7 +28,12 @@ For consequential authoring choices in an open brief, carry out the
 selecting the final proposal. Use [discovery](sparse-discovery.md#conceive-the-open-picture)
 while relevant design choices remain open. Retain what the request asks to
 develop, its subject roles and any stated use. Understanding a topic does not
-settle those choices; adding a scene or theme is not required. Consult an exact
+settle those choices; adding a scene or theme is not required. Read
+[Creative core](../creative-core.md) and
+[Visual construction](../finishing-layers-specification.md) for open picture
+design, before selecting a technique or querying an already preferred look.
+Use the relationships relevant to the request; the user need not supply craft
+terminology. Consult an exact
 selected model's evidence while choosing model-dependent means. Keep the actual
 candidate descriptions and separate assessment in bounded working notes; this
 conversation-only work needs no Studio or production artifact registration.
@@ -41,10 +46,11 @@ relabel the subject prompt as a rendering instruction to complete bookkeeping.
 Use [Composition](prompt-composition.md) for the construction knowledge a
 complex question needs. Its specialist resources contribute anatomy, spatial,
 performance, material or layout knowledge to the same depiction. They are not
-an inventory of sections to populate. An ordinary complete action or state can
-remain ordinary language in the prompt; a technical requirement retains its
-needed precision. The agent's selected means remain open to judgment against
-the commission.
+an inventory of sections to populate. A descriptive prompt can express an
+ordinary complete action or state in ordinary language. A tag prompt uses the
+selected target's concepts and grammar. Technical requirements retain their
+authority even when the input cannot control their full precision. The agent's
+selected means remain open to judgment against the commission.
 
 Use [Rendering choices and execution controls](render-contract.md) for the
 operation and any authored rendering declaration. Unselected rendering needs
@@ -96,17 +102,20 @@ or generation-ready package. Do not create empty reference artifacts.
 
 ## Rendition and delivery
 
-Author the commissioned depiction in meaningful language using Production
-direction. This is the master prompt; it may already be the final portable
-text. Apply the [Prompt Writing Guide](prompt-writing-guide.md) for interface
-rendition, with evidenced syntax for a named target. Do not restart design from
-the guide's examples or turn each planning field into a clause.
+Develop the commissioned depiction using Production direction. This is the master prompt
+for authoring: a complete description that may also serve as a portable descriptive
+prompt. Apply the [Prompt Writing Guide](prompt-writing-guide.md) to produce the
+requested form under a named target's evidence. A tag rendition does not inherit
+the description's sentences. Do not restart design from the guide's examples
+or turn each planning field into a clause.
 
 Preserve the situation, action, relationships, qualities, degree, exact
-requirements and applicable exclusions. Supply context only where the actual
-renderer input needs it to produce the commissioned depiction. The agent's
-broader context explains its decisions without automatically belonging in the
-prompt. The `negative-policy` resource owns negative sources and target syntax.
+requirements and applicable exclusions in their source roles. Choose the
+closest supported realization when the requested input form cannot express
+every distinction, and name the consequential remaining limits. Supply context
+only through a form the actual renderer can use. The agent's broader context
+explains its decisions without automatically belonging in the prompt. The
+`negative-policy` resource owns negative sources and target syntax.
 
 Judge the completed input through
 [Observe and repair](production-direction.md#observe-and-repair). Agreement
@@ -114,8 +123,18 @@ with agent-authored instructions alone does not establish that those
 instructions serve the request. Complete the assessment or rendition when the
 requested question or depiction is sufficiently resolved. Deliver the requested
 prompt, supported negative channel, separate execution settings and selected
-reference artifacts; omit empty placeholders. Textual review supplies no
-observation of an ungenerated image.
+reference artifacts; omit empty placeholders. Distinguish completion of the
+requested text from characterized execution and observed image performance.
+An unbound provider or untested model response can leave a researched rendition
+provisional without preventing delivery of the authorized text. For an external
+handoff, select a documented text interface and encoding path when the request
+needs concrete weighting, negative channels or long-prompt behavior. Keep that
+choice and its source with the authoring context; it establishes the proposed
+input contract, not installation, provider availability or observed performance.
+Explain the specific unresolved dependency, rather than promising control or
+requiring an unrequested generation. Textual review supplies no observation of
+an ungenerated image, and another engine's illustration supplies no
+target-checkpoint result.
 
 A structured plan is useful when declared counts, connections, assignments or
 numeric camera bounds need a record. Its validator checks those declarations,

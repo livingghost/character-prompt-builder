@@ -219,8 +219,10 @@ class RunwareWireTests(unittest.TestCase):
         import transport_runware as adapter
         import prompt_weighting
         offering = {'service':'runware', 'model_identifier':'synthetic:fixture-only',
+                    'execution_profile':{'modes':{'text-to-image':{'controls':{}}}},
                     'request_keys':{'prompt':['positivePrompt'], 'negative prompt':['negativePrompt']}}
         verified = {'host_forwarding':{'effective_prompt':fixture.PROMPT,
+                    'execution_mode':'text-to-image',
                     'selected_transport':{'mode':'separate-field','rendition':{'negative':fixture.NEGATIVE}},
                     'parameters':{'promptWeighting':'compel','width':1024,'height':1024}}}
         with patch.object(adapter, '_post', side_effect=AssertionError('wire test makes no service request')):

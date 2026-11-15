@@ -55,6 +55,7 @@ def _forwarding(package:dict,verified:dict,*,model:dict|None,offering:dict|None,
     forwarding=copy.deepcopy(verified['host_forwarding']);forwarding.update(effective_prompt=result['text'],
         effective_prompt_sha256=c.digest(result['text'].encode('utf-8')),prompt_trace=result['trace'],
         native_reference_controls=result['native_reference_controls'],
+        execution_mode=package['render_contract']['intent']['execution_mode'],
         reference_media_role=package['render_contract']['model_card']['execution_profile']['modes'][package['render_contract']['intent']['execution_mode']]['media'])
     return {'host_forwarding':forwarding,'bindings':rows,'review_requirements':result['review_requirements'],
         'execution_policy':policy}
@@ -135,6 +136,7 @@ def _generation_request(package:dict,verified:dict,model:dict,offering:dict,serv
     verified=copy.deepcopy(verified)
     intent=package['render_contract']['intent']
     profile=package['render_contract']['model_card']['execution_profile']
+    verified['host_forwarding']['execution_mode']=intent['execution_mode']
     verified['host_forwarding']['reference_media_role']=profile['modes'][intent['execution_mode']]['media']
     compiled=transport.compile_request(verified,offering,service,{},seed,count)
     rendering.check_wire(package['render_contract'], compiled['request'], compiled['layout'], seed=seed, count=count)

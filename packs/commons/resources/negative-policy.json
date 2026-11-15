@@ -2,9 +2,9 @@
   "principle": "Define the selected picture and its present situation from the brief, adopted design and current direction. Convey the premises needed to understand its appearance, action, relationships and degree through the actual text and supplied references. Assess scoped negative sources for their role in that depiction. Use necessary exclusions as precise image boundaries in the target-supported form; both positive construction and direct exclusion retain their intended meaning.",
   "candidate_sources": {
     "generation_hygiene": {
-      "activation": "character-image generation where incidental marks are unrelated to the requested design",
+      "activation": "the selected depiction, established from the brief, adopted sources and current direction, excludes incidental inscriptions, branding or attribution introduced by the generator or an unadopted source. Production direction owns the use of meaningful lettering and graphics; their absence from the user's explicit words alone does not make them incidental",
       "guards_against": [
-        "text, logos, watermarks, or signatures the design did not ask for"
+        "unwanted inscriptions, logos, watermarks or signatures outside the selected depiction, within the scope that excludes them"
       ]
     },
     "quality_floor": {

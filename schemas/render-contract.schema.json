@@ -402,7 +402,8 @@
                           "enum": [
                             "package",
                             "dispatch-seed",
-                            "dispatch-count"
+                            "dispatch-count",
+                            "dispatch-generated"
                           ]
                         },
                         "schema": {

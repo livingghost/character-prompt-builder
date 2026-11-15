@@ -2,12 +2,14 @@
 
 Use this alongside the [Prompt Writing Guide](prompt-writing-guide.md) when a target
 uses an explicit weighting grammar. A model's learned family (`prompt_dialect`) chooses its
-vocabulary and writing conventions. The selected service, offering and execution
-mode choose the weighting parser. A family name never authorizes a native control.
+vocabulary and writing conventions. The selected text interface owns the parser;
+for executable CPB requests, the service, offering and execution mode declare it.
+A family name never authorizes a native control.
 
 ## Choose the interface before writing parser syntax
 
-Run `pack_cli.py ready`, resolve the model and choose its execution mode first.
+For an executable CPB request, run `pack_cli.py ready`, resolve the model and
+choose its execution mode first.
 
 ```sh
 python scripts/prompt_dialect.py --model MODEL_ID --service SERVICE --mode text-to-image --weighting compel
@@ -19,6 +21,13 @@ model/offering/mode, and fails when it does not allow the requested grammar. The
 second describes grammar only. The selected model's control schema decides which
 parser can be sent. Generic explanatory text mentioning several parsers is not a
 substitute for that schema.
+
+For an external text handoff, the author can select an exact documented parser
+and encoding path before provider execution is available. Name that destination
+and retain its evidence with the authoring context. This is a choice of input
+contract, not a claim that the workflow is installed, callable or tested.
+CPB's executable requests still use the declared interface below; documentary
+knowledge does not create a native control or extend its local inspector.
 
 Each execution mode owns `prompt_syntax`, defined by
 [the prompt syntax schema](../../schemas/prompt-syntax.schema.json). Its `default`
@@ -98,6 +107,26 @@ resource support; select LoRAs through the service's declared native controls.
 `BREAK` is not a Compel conjunction. CPB never translates `BREAK`, `AND`, brackets
 or colon weights into another parser's operators by guessing the author's intent.
 
+## Weights and conditioning channels
+
+Choose a weight for a concept's intended influence within its channel. A larger
+positive weight, a smaller positive weight and the same term in the negative
+channel are different operations. Reducing the only description of an attribute
+can let the model's prior dominate; it need not create the intended intermediate
+appearance. Describe that appearance directly when supported, and use weighting
+to adjust a remaining priority. A negative should name an unwanted outcome at
+the scope where it is unwanted. Lowering its weight changes the negative
+condition, not the positive description.
+
+Read the applicable model adapter for its encoder, parser and guidance behavior,
+selected under [Interface rendition](prompt-writing-guide.md#interface-rendition).
+It owns the actual token transformation, empty-input baseline, pooled
+representation and guidance combination. A zero weight need
+not remove a term's other contextual effects, and a signed weight does not
+establish logical negation. Use the selected implementation's semantics when
+choosing among these operations; neither the coefficient nor valid grammar
+measures the amount of a visible feature or the probability of success.
+
 ## Inspect the complete request, not a flattened tag list
 
 ```sh
@@ -127,6 +156,13 @@ learned tag family still receives syntax checks, without pretending prose is
 booru vocabulary. Dictionary evidence is not approval of the combined meaning.
 
 ## Recommendations and shared reference instructions
+
+Admission of reusable record defaults and authorship of the current rendition
+are separate decisions. The author can select a documented quality control,
+negative term or weight for this picture even when the record has no reusable
+prompt string. Its meaning, channel and parser still need the selected target's
+evidence. A publisher's sample is evidence of that example, not an instruction
+to insert its complete stack into every prompt.
 
 A model's automatic tag-list merge must not flatten commas inside weighted groups
 or duplicate the author's entire compound expression. For a simple weighted

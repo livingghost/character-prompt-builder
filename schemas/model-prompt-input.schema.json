@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "character-prompt-builder-model-prompt-input.schema.json",
   "title": "Model Prompt Input",
-  "description": "An evidenced prompt-input workflow for one selected model, adapter, or operation. Tag-based selects a vocabulary-oriented workflow; it does not claim that the model cannot read prose.",
+  "description": "An evidenced prompt-input workflow for one selected model, adapter, or operation. Tag-based selects tag authoring without claiming that all other forms are impossible. Available forms do not select a mixture or establish reliable control of every instruction; the request selects the rendition.",
   "type": "object",
   "required": ["mode", "forms", "vocabularies", "basis"],
   "additionalProperties": false,

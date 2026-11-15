@@ -15,7 +15,8 @@ The core release evaluates only the model records owned by `packs/commons`.
 | `commons` | `gpt-image-2.5-flare` (OpenAI GPT Image 2.5 Flare) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |
 | `commons` | `gpt-image-2.5-sunburst` (OpenAI GPT Image 2.5 Sunburst) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |
 | `commons` | `grok-imagine-image-2.0` (xAI Grok Imagine Image 2.0) | No fixed reusable default adopted | Model guidance is task-specific; the core does not commit one universal positive or negative string. |
-| `commons` | `seedream-5.0-pro` (ByteDance Seedream 5.0 Pro) | No fixed reusable default adopted | The exact Runware interface is observed; natural-language directions remain task-specific. Critical exclusions belong in the positive prompt because no negativePrompt field is exposed. |
+| `commons` | `seedream-5.5` (ByteDance Seedream 5.5) | No fixed reusable default adopted | The exact Runware interface is observed; natural-language directions remain task-specific. Critical exclusions belong in the positive prompt because no negativePrompt field is exposed. |
+| `commons` | `minimax-h3-image` (MiniMax H3 Image) | No fixed reusable default adopted | The exact Runware interface is observed; natural-language directions remain task-specific. Critical exclusions belong in the positive prompt because no negativePrompt field is exposed. |
 | `commons` | `qwen-image-2.1-pro` (Alibaba Qwen-Image-2.1-Pro) | No fixed reusable default adopted | The observed Runware interface accepts task-specific natural-language instructions; no universal prompt string is committed. |
 
 ## Nondefault-pack boundary

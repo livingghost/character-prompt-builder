@@ -14,7 +14,7 @@ import time
 import threading
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 from io_budget import read_stream
 from private_state import assert_public_path
@@ -379,16 +379,40 @@ def _no_hard_links(error: OSError) -> bool:
     return error.errno in _NO_LINKS_ERRNOS
 
 
+def _transient_refusal(error: OSError) -> bool:
+    """True for a transient permission or handle refusal that a retry outlasts."""
+    return isinstance(error, PermissionError) or getattr(error, "winerror", None) in {5, 32, 33}
+
+
+def _patiently(operation: Callable[[], None], *, patience: float = 10.0) -> None:
+    """Run `operation`, waiting out transient refusals for the supplied budget.
+
+    A scanner or indexer can hold a name for a moment; the operation is retried
+    until the budget runs out, then the refusal is raised.
+    """
+    deadline = time.monotonic() + max(0.0, patience)
+    while True:
+        try:
+            operation()
+            return
+        except OSError as error:
+            if not _transient_refusal(error) or time.monotonic() >= deadline:
+                raise
+            time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+
+
 def atomic(path: Path, raw: bytes, *, replace: bool = False, durable: bool = True) -> None:
     """Write `raw` to `path` whole: replace it, or create it only when it is absent.
 
     Durable writes reach disk under a temporary name first. A replacement is a
     rename and a new name is a hard link, so a reader sees the old file or the
-    whole new one. Without hard links, Windows renames the temporary file, which
-    refuses an existing name. Elsewhere a rename would replace, so the new name
-    is created exclusively and written in place. A private staging owner can
-    defer durability until publication. It must flush file contents and then
-    directory entries before publishing any part of that private tree.
+    whole new one. A replacing rename waits out a transient permission or handle
+    refusal within a bounded budget. Without hard links, Windows renames the
+    temporary file, which refuses an existing name. Elsewhere a rename would
+    replace, so the new name is created exclusively and written in place. A
+    private staging owner can defer durability until publication. It must flush
+    file contents and then directory entries before publishing any part of that
+    private tree.
     """
     assert_public_path(path)
     if path.is_symlink():
@@ -398,7 +422,7 @@ def atomic(path: Path, raw: bytes, *, replace: bool = False, durable: bool = Tru
     try:
         _create(temp, raw, durable=durable)
         if replace:
-            os.replace(temp, path)
+            _patiently(lambda: os.replace(temp, path))
         else:
             # Exclusive publication is decided by the filesystem operation.
             try:
@@ -481,7 +505,7 @@ def publish_directory(staging: Path, target: Path, *, patience: float = 10.0) ->
                 raise ProductionError('OUTPUT_ALREADY_EXISTS', 'Another writer occupied the publication destination.',
                                       phase='publication', file=str(target), source=str(staging),
                                       required_action='Keep both contents; select a new output path.') from exc
-            transient = isinstance(exc, PermissionError) or getattr(exc, 'winerror', None) in {5, 32, 33}
+            transient = _transient_refusal(exc)
             if transient and time.monotonic() < deadline:
                 time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
                 continue
@@ -576,7 +600,9 @@ def _os_lock(root: Path) -> Iterator[None]:
             # is waited out; any other error is raised.
             if os.fstat(stream.fileno()).st_size == 0:
                 stream.write(b"0")
-                stream.flush()
+                # The first touch of a brand-new lock file can meet a scanner's
+                # transient handle; the flush waits it out like publication does.
+                _patiently(stream.flush)
             stream.seek(0)
             while True:
                 try:

@@ -32,6 +32,9 @@ gives one the wrong type, naming each such name in one error:
         operation (null where the address carries them), the prompt, the
         negative, the output count, the seed, each media item, and the
         identifiers of this one run. `media_ids` is empty for the preview.
+        `verified.host_forwarding.execution_mode` names the selected execution
+        profile mode. Apply that mode's exposed controls; a shared media role
+        does not make another mode's controls applicable.
 
     compile_upscale(model_identifier, source_path, scale, settings, offering,
                     service, media_ids, guidance) -> dict

@@ -2,29 +2,38 @@
 
 Purpose and attention govern the artifact's construction. Use
 [Production direction](runtime/production-direction.md#choose-the-expression)
-to consult knowledge and choose within the author's scope. This document offers
-ways to develop and compare the visible results.
+for the commission, source authority, dialogue and conception. This reference
+explains what makes alternative pictures substantively different.
+[Visual construction](finishing-layers-specification.md) supplies the concrete
+craft for realizing those differences.
 
 ## Image intent
 
-An image intent joins the requested subject or information with the effect its
-presentation should create. It can center a relationship, a feeling, a contrast,
-an explanation, an identity or a visual pattern. It need not contain characters
-or a narrative.
+An image intent joins the requested subject or information with the experience
+its presentation should create. It can center a relationship, feeling,
+contrast, explanation, identity or visual pattern. Characters and narrative
+are optional. The beauty of a designed form, the force of a graphic arrangement,
+a material transformation or an unusual viewing distance can itself be the
+work; it needs no added moral or story event to justify its existence.
 
-An attribute list such as a subject with a material, color and framing leaves
-the relationship between those choices unresolved. A useful intent describes
-what holds them together: a small machine's perseverance becomes visible in
-its effort against a much larger object; an assembly's structure becomes clear
-through the alignment of its separated components; a title becomes the focal
-shape that organizes a cover.
+An attribute list leaves the relationship between its choices open. A small
+machine, a plant, rain and a warm light do not yet determine whether the image
+is about careful shelter, a mechanism's design, solitude in a large environment
+or a bold pattern on a page. Each can use the same content. The selected
+relationship determines what becomes large, what remains quiet, what connects,
+and which details carry the experience.
 
-Intent informs construction. It is not extra prose to paste into a model
-prompt, nor evidence that viewers will experience the intended effect.
+Intent informs the picture. It is not extra explanatory prose to paste into
+a model prompt, nor evidence that viewers will experience the intended effect.
+A concrete construction gives that intent observable form. A tool can become
+imposing through its nearby front mass and detailed surfaces, with an ordinarily
+sized person behind it. A small figure can make a surrounding world immense.
+A name can become a place for a body to occupy. These choices change what the
+viewer does with the image, even before any small ornament is added.
 
 ## Presentation, structure and finish
 
-These choices answer different questions:
+These choices answer different questions and influence one another:
 
 | Choice | Question | Possible realizations |
 | --- | --- | --- |
@@ -35,136 +44,219 @@ These choices answer different questions:
 The examples are open possibilities. An editorial page can join photographs,
 drawn explanations and type. A game-like screen can combine a depicted event
 with visible dialogue or information. A card can organize recognition and
-reference information at different scales. The roles and relationships of
-these components determine the construction; form labels alone do not.
+reference information at different scales. The components' roles, relative
+strength and relationships create the construction; a format label does not.
 
-Select relationships that serve the actual purpose. Consider these tradeoffs:
+Select relationships for the actual purpose. These tradeoffs locate different
+questions without prescribing a result:
 
-| Purpose | Construction worth considering | What must be assessed |
+| Purpose | Construction worth considering | What needs judgment |
 | --- | --- | --- |
-| Establish an action and its setting | One continuous scene with a readable focal event | Whether the needed action and expression fit one view |
-| Reveal an observation and a response | Ordered local views with an intentional transition | Reading order, continuity and whether time actually advances |
-| Explain a small feature in a larger object | Whole view paired with a detail | Context, correspondence and the detail's relative emphasis |
-| Compare alternatives or states | Aligned views with controlled common features | Which differences carry meaning and which should stay constant |
-| Make a public message memorable | A dominant image or typographic event with a supporting hierarchy | Exact text, viewing distance, visual competition and space |
-| Explain internal construction | Section, cutaway or separated components | Whether the representation preserves the required physical relationships |
-| Make an abstract idea legible | A specific visual analogy or transformation | Whether the chosen relationship communicates the intended idea |
+| Establish an action and its setting | One continuous scene with a readable focal event | Whether the action, expression and context fit the selected view |
+| Reveal an observation and a response | Ordered local views with a meaningful transition | Reading order, continuity and whether time actually advances |
+| Explain a small feature in a larger object | A whole view paired with a detail | Context, correspondence and relative emphasis |
+| Compare alternatives or states | Related views with selected common features | Which differences carry meaning and which should remain stable |
+| Make a public message memorable | An image or typographic event with a supporting hierarchy | Copy, viewing distance, competition, space and the relation between image and words |
+| Explain internal construction | A section, cutaway or separated components | The physical relationships the representation must preserve |
+| Make an abstract idea legible | A specific analogy, transformation or arrangement of voices | Whether the visible relationship carries the intended meaning |
+| Make a person or design compelling to look at | A particular encounter with its form, material, scale or presence | What sustains looking beyond recognition or factual completeness |
 
-The agent may combine compatible techniques or author another construction.
+The agent can combine compatible techniques or author another construction.
 A table entry is neither a required template nor a keyword-to-format rule.
+An explanatory plate can be beautiful; an evocative image can be precise.
+Their requirements and selected emphasis determine how those qualities meet.
+
+## What makes this picture particular
+
+A construction connects choices that would otherwise be independent. Consider
+three ways to show a person with an invented device. A lived scene can make
+its benefit understandable through action and consequence. A large external
+mechanism can extend the wearer's silhouette, with costume, pose and material
+hierarchy making a new presence. An explanatory plate can pair an in-use view
+with a precise detail. The same capability can appear in all three, but the
+viewer alternately inhabits a use, admires a form or inspects a mechanism.
+The third is not automatically a more complete version of the second.
+
+A similar distinction applies to personal information. Interests can become
+a place the person inhabits, a cluster of independent stickers, unequal views
+of work and private time, or a world whose laws derive from those interests.
+Counting the same symbols does not establish the same result. Their scale,
+contact, separation and relation to the person determine how the information
+becomes an experience.
+
+Keep the degree of the chosen construction. A slightly larger face and a face
+that exceeds the frame do not create the same proximity. A dim background and
+a darkness that absorbs parts of the body do not produce the same apparition.
+A decorative word and a word large enough to support a seated figure do not
+perform the same job. Expressive exaggeration, rich detail or severe omission
+may be necessary to the chosen effect. Preserve them when supported by the
+commission, instead of translating every strong choice into a moderate,
+easy-to-inspect version.
+
+Useful variation preserves a relationship while changing its material. A
+colored field around a monochrome profile can change hue and hand-held object
+while retaining the person's private interval. A new alphabet or longer phrase
+requires the body and letter shapes to be arranged again if the words are its
+seat. A non-human face may need a different expressive channel when eyes are
+withheld. These are acts of reconstruction, not substitutions in a noun list.
+
+Use the selected source at its actual scope. A character reference can supply
+identity without fixing palette treatment, pose or medium for the new image.
+A compositional reference can supply the viewer's distance, arrangement and
+mark relationships without supplying the new character's anatomy or belongings.
+A close reconstruction needs those concrete relationships and their degree;
+a broader transfer may deliberately change them. Production direction owns
+which operation the author requested and how unresolved preferences are found.
 
 ## Visual hierarchy
 
-Decide what the viewer should notice first and what sustains the reading.
-Use scale, placement, contrast, repetition, spacing, directional forms and detail
-concentration where useful. Quiet areas can make an event legible without
-emptying the artifact of necessary information.
+Hierarchy includes what is noticed at first and what rewards continued looking.
+Use scale, placement, contrast, repetition, spacing, directional forms, overlap
+and detail concentration together. Attention, semantic importance and surface
+order are different relationships. A person can be the subject while an opaque
+word, a near object or a graphic cut covers part of that person. A large form
+behind the person can still command the picture. Resolve those relationships
+from the intended encounter, without reserving an unobstructed display area for
+each named component.
 
-A scene may use depth and gaze. A graphic artifact may use alignment and type.
-A sequence may use region size, gaps and repeated framing to control attention.
-Evaluate those relationships at the whole-artifact level before refining a
-single face, surface or decorative element.
+A small local contrast can keep an event alive inside a broad quiet shape.
+Dense workmanship can be supported by a simpler neighboring surface. A face may
+stabilize an energetic surround, or fragments of face and body may be discovered
+through the same marks that organize the page. Recognition can depend on the
+remaining configuration without every identity feature being separately exposed.
+The relevant source or use determines how much the viewer needs to recover.
 
-Exact geometry is useful when placement or order is load-bearing. Otherwise,
-describe the required hierarchy and relationships while leaving nonessential
-proportions open. More coordinates do not establish better communication.
+The viewer's relation to a subject is part of that hierarchy. Looking toward
+the viewer addresses them. A profile can invite observation without replying.
+A rear figure can share the viewer's gaze toward a world. A low position can
+make an ordinary seated body possess its place. A near hand or foot can bring
+the viewer into an action. These constructions have different emotional
+possibilities; a friendly expression alone cannot substitute for all of them.
+
+Use the whole picture's large forms and intervals. Negative space may be an
+opening for a gaze, a field that receives motion, a quiet area around intricate
+machinery or an expanse that measures a figure's smallness. Its shape and
+position matter along with its amount. A page may use alignment and type; a
+scene may use depth and contact; a sequence may use region size and gaps.
+A mixed construction can make those systems meet deliberately.
+
+Exact geometry is useful when position, order or contact carries the result.
+Otherwise describe the necessary hierarchy and relationships while leaving
+nonessential proportions open. More coordinates do not establish better
+communication. Conversely, a broad mood word is insufficient when the selected
+image depends on a particular crop, interval or relationship of scale.
 
 ## Shape, surface and light
 
-Choose the relevant form hierarchy: primary masses, secondary directions and
-small information-bearing detail. Connect subject, clothing, props and setting
-through coherent scale, rhythm and material behavior. An identity detail can
-matter greatly without becoming the largest or sharpest feature everywhere.
+Primary masses, secondary directions and small information-bearing details
+operate together. Subject, clothing, equipment and setting can share a curve,
+angular rhythm or material division without becoming copies of the same icon.
+An identity detail can remain crucial while staying small. A smooth surface
+beside a dense mechanism, a still face inside moving cloth or a delicate body
+against heavy letters can create the central tension of a picture.
 
-Use surface construction appropriate to the subject and finish: grouped hair,
-fabric tension, articulated casing, stone mass, reflection or another declared
-system. A domain realization supplies valid construction for that subject;
-it does not supply unrequested features.
+Choose the construction appropriate to each subject: grouped hair, fabric
+tension, articulated casing, stone mass, reflection or another declared system.
+A domain realization supplies knowledge for that subject; it does not add
+unrequested features. A deliberate crop hides parts of a coherent structure.
+A transformed or abstract body follows the authorized transformation and the
+structure that the image still needs the viewer to understand.
 
-For a spatial image, light can clarify volume, material, attention and mood.
-For a flat graphic, value and color relationships may do the work directly.
-Choose color, light and edge behavior for the selected construction rather than
-requiring every artifact to simulate one physical camera and light source.
+For spatial work, light can clarify volume, material, attention and mood.
+It can also bind a person to a meaningful source: an object illuminating the
+hand reaching toward it, a world reflecting onto its witness, or a studio
+light distinguishing a jewel from soft skin. For a flat graphic, designed value
+and color can do the work without a physical rig. A printed offset shape and
+a cast shadow are different relations even when both sit beside a silhouette.
+
+The medium's marks need a hierarchy too. Fine surface detail can coexist with
+large simple shadows. A precise mouth can remain readable inside rougher paint.
+Broad highlights, dark joints and transparent volumes can separate a complex
+machine into intelligible materials. Choosing a simplified treatment does not
+by itself settle which details to remove. Choosing richness does not make equal
+detail everywhere useful.
 
 A style family supplies a coherent drawing grammar. Its render profile supplies
 the medium envelope. An optional aesthetic core contributes cross-domain craft
 judgment. These sources retain their scopes when combined, and they need not
-all contribute to every artifact.
+all contribute to every artifact. [Visual construction](finishing-layers-specification.md)
+connects these principles to complete portrait, object, world and page
+constructions and their meaningful variants.
 
 ## Compare complete constructions
 
-For consequential authoring choices in an open request, use
-[idea conception](runtime/production-direction.md#form-a-prompt-from-an-idea)
-to investigate a consequential open choice within the commissioned content,
-write actual candidate constructions, assess them separately, and select before
-composing the user-facing rationale. Retain the requested subjects, their roles
-and any stated use. Consult subject and craft knowledge while the conception
-is open. Familiarity with a topic does not establish that the relevant creative
-choice has been explored. Character or form design can itself be that choice;
-a separate event or thematic proposition is not required.
-Settle what the prompt needs to determine for this work. Other rendition
-choices can remain with the image model; a complete proposal needs no explicit
-medium or inventory of stylistic properties. Selected source constraints still
-apply at their own scopes.
+Use [idea conception](runtime/production-direction.md#form-a-prompt-from-an-idea)
+for consequential open choices. It owns the inquiry, actual preselection
+candidates, separate assessment and selection. Retain the commissioned content,
+subject roles, stated use, fixed source contributions and exact target evidence
+through that work. A bounded edit or an already directed picture retains its
+actual scope; no artificial contest is required.
 
-A complete candidate describes the proposed result with enough executable
-visual content to assess the choices that matter for this work. Completeness
-depends on the actual question, not a fixed set of artistic components. Write
-a credible counterproposal that tests a consequential difference on that
-question while fulfilling the same commission. A design change is substantive
-when its consequences matter for the requested result. Naming a different
-version or supplying a less developed alternative made to lose offers no useful
-comparison. Keep both actual descriptions before selection.
-
-The separate assessment receives the original brief, applicable subject and
-source material, and candidate descriptions without the writer's preference
-or advocacy. Follow the owner's independent-context procedure where supported.
-First assess what each construction actually develops and whether the requested
-content and subject roles remain intact. Then compare its gains and losses on
-the open question, including the treatment where that choice remains open.
-An unstated use remains unselected; do not invent one to favor a construction.
-Use the resulting choice to write the requested prompt and its reason. Keep
-the working material inside authoring; it requires no extra user deliverable,
-approval or image generation.
+A useful alternative tests a difference that matters to the requested picture.
+It supplies enough executable content to assess its effect without its author's
+advocacy. Different names for the same arrangement do not create alternatives.
+Nor do several different situations test an open visual treatment when they
+all retain the same unexamined palette, marks, distance and emotional register.
+Shared choices can be justified by the brief or an adopted series; change is
+useful for its consequences, not for satisfying a diversity quota.
 
 Consider a brief about a small maintenance machine sheltering a plant in rain.
-An intimate scene can focus on contact between the sheltering casing and the
-leaf. A short sequence can establish the weather, reveal the protective action
-and end on the surviving plant. A graphic poster can organize diagonal rain
-around a single protected green shape.
+An intimate scene can concentrate on contact between the sheltering casing and
+the leaf. A short sequence can establish the weather, reveal the protective
+action and end on the surviving plant. A graphic poster can organize diagonal
+rain around one protected green shape. These are different constructions of
+the same requested content. A sequence spends area on context and continuity;
+a scene concentrates detail but carries its relations in one view; a graphic
+concentrates recognition through an organized shape pattern.
 
-Each construction serves a different emphasis and has different costs. A
-sequence spends area on context and continuity; a single scene concentrates
-detail but must carry its relationships in one view; a poster simplifies
-incidental action to strengthen recognition at a glance. The author's use and
-fixed requirements decide which tradeoff is useful. For an open conception,
-develop the smallest set of real candidates that tests the consequential choice.
-This is not a candidate for every axis, a different-medium quota or a preference
-for the most elaborate construction. An explicit style, directed picture or
-bounded local edit retains its actual scope.
+Within any of them, a further difference may matter. A close, softly lit scene
+can make care feel tactile; a distant small mechanism beneath an immense dark
+field can make the same act feel exposed and persistent. Either needs the plant
+and machine to retain their commissioned roles. A more spectacular storm that
+reduces them to incidental decoration changes what is being developed.
+
+A separate assessment receives the original brief, applicable sources and
+actual candidates without the writer's preference. It identifies what each
+construction develops, compares its concrete gains and losses, and returns any
+consequential shared assumption that remains unsupported. Use the procedure for
+an independent context in Production direction. A medium label, attractive rationale
+or a less-developed counterproposal made to lose supplies no meaningful
+comparison. Keep the smallest set of credible alternatives that tests the real
+choice, then carry the selected relationships into the prompt.
+
+Rendition choices may remain with the model when the commission leaves them
+open. A complete proposal needs no universal inventory of medium, camera,
+lighting and effects. It does need to determine the relationships that its
+particular result relies on. Selected source constraints remain at their own
+scopes even when other properties stay open.
 
 ## Meaning before vocabulary
 
 Understand the pictured relationship before selecting a compact term. Resolve
-who acts, toward what, which visible channels carry the action, and which
-qualities and degree the author intends. Keep modifiers with their subject and
-scope. A term's dictionary definition is evidence about wording, not a decision
-about the artifact.
+who acts, toward what, through which visible channels, and with which qualities
+and degree. The same applies to a designed form, page or world without actors.
+Keep modifiers with their subjects and scopes. A dictionary definition is
+evidence about wording, not a decision about the artifact.
 
-Use a positive construction to communicate the wanted result. A necessary
-exclusion can protect that result, but cannot establish a missing action,
-quality or hierarchy. Nearby misreadings help review; they do not automatically
-become negative prompt text.
+Use a positive construction to communicate the result. A necessary exclusion
+can protect it but cannot establish a missing action, quality or hierarchy.
+Nearby misreadings help review; they do not automatically become negative
+prompt text. Preserve consequential relationships when the selected model's
+input mode changes, using its actual vocabulary, syntax and supported means.
 
 ## Invention and review
 
-An addition earns its place when it clarifies meaning, strengthens hierarchy,
-supports the intended effect or preserves a requirement. A nearby record's
-costume, setting or character type does not earn inclusion by being available.
+An addition earns its place when it develops the meaning, strengthens a chosen
+relationship, enriches the intended experience or preserves a requirement.
+A nearby record's costume, setting or character type earns no inclusion merely
+by being available. Literal motifs, familiar scenes, quiet images, intense
+images and extensive detail all remain usable within the commission.
 
-Read the completed rendition with its actual references and controls. Assess
-the artifact as a whole and each necessary region: intent, hierarchy,
-relationships, local visibility, identity, state, construction and finish.
-Revise a polished depiction when its likely meaning differs from the brief.
-Review the actual returned artifact separately; a coherent plan establishes
-intention, not observed quality.
+Read the completed rendition with its actual references and controls. Use
+[Production review](runtime/production-review.md) to observe the returned
+artifact independently of the prompt's claims and the author's intentions.
+Assess the whole construction and its necessary local connections: purpose,
+hierarchy, identity, state, performance, structure and treatment. A polished
+image can need revision when it creates a different experience from the one
+commissioned. The coherent proposal establishes intention; the actual image
+and its review establish the observed result and its limits.

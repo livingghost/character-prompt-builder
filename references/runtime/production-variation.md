@@ -23,6 +23,8 @@ The changes file follows `schemas/authoring/production-changes.schema.json`:
 ```
 
 Each key of `changes` is a field the execution plan's `mutable_fields` declares; none is an internal JSON pointer.
+Editable model controls are package parameters and explicit dispatch seed or count choices.
+The transport owns `dispatch-generated` values, so these are absent from `mutable_fields` even when the request requires them.
 A nested parameter such as `parameter:settings.guidance` takes nested JSON, not a literal dotted key.
 Each declaration has these keys:
 
