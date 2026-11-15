@@ -92,12 +92,13 @@ def check_request(rendered: dict, record: dict, *, prompt_syntax: dict,
     from catalog_retrieval.runtime import load_pack_catalog
     from prompt_dialect import find_dialect
     from production_diagnostics import ProductionError
-    from model_prompt_input import resolve_prompt_input
+    from model_prompt_input import prompt_input_card
     rc.validate_seal(rendered)
     syntax = weighting.wire_selection(rendered, prompt_syntax)
-    contract = resolve_prompt_input(record)
-    if contract['mode'] in {'unresolved', 'none'}:
-        raise ValueError('final prompt inspection requires a resolved text-input model')
+    input_card = prompt_input_card(record)
+    contract = input_card['prompt_input']
+    if contract['mode'] == 'none':
+        raise ValueError('the selected model has no text prompt surface')
     dialect_id = record.get('prompt_dialect') if contract['mode'] == 'tag-based' else None
     vocabulary = dialect = None
     dictionary_ref = dialect_ref = None
@@ -123,6 +124,7 @@ def check_request(rendered: dict, record: dict, *, prompt_syntax: dict,
                                      syntax=syntax, previous=vocabulary_selection)
     return {'state':'vocabulary-searched' if dialect_id else 'syntax-checked',
             'request_sha256':rendered['request_sha256'], 'prompt_input':contract,
+            'prompt_authoring':input_card['prompt_authoring'],
             'dictionary':dictionary_ref,'dialect':dialect_ref, 'vocabulary':selection, **report}
 
 

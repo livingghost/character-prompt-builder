@@ -24,10 +24,11 @@ depiction through each of these scopes.
 
 Each model family reads a prompt its own way: rating terms, multi-word tag spellings, working weights, and the blocks of a rendition and their order all differ. A rule proven on one family and handed to another can change the request without the intended effect.
 
-The model record's `prompt_input` identifies the selected input workflow and
-its evidence. Tag-based records also name their owning family in
-`prompt_dialect`; the `prompt-dialects` resource and scoped guide sections
-describe that family's rendition. Resolve the active model in one step:
+Select the model; the script derives its writing guidance from the record's
+`prompt_input`, `prompt_style`, ordering and applicable family knowledge.
+The author does not first classify the model as prose-only, tags-only or mixed.
+Ordinary selected-model route reading and `draft-inputs` deliver this guidance.
+Inspect it directly in one step:
 
 ```bash
 python scripts/prompt_dialect.py --model <model-id>
@@ -35,22 +36,28 @@ python scripts/prompt_dialect.py --model <model-id>
 
 It returns:
 
-- the exact input mode, forms, vocabulary IDs, basis and vocabulary-search requirement;
+- `prompt_authoring`, with composition instructions, preferred and available
+  wording, vocabulary work and the known text-surface status;
+- the original input declaration, forms, vocabulary IDs and basis;
 - that family's tag grammar, block order, and quality, rating, period, and inert vocabulary;
 - the guide sections that apply, and the sections withheld because they belong to another family;
 - the record's own recommended text, parameters, and sizes.
 
-A descriptive record uses its declared natural-language or structured-caption
-forms. An unresolved record remains unresolved; absence of a tag family does
-not establish prose input. A `none` record has no text prompt surface.
+Follow `prompt_authoring.composition` and its vocabulary action. The script
+retains the declared natural-language and structured-caption forms, tag
+vocabulary and any documented combination without treating an authoring
+preference as an exhaustive capability list. Unknown forms are reported as
+unknown and do not require a classification decision before writing or
+finalizing text. A declared absent text surface still rejects a text request.
 `--list` names available families; `--dialect <id>` supplies a family's guidance
 for inspection or a family-oriented text draft. A requested tag rendition still
 uses the actual dictionary search described in [Vocabulary](prompt-vocabulary.md).
 Family guidance establishes no individual model's input contract or execution
-readiness. For an unknown external
-target, omit `--model` from route reading and retain interface-neutral wording
-until acquired evidence establishes the input contract. Reading a family
-section supplies no unsupported parser syntax.
+readiness. An unlisted external target uses its acquired identity and interface
+evidence through the ordinary model-file or external-target selection. Missing
+form metadata produces unspecified writing guidance; it neither certifies nor
+rejects a prose, tag or mixed rendition. Reading a family section supplies no
+unsupported parser syntax.
 
 Add a family by adding a dialect entry with its sources; the scripts stay unchanged. Its regression test is `scripts/prompt_dialect_smoke_test.py`. `schemas/prompt-dialect.schema.json` validates the dialect resource, and `schemas/prompt-writing-guide.schema.json` validates the guide.
 
@@ -91,11 +98,12 @@ and its family through `scripts/prompt_dialect.py --model <model-id>`.
 An external target uses only parser behavior its evidence supports. Rules for
 another family stay unapplied.
 
-Honor the requested input form within the target's evidenced capabilities.
-A request for tags receives tags; a request for descriptive direction receives
-prose. Evidence that a model accepts both forms does not select a mixture.
-Retain the complete intended depiction in the authoring context and adapt its
-realization to what the selected input can express. Apply
+Honor an explicitly requested input form within the target's evidenced capabilities.
+When the request leaves the form open, choose supported tags, prose or a mixture
+according to the meaning the picture needs. A tag-oriented model is not thereby
+restricted to tags when its input contract also supports natural language.
+Preserve the depiction, hierarchy, visible scope and necessary identity and
+construction detail while adapting its realization to the selected input. Apply
 parser-specific separators, attention syntax, LoRA notation, negative transport,
 embeddings or editor shortcuts only when the active interface supports that
 exact behavior.
@@ -106,9 +114,11 @@ source. For a tag-based rendition, use the mandatory search in
 actual positive and negative terms. Reading a dictionary or knowing a term
 does not replace that search. Inspect candidate definitions, usage notes and
 the selected model's evidence. Prefer existing vocabulary, including a close
-synonym, when it preserves the intended meaning, scope and degree. An unlisted
-expression can preserve a requirement that the available terms would lose or
-change. Retain such wording in the requested input form with its intended use.
+synonym, when it preserves the intended meaning, scope and degree. Retain an
+authored phrase when available terms would lose or change a requirement and
+the selected input supports that wording. In a supported mixed rendition,
+necessary prose can supplement tags; dictionary absence does not require
+discarding that meaning. An explicit tags-only request keeps its exclusive form.
 Descriptive input needs no invented terminology investigation when its sources
 already suffice.
 
@@ -180,8 +190,12 @@ Use the available vocabulary to suggest a construction at the precision it can
 support. A perspective or motion term can influence a whole picture without
 specifying every limb; a palette or lighting term can influence its treatment
 without assigning each color to a precise region. Keep remaining uncertainty
-explicit in the handoff. Do not append prose instructions or turn them into
-comma-separated pseudo-tags. Use weights through the selected parser to adjust
+explicit in the handoff. In a tags-only rendition, do not append prose instructions
+or disguise them as comma-separated pseudo-tags. In a supported mixed rendition,
+keep a necessary authored phrase where it carries a relationship or distinction
+that the tags would lose. Group related concepts so the subject, action, setting
+and treatment remain intelligible; the phrase need not be a final line after
+every tag. Use weights through the selected parser to adjust
 a concept's influence. An unlisted tag or parser token remains available under
 the selected input form and parser; the dictionary is not a whitelist. Quality prefixes,
 negative stacks and parser syntax retain their exact model and interface scope.
@@ -193,7 +207,9 @@ it need not retreat to an ordinary unobscured character portrait. Offer another
 production method only when it serves an unmet requirement and its actual
 availability is established. An optional alternative does not silently replace
 a requested tag prompt, and a proposed later operation is not completed work.
-Natural-language direction remains a separate rendition for a compatible model.
+Natural-language direction may be a complete rendition or a necessary part of
+a supported mixed input. Preserve the full requirement at its source when
+neither available terms nor supported prose or controls can express it.
 
 Treat reference images, regional conditioning, masks, pose controls, embeddings
 and composition tools as actual capabilities with separate contracts. A model

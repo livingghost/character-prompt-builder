@@ -127,8 +127,8 @@ def check(task: dict, read) -> dict | None:
         resource_reader=route_reading._live_resource_reader())
     model = copy.deepcopy(selected)
     contract = resolve_prompt_input(model)
-    if contract['mode'] in {'unresolved', 'none'}:
-        raise ValueError('a finished targeted prompt requires a resolved model text-input contract')
+    if contract['mode'] == 'none':
+        raise ValueError('the selected model has no text prompt surface')
     prompt, negative = surfaces(task, read)
     c.text(prompt, 'authored primary text')
     syntax = _syntax(target, model)
@@ -172,8 +172,8 @@ def validate_bound(task: dict, bound: Any, read) -> None:
         raise ValueError('saved authored prompt check differs from its target selection')
     model = bound['model']
     contract = resolve_prompt_input(model)
-    if contract['mode'] in {'unresolved', 'none'}:
-        raise ValueError('saved targeted prompt has no resolved text-input contract')
+    if contract['mode'] == 'none':
+        raise ValueError('the saved model has no text prompt surface')
     if target.get('model_file') is not None and _selected_model(target, read) != model:
         raise ValueError('saved authored prompt model differs from its captured model file')
     prompt, negative = surfaces(task, read)
@@ -200,6 +200,6 @@ def validate_bound(task: dict, bound: Any, read) -> None:
                 or any(row['choice'] is None for row in selection['entries'])):
             raise ValueError('saved authored vocabulary differs from its text, model, syntax or settled choices')
     elif selection is not None:
-        raise ValueError('a descriptive model has no required tag vocabulary binding')
+        raise ValueError('this model has no required tag vocabulary binding')
     if recorded != _inspect(prompt, negative, model, syntax, selection):
         raise ValueError('saved authored prompt check differs from inspection of its exact input')

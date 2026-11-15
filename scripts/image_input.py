@@ -142,8 +142,6 @@ def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = N
     actual_prompt = rc.get(request, external['prompt_field'])
     c.text(actual_prompt, 'external instruction prompt')
     mode = resolve_prompt_input(plan['model'])['mode']
-    if mode == 'unresolved':
-        raise ValueError('resolve the external model prompt input before preparing its request')
     if mode == 'none':
         raise ValueError('the selected model has no instruction prompt surface')
     if external.get('negative_field') is not None:
@@ -187,12 +185,17 @@ def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = N
 
 
 def _model_contract(model: dict) -> tuple[dict, dict | None]:
-    """Resolve catalog identities exactly; external evidence never overrides one."""
+    """Derive catalog guidance; unlisted inputs retain their acquired evidence.
+
+    A selected catalog identity supplies omitted prompt metadata. An explicit
+    conflicting declaration cannot replace it. Unlisted inputs without prompt
+    evidence receive an unresolved contract with no invented basis.
+    """
     from catalog_retrieval.runtime import load_pack_catalog
     from model_contract import select_offering
     from prepare_generation_references import resolve_model_record
 
-    declared = resolve_prompt_input(model)
+    declared = resolve_prompt_input(model) if 'prompt_input' in model else None
     target = model['target']
     if model['catalog_status'] == 'defined':
         model_id, record = resolve_model_record(model['catalog_model'])
@@ -206,16 +209,21 @@ def _model_contract(model: dict) -> tuple[dict, dict | None]:
                    if offering['service'] == target['service']
                    and offering['model_identifier'] == target['model_identifier']]
         if not matches:
+            model['prompt_input'] = declared if declared is not None else resolve_prompt_input(model)
             return {'id': target['model_identifier'],
-                    'prompt_input': copy.deepcopy(declared),
+                    'prompt_input': copy.deepcopy(model['prompt_input']),
                     **({'prompt_dialect': model['prompt_dialect']}
                        if 'prompt_dialect' in model else {})}, None
         if len(matches) != 1:
             raise ValueError('the external target matches several catalog records; select its canonical model')
         model_id, record, offering = matches[0]
-    if declared != resolve_prompt_input(record) or model.get('prompt_dialect') != record.get('prompt_dialect'):
+    contract = resolve_prompt_input(record)
+    if ((declared is not None and declared != contract)
+            or ('prompt_dialect' in model and model['prompt_dialect'] != record.get('prompt_dialect'))):
         raise ValueError('image input prompt contract differs from the resolved catalog model')
-    model.update(catalog_status='defined', catalog_model=model_id)
+    model.update(catalog_status='defined', catalog_model=model_id, prompt_input=contract)
+    if record.get('prompt_dialect') is not None:
+        model['prompt_dialect'] = record['prompt_dialect']
     return record, offering
 
 

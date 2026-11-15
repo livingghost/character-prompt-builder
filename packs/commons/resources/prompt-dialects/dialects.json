@@ -53,7 +53,7 @@
         "score_8",
         "score_7"
       ],
-      "negative_form": "Vocabulary candidates that name a necessary failure, in the negative field, with dictionary search completed for the selected scope: worst quality and low quality for the quality floor; text, watermark, signature, logo, and translation request for generation hygiene; bad hands, extra digits, and fewer digits for hand integrity; extra arms and extra legs for limb integrity; multiple views, comic, 2koma, and 4koma for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. When no suitable known tag carries a necessary exclusion, assess model-legible phrasing under the exact interface's evidenced grammar. Preserve the exclusion's meaning and scope in the authored rendition; dictionary membership alone does not decide whether it is needed.",
+      "negative_form": "Vocabulary candidates that name a necessary failure, in the negative field, with dictionary search completed for the selected scope: worst quality and low quality for the quality floor; text, watermark, signature, logo, and translation request for generation hygiene; bad hands, extra digits, and fewer digits for hand integrity; extra arms and extra legs for limb integrity; multiple views, comic, 2koma, and 4koma for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. For an explicit tags-only rendition, use supported negative tags and retain exclusions beyond their control as unresolved requirements. Otherwise, preserve a necessary exclusion with descriptive wording when supported by the exact model and interface. Preserve the exclusion's meaning and scope in the authored rendition; dictionary membership alone does not decide whether it is needed.",
       "vocabularies": [
         "danbooru",
         "e621"
@@ -78,7 +78,7 @@
           "source": "author-selection:tag-vocabulary-lookup",
           "scope": "author-selection",
           "observed_at": "2026-11-02",
-          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. A missing tag does not authorize a descriptive extension. Dictionary scope does not assert model training provenance."
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag content. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. An explicit tags-only request keeps the rendition entirely in supported tags. Otherwise, use supported tags, descriptive wording or a mixture to preserve the requested meaning under the exact model and interface. Dictionary scope does not assert model training provenance."
         },
         {
           "kind": "model-author-documentation",
@@ -110,7 +110,8 @@
         "Period and quality controls retain version-specific uses. NoobAI XL 1.0 names old, early, mid, recent and newest with its own date bands. Illustrious XL v1.0 examples use old and oldest in negatives; a creator v1.1 example uses newest and year 2024. Date boundaries and the available quality controls belong to the selected checkpoint. Choose their roles for the selected picture without requiring every category.",
         "Original community guidance: GrayMan's Illustrious XL v1.0/v1.1 guide (2025-03-18, https://www.seaart.ai/articleDetail/cvcdnn5e878c73fqe0s0) publishes paired outputs and prompts using a leading quality/aesthetic/period block and oldest in the negative. Its v2.0 follow-up (2025-03-18, https://www.seaart.ai/articleDetail/cvceb6le878c73bckfig) carries the practical ordering and active-negative workflow into its own v2.0 examples. These first-hand practices inform this dialect's authoring baseline; the examples do not isolate every token's effect.",
         "Original community comparison: https://localai-kobo.com/illustrious-xl-setup/ tests the official v2.0 checkpoint on ComfyUI 0.42.1 with seeds 11/22/33/44/55, using a setup adapted from an earlier model card. Removing quality terms changed composition/background without major breakdown, and changing negative contents changed color/brightness. These are observations from the reported v2.0 runs. Preserve necessary negatives and use relevant comparisons to select content; no universal negative length follows from this setup.",
-        "Original community order comparisons differ with setup: https://lilting.ch/en/articles/wai-illustrious-v17-review reports a composition change when moving quality terms in WAI v17 at 28 steps and CFG 6; https://prompts.sirenrender.com/illustrious/prompt-guide/ reports little change from shuffling or extra quality terms with WAI v17+DMD2 at 8 steps, CFG 1 and seeds 101/202/303. Treat both as practical observations with their stated scope; do not turn either into a universal placement or token-efficacy rule."
+        "Original community order comparisons differ with setup: https://lilting.ch/en/articles/wai-illustrious-v17-review reports a composition change when moving quality terms in WAI v17 at 28 steps and CFG 6; https://prompts.sirenrender.com/illustrious/prompt-guide/ reports little change from shuffling or extra quality terms with WAI v17+DMD2 at 8 steps, CFG 1 and seeds 101/202/303. Treat both as practical observations with their stated scope; do not turn either into a universal placement or token-efficacy rule.",
+        "The inert_terms list records cautions about using these words as native quality controls; it is not a measurement that each word has zero visual effect. Keep a word's intended appearance, its documented control role, and any observed checkpoint behavior distinct."
       ]
     },
     {
@@ -130,7 +131,7 @@
         "character, series and artist",
         "subject appearance, body, hair, face and outfit",
         "action, camera, scene, lighting and effects",
-        "natural-language relationships when a descriptive or mixed rendition is selected"
+        "natural-language relationships when supported and useful, except in an explicit tags-only rendition"
       ],
       "quality_terms": [
         "masterpiece",
@@ -162,7 +163,7 @@
         "early",
         "old"
       ],
-      "negative_form": "Vocabulary candidates that name a necessary failure, in the negative field with spaces in multi-word tags, with dictionary search completed for the selected scope: text, watermark, and signature for generation hygiene; bad hands and extra digits for hand integrity; multiple views and comic for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. When no suitable known tag carries a necessary exclusion, assess model-legible phrasing under the exact interface's evidenced grammar. Preserve the exclusion's meaning and scope in the authored rendition; dictionary membership alone does not decide whether it is needed.",
+      "negative_form": "Vocabulary candidates that name a necessary failure, in the negative field with spaces in multi-word tags, with dictionary search completed for the selected scope: text, watermark, and signature for generation hygiene; bad hands and extra digits for hand integrity; multiple views and comic for a single picture; monochrome and greyscale for a colour medium; the rating terms above the requested one for a content rating. For an explicit tags-only rendition, use supported negative tags and retain exclusions beyond their control as unresolved requirements. Otherwise, preserve a necessary exclusion with descriptive wording when supported by the exact model and interface. Preserve the exclusion's meaning and scope in the authored rendition; dictionary membership alone does not decide whether it is needed.",
       "vocabularies": [
         "danbooru",
         "e621"
@@ -180,7 +181,7 @@
           "source": "author-selection:tag-vocabulary-lookup",
           "scope": "author-selection",
           "observed_at": "2026-11-02",
-          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. A missing tag does not authorize a descriptive extension. Dictionary scope does not assert model training provenance."
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag content. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. An explicit tags-only request keeps the rendition entirely in supported tags. Otherwise, use supported tags, descriptive wording or a mixture to preserve the requested meaning under the exact model and interface. Dictionary scope does not assert model training provenance."
         }
       ],
       "meta_terms": [
@@ -192,7 +193,7 @@
       ],
       "notes": [
         "Anima-Aesthetic guidance advises against score tags in both channels. Base quality groups are alternatives or optional combinations, not one required stack.",
-        "Natural language can carry the scene directly or combine with tags when that rendition is selected; it is not restricted to a final fallback line. The request selects among supported forms. A tag rendition retains its selected form and the source requirements that its concepts cannot fully express.",
+        "Natural language can carry the scene directly or combine with tags when the exact model and interface support it; it is not restricted to a final fallback line. An explicit tags-only request retains that form and any requirements its concepts cannot fully express. Otherwise, choose supported tags, prose or a mixture that preserves the requested meaning.",
         "The weight range is an author-selected trial band for a compatible interface, not a universal Anima optimum. Exact model and parser evidence may require a different value.",
         "This dialect supplies guidance only. It does not establish an executable Anima offering."
       ]
@@ -238,7 +239,7 @@
         "high complexity",
         "ultra complexity"
       ],
-      "negative_form": "Use the active interface's undesired-content field and its native parser. For a tag rendition, search necessary negative concepts and select supported terms at their actual scope. For a selected descriptive or mixed rendition, use wording supported by that exact model and interface. Preserve exclusions that the input cannot fully express as unresolved requirements; a missing tag alone does not select a different input form.",
+      "negative_form": "Use the active interface's undesired-content field and its native parser. Search necessary negative concepts and select supported terms at their actual scope. An explicit tags-only request retains that form. Otherwise, use tags, descriptive wording or a mixture supported by the exact model and interface to preserve the necessary exclusion. Keep exclusions that the available input cannot fully express as unresolved requirements.",
       "basis": [
         {
           "kind": "provider-documentation",
@@ -266,7 +267,7 @@
           "source": "author-selection:tag-vocabulary-lookup",
           "scope": "author-selection",
           "observed_at": "2026-11-02",
-          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. A missing tag does not authorize a descriptive extension. Dictionary scope does not assert model training provenance."
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag content. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. An explicit tags-only request keeps the rendition entirely in supported tags. Otherwise, use supported tags, descriptive wording or a mixture to preserve the requested meaning under the exact model and interface. Dictionary scope does not assert model training provenance."
         }
       ],
       "notes": [
@@ -325,7 +326,7 @@
           "source": "author-selection:tag-vocabulary-lookup",
           "scope": "author-selection",
           "observed_at": "2026-11-02",
-          "statement": "Consult Danbooru and e621 vocabulary when preparing tag renditions. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. A missing tag does not authorize a descriptive extension. Dictionary scope does not assert model training provenance."
+          "statement": "Consult Danbooru and e621 vocabulary when preparing tag content. Select supported concepts that approach the commissioned picture as a whole, and disclose distinctions they cannot control. An explicit tags-only request keeps the rendition entirely in supported tags. Otherwise, use supported tags, descriptive wording or a mixture to preserve the requested meaning under the exact model and interface. Dictionary scope does not assert model training provenance."
         }
       ],
       "notes": [

@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026.11.15.8
+
+- Derive prompt-writing instructions, wording preferences and vocabulary work
+  from the selected model. Deliver the same plan through model inspection,
+  route reading and ordinary drafting without an advance text-form decision.
+- Keep unspecified form metadata visible while applying actual text-surface,
+  parser, channel and parameter constraints. Resolve catalog input contracts
+  before external requests, and use one vocabulary command for every model.
+- Remove Illustrious v0.1 guidance and its period-table explanations from active
+  knowledge. Retain v1.0-and-later guidance, the other vocabulary corrections,
+  shared prompt writing and parameter diagnostics.
+
+## 2026.11.15.7
+
+- Keep supported tags, descriptive wording and mixed input in the shared
+  prompt-writing workflow. Preserve necessary authored phrases and explicit
+  requested forms without filtering knowledge by rendition.
+- Retain earlier version-specific model knowledge beside newer guidance,
+  including caption grouping, period controls and scoped sampling advice.
+  Preserve concrete vocabulary meanings and comparison procedures.
+- Explain foreshortening, camera construction, small-detail scale and masked
+  editing without narrowing each concept to one example or guaranteeing an
+  effect across checkpoints. Keep parameter diagnostics and model controls.
+
+## 2026.11.15.6
+
+- Restore one complete prompt-writing guide for descriptive, tag and mixed
+  input. Keep model-family guidance and interface-specific syntax at their
+  existing owners without selecting separate documents by input form.
+- Restore the shared guide delivery, reading records and public inspection
+  commands together. Preserve the complete rules, examples, model records,
+  vocabulary and parameter diagnostics from 2026.11.15.4.
+
+## 2026.11.15.5
+
+- Separate natural-language and tag prompt-writing procedures while retaining
+  shared construction, scope, reference and evaluation principles. Select the
+  requested supported form in both direct reading and saved-work routes.
+- Deliver guide knowledge by rendition, model family and selected controls.
+  Keep parser and weighting guidance separately selectable, including for
+  descriptive input, and retain the complete existing rules and examples.
+- Link the appropriate procedure from the Skill entry, prompt-only workflow
+  and model adapters while preserving version-specific model knowledge.
+
 ## 2026.11.15.4
 
 - Give parameter failures specific supply, replace or remove instructions,

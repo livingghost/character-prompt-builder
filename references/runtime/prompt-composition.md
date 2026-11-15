@@ -369,9 +369,10 @@ Production Specification owns the requested artifact and its construction.
 Author one coherent rendition of the selected depiction. The Production
 Specification supplies meaning and provenance; field order is not sentence
 order. In descriptive input, keep ordinary activities, reactions, relationships
-and design concepts intact in prose. A tag rendition follows the target-aware
+and design concepts intact in prose. A tag-oriented or mixed rendition follows the target-aware
 adaptation in [Prompt Writing Guide](prompt-writing-guide.md#carry-the-construction-into-supported-means).
-Add local description where the selected form supports it and it makes a needed distinction,
+Preserve necessary authored phrases when fitting tags would lose their meaning
+and the selected form supports prose. Add local description where it makes a needed distinction,
 realizes chosen expression, preserves a fine requirement or addresses an
 evidenced interface weakness. Source fields and derived coordinates do not
 automatically become clauses. Preserve useful detail and applicable exclusions

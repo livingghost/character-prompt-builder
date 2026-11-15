@@ -634,7 +634,19 @@ class ReadingTests(unittest.TestCase):
                                  page_bytes=200, stream=stream)
         record = r.draft_record(result['issued'])
         r.require_model_reading(record, model_record=model, resource_reader=lambda name: None)
-        self.assertIn(model['recommended_positive_prompt'], stream.getvalue())
+        pages = [json.loads(line) for line in stream.getvalue().splitlines()]
+        segments = [item for page in pages for item in page['body']
+                    if item['metadata']['kind'] == 'model']
+        delivered = b''
+        for item in segments:
+            metadata = item['metadata']
+            self.assertEqual(metadata['start'], len(delivered))
+            delivered += item['text'].encode('utf-8')
+            self.assertEqual(metadata['end'], len(delivered))
+        _, bodies = r.capture('generation', execution='dispatcher', model_file=source, root=self.root)
+        expected = next(raw for metadata, raw in bodies if metadata['kind'] == 'model')
+        self.assertEqual(delivered, expected)
+        self.assertIn(model['recommended_positive_prompt'], delivered.decode('utf-8'))
         self.assertEqual(record['model']['record_sha256'], c.content_id(model))
 
     def test_direct_issue_retains_acquired_model_file_and_record(self):

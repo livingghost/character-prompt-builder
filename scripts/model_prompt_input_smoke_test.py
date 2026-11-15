@@ -64,6 +64,14 @@ class PromptInputTests(unittest.TestCase):
         card = inputs.prompt_input_card(target)
         self.assertTrue(card["requires_vocabulary_search"])
         self.assertEqual(card["prompt_input"], target["prompt_input"])
+        plan = card["prompt_authoring"]
+        self.assertEqual(plan["preferred_wording"], "tags")
+        self.assertEqual(plan["available_wording"], ["tags", "natural-language", "mixed"])
+        self.assertEqual(plan["vocabulary"], {
+            "required": True, "action": "search-vocabulary",
+            "vocabularies": ["fixture-vocabulary", "another-vocabulary"], "dialect": "fixture-family"})
+        self.assertEqual(plan["prompt_style"], target["prompt_style"])
+        self.assertEqual(plan["ordering"], target["ordering"])
 
     def test_structured_caption_remains_an_explicit_input_form(self):
         target = record()
@@ -76,6 +84,50 @@ class PromptInputTests(unittest.TestCase):
         resolved = inputs.resolve_prompt_input(target)
         resolved["basis"][0]["statement"] = "A changed result does not change the record."
         self.assertNotEqual(target["prompt_input"]["basis"], resolved["basis"])
+
+    def test_unclassified_acquired_model_gets_usable_unknown_guidance_without_evidence(self):
+        target = {"id": "synthetic-unclassified", "prompt_style": "Retain the full scene.",
+                  "ordering": ["relationship", "setting"]}
+        card = inputs.prompt_input_card(target)
+        self.assertEqual(card["prompt_input"], {
+            "mode": "unresolved", "forms": [], "vocabularies": [], "basis": []})
+        self.assertNotIn("prompt_input", target)
+        plan = card["prompt_authoring"]
+        self.assertEqual((plan["text_surface"], plan["evidence_status"], plan["preferred_wording"]),
+                         ("unknown", "unresolved", "unspecified"))
+        self.assertEqual(plan["available_wording"], [])
+        self.assertEqual(plan["vocabulary"]["action"], "not-required")
+        self.assertTrue(plan["composition"])
+        self.assertEqual(plan["prompt_style"], target["prompt_style"])
+        plan["ordering"].append("changed result")
+        self.assertEqual(target["ordering"], ["relationship", "setting"])
+
+    def test_malformed_supplied_input_is_not_replaced_with_unknown(self):
+        for declared in (None, {}, {"mode": "descriptive", "forms": [], "vocabularies": [], "basis": []}):
+            with self.subTest(declared=declared), self.assertRaises(ValueError):
+                inputs.prompt_input_card({"id": "synthetic-invalid", "prompt_input": declared})
+
+    def test_model_name_and_style_do_not_classify_available_forms(self):
+        target = record("descriptive")
+        target.update(id="synthetic-tags-only-name", prompt_style="Synthetic mixed and tag style words.")
+        plan = inputs.prompt_input_card(target)["prompt_authoring"]
+        self.assertEqual(plan["preferred_wording"], "natural-language")
+        self.assertEqual(plan["available_wording"], ["natural-language"])
+        self.assertFalse(plan["vocabulary"]["required"])
+        target["prompt_input"] = record("none")["prompt_input"]
+        plan = inputs.prompt_input_card(target)["prompt_authoring"]
+        self.assertEqual(plan["text_surface"], "absent")
+        self.assertIsNone(plan["preferred_wording"])
+
+    def test_route_model_delivery_contains_the_same_actionable_plan(self):
+        from route_reading import _model_material
+        target = record("descriptive")
+        with patch("model_suitability.guidance_card", return_value={}):
+            _, raw = _model_material(target, None)
+        delivered = json.loads(raw)[0]
+        self.assertEqual(delivered["prompt_authoring"], inputs.prompt_input_card(target)["prompt_authoring"])
+        self.assertEqual(delivered["prompt_authoring"]["prompt_style"], target["prompt_style"])
+        self.assertEqual(delivered["prompt_authoring"]["ordering"], target["ordering"])
 
     def test_input_mode_and_owned_family_are_consistent(self):
         target = record("tag-based")
@@ -123,6 +175,9 @@ class PromptInputTests(unittest.TestCase):
         invalid = record("tag-based")
         invalid["prompt_input"]["vocabularies"] = []
         self.assertTrue(validate_against_schema({"kind": "model", "records": [invalid]}, schema))
+        missing = record()
+        missing.pop("prompt_input")
+        self.assertTrue(validate_against_schema({"kind": "model", "records": [missing]}, schema))
 
     def test_public_model_card_exposes_input_and_basis(self):
         target = record("unresolved")
@@ -152,6 +207,7 @@ class PromptInputTests(unittest.TestCase):
                 self.assertEqual(report["prompt_input"], target["prompt_input"])
                 self.assertEqual(report["requires_vocabulary_search"], mode == "tag-based")
                 self.assertEqual(report["execution_guidance"][0]["prompt_input"], target["prompt_input"])
+                self.assertEqual(report["prompt_authoring"], report["execution_guidance"][0]["prompt_authoring"])
 
     def test_family_inspection_does_not_claim_a_selected_model(self):
         report = self.report(None)

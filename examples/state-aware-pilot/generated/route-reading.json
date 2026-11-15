@@ -10,7 +10,7 @@
     },
     {
       "path": "references/runtime/production-authoring.md",
-      "sha256": "79aead2a203e69d2cc68ab3152e3e77353e4de81ea76a831e3a3d57aefb2b5fc"
+      "sha256": "d5458c2e4700a8dc80f5394ff11abb48903373735624b8745e20dae97f6bdbdd"
     },
     {
       "path": "references/runtime/production-preparation.md",
@@ -46,7 +46,7 @@
     },
     {
       "path": "references/runtime/prompt-writing-guide.md",
-      "sha256": "5c407604b370f005909580be01ffef1802c035d43ccd3b33e18b9428ab15965f"
+      "sha256": "6a71871bb7fd7a84a09f859162de2b8b763a5561919985fff90b4d4921ebc441"
     },
     {
       "path": "references/runtime/prompt-weighting.md",
@@ -58,7 +58,7 @@
     },
     {
       "path": "references/runtime/render-contract.md",
-      "sha256": "d48bf1ff1bd020a4196d1b7cf4148a1e4b895e02ea867eed63777b161ce28bc3"
+      "sha256": "08dba18106080e5e8e8ca6141da3a7c5f2bbb0c6b955d64385f30a77a42f4dcd"
     },
     {
       "path": "references/runtime/studio.md",
@@ -82,7 +82,7 @@
     "id": "gpt-image-2.5-flare",
     "record_sha256": "9de6097e64ba8907ef03d61f710694c5d539d1440507e657109be6569a6f6cb7",
     "service": null,
-    "guidance_sha256": "8c55e716c50c0bb4b63d74e286c922a9b7784226823946cfc7fcdbc6c2457f82"
+    "guidance_sha256": "270c2b782dfea88344ef4a7cd24d368550fc266fabbb06b6411c13a537a3877f"
   },
   "operation": "prepare",
   "resources": {
@@ -90,17 +90,17 @@
       "status": "present",
       "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
       "path": "resources/prompt-writing-guide/guide.json",
-      "sha256": "cee46cea4b4d5e3405bbb811d730b83dbba6e7a55b26ddad4dea59fbc92919c7",
+      "sha256": "a1f6e4c6c1299980f0b7ce59390f7149bc6b432a409509edb91fbf65842de286",
       "dialect": null
     },
     "prompt-dialects": {
       "status": "present",
       "source_pack": "01a0043b-2250-720d-87b7-f1e6fd7ed230",
       "path": "resources/prompt-dialects/dialects.json",
-      "sha256": "9add0a75f6cebbf7cdc79bb82fbd856b31fbbf0bf2a8195c4f47fdf4abe21661",
+      "sha256": "17877ba8514b87530bccc43917d4c865588b726ceaad746226194786dc975dab",
       "dialect": null
     }
   },
   "route": "state-series",
-  "reading_key": "3577b522b5dfac5654bb86774090a56d"
+  "reading_key": "eefecafeed7144b7bd60979f2bc7ab72"
 }

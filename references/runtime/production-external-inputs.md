@@ -64,11 +64,15 @@ Catalog status and repeated model identities are derived. A missing catalog reco
 is recorded explicitly and can proceed as an external trial. It is not a
 catalog capability or a proven rendering result. `target.operation` comes
 from the selected interface's wire contract, not the render execution mode.
-`model.prompt_input` states the evidenced input mode and forms. A tag-based
-target also names its `prompt_dialect`. A known service/model offering retains
-its catalog input contract even when an authored plan labels it missing;
-an external declaration cannot reclassify that offering to skip vocabulary
-search. Resolve an unknown checkpoint's input contract before finalizing text.
+The builder resolves `model.prompt_input` and returns `prompt_authoring` from
+the selected model and acquired evidence. An unlisted interface can omit form
+metadata; the builder records it as unresolved without inventing evidence or
+requiring the author to classify the model. An evidenced tag workflow also
+names its `prompt_dialect`. A known service/model offering supplies its catalog
+contract even when an external selection omits that metadata or labels the
+model missing. An external declaration cannot override its vocabulary or
+text-surface constraints. The exact request fields, parser, channels, media and
+parameters remain checked independently of prose/tag classification.
 
 Save one exact request JSON. `external_request` names its relative file and
 field paths as arrays of keys and array indices. It declares `prompt_field`,

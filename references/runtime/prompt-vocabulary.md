@@ -11,9 +11,11 @@ it appropriate. Inspect applicable production records and use
 During prompt assembly, use the
 [selected construction and wording questions](prompt-composition.md#catalog-retrieval-and-inspection)
 as retrieval elements. Search their meanings together where a relationship or
-modifier determines the wording. Select fitting terms under the requested
-input form and the exact target's evidence. Preserve unresolved meaning in the
-depiction and its limitations; lookup failure does not authorize another input form (see
+modifier determines the wording. Prefer fitting terms or close synonyms that
+preserve meaning, scope and degree. Keep authored wording where no term fits
+or supported prose carries the meaning, including within a mixed rendition.
+Honor an explicitly exclusive input form and retain genuinely unresolved
+requirements with their limits (see
 [Prompt Composition Runtime](prompt-composition.md), Prompt assembly and review).
 
 A prompt-vocabulary resource is ordinary pack-owned knowledge. It can contain
@@ -41,9 +43,12 @@ dictionary; a missing resource never changes the target's input mode.
 
 ## Select wording for a tag-based model
 
-Read the selected model's `prompt_input` and its basis first. Keep a requested
-tag rendition in tag form even when another form is available. The tag-based
-workflow requires real searches even when the author knows the terms. Choose
+The selected-model read returns `prompt_authoring.vocabulary`, including the
+search action, vocabulary scope and owning dialect. Use that result without
+first classifying the model's text forms. Honor an explicit tags-only request;
+otherwise follow the returned writing guidance under
+[interface rendition](prompt-writing-guide.md#interface-rendition). A required
+search applies even when the author knows the terms or prose is also available. Choose
 the concepts that work together to carry the commissioned picture: its broad
 organization, treatment and expressive effect as well as depicted objects.
 Use the existing draft retrieval record;
@@ -66,10 +71,13 @@ python scripts/prompt_retrieval.py lookups.json --search-vocabulary \
 Omit `--negative-file` when there is no negative channel. Select the actual
 weighting parser rather than copying the example's `literal`. An unlisted
 target uses `--model-file MODEL_JSON` instead of `--model`; the file supplies
-its exact identity and evidenced `prompt_input`, plus `prompt_dialect` for a
-tag-based workflow.
+its exact identity and any acquired input declaration. The script keeps absent
+form metadata unresolved without asking the author to choose a category.
 
-The command searches every parsed term in the positive and negative clauses.
+The same command resolves the selected model's search requirement. When lookup
+is not required, it returns that result and the writing guidance without
+inventing vocabulary selections. A no-text operation rejects supplied text.
+When lookup is required, it searches every parsed term in the positive and negative clauses.
 It records returned candidates, complete matching definitions, the model's
 input contract, parser and resource hashes. Exact terms and aliases receive
 dictionary choices automatically. That is lexical resolution; the author still
@@ -90,16 +98,18 @@ python scripts/prompt_retrieval.py lookups.json --retain-wording "AUTHORED_PHRAS
 `--query` is repeatable and optional; use it for a useful conceptual or synonym
 search. Retaining wording executes the searches again and keeps the candidate
 evidence beside the author's reason. This records a lexical decision; it does
-not establish that the target understands the expression or approve a switch
-from tags to prose. An empty result does not forbid a word, and a similar-looking
-result does not make it appropriate.
+not establish that the target understands the expression. The selected input
+contract and requested form govern its use. An empty result does not forbid an
+authored phrase, and a similar-looking result does not make it appropriate.
+Preserve necessary specificity instead of narrowing the picture to the dictionary.
 
-When the target's available concepts cannot carry a distinction, use
+When neither fitting tags nor supported authored wording can carry a distinction, use
 [interface rendition](prompt-writing-guide.md#carry-the-construction-into-supported-means)
 to choose the closest supported construction and explain its remaining limits.
 Keep required detail in the source specification without pretending that every
-part has entered the model's conditioning. Long instructions, sentence fragments
-separated by commas and invented tag spellings do not resolve a missing capability.
+part has entered the model's conditioning. Supported prose can carry necessary
+relationships, but its length, comma separators or an invented tag spelling
+alone does not establish a missing capability.
 
 For a conversation-only prompt, complete the searched choices and read back the
 rendition; no plot, approval or settlement artifact is needed. For saved

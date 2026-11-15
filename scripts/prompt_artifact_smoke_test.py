@@ -221,6 +221,34 @@ def check_authored_depictions(root: Path, script: Path, model_file: Path) -> lis
     return errors
 
 
+def check_unused_retrieval(root: Path, script: Path, prompt: Path, plot: Path, model_file: Path) -> list[str]:
+    """Keep unused retrieval optional without inventing activity or model validation."""
+    errors = []
+    for label, target, preparation in (
+        ("portable", [], []),
+        ("descriptive", ["--model-file", str(model_file)], []),
+        ("descriptive-generation", ["--model-file", str(model_file)], ["--prepare-for-generation"]),
+    ):
+        out = root / ("unused-retrieval-" + label)
+        result = run(script, "--prompt", str(prompt), "--plot", str(plot),
+                     "--out-dir", str(out), *target, *preparation)
+        if result.returncode:
+            errors.append(label + ": unused retrieval prevented publication: " + result.stdout + result.stderr)
+            continue
+        manifest = json.loads(result.stdout)["manifest"]
+        expected_state = "model-input-checked" if target else "unverified-draft"
+        if (manifest["retrieval"] != {"settled": True, "elements": 0, "adopted": 0, "composed": 0, "unused": 0}
+                or manifest["input_validation"] != {"state": expected_state, "vocabulary_searched": False}
+                or bool(manifest["target"]) != bool(target)):
+            errors.append(label + ": unused retrieval invented activity or changed target validation")
+        if ({"artifact": "prompt-retrieval-record.json", "reason": "no retrieval work selected"}
+                not in manifest["omitted"] or (out / "prompt-retrieval-record.json").exists()):
+            errors.append(label + ": unused retrieval was not recorded as an omitted artifact")
+        if (out / "final-prompt.txt").read_bytes() != prompt.read_bytes():
+            errors.append(label + ": publication changed the authored prompt")
+    return errors
+
+
 def check_source_sufficient_package(root: Path, script: Path, prompt: Path, plot: Path, model_file: Path) -> list[str]:
     """Exercise empty initialization, exact settlement and the real packaging gate."""
     errors = []
@@ -321,6 +349,14 @@ def check_tag_input_binding(root: Path, script: Path) -> list[str]:
     blocked = run(script, *package_args, "--model-file", str(model_file), "--out-dir", str(blocked_dir))
     if blocked.returncode == 0 or blocked_dir.exists() or "searched vocabulary selection" not in blocked.stdout + blocked.stderr:
         errors.append("a model-bound tag prompt was not refused before its dictionary search")
+    for label, preparation, diagnostic in (("publication", [], "searched vocabulary selection"),
+                                            ("generation", ["--prepare-for-generation"], "dictionary search")):
+        absent_dir = folder / ("missing-retrieval-" + label)
+        absent = run(script, "--prompt", str(prompt), "--negative", str(negative), "--weighting", "sdEmbeds",
+                     "--plot", str(plot), "--model-file", str(model_file), "--out-dir", str(absent_dir),
+                     *preparation, *runtime_args)
+        if absent.returncode == 0 or absent_dir.exists() or diagnostic not in absent.stdout + absent.stderr:
+            errors.append(label + ": omitting retrieval bypassed the model's required vocabulary search")
     retrieval_script = script.with_name("prompt_retrieval.py")
     searched = run(retrieval_script, str(retrieval), "--search-vocabulary", "--model-file", str(model_file),
                    "--prompt-file", str(prompt), "--negative-file", str(negative), "--weighting", "sdEmbeds", *runtime_args)
@@ -458,8 +494,8 @@ def main() -> int:
                             "source": None, "approved": True}
         )
 
-        # The retrieval gate is answered or the run is refused.
-        no_answer = run(script, "--prompt", str(prompt), "--out-dir", str(root / "no-answer"), "--plot", str(approved_plot))
+        # Unused retrieval is optional; selected investigations keep their own checks.
+        optional_retrieval_errors = check_unused_retrieval(root, script, prompt, approved_plot, model_file)
         unavailable = run(
             script, "--prompt", str(prompt), "--out-dir", str(root / "unavailable"),
             "--retrieval-unavailable", UNAVAILABLE, "--plot", str(approved_plot),
@@ -487,7 +523,7 @@ def main() -> int:
         )
         counted_retrieval = json.loads(proc.stdout)["manifest"]["retrieval"] if proc.returncode == 0 else None
         gate_ok = (
-            no_answer.returncode != 0
+            not optional_retrieval_errors
             and unavailable.returncode == 0
             and unavailable_settled == {"settled": False, "reason": UNAVAILABLE}
             and unavailable_generation.returncode != 0
@@ -568,7 +604,7 @@ def main() -> int:
         if not gate_ok:
             errors.append(
                 "retrieval gate wrong: "
-                f"no_answer={no_answer.returncode}, unavailable={unavailable.returncode}, "
+                f"optional_retrieval={optional_retrieval_errors}, unavailable={unavailable.returncode}, "
                 f"settled={unavailable_settled}, unavailable_generation={unavailable_generation.returncode}, "
                 f"both={both.returncode}, malformed={malformed_run.returncode}, counted={counted_retrieval}"
             )
@@ -603,7 +639,7 @@ def main() -> int:
                 "repeated_source_refused": duplicate_run.returncode != 0,
                 "loose_approval_time_refused": loose_time_run.returncode != 0,
                 "plot_counts": plot_counts,
-                "retrieval_required": no_answer.returncode != 0,
+                "unused_retrieval_optional": not optional_retrieval_errors,
                 "retrieval_unavailable_recorded": unavailable_settled,
                 "retrieval_unavailable_blocks_generation": unavailable_generation.returncode != 0,
                 "retrieval_flags_exclusive": both.returncode != 0,

@@ -1,6 +1,6 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.11.15.4",
+  "version": "2026.11.15.8",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
   "generated_at": "2026-11-15",
@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1127,
-  "total_bytes_excluding_manifest": 21227596,
+  "total_bytes_excluding_manifest": 21280933,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -97,12 +97,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "4dbcea54aae31a3df98f92df6ce5b2e429d6c5b0ac3955394d0361d7c4e92e98"
+      "sha256": "ef3673280500bba0a7bffdde4a9c8503d3a9b590347a8d37a2f8c1975781766a"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "73702667ba5c045a2790b581f959a27d5550b99097e12e27e23c800ce99e5d1c"
+      "sha256": "962d2b22663b20fc0d20fb205ffe4f2ab37b949c060a0c77df91b876eef872af"
     },
     {
       "path": ".python-version",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 115319,
-      "sha256": "cb3f1df1cbeae822d833649d1fc6ee88e3e885dfa03db58299eb49b676bb9a9e"
+      "bytes": 117742,
+      "sha256": "0216d4f31402c46e1c2be3d1d0598af96ecf4a503bb5c77cb6471df4708c25f2"
     },
     {
       "path": "CLAUDE.md",
@@ -146,8 +146,8 @@
     },
     {
       "path": "SKILL.md",
-      "bytes": 19987,
-      "sha256": "159adc1d85e984c414289546f65ff1a9561179e65684140e0c0bd14fc1c1bdbd"
+      "bytes": 19918,
+      "sha256": "719179614628640849cf7b9dd472ee6ea26b928495f04af64046637c17451db5"
     },
     {
       "path": "agents/openai.yaml",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 32757,
-      "sha256": "3ea3b66d2a4e45103b2082bb8bdd442dd53a9b00bf90e7ae6fd2e333223d5a8a"
+      "sha256": "9b40abedd4f8938ed6c527bbf7637ba1913b81ffeca09c9fc724105d465afde9"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -1282,12 +1282,12 @@
     {
       "path": "examples/state-aware-pilot/generated/generation-package-verification.json",
       "bytes": 159501,
-      "sha256": "5e11588421fd77ad7f2dd9761be2eeeb3070e719f048d01fd7502a26209ecc17"
+      "sha256": "2ad900a5cd8d843adee3eab7a93300dae690ee9955eab8239f2fbeb25e3495eb"
     },
     {
       "path": "examples/state-aware-pilot/generated/generation-package.json",
       "bytes": 446405,
-      "sha256": "54102ab6be38ccd8421a6b13ab597df15e0cea9ca8af37135f04344aad3c749a"
+      "sha256": "7feb427e694d61c36b54ff8919c6d93f65f92070697282c61253906c7bd372f4"
     },
     {
       "path": "examples/state-aware-pilot/generated/integrated-prompt.txt",
@@ -1332,7 +1332,7 @@
     {
       "path": "examples/state-aware-pilot/generated/reads.jsonl",
       "bytes": 9786,
-      "sha256": "5fc6050d590e21c97c97f7d61edeed66b415946923a05cbca210883a04a01fe5"
+      "sha256": "f71d10538e7996a67609f78432ab15a12b1436bd79a681043e273041bf47c90f"
     },
     {
       "path": "examples/state-aware-pilot/generated/reference-bundle/C01-A01-left-three-quarter-bust.render-spec.json",
@@ -1362,7 +1362,7 @@
     {
       "path": "examples/state-aware-pilot/generated/route-reading.json",
       "bytes": 3788,
-      "sha256": "5bdaf1abf85b2d649a12fdffddc05c591df8c46ae33625db93236c40f1b64a83"
+      "sha256": "5984fdf2711b4a6c171e7f6b0ceb3d0d4a33efba8d0f0dd11f278c934abd2a65"
     },
     {
       "path": "examples/state-aware-pilot/generated/scene-context-snapshot.json",
@@ -1582,12 +1582,12 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2145,
-      "sha256": "c4d83c4293b8952a61251f0713546b53f4042070a5f19fd69b1c02a07cf34649"
+      "sha256": "76a4a6a105d8f0d7a4bf2a6ad81a82a3af3ab361a83cc73a9748c3170e3b86da"
     },
     {
       "path": "packs/commons/pack.json",
       "bytes": 1888,
-      "sha256": "44b8a0d07fc06ad311ed6e0500de668a4d8b0c06f2e34584de4866bd11977a5d"
+      "sha256": "ffe735c710b64d177a6194b15fbb8d8660c9e4ec49436347086f11292b1e676d"
     },
     {
       "path": "packs/commons/records/base-scenes.json",
@@ -1761,18 +1761,18 @@
     },
     {
       "path": "packs/commons/resources/prompt-dialects/dialects.json",
-      "bytes": 21257,
-      "sha256": "9add0a75f6cebbf7cdc79bb82fbd856b31fbbf0bf2a8195c4f47fdf4abe21661"
+      "bytes": 22453,
+      "sha256": "17877ba8514b87530bccc43917d4c865588b726ceaad746226194786dc975dab"
     },
     {
       "path": "packs/commons/resources/prompt-vocabulary/dictionary.json",
-      "bytes": 2011985,
-      "sha256": "6e93c62f2ec5e5861134c40da4936dea37f50c34bd7a317fda6f35410c0a4b73"
+      "bytes": 2014770,
+      "sha256": "9d5be25cffe37e3ab10091caeb7aaa7fbef900b2b817f4e491618952a033256f"
     },
     {
       "path": "packs/commons/resources/prompt-writing-guide/guide.json",
-      "bytes": 48011,
-      "sha256": "cee46cea4b4d5e3405bbb811d730b83dbba6e7a55b26ddad4dea59fbc92919c7"
+      "bytes": 50051,
+      "sha256": "a1f6e4c6c1299980f0b7ce59390f7149bc6b432a409509edb91fbf65842de286"
     },
     {
       "path": "packs/commons/resources/service-profiles/services.json",
@@ -2407,7 +2407,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 825,
-      "sha256": "fc7cebe0fc363102abeca38d38cc83ae0d1f899dd529dd3c90712278299fdd16"
+      "sha256": "1e6f9e791c09dda67cd233d2c31011bb77a2f07574f8bb55db9880923db9fdc5"
     },
     {
       "path": "references/adapters/gpt-image.md",
@@ -2436,8 +2436,8 @@
     },
     {
       "path": "references/adapters/sdxl-comfyui.md",
-      "bytes": 14934,
-      "sha256": "8f726ac928ffa55499c05000c3909a5f161fd4ea6e36f6ba06e2fc50652f8c8f"
+      "bytes": 15934,
+      "sha256": "27fd226a0615a447788b832c4e92cee88dca3f9f5db2871cf33e14f2b6de7eec"
     },
     {
       "path": "references/adapters/unlisted-interface.md",
@@ -2521,8 +2521,8 @@
     },
     {
       "path": "references/finishing-layers-specification.md",
-      "bytes": 70917,
-      "sha256": "d2e2bccb9f283e2d460049dac859e6ea735c9ff2b8d4c9a1b843d967481ab6ce"
+      "bytes": 71069,
+      "sha256": "3b04fb671a353159cddb1e7a3fb8c0217249bccf0649bee4333c851963deed76"
     },
     {
       "path": "references/garment-geometry-specification.md",
@@ -2756,8 +2756,8 @@
     },
     {
       "path": "references/runtime/model-evidence.md",
-      "bytes": 29211,
-      "sha256": "9d99ae80cd81fdeab5f7b915f554ecf24247fc64da875060868f14489bf56106"
+      "bytes": 29708,
+      "sha256": "607bb0f8585eaaa6620e79496bc159babea11f9bce2a703709ac1a3f8879a6cb"
     },
     {
       "path": "references/runtime/narrative-coherence-probes.md",
@@ -2791,8 +2791,8 @@
     },
     {
       "path": "references/runtime/production-authoring.md",
-      "bytes": 39893,
-      "sha256": "79aead2a203e69d2cc68ab3152e3e77353e4de81ea76a831e3a3d57aefb2b5fc"
+      "bytes": 40352,
+      "sha256": "d5458c2e4700a8dc80f5394ff11abb48903373735624b8745e20dae97f6bdbdd"
     },
     {
       "path": "references/runtime/production-diagnostic-navigation.md",
@@ -2826,8 +2826,8 @@
     },
     {
       "path": "references/runtime/production-external-inputs.md",
-      "bytes": 12201,
-      "sha256": "79fd5fd203339f2254a8b25d4caf8de6da2a257bf43a98495e13f00a5c9578b9"
+      "bytes": 12504,
+      "sha256": "e68026887aa0228c93c0333f22d59abc330363b7cec1e4ec3c2df1bcf821bd06"
     },
     {
       "path": "references/runtime/production-image-inputs.md",
@@ -2871,18 +2871,18 @@
     },
     {
       "path": "references/runtime/prompt-composition.md",
-      "bytes": 41916,
-      "sha256": "e13491d3cd6f527a2ba4221836758ab05998f75b64c86f4011eeb9bc61364a17"
+      "bytes": 42017,
+      "sha256": "3d7f497bd3631d63c6f9cfe1ff311b536a4b4494ad597ce18300efcfa5b534c3"
     },
     {
       "path": "references/runtime/prompt-only-core.md",
-      "bytes": 17281,
-      "sha256": "9247f3ff2c843245fd877ff6cdec455dc891318e90004dba6c8cb88bb91e0f99"
+      "bytes": 18180,
+      "sha256": "b7ffa01c0e7e6a84164fa1ed324ceb868c3a0dc5335242eeddd267b11a3095f3"
     },
     {
       "path": "references/runtime/prompt-vocabulary.md",
-      "bytes": 9813,
-      "sha256": "e445baf990554dcdc8cc6c74465c6dccd019422700127dc95f8f047321eacc45"
+      "bytes": 10600,
+      "sha256": "43b747b9cd9b58844c6b7d46e73b14a8a3d3f000bb91261dc97fc2c275070423"
     },
     {
       "path": "references/runtime/prompt-weighting.md",
@@ -2891,8 +2891,8 @@
     },
     {
       "path": "references/runtime/prompt-writing-guide.md",
-      "bytes": 28854,
-      "sha256": "5c407604b370f005909580be01ffef1802c035d43ccd3b33e18b9428ab15965f"
+      "bytes": 30063,
+      "sha256": "6a71871bb7fd7a84a09f859162de2b8b763a5561919985fff90b4d4921ebc441"
     },
     {
       "path": "references/runtime/reference-delivery.md",
@@ -2906,8 +2906,8 @@
     },
     {
       "path": "references/runtime/render-contract.md",
-      "bytes": 36630,
-      "sha256": "d48bf1ff1bd020a4196d1b7cf4148a1e4b895e02ea867eed63777b161ce28bc3"
+      "bytes": 38691,
+      "sha256": "08dba18106080e5e8e8ca6141da3a7c5f2bbb0c6b955d64385f30a77a42f4dcd"
     },
     {
       "path": "references/runtime/repair-analysis.md",
@@ -3256,8 +3256,8 @@
     },
     {
       "path": "schemas/model-prompt-input.schema.json",
-      "bytes": 3296,
-      "sha256": "491ab6da6beec07fca576578f739253d8f6d8bc025ea5bb35e8bbfebf131a8e6"
+      "bytes": 3681,
+      "sha256": "46f5dbfa7036f9b7b6286a959749d639c96e9cbd0c4e81e4bdc57f525bc879b8"
     },
     {
       "path": "schemas/model-selection-preferences.schema.json",
@@ -3431,8 +3431,8 @@
     },
     {
       "path": "scripts/authored_prompt.py",
-      "bytes": 10594,
-      "sha256": "2b1a83d9458a1a0efd58d6c1f27bfff0ecaf86ca41a3608d9f78925b07c53716"
+      "bytes": 10511,
+      "sha256": "0a89f88a5b8ccdc775b3a30bd1dd7266e9a45eae710fef5a17e51fa0bab9baea"
     },
     {
       "path": "scripts/authorial_intent_audit.py",
@@ -3481,8 +3481,8 @@
     },
     {
       "path": "scripts/build_prompt_artifacts.py",
-      "bytes": 15254,
-      "sha256": "12ddd7b27486189cc75695204687f832fbd29e014f6c77871ce3172b5a49cd10"
+      "bytes": 16163,
+      "sha256": "47cda0ddcdeb7d6eec094c1fbb6e2e9979ef87f445d1932aadf9d94f767a3a83"
     },
     {
       "path": "scripts/build_reference_bundle.py",
@@ -3666,8 +3666,8 @@
     },
     {
       "path": "scripts/check_tag_prompt.py",
-      "bytes": 12362,
-      "sha256": "a70b2bfd40ecef05867abbad63e9ca7176312d72e1c1c1d9923e114bded22145"
+      "bytes": 12432,
+      "sha256": "558a4f92cfa72417a228d9b2b601c1bd868642cc8c397c945e84d151cd657b94"
     },
     {
       "path": "scripts/check_tag_prompt_smoke_test.py",
@@ -3851,8 +3851,8 @@
     },
     {
       "path": "scripts/image_input.py",
-      "bytes": 49289,
-      "sha256": "9cb43c1c940efe7e1cf51288139ac7f38ca158f5d50588af5f914aad550cd711"
+      "bytes": 49767,
+      "sha256": "e88f8e0c6df7e21b285ecca3621ac4d84437dc6c47749ffa194582739bb21777"
     },
     {
       "path": "scripts/input_contracts.py",
@@ -3926,8 +3926,8 @@
     },
     {
       "path": "scripts/model_prompt_input.py",
-      "bytes": 2237,
-      "sha256": "3aa560696fc59607c9f6f0e462442cb612390bc1d031e1a4e0f4d4bd95fccd67"
+      "bytes": 5611,
+      "sha256": "fbda24f281cb26f193adc4aa0143fbd70d0c925f6450eb5afe932aa8ced5ff7d"
     },
     {
       "path": "scripts/model_prompt_input_fixtures.py",
@@ -3936,8 +3936,8 @@
     },
     {
       "path": "scripts/model_prompt_input_smoke_test.py",
-      "bytes": 7984,
-      "sha256": "0d40fae4c5c0546e546242aee68602092de5de5088bd9e325f2d672fb733555f"
+      "bytes": 11556,
+      "sha256": "7dea0c65d9b3cd2e13b1a0e751c3e6946665225a0ddc8f38939b61538a1cf802"
     },
     {
       "path": "scripts/model_rendition.py",
@@ -4346,13 +4346,13 @@
     },
     {
       "path": "scripts/production_target.py",
-      "bytes": 30413,
-      "sha256": "215f50933d7377e0dac51c9b752988df56c62d1ba83a46d13a0a84ecda13eb52"
+      "bytes": 30451,
+      "sha256": "062a4ca055ad60f6225b5c22b2ca88fb3a2d73d1b41eb47c8ecfeb901c1adc06"
     },
     {
       "path": "scripts/production_target_smoke_test.py",
-      "bytes": 20383,
-      "sha256": "6d2dbcb6e23b8556a3340799c4f545ee9cdd120d2fa6a720d7b3ca4968bf7591"
+      "bytes": 27083,
+      "sha256": "c026f020dfb2a10f9e04f3551f78827995153aa903aa3032da0caf726592449c"
     },
     {
       "path": "scripts/production_variation.py",
@@ -4376,8 +4376,8 @@
     },
     {
       "path": "scripts/prompt_artifact_smoke_test.py",
-      "bytes": 35950,
-      "sha256": "f8d35561b07257329ab2e36efb256370bf84657d0b775312ec6fb83ad4e3f6bf"
+      "bytes": 38534,
+      "sha256": "2e8f8ec980dcc982d47c0eee20051bf9edf3a867eaa8d34d6ebb7a819ef699e1"
     },
     {
       "path": "scripts/prompt_dialect.py",
@@ -4401,23 +4401,23 @@
     },
     {
       "path": "scripts/prompt_retrieval.py",
-      "bytes": 24785,
-      "sha256": "9eeaabc51789f33d4dfc79a60f236d8bb98c1a890a19023a2115c85d8b16a508"
+      "bytes": 26366,
+      "sha256": "5c94e6c1ac71cc8bc0cd0a8c97aa0d4b7fcf9aa16ef5b60894da327f17ce737d"
     },
     {
       "path": "scripts/prompt_vocabulary_selection.py",
-      "bytes": 13183,
-      "sha256": "2294c2c4050563c9e3f8744c9f93f9b13adf37011943a7f6e49c3ea30ec5fb05"
+      "bytes": 13042,
+      "sha256": "120c628e7b082263d198c6891015d677d53d14321f73b056f278c94d76730bb3"
     },
     {
       "path": "scripts/prompt_vocabulary_selection_smoke_test.py",
-      "bytes": 12467,
-      "sha256": "292eb125b86294aa388bb7bc47a4ef533bb38b43118457004b0dafbeca8f6e35"
+      "bytes": 12837,
+      "sha256": "4c6e7b173eabcce488a3eaf53149a396a3fb0e1e6e96721d380b7d4f1803f5dc"
     },
     {
       "path": "scripts/prompt_vocabulary_smoke_test.py",
-      "bytes": 16117,
-      "sha256": "52c0bd3e0b4d67e974c533092bfce1fdbcd151e28eb1120d415cc1311309b86e"
+      "bytes": 23297,
+      "sha256": "0336b350e6a91eaa83f47b8c773bbdc1eaae68e6f43a08f228e30811f4ea8327"
     },
     {
       "path": "scripts/prompt_weighting.py",
@@ -4436,8 +4436,8 @@
     },
     {
       "path": "scripts/prompt_weighting_smoke_test.py",
-      "bytes": 18396,
-      "sha256": "c8045229ab9c3b206e008420602d223b53a9f80e4329e66ef72bbc7e5d707f4a"
+      "bytes": 21636,
+      "sha256": "3989607b342667db3e0a49aa61aa5f08f1c1889d467c9d5e0e8e2e2ddbe4da08"
     },
     {
       "path": "scripts/prompt_writing_guide.py",
@@ -4646,8 +4646,8 @@
     },
     {
       "path": "scripts/route_reading_smoke_test.py",
-      "bytes": 88959,
-      "sha256": "b6a511178cba683d0f4fa7bb2cd488236947eb491059055a9c5a6d8fe011b53a"
+      "bytes": 89684,
+      "sha256": "5d1bac2439a66d69d92889e47c8d3a0f251075e9b664b5cfd956a6a30f0cbe47"
     },
     {
       "path": "scripts/run_checks.py",
@@ -4771,8 +4771,8 @@
     },
     {
       "path": "scripts/semantic_edit_plan_smoke_test.py",
-      "bytes": 144578,
-      "sha256": "18318e9a34be97d5ae7d6d4575ff88762bca2a8d27a6469ec0ac85a28b7cfba8"
+      "bytes": 148452,
+      "sha256": "30e575b4e4e66d4c06ef27961e453f9bb90bb454db15e8a84231ec0dccedf95d"
     },
     {
       "path": "scripts/service_auth.py",
@@ -5061,8 +5061,8 @@
     },
     {
       "path": "scripts/test_authored_prompt.py",
-      "bytes": 19269,
-      "sha256": "6610cbc2817d1e62144b60fd989800bbfe616c73c7614ee955563be01224eb35"
+      "bytes": 21907,
+      "sha256": "da1a59a1e44f0a2f23259c52189802223145a93878c78652a71905a34dfec5c0"
     },
     {
       "path": "scripts/test_builder_inputs.py",
@@ -5717,7 +5717,7 @@
     {
       "path": "uv.lock",
       "bytes": 113758,
-      "sha256": "19079b333cc6046d18cd15c9ce403438493d4ee1ca67756ca5ca2c4476f6232d"
+      "sha256": "8b9c5c4ff5956bb15a1a430da73c47754e5fc0183131e3b88924bd6d7468c5b6"
     }
   ]
 }

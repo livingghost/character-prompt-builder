@@ -101,6 +101,48 @@ class AuthoredPromptTests(unittest.TestCase):
         self.assertEqual(bound['prompt_sha256'], c.digest(self.files['body.txt']))
         authored_prompt.validate_bound(task, bound, self.files.__getitem__)
 
+    def test_saved_prompt_validation_does_not_depend_on_later_authoring_guidance(self):
+        task = self.task(prompt='A quiet market after the rain.')
+        bound = authored_prompt.check(task, self.files.__getitem__)
+        before = copy.deepcopy(bound)
+        self.assertNotIn('prompt_authoring', bound['inspection'])
+        with patch('model_prompt_input._authoring_plan', return_value={
+                'composition': ['Updated authoring advice for a new task.']}):
+            authored_prompt.validate_bound(task, bound, self.files.__getitem__)
+        self.assertEqual(bound, before)
+
+    def test_unknown_input_finishes_and_rechecks_without_classification_or_lookup(self):
+        task = self.task(mode='unresolved', prompt='  A quiet market in the rain.\n',
+                         model_fields={'execution_profile': self.profile('compel')})
+        with patch.object(vocabulary.VocabularyIndex, 'search', side_effect=AssertionError('unexpected tag search')):
+            bound = authored_prompt.check(task, self.files.__getitem__)
+            authored_prompt.validate_bound(task, bound, self.files.__getitem__)
+        self.assertEqual(bound['model']['prompt_input']['mode'], 'unresolved')
+        self.assertIsNone(bound['vocabulary'])
+        self.assertEqual(bound['prompt_sha256'], c.digest(self.files['body.txt']))
+        self.assertEqual(bound['inspection']['syntax'], 'compel')
+        self.files['body.txt'] = b'(unclosed'
+        with self.assertRaisesRegex(ValueError, 'TAG_PROMPT_PROBLEM'):
+            authored_prompt.check(task, self.files.__getitem__)
+
+    def test_unclassified_acquired_text_preserves_absent_evidence_when_saved(self):
+        task = self.task(mode='unresolved')
+        model = c.decode(self.files['model.json'])
+        model.pop('prompt_input')
+        (self.root / 'model.json').write_bytes(c.encoded(model))
+        reading, _ = route_reading.capture('development', operation='author', execution='authored',
+            resource_reader=self.resource, model_file=self.root / 'model.json')
+        self.files.update({'model.json': c.encoded(model), 'reading.json': c.encoded(reading)})
+        bound = authored_prompt.check(task, self.files.__getitem__)
+        authored_prompt.validate_bound(task, bound, self.files.__getitem__)
+        self.assertEqual(bound['model'], model)
+        self.assertNotIn('prompt_input', bound['model'])
+
+    def test_known_absent_text_surface_still_refuses_final_text(self):
+        task = self.task(mode='none')
+        with self.assertRaisesRegex(ValueError, 'no text prompt surface'):
+            authored_prompt.check(task, self.files.__getitem__)
+
     def test_tag_finalization_searches_even_when_no_receipt_is_available(self):
         task = self.task(mode='tag-based', prompt='matte paper', negative='printed text')
         observed = []

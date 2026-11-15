@@ -914,12 +914,46 @@ class ExternalPromptInputTests(unittest.TestCase):
         channels = bound['external_request']['prompt_check']['vocabulary']['entries']
         self.assertTrue(any(row['channel'] == 'negative' and row['term'] == 'lettering' for row in channels))
 
-    def test_unresolved_and_absent_text_surfaces_cannot_accept_instruction_requests(self):
-        for mode in ('unresolved', 'none'):
-            with self.subTest(mode=mode):
-                self.plan['model']['prompt_input'] = prompt_input(mode)
-                with self.assertRaisesRegex(ValueError, 'prompt input|prompt surface'):
-                    inputs.validate(self.plan, self.root)
+    def test_unresolved_guidance_keeps_the_actual_request_and_unknown_evidence(self):
+        contract = {'mode': 'unresolved', 'forms': [], 'vocabularies': [], 'basis': []}
+        self.plan['model']['prompt_input'] = contract
+        with patch('prompt_vocabulary_selection.search_selection', side_effect=AssertionError('no tag evidence')):
+            bound = inputs.validate(self.plan, self.root)
+        self.assertEqual(bound['model']['prompt_input'], contract)
+        self.assertEqual(bound['external_request']['request'], c.load(self.root / 'request.json'))
+        self.assertEqual(bound['external_request']['schema_validation']['mode'], 'target-schema')
+        self.assertEqual(bound['external_request']['prompt_check']['state'], 'syntax-checked')
+        self.assertIsNone(bound['external_request']['prompt_check']['vocabulary'])
+        with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('mutable source')):
+            inputs.validate_binding(bound)
+
+    def test_unresolved_guidance_still_checks_native_parameters_and_text_grammar(self):
+        self.plan['model']['prompt_input'] = {'mode': 'unresolved', 'forms': [], 'vocabularies': [], 'basis': []}
+        external = self.plan['external_request']
+        external.update(prompt_syntax={'default': 'compel', 'control': None},
+                        negative_field=['negative_text'])
+        schema = c.load(self.root / 'request-schema.json')
+        schema['properties'].update(negative_text={'type': 'string'}, steps={'type': 'integer', 'maximum': 20})
+        write(self.root, 'request-schema.json', schema)
+        external['schema']['sha256'] = c.sha256_file(self.root / 'request-schema.json')
+        request = c.load(self.root / 'request.json')
+        request.update(prompt='(ribbed glass)1.2', negative_text='lettering', steps=21)
+        self.request(request)
+        with self.assertRaisesRegex(ValueError, 'violates acquired schema'):
+            inputs.validate(self.plan, self.root)
+        request['steps'] = 20
+        self.request(request)
+        inputs.validate(self.plan, self.root)
+        for channel in ('prompt', 'negative_text'):
+            changed = {**request, channel: '(ribbed glass:1.2)'}
+            self.request(changed)
+            with self.subTest(channel=channel), self.assertRaisesRegex(ValueError, 'violates its declared target'):
+                inputs.validate(self.plan, self.root)
+
+    def test_absent_text_surface_cannot_accept_instruction_requests(self):
+        self.plan['model']['prompt_input'] = prompt_input('none')
+        with self.assertRaisesRegex(ValueError, 'no instruction prompt surface'):
+            inputs.validate(self.plan, self.root)
 
     def test_descriptive_input_inspects_declared_grammar_without_a_dictionary(self):
         external = self.plan['external_request']
@@ -996,6 +1030,29 @@ class ExternalPromptInputTests(unittest.TestCase):
             changed['external_request'].pop('vocabulary_record')
             with self.assertRaisesRegex(ValueError, 'contract differs'):
                 inputs.validate(changed, self.root)
+
+    def test_exact_catalog_tag_guidance_is_derived_before_public_plan_validation(self):
+        from catalog_retrieval.runtime import load_pack_catalog
+        from types import SimpleNamespace
+        original = load_pack_catalog()
+        self.tag_plan(model_id='synthetic-tag-external')
+        record = synthetic_external_record(self.plan, 'synthetic-tag-external')
+        catalog = SimpleNamespace(entries=[SimpleNamespace(kind='model', record=record)],
+                                  resources=original.resources)
+        self.plan['model'].pop('prompt_input')
+        self.plan['model'].pop('prompt_dialect')
+        with patch('catalog_retrieval.runtime.load_pack_catalog', return_value=catalog), \
+                patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+            selected, _offering = inputs._model_contract(self.plan['model'])
+            self.assertEqual(selected, record)
+            self.assertEqual(self.plan['model']['prompt_input'], record['prompt_input'])
+            self.assertEqual(self.plan['model']['prompt_dialect'], record['prompt_dialect'])
+            self.assertEqual(self.plan['model']['catalog_model'], record['id'])
+            bound = inputs.validate(self.plan, self.root)
+            self.assertEqual(bound['external_request']['prompt_check']['state'], 'vocabulary-checked')
+            self.plan['external_request'].pop('vocabulary_record')
+            with self.assertRaisesRegex(ValueError, 'vocabulary_record'):
+                inputs.validate(self.plan, self.root)
 
     def test_catalog_grammar_uses_the_applied_render_mode(self):
         from render_contract_fixtures import intent, profile

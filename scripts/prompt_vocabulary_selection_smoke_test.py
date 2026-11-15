@@ -210,15 +210,22 @@ class VocabularySelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'evidence is incomplete or changed'):
             self.require(receipt)
 
-    def test_descriptive_input_has_no_lookup_and_unresolved_input_is_not_relabelled(self):
+    def test_descriptive_and_unknown_input_need_no_lookup_or_category_resolution(self):
         with patch.object(selection, 'search_selection', side_effect=AssertionError('unexpected dictionary search')):
-            descriptive = {'id': 'synthetic-description', 'prompt_input': prompt_input('descriptive')}
-            self.assertIsNone(selection.require_for_model({}, prompt='A fluted vase on a shelf.', negative='',
-                                                         model_record=descriptive))
-            for mode in ('unresolved', 'none'):
+            for mode in ('descriptive', 'unresolved'):
                 target = {'id': 'synthetic-' + mode, 'prompt_input': prompt_input(mode)}
-                with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, 'resolve|no text prompt'):
-                    selection.require_for_model({}, prompt='A vase.', negative='', model_record=target)
+                with self.subTest(mode=mode):
+                    self.assertIsNone(selection.require_for_model({}, prompt='A fluted vase on a shelf.',
+                                                                 negative='', model_record=target))
+                    self.assertEqual(target['prompt_input']['mode'], mode)
+
+    def test_no_text_surface_is_rejected_with_or_without_a_retrieval_record(self):
+        from prompt_retrieval import require_generation_retrieval
+        target = {'id': 'synthetic-no-text', 'prompt_input': prompt_input('none')}
+        with self.assertRaisesRegex(ValueError, 'no text prompt'):
+            selection.require_for_model({}, prompt='A vase.', negative='', model_record=target)
+        with self.assertRaisesRegex(ValueError, 'no text prompt'):
+            require_generation_retrieval(None, prompt='A vase.', model_record=target)
 
 
 if __name__ == '__main__':

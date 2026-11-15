@@ -5,15 +5,66 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import prompt_weighting as w
 import check_tag_prompt as checker
 from model_contract import apply_prompt_recommendations, validate_recommendation_audit
 from check_tag_prompt_smoke_test import DICTIONARY, DIALECTS
+from model_prompt_input_fixtures import prompt_input
+import request_contract as rc
 
 
 def terms(parsed, clause=0):
     return [tag['text'] for tag in parsed['clauses'][clause]['tags']]
+
+
+class UnclassifiedRequestTests(unittest.TestCase):
+    @staticmethod
+    def request(prompt='(quiet water)1.2', negative='lettering'):
+        target = {'service': 'synthetic', 'model_identifier': 'synthetic-unclassified', 'operation': 'generate'}
+        wire = {'model': target['model_identifier'], 'operation': target['operation'],
+                'prompt': prompt, 'negative': negative, 'count': 1}
+        layout = {'model': ['model'], 'operation': ['operation'], 'primary_text': ['prompt'],
+            'negative_text': ['negative'], 'output_count': ['count'], 'fixed_output_count': None,
+            'seed': None, 'media': [], 'management': [],
+            'content': [{'id': 'prompt', 'field': ['prompt']}, {'id': 'negative', 'field': ['negative']}],
+            'fields': [{'id': name, 'field': [name], 'kind': kind} for name, kind in
+                       [('model', 'fixed'), ('operation', 'fixed'), ('prompt', 'content'),
+                        ('negative', 'content'), ('count', 'parameter')]]}
+        execution = {key: 'a' * 64 for key in
+                     ('service_execution_sha256', 'offering_contract_sha256', 'transport_sha256')}
+        return rc.seal(wire, layout, [], target, execution, [], context={'output_kind': 'image'})
+
+    def test_unknown_input_checks_the_real_wire_grammar_without_a_dictionary(self):
+        rendered = self.request()
+        target = {'id': 'synthetic-unclassified'}
+        with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('unexpected lookup')):
+            report = checker.require_request(rendered, target,
+                prompt_syntax={'default': 'compel', 'control': None})
+        self.assertEqual(report['state'], 'syntax-checked')
+        self.assertEqual(report['prompt_input'], {'mode': 'unresolved', 'forms': [], 'vocabularies': [], 'basis': []})
+        self.assertEqual(report['prompt_authoring']['text_surface'], 'unknown')
+        self.assertEqual(report['syntax'], 'compel')
+        self.assertIsNone(report['vocabulary'])
+        self.assertEqual(rendered['request']['prompt'], '(quiet water)1.2')
+        rc.validate_seal(rendered)
+
+    def test_unknown_form_evidence_does_not_relax_known_text_constraints(self):
+        for fields, prompt, negative in [
+                ({}, '(quiet water:1.2)', ''),
+                ({'max_positive_prompt_chars': 3}, 'quiet water', ''),
+                ({'supports_negative_prompt': False}, 'quiet water', 'lettering')]:
+            with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, 'TAG_PROMPT_PROBLEM'):
+                checker.require_request(self.request(prompt, negative),
+                    {'id': 'synthetic-unclassified', **fields},
+                    prompt_syntax={'default': 'compel', 'control': None})
+
+    def test_known_no_text_operation_remains_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'no text prompt surface'):
+            checker.require_request(self.request(),
+                {'id': 'synthetic-no-text', 'prompt_input': prompt_input('none')},
+                prompt_syntax={'default': 'compel', 'control': None})
 
 
 class SyntaxTests(unittest.TestCase):

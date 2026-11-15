@@ -215,6 +215,13 @@ derives the compiled task target from that selection.
 
 Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Preserve authored meaning while applying its syntax and target evidence. Inspect complete selected knowledge records for actual construction questions. A selected specification records the depiction; its fields do not prescribe sentence order or independent criteria of success. For character reuse, resolve actual reference coverage and stage targets.
 
+Selected-model reads and `target_knowledge` provide `prompt_authoring`, derived
+by the script from the selected record. Follow its composition guidance and
+vocabulary action without first classifying the model as prose-only, tags-only
+or mixed. An unlisted target may omit form metadata; the script retains that
+uncertainty and still checks the real request's fields and controls. See
+[Prompt input](render-contract.md#prompt-input) for each returned value.
+
 The final `reading.record` is complete when issued. Set `choices.reading.reading_key`
 to that issued key. The input owner resolves the exact document editions, selected
 resource scope and delivered model guidance from the issuance. When authoring a

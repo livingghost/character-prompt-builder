@@ -57,7 +57,7 @@ For model, prompt, reference or post-completion changes, follow [Variation](refe
 
 Investigate unresolved construction or wording with relevant sources. Use knowledge by meaning and scope; neither both lookup systems nor a query per visual attribute is required.
 
-`prompt_input` supplies evidenced forms; the request selects the [rendition](references/runtime/prompt-writing-guide.md). Keep tags in tag form and descriptive input in prose. `tag-based` requires real [dictionary search](references/runtime/prompt-vocabulary.md). Adapt the whole picture through supported concepts and disclose remaining limits. `descriptive` needs lookup for unresolved questions; `unresolved` stays portable pending evidence; `none` has no text surface. Missing dialect metadata never implies descriptive input.
+The selected-model read derives `prompt_authoring`: [writing guidance](references/runtime/prompt-writing-guide.md), available wording and [dictionary work](references/runtime/prompt-vocabulary.md). Select the model without first classifying its text form. Follow the returned guidance and explicit requested form; preserve the whole depiction. Unknown forms remain reported without blocking text. Actual text-surface, parser and channel constraints still apply.
 
 Record actual investigations, inspect complete selected records, and settle each as adopted, composed or unused under [Prompt-only Core](references/runtime/prompt-only-core.md#saved-prompt-artifacts). Composed wording may use inspected knowledge. Failed necessary retrieval stays unresolved; never fabricate evidence.
 

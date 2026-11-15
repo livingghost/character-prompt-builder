@@ -92,7 +92,7 @@ def main() -> int:
     target = parser.add_mutually_exclusive_group()
     target.add_argument("--model", help="Selected catalog model whose input contract applies to this prompt")
     target.add_argument("--model-file", type=Path,
-                        help="Acquired external input record with id, prompt_input and any owning prompt_dialect; does not override catalog execution")
+                        help="Acquired external input record with exact id and any evidenced prompt_input; a tag workflow names its prompt_dialect. Does not override catalog execution")
     parser.add_argument("--weighting", choices=["literal", "sdEmbeds", "compel"], default="literal",
                         help="The explicitly selected text grammar for this rendition")
     parser.add_argument("--retrieval-record", type=Path, help="Record of the catalog and prompt-vocabulary lookups behind this prompt")
@@ -117,6 +117,16 @@ def main() -> int:
     negative_text = args.negative.read_text(encoding="utf-8") if args.negative else ""
     target_contract = None
     if model_record is not None:
+        from check_tag_prompt import inspect
+        from production_diagnostics import ProductionError
+        inspection = inspect(prompt_text, negative_text, None, model_record, syntax=args.weighting)
+        if any(row['severity'] == 'problem' for row in inspection['findings']):
+            raise ProductionError('TAG_PROMPT_PROBLEM',
+                'The authored text violates its selected grammar or declared model constraints.',
+                phase='prompt-artifact', prompt_check=inspection,
+                guidance={'document_path': 'references/runtime/prompt-only-core.md#specialized-prompt-artifact-export'},
+                required_action='Correct the supplied prompt or negative text, or select the intended '
+                                '--weighting grammar, then run the command again.')
         target_contract = {"id": model_record["id"], "prompt_input": resolve_prompt_input(model_record),
                            "weighting": args.weighting}
         if model_record.get("prompt_dialect"):
@@ -244,7 +254,8 @@ def main() -> int:
         if args.retrieval_record:
             included.append(copy_artifact(args.retrieval_record, staging / "prompt-retrieval-record.json"))
         else:
-            omitted.append({"artifact": "prompt-retrieval-record.json", "reason": retrieval["reason"]})
+            omitted.append({"artifact": "prompt-retrieval-record.json",
+                            "reason": retrieval.get("reason", "no retrieval work selected")})
 
         if args.surface_lighting_plan:
             included.append(copy_artifact(args.surface_lighting_plan, staging / "surface-lighting-plan.json"))

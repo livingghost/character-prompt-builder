@@ -234,8 +234,6 @@ def require_for_model(record: dict, *, prompt: str, negative: str, model_record:
                       syntax: str = 'literal') -> dict | None:
     """Apply the explicit input mode to a construction retrieval record."""
     contract = resolve_prompt_input(model_record)
-    if contract['mode'] == 'unresolved':
-        raise ValueError('resolve the selected model prompt input before finalizing its rendition')
     if contract['mode'] == 'none':
         raise ValueError('the selected model has no text prompt surface')
     if contract['mode'] == 'tag-based':

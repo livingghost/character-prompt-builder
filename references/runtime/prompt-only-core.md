@@ -47,8 +47,9 @@ Use [Composition](prompt-composition.md) for the construction knowledge a
 complex question needs. Its specialist resources contribute anatomy, spatial,
 performance, material or layout knowledge to the same depiction. They are not
 an inventory of sections to populate. A descriptive prompt can express an
-ordinary complete action or state in ordinary language. A tag prompt uses the
-selected target's concepts and grammar. Technical requirements retain their
+ordinary complete action or state in ordinary language. A tag-oriented rendition
+uses the selected target's concepts and grammar, with necessary authored wording
+where its supported form includes prose or mixtures. Technical requirements retain their
 authority even when the input cannot control their full precision. The agent's
 selected means remain open to judgment against the commission.
 
@@ -105,8 +106,9 @@ or generation-ready package. Do not create empty reference artifacts.
 Develop the commissioned depiction using Production direction. This is the master prompt
 for authoring: a complete description that may also serve as a portable descriptive
 prompt. Apply the [Prompt Writing Guide](prompt-writing-guide.md) to produce the
-requested form under a named target's evidence. A tag rendition does not inherit
-the description's sentences. Do not restart design from the guide's examples
+requested form under a named target's evidence. A tag rendition is not a
+sentence-by-sentence conversion; a supported mixed rendition retains necessary
+phrases when tags would lose the meaning. Do not restart design from the guide's examples
 or turn each planning field into a clause.
 
 Preserve the situation, action, relationships, qualities, degree, exact
@@ -155,8 +157,10 @@ Use `python scripts/build_prompt_artifacts.py --help` to materialize the conditi
 
 Select a catalog target with `--model MODEL_ID`, or an acquired external input
 record with `--model-file MODEL_JSON`. These selectors are mutually exclusive.
-The external record supplies `id`, evidenced `prompt_input`, and `prompt_dialect`
-for tag-based input. It does not register an executable offering or override a
+The external record supplies `id` and any acquired input declaration; the
+resolver supplies an unresolved declaration when no form metadata is present.
+An evidenced tag workflow also names its `prompt_dialect`.
+The record does not register an executable offering or override a
 catalog execution contract. Pass the actual negative file with `--negative`
 when used, and select its text grammar with `--weighting literal`, `sdEmbeds`
 or `compel`. For an explicit pack runtime, supply `--state-file`, `--cache-dir`
@@ -167,14 +171,16 @@ the selected input contract. A tag-based target requires the
 [actual dictionary search and resolved wording choices](prompt-vocabulary.md#select-wording-for-a-tag-based-model),
 bound to the exact positive and negative text, grammar and current resources.
 An empty construction record or `--retrieval-unavailable` cannot bypass that
-search. Resolve an unknown input mode before target-specific publication.
+search. The script derives these requirements from the selected target. Missing
+form classification alone does not block target-specific text; the report
+retains that uncertainty while actual interface constraints remain enforced.
 
 A prompt-only draft may omit `--plot`, or include a valid unapproved plot for
 review. Portable drafting may omit both target selectors; its manifest records
 `target: null` and `input_validation.state: unverified-draft`. This preserves
 authored text without certifying any model's input requirements.
-`--prepare-for-generation` requires an explicit target and an approved `--plot`,
-never invented from an "autonomous" request. A plot separates story beats (`visible` or `context`) from
+`--prepare-for-generation` requires an explicit target. A supplied `--plot` must
+be approved; do not invent a plot from an "autonomous" request. A plot separates story beats (`visible` or `context`) from
 selected frame statements (`shows`, `placement`, `composition`, `must_preserve`,
 `free`). Use the statement kinds needed to express the selected frame; each
 visible beat retains a link to its realization. A context beat may supply the
@@ -194,11 +200,12 @@ Saved text uses the `prompt-only` production route; a prompt with selected
 references uses `reference-artifacts`. Draft delivery grants no generation or
 canonical-update authority. A conversation-only answer needs no Studio.
 
-The builder takes the retrieval record with `--retrieval-record lookups.json`.
-It records questions actually investigated. For source-sufficient construction
-with no questions to investigate, initialize an empty record with
+The builder takes selected retrieval work with `--retrieval-record lookups.json`.
+It records questions actually investigated. Source-sufficient construction may
+omit that record when the script reports no required vocabulary work. When an
+investigation or required vocabulary work needs a record, initialize it with
 `python scripts/prompt_retrieval.py lookups.json --init`. Do not invent a search
-to populate it. Catalog or vocabulary operations with
+or an empty record solely to populate an unused input. Catalog or vocabulary operations with
 `--record lookups.json --element NAME` record actual evidence; vocabulary
 `--queries` names each question separately. Inspecting a known record directly
 needs no fabricated search query.
@@ -215,9 +222,10 @@ its investigations. A failed necessary investigation stays unresolved. Where nee
 retrieval cannot run, pass `--retrieval-unavailable` with its reason; this is not
 the same as having no question to investigate.
 
-For a tag-based target, complete the mandatory vocabulary search and selections
-in that same record. A descriptive target may have no lookup work when its
-sources already suffice. Bind the completed record to the exact rendition,
+Use the same model-bound vocabulary command for every target. It performs the
+required search and returns its candidates, or reports that no vocabulary work
+is required. Complete any returned wording selections in that same record.
+Bind the completed record to the exact rendition,
 selected model and approved plot:
 
 ```bash
@@ -227,10 +235,13 @@ python scripts/prompt_retrieval.py lookups.json --settle --model MODEL_ID \
 ```
 
 Omit an unused negative file and use the actual parser. An unlisted target uses
-`--model-file MODEL_JSON` with its evidenced input declaration. Missing,
-unavailable, unfinished, unsettled or mismatched records block preparation.
-Tag-based input requires actual searched candidates and resolved choices;
-unknown input cannot take the descriptive branch. Settlement records the
+`--model-file MODEL_JSON` with its identity and any acquired input declaration.
+The selected model's required vocabulary work needs its actual searched candidates
+and resolved choices. A missing record cannot bypass that requirement. Supplied
+records must be finished, settled and matched to the current text and plot;
+an investigation declared unavailable still blocks preparation. No record is
+required for unused construction or vocabulary work.
+An unresolved form remains reported without preventing settlement. Settlement records the
 author's concluded knowledge use rather than certifying meaning or quality.
 
 Portable saved text can settle its construction record without a model selector.

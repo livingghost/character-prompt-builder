@@ -103,6 +103,9 @@ class TargetProjectionTests(unittest.TestCase):
         self.assertEqual(knowledge['model_cards'][0]['model_identifier'], 'synthetic:alternate')
         self.assertEqual(knowledge['offering'], result['resolved_target'].offering)
         self.assertEqual(knowledge['parameter_schema'], result['resolved_target'].parameter_schema)
+        self.assertEqual(knowledge['prompt_authoring'], knowledge['model_cards'][0]['prompt_authoring'])
+        self.assertEqual(knowledge['prompt_authoring']['preferred_wording'], 'natural-language')
+        self.assertFalse(knowledge['prompt_authoring']['vocabulary']['required'])
         self.assertIsNone(knowledge['assessment'])
         self.assertNotIn('reading_key', knowledge)
         self.assertNotIn('authorization', knowledge)
@@ -265,6 +268,91 @@ class TargetProjectionTests(unittest.TestCase):
         self.assertEqual(result['choices']['external']['image_input']['external_request'],
             external['image_input']['external_request'])
         self.assertIsNone(result['resolved_target'].transport)
+
+    def test_external_without_prompt_classification_builds_an_explicit_unresolved_contract(self):
+        (self.root / 'interface.txt').write_text('Explicit synthetic interface evidence.', encoding='utf-8')
+        selected = {'kind': 'external', 'model': {'requested': 'Independent synthetic target',
+            'target': {'service': 'unlisted-synthetic', 'model_identifier': 'unlisted:fixture', 'operation': 'infer'},
+            'evidence': {'path': 'interface.txt', 'locator': 'whole'}}}
+        before = copy.deepcopy(selected)
+        task = {'route': 'generation', 'execution': 'external'}
+        result = self.project(selected, task=task, external=self.external_choices())
+        self.assertEqual(result['unresolved'], [])
+        self.assertEqual(selected, before)
+        expected = {'mode': 'unresolved', 'forms': [], 'vocabularies': [], 'basis': []}
+        model = result['choices']['external']['image_input']['model']
+        self.assertEqual(model['prompt_input'], expected)
+        self.assertEqual(model['evidence'], {'path': 'interface.txt', 'locator': 'whole',
+            'sha256': c.sha256_file(self.root / 'interface.txt')})
+        self.assertEqual(model['catalog_status'], 'missing')
+        knowledge = result['knowledge']
+        self.assertEqual(knowledge['prompt_input'], expected)
+        self.assertEqual(knowledge['prompt_authoring'], knowledge['model_cards'][0]['prompt_authoring'])
+        self.assertEqual(knowledge['prompt_authoring']['text_surface'], 'unknown')
+        self.assertEqual(knowledge['prompt_authoring']['evidence_status'], 'unresolved')
+        with self.source.using():
+            files, trace = external_inputs.build(result['choices']['external'], task, self.reader,
+                self.root, 'built', fixtures.PROMPT.encode(), derived_files=result['files'])
+        self.assertEqual(trace['state'], 'materialized')
+        self.assertEqual(trace['request']['prompt'], fixtures.PROMPT)
+        self.assertEqual(trace['prompt_check']['state'], 'syntax-checked')
+        self.assertIsNone(trace['prompt_check']['vocabulary'])
+        self.assertEqual(c.decode(files['image-input.json'])['model']['prompt_input'], expected)
+
+    def test_external_exact_catalog_interface_supplies_omitted_prompt_guidance(self):
+        (self.root / 'interface.txt').write_text('Explicit synthetic interface evidence.', encoding='utf-8')
+        selected = {'kind': 'external', 'model': {'requested': 'Synthetic exact interface',
+            'target': {'service': 'synthetic', 'model_identifier': 'synthetic:robot', 'operation': 'generate'},
+            'evidence': {'path': 'interface.txt', 'locator': 'whole'}}}
+        task = {'route': 'generation', 'execution': 'external'}
+        result = self.project(selected, task=task, external=self.external_choices())
+        self.assertEqual(result['unresolved'], [])
+        model = result['choices']['external']['image_input']['model']
+        self.assertEqual(model['catalog_status'], 'defined')
+        self.assertEqual(model['catalog_model'], fixtures.MODEL_ID)
+        self.assertEqual(model['prompt_input'], result['resolved_target'].model['prompt_input'])
+        self.assertEqual(result['knowledge']['prompt_authoring']['evidence_status'], 'declared')
+        with self.source.using():
+            files, trace = external_inputs.build(result['choices']['external'], task, self.reader,
+                self.root, 'built', fixtures.PROMPT.encode(), derived_files=result['files'])
+        self.assertEqual(trace['state'], 'materialized')
+        self.assertEqual(c.decode(files['image-input.json'])['model'], model)
+
+    def test_external_omission_and_override_cannot_create_a_catalog_text_surface(self):
+        (self.root / 'interface.txt').write_text('Explicit synthetic interface evidence.', encoding='utf-8')
+        selected = {'kind': 'external', 'model': {'requested': 'Synthetic exact upscale interface',
+            'target': {'service': 'synthetic', 'model_identifier': 'synthetic:upscale', 'operation': 'upscale'},
+            'evidence': {'path': 'interface.txt', 'locator': 'whole'}}}
+        task = {'route': 'generation', 'execution': 'external'}
+        result = self.project(selected, task=task, external=self.external_choices())
+        self.assertEqual(result['unresolved'], [])
+        model = result['choices']['external']['image_input']['model']
+        self.assertEqual(model['catalog_model'], fixtures.UPSCALE_MODEL_ID)
+        self.assertEqual(model['prompt_input']['mode'], 'none')
+        self.assertEqual(result['knowledge']['prompt_authoring']['text_surface'], 'absent')
+        with self.source.using(), self.assertRaisesRegex(ValueError, 'no instruction prompt surface'):
+            external_inputs.build(result['choices']['external'], task, self.reader,
+                self.root, 'built', fixtures.PROMPT.encode(), derived_files=result['files'])
+        selected['model']['prompt_input'] = prompt_input('descriptive')
+        conflict = self.project(selected, task=task, external=self.external_choices())
+        self.assertEqual(conflict['unresolved'][0]['reason'], 'target-evidence-required')
+        self.assertIn('contract differs', conflict['unresolved'][0]['message'])
+        self.assertIsNone(conflict['resolved_target'])
+
+    def test_external_malformed_prompt_declaration_is_not_treated_as_absent(self):
+        (self.root / 'interface.txt').write_text('Explicit synthetic interface evidence.', encoding='utf-8')
+        selected = {'kind': 'external', 'model': {'requested': 'Independent synthetic target',
+            'target': {'service': 'unlisted-synthetic', 'model_identifier': 'unlisted:fixture', 'operation': 'infer'},
+            'evidence': {'path': 'interface.txt', 'locator': 'whole'}}}
+        for declaration in (None, {}, {'mode': 'descriptive', 'forms': ['natural-language'],
+                                       'vocabularies': [], 'basis': []}):
+            with self.subTest(declaration=declaration):
+                selected['model']['prompt_input'] = declaration
+                result = self.project(selected, task={'route': 'generation', 'execution': 'external'},
+                    external=self.external_choices())
+                self.assertEqual(result['unresolved'][0]['reason'], 'target-evidence-required')
+                self.assertIn('prompt_input', result['unresolved'][0]['message'])
+                self.assertIsNone(result['resolved_target'])
 
     def test_external_evidence_pin_is_checked_without_inventing_replacement(self):
         (self.root / 'interface.txt').write_text('Updated synthetic evidence.', encoding='utf-8')

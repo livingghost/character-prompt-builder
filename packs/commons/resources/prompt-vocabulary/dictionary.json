@@ -1,7 +1,7 @@
 {
   "format": "character-prompt-builder-prompt-vocabulary",
   "name": "Prompt Vocabulary",
-  "description": "A broad English image-generation vocabulary organized by functional category for agent-selected prompt construction. Terms include danbooru and e621 tag vocabulary with a one-line description of the effect each has on a picture. A large part of the observed effects follows the Japanese prompt dictionaries published by studiomasakaki on pixivFANBOX (the 2024 edition for AnimagineXL and NovelAI v3, and the 2025 edition for illustrious-family models), paraphrased in English; an effect that was only observed on one model family is noted as such.",
+  "description": "A broad English image-generation vocabulary organized by functional category for agent-selected prompt construction. Entries include Danbooru and e621 tags and authored expressions, with concise descriptions of intended appearance and reported prompt use. Much of the usage knowledge follows the Japanese prompt dictionaries published by studiomasakaki on pixivFANBOX (the 2024 edition for AnimagineXL and NovelAI v3, and the 2025 edition for illustrious-family models), paraphrased in English; preserve any stated model scope. Definitions and usage suggestions help select vocabulary. They do not by themselves demonstrate that the selected checkpoint learned a term, that a weighting parser supports it, or that an output will realize its intended effect.",
   "categories": [
     {
       "id": "quality",
@@ -250,7 +250,7 @@
         },
         {
           "term": "newest",
-          "description": "NoobAI year-band tag selecting the 2021 to 2024 training slice; steers toward current art styles."
+          "description": "Year-band term for the newest training-image period, used to seek the drawing conventions of that corpus slice. NoobAI XL 1.0 assigns it to 2021-2024. The date range belongs to the selected checkpoint, and newest does not continually update to the present day or guarantee a contemporary style."
         },
         {
           "term": "official art",
@@ -262,7 +262,7 @@
         },
         {
           "term": "old",
-          "description": "Period/style term used for older training imagery; usually placed in the negative when seeking a newer-looking finish. NoobAI XL 1.0 assigns old to its 2005-2010 band. Illustrious XL v1.0's public model card also uses old alongside oldest in the negative. In period-tag use, old describes the image's style period rather than specifying the subject's age."
+          "description": "Period/style term used for older training imagery; usually placed in the negative when seeking a newer-looking finish. NoobAI XL 1.0 assigns old to its 2005-2010 band. Illustrious XL v1.0's public model card also uses old alongside oldest in the negative. In period-tag use, old describes the image's style period rather than specifying the subject's age. Retain the selected checkpoint's date convention and spell a subject-age tag unambiguously."
         },
         {
           "term": "playstation5",
@@ -399,7 +399,7 @@
         },
         {
           "term": "very aesthetic",
-          "description": "An aesthetic-score tag of the Illustrious, NoobAI and Anima families, placed in the leading quality block."
+          "description": "An aesthetic-quality term used in Illustrious prompting guidance and listed in the combined Illustrious and NoobAI dialect. Leading quality placement is a practical convention; Illustrious XL v1.0 and v1.1 creator examples also place it after subject content. Select its use and position for the exact model. Anima's cited guide names its own human-score and score_* controls."
         },
         {
           "term": "vibrant colors",
@@ -423,19 +423,19 @@
         },
         {
           "term": "hdr",
-          "description": "A photographic tone-mapping look with lifted shadows and held highlights. Not a booru tag: on Illustrious and NoobAI checkpoints it carries no learned meaning and acts only on prose-trained models."
+          "description": "A photographic tone-mapping look with lifted shadows and held highlights. The current Illustrious and NoobAI dialect lists hdr among its cautionary terms; that list does not measure a zero visual response. Keep descriptive appearance separate from a native quality control and assess the selected checkpoint's behavior in its actual prompt context."
         },
         {
           "term": "score_9",
-          "description": "The top score band of Pony-family checkpoints and of the Anima quality block, which pulls toward the corpus slice rated highest. On Illustrious and NoobAI it is literal noise and can print score text into the image."
+          "description": "The top band in Anima-Base's aesthetic-score vocabulary and a score control in the documented Pony V6 XL convention, intended to favor high-scored corpus imagery. Score schemes and prefixes differ by version; Anima-Aesthetic advises against score tags in both channels. Do not infer an identical control on Illustrious or NoobAI from those uses. If score text appears in an output, treat it as an unwanted artifact."
         },
         {
           "term": "score_8",
-          "description": "The score band below score_9 in the Anima quality block. On Illustrious and NoobAI it is literal noise and can print score text into the image."
+          "description": "The band below score_9 in Anima-Base's aesthetic-score vocabulary. Keep this spelling distinct from Pony V6 XL's score_8_up. Anima-Aesthetic advises against score tags in both channels. Use the selected checkpoint's score scheme; Anima usage does not establish an identical Illustrious or NoobAI control. If score text appears in an output, treat it as an unwanted artifact."
         },
         {
           "term": "score_7",
-          "description": "The score band below score_8 in the Anima quality block. On Illustrious and NoobAI it is literal noise and can print score text into the image."
+          "description": "The band below score_8 in Anima-Base's aesthetic-score vocabulary. Keep this spelling distinct from Pony V6 XL's score_7_up. Anima-Aesthetic advises against score tags in both channels. Use the selected checkpoint's score scheme; Anima usage does not establish an identical Illustrious or NoobAI control. If score text appears in an output, treat it as an unwanted artifact."
         },
         {
           "term": "incredibly absurdres",
@@ -3060,7 +3060,7 @@
         },
         {
           "term": "from below",
-          "description": "A moderate look-up from diagonally below. Weight it and name the ceiling to steepen the angle toward a floor-level view."
+          "description": "A moderate look-up from diagonally below. Weighting the term and naming a ceiling are suggested ways to seek a steeper floor-level view; use a supported weighting parser and include a ceiling only when it belongs in the scene. Choose the camera position and direction needed for the intended low view in the selected input form."
         },
         {
           "term": "from front position",
@@ -3121,7 +3121,7 @@
     {
       "id": "camera-angle-and-perspective",
       "name": "Camera Angle and Perspective",
-      "description": "Terms for camera tilt, perspective, foreshortening, and viewpoint construction.",
+      "description": "Terms for camera tilt and roll, perspective and foreshortening, viewpoint construction, projection, focus, and motion effects. These describe different properties of a view and can combine when they form a coherent picture.",
       "entries": [
         {
           "term": "bird eye view",
@@ -3189,7 +3189,7 @@
         },
         {
           "term": "dramatic foreshortening",
-          "description": "Aggressive near-limb enlargement for looming or reaching poses."
+          "description": "Pronounced apparent shortening of forms directed into picture depth, often with overlap. Aggressive enlargement of a nearer limb or projecting object can create a looming or reaching effect."
         },
         {
           "term": "drone view",
@@ -3276,7 +3276,7 @@
         },
         {
           "term": "foreshortening",
-          "description": "Strong near-limb perspective enlargement."
+          "description": "Apparent shortening of an object or figure directed into picture depth. The shortening can be subtle or pronounced; strong enlargement of a nearer hand, foot, or object is one possible perspective construction."
         },
         {
           "term": "four point perspective",
@@ -16585,7 +16585,7 @@
         },
         {
           "term": "wind",
-          "description": "Hair and clothes streaming in wind; with contrapposto the easiest motion tag.",
+          "description": "Hair and clothes streaming in wind, a visible cue of movement. Wind moves loose materials; contrapposto distributes a standing figure's weight and counterbalances its body. Both can help suggest movement, but they depict different things, and their prompting effectiveness depends on the model and scene.",
           "part": "hair"
         },
         {
@@ -49211,7 +49211,7 @@
         },
         {
           "term": "2D anime illustration",
-          "description": "Flat anime drawing grammar resisting 3D drift."
+          "description": "Flat anime drawing grammar, with drawn contours and designed color shapes, used to request a drawn treatment and counter an unwanted 3D-rendered look. How strongly it resists that treatment depends on the selected model and other inputs."
         },
         {
           "term": "afterimage",
@@ -54648,7 +54648,7 @@
     {
       "id": "franchise-characters-and-source-tags",
       "name": "Franchise characters and source tags",
-      "description": "Names of characters and works that a model trained on tagged art recognises. A name carries that character's whole design, so it overrides a character sheet; use it to name a source, or leave it out when the figure is your own.",
+      "description": "Names of characters and works that may evoke learned design associations in a model trained on tagged art. A recognized name can bring associated design features and compete with a character sheet; the result depends on the exact model and conditioning. Use a name for its intended source or design contribution, and inspect any drift from the requested character.",
       "entries": [
         {
           "term": "2b (nier:automata)",

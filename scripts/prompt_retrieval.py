@@ -312,7 +312,10 @@ def require_generation_retrieval(value: Any, *, prompt: str, plot: dict[str, Any
                                  syntax: str = 'literal') -> dict[str, Any]:
     if value is None:
         from model_prompt_input import resolve_prompt_input
-        if resolve_prompt_input(model_record)['mode'] == 'tag-based':
+        mode = resolve_prompt_input(model_record)['mode']
+        if mode == 'none':
+            raise ValueError('the selected model has no text prompt surface')
+        if mode == 'tag-based':
             raise ValueError('tag-based input requires dictionary search and vocabulary selection for the current prompt')
         return {'ok': True, 'vocabulary_searched': False}
     report = require_settled_retrieval(value, prompt=prompt, plot=plot)
@@ -346,10 +349,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("record", type=Path)
     parser.add_argument("--init", action="store_true", help="Create an empty record; refuse an existing path")
     parser.add_argument("--settle", action="store_true", help="Explicitly settle decisions for the supplied authored prompt and plot")
-    parser.add_argument("--search-vocabulary", action="store_true", help="Search existing wording for every term of a selected tag-based model rendition")
+    parser.add_argument("--search-vocabulary", action="store_true", help="Resolve the selected model's wording requirements; search its vocabulary when required")
     target = parser.add_mutually_exclusive_group()
     target.add_argument("--model", help="The selected catalog model")
-    target.add_argument("--model-file", type=Path, help="An acquired external target record with id, prompt_input and its applicable prompt_dialect")
+    target.add_argument("--model-file", type=Path, help="An acquired target record with id and any known prompt_input; omitted input evidence remains unknown, and prompt_dialect accompanies a declared tag workflow")
     parser.add_argument("--negative-file", type=Path)
     parser.add_argument("--weighting", choices=['literal', 'sdEmbeds', 'compel'], default='literal')
     parser.add_argument("--retain-wording", action='append', default=[], help="A searched phrase or entry id to retain after comparison; repeat when the same reason applies")
@@ -380,7 +383,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             report = {**validate_prompt_retrieval_record(value), "created": str(args.record)}
             print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0
-        value = json.loads(args.record.read_text(encoding="utf-8"))
+        source_raw = args.record.read_bytes()
+        value = json.loads(source_raw.decode("utf-8"))
         if args.search_vocabulary or args.retain_wording:
             if (not (args.model or args.model_file) or not args.prompt_file or args.settle
                     or args.element or args.adopted or args.composed or args.unused or args.plot_file):
@@ -388,21 +392,40 @@ def main(argv: Sequence[str] | None = None) -> int:
             if value.get('settled'):
                 raise ValueError('search vocabulary on a draft record; settled inputs are immutable')
             from prompt_vocabulary_selection import search_selection, resolve_authored
+            from model_prompt_input import prompt_input_card
             model = resolve_selected_model(args.model, args.model_file)
+            card = prompt_input_card(model)
+            if card['prompt_input']['mode'] == 'none':
+                raise ValueError('the selected model has no text prompt surface')
+            prompt = args.prompt_file.read_text(encoding='utf-8')
+            negative = args.negative_file.read_text(encoding='utf-8') if args.negative_file else ''
             previous = value.get('vocabulary')
             if args.retain_wording:
                 if not isinstance(previous, dict):
                     raise ValueError('run --search-vocabulary before --retain-wording')
+                if not card['requires_vocabulary_search']:
+                    raise ValueError('the selected model does not require vocabulary selection; keep authored wording in the prompt')
                 for term in args.retain_wording:
                     previous = resolve_authored(previous, term, args.reason, queries=args.query)
             elif args.query or args.reason:
                 raise ValueError('--query and --reason belong to --retain-wording')
-            value['vocabulary'] = search_selection(prompt=args.prompt_file.read_text(encoding='utf-8'),
-                negative=args.negative_file.read_text(encoding='utf-8') if args.negative_file else '',
+            if not card['requires_vocabulary_search']:
+                if args.out is not None and args.out.resolve() != args.record.resolve():
+                    from execution_contract import atomic
+                    atomic(args.out, source_raw, replace=True)
+                report = {'ok': True, 'vocabulary': None, 'vocabulary_searched': False,
+                          'prompt_authoring': card['prompt_authoring']}
+                if previous is not None:
+                    report['retained_vocabulary'] = {'used_for_selected_model': False,
+                        'model': previous.get('context', {}).get('model') if isinstance(previous, dict) else None}
+                print(json.dumps(report, ensure_ascii=False, indent=2))
+                return 0
+            value['vocabulary'] = search_selection(prompt=prompt, negative=negative,
                 model_record=model, syntax=args.weighting, previous=previous)
             from pack_manager import atomic_write_json
             atomic_write_json(args.out or args.record, value)
-            print(json.dumps({'ok': True, 'vocabulary': value['vocabulary']}, ensure_ascii=False, indent=2))
+            print(json.dumps({'ok': True, 'vocabulary': value['vocabulary'], 'vocabulary_searched': True,
+                              'prompt_authoring': card['prompt_authoring']}, ensure_ascii=False, indent=2))
             return 0
         if args.query:
             raise ValueError('--query requires --retain-wording')

@@ -181,8 +181,6 @@ EXTERNAL_MODEL_FIELDS = {
     'requested': 'the model name as the request asks for it',
     'evidence': '{"path": FILE, "locator": SECTION}: the saved provider documentation or lookup that identifies '
                 'this interface',
-    'prompt_input': 'the evidenced input contract of the interface (mode, forms, vocabularies and basis, as '
-                    'schemas/model-prompt-input.schema.json defines it)',
 }
 EXTERNAL_TARGET_FIELDS = {'service': 'service', 'model_identifier': 'model identifier', 'operation': 'wire operation'}
 
@@ -238,9 +236,11 @@ def unresolved(selection: Any, task: dict) -> list[dict]:
         if not isinstance(model, dict):
             missing('target.model', 'target.model is null, so the external interface is not identified.',
                     'Set target.model to {"requested": NAME, "target": {"service": SERVICE, "model_identifier": '
-                    'IDENTIFIER, "operation": OPERATION}, "evidence": {"path": FILE, "locator": SECTION}, '
-                    '"prompt_input": CONTRACT} from the acquired provider evidence; tag input also names '
-                    'prompt_dialect.', INTERFACE_GUIDE)
+                    'IDENTIFIER, "operation": OPERATION}, "evidence": {"path": FILE, "locator": SECTION}} '
+                    'from the acquired provider evidence. The selected catalog record supplies its prompt '
+                    'guidance. For an unlisted interface, include prompt_input only when acquired evidence '
+                    'supports it; absent guidance stays unresolved without blocking text preparation. '
+                    'An evidenced tag-based input also names prompt_dialect.', INTERFACE_GUIDE)
         else:
             if set(model) - {'requested', 'target', 'evidence', 'prompt_input', 'prompt_dialect'}:
                 raise ValueError('external target model contains derived or unknown fields')
@@ -316,7 +316,6 @@ def _resolve(selection: dict, task: dict, root: Path, reader, source):
     if evidence.get('sha256') is not None and evidence['sha256'] != selected['sha256']:
         raise ValueError('selected external model evidence changed')
     model['evidence'] = {**selected, 'locator': c.text(evidence['locator'], 'external model evidence locator')}
-    resolve_prompt_input(model)
     source = _runtime(source)
     from image_input import _model_contract
     with source.using():

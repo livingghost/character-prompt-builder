@@ -9,6 +9,7 @@ import json
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
+from unittest.mock import patch
 
 from prompt_retrieval import main as retrieval_main, mark_outcome, validate_prompt_retrieval_record
 from search_prompt_vocabulary import (
@@ -121,6 +122,121 @@ def expect_error(fn: Callable[[], Any]) -> bool:
     return False
 
 
+def check_model_wording_command(root: Path, add: Callable) -> None:
+    """One public invocation obtains model guidance and searches only when required."""
+    from model_prompt_input_fixtures import prompt_input
+    import prompt_vocabulary_selection as selection
+
+    root.mkdir()
+    prompt = root / 'prompt.txt'
+    prompt.write_text('low angle', encoding='utf-8')
+    original = {'artifact_type': 'prompt-retrieval-record', 'elements': [{
+        'element': 'staging', 'queries': ['shared support'], 'inspected_records': [],
+        'outcome': 'unused', 'reason': 'The request supplies complete staging.'}]}
+    raw = (json.dumps(original, separators=(', ', ': ')) + '\n\n').encode('utf-8')
+    record = root / 'lookups.json'
+    record.write_bytes(raw)
+    model_file = root / 'model.json'
+    runtime = ['--state-file', str(root / 'state.json'), '--cache-dir', str(root / 'cache'),
+               '--managed-root', str(root / 'managed')]
+
+    def choose(mode, *, forms=None):
+        model = {'id': 'synthetic-' + mode, 'prompt_input': prompt_input(mode,
+            vocabularies=('synthetic-vocabulary',) if mode == 'tag-based' else (), forms=forms)}
+        if mode == 'tag-based':
+            model['prompt_dialect'] = 'synthetic-family'
+        model_file.write_text(json.dumps(model), encoding='utf-8')
+
+    def invoke(*options):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = retrieval_main([str(record), '--model-file', str(model_file),
+                                   '--prompt-file', str(prompt), *options, *runtime])
+        return code, json.loads(output.getvalue())
+
+    dictionary = root / 'dictionary.json'
+    dictionary.write_text(json.dumps(fixture()), encoding='utf-8')
+    dialects = root / 'dialects.json'
+    dialects.write_text(json.dumps({'format': 'character-prompt-builder-prompt-dialects',
+        'name': 'Synthetic command family', 'description': 'Local command test evidence.',
+        'dialects': [{'id': 'synthetic-family', 'name': 'Synthetic family',
+            'description': 'The fixture uses comma-separated vocabulary.',
+            'vocabularies': ['synthetic-vocabulary'], 'tag_separator': 'comma and space',
+            'block_order': ['content', 'optional controls']}]}), encoding='utf-8')
+    choose('tag-based')
+    acquire = selection._resources
+    with patch.object(selection, '_resources', side_effect=lambda model, **kwargs:
+            acquire(model, dictionary_path=dictionary, dialect_path=dialects)):
+        code, report = invoke('--search-vocabulary')
+    searched_raw = record.read_bytes()
+    searched = json.loads(searched_raw)
+    receipt = report.get('vocabulary') or {}
+    add('one model-bound wording command performs the required actual tag search',
+        code == 0 and report.get('vocabulary_searched') is True
+        and report.get('prompt_authoring', {}).get('vocabulary', {}).get('required') is True
+        and receipt.get('entries', [{}])[0].get('searches', [{}])[0].get('query') == 'low angle'
+        and receipt.get('entries', [{}])[0].get('choice', {}).get('kind') == 'dictionary'
+        and searched['elements'] == original['elements'] and searched.get('vocabulary') == receipt,
+        report)
+
+    choose('tag-based', forms=('tags', 'natural-language'))
+    record.write_bytes(raw)
+    with patch.object(selection, '_resources', side_effect=lambda model, **kwargs:
+            acquire(model, dictionary_path=dictionary, dialect_path=dialects)):
+        mixed_code, mixed_report = invoke('--search-vocabulary')
+    mixed_plan = mixed_report.get('prompt_authoring', {})
+    mixed_receipt = mixed_report.get('vocabulary') or {}
+    add('the same command derives mixed wording availability and required lookup from the model definition',
+        mixed_code == 0 and mixed_report.get('vocabulary_searched') is True
+        and mixed_plan.get('preferred_wording') == 'tags'
+        and mixed_plan.get('available_wording') == ['tags', 'natural-language', 'mixed']
+        and mixed_plan.get('vocabulary', {}).get('required') is True
+        and mixed_receipt.get('entries', [{}])[0].get('searches', [{}])[0].get('query') == 'low angle'
+        and mixed_receipt.get('entries', [{}])[0].get('choice', {}).get('kind') == 'dictionary'
+        and json.loads(record.read_bytes())['elements'] == original['elements'], mixed_report)
+
+    for mode in ('descriptive', 'unresolved'):
+        choose(mode)
+        record.write_bytes(raw)
+        with patch.object(selection, '_resources', side_effect=AssertionError('unexpected vocabulary acquisition')):
+            code, report = invoke('--search-vocabulary')
+            copied = root / (mode + '-copy.json')
+            copy_code, copied_report = invoke('--search-vocabulary', '--out', str(copied))
+            settled = root / (mode + '-settled.json')
+            settle_code, settled_report = invoke('--settle', '--out', str(settled))
+        add(mode + ' uses the same wording command without lookup or record changes',
+            code == 0 and report.get('vocabulary') is None and report.get('vocabulary_searched') is False
+            and report.get('prompt_authoring', {}).get('vocabulary', {}).get('required') is False
+            and record.read_bytes() == raw and copy_code == 0 and copied.read_bytes() == raw
+            and copied_report.get('vocabulary_searched') is False,
+            report)
+        add(mode + ' wording can settle without a model-format classification step',
+            settle_code == 0 and settled_report.get('ok') is True
+            and json.loads(settled.read_text(encoding='utf-8'))['elements'] == original['elements']
+            and 'vocabulary' not in json.loads(settled.read_text(encoding='utf-8')), settled_report)
+
+    choose('descriptive')
+    record.write_bytes(searched_raw)
+    with patch.object(selection, '_resources', side_effect=AssertionError('unexpected vocabulary acquisition')):
+        code, report = invoke('--search-vocabulary')
+    add('a prior vocabulary receipt survives an unrelated model selection as unused evidence',
+        code == 0 and record.read_bytes() == searched_raw and report.get('vocabulary') is None
+        and report.get('retained_vocabulary') == {
+            'used_for_selected_model': False, 'model': 'synthetic-tag-based'}, report)
+    record.write_bytes(raw)
+    code, report = invoke('--retain-wording', 'low angle', '--reason', 'Keep the commissioned viewpoint.')
+    add('retaining wording still requires a real previous search',
+        code != 0 and record.read_bytes() == raw
+        and any('run --search-vocabulary before --retain-wording' in error for error in report['errors']), report)
+
+    choose('none')
+    with patch.object(selection, '_resources', side_effect=AssertionError('unexpected vocabulary acquisition')):
+        code, report = invoke('--search-vocabulary')
+    add('the shared wording command preserves the declared absence of a text surface',
+        code != 0 and record.read_bytes() == raw
+        and any('no text prompt surface' in error for error in report['errors']), report)
+
+
 def main() -> int:
     value = fixture()
     checks: list[dict[str, Any]] = []
@@ -210,6 +326,8 @@ def main() -> int:
                 {"element": "construction", "queries": [], "inspected_records": []}]
             and not failed_report["ok"]
             and any("has no outcome" in error for error in failed_report["errors"]), failed_report)
+
+        check_model_wording_command(Path(temp) / 'model-wording', add)
 
     ranking = ranking_fixture()
     knit = search_vocabularies([ranking], "cable knit")

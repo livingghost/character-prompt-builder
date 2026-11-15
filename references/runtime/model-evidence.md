@@ -13,7 +13,7 @@ A platform with automatic backend selection remains unresolved until the
 selected model is known. A restoration interface can have no text input.
 Comma-separated ordinary phrases alone do not establish a tag vocabulary.
 
-Every model record declares `prompt_input` under
+Every maintained pack model record declares `prompt_input` under
 [`model-prompt-input.schema.json`](../../schemas/model-prompt-input.schema.json).
 The [model guidance card](render-contract.md#prompt-input) explains its four
 modes. Keep model- and version-specific input facts in that record, its declared
@@ -37,14 +37,19 @@ format used in training, a documented input/output example, or measured behavior
 for a particular construction. A mixed-input example does not by itself show
 which part caused the result or establish precise instruction following. Read
 stated limitations with the example and keep later revisions separate. The
-selected rendition still follows the requested form; missing tag vocabulary
-does not authorize adding natural-language instructions.
+selected rendition follows any explicitly requested exclusive form. Where the
+target supports prose or mixed input and the form is open, necessary authored
+wording can remain in the rendition. Missing tags alone neither establish nor
+disprove that support.
 
-For an unlisted target, the same explicit input contract belongs to the
-image-input plan's model description and to the model file used by retrieval.
-`prompt_retrieval.py --model-file MODEL_JSON` accepts its exact identity and
-input declaration without inventing an offering. A catalog-backed plan must
-agree with the selected catalog record. Input evidence, executable request
+For an unlisted target, any acquired input declaration belongs to the model
+description or model file used by retrieval. When it is absent, the script
+derives `unresolved` with empty forms, vocabularies and basis; no provider fact
+or observation date is invented. `prompt_retrieval.py --model-file MODEL_JSON`
+accepts the exact identity and available evidence without inventing an offering
+or asking the author to classify prose, tags or mixed input. A catalog-backed
+selection acquires the catalog contract and cannot override it with an external
+declaration. Input evidence, executable request
 schema and an observed successful image answer different questions.
 
 For tag-based input, `prompt_dialect` names the owning family. Its vocabulary
@@ -56,10 +61,12 @@ file reference, selected negative field and weighting syntax. Provider sources,
 lookup evidence and authoring reasons stay in these records, outside the image
 prompt.
 
-`scripts/model_prompt_input.py` validates the declaration and its owning family
-without inferring an input mode from missing metadata. Model cards and pack
-validation use this same contract; `scripts/model_prompt_input_smoke_test.py`
-exercises its explicit modes and reports with synthetic evidence.
+`scripts/model_prompt_input.py` validates supplied declarations and derives
+`prompt_authoring` for the ordinary model read. Missing form metadata remains
+unresolved; it does not select a prose-only or tags-only capability. Malformed
+supplied metadata remains an error. Pack validation retains its explicit
+record requirements; `scripts/model_prompt_input_smoke_test.py` exercises the
+shared resolution and reports with synthetic evidence.
 
 ## Validation modes
 

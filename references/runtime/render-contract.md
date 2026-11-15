@@ -267,29 +267,54 @@ One interface never inherits another interface's capabilities implicitly.
 
 ### Prompt input
 
-The required `prompt_input` contract distinguishes these workflows:
+Model records retain their `prompt_input` declaration as evidence and an
+authoring workflow. Model cards, selected route reads and `target_knowledge`
+also return script-derived `prompt_authoring`; the author supplies no advance
+prose/tag classification. The stored workflows have these meanings:
 
 | Mode | Input and authoring consequence |
 | --- | --- |
-| `tag-based` | Author a tag rendition using the selected vocabularies and exact target evidence. Search existing wording; availability of another input form does not select it for a tag request. |
+| `tag-based` | Search the selected vocabularies under exact target evidence, including when the model also supports prose. Honor an exclusive requested form; otherwise supported tags, prose or mixtures can preserve the depiction. |
 | `descriptive` | Use the declared natural-language or structured-caption form. Investigate construction and wording questions as needed. |
-| `unresolved` | The actual model, version or input behavior is not established. Retain a portable depiction and resolve the evidence before target-specific finalization. |
+| `unresolved` | Form metadata is absent or input behavior remains unknown. The script reports unspecified wording and keeps that uncertainty through text checks without blocking writing or finalization solely for classification. |
 | `none` | The selected operation has no text prompt surface. Supply its evidenced media and controls. |
 
-`forms`, `vocabularies`, and nonempty `basis` are present for every mode.
+`forms`, `vocabularies`, and `basis` are present in each resolved declaration.
+Only `unresolved` may have an empty `basis`; missing metadata supplies no
+invented provider statement or observation date. Maintained pack records still
+declare `prompt_input`. An acquired or external target may omit it, and the
+resolver derives the unresolved declaration while preserving its identity.
 Unresolved and no-prompt records keep both arrays empty. Descriptive records
 have no tag vocabulary scope. Tag-based records include `tags` in `forms`,
 name their vocabulary IDs and declare `prompt_dialect` as the owning family.
 Other modes omit `prompt_dialect`. These declarations are independent of the
 service's weighting parser and of whether an execution offering is configured.
 
+`prompt_authoring` exposes the derived work rather than another editable form:
+
+| Field | Meaning |
+| --- | --- |
+| `text_surface` | `present`, `absent` or `unknown` from the input declaration. Actual request fields remain authoritative. |
+| `evidence_status` | `declared` or `unresolved`; uncertainty is retained without demanding a classification step. |
+| `preferred_wording` | The declared workflow's starting form: `tags`, `natural-language`, `structured-caption`, `unspecified` or null for no text. A preference does not reject other wording. |
+| `available_wording` | Recorded forms and their declared combination; this is not a claim that every unlisted form is unsupported. |
+| `composition` | Direct writing instructions that preserve the commission and any explicitly requested form. |
+| `vocabulary` | Whether search is required, vocabulary IDs and owning dialect. Its action is `search-vocabulary`, `not-required` or `no-text`. |
+| `prompt_style`, `ordering` | The selected record's complete existing guidance, copied without reinterpretation. |
+
+The normal model read obtains this plan. The same vocabulary command follows
+its derived requirement for every model; the author does not choose a branch
+by guessing which text forms the model accepts. A declared no-text operation
+and actual parser, channel and parameter constraints remain enforced.
+
 Read each basis statement at its stated model, family, adapter, operation or
 author-selection scope. Distinguish accepted text, training format, a documented
 example and observed control of a requested relationship. A form's availability
 does not establish that every instruction written in it will work. An adapter
 that routes among several models does not establish the eventual model's input.
-The request selects the rendition from the available forms; a tag request remains
-tag-based even when the model also has descriptive capability. See
+An explicit requested form governs the rendition. When the form is open, choose
+supported tags, prose or mixtures for the required meaning; this does not remove
+a selected tag-based workflow's search requirement. See
 [Model request evidence](model-evidence.md#prompt-input-evidence) for authoring
 the contract and [Vocabulary](prompt-vocabulary.md#select-wording-for-a-tag-based-model)
 for the existing retrieval and settlement flow.

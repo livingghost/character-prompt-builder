@@ -980,7 +980,9 @@ Carry the construction through [interface rendition](runtime/prompt-writing-guid
 A descriptive model can receive explicit relationships in prose. A tag rendition
 uses its own evidenced vocabulary and syntax to approach the whole construction
 at the precision the target supports. Select concepts for its organization and
-treatment as well as its objects; retain uncontrolled relationships as limits.
+treatment as well as its objects. Carry relationships through supported concept
+combinations, necessary phrases, references or controls, including prose in a
+compatible mixed rendition; retain uncontrolled relationships as limits.
 Input mode alone guarantees neither exact binding nor layout, counts or readable
 text. Reference, regional or composition operations have separate contracts and
 must be available before they are offered as means. An unexecuted operation
