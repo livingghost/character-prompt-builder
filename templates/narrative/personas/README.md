@@ -6,9 +6,14 @@ performance context, but an adopted identity contract owns stable visual geometr
 Keep that section consistent with the authoritative contract instead of creating competing canon.
 A temporary wardrobe or health change remains scene state unless a declared phase requires it.
 
-For original-character development, read the complete form when designing individualized behavior
-or dialogue. Read the applicable world and design records as well; persona is one authority within
-the work, not a compulsory starting point for every narrative or a substitute for its setting. Preserve
+For original-character Persona development, read the complete form when authoring or materially
+revising that dossier. Deepen the fields needed for the current use and retain the others as
+visible gaps; the form is not a questionnaire to send field by field to the user. A bounded visual
+proposal can instead use the task-local definition from
+[Production direction](../../../references/runtime/production-direction.md#establish-the-character-for-this-use).
+Read existing applicable character definitions in full. Read the applicable world and design
+records as well; persona is one authority within the work, not a compulsory starting point for
+every narrative or a substitute for its setting. Preserve
 user anchors, assistant proposals, adoption and unresolved choices separately. A new scene should
 follow from these people's decisions, not serve as an excuse to invent interchangeable traits.
 

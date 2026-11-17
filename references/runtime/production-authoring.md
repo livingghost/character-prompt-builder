@@ -25,6 +25,21 @@ The document registry supplies required and permitted keys, the canonical
 schema when one exists, the logical validator otherwise, examples and remaining
 contextual checks. A document-level success does not establish request readiness.
 
+The draft is an empty scaffold, not a character definition. For character work,
+[establish the subject for this use](production-direction.md#establish-the-character-for-this-use)
+before writing its rendition. Bind the applicable original definition, or the
+new task-local definition, through `authoring.task.sources`; `authoring.sources`
+can hold its editable text. Preserve the concrete meanings and their
+[researched wording](prompt-vocabulary.md#define-a-character-with-usable-wording)
+together at that owner. An existing definition remains authoritative; do not
+replace it with a summary of the prompt being authored. The builder captures
+source bytes in `authored_basis` but does not invent or judge the definition.
+For a selected Production Specification, project the relevant identity, current
+state and performance into its subjects. Carry the meanings needed for this
+depiction into the actual delivery, retaining authored phrases when tags alone
+lose detail. A saved definition or an internal source path is not model input.
+Explicit supporting setting work follows its declared scope.
+
 The [complete first-input example](../../examples/input-authoring/README.md)
 creates all selected inputs and prepares one reference-guided image in a fresh
 Studio with no previous run. Use it to understand the relationships; start the

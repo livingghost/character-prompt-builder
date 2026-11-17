@@ -430,7 +430,10 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn(check, generation)
         self.assertIn(check, prompt_artifacts)
         self.assertIn("uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...", skill)
-        self.assertIn("Use this environment for every route", skill)
+        self.assertIn(
+            "`uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...` on every route.",
+            skill,
+        )
         self.assertLess(skill.index("## Mandatory execution environment"), skill.index("## Core contract"))
         self.assertIn("prompt-artifacts", prompt_artifacts)
         self.assertIn("same locked environment", prompt_artifacts)

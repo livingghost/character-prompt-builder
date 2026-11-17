@@ -2039,6 +2039,7 @@ def resolve_morphology_projection(
 def projection_semantic_content(value: dict[str, Any]) -> dict[str, Any]:
     keys = (
         "resolved_morphology", "visible_identity_features", "visible_state_deltas", "performance_cues",
+        "performance_language",
         "wardrobe_and_accessory_state", "held_or_visible_props",
         "relationship_blocking_cues", "environmental_body_responses",
         "occluded_or_irrelevant_features", "reference_asset_requirements",
@@ -2121,6 +2122,15 @@ def build_projection(
         "prompt_regeneration_required": True,
         "projection_sha256": "0" * 64,
     }
+    if "performance_language" in request:
+        performance = copy.deepcopy(request["performance_language"])
+        errors = validate_against_schema(
+            performance, read_schema(schema_file("performance-language.schema.json")),
+            "$.performance_language",
+        )
+        if errors:
+            raise ValueError("invalid projection request: " + "; ".join(errors))
+        projection["performance_language"] = performance
     if previous:
         projection["prompt_regeneration_required"] = (
             projection_semantic_content(projection) != projection_semantic_content(previous)

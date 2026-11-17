@@ -48,6 +48,44 @@ Review whether the scene respects that limit. Three additions would break it:
 A condition that leaves the voice unchanged by design is a useful control case. A later outburst
 or private disclosure is optional; suppression can simply continue.
 
+### Concrete forms within one individual's repertoire
+
+Consider a separate hypothetical individual whose declared body has four supporting limbs,
+eyelidded eyes, a flexible muzzle, two mobile ears and a tail. The proposed design allows pleasure
+to appear in both forms below. These are choices for this fictional individual, not claims about
+an animal species or a human expression system.
+
+| Proposed PHYSICAL form | Concrete realization | Permitted expressed degree |
+|---|---|---|
+| Open-eyed standing form | Eyes stay open and directed toward the response target. The muzzle corners lift with the jaws together. The head stays level, the ears orient toward the target, and weight remains supported by all four feet. The tail makes a low lateral sweep. | A slight display lifts the muzzle corners without gathering the surface beside them and keeps the sweep within the width of the hind-leg stance. A more pronounced display gathers that surface beside the lifted corners and carries the tail beyond the outside of the hind legs. Both preserve open eyes, the closed mouth and balanced support within the declared mobility. |
+| Closed-eyed settled form | The eyes close and the head inclines upward as the mouth opens. The body settles onto the haunches with both front feet still supporting it. The ears retain their target orientation and the tail rests beside the body. | A contained display keeps a narrow horizontal mouth opening and the head near level. A fuller display rounds the central opening and angles the muzzle upward while preserving closed eyes, seated support and the resting tail. Choosing this form is separate from increasing the standing form's degree. |
+
+THOUGHT owns the selection: in this proposal, attending to a companion's approach selects the
+open-eyed standing form; pleasure after a shared task has ended can select the closed-eyed
+settled form. PHYSICAL keeps the concrete forms and their ranges, referring to that rule rather
+than repeating it. A relationship-specific exception would have its own directional owner.
+Other supported forms can be added as proposals; neither these two forms nor their contrast is a
+required inventory.
+
+For a still selecting the more pronounced standing form, a performance clause can say:
+
+> The four-legged subject looks toward an approaching companion off-frame at image right with
+> its eyes open and its muzzle closed, the lifted mouth corners gathering the muzzle surface
+> beside them. Its level head and both ears orient toward the approach. All four feet support
+> its weight, and its tail extends low to the side beyond the outside edge of its hind legs.
+
+This is a clause for one selected depiction, not a complete generation request. It carries the
+applicable form, target and degree without the source's internal names. The current frame captures
+one tail position within the selected sweep. The surface gathering and the tail's relation to the
+hind legs express the selected degree; the word pronounced alone would not establish it.
+
+Review the actual eyes, mouth, support and participating parts against that prior selection.
+A result with closed eyes and the standing body cannot be passed merely because it reads as
+pleased: this proposal has not permitted that combination for this condition. A reviewer may
+find it worth proposing, but its appeal does not establish compliance with the selected form.
+Conversely, an alternative explicitly permitted by the current rule remains eligible. Assess the
+individual definition rather than demanding this example's anatomy or exact pose of other subjects.
+
 ## 3. A non-vocal subject or a functional system
 
 A declared subject communicates in an authored signed language. Its linguistic register and
@@ -56,10 +94,22 @@ describes linguistic forms rather than a decorative hand-wave. Limit descriptive
 the supplied world and language record supports; an undecided linguistic realization stays a gap
 rather than an invented account of a real signed language.
 
-Separately, an unpersonified controller has a status indicator and pause/retry logic. A delayed
-signal is an operation; anxiety or a suppressed human motive would be an invention, and a persona
-may be absent entirely. Confirm that the selected medium and any visual record preserve the
-declared operation, with face, voice, hidden emotion and protagonist all left uninvented.
+Separately, a proposed unpersonified controller has a movable carriage, a load clamp, a status
+indicator and pause/retry logic. Its declared paused operation holds the carriage at the current
+guide position, keeps the clamp supporting its load and holds the indicator steady. During a retry
+attempt the indicator emits two short pulses while the carriage and clamp retain that support;
+the operation supplies no permission to shake the load or invent a face. These physical
+relationships make the operation reviewable beyond the word paused.
+A delayed signal is an operation; anxiety or a suppressed human motive would be an invention,
+and a persona may be absent entirely. Confirm that the selected medium and visual record preserve
+the declared operation.
+
+If another design explicitly personifies a machine, its own expressive repertoire may use
+aperture, sensor orientation, load-bearing configuration, light or sound. Define those concrete
+forms and their permitted degrees before using a feeling label as their description. A
+distributed subject likewise needs its declared parts, coordination and functional limits, not
+an assumed single face or torso. Personification and expressive meaning come from that design;
+the controller example establishes neither for another subject.
 
 ## 4. Single image versus a changing response
 
@@ -69,6 +119,14 @@ is possible at that instant and whether the prompt mistakenly asks for both the 
 release at once. Unseen words and hidden motives belong in author direction; a claim about pixels
 covers only what the pixels show. For audio, a visible glance is inaudible, so the beat needs an
 audible carrier unless that omission is intentional.
+
+Before generation, identify the concrete distinctions this view must establish and the permitted
+variation from its source. Inspect the actual prompt and supplied media for those distinctions;
+an expression name, a rule ID or a persona file that the model never receives cannot carry them.
+After generation, distinguish a sound physical construction, the selected individual's form and
+the intended expressive read. Success on one question does not answer the other two. Repair a
+missing or contradictory realization at its owner rather than explaining an unexpected result
+with a more accommodating emotion label.
 
 ## 5. Similarity, scope and revision
 

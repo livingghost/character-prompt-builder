@@ -6,11 +6,11 @@
     },
     {
       "path": "references/runtime/production-direction.md",
-      "sha256": "034227a0cb53a11b66b5b92f660c8b6685bfbb69c2adb15eb61ac8d052c78365"
+      "sha256": "af908c2389f135d2a58029493e4e172b657d9c529336b4cd24c549ef5f17b272"
     },
     {
       "path": "references/runtime/production-authoring.md",
-      "sha256": "d5458c2e4700a8dc80f5394ff11abb48903373735624b8745e20dae97f6bdbdd"
+      "sha256": "af1f17334e0dddd9eafb0427fd028fe2d927cf541ca1e240f01b74e4701196c3"
     },
     {
       "path": "references/runtime/production-preparation.md",
@@ -102,5 +102,5 @@
     }
   },
   "route": "state-series",
-  "reading_key": "eefecafeed7144b7bd60979f2bc7ab72"
+  "reading_key": "976257b739f97952b1f17719c3480d02"
 }

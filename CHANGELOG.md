@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026.11.17.2
+
+- Develop a concrete character from an open brief while keeping unused choices
+  open. An isolated image can use a task-local definition without a name,
+  registration or complete Persona. Preserve setting-only work and delegated
+  design scope.
+- Research dictionary terms beside character definitions and retain authored
+  phrases for missing distinctions. Keep model-specific vocabulary work separate
+  from those source-level associations.
+- Define individual bodily or functional expressions with their conditions,
+  permitted variation and expressed degree. Carry the selected performance into
+  the delivered input and review it against its definition, not an emotion label.
+- Preserve structured performance in visual-state projection and sheet review.
+  Distinguish provisional portrayal from continuing-cast admission and permanent
+  adoption.
+
 ## 2026.11.17.1
 
 - Expand the shared prompt vocabulary with 2,214 entries for poses, appearance,

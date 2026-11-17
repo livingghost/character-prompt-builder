@@ -127,7 +127,10 @@ class ReadingTests(unittest.TestCase):
         carriers={name for group in ('features','routes') for name,entry in manifest[group].items()
                   if species & set(entry['reads'])}
         self.assertEqual(carriers,{'body-plan'})
-        self.assertEqual(manifest['features']['recurring-identity']['reads'],['references/character-identity-contract.md'])
+        self.assertEqual(manifest['features']['recurring-identity']['reads'],[
+            'references/character-identity-contract.md',
+            'references/runtime/prompt-vocabulary.md',
+        ])
     def test_a_route_reads_its_complete_operation_and_specialists(self):
         manifest = c.load(r.ROOT/r.execution_routes.MANIFEST)
         authored = r.execution_routes.resolve('prompt-only', execution='authored')

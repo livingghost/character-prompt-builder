@@ -28,28 +28,45 @@ review.
 - **authorial_intent_refs**:
   <!-- Applicable exact local Markdown intent links; n/a with reason when no such entry applies. -->
 - **persona_or_world_identity_and_phase**:
+  <!-- Cite the applicable original definition and its concrete response rules.
+       A sheet summary or generated prompt does not replace that owner. -->
 - **expected_state_and_boundary_conditions**:
+  <!-- Identify the selected condition, available information, audience, degree and
+       reaction phase where they affect the portrayal. Keep internal feeling, intended
+       display and what must be visible distinct; concealed feeling need not leak. -->
 - **reference_role_and_applicability**:
 - **recipient_information_boundary**:
 
 - **expected_portrayal**:
-  <!-- The requirement and selected effect this span must communicate; cite its source. -->
+  <!-- The requirement and selected effect this span must communicate; cite its source.
+       For conditional performance, identify the selected concrete realization,
+       relationships that distinguish it, held features and prior permitted variation.
+       Keep the stable individual definition and current depiction's choices in scope. -->
 - **criterion_specific_observations**:
   <!-- If further inspection follows the criteria, mark that reading order and its limits.
-       Do not overwrite the original observation with the expected interpretation. -->
+       Do not overwrite the original observation with the expected interpretation.
+       Inspect the relevant whole configuration and local channels together, using only
+       declared structures. Name required relationships the framing cannot establish. -->
 - **interpretation_and_verdict**:
   <!-- Link each judgment to observations. Inspected but inconclusive is indeterminate;
-       uninspected is not-assessed. Neither is a pass. -->
+       uninspected is not-assessed. Neither is a pass. Compare with the original
+       definition and selected current portrayal, including their permitted variation.
+       A broad emotion label or plausible alternative story does not establish that
+       this individual's selected response was realized. -->
 - **difference_and_affected_scope**:
   <!-- Distinguish requirement failure, unobservable property and optional preference.
-       A different valid realization is not a defect. -->
+       A different realization can preserve the required meaning and fixed features.
+       Identify that preservation; do not fix every prompt word or relax an adopted
+       feature merely to accommodate the candidate. -->
 - **evidence_and_uncertainty**:
 - **owning_layer**:
   <!-- Source interpretation, observable condition, state, temporal/spatial construction,
        presentation, projection, reference, expression, rendering, knowledge, execution,
        intentional departure or an explicitly unresolved mixture. Not a hidden-model diagnosis. -->
 - **departure_decision_or_open_issue**:
-  <!-- Cite an actual scoped decision; do not claim accidental drift was planned. -->
+  <!-- Cite an actual scoped decision; do not claim accidental drift was planned.
+       A useful unexpected performance is a new proposal at its owning definition or
+       current Production direction, not retrospective proof of the earlier intent. -->
 
 ## Repair and selection
 
@@ -62,7 +79,8 @@ review.
 - **previous_and_new_candidates**:
 - **comparison_under_same_contract**:
   <!-- Identify changed prompt, references and settings. Several changed variables
-       support a setup comparison, not an isolated causal claim. -->
+       support a setup comparison, not an isolated causal claim. Identify a changed
+       definition or selected portrayal as a new basis, preserving the earlier one. -->
 - **selected_candidate_and_reason**:
   <!-- The previous candidate can remain selected. A change is not necessarily an improvement. -->
 - **actual_adoption_or_no_adoption**:

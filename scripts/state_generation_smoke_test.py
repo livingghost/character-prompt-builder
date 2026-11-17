@@ -297,6 +297,89 @@ def _load_graph() -> dict[str, dict[str, Any]]:
     }
 
 
+def _projection_performance_regression(graph: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    request = load_json(EXAMPLE / "projection-request.json")
+    request.pop("performance_language", None)
+    omitted_request = copy.deepcopy(request)
+
+    def project(value: dict[str, Any], previous: dict[str, Any] | None = None) -> dict[str, Any]:
+        return build_projection(
+            graph["identity_contract"], graph["species_profile"],
+            graph["individual_morphology"], graph["state_snapshot"],
+            graph["scene_context"], value, previous,
+        )
+
+    omitted = project(request)
+    performance = copy.deepcopy(graph["production_spec"]["subjects"][0]["performance"])
+    performance["felt_emotion"] = []
+    performance["selected_interpretation"] = None
+    performance["ambiguity_notes"].append("The synthetic review leaves the felt emotion unresolved.")
+    request["performance_language"] = performance
+    authored_request = copy.deepcopy(request)
+    authored = project(request, omitted)
+    unchanged = project(copy.deepcopy(request), authored)
+    changed_request = copy.deepcopy(request)
+    changed_request["performance_language"]["channel_cues"][0]["visual_instruction"] = (
+        "Keep the gaze on the nearby colleague throughout the held reaction."
+    )
+    changed = project(changed_request, authored)
+    removed = project(omitted_request, authored)
+    still_omitted = project(omitted_request, omitted)
+    report = validate_artifact(authored)
+    inputs_unchanged = request == authored_request
+    request["performance_language"]["channel_cues"][0]["visual_instruction"] = "Later draft edit."
+
+    rejected: dict[str, str] = {}
+    for label in ("null-record", "invalid-channel-instruction"):
+        invalid = copy.deepcopy(authored_request)
+        if label == "null-record":
+            invalid["performance_language"] = None
+        else:
+            invalid["performance_language"]["channel_cues"][0]["visual_instruction"] = 42
+        before = copy.deepcopy(invalid)
+        try:
+            project(invalid)
+        except ValueError as exc:
+            if invalid == before:
+                rejected[label] = str(exc)
+
+    checks = [
+        {
+            "name": "selected structured performance survives projection and schema validation",
+            "passed": authored.get("performance_language") == authored_request["performance_language"]
+            and authored["performance_cues"] == omitted["performance_cues"]
+            and report["ok"]
+            and authored["projection_sha256"] == artifact_hash(authored),
+            "validation": report,
+        },
+        {
+            "name": "projection preserves unresolved meaning and owns independent nested values",
+            "passed": inputs_unchanged
+            and authored.get("performance_language") == authored_request["performance_language"],
+        },
+        {
+            "name": "structured performance addition, change and removal require prompt regeneration",
+            "passed": authored["prompt_regeneration_required"] is True
+            and changed["prompt_regeneration_required"] is True
+            and removed["prompt_regeneration_required"] is True
+            and changed["projection_sha256"] != authored["projection_sha256"],
+        },
+        {
+            "name": "unchanged and omitted optional performance keep their existing meaning",
+            "passed": unchanged["prompt_regeneration_required"] is False
+            and still_omitted["prompt_regeneration_required"] is False
+            and "performance_language" not in omitted
+            and "performance_language" not in removed,
+        },
+        {
+            "name": "supplied performance uses the existing structural schema without repairing meaning",
+            "passed": set(rejected) == {"null-record", "invalid-channel-instruction"},
+            "errors": rejected,
+        },
+    ]
+    return {"ok": all(row["passed"] for row in checks), "checks": checks}
+
+
 APPROVED_PLOT = {
     "artifact_type": "prompt-plot",
     "story": [
@@ -766,6 +849,13 @@ def run() -> dict[str, Any]:
         checks.append({"name": name, "passed": bool(passed), "detail": detail})
 
     graph = _load_graph()
+
+    performance_projection = _projection_performance_regression(graph)
+    check(
+        "visual projection retains authored optional performance and tracks its changes",
+        performance_projection["ok"],
+        performance_projection,
+    )
 
     default_only_examples = evaluate_default_only_examples(ROOT)
     check(

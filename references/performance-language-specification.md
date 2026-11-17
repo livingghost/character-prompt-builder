@@ -44,8 +44,8 @@ Performance information can belong to different artifacts.
 |---|---|
 | Creator portrayal aim, permitted contrast and deliberate departure | Scoped authorial intent entry in the design register, not a new performance JSON field |
 | Character profile and signature dynamics | Applicable persona section 2, binding the creator aim to internal traits and expression |
-| Individual behavioral baseline, conditional response and voice modes | Applicable persona PHYSICAL/THOUGHT/SPEECH/RELATIONSHIPS, bound to section 2 with world and phase scope |
-| Adopted visual-production summary of mannerisms and declared available channels | Character Identity Contract `stable_identity.performance_vocabulary`; a bounded summary, not a competing persona |
+| Individual baseline and concrete expression repertoire; the conditions selecting a form and degree; voice modes and partner-specific differences | Applicable persona PHYSICAL/THOUGHT/SPEECH/RELATIONSHIPS, bound to section 2 with world and phase scope |
+| Adopted visual-production summary of concrete expression forms, permitted variation and declared available channels | Character Identity Contract `stable_identity.performance_vocabulary`; preserve the applicable persona meaning and scope, not a competing persona |
 | Current felt emotion, masked emotion, fatigue, arousal, pain, intoxication, or alert state | State Snapshot or Scene Context |
 | The cues that must be visible from the current camera | Visual State Projection `performance_cues`, optional structured `performance_language`, and prompt fragments |
 | The exact coordinated performance for one image | Production Specification `subjects[].performance` |
@@ -89,6 +89,13 @@ interpretations or continuity across a series. Its fields preserve that
 reasoning and evidence; prompt projection carries the selected act or reaction
 and the distinctions it needs.
 
+Emotion and intensity labels organize the record; they do not define the
+individual's expression. Describe how the selected degree appears in the
+available structures and their coordinated behavior. A stronger response can
+change some components and leave others steady; it need not enlarge every cue
+or advance through a fixed sequence. A phase or delay is relevant only when
+the actual situation and medium call for it, never a separate character type.
+
 ### Channel cue fields
 
 Each cue states:
@@ -109,8 +116,9 @@ notes
 ```
 
 `observation` records what the source or approved state shows.
-`visual_instruction` records the selected visible behavior for this cue, using
-geometry or material behavior where that distinction matters. They remain
+`visual_instruction` records the selected visible form or behavior for this
+individual, including shape, orientation, tension or material change needed
+to distinguish it from other forms with the same emotion label. They remain
 separate because observed evidence can support several interpretations, while
 the new depiction has its own selected performance and source authority.
 
@@ -280,7 +288,16 @@ Sensitive content remains production knowledge when supported. Adult erotic or s
 
 ## 7. Search projection
 
-Search facets are a discovery projection of the complete record. Useful keys include:
+Search facets are discovery questions projected from the complete record. Use
+the concrete form and its corresponding wording, researched while authoring
+the character definition under
+[Prompt Vocabulary Runtime](runtime/prompt-vocabulary.md#define-a-character-with-usable-wording).
+The definition keeps the inspected terms, their applicable sense and source,
+and any authored phrase needed to complete the meaning. A new scene-specific
+form keeps that association in its existing scene or performance notes rather
+than silently becoming reusable identity.
+
+Useful keys include:
 
 ```text
 emotion
@@ -303,63 +320,88 @@ content_intensity
 interpretation
 ```
 
-Use ordinary canonical-English aliases that describe the coordinated read. Keep cue-specific terms too, such as `flushed cheeks`, `half-lidded eyes`, `ears angled back`, `tail tip flick`, `hands gripping the hem`, `optic aperture narrowed`, or `ventilation pulse`.
+Use ordinary English terms and related phrases that describe the coordinated
+read. Keep cue-specific wording too, such as `flushed cheeks`, `half-lidded eyes`,
+`ears angled back`, `tail tip flick`, `hands gripping the hem`, `optic aperture
+narrowed`, or `ventilation pulse`. These are possible search phrases, not a
+claim that each is a dictionary entry. Run the applicable searches and inspect
+the complete selected entries; assigning a phrase to `search_facets` does not
+perform that research. Reuse the existing retrieval record for actual queries.
+Model-bound rendition search and verification remain separate from these
+source-level meaning associations.
 
 ## 8. Prompt projection
 
-Author the act or reaction selected through
-[Production direction](runtime/production-direction.md): what the participant
-is doing or responding to, in which circumstances, and how that response
-contributes to this depiction. Preserve the relationship between that act,
-its intended emotional read and its degree. An ordinary complete action or
-performance phrase can carry natural gaze, posture and expression without a
-separate instruction for each channel.
+Resolve the individual's concrete expression through
+[Character Performance](runtime/character-performance.md) before compressing it
+into a prompt. Apply the adopted repertoire to the current situation, purpose,
+relationship and degree under [Production direction](runtime/production-direction.md).
+Choose the form or explicitly permitted alternatives for this depiction. If a
+needed form is still undefined, author it at its existing owner within delegated
+scope, or retain the unresolved choice and its consequence. A generic emotion,
+pose name or catalogue example does not complete that definition.
 
-Use channel knowledge when a fixed design, a consequential ambiguity or an
-observed mismatch needs a more specific distinction. A gaze target can clarify
-whom a response addresses; a held posture can distinguish restraint from an
-interruption; local facial or material behavior can establish an expressly
-requested cue. Choose the detail for that work. A position or measurement that
-merely describes one imagined realization need not narrow the authored act.
+Use the definition's corresponding wording as researched authoring material.
+Choose the terms whose inspected sense fits this form and retain authored
+phrases for its remaining distinctions and relationships. A tag or mixed
+rendition applies those choices under the selected model's actual input
+contract and vocabulary scope, with the required rendition lookup. Neither a
+stored keyword nor its presence in a dictionary demonstrates a learned effect.
 
-Felt state, intended display, masking and timing remain separate decisions.
-The selected channels can reinforce, contradict or lag each other, stay quiet,
-or withhold a response. Coordinated performance means that their relationship
-serves the chosen portrayal, including a requested ambiguity or contrast.
-It does not require agreement among every signal. Use the individual's
-declared channels, actual bodily or mechanical constraints and selected view.
+Carry the selected form into the renderer's actual text or readable supplied
+media. Describe the coordinated bodily or material state that distinguishes
+this individual's expression: for example, the chosen eye opening and gaze,
+mouth shape, posture, gesture, distance or available appendage configuration.
+Use the structures that exist and the components that carry this performance.
+An ordinary action can remain one intelligible phrase; no exhaustive anatomy
+list, fixed channel count, measurement or separate instruction for every joint
+is required. Unspecified incidental detail remains free, while the defining
+relationships and permitted range retain their meaning.
 
-The actual prompt and supplied media must establish the present circumstances
-needed to understand the performance. A prior event can supply a necessary
-premise for a reaction; retain that premise before a dependent cue. A source
-record can hold fuller history and unselected interpretations. The model does
-not share the authoring conversation. Readable supplied evidence carries its
-assigned contribution, while text establishes the current act and any missing
-context. Different participants or local views retain their own performance
-scope.
-
-For a portrayal whose selected construction depends on these cues, a detailed
-realization could read:
-
-```text
-playful flustered teasing carried by a small tongue display, bilateral cheek blush,
-softened half-lidded viewer-directed eyes, a slight forward head lean, relaxed ears,
-and one stable cup-holding hand
-```
-
-A compact direction could instead read:
+For example, suppose an authored character's response to private praise uses
+eyes still open but narrowed by raised cheeks, a closed mouth with both corners
+slightly raised, a gaze just beside the speaker, a lowered chin and fingertips
+loosely touching at the waist. Its definition permits a small change in head
+angle, but the present depiction requires the open eyes and closed mouth. One
+prompt realization is:
 
 ```text
-playful and flirty
+Receiving quiet praise from the companion beside them, the character gives a
+small closed-mouth smile, both corners gently raised. The lifted cheeks narrow
+the still-open eyes; the gaze rests just beside the companion's face. The chin
+is lowered, with fingertips loosely touching at the waist.
 ```
 
-Neither form establishes its own suitability. The current act, context,
-character and available source evidence determine whether the compact direction
-already carries the result or a particular cue must be resolved. A small
-multi-channel set, one channel, subtle stillness, intentional ambiguity or no
-expressive display can each be appropriate. If the actual construction remains
-underdetermined in a consequential way, return that question to Production
-direction rather than expanding all channels or inventing anatomy.
+This synthetic choice is not a general definition of embarrassment or smiling.
+Another individual, or another situation for the same individual, can use a
+different form. `Smiling shyly` does not preserve the specified distinctions.
+Even a longer phrase such as `happy, shy and pleased` leaves them unresolved.
+An eye-closed grin would not satisfy this depiction merely because it can also
+express pleasure. If both forms are allowed, establish that allowance before
+generation and preserve its actual conditions.
+
+The same rule applies to a declared non-facial body: select and describe its
+actual orientation, posture, contact, surface or mechanical changes rather
+than adding human features. Felt state and intended display retain their
+separate meanings. Components can reinforce, contradict or withhold a response;
+their combination must serve the authored portrayal. No hidden feeling must
+leak. Timing belongs in the input only when the depicted situation and medium
+can use it. A still depicts a selected configuration, not an invisible delay.
+
+Establish the circumstances the model needs to understand the performance. A
+prior event can supply a necessary premise; retain it before a dependent cue.
+The model does not share the authoring conversation or read an internal record
+merely because its path exists. Readable supplied evidence carries only its
+assigned contribution, while text supplies missing content and context.
+Different participants or local views retain their own performance scope.
+
+Compact wording is appropriate when the actual input still establishes the
+required form and range, or the commission deliberately leaves that choice
+open. A reference used only for identity does not silently define this scene's
+expression. A label in `selected_interpretation`, an internal field or notes
+cannot substitute for meaning omitted from the delivered input. Keep unselected
+alternatives and authoring provenance in their records rather than asking the
+renderer to combine incompatible expressions.
 
 Record a newly selected gesture, distance or expression in the current Visual
 State Projection or Production Specification. Structured cues use the existing
@@ -374,7 +416,10 @@ conditions that support them. An unresolved story decision can remain in the
 story record while the present performance is clear.
 
 When a returned image misses the requested read, compare the actual act or
-reaction with the requested result under Production direction's repair process.
+reaction with the original definition, selected depiction and permitted range
+under Production direction's repair process. First check whether the delivered
+input actually carried that meaning; then distinguish a missing authoring
+decision, a projection omission and a generation failure.
 The cause can lie in the situation, relationship, chosen instant, source use or
 a local cue. A local defect can be repaired by specifying its wanted state and
 degree; a mistaken act or reaction requires rebuilding that construction.
@@ -403,11 +448,23 @@ channel to reset together. Plausible source interpretations remain with their
 observations; ambiguity requested of the output belongs to the selected
 portrayal and its relationship, scene, state and content intensity.
 
-Assess what the delivered prompt and media establish about the present act,
-its circumstances, its degree and any consequential local cue. Compare that
-performance with the richer authoring sources under their assigned authority.
-Contextual and interpretive instructions must contribute to the selected
-depiction; story-state decisions and observation limits retain their own owners.
+Before generation, derive the required expression and allowed variation from
+the individual's definition and current depiction intent. During review,
+compare the observed combination with that basis, not only with an emotion
+word or the shortened prompt. State what the relevant structures visibly do
+and whether their relationships and degree meet the selected form. A plausible
+reading such as `some kind of smile` is insufficient when the defining form
+differs. Likewise, counting separately plausible cues does not establish that
+their combination realizes the performance.
+
+Preserve natural variation within the original allowance. If required evidence
+is hidden or unreadable, leave that part indeterminate; textual intent does not
+make it visible. Other unneeded channels may remain unseen. An appealing output
+outside the selected definition can become a separately evaluated design
+proposal, but must not retroactively widen the allowance or turn the original
+attempt into a pass. Assess the input's fidelity to its richer authoring
+sources separately from the image's fidelity to the delivered input. Story-state
+decisions and observation limits retain their own owners.
 
 
 ## 10. Reference-corpus cue harvesting

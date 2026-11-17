@@ -79,8 +79,12 @@ python scripts/execution_routes.py read <route> --operation <operation> --execut
 python scripts/production_workflow.py draft-inputs --root STUDIO --route <route> --artifact <artifact> --execution <execution> --out-dir work/draft
 ```
 
-Open the work task before drafting. Register a character only when the work has
-an owning character; authored text and an ordinary image need no placeholder.
+Open the work task before drafting. Establish the character's concrete definition
+under [Production direction](references/runtime/production-direction.md#establish-the-character-for-this-use),
+using a task-local definition when that is sufficient. Studio registration is
+separate; a one-image definition needs no placeholder character record. Retain
+explicitly scoped setting-only work. During definition authoring, select feature
+`vocabulary` and follow [definition wording](references/runtime/prompt-vocabulary.md#define-a-character-with-usable-wording).
 Select `author`, `save`, `prepare`, `execute`, `review` or `adopt` for the current
 operation and take `authored`, `external` or `dispatcher` from the task's execution
 kind. Add the applicable specialist features. Include `--model MODEL`

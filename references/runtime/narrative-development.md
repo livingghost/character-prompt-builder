@@ -10,8 +10,9 @@ Apply [Production direction](production-direction.md) to the current
 5. scoped repair.
 
 [Permissions](production-permissions.md) separate delegated judgment from submission, selection
-and canonical adoption. A requested artifact review keeps its attributed review record; cast, emotion
-curve and stock gesture stay optional.
+and canonical adoption. A requested artifact review keeps its attributed review record. Character
+creation and portrayal use a concrete character definition; world preparation and other supporting
+work keep their requested scope. No dramatic arc or stock gesture is required.
 
 ## Activation and ownership
 
@@ -22,14 +23,18 @@ conflict between them:
 - character, relationship or situation;
 - narrative or dialogue.
 
-Deliver the artifact asked for. Thinking needs none of file creation, packs, a Studio or a model.
+Deliver the artifact asked for. Conversation-only development needs no file creation, Studio or model selection.
 Ordinary isolated image wording follows its own runtime.
 
-The creative unit is the work in its intended scope. It may have zero, one or many personified
-subjects, and a fixed, changing or distributed focus does not make the work an ensemble drama. A
-location, process, institution, object, atmosphere or formal pattern can organize the work while
-staying impersonal. Genre, theme, romance, conflict, growth arc, dramatic climax and moral
-conclusion are all optional.
+The creative unit is the work in its intended scope. In character creation,
+develop the character or cast that gives the work its subject, following
+[Establish the character for this use](production-direction.md#establish-the-character-for-this-use).
+The current commission can instead be supporting world development, setting
+preparation or another expressly impersonal artifact. A location, process,
+institution, object, atmosphere or formal pattern can organize that work while
+staying impersonal. A fixed, changing or distributed focus does not make a
+work an ensemble drama. Genre, theme, romance, conflict, growth arc, dramatic
+climax and moral conclusion are all optional.
 
 This document owns the creative method. The other owners:
 
@@ -46,8 +51,13 @@ Read the existing world and design files together with any persona.
 
 Start from the user's actual entry point; a world-first, event-first, theme-first,
 character-first or image-first idea keeps that order. Recover existing anchors and adoption
-records before adding anything. Delegated invention permits proposals; approval stays with the
-user. An answered question stays answered, and a rejected suggestion stays rejected.
+records before adding anything. A place or mood offered in an open character
+commission supplies material for a character and its circumstances; it does
+not settle the work as a landscape. Make a concrete proposal within delegated
+scope even when the user has no detailed preferences. A new proposal can be
+used for the requested draft without being adopted as permanent canon.
+Apply existing authority at its actual scope. An answered question stays
+answered, and a rejected suggestion stays rejected.
 
 Record what serves this task in a design note, in conversation or in `narrative/design/`.
 Read the full design template, then work on the relevant sections. Each form is a working record,
@@ -253,12 +263,18 @@ roles and local practice where it matters.
 
 ### Agents and persona
 
-When individualized behavior, dialogue or continuing identity matters, read the complete persona
-form and each applicable character profile (a persona file) first. Keep all twenty sections as the workspace:
-deepen causally relevant fields first and retain the rest as examined states or visible gaps. A
-summary may aid comparison; the detailed form stays the record. Personas belong to portrayed
-agents; scenery, forces, decorative crowds and collectives get one only when portrayed as agents,
-whatever a file format expects, and an impersonal process gets a process model.
+Read each applicable existing character profile in full before relying on it.
+When authoring or materially revising a Persona dossier, read the complete
+form and keep all twenty sections as the workspace: deepen relevant fields
+first and retain the rest as examined states or visible gaps. A summary may
+aid comparison; the detailed form stays the record. A bounded visual proposal
+can instead use a concrete inline definition under
+[Production direction](production-direction.md#establish-the-character-for-this-use),
+without creating a full Persona or registering a cast member. Define enough
+of the character for the use before its portrayal depends on those choices.
+Personas belong to portrayed agents; scenery, forces, decorative crowds and
+collectives get one only when portrayed as agents, whatever a file format
+expects, and an impersonal process gets a process model.
 
 For each relevant agent, connect wants, values, competence, knowledge, habits, speech and choices
 to their circumstances while keeping the person larger than them. Distinguish self-image,
@@ -267,6 +283,14 @@ follows. Category labels, physique, reputation and social role leave temperament
 needs an existence beyond a plot function or a contrast with another agent. Who joins the cast, on
 whose decision, and how much of a person each use needs:
 [Cast Admission and Persona Depth](cast-and-persona-depth.md).
+
+During definition, investigate the relevant dictionary meanings under
+[Define a character with usable wording](prompt-vocabulary.md#define-a-character-with-usable-wording)
+and retain suitable keywords and necessary authored phrases beside the
+appearance, behavior or other choices they express. The agent supplies that
+research and the concrete design; the user need not know dictionary terms or
+complete the Persona form. The words remain tied to the definition's actual
+meaning when it is projected into a prompt.
 
 For individualized voice and embodied expression, activate
 [Character Performance](character-performance.md). It binds persona section 2 to the governing
@@ -280,9 +304,10 @@ ties independently rather than forcing mutuality or completing every pair in a c
 personality can be complete while lacking conflict, intimacy, trauma or personal growth.
 
 Original proposals and hypothetical design samples are authored tests; record their design basis,
-and keep sources and reconstruction separate for existing subjects. A form is filled from real
-observations, quotations and corroboration or left with a visible gap; depth targets are met with
-examined content rather than filler.
+and keep sources and reconstruction separate for existing subjects. A
+reconstruction uses real observations, quotations and corroboration or leaves
+a visible gap; original design records its authored choices as choices.
+Depth targets are met with examined content rather than filler.
 
 ### Themes, events and form
 
@@ -405,6 +430,12 @@ themes, arcs and chapters; the design note records whether each empty dimension 
 intentionally unused. The explicit example seed is a teaching scaffold; protagonist count and
 structure come from the work. Choose the medium for the task; the CLI's default `screen` is only a
 default.
+
+An empty cast supports work on the world before its characters are developed.
+It does not establish readiness for a character portrayal. Before that use,
+read or author the needed individual definitions and preserve their scope in
+the existing owners. A world-only deliverable can finish within its own
+commission; it does not complete an unresolved character design.
 
 | Design responsibility | Owning artifact or field |
 |---|---|

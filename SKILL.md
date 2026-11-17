@@ -1,11 +1,11 @@
 ---
 name: character-prompt-builder
-description: Create image prompts, scoped negatives and canonical references for humans, animals, anthropomorphic animals, creatures, monsters, hybrids, robots and androids. Use for character generation or illustration; editing an existing image to replace clothing, objects, backgrounds or lighting; prompt writing, assessment, revision, translation, expansion or variation; OCs, fursonas, mascots, VTubers, worlds, themes, personalities, casts, relationships and narratives; recurring-character continuity; prompt-facing SVG or verified model-facing references; and state-aware image series involving identity, emotion, relationships, environment, wardrobe, inventory, time, injury, transformation or off-screen events. Trigger on sparse or detailed briefs in any language, even without the word prompt. Work with any image model or service.
+description: Develop character definitions, image prompts and scoped references for human, animal, creature and machine characters. Use for generation, illustration, image edits; prompt assessment, revision, translation, expansion or variation; OCs, fursonas, mascots, VTubers, supporting worlds, themes, personalities, casts, relationships and narratives; recurring identity; SVG or verified model-facing references; state-aware series with emotion, relationships, environment, wardrobe, inventory, time, injury, transformation or off-screen events. Handle sparse or detailed briefs in any language, even without the word prompt, with any image model or service.
 ---
 
 # Character Prompt Builder
 
-Art-direct the commissioned depiction.
+Develop characters and their depictions. Honor setting-only requests.
 
 Use English prompts/retrieval and the user's language. Preserve meaning, modifier scope, relationships, negation and ambiguity without language word lists.
 
@@ -19,15 +19,15 @@ uv run --project <skill-root> --locked python <skill-root>/scripts/check_depende
 
 The first invocation synchronizes packages. Add `--capability sheet` for fonts or `--capability temporal-media` for FFprobe. Resolve requirements under [Dependencies](DEPENDENCIES.md).
 
-Run documented `python scripts/<name>.py ...` commands as `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...`. Keep the Studio working directory: `--project` selects the skill environment without changing argument paths. Execute returned `argv` as given; it retains the interpreter and absolute script path. Use this environment for every route.
+Run documented `python scripts/<name>.py ...` as `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...` on every route. Keep the Studio working directory; `--project` selects the environment without changing argument paths. Execute returned `argv` as given.
 
 ## Core contract
 
-Saved work reads [Production direction](references/runtime/production-direction.md) and applicable runtime guidance through the [route reader](#artifact-bearing-production-gate). Convey actions, states, relationships and designs as meaningful wholes with their relevant detail. Specialist knowledge answers the construction question. Preserve exact requirements and purposeful detail. Judge chosen means against the commission, including when a renderer obeys them. A draft commands its renderer, not its reviewer; plans and criteria grant no authority. Construct the intended depiction, choose suitable means and complete the work. Omissions grant no permission or exclusion.
+Saved work reads [Production direction](references/runtime/production-direction.md) and applicable guidance through the [route reader](#artifact-bearing-production-gate). Convey actions, states, relationships and designs as meaningful wholes. Preserve exact requirements and purposeful detail. Judge even faithfully rendered choices against the commission: drafts command renderers, not reviewers; plans and criteria grant no authority. Complete the intended depiction. Omissions grant neither permission nor exclusion.
 
-Develop open choices through the [conception study](references/runtime/production-direction.md#form-a-prompt-from-an-idea) and its craft knowledge. Character design can be the work. Compare actual alternatives; use selected-target evidence for model-dependent means. Portable wording proves no model effect.
+Develop [the character for this use](references/runtime/production-direction.md#establish-the-character-for-this-use) as needed: read existing definitions or propose concrete details, keeping other choices open. Ask only consequential questions. A task-local definition needs no registration or full Persona. Honor scoped supporting work and edits. Use the [conception study](references/runtime/production-direction.md#form-a-prompt-from-an-idea) and craft knowledge for open choices. Compare alternatives; use selected-target evidence for model-dependent means. Portable wording proves no model effect.
 
-Preserve anchors and applicable adopted definitions. Record changes and reasons at their owners; resolve open choices within delegated scope. Keep creator portrayal intent distinct from facts and psychology across outputs.
+Preserve anchors and adopted definitions. Resolve an individual's concrete expression and permitted range before prompting; review against that definition, not an emotion label. Record changes and reasons at their owners within delegated scope. Keep creator intent distinct from fact and psychology.
 
 Bind inputs, target and count to actual authorization. Distinguish direction, editing, submission, selection and canonical adoption. Continue within delegated scope without repeated approval.
 
@@ -55,9 +55,9 @@ For model, prompt, reference or post-completion changes, follow [Variation](refe
 
 ## Knowledge use and retrieval records
 
-Investigate unresolved construction or wording with relevant sources. Use knowledge by meaning and scope; neither both lookup systems nor a query per visual attribute is required.
+During character design or revision, [research usable wording](references/runtime/prompt-vocabulary.md#define-a-character-with-usable-wording) and present concrete details with corresponding dictionary terms and authored phrases. Keep their source and sense at the definition's owner. Select feature `vocabulary` for saved definition work. Users need no tag knowledge. Resolve other construction or wording questions as needed; neither both lookup systems nor a query per attribute is required.
 
-The selected-model read derives `prompt_authoring`: [writing guidance](references/runtime/prompt-writing-guide.md), available wording and [dictionary work](references/runtime/prompt-vocabulary.md). Select the model without first classifying its text form. Follow the returned guidance and explicit requested form; preserve the whole depiction. Unknown forms remain reported without blocking text. Actual text-surface, parser and channel constraints still apply.
+The selected-model read derives `prompt_authoring`: [writing guidance](references/runtime/prompt-writing-guide.md), wording and [dictionary work](references/runtime/prompt-vocabulary.md). Select the model without classifying its text form first. Follow its guidance, actual text-surface, parser and channel constraints, and the requested form. Preserve the whole depiction. Report unknown forms without blocking text.
 
 Record actual investigations, inspect complete selected records, and settle each as adopted, composed or unused under [Prompt-only Core](references/runtime/prompt-only-core.md#saved-prompt-artifacts). Composed wording may use inspected knowledge. Failed necessary retrieval stays unresolved; never fabricate evidence.
 
@@ -65,7 +65,7 @@ Construction questions may be empty; tag renditions need a searched vocabulary s
 
 ## Mandatory runtime activation gate
 
-Before prompt, reference, sheet, generation or visual-state series work (not persona or story drafting), run `python scripts/pack_cli.py ready`. For an explicit runtime, supply `--state-file`, `--cache-dir` and `--managed-root` together before `ready`; repeated `--pack-root` options add discovery roots for that invocation. It initializes state once, preserves existing choices, lists active packs and maintains their browser catalog.
+Before definition vocabulary research, prompt, reference, sheet, generation or visual-state work, run `python scripts/pack_cli.py ready`. Supply `--state-file`, `--cache-dir` and `--managed-root` together for an explicit runtime; repeated `--pack-root` options add discovery roots. It initializes state once, preserves choices, lists active packs and maintains their browser catalog.
 
 - Exit 0: retrieval can proceed. Tell the user each `warning:` line.
 - Exit 1: each `decide:` line is the author's decision and names the command that settles it. Put new or unusable packs to the user before continuing; never continue on bundled commons alone while a discovered pack awaits that decision. Run the command the author chooses, then `ready` again. A pack the author disabled stays disabled and is not asked about again.
@@ -81,18 +81,18 @@ Saved work reads through its draft action or `python scripts/execution_routes.py
 
 Conversation-only prompts read no route: read [Prompt-Only Core](references/runtime/prompt-only-core.md) and applicable links directly. Select routes and features as needed:
 
-- worlds, themes, agents or narratives: route `development`, [Creative Development](references/runtime/narrative-development.md) and [Project Design](templates/narrative/design/design-template.md); for individualized behavior, feature `persona` and the complete [Persona Template](templates/narrative/personas/persona-template.md);
+- worlds, themes, agents or narratives: route `development`, [Creative Development](references/runtime/narrative-development.md) and [Project Design](templates/narrative/design/design-template.md); for Persona dossiers, feature `persona` and the complete [Persona Template](templates/narrative/personas/persona-template.md);
 - cast admission, a recurring unnamed participant, or how much of a person a scene needs: route `development`;
 - reusing reviewed scene persona material: feature `scene-persona`;
 - any chosen story moment, concurrent states or a depiction between recorded events: route or feature `story-context`;
 - grounded continuity, state provenance or bounded consumer views: route `world-realization` or feature `world-view`; reusable identity patterns: feature `portrayal-principles`;
-- creator portrayal aims and identity: feature `authorial-intent`, [Authorial Intent](references/runtime/authorial-intent.md); individualized voice or body: route or feature `performance`, [Character Performance](references/runtime/character-performance.md);
+- creator portrayal aims: feature `authorial-intent`, [Authorial Intent](references/runtime/authorial-intent.md); Persona-based voice or body: route or feature `performance`, [Character Performance](references/runtime/character-performance.md); bounded visual acting: `performance-language`;
 - persistent world or narrative files, or scene-derived plots: feature `narrative-files`;
 - ordinary prompt-only work with no selected reference and no complex construction risk: route `prompt-only`; feature `subject-domain`, [Subject Domain](references/runtime/subject-domain-quick-reference.md), only when the subject domain is unresolved;
 - complex multi-axis prompt composition: route `composition`, [Composition](references/runtime/prompt-composition.md);
 - open expressive choices, a sparse brief, or difficult purpose, activity, relationship, or theme retrieval: feature `sparse-retrieval`, [Discovery](references/runtime/sparse-discovery.md);
 - craft knowledge for open axes or an observed failure: feature `craft-consultation`, [Craft consultation](references/runtime/craft-consultation.md);
-- terminology lookup, alternate wording or category browsing: feature `vocabulary`, [Vocabulary](references/runtime/prompt-vocabulary.md);
+- character-definition wording, terminology lookup or category browsing: feature `vocabulary`, [Vocabulary](references/runtime/prompt-vocabulary.md);
 - final prompt rendition, ordering, weighting, LoRA notation, negative syntax or term comparison: feature `prompt-dialect`, [Writing Guide](references/runtime/prompt-writing-guide.md);
 - linked evidence, or a prompt plus references without generation: route `reference-artifacts` or feature `references`;
 - model-facing reference transports: feature `reference-delivery`;
@@ -117,11 +117,11 @@ Select specialists for consequential construction questions: `geometry` for exac
 
 ## Mandatory studio gate
 
-Saved deliverables, sheets and recorded generation use [Studio Runtime](references/runtime/studio.md). Conversation-only answers need no Studio. If `python scripts/session_entry_points.py` reports none, run `studio.py init` before authoring.
+Saved work uses [Studio Runtime](references/runtime/studio.md); conversation-only answers need no Studio. If `python scripts/session_entry_points.py` reports none, run `studio.py init` before authoring.
 
-For dispatcher API keys, read and follow [Studio authentication](references/runtime/studio-authentication.md) for source choice, preparation, owner input, readiness and recovery. Key availability and submission authority are separate.
+For dispatcher API keys, follow [Studio authentication](references/runtime/studio-authentication.md): source choice, preparation, owner input, readiness and recovery. Key availability and submission authority are separate.
 
-Use managed attempts in [Sheet fills](references/runtime/sheet-fill-workflow.md). Apply HTML edits with `sheet_workflow.py apply-edit`. Record answers with `work_ledger.py respond`, reopen the indicated step, and suspend/resume when switching tasks. `studio.py status` or `sync` reconstructs views without repeating generation.
+Use managed [Sheet fills](references/runtime/sheet-fill-workflow.md) and `sheet_workflow.py apply-edit` for HTML edits. Record answers with `work_ledger.py respond`, reopen its step, and suspend/resume when switching tasks. `studio.py status` or `sync` reconstructs views without regenerating.
 
 After story revisions, update Studio sources and run `studio.py sync` for the automatic Flow and Graph (`narrative-files`). Compare passages for meaning; structural checks do not judge story quality.
 
@@ -131,7 +131,7 @@ Follow [Common runtime sequence](references/runtime/production-workflow.md) for 
 
 ## Identity and scene-state authority
 
-A category name proposes; only the author's declaration decides. Species, domain, and material supply no default. Examples are not anatomy, symmetry, clothing, or reference-view checklists. Permanent identity owns only the adopted design.
+A category name proposes; only the author's declaration decides. Species, domain, and material supply no default. Examples are not anatomy, symmetry, clothing or reference-view checklists. Permanent identity owns only the adopted design.
 
 Use [Declared Structures Runtime](references/runtime/declared-structures.md) for structural contracts. Missing, absent, unknown, and occluded differ; validation checks declared topology, not typical anatomy.
 
@@ -147,7 +147,7 @@ Create reference artifacts only for selected sources. Declare authority, subject
 
 ## Output contract
 
-Return the requested assessment or artifact in its requested form. World, persona and narrative artifacts retain their actual design status. Prompt delivery contains the prompt and any requested or supported negative channel. Add settings or reference artifacts when the handoff needs them. Without a named parser, use portable wording and no interface-specific weights unless requested. Omit empty placeholders.
+Return the requested assessment or artifact in its requested form. Retain world, persona and narrative design status. Deliver the prompt and requested or supported negative channel; add settings or references when needed. Without a named parser, use portable wording and no unrequested interface weights. Omit empty placeholders.
 
 Deliver actual selected reference files under [Prompt Artifact References](references/runtime/reference-prompt-artifacts.md). A file path or hash is not delivery.
 

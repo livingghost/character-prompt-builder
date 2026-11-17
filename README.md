@@ -14,15 +14,21 @@ Use it when the job is more than finding a pleasing string of tags:
 - an artist developing a design that must stay recognizable from image to image;
 - a production team revisiting one subject across scenes, sessions and models.
 
-The subject can be a person, an animal, an anthropomorphic character, a creature, a machine or a scene with no cast. The same direction process serves a standalone prompt and a continuing project; introduce the production records the work needs.
+The character can be a person, an animal, an anthropomorphic character, a creature or a machine. An open brief develops a concrete character as the subject; a short definition can be enough for one image. Explicit requests for a setting, background or prop alone remain available as supporting work. The same direction process serves a standalone prompt and a continuing project; introduce the production records the work needs.
+
+The definition grows with the work. Start with the details needed for a useful
+proposal and leave later choices open. The agent develops a coherent suggestion
+and researches its wording, so the user can respond to an idea without first
+answering a complete character questionnaire. Later scenes and revisions deepen
+the relevant parts of the definition.
 
 ## Core production chain
 
 Saved production records the inputs and decisions needed by later steps.
 
 1. **Author the commissioned depiction.** Use [Production direction](references/runtime/production-direction.md) to understand the situation or design and choose how the picture presents it. Preserve exact requirements and purposeful detail; keep activities and relationships meaningful through wording. Judge chosen means against the commission.
-2. **Consult knowledge where it helps.** Resolve construction or wording questions with relevant sources. Read selected records in full and apply their contribution to the same depiction. Source-sufficient work needs no invented search. See [Knowledge discovery](references/runtime/sparse-discovery.md) and the [Preset System Contract](references/preset-system-contract.md).
-3. **Resolve the subject.** For a recurring character, its character profile, design and current story state say what stays fixed and what may vary. See [State-Aware Series](references/runtime/state-aware-series.md).
+2. **Define the character and its usable wording.** Read the applicable definition or develop one from the brief. As details take shape, the agent searches relevant dictionary entries and keeps suitable terms beside the concrete meanings they express, with authored phrases for meanings the dictionary does not cover. Users can describe what they want in everyday language. See [Character definition and wording](references/runtime/prompt-vocabulary.md#define-a-character-with-usable-wording).
+3. **Resolve the subject in this scene.** Its definition, adopted design and current state say what stays fixed and what may vary. Consult additional construction knowledge where it helps; read selected records in full and apply them to the same depiction. See [Knowledge discovery](references/runtime/sparse-discovery.md), the [Preset System Contract](references/preset-system-contract.md) and [State-Aware Series](references/runtime/state-aware-series.md).
 4. **Record the visual treatment and resolve model controls.** Carry the chosen art direction into the rendering intent, read the selected model's guidance and resolve each control it requires. See [Rendering choices and execution controls](references/runtime/render-contract.md).
 5. **Write the prompt and seal the request.** The prompt, the scoped negative, the settings and the ordered references are checked and bound to their files. See [Image Generation](references/runtime/image-generation.md).
 6. **Prepare, authorize and send.** Preparation shows the complete request and its cost; sending uses the author's recorded authorization for that scope. See [Production Execution](references/runtime/production-execution.md).

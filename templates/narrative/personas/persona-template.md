@@ -43,29 +43,36 @@ references: []
 >
 > When `subject_type: original` and the requester delegates invention, design rather than pretend to research. The evidence rules below still apply to supplied facts and already established material; they do not forbid making clearly labeled new proposals.
 >
-> - Preserve creator-provided anchors. Record new personality, past events, physical details, relationships and dialogue as **proposed**, not as observed facts, creator instructions or adopted canon.
+> - Preserve creator-provided anchors. Record newly invented personality, past events, physical details, relationships and dialogue as **proposed** until adopted under actual confirmation or explicitly delegated authority. Do not present them as observed facts or creator instructions.
 > - Use stable design IDs in §19 Design Ledger for `user-anchor`, `proposed`, `adopted`, `rejected` and `deferred` decisions. Record a statement, its scope, its basis or dependency, and the actual adoption record where one exists. Metadata summarizes the adoption scope; the ledger owns the individual decisions.
-> - A request to invent permits proposals; it does not approve them. Selecting a scene or saying a direction is interesting does not automatically adopt every detail in its persona. Record only the approval actually given. Do not carry rejected earlier suggestions forward.
+> - A request to invent permits proposals; it does not by itself adopt them. Apply existing delegated decision authority at its stated scope. Selecting a scene or saying a direction is interesting does not automatically adopt every detail in its persona. Record the actual decision and its authority. Do not carry rejected earlier suggestions forward.
 > - Author concrete IF / THEN / BRANCH procedures, vocabulary choices and behavioral probes from those design decisions. In original mode, an `evidence` field may cite a design ID and rationale; it must not invent an episode, quotation, observation or source that never existed. Distinguish a deliberate proposal from an inference about supplied evidence.
 > - Mark newly written dialogue and behavior as **hypothetical design sample** and name the rules it tests. It does not establish that the event occurred in the story, and cannot be independent corroboration of the rule used to write it. Do not label an original proposal with ★ as though it were a source quotation.
-> - Keep the full twenty-section workspace. During exploration, deepen the fields required by the present creative decision and explicitly retain unresolved coverage. Present useful contrasts and probes rather than a complete questionnaire. The five-example and ten-flow targets guide later depth; they neither block early proposals nor authorize fabricated canon.
+> - When authoring a persona dossier, keep the full twenty-section workspace. During exploration, deepen the fields required by the present creative decision and explicitly retain unresolved coverage. Present useful contrasts and probes rather than a complete questionnaire. The five-example and ten-flow targets guide later depth; they neither block early proposals nor authorize fabricated canon.
 > - Separate an individual's own wants, habits and decision criteria from their function in a plot, group or interaction. Species, body size, social status and reputation do not settle temperament. A future relationship plan is not an exception already active in the opening phase.
-> - A person the agent proposes joins the cast only after the author admits that candidate, recorded in the project's design record with its scope; existence, name, appearance and history are separate decisions. Depth follows the use at hand, and a mention, a bounded scene, recurring appearances and a consequential choice each need different preparation; the runtime document that owns cast admission holds both rules.
+> - A person the agent proposes joins a continuing project's active cast after the author confirms that candidate or delegates the corresponding admission choice. Record the actual confirmation or delegated decision and its scope in the project's design record; existence, name, appearance and history remain separate decisions. An authorized provisional portrayal may use the candidate before permanent admission, with its scope explicit. [Cast Admission and Persona Depth](../../../references/runtime/cast-and-persona-depth.md) owns admission and preparation depth for a mention, a bounded scene, recurring appearances and a consequential choice.
 > - An original persona ready for adoption must have coherent rules, concrete probes, known gaps and an explicit decision scope. An adopted persona contains adopted content or examined unknowns, not unlabeled draft proposals. Syntactic completeness alone establishes none of this.
 >
 > **World-Coherence Boundary**:
 >
-> - Use this full form when individualized portrayal is being designed or materially revised; it is not required for an unpersonified place, process, force or decorative crowd.
+> - Use this full form when a persona dossier is being designed or materially revised. A bounded visual use can establish its character definition under [Production direction](../../../references/runtime/production-direction.md#establish-the-character-for-this-use) without requiring a dossier. The form is not required for an unpersonified place, process, force or decorative crowd.
 > - Relate behavior to the work's scoped material, social and informational conditions without treating those conditions as a personality algorithm.
 > - Preserve readable contextual summaries for self-contained use, with their source and applicable phase or version. Shared world facts, adopted visual identity and executed state keep their own authority; a summary does not fork or override them.
 > - For original projects, link cross-layer decisions to the project design record when one exists. A persona's local Design Ledger continues to own behavioral proposals and adoption scope. A theme is not a command that the character agree with it.
 > - Conflicting beliefs, intentional opacity and stable behavior can be designed. Do not add trauma, growth, intimacy, moral agreement or a contrasting personality trait merely to make the form appear complete.
 >
+> **Definition and Prompt Wording**:
+>
+> - While defining or materially revising character distinctions, follow [Prompt Vocabulary Runtime](../../../references/runtime/prompt-vocabulary.md#define-a-character-with-usable-wording). The agent searches related meanings and inspects the complete selected entries as part of authoring; the user need not supply tags or ask for this research. Dictionary research supplies wording, not evidence that an original character exists or behaves that way.
+> - Keep the concrete meaning and corresponding wording together at the existing property or rule: selected dictionary terms or aliases with their source/category and applicable sense, plus authored phrases for distinctions the terms do not carry. Refer to the existing retrieval record for queries. This applies to relevant appearance, materials, clothing, equipment and bodily or functional expression under their actual owners, not only emotion or facial cues. Source-bound visual summaries preserve the owning definition and its adoption scope.
+> - These associations support later prose, tag or mixed renditions. They do not replace the definition, create a second vocabulary ledger, guarantee model behavior or belong in the spoken Vocabulary Registry in section 7. Later model-specific wording follows its own lookup and input contract. If no term fits, retain precise authored wording and its researched limitation.
+>
 > **Individuality and Performance**:
 >
 > - Individuality lies in a scoped pattern of attention, interpretation, choice and expression, not in a quota of oddities. Similar speech can be intentional; a label, pronoun change or catchphrase is not a complete behavioral design.
-> - Use the character-performance runtime to connect this persona to current circumstances and the requested medium. PHYSICAL owns the bodily and vocal baseline, THOUGHT owns conditional responses, SPEECH owns voice modes, and RELATIONSHIPS owns directional exceptions. Cross-reference rules rather than copying them.
-> - Emotion, intent, task, addressee, other listeners, role, fatigue, language and communication medium can change speech and body independently. State activation, overlap handling, unchanged features, switch timing, release and residue. Do not assume anger removes politeness or closeness removes formality.
+> - Use the character-performance runtime to connect this persona to current circumstances and the requested medium. PHYSICAL owns bodily and functional baselines, concrete expressive realizations and their ranges, and stable vocal qualities. THOUGHT owns appraisal and conditional selection, SPEECH owns voice modes, and RELATIONSHIPS owns directional exceptions. Cross-reference rules rather than copying their conditions.
+> - An emotion, expression or gesture name does not define an individual's physical realization. Describe the distinguishing configurations, movements or operations, the relationship between participating and held parts, and what a change in expressed degree actually changes. Several forms may be valid; their selection follows the response owners. Use the subject's declared body or functional assembly, including non-facial or distributed forms, rather than assuming a human expression system.
+> - Emotion, intent, task, addressee, other listeners, role, fatigue, language and communication medium can change speech and body independently. State activation, overlap handling, unchanged features, switch timing, release and residue where relevant to the response and medium. Do not assume anger removes politeness or closeness removes formality.
 > - A transient response is not a new phase. Author-known feeling, intended display, observable behavior and others' interpretations are not interchangeable. No forced emotional disclosure or body-language truth detector is permitted.
 > - Verify scoped rules through concrete examples, changed conditions and a new situation. Record meaningful similarity, uncertainty and gaps instead of manufacturing contrast or claiming semantic quality from filled fields.
 >
@@ -190,7 +197,7 @@ references: []
 - **design_status**:
   <!-- Draft, reviewed proposal, or adopted within the stated scope. Neither a filled form nor a generated scene implies adoption. -->
 - **adoption_scope**:
-  <!-- Identify the adopted decisions by §19 Design Ledger IDs, with actual creator approval basis. Use n/a for record-based reconstruction; state no adoption yet for a proposal. Do not manufacture approval. -->
+  <!-- Identify the adopted decisions by §19 Design Ledger IDs, with the actual confirmation or delegated decision and its authority. Use n/a for record-based reconstruction; state no adoption yet for a proposal. Do not manufacture approval. -->
 
 ### Persona Info
 
@@ -315,7 +322,7 @@ references: []
 
 ### Core-to-Performance Bindings
 
-<!-- Each materially used response, voice mode or bodily baseline refers to this character profile and the relevant intent. Bindings explain the selection among otherwise plausible performances. The table points to rule owners, not duplicate instructions. Apply only the rows relevant to the task. -->
+<!-- Each materially used response, voice mode, bodily baseline or concrete expressive realization refers to this character profile and the relevant intent. Bindings explain the selection among otherwise plausible performances. The table points to rule owners, not duplicate instructions or substitutes for their concrete content. Apply only the rows relevant to the task. -->
 
 | Identity dimension / intent reference | Owning response, voice or body rule | What holds | What varies and why | Intended realization and review reference |
 |---|---|---|---|---|
@@ -363,6 +370,7 @@ references: []
 ## 4. PHYSICAL
 
 <!-- Physical characteristics in this phase. In visual production, an adopted identity contract owns stable geometry, markings and proportions. Keep a readable, source-bound embodiment summary here, not competing visual canon. New appearances may be proposed with design IDs; do not promote them by recording them. Health, clothing state and momentary expression remain phase or scene state unless an approved contract says otherwise. Species labels do not declare anatomy, symmetry or expression channels. -->
+<!-- Research corresponding wording while developing the material definitions below. Keep selected terms, their inspected sense/source and any necessary authored phrase beside the owning definition or a source-bound summary, following the Definition and Prompt Wording instructions. A match can name a material, shape, covering or action without supplying this individual's arrangement, degree or conditions. -->
 <!-- NOTE: This section carries the character's body, voice, and physical habits. These are core information for many uses of a persona: prose narration, screenplay, TRPG / RPG character sheets, illustration and image-generation references, setting documents, and character analysis. Even when the persona is used as a dialogue agent, these descriptions act as thinking material that shapes the LLM's word choices, response density, and rhythm of speech. Fill these fields whenever they are attested; do not skip them based on a narrow guess about what a downstream runtime can or cannot literally reproduce. -->
 
 ### Appearance & Body
@@ -398,33 +406,38 @@ references: []
 
 ### Physical Mannerisms
 
-<!-- Baselines are scoped, not a universal neutral pose. Use only declared structures and available channels; category labels do not supply anatomy or expressive meaning. PHYSICAL owns habitual geometry and stable voice qualities, not every current pose. THOUGHT Conditional Response Rules and SPEECH Contextual Voice Modes own change conditions; refer to their IDs for deviations. A performed face/body cue is not reliable proof of a private feeling. -->
+<!-- Baselines are scoped, not a universal neutral pose. Use only declared structures, functions and available channels; category labels do not supply anatomy or expressive meaning. PHYSICAL owns concrete reusable bodily or functional forms, their ranges and stable voice qualities, not every current pose. THOUGHT Conditional Response Rules own appraisal, activation and selection; SPEECH Contextual Voice Modes own voice changes; RELATIONSHIPS owns directional exceptions. Refer to those owners instead of copying their conditions here. A performed cue is not reliable proof of a private feeling. -->
 
 - **embodied_baseline_context**:
   <!-- Context and phase in which these habits apply; relevant task, environment and constraints. Several supported contexts or an examined unknown are possible. -->
 - **expressive_channels_and_limits**:
-  <!-- Declared channels, motor/sensory affordances and limits; absence, occlusion and unknown differ. Include non-vocal, non-facial or assisted communication where applicable. -->
+  <!-- Declared structures, functional channels, motor/sensory affordances and limits; absence, occlusion and unknown differ. Include non-vocal, non-facial, distributed or assisted communication where applicable. A capability makes a realization possible, not characteristic of this individual. -->
 - **attention_and_movement_baseline**:
-  <!-- Usual gaze/attention, movement amount, posture and response timing in the named context. Record a range and boundary rather than one mandatory pose. -->
+  <!-- Usual attention, concrete configurations, movement or held operations, support and spacing in the named context; include timing where it matters. Record the actual range and boundary, not only an adjective or one mandatory pose. -->
+- **embodied_expression_repertoire**:
+  <!-- Reusable concrete realizations available to this individual, with source/design basis, phase, adoption scope and known limits. For each materially used form, describe the participating structures, their distinguishing configuration, movement or operation, their targets, and how they combine with held parts across the body or assembly. Include orientation, support, weight/load, contact and spacing where they determine the expression. -->
+  <!-- Author each meaningful form together with its applicable searched terms and any authored wording needed for its individual configuration or relationships. Preserve the dictionary source/category and chosen sense beside that form, with a reference to the existing lookup evidence. Terms remain a usable wording association, not the form's definition or an emotion-to-pose table. -->
+  <!-- Define expressed degree through the actual changes it permits: for example, opening, curvature, tension, movement extent, operation or participation, only for structures that exist. Subtle/strong or an emotion/gesture label alone leaves those choices open. Felt intensity does not prescribe displayed magnitude. Preserve multiple supported forms and meaningful incompatibilities rather than one universal pose or a numeric progression. -->
+  <!-- THOUGHT and RELATIONSHIPS own when and why forms are selected; refer to those rules without duplicating their conditions. A current staging choice remains with its scene unless separately adopted as reusable behavior. Select the parts and relationships that distinguish the realization; there is no all-channel checklist. Unchanged components, concealed expression, functional response and examined unknowns are valid when their scope is clear. -->
 
 <!-- NOTE: Bodily habits carry character information in several ways: they are directly rendered in prose narration and stage direction, they serve as reference for illustration and character-sheet documentation, and in dialogue contexts they implicitly shape how the character's pauses, interiority, and silences get described. Fill these whenever attested. -->
 
 - **habitual_gestures**:
-  <!-- Regular gestures. Crossing arms, touching hair, etc. -->
+  <!-- Recurrent concrete movements, orientations and contacts, with their scope and reference to the repertoire. A gesture name alone does not settle this individual's form or degree. -->
 - **thinking_pose**:
-  <!-- Gesture when thinking -->
+  <!-- Concrete bodily or functional configuration during thought, where established. Reference the form and the owning response condition; no thinking pose is required. -->
 - **nervous_habits**:
-  <!-- Gesture when nervous -->
+  <!-- Established bodily changes, holds or concealed responses under nervousness; reference the concrete form and THOUGHT activation rule. Do not infer a private feeling from the movement alone. -->
 - **relaxed_posture**:
-  <!-- Posture when relaxed -->
+  <!-- Actual resting configuration, support, load and movement range in its named context, where applicable; use the declared body or assembly. -->
 - **gait**:
-  <!-- Walking style -->
+  <!-- Characteristic locomotion: support, body orientation, movement pattern and degree where these distinguish the individual. Walking is one possible form, not an assumed capability. -->
 - **combat_stance**:
-  <!-- Combat stance -->
+  <!-- Concrete support, orientation, available movements and held components for established combat behavior, or examined n/a; response rules own activation. -->
 - **laugh_and_cry**:
-  <!-- How they laugh, how they cry -->
+  <!-- Concrete audible and bodily realizations of laughter or crying where applicable, their range and held components; reference response rules for selection. Neither behavior is required. -->
 - **facial_expressiveness**:
-  <!-- Whether emotions show on their face or they're poker-faced (as bodily expression) -->
+  <!-- If a face is declared, describe its actual expressive forms and range by reference to the repertoire: relevant eye/lid, mouth or other available structure states and their combinations with the body. Record what remains visible, controlled or unchanged without treating the face as proof of feeling. Non-facial subjects use their declared channels in the repertoire. -->
 
 ### Symbolic Items
 
@@ -608,7 +621,7 @@ references: []
 
 <!-- Before choosing a reaction, apply section 2 and its authorial intent references. A locally plausible response can violate the adopted portrayal. A designed switch is not automatically an identity break; an actual departure needs its scoped decision. -->
 
-<!-- Repeat for relevant boundaries, not for every emotion multiplied by every relationship. Use stable local IDs; refer to SPEECH mode IDs and RELATIONSHIPS exceptions instead of copying their content. A rule is a permitted tendency with limits, not a deterministic personality algorithm. Original-design samples and rules retain proposal/adoption status through §19. -->
+<!-- Repeat for relevant boundaries, not for every emotion multiplied by every relationship. Put repeated rule blocks under distinct subheadings so their fields have unique Markdown anchors. Use stable local IDs; refer to PHYSICAL realization names, SPEECH mode IDs and RELATIONSHIPS exceptions instead of copying their content. A rule owns when and why a form is selected, while PHYSICAL owns the form and its permitted range. It is a permitted tendency with limits, not a deterministic personality algorithm. Original-design samples and rules retain proposal/adoption status through section 19. -->
 
 - **response_rule_id**:
   <!-- Stable local ID, e.g. response-work-interruption; it is prose, not a new narrative entity ID. -->
@@ -617,11 +630,11 @@ references: []
 - **perceived_situation_and_access**:
   <!-- Event, task, known information, noticed cues, resources and relevant audiences; distinguish reality from the character's interpretation. -->
 - **appraisal_and_purpose**:
-  <!-- What the event means to this person, relevant aim/value and established or proposed affect; uncertainty can be retained. -->
+  <!-- What the event means to this person, relevant aim/value and established or proposed affect; uncertainty can be retained. Felt intensity and the degree of visible or audible expression are separate decisions. -->
 - **display_control_and_initial_response**:
   <!-- Intended communication, habitual or involuntary response, suppression or no change. Observable behavior need not reveal the internal state. -->
 - **response_components**:
-  <!-- Speech mode references, action flow, bodily channels, their targets and what changes or holds. No undeclared anatomy or universal emotion gestures. -->
+  <!-- Speech mode references, action flow and the selected PHYSICAL realization: its applicable configuration, movement or operation, target, expressed degree, combination and held components. Explain the selection among permitted forms and any current scoped staging. An emotion, gesture or strength label alone does not specify those distinctions. Keep the reusable form at its owner; no undeclared anatomy or universal emotion gestures. -->
 - **development_and_recovery**:
   <!-- Conditions and sequence of onset, persistence, interruption, switch, release or residue as relevant. Return is not mandatory or instantaneous. -->
 - **overlap_and_exceptions**:
@@ -640,7 +653,7 @@ references: []
 
 ### Action Patterns
 
-<!-- Multi-step interaction procedures this person performs, whether self-initiated or triggered by another person's action. Reaction Patterns record immediate affective leakage; Action Patterns record an ordered social procedure. -->
+<!-- Multi-step interaction procedures this person performs, whether self-initiated or triggered by another person's action. Reaction Patterns summarize appraisals and immediate responses, including masked or unchanged expression; Action Patterns record an ordered social procedure. -->
 <!-- Write each entry as IF / THEN / BRANCH / EVIDENCE, not as a trait. `Greets warmly` is insufficient. `IF a known person is waiting, THEN address by name → ask after their state → pause before stating business` is reproducible. -->
 <!-- In record-based mode, a flow may synthesize observations with marked inference and scene evidence, but cannot invent plausible steps. In original-design mode, author proposed steps explicitly, cite the supporting design decisions and test their consistency with values, speech and social behavior. -->
 <!-- The ten categories below satisfy the structural coverage target only when evidence supports them. Replace unsupported defaults with character-specific recurring situations, such as `public_address`, `bedside_approach`, or `correction_without_shame`. If fewer than ten flows are supportable, record the deficit in §19 Known Gaps. -->
@@ -1248,7 +1261,7 @@ references: []
 - **overlap_switch_and_hold**:
   <!-- How this relationship exception combines with affect, task, audience and resource conditions; what stays, exact switching/release conditions and unresolved combinations. Intimacy need not remove formality and anger need not remove affection. -->
 - **body_language_realization**:
-  <!-- Specific deviations or persistence in gaze, facial or available channel activity, posture and movement, referencing PHYSICAL/THOUGHT; no mandatory emotional leakage. -->
+  <!-- Direction-specific changes or persistence in the selected bodily or functional form, degree and combination, relative to named PHYSICAL realizations and THOUGHT responses. State the actual distinguishing configurations, movements or held components; keep general forms at their owner. No assumed human face or mandatory emotional leakage. -->
 - **physical_distance_realization**:
   <!-- Observable proximity change. e.g. `allows shoulder contact and remains within arm's reach during silence` -->
 - **evidence**:
@@ -1406,13 +1419,13 @@ references: []
 - **held_conditions_and_variation**:
   <!-- What is kept fixed and changed: same context across relevant subjects, same person across conditions, a meaningful overlap, or a new situation not used to author the rule. No forced contrast. -->
 - **baseline_to_response_sample**:
-  <!-- Actual dialogue/communication and action, with speaker/addressee/audience, available information, affect/display distinction and observable timing. Reference the owning rules. -->
+  <!-- Actual dialogue/communication and concrete bodily or functional realization, with speaker/addressee/audience, available information, affect/display distinction and timing where relevant. Show the selected configurations or operations, expressed degree and participating/held parts, referring to the owning forms and rules. Shared emotion labels do not establish shared physical expression. -->
 - **switch_and_aftermath_sample**:
   <!-- Show relevant mode switch, correction, recovery or persistence with exact forms and bodily changes/holds. Do not reset all channels on a scene cut without cause. -->
 - **medium_projection_and_visibility**:
-  <!-- What can be perceived in the actual output and by whom. A single image selects an instant; non-speaking/non-facial subjects use declared channels. Separate narrator diction from the subject's voice. -->
+  <!-- What the actual output or delivered model input establishes about the selected form, combination, degree and circumstances, and what can be perceived by whom. Source IDs and unseen persona text do not deliver a physical distinction. A single image selects an instant; non-speaking/non-facial subjects use declared channels. Separate narrator diction from the subject's voice. -->
 - **probe_findings_and_revision**:
-  <!-- Observed match/mismatch with rules, intentional similarity, counterexample, uncertainty, local revision and open gap. A composed sample is not independent corroboration. Do not assert success without examining it. -->
+  <!-- Compare observations with expectations derived from the definition before the output existed. Record physical/functional coherence, individual realization and expressive meaning separately, including intentional similarity, mismatch, counterexample, uncertainty, revision and open gap. Recognizing the intended emotion does not pass a different individual form; a newly preferred alternative retains proposal status. A composed sample is not independent corroboration. -->
 
 ### Behavior Examples
 
@@ -1610,12 +1623,14 @@ references: []
 
 - [ ] <!-- Section 2 names the scoped identity center, governing authorial intent and permitted variation; an unchanging essence is not inferred from a phase or genre. -->
 - [ ] <!-- Used response/voice/body rules connect to identity and intent; psychological plausibility alone does not choose the portrayal. -->
+- [ ] <!-- Material bodily or functional realizations define actual configurations, movements/operations, combinations and expressed degree under the declared embodiment. PHYSICAL owns forms and ranges; THOUGHT and RELATIONSHIPS own selection and directional differences. Multiple permitted forms do not become an emotion lookup or an all-channel requirement. -->
+- [ ] <!-- Material character distinctions retain corresponding wording beside their concrete definition: applicable dictionary terms grounded in actual searches and complete-entry inspection, their selected sense/source, and authored phrases for remaining distinctions. Relevant lookup evidence or a research gap is recorded. These associations neither duplicate another owner nor certify model behavior. -->
 - [ ] <!-- Constancy/contrast and relevant departures were reviewed across the actual requested span; future design does not leak into current knowledge or behavior. -->
 - [ ] <!-- Baseline fields have distinct jobs; shared wording across fields/personas is examined rather than silently copied or prohibited. -->
 - [ ] <!-- Relevant affect/situation/addressee/audience voice modes state changes, held features, overlap handling, switch and release conditions with exact forms where applicable. -->
 - [ ] <!-- Consequential response rules connect appraisal, expression and timing; felt/displayed/observed/inferred states and declared expressive channels remain separate. -->
 - [ ] <!-- Relevant matched-context, changed-condition and new-situation probes were inspected, or their absence is reported; no originality score or forced cast-wide difference. -->
-- [ ] <!-- Medium, language, visibility and source scope are respected; no image or body-language cue is claimed to repair an untested voice or reveal hidden truth automatically. -->
+- [ ] <!-- Medium, language, visibility and source scope are respected; the delivered realization carries its consequential concrete distinctions. Review compares observed forms with prior expectations rather than passing them by an emotion label; no cue is claimed to repair an untested voice or reveal hidden truth automatically. -->
 
 ### Authorship & Copyright Notes
 

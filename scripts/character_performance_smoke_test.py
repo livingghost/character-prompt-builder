@@ -52,6 +52,16 @@ class FieldExtractionTests(unittest.TestCase):
         fields = self.fields('- **rhythm**:\n  Answers after one beat\n  and asks a precise follow-up.\n')
         self.assertEqual(fields[0]['normalized_text'], 'Answers after one beat and asks a precise follow-up.')
 
+    def test_embodied_repertoire_preserves_authored_forms_as_literal_text(self):
+        description = ('At private praise, the eyes remain open and the mouth closed. '
+                       'With a trusted companion, a closed-eye form is also available.')
+        fields = self.fields('# Physical Mannerisms\n\n'
+                             '- **embodied_expression_repertoire**:\n  ' + description + '\n')
+        self.assertEqual(len(fields), 1)
+        self.assertEqual(fields[0]['field'], 'embodied_expression_repertoire')
+        self.assertEqual(fields[0]['normalized_text'], description)
+        self.assertEqual(fields[0]['line'], 3)
+
     def test_comments_do_not_become_content_or_shift_lines(self):
         fields = self.fields('<!-- example\n- **voice**: false\n-->\n- **rhythm**: ' + LONG)
         self.assertEqual(len(fields), 1)
@@ -292,7 +302,8 @@ class AuthoringContractTests(unittest.TestCase):
     def test_new_fields_are_visible_as_drafting_gaps(self):
         text = narrative_entity.persona_document('c1', 'Example', 'C1', 'current')
         labels = {f['label'] for f in narrative_index.placeholder_details(text)}
-        for label in ('embodied_baseline_context', 'speech_delta', 'listening_delta',
+        for label in ('embodied_baseline_context', 'embodied_expression_repertoire',
+                      'speech_delta', 'listening_delta',
                       'overlap_resolution', 'switch_release_and_repair',
                       'probe_findings_and_revision'):
             self.assertIn(label, labels)

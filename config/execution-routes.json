@@ -199,7 +199,8 @@
     "persona": {
       "reads": [
         "templates/narrative/personas/persona-template.md",
-        "references/narrative-authoring.md"
+        "references/narrative-authoring.md",
+        "references/runtime/prompt-vocabulary.md"
       ],
       "source_roles": [
         "persona"
@@ -442,7 +443,8 @@
     },
     "recurring-identity": {
       "reads": [
-        "references/character-identity-contract.md"
+        "references/character-identity-contract.md",
+        "references/runtime/prompt-vocabulary.md"
       ],
       "source_roles": []
     },

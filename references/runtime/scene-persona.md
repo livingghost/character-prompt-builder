@@ -21,6 +21,24 @@ trait labels, headings or links. Keep separate:
 - proposed performance options;
 - unresolved choices.
 
+For individualized expression, include the applicable PHYSICAL repertoire,
+THOUGHT response selection and RELATIONSHIPS exceptions. Preserve the concrete
+forms, how their degree appears, and what may vary; an emotion name, gesture
+label or channel inventory is not the definition. Select the form for the
+current circumstances without combining unselected alternatives. Follow
+[Character Performance](character-performance.md) if a needed form is undefined.
+An intentional absence of display or an unresolved interpretation retains that
+meaning; neither authorizes a generic substitute.
+
+Keep the selected definition's meaning-bound dictionary terms and authored
+phrases with its excerpt, including their conditions and source scope. Reuse
+them as wording candidates; a generic term never replaces the concrete form.
+If a needed definition is new or revised, complete its
+[wording research](prompt-vocabulary.md#define-a-character-with-usable-wording)
+at the original owner before rebuilding the material. Do not copy unselected
+expression alternatives into the scene's prompt or treat a definition lookup
+as the final selected model's vocabulary verification.
+
 For reuse, check the completed bundle against the plan and the complete source
 hashes, then read its `persona.md` for writing, performance direction, local
 repairs or session resumption. The `scene-persona` feature (section 4) selects
@@ -103,6 +121,11 @@ material that leaves part of the core or the appearance out, and one with no
 answer in it. Fill the core before a scene relies on it, and fill the rest of
 the form as scenes need it. A Persona in a custom format names no core.
 
+The core is a structural minimum, not automatic expression coverage. Add the
+applicable repertoire and conditional definitions even when an adopted identity
+image supplies appearance; an identity reference alone does not establish the
+expression chosen for this scene.
+
 An adopted identity image holds the appearance, as
 [Time and ownership](cast-and-persona-depth.md#time-and-ownership) says, and the
 material records the image by its path and its hash. The studio character,
@@ -118,8 +141,8 @@ and the build refuses another.
 chapter, its core, the appearance an image needs, the Important People table,
 and the relationship block for each other character in the scene. Every value
 the author writes is a `<fill: ...>` placeholder that the build refuses. After
-reading the Persona in full, add the definitions the scene's topics, knowledge
-and voice modes need, and write the applications.
+reading the Persona in full, add the definitions the scene's topics, knowledge,
+embodied expression and voice modes need, and write the applications.
 
 ```bash
 python scripts/scene_persona.py draft --root STUDIO --scene-plot story/narrative/scenes/SC01-plot.json --medium image --out story/narrative/scenes/SC01.plan.json
@@ -225,8 +248,14 @@ direction, reviews, authorization and canonical owners still apply. The prepared
 authoring material informs the agent's rendition. Apply its relevant meaning
 under [Prompt Composition](prompt-composition.md#prompt-assembly-and-review),
 using only subjects and references resolvable within the model's received
-inputs. Keep the source definitions, internal identifiers and review evidence
-in the authoring record, and respect the depicted subject's knowledge.
+inputs. Carry the selected concrete expression and its required distinctions
+into that input, using readable supplied media only within their assigned scope.
+The bundle's existence or a label such as `smiling` does not transmit the form.
+Keep source prose, internal identifiers and review evidence in the authoring
+record, and respect the depicted subject's knowledge. Review the rendition
+against the original applicable definitions and present selection, including
+their permitted variation, rather than treating the shortened prompt as the
+complete expectation.
 
 ## 5. Public protocol intake
 

@@ -43,6 +43,35 @@ size definition compares the characters under its authored conditions; image
 height alone cannot establish it across different depth, pose or perspective.
 Do not manufacture a comparison for every pair of subjects.
 
+## Corresponding wording in the definition
+
+While authoring or materially revising the character, use
+[Prompt Vocabulary Runtime](runtime/prompt-vocabulary.md#define-a-character-with-usable-wording)
+to research wording for the meaningful distinctions. This applies to the
+subject's construction, materials, coverings, markings, accessories and
+performance under their actual owners; it assumes neither a human body nor a
+face. Keep the concrete definition and its selected dictionary terms or aliases
+together in the existing property description or notes. Identify the inspected
+resource, category and applicable sense, refer to the existing query record,
+and retain authored phrases for relationships or specificity the terms do not
+carry. The reader must be able to tell what each term expresses and what still
+depends on the fuller wording.
+
+Preserve the owning scope. An Appearance Contract's clothing choice remains
+there; an identity summary of a Persona's expression refers to that definition
+and its wording rather than creating another repertoire. A transient scene
+choice stays with that scene. `stable_identity.performance_vocabulary` is a
+visual-production summary of applicable performance, not a dictionary ledger
+for every kind of character property. Reusable conditional text may use
+`anchor_fragments` under their existing contract.
+
+Dictionary membership neither adopts the design nor demonstrates a model's
+learned effect. Keep the full definition as the source authority, including
+distinctions with no suitable dictionary term. At prompt assembly, resolve the
+applicable wording under the selected model's input contract and preserve any
+required authored completion. A short conversation definition can carry the
+same meaning-to-wording association without requiring a saved identity record.
+
 ## Construct the character in the scene
 
 Start with the adopted definition and the scene being made. Treat settled
@@ -53,10 +82,12 @@ the commission's creative scope and carry them into the depiction.
 
 Develop each meaningful group as wanted content. For a surface feature, state
 its shape, location and relationship to adjoining structures at the specificity
-the source supplies. For a characteristic action, describe what the character
-does and how the defined tendency appears in this situation. For a relative
-property, describe the relationship under its applicable conditions. Related
-properties can share one intelligible description or a suitable reference view.
+the source supplies. For a characteristic expression or action, apply the
+individual's concrete form, component relationships and permitted range to
+this situation. An emotion or gesture name alone does not carry that form.
+For a relative property, describe the relationship under its applicable
+conditions. Related properties can share one intelligible description or a
+suitable reference view.
 
 Choose the text and media that communicate that construction most effectively.
 A source image can supply several adopted details together; a focused view or
@@ -103,7 +134,11 @@ to distinguish a selection issue from a nonblocking limitation or improvement.
 - appendages and stable asymmetry
 - identity-level accessory relationships
 - distinctive details
-- stable performance vocabulary
+- stable performance vocabulary: a bounded visual summary of the applicable
+  Persona's concrete expression forms, available channels and permitted range,
+  retaining their conditions and phase scope; the Persona owns the repertoire
+  and response selection, while this summary neither duplicates that owner nor
+  freezes a transient expression into permanent identity
 - stable growth identity as author-declared structures, with independent locations, boundaries, geometry and applicable continuity; no particular head, facial, regional or terminal structure is a required slot
 - conditional text-anchor fragments
 - reference-coverage obligations
@@ -163,7 +198,7 @@ For an anthropomorphic subject, human-like head hair is not implied by base fur 
 
 ## Anchor fragments
 
-Each anchor fragment has exact wording, priority, visibility conditions, carriers, and omission conditions. Preserve the full specificity needed to reconstruct the character; concision does not permit generic replacement of identity anchors. A signature ear stud may be carried by approved reference media, text when the ear is visible, and review criteria. It is not pasted into every prompt when the ear is fully occluded.
+Each anchor fragment has exact wording, priority, visibility conditions, carriers, and omission conditions. Use applicable searched terms and authored wording from the definition while preserving the full specificity needed to reconstruct the character; concision does not permit generic replacement of identity anchors. The fragment's wording remains subject to the selected model's input contract. A signature ear stud may be carried by approved reference media, text when the ear is visible, and review criteria. It is not pasted into every prompt when the ear is fully occluded.
 
 ## Coverage requirements
 

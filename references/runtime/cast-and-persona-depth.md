@@ -1,16 +1,25 @@
 # Cast Admission and Persona Depth
 
-Activate this document when a work gains or loses a person:
+Use this document to prepare a character for a use or manage a continuing cast:
 
+- an open character brief needs a concrete working definition;
 - an agent proposes a new named character;
 - an unnamed participant starts to recur;
 - a scene needs more of a person than the Persona holds;
 - a finished scene contains something about a person that no record holds yet.
 
-[World-Coherent Creative Development](narrative-development.md) owns the creative method. [Narrative Authoring](../narrative-authoring.md) owns the files and commands. The complete [Persona Template](../../templates/narrative/personas/persona-template.md) owns individual portrayal. This document owns who joins the cast, on whose decision, and how much of a person each use needs.
+[Production direction](production-direction.md#establish-the-character-for-this-use)
+owns the character's definition and depiction for the current commission.
+[World-Coherent Creative Development](narrative-development.md) owns the broader
+creative method. [Narrative Authoring](../narrative-authoring.md) owns the files
+and commands. The complete [Persona Template](../../templates/narrative/personas/persona-template.md)
+owns a Persona dossier. This document owns how much definition a use needs and
+who joins a continuing cast, on whose decision. Its characters include
+nonhuman and nonfacial agents as well as people.
 
 ## Contents
 
+- [Define the character for the current work](#define-the-character-for-the-current-work)
 - [Four separate questions](#four-separate-questions)
 - [Before adding a person](#before-adding-a-person)
 - [Admission: the author decides who joins the cast](#admission-the-author-decides-who-joins-the-cast)
@@ -20,6 +29,26 @@ Activate this document when a work gains or loses a person:
 - [Time and ownership](#time-and-ownership)
 - [Checks and limits](#checks-and-limits)
 
+## Define the character for the current work
+
+Read the applicable existing definition or author the concrete character
+proposal the current work needs. In a short exchange, the agent can propose
+the relevant embodiment, recognizable appearance and individual behavior in
+ordinary language, with researched wording kept beside those choices under
+[Vocabulary](prompt-vocabulary.md#define-a-character-with-usable-wording).
+The user can delegate the design without knowing Persona fields or prompt
+terms. A name, role label or incidental crowd figure alone supplies no such
+definition and does not make a setting the character's portrayal.
+
+For an isolated picture or provisional design, that definition can be inline.
+It needs neither a name nor a saved Persona, Studio or stable ID. Carry its
+relevant choices into the prompt and judge the result against them. The
+current proposal and admission to a continuing project's adopted cast are
+different decisions. Ordinary authorized design proceeds without waiting for
+permanent adoption; admission and registration below apply when that larger
+scope is actually being changed. An explicitly commissioned background or
+other supporting artifact can proceed at its own scope without a new character.
+
 ## Four separate questions
 
 Narrative importance, having a name, continuity and required depth are independent. Answer each on its own:
@@ -28,10 +57,16 @@ Narrative importance, having a name, continuity and required depth are independe
 |---|---|
 | Does this person matter to the work? | The design frame and the scene at hand. |
 | Do they have a name? | The author. A name the agent proposes stays a proposal. |
-| Do they persist as one individual? | Whether the same person acts, remembers and is recognized across scenes. A recurring person with no revealed name still needs a stable ID. |
+| Do they persist as one individual? | Whether the same character acts, remembers and is recognized across scenes. A continuing narrative character needs a stable ID even with no revealed name. |
 | How much must be authored now? | The use at hand: a mention, one bounded scene, recurring appearances, or a consequential choice. |
 
-A crowd, a one-line functional participant and a background process stay impersonal. A stable character ID belongs to every continuing individual, and identity lives in that ID. A name, a title, an alias or a change of prominence leaves it as it is.
+A crowd, a one-line functional participant or a background process can stay
+impersonal when that is its actual role. A collective portrayed as a character
+instead needs the definition its portrayal uses. Neither headcount nor
+incidental presence establishes a character focus. In a persisted narrative,
+a stable character ID belongs to every continuing individual, and identity
+lives in that ID. A name, a title, an alias or a change of prominence leaves
+it as it is.
 
 ## Before adding a person
 
@@ -60,11 +95,19 @@ constraint throughout, and a proposed expansion follows the admission procedure 
 
 ## Admission: the author decides who joins the cast
 
-The agent may draft a candidate and save it. An agent-created named person joins the active cast only after the author confirms that candidate, at initial planning and during later expansion alike. A request to deepen the world permits proposals; admission is a separate answer to each listed candidate. Praise of a draft adopts the facts it names. A permission covers the candidates it names, at the revisions it names.
+The agent may draft a candidate and save it. In a continuing project, a candidate
+joins the active cast only after the author confirms that candidate or delegates
+the corresponding admission choice, at initial planning and during later
+expansion alike. Apply existing delegated authority at its stated
+scope; an authorized character proposal needs no separate admission merely
+to be developed or shown. A request to deepen the world permits proposals;
+permanent admission remains a decision about the actual candidates. Praise
+of a draft adopts the facts it names. A permission covers the candidates and
+revisions it names, or the design scope it explicitly delegates.
 
 A person the author names directly is a user anchor within the stated content. Ask only for the missing material the task needs.
 
-Record a candidate as a decision in the project design ledger of the [Project Design Template](../../templates/narrative/design/design-template.md) with status `proposed`, before any entity file exists. The candidate carries:
+For a continuing project, record a candidate as a decision in the project design ledger of the [Project Design Template](../../templates/narrative/design/design-template.md) with status `proposed`, before any entity file exists. The candidate carries:
 
 - a candidate ID and the revision of the proposal;
 - the role, the person's own purpose, the expected use and continuity;
@@ -92,7 +135,14 @@ A candidate that changes materially before the decision is a new revision; the e
 
 ### While a decision is pending
 
-Save the candidate, the request that produced it, the decision asked for and the next safe operation in the work trail. Keep the candidate out of ordinary story text, current world state, another character's knowledge and generation input. Continue the work that is independent of the decision. A rejected person stays rejected under any name, and so does their biography.
+Save the candidate, the request that produced it, the decision asked for and
+the next safe operation in the work trail. Keep pending candidates out of
+adopted story continuity, current world state and another character's
+established knowledge. An authorized provisional portrayal may use the
+candidate as a clearly scoped proposal, including in a requested prompt or
+image; it does not settle permanent admission. Continue work independent of
+the pending decision. A rejected person stays rejected under any name, and
+so does their biography.
 
 A recurring unnamed individual receives a stable ID and the Persona their use needs, without a revealed name. Ask before an incidental role grows into a consequential continuing individual, since that materially expands the cast; ordinary incidental action needs no per-person approval. When such a person is later named, keep the ID and carry the history forward. Two people with one job title or one name stay two people. Retirement keeps provenance; deletion, replacement, merge, split and retcon each need an explicit impact review.
 
@@ -102,26 +152,55 @@ After admission, create the entity once with `narrative_entity.py add persona` a
 
 ## One Persona structure, depth by use
 
-Every portrayed person, lead or supporting, uses the same complete Persona form and the same identity rules. Depth follows use rather than billing: a supporting person making a consequential choice may need deeper preparation than a lead exchanging a greeting. Unused sections stay visibly unexamined. The form's field states keep their exact meanings, and a field holds examined content or stays visibly open.
+When authoring or maintaining a Persona dossier, use the same complete form
+and identity rules for lead and supporting characters. An isolated visual
+definition can stay inline as described above; its use does not require
+creating a dossier. Depth follows use rather than billing: a supporting
+character making a consequential choice may need deeper preparation than a
+lead exchanging a greeting. In a dossier, unused sections stay visibly
+unexamined. The form's field states keep their exact meanings, and a field
+holds examined content or stays visibly open.
 
-| Use | Prepare before it | May stay unexamined |
+| Use | Prepare before it | May remain open or unused |
 |---|---|---|
+| One picture or provisional visual design | Applicable existing identity, or a concrete proposed embodiment and appearance; the individual expression, action and situation the image uses | Unused biography, a name and continuing-cast registration |
 | A mention by name | Stable identity, the mentioned facts, the time they hold | Appearance, inner life, dialogue samples |
 | One bounded scene | The judgment, appearance, voice and knowledge that scene needs | Unused family history, the long past |
 | Recurring appearances | Prior outcomes, daily life, their own purposes, changed relations and conditions | The whole life in detail |
 | A consequential choice, inner view or long dialogue | The values, motives, competing duties and boundary cases behind that choice | Exhaustive material unrelated to the main line |
 
-A depicted named person needs a coherent, recognizable appearance basis: species or kind, age impression, build and the outline of dress, as the use requires, rather than a checklist of eyes, hair, scars and measurements. Prose may leave an appearance unshown; an image that claims canonical identity needs a specified face. A withheld name or appearance is separated into the author's definition and what the audience is shown.
+A depicted character needs a coherent, recognizable appearance basis appropriate
+to its embodiment: species or kind, body or assembly, distinguishing form and
+relevant surface or dress, at the depth the use needs. A name does not settle
+those properties, and a nameless character still needs them. Prose may leave
+an appearance unshown; an image that claims canonical identity needs the
+defined identifying form and properties appropriate to that character, which
+may have no face. A withheld name or appearance is separated into the
+author's definition and what the audience is shown. The selected view can
+show only the parts the commissioned portrayal needs.
 
 ### Ready for a use is not complete
 
-A Persona may be ready for one declared use while incomplete overall. The prepared [Scene Persona material](scene-persona.md) is that readiness record: it binds the character and phase, the complete source hashes, the medium, the scene and the definitions read. The Persona Template's completion rule applies to a released persona. Each label is declared on its own, and a readiness verified for one scope is re-examined when the scope widens, for instance when a person first appears in an image.
+A character definition may be ready for one declared use while incomplete
+overall. For saved narrative scene preparation, the prepared
+[Scene Persona material](scene-persona.md) is that readiness record: it binds
+the character and phase, the complete source hashes, the medium, the scene
+and the definitions read. The Persona Template's completion rule applies to
+a released persona. Each label is declared on its own, and readiness for one
+scope is re-examined when the scope widens, for instance when a character
+first appears in an image. An inline proposal records its working definition
+with the current depiction instead of manufacturing scene files.
 
 Full reading means the full applicable source. A small supporting Persona is read in full, and so is a large one, whatever the person's prominence.
 
 ## Before an appearance
 
-Resolve the character ID first; a remembered name is a lookup key. Read the applicable Persona, world records and established consequences. Check for duplicate candidates, stale preparations, a changed phase, hidden information and unresolved admission.
+For a registered character, resolve the character ID first; a remembered name
+is a lookup key. Read the applicable Persona, world records and established
+consequences. Check for duplicate candidates, stale preparations, a changed
+phase, hidden information and unresolved admission. For an unregistered
+proposal, use its concrete working definition and keep its provisional scope.
+The absence of registration does not leave the character undefined.
 
 When the scene needs a new load-bearing motive, memory, appearance fact, ability or relationship, propose it and settle its scope before an adopted rendition relies on it. A decisive act written first and justified afterward is a design made backwards. A provisional scene may explore unresolved content when it is labeled and kept apart; its branch-specific choices stay stable until changed and stay branch choices however often they recur.
 

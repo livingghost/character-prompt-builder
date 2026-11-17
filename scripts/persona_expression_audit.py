@@ -29,7 +29,7 @@ PORTRAYAL_FIELDS = frozenset({
     "first_person", "second_person", "voice", "habitual_gestures", "thinking_pose", "nervous_habits",
     "relaxed_posture", "gait", "combat_stance", "laugh_and_cry",
     "facial_expressiveness", "embodied_baseline_context",
-    "expressive_channels_and_limits", "attention_and_movement_baseline",
+    "expressive_channels_and_limits", "embodied_expression_repertoire", "attention_and_movement_baseline",
     "emotional_baseline", "fatigue_response", "rest_style", "burnout_signs",
     "decision_style", "decision_priorities", "problem_approach",
     "information_processing", "when_surprised", "when_angry", "when_sad",

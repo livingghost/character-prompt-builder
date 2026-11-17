@@ -57,16 +57,25 @@ Each complete entry holds:
 
 Read the whole entry; the row above is only its label.
 
-Select a pattern only when it helps state the creator's aim. Name the intent ID and record why the
-pattern applies, which parts fall outside it, and the local interpretation. The owning
-authorial intent register sets scope and adoption status; a retrieved ID is design provenance
-rather than a hidden runtime command, and retrieval alone adopts nothing. When a library entry is
-edited, the adopted intent and instantiated rules keep their authority: review the affected
-interpretations explicitly and change personas only through that review. Several patterns can
-coexist at different scopes, each for a stated aim rather than to raise an imagined individuality
-score.
+Select a pattern only when it helps state the creator's aim. At the existing owner of the
+relevant portrayal intent, record why the pattern applies, which parts fall outside it, and the
+local interpretation. For a Persona dossier or continuing narrative, name the governing intent
+ID; the [Authorial intent register](runtime/authorial-intent.md#3-persist-the-actual-design-intent)
+owns its scope and adoption status. A bounded visual proposal can keep its aim, selected pattern,
+interpretation and scope with the task-local definition under
+[Production direction](runtime/production-direction.md#establish-the-character-for-this-use),
+without a separate register. Keep each choice's actual status at its owner. A retrieved ID is
+design provenance rather than a hidden runtime command, and retrieval alone adopts nothing.
+When a library entry is edited, the authored intent and instantiated rules keep their recorded
+status and scope: review the affected interpretations explicitly before changing a Persona or
+task-local definition. Several patterns can coexist at different scopes, each for a stated aim
+rather than to raise an imagined individuality score.
 
-An individual subject instantiates the pattern through the complete persona:
+An individual subject instantiates the pattern through its applicable concrete character
+definition. Read a complete existing Persona when it supplies that definition. For a bounded
+visual proposal, develop only the distinctions its current portrayal needs in the task-local
+definition; unused areas stay open. Depending on the pattern and use, those distinctions can
+include:
 
 - internal priorities;
 - known information;
@@ -80,7 +89,8 @@ An individual subject instantiates the pattern through the complete persona:
 - aftermath.
 
 A non-agent subject uses its world or design record rather than an invented mind. Keep to the
-adopted body's channels and the selected medium's capabilities.
+expressive channels of the subject's defined body or functional assembly and the selected
+medium's capabilities.
 
 `persistence` is recognition through what remains; one identical pose, silence in every scene or
 emotional absence misreads it. `designed-contrast` links two modes; casual speech as false and

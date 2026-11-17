@@ -11,13 +11,18 @@ approval unchanged.
 Start at the request itself: a world, theme, agent, event, form or local revision. Use the complete
 [Project Design Template](../templates/narrative/design/design-template.md) as the cross-layer
 workspace, and the complete
-[Persona Template](../templates/narrative/personas/persona-template.md) when individualized
-behavior or dialogue is designed or materially revised; unpeopled work skips it. Read existing
-records before proposing changes. A one-off answer stays in the conversation. Once a draft will be
-reused or revised, create the series directory and the studio work trail before the next dependent
-draft, and save what that draft depends on: the instruction, the draft shown, the decisions with
-their scope, and the open questions. Saving needs no image prompt, model, pack activation, sheet or
-finished persona. A series directory may sit inside a studio, for example
+[Persona Template](../templates/narrative/personas/persona-template.md) when a Persona dossier
+is authored or materially revised. A bounded visual proposal can use the concrete task-local
+definition from [Production direction](runtime/production-direction.md#establish-the-character-for-this-use).
+Develop the distinctions its current use needs and retain other choices as open; the agent
+can propose those details without taking the user through every field. Read existing
+records before proposing changes. A one-off answer stays in the conversation. For narrative work,
+once a draft will be reused or revised, create the series directory and the studio work trail
+before the next dependent draft, and save what that draft depends on: the instruction, the draft shown, the decisions with
+their scope, and the open questions. Saving itself needs no image prompt, model, pack activation,
+sheet or finished persona. Definition wording research follows its own
+[vocabulary procedure](runtime/prompt-vocabulary.md#define-a-character-with-usable-wording).
+A series directory may sit inside a studio, for example
 `<studio>/story/narrative/`, so the files and the trail share one home;
 [Studio Runtime](runtime/studio.md) owns the trail and its checkpoints.
 
@@ -208,7 +213,7 @@ the requested span, follows the route linked at the top of this section.
 
 ## Inspect expression drafting hygiene
 
-For individualized voice and body-language work, follow
+For voice and body-language work in a Persona dossier, follow
 [Character Performance](runtime/character-performance.md) and the full persona form. The optional
 read-only audit takes explicit Markdown paths, including a single persona or unrelated candidate
 files; a series, pack, Studio or model is unnecessary:
@@ -332,11 +337,15 @@ an authorial intent rather than as a personality label or a second persona.
 
 ## Prepared scene Persona material
 
-During scene preparation, read the complete applicable Persona definitions, their portrayal model,
+For scene preparation using an existing Persona or a continuing narrative, read the complete
+applicable Persona definitions, their portrayal model,
 authorial intent and current conditions, and save the relevant definition text, cross-definition
 dependencies, partner-specific exceptions and scoped applications with
 [Scene Persona Material](runtime/scene-persona.md); the saved material records a completed reading
 rather than a router's guess at which sections matter.
+
+A bounded task-local visual proposal retains the needed definition and current selection with
+its depiction; it needs no scene-material bundle merely to begin that use.
 
 When a reviewed material bundle is explicitly selected for this task, verify it and use its
 `persona.md` for execution, local repair and resumption; rendering the same scene again is by

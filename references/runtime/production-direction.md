@@ -4,8 +4,10 @@ Establish the requested work and the result it must provide: an artifact,
 an assessment, or a change to an artifact. Understand what the audience should
 notice or experience, the fixed requirements and the agent's creative scope.
 Read the applicable design, persona and authorial intent together. A trait,
-emotion or format label alone does not determine its expression. Characters,
-a story clock and a physical camera are optional.
+emotion or format label alone does not determine its expression. Character
+creation and portrayal start from a concrete definition of the character;
+supporting work keeps its commissioned scope. A story clock and a physical
+camera are optional.
 
 Develop intended content and visual construction together: what exists, what
 happens, how its parts relate, and how the picture presents them. Use adopted properties as the subject's
@@ -22,12 +24,92 @@ in the existing task `direction`; a conversation-only draft needs no task file.
 
 ## Contents
 
+- [Establish the character for this use](#establish-the-character-for-this-use)
 - [Choose the expression](#choose-the-expression)
 - [Choose framing from the intended effect](#choose-framing-from-the-intended-effect)
 - [Record the production direction](#record-the-production-direction)
 - [Preserve accepted variation at its declared scope](#preserve-accepted-variation-at-its-declared-scope)
 - [An image of an action is not the action](#an-image-of-an-action-is-not-the-action)
 - [Observe and repair](#observe-and-repair)
+
+## Establish the character for this use
+
+Character Prompt Builder develops characters and their portrayals. When an
+open request supplies only a mood, place or loose idea, use it to develop a
+character proposal and the circumstances that make that character worth
+depicting. The agent takes on the open design choices within the request's
+creative scope. A setting alone, a headcount, a name or an unnamed figure
+added for scale does not establish the character the work is about.
+
+Read the complete applicable character definition and its source roles when
+one exists. Preserve what is settled and develop the parts this use leaves
+open. When there is no definition, build a coherent working one as part of
+conceiving the picture. Resolve the distinctions needed for the current
+proposal or depiction, and keep other choices open. Kind and embodiment,
+recognizable appearance, disposition or purpose, and the concrete state or
+behavior are possible areas to develop, not an intake form to complete before
+showing an idea. A design study can concentrate on form; an interaction needs
+the character's relation to that situation. A role or emotion label leaves
+its individual realization to be chosen when that realization is used.
+
+Let the definition grow with the work. The first useful proposal need not
+settle a name, biography, complete appearance, every expressive form or a
+future scene. Make coherent provisional choices within the user's delegation
+so the user can react to an actual idea. Develop or revise the relevant
+definition when a later scene, visible detail or requested variation needs
+it. Keep proposed details distinct from supplied or adopted facts; a choice
+made for one image does not close the character's remaining possibilities.
+
+A character can be human, animal, machine, creature, a personified object or
+another designed entity. Establish the actual body or assembly and the
+channels it has for acting or expressing itself. A face, human anatomy and
+human emotional behavior are not prerequisites. For a depicted expression,
+use [Character Performance](character-performance.md) to select a concrete
+combination and degree from this character's defined forms, or to develop
+those forms where the design is open. An emotional category alone does not
+define that combination.
+
+While making these choices, follow
+[Define a character with usable wording](prompt-vocabulary.md#define-a-character-with-usable-wording).
+Investigate relevant dictionary meanings and keep suitable keywords and any
+necessary authored phrases beside the concrete definitions they express.
+When showing a concrete proposal, include those associations briefly with
+the relevant details, distinguishing inspected terms from authored phrases.
+They make the definition usable later; they do not ask the user to choose tags.
+The agent does this work; the user can speak in ordinary language or delegate
+the design. Ask a short question when its answer would change an important
+choice that the available information and authority cannot settle. Group
+related uncertainty into that useful choice instead of asking about every
+property in turn. Otherwise make a usable proposal and proceed. Do not make
+uncertainty about later details a reason to delay the first idea or assign a
+Persona questionnaire or vocabulary research to the user.
+
+For one picture or a provisional design, a short inline definition is enough
+when it supplies the distinctions that depiction needs. Keep it in the
+conversation or existing authoring record and carry its relevant content into
+the actual prompt or delivered references. A name, saved Studio, character ID,
+complete Persona dossier and canonical adoption are separate choices; none
+is a prerequisite for that proposal. Existing definitions retain their owners.
+When a continuing project needs fuller portrayal or registration, use
+[Cast Admission and Persona Depth](cast-and-persona-depth.md). Developing a
+working proposal does not silently adopt its details as permanent canon.
+
+Compose from this character's presence, form, activity and situation. The
+setting, other participants and visual treatment can be substantial parts of
+the result while contributing to that portrayal. Character focus is a
+relationship within the work, not a requirement for a large, central,
+front-facing or fully visible figure. Compare the proposed picture with the
+brief: what does its construction let the viewer encounter about this
+character? Token inclusion of a figure supplies no answer.
+
+An explicit request for a setting, background, prop, reference preparation or
+other supporting artifact keeps that scope and can contain no depicted
+character. World development can also precede a character design. Use any
+known character requirements that matter to the support work, without
+inventing a cast merely to finish it. A bounded edit or assessment preserves
+its actual subject and authorized scope. These tasks do not settle an open
+character commission as a landscape; return to the character definition when
+the commissioned work proceeds to its portrayal.
 
 ## Choose the expression
 
@@ -63,8 +145,9 @@ they are doing, what they attend or respond to, and how their circumstances
 make the action intelligible. Use ordinary practical and social understanding,
 including what the participants can perceive, support, reach or affect in that
 situation. For a design, explanation or graphic artifact, understand the form,
-function, comparison or experience its parts create. Characters, a story clock
-and a physical camera are optional. An emotion, occupation or format label can
+function, comparison or experience its parts create within the established
+scope. A story clock and a physical camera are optional. An emotion,
+occupation or format label can
 supply useful meaning, but does not choose every aspect of its realization.
 
 Keep that understanding intact while making the depiction concrete. An action
@@ -73,8 +156,13 @@ and air. Use the action as an intelligible unit. Develop a particular grip,
 orientation or clearance when it changes how the action works or is read, or
 when the request fixes it. Deriving every joint position from an action and
 turning those consequences into separate requirements replaces the useful
-meaning with an unnecessarily restricted pose. The same applies to breaking
-a mood into compulsory expression cues or a design into unrelated attributes.
+meaning with an unnecessarily restricted pose. The same applies to treating a
+generic mood as a universal facial recipe or a design as unrelated attributes.
+For an individualized expression, use [Character Performance](character-performance.md)
+to define its concrete form and permitted range, then select the form under
+these circumstances. Carry that chosen combination into the actual text or
+supplied media. `Happy`, `smiling` or `embarrassed` alone leaves the individual's
+expression open.
 Technical detail is useful when it resolves a real construction or expression
 choice; technical-sounding precision alone contributes no choice.
 
@@ -404,10 +492,13 @@ for the requested result distinct from claims about how the source was made.
 ### Form a prompt from an idea
 
 Establish what the request asks to develop, the roles of its subjects and any
-stated use. A sparse character brief still asks for a depiction of that
-character. Develop what makes the character particular in the image through
-the choices relevant to the request; character or form design can itself be
-the creative question. A scene, object, explanation or other commission
+stated use. [Establish the character for this use](#establish-the-character-for-this-use)
+as the character proposal and its picture develop together. A sparse
+character brief still asks for a depiction of that character. Develop what
+makes the character particular through the choices relevant to the request;
+character or form design can itself be the creative question. Alternatives
+may propose different character designs where those choices are open, with a
+concrete definition in each. A scene, object, explanation or other commission
 retains its own requested content and roles. Supplied and adopted material
 continues to govern at its assigned scope. Missing detail gives room to develop
 that work; an unstated use does not become an invented commission.
@@ -765,7 +856,13 @@ details remain requirements regardless of their prominence.
 
 Use the existing criterion `text` and `evidence` to describe the required result
 and what would support, contradict or leave it undecided. Preserve permitted
-variation and requested ambiguity. A visible depiction, supplied text, measured
+variation and requested ambiguity. For an individualized performance, state the
+concrete defining relationships and current selection at the precision its
+source establishes, following [Performance Language](../performance-language-specification.md#9-evidence-for-a-performance-judgment).
+A broad emotion label is not an equivalent criterion. Do not turn every
+incidental pose choice into a permanent trait, or treat a selected form as
+interchangeable with another merely because both express the same emotion.
+A visible depiction, supplied text, measured
 structure and documented state support different judgments. Use
 `direction.limitations` for evidence boundaries and keep wider source knowledge
 available for comparison. Background facts need not all become depicted claims,
@@ -973,7 +1070,11 @@ Ordinary variation inside the brief needs no exhaustive specification.
 
 Assess local differences through their effect on the commissioned result and
 applicable source requirements, at the meaning and precision those sources
-establish. Accept a different realization that preserves those requirements.
+establish. Accept a different realization that preserves those requirements
+and their permitted variation. For an individualized expression, compare the
+actual form with the original definition and current selection, not just the
+emotion label or an incomplete prompt. An appealing different form can be a
+new design proposal; its appeal does not supply a retrospective allowance.
 For a real shortfall, choose a repair at the scope of its consequence and retain
 the successful parts. Keep an optional improvement in its advisory role.
 Conclude the investigation when that question is answered; neighboring details

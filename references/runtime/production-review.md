@@ -93,8 +93,10 @@ study design and release claims.
 
 A face oriented toward someone does not alone show eye contact; cropped eyes
 can leave it undecided. A still stance does not establish a path of motion, and
-a smile alone need not distinguish the requested emotional state. Assess the
-artifact against what its evidence can establish. Use `indeterminate` for an
+a smile alone need not distinguish the requested emotional state or the
+individual's selected way of expressing it. Observe the actual channel
+relationships before assigning an emotional description. Assess the artifact
+against what its evidence can establish. Use `indeterminate` for an
 inspected criterion with inconclusive evidence and `not-assessed` for one not
 inspected. Do not infer a pass from the prompt, the intended story or a valid
 request. A valid prompt and a rejected candidate can coexist. A different
@@ -156,9 +158,14 @@ while keeping their own scope, pointer and saved access path.
 Use the applicable original definitions, conditions and relations to establish
 the character being depicted, including requirements inherited by this scene.
 Assess each required whole-subject criterion against that source independently
-of the prepared prompt and extracted checks. Record a supported pass when the
-candidate preserves the adopted construction within the commission's scope,
-including through a different suitable realization. Retain the original definition for
+of the prepared prompt and extracted checks. Compare the selected current
+portrayal with those requirements as well: a prompt that changes the individual
+does not become the definition merely because the image follows it. Record a
+supported pass when the candidate preserves the adopted construction and the
+current portrayal's required meaning and features within their permitted
+variation. A different suitable realization can meet those requirements;
+membership in the same broad emotion or pose category does not establish that
+it does. Retain the original definition for
 `not-exposed` and `not-applicable` scopes, with the scene treatment and visibility
 limits in the existing observations and reasons. Assess discrepancies and
 uncertain details by their effect on the applicable identity requirements and
@@ -167,6 +174,36 @@ and optional improvements in proposed repairs. Use `unresolved` for issues that
 need resolution or explicit owner acceptance before selection, including
 findings beyond the extracted criteria. A necessary repair describes the
 construction or relationship the revised result should show at the affected scope.
+
+For conditional character performance, use the concrete response definition in
+the applicable persona, under [Character Performance](character-performance.md),
+and the selected condition and degree, with the depicted moment where relevant.
+Review the visible relationships among the relevant gaze, expression, physiology,
+appendages, posture, support, hands, distance, contact or other declared
+channels. Include the whole configuration where it carries the response; a
+local smile can coexist with an incompatible posture or addressed target.
+Account for display control, deliberate concealment and held channels from the
+definition. Hidden feeling need not become a visible cue. State which required
+relationships the image establishes and which the framing leaves unobserved.
+
+Apply the meaning and variation established before inspecting the result.
+For example, if a portrayal requires eyes held open while the gaze turns away,
+closed eyes do not become equivalent merely because either face can be called
+embarrassed. If eye opening is left within the permitted range, assess whether
+the actual gaze, mouth, bodily configuration and context preserve the required
+response. Natural differences in rendering or wording can satisfy that same
+definition. Do not make every prompt term a fixed feature, or relax an actual
+fixed feature into an emotion label to accommodate the output. A specified
+ambiguous or quiet performance has its own intended construction and range;
+an unresolved authoring choice does not establish such an intention.
+
+A useful unexpected expression can be proposed as another design or current
+portrayal. Assess that proposal at its owning definition or Production direction
+before using it under a revised basis. Its appeal does not retrospectively
+establish the earlier intent, an unrecorded conditional rule or a passing
+review. An owner's acceptance of a recorded departure leaves the observation
+and verdict intact and supplies no new permanent mannerism. Preserve earlier
+inputs and reviews when a revised source or selected portrayal needs new work.
 
 A passing identity criterion must cite the actual candidate in its required
 medium. An effective `unresolved` binding blocks a pass for its criterion and

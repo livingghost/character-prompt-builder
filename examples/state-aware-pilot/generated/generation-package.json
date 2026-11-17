@@ -9589,10 +9589,10 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "b737b2b707e6079e6733c982790b02636a51e5a969647a1d939fa88eeacd54fa",
+    "route_reading_sha256": "91ef6aefa67665462cc77eeba8fc34419c19175276d4762bc452b77ea89aad86",
     "request_validation_sha256": "753a532103432f1ad28f7901525099f1b9379b8e167dbb9549320a8099e12036",
     "input_snapshots_sha256": "b8a4b22d7106b7c2cd541c933a191bfc1d5c651cc53f96050c5f4779333339a1",
-    "generation_input_sha256": "50c79c697955f53002192d2d3383c908a15b3721ab8054f035aed5f12768458d"
+    "generation_input_sha256": "82d5d1b19746f65c3e6ea733bafcc64b125021fb7bb7bc87c11f139c7ffeb3f6"
   },
   "visual_continuity": {
     "purpose": "image",
@@ -9619,11 +9619,11 @@
       },
       {
         "path": "references/runtime/production-direction.md",
-        "sha256": "034227a0cb53a11b66b5b92f660c8b6685bfbb69c2adb15eb61ac8d052c78365"
+        "sha256": "af908c2389f135d2a58029493e4e172b657d9c529336b4cd24c549ef5f17b272"
       },
       {
         "path": "references/runtime/production-authoring.md",
-        "sha256": "d5458c2e4700a8dc80f5394ff11abb48903373735624b8745e20dae97f6bdbdd"
+        "sha256": "af1f17334e0dddd9eafb0427fd028fe2d927cf541ca1e240f01b74e4701196c3"
       },
       {
         "path": "references/runtime/production-preparation.md",
@@ -9715,9 +9715,9 @@
       }
     },
     "route": "state-series",
-    "reading_key": "eefecafeed7144b7bd60979f2bc7ab72"
+    "reading_key": "976257b739f97952b1f17719c3480d02"
   },
-  "route_reading_sha256": "b737b2b707e6079e6733c982790b02636a51e5a969647a1d939fa88eeacd54fa",
+  "route_reading_sha256": "91ef6aefa67665462cc77eeba8fc34419c19175276d4762bc452b77ea89aad86",
   "request_validation": {
     "mode": "target-schema",
     "target": {
@@ -9782,5 +9782,5 @@
     }
   },
   "input_snapshots_sha256": "b8a4b22d7106b7c2cd541c933a191bfc1d5c651cc53f96050c5f4779333339a1",
-  "generation_input_sha256": "50c79c697955f53002192d2d3383c908a15b3721ab8054f035aed5f12768458d"
+  "generation_input_sha256": "82d5d1b19746f65c3e6ea733bafcc64b125021fb7bb7bc87c11f139c7ffeb3f6"
 }

@@ -21,7 +21,7 @@
       "cue_id": "cue-01",
       "channel": "other",
       "observation": "Record the source evidence or brief requirement relevant to this performance question.",
-      "visual_instruction": "Describe the selected visible behavior; use local geometry only for the distinction this cue must establish.",
+      "visual_instruction": "Describe this individual's selected visible form and how its degree appears in the declared structure; retain the relationships and distinctions required by the applicable definition and current depiction.",
       "laterality": "not-applicable",
       "intensity": "moderate",
       "direction_or_target": "viewer, partner, prop, horizon, or other target",
@@ -29,7 +29,7 @@
       "evidence_status": "observed",
       "confidence": "high",
       "stability": "transient-action",
-      "notes": "Replace the sample channel and status values with the actual declared channel and evidence. A cue may reinforce, oppose, lag or withhold another response."
+      "notes": "Replace sample channel, intensity, phase and status values with the authored choice and actual evidence. Refer to the definition's corresponding wording and inspected source/sense where needed; keep new scene-specific wording here when no reusable form owns it. Coordinate this component with the other selected components; no fixed cue count or visible emotional leakage is required. Timing is relevant only when the situation and medium use it."
     }
   ],
   "interpretation_candidates": [
@@ -49,22 +49,23 @@
     "supported_by": [
       "cue-01"
     ],
-    "context": "State why this reading best fits the brief, state, and relationship context.",
+    "context": "Identify the applicable individual definition and current conditions selecting this concrete form, degree and intended read.",
     "confidence": "high",
     "content_intensity": "general",
-    "notes": "Selection belongs to the current image and can change when context changes."
+    "notes": "Selection belongs to the current image. Preserve its conditions and preselected permissible variation; another form with the same emotion label is not automatically equivalent."
   },
   "ambiguity_notes": [
-    "Record cue meanings that change with context or intensity."
+    "Distinguish intentionally permitted ambiguity from unresolved authoring or unreadable evidence; preserve the conditions and limits of each."
   ],
   "prompt_projection": {
-    "primary_clause": "Describe the selected act or reaction in context, with its intended read and degree.",
+    "primary_clause": "Describe the selected act or reaction in context through this individual's concrete coordinated expression and its degree, using applicable searched terms and authored wording from the definition under the selected input contract; a general emotion or gesture label alone does not transmit the form.",
     "supporting_clauses": [],
     "search_facets": [
-      "ordinary canonical-English performance terms"
+      "Related meanings for the selected concrete form, using the definition's researched terms and authored phrases where applicable; record actual searches in the existing retrieval record, since listing a facet does not perform a lookup."
     ],
     "review_checks": [
-      "Assess whether the delivered input carries the intended act or reaction, including any selected ambiguity, contradiction, lag, restraint or absence of display."
+      "Compare the delivered text and media with the original individual definition and current selection; confirm that required forms and relationships survive projection.",
+      "Compare observed output with that same basis and its preselected permitted variation, including any intentional ambiguity or absence of display. Keep unreadable required evidence indeterminate; do not reinterpret a different expression as a pass merely because it shares an emotion label."
     ]
   }
 }

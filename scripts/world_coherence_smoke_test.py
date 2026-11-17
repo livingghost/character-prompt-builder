@@ -439,7 +439,9 @@ class RoutingTests(unittest.TestCase):
 
     def test_method_preserves_plurality_and_does_not_mandate_ensemble(self):
         text = (ROOT / "references/runtime/narrative-development.md").read_text(encoding="utf-8")
-        for term in ("make the work an ensemble drama", "Theme is not a compulsory message",
+        text = " ".join(text.split())
+        for term in ("A fixed, changing or distributed focus does not make a work an ensemble drama",
+                     "Theme is not a compulsory message",
                      "A scene need not change a relationship", "does not require realism"):
             self.assertIn(term, text)
         self.assertIn("deliberate indeterminacy", text)

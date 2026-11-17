@@ -18,12 +18,25 @@ curve and stock gesture stay optional.
 Read this route when designing, diagnosing or materially revising individualized behavior,
 dialogue, vocal delivery, expression, movement or their changes, and when a detailed persona
 exists but the actual portrayal is interchangeable, context-blind or loses its intended center.
-For initial preparation, or for work outside reviewed scene material, read:
+For persona-level design or material revision, or initial preparation from an
+existing persona outside reviewed scene material, read:
 
 - the complete [Persona Template](../../templates/narrative/personas/persona-template.md);
 - the applicable persona phase;
 - its governing authorial intents;
 - the relevant world and current-state records.
+
+A bounded visual character definition can follow
+[Production direction](production-direction.md#establish-the-character-for-this-use)
+using its existing task-local definition and authoring record. Develop the
+portrayal aim, concrete forms, permitted variation and current selection that
+this use needs, with their researched wording; leave unused choices open and
+deepen them when a later use needs them. The agent can propose these details
+without asking the user to fill every field. Numbered Persona sections and
+register bindings below apply to work using those dossiers and records. A
+task-local proposal keeps their relevant meaning at its existing owner and
+does not need a full dossier, intent register or scene-material bundle created
+solely for that bounded use. Read any applicable existing Persona in full.
 
 An adopted persona stays as adopted, however much color one scene would gain from a redesign.
 
@@ -36,7 +49,8 @@ proceed before any image-generation setup.
 
 ## Prepared scene Persona material
 
-During scene preparation, read the complete applicable Persona definitions, their portrayal
+For scene preparation using an existing Persona or a continuing narrative, read the complete
+applicable Persona definitions, their portrayal
 model, authorial intent and current conditions. Save the relevant definition text,
 cross-definition dependencies, partner-specific exceptions and scoped applications with
 [Scene Persona Material](scene-persona.md) as a record of understanding after reading; that
@@ -54,9 +68,10 @@ characteristic switch, a relationship among modes, a deliberate uncertainty or a
 pattern; a count of unusual traits or the distance from another subject measures something else.
 Shared language can be intended.
 
-Persona section 2 connects the internal core to the creator's intended portrayal; read it before
-resolving a response. What a subject wants and what the creator wants an audience to experience
-are different things. When several reactions would be plausible, the governing portrayal aim and
+When the work uses a Persona, section 2 connects its internal core to the creator's intended
+portrayal; read it before resolving a response. A task-local visual definition keeps that
+relationship in its own applicable description. What a subject wants and what the creator wants
+an audience to experience are different things. When several reactions would be plausible, the governing portrayal aim and
 the protected dimensions select among them. Hesitation, volatility, a verbal tic, swagger,
 vulnerability, trauma, dialects, flaws and contrasts each enter through the aim; variety alone
 earns none of them, and a subtle unchanged response may carry the identity best.
@@ -80,24 +95,32 @@ labeled as guesses. Read the persona's evidence boundary for real-person or reco
 
 ## 2. Keep one owner for each kind of information
 
+For Persona dossiers and continuing narrative work, use the owners below.
+A bounded visual proposal keeps the applicable identity, intent and expression
+distinctions in its task-local definition and current realization, preserving
+any existing source authority.
+
 | Information | Owner and downstream use |
 |---|---|
 | Creator's portrayal aim, scope, recognition, contrast and departure policy | Authorial intent register in a design record; refer by stable intent ID and exact file/fragment. |
 | Current character profile, inner core, protected dimensions and signature dynamics | Persona section 2 PORTRAYAL IDENTITY, interpreting the governing intent without duplicating its rule/status. |
 | World conventions, information access and physical possibility | Applicable world and adopted visual-identity records. A portrayal aim cannot silently change them. |
-| Phase-wide body/voice baseline and behavioral repertoire | Persona PHYSICAL, MIND, THOUGHT, SPEECH and PERSONALITY, bound to section 2. |
+| Available bodily or functional channels, concrete expressive realizations and their ranges, stable vocal qualities | Persona PHYSICAL, bound to section 2 and the declared embodiment. |
+| Appraisal, response selection, contextual voice and other behavioral rules | Persona THOUGHT, SPEECH, MIND and PERSONALITY at their respective scopes, bound to section 2. |
 | Systematic directional relationship exceptions | Persona RELATIONSHIPS, referring to the general rules and character profile. |
 | Current event, resources, fatigue, emotion, audience and task | Scene context or existing State Snapshot, not permanent identity. |
 | This utterance, motion, observer access and timing | Scene realization or performance direction. Visual projection uses the existing performance contracts. |
 | Adopted reusable visual-production summary | A bounded identity contract/sheet summary referring to applicable persona and intent owners. |
+| Dictionary terms and authored wording corresponding to a character distinction | Beside that distinction in its existing definition owner, with the inspected sense and lookup source; model-specific rendition retains its own search binding. |
 | Probe, inspected span, observations and remaining issues | Persona EXAMPLES/Portrayal Continuity Review or a scoped design review, not another rule owner. |
 
 Within the persona:
 
 - IDENTITY lists self and address forms and the compact scope.
-- PHYSICAL owns stable vocal qualities and available channels.
+- PHYSICAL owns stable vocal qualities, available channels and the concrete bodily or functional
+  forms an individual can use, with their permitted variation.
 - SPEECH owns linguistic and contextual delivery choices.
-- THOUGHT owns appraisal and action procedures.
+- THOUGHT owns appraisal, response activation, selection among those forms and action procedures.
 - RELATIONSHIPS owns directional exceptions.
 
 Their rules reference section 2 and each other rather than repeat full definitions. Lasting
@@ -110,17 +133,64 @@ Describe a baseline in named conditions rather than as an average of incompatibl
 recurring contexts, or an examined absence of a settled baseline, are both possible. A baseline
 may be emotionally colored, private or rare in the output. Scope it to the intended identity.
 
-Specify each channel:
+Specify the applicable channels:
 
 - Speech: actual language or mode, address, register, clauses, lexical domains, precision, the
   order of answer, reason and request, questions, turn-taking, backchannels, silence and repair.
 - Vocal delivery: habitual qualities, kept distinct from contextual tempo, volume, pitch movement,
   pauses, breath and articulation.
-- Body: available channels, attention, posture, movement, contact and spacing.
+- Body or functional assembly: the named baseline's actual configuration, attention, movement,
+  support, contact and spacing, using only the structures and operations the subject has.
 
 Motor, sensory, cultural and environmental conditions constrain realization.
 
-Bind each materially used baseline and mode to section 2, stating which identity dimension and
+The PHYSICAL `embodied_expression_repertoire` defines the individual's reusable bodily or
+functional realizations. An emotion, expression or gesture name can index a meaning or action,
+but leaves its physical form open. Where that form distinguishes this subject, define it: an
+eyelidded subject's open, narrowed and closed eyes are different realizations, as are different
+mouth shapes, supports and ways of moving. For another subject, the distinction may lie in
+aperture, orientation, contact, distribution or an authored operation rather than a face.
+
+For each materially used realization, describe:
+
+- the declared structures and capabilities it uses, with their applicable limits;
+- the distinguishing configurations, movements or operations and their targets;
+- how participating and held components work together across the body or assembly, including
+  orientation, support, weight or load, contact and spacing where they matter;
+- the permitted range, what a change in expressed degree actually changes, and which alternatives
+  are available or incompatible;
+- the source or design basis, adoption scope and remaining unknowns.
+
+Think through the whole subject before selecting the meaningful detail. A facial label cannot
+stand in for an adopted bodily action; an unchanged stance or continued task can be part of the
+expression. A definition need not inventory every channel, prescribe one pose or invent a
+movement for a quiet subject. A missing answer, an unavailable structure, an occluded part and an
+intended absence of change remain different.
+
+Define expressed degree through the subject's actual variation, not only words such as subtle
+or strong. A chosen range can change opening, curvature, tension, extent, support, movement amount,
+speed, duration or the participating structures. Use only the dimensions that explain this
+realization; no numerical scale or common progression is implied. Greater feeling can coexist
+with held, reduced or concealed movement. Felt intensity and expressed degree remain separate.
+
+Keep several permitted realizations when the design supports them. In a Persona, their activation
+and selection belong in THOUGHT response rules, with directional exceptions in RELATIONSHIPS; the repertoire
+refers to those owners instead of copying their conditions. Local names can identify concrete
+forms without becoming universal emotion types. A new scene can choose a pose, movement or contact
+within its delegated scope without adopting a recurring habit. A proposed recurring form retains
+its design status until adopted.
+
+Develop the wording alongside each materially used form under
+[Prompt Vocabulary Runtime](prompt-vocabulary.md#define-a-character-with-usable-wording).
+Search related meanings, inspect the selected entries and keep their applicable
+terms beside the concrete definition, with authored phrases for distinctions
+the terms leave open. The definition retains the actual configuration, degree
+and relationships; a broad label cannot replace it. This work also applies to
+other character properties at their own owners, including appearance, materials
+and clothing. Reusable wording is authoring material, not proof that a target
+model can express the form.
+
+For a Persona, bind each materially used baseline and mode to section 2, stating which identity dimension and
 intent it realizes, what holds, what can vary and why, and which evidence or probe supports that
 interpretation. A generic 'keeps their personality', or the same sentence copied into syntax,
 listening and gesture fields, states none of that. The Core-to-Performance Bindings table is
@@ -139,7 +209,8 @@ unchanged.
 
 For each consequential response connect:
 
-1. **Identity and intent:** the applicable section 2 dimension and governing intent, with the
+1. **Identity and intent:** the applicable identity dimension and governing intent, using
+   section 2 when a Persona owns them, with the
    intended continuity, contrast or authorized departure. A future plan activates nothing now.
 2. **Situation and access:** the perceived event, task, available information, missed
    information, addressee and any other listener or observer. Solitude is a valid condition.
@@ -148,9 +219,12 @@ For each consequential response connect:
    emotion label, is the cause.
 4. **Initial control and expression:** intended display, habitual response, suppression, masking,
    ambiguity or an absence of change. The subject may only partly understand their own reaction.
-5. **Held and changed components:** actual language, voice, listening and bodily changes, with
-   owning mode and rule references. Protected dimensions hold, whatever expressiveness a change
-   would add.
+5. **Held and changed components:** actual language, voice and listening, plus the selected
+   bodily or functional realization and its expressed degree. Refer to the concrete form
+   at its owner, PHYSICAL when using a Persona, and
+   state the applicable configuration, movement, combination and held components; an emotion or
+   pose label alone leaves those choices unresolved. Protected dimensions hold, whatever
+   expressiveness a change would add.
 6. **Development, exit and bounds:** onset, switching, interruption, repair, release, re-entry,
    residue or an absence of return, where relevant, with conditions, limits, alternatives and
    actual basis.
@@ -211,7 +285,8 @@ Before a consequential beat, settle a compact author-facing note covering:
 - current facts and access;
 - active rules and overlap;
 - what must hold and what changes;
-- actual voice and body timing;
+- the selected concrete voice and bodily or functional realization, its expressed degree and
+  the timing the beat depends on;
 - observers, outcome and uncertainty.
 
 Distinguish an in-range realization from disclosure, disruption, lasting change and editorial
@@ -225,15 +300,30 @@ Each medium selects differently:
   character speech.
 - Audio uses what can be heard.
 - Comics and screen work stage sequences with spatial, task and prop continuity.
-- A single image selects one instant and its visible channels, so it holds one reaction phase; a
-  still can suggest duration while keeping its gestures compatible.
+- A single image establishes the selected visible configuration. When a changing response
+  matters, choose the depicted instant and keep its gestures compatible; a still may suggest duration.
 
-An unspecified intent is a gap to settle; displaying every cue compensates for nothing.
+Carry the selected realization into the actual words, performance instructions or model input at
+the specificity the source and present task require. If an individual's expression depends on
+open rather than closed eyes, a particular mouth shape, a held support or a movement combination,
+the delivered text or appropriately scoped media must establish that distinction. An internal
+rule ID or an unseen persona file supplies no such instruction. For a visual output, select what
+this view can show and preserve the relevant effects of offscreen structure without demanding
+that the whole body appear.
+
+A compact act or expression phrase is sufficient only where it leaves no consequential authored
+distinction unresolved. Compression follows the concrete selection; it does not delegate missing
+individual behavior to a model's generic interpretation. Keep the full definition with its owner,
+and give the current output the selected form, combination, degree and necessary circumstances.
+An unspecified intent or necessary realization remains a question to settle; displaying every
+cue compensates for neither.
 
 For visual records read [Performance Language Specification](../performance-language-specification.md).
 It owns `performance_language`, `performance_cues` and prompt projection, and nothing about
 dialogue modes. Retain authorial bindings in scoped notes rather than in invented JSON or service
-fields. Apply retrieval and generation gates only on entering actual image work. Give the
+fields. Research definition wording during character authoring. Apply the selected-model
+rendition gate when authoring text for that target, including prompt-only delivery;
+apply generation gates when preparing and executing image work. Give the
 downstream consumer (a writer, actor or renderer) a genuinely scoped view: remove hidden and
 future material, including prohibitions that would reveal it, rather than copying the full
 register with 'author-only' labels. Removal prevents leakage; a label alone leaves the knowledge
@@ -246,12 +336,24 @@ relevant sample and retain the examined limits. Record inputs, held assumptions,
 outcomes, counterexamples and revisions with their actual status. Hypothetical probes remain
 hypothetical; story events are established separately.
 
+Before generation or performance, derive the expected realization from the applicable definition
+and current selection: its distinguishing configurations or operations, participating and held
+components, expressed degree, permitted alternatives and the requested read. Observe the returned
+artifact, then compare those expectations with the actual evidence. Judge physical or functional
+coherence, individual realization and expressive meaning separately. An output can communicate
+the requested feeling while using the wrong individual form; naming that feeling afterward does
+not resolve the mismatch. A newly preferred alternative is a proposal at its owning scope rather
+than evidence that the original expectation was met.
+
 - **Same context, relevant comparison:** hold facts and task steady. Compare actual attention,
-  choice, exact language, listening and movement where distinction is intended. Similarity may
-  be valid; a name-hidden comparison is diagnostic rather than a uniqueness quota.
+  choice, exact language, listening and concrete bodily or functional realizations where
+  distinction is intended. An identical emotion or gesture label does not establish identical
+  form. Similarity may be valid; a name-hidden comparison is diagnostic rather than a uniqueness
+  quota.
 - **Same subject, changed conditions:** vary a relevant condition, then a supported overlap.
-  Inspect switches and held features. Explain how each realizes the identity, including minimal
-  or unchanged responses. Solitary work is reviewed as solitary.
+  Inspect the selected forms, their expressed degree, switches and held features. Explain how
+  each realizes the identity, including minimal or unchanged responses. Solitary work is reviewed
+  as solitary.
 - **A new situation:** use an unused context within the declared scope. Record whether the
   portrayal fits, exposes a gap or needs a proposal. A rule revised only so the probe passes has
   passed nothing.

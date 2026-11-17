@@ -29,7 +29,7 @@ Under the sheet lock, only touched keys are compared and applied. A field or tab
 
 ## Sequential panel execution
 
-Render `panel-fill-requests.json` first. Review each prompt with its actual reference images under [Prompt Composition](prompt-composition.md#prompt-assembly-and-review). Author a Production task per selected panel with its prompt, model/mode, meaningful controls, interface evidence and recording target. The existing managed batch derives omitted width and height from the selected renderer request's `target.generation_w` and `target.generation_h`; conflicting explicit dimensions are rejected. Other parameters remain authored. The sheet canvas and display content box do not become generation dimensions. Render with supported `--panel-geometries` when a model has fixed geometry choices. No creative field is synthesized by the runner.
+Resolve the selected panel's depiction under [Character Sheet Discipline](character-sheet-discipline.md#building-the-sheet), then render `panel-fill-requests.json`. For an expression or body-language panel, select the individual's concrete response, current condition and degree, plus timing where relevant, before writing the drawing details. Review each prompt with its actual reference images under [Prompt Composition](prompt-composition.md#prompt-assembly-and-review): the delivered input must retain the relationships that distinguish the selected response. Source notes inform authoring and labels identify panels; resolve their necessary visual meaning into the drawing instructions. Author a Production task per selected panel with its prompt, model/mode, meaningful controls, interface evidence, recording target and criteria grounded in the applicable original definition and current portrayal. The existing managed batch derives omitted width and height from the selected renderer request's `target.generation_w` and `target.generation_h`; conflicting explicit dimensions are rejected. Other parameters remain authored. The sheet canvas and display content box do not become generation dimensions. Render with supported `--panel-geometries` when a model has fixed geometry choices. No creative field is synthesized by the runner.
 
 A [sheet-fill-plan](../../schemas/authoring/sheet-fill-plan.schema.json) is Studio-relative. Each reference explicitly names a slot and role. An artifact ID pins a known acceptance; null elects the current accepted artifact at the preparation boundary. Neither form selects a candidate. The resolved artifact is then frozen in the batch journal, the reference preparation and the exact request shown for approval.
 
@@ -116,7 +116,7 @@ Each HSV region contains `id`, `hue` (degrees, possibly crossing zero), `saturat
 {"id":"coat","hue":[10,55],"saturation":[0.25,1],"value":[0.1,1],"minimum_pixels":100,"rois":{}}
 ```
 
-The output contains full-body and head comparison pages, their hashes, exact artwork descriptors, all thresholds and rectangles, population counts, medians and signed differences. Transparent pixels are excluded. Insufficient selected pixels produce null medians/differences, never a false zero. Color measurements do not assess shape, markings, topology or identity. The author makes and records the adoption decision. One operation shares verification by exact artifact descriptor; it decodes only the anchor and the current page of candidates. Pagination therefore limits retained decoded images, not just the eventual display layout.
+The output contains full-body and head comparison pages, their hashes, exact artwork descriptors, all thresholds and rectangles, population counts, medians and signed differences. Transparent pixels are excluded. Insufficient selected pixels produce null medians/differences, never a false zero. Color measurements do not assess shape, markings, topology, identity or conditional performance. Use [Production review](production-review.md) to compare the actual channel relationships with the original definition, selected condition and prior permitted variation. A plausible general emotion does not establish the selected individual response. The author makes and records the adoption decision. One operation shares verification by exact artifact descriptor; it decodes only the anchor and the current page of candidates. Pagination therefore limits retained decoded images, not just the eventual display layout.
 
 ## Local derivatives, model upscales and sharing
 
@@ -145,6 +145,13 @@ python scripts/sheet_workflow.py adopt --sheet SHEET_JSON --decision-file RETURN
 The default draft is `.fills/drafts/adoption/DIGEST.json`; `draft_file` names it in the command output. A matching existing draft is returned for inspection, not overwritten. Use the file, not the surrounding CLI response, as the decision. The draft has blank author, timestamp, reason and evidence fields. Fill them from the actual decision, including a relative evidence path, exact SHA-256 and locator. Adoption compare-and-swaps the `expected_current` artifact from the draft. A changed current selection requires a new review, not silent overwrite. Repeating an already committed decision is idempotent. A local decision cannot bypass a Production candidate's separate adoption claim.
 
 Inspect selections with `python scripts/sheet_workflow.py status --sheet SHEET_JSON`. Redo is candidate creation plus the same review/adoption process; no destructive reset or separate compatibility path exists.
+
+An authored definition or sheet-summary change leaves current artwork in place;
+`auto` continues to keep an accepted image. Reassess the affected panels against
+the revised definition, retain those that still meet it, and choose `fill` for
+the ones needing new candidates. New preparation captures the revised sources
+and criteria. It leaves previous candidates, approvals, saved inputs and review
+bases intact; those records describe their original production and decisions.
 
 ## Dismiss a candidate
 

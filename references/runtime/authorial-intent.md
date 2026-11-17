@@ -5,8 +5,12 @@
 Read this route when establishing or revising how a work, subject or recurring pattern is
 portrayed, when diagnosing identity drift, or when selecting among plausible realizations; also
 when constancy, a contrast, a rupture or uncertainty about identity is the point of the work.
-Read the adopted design and world records, and for an individualized agent the complete persona
-and its applicable phase; this route supplements those authorities rather than replacing either.
+Read the adopted design and world records, and any existing applicable Persona and phase in full;
+this route supplements those authorities rather than replacing them. A bounded visual proposal
+can keep its concrete identity and relevant portrayal aim in the existing task-local definition
+under [Production direction](production-direction.md#establish-the-character-for-this-use).
+Develop the distinctions the current use needs and leave other choices open. The agent can
+propose them without requiring a complete dossier or a field-by-field interview.
 
 This is an authoring rule rather than a claim about a person's psychology, and it leaves cast,
 protagonist, relationship, genre, theme, anatomy, communication mode, growth arc and emotional
@@ -25,7 +29,7 @@ copy.
 | Kind | Meaning and owning record |
 |---|---|
 | Established conditions | What exists, happens or is possible in the declared continuity. World, narrative, visual identity and state records own these facts at their respective scopes. |
-| Subject identity | What makes this subject continuous or recognizable, including scoped values, dispositions, patterns and uncertainty. Persona section 2 owns an individualized subject's identity; non-agent subjects use their world record. |
+| Subject identity | What makes this subject continuous or recognizable, including scoped values, dispositions, patterns and uncertainty. Persona section 2 owns this in a dossier; a bounded visual proposal uses its task-local definition. Non-agent subjects use their world record. |
 | Authorial portrayal intent | What the creator chooses to sustain, contrast, reveal, withhold or disrupt in the audience's experience, and why. A scoped design intent owns this, whether or not a subject knows or understands it. |
 | Realization | The particular words, timing, acts, viewpoints, shapes or omissions used in this output. Scene and performance records apply the first three without becoming their new source of truth. |
 
@@ -71,7 +75,10 @@ stay fixed, is a choice rather than a rule.
 
 ## 3. Persist the actual design intent
 
-Use the **Authorial intent register** in a design record. Each entry has a stable lowercase ID, a
+For Persona dossiers and continuing narrative work, use the **Authorial intent register** in a
+design record. A bounded visual proposal keeps its relevant aim, variation and scope with the
+existing definition or production direction; it needs no separate register merely to begin.
+When using the register, each entry has a stable lowercase ID, a
 heading `### Intent <id>` and the link target `#intent-<id>`. Use the exact fields in the project
 design form. They hold:
 
@@ -105,14 +112,14 @@ Keep one owner for a decision:
 - individual factual or internal traits stay in persona;
 - world laws stay in world records.
 
-A standalone conversation can use the same structure unsaved; save the scoped record in a
-studio when persistent work is requested.
+A standalone conversation can retain the relevant intent with its working definition, leaving
+unused choices open. Save the scoped content at its existing owner when persistence is requested.
 
 ## 4. Resolve a moment under the intended identity
 
 Before a consequential realization, identify:
 
-- the applicable intent IDs and their status;
+- the applicable intent and its status, with IDs when a register owns it;
 - the current character profile;
 - relevant world and state constraints;
 - the request's change boundary.
@@ -122,8 +129,8 @@ actual voice, body and form within the permitted range. This is an author-side s
 than dialogue for the character's mouth.
 
 For each materially used conditional response or voice mode, record how its held and changed
-components realize the character profile and governing intent; a shorthand reference to section 2
-suffices when it unambiguously identifies the relationship. Conditions such as emotion, addressee,
+components realize the character profile and governing intent; a shorthand reference to Persona
+section 2 suffices when that owner unambiguously identifies the relationship. Conditions such as emotion, addressee,
 audience and fatigue activate rules; a new identity needs its own scoped decision. A convincing
 explanation for a local reaction can still be wrong for the adopted portrayal aim.
 
@@ -246,11 +253,15 @@ candidate selection.
 
 ## Prepared scene Persona material
 
-During scene preparation, read the complete applicable Persona definitions, their portrayal model,
+For scene preparation using an existing Persona or a continuing narrative, read the complete
+applicable Persona definitions, their portrayal model,
 authorial intent and current conditions, and save the relevant definition text, cross-definition
 dependencies, partner-specific exceptions and scoped applications with
 [Scene Persona Material](scene-persona.md); the saved material records a completed reading rather
 than a router's guess at which sections matter.
+
+A bounded task-local visual proposal keeps the needed definition and current selection with
+its depiction; it needs no scene-material bundle solely for that use.
 
 When a reviewed material bundle is explicitly selected for this task, verify it and use its
 `persona.md` for execution, local repair and resumption; rendering the same scene again is by

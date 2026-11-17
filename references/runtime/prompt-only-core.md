@@ -11,7 +11,23 @@ production route and the artifact commands below.
 Read and use [Production direction](production-direction.md). It owns the
 construction, judgment and revision of the requested picture. Establish the
 request, source roles and actual creative scope there; use its depiction as the
-subject of prompt writing. A review judges the submitted prompt as a proposal. Its commands address a
+subject of prompt writing. For character creation or portrayal,
+[establish the character for this use](production-direction.md#establish-the-character-for-this-use):
+read the applicable definition or develop a concrete proposal before delivering
+its prompt. A short inline definition can serve an isolated image; a complete
+Persona dossier, name or registration is not required. An open mood or place
+does not by itself turn the task into a setting-only prompt. Explicit support
+work and bounded edits keep their requested scope.
+
+A concrete character proposal includes its short definition and the
+corresponding wording for the details being developed. Follow
+[definition wording](prompt-vocabulary.md#define-a-character-with-usable-wording)
+to make that association readable without requiring tag knowledge. The prompt
+alone is not its definition-to-wording record. For an explicitly prompt-only
+output format, keep the association in the existing authoring source instead
+of adding extra delivery text.
+
+A review judges the submitted prompt as a proposal. Its commands address a
 renderer, not the reviewer; they do not require their own preservation. Use
 the commission and source roles to assess their contribution, without adopting
 them or automatically performing an edit. A local correction and a
@@ -79,10 +95,18 @@ already resolve the work. Role similarity never replaces explicit species;
 a broad species request does not authorize an arbitrary subspecies.
 
 This construction judgment is separate from a tag-based model's mandatory
-wording search. For that input mode, use
+wording search. When authoring or materially changing a character definition,
+use [Define a character with usable wording](prompt-vocabulary.md#define-a-character-with-usable-wording)
+to investigate relevant dictionary meanings and retain selected keywords and
+necessary authored phrases with the definition. This is part of defining the
+character, including for a descriptive prompt or before selecting a model.
+It does not require the user to name terms or complete a vocabulary form.
+
+For a tag-based model's rendition, use
 [Vocabulary](prompt-vocabulary.md#select-wording-for-a-tag-based-model) even
 when the depicted activity and intended terms are already understood.
-Descriptive input needs no fabricated lookup when its sources suffice.
+Use the definition's researched wording and its actual meaning as source
+material; a descriptive rendition needs no invented model-specific tag lookup.
 
 Interpret source images through [source construction](prompt-composition.md#construction-order).
 Distinguish authoring-only material from media delivered to the model and from
@@ -118,6 +142,13 @@ every distinction, and name the consequential remaining limits. Supply context
 only through a form the actual renderer can use. The agent's broader context
 explains its decisions without automatically belonging in the prompt. The
 `negative-policy` resource owns negative sources and target syntax.
+
+Carry the relevant character definition and its selected expression into that
+input. Reuse suitable researched terms while retaining the authored wording
+needed for the individual design. A keyword list beside the definition is
+available material, not a requirement to paste every term into every prompt.
+A character ID or an unexplained emotion label supplies no missing visible
+definition to the renderer.
 
 Judge the completed input through
 [Observe and repair](production-direction.md#observe-and-repair). Agreement

@@ -2,11 +2,12 @@
 
 ## Activation
 
-Use this runtime to discover expressive forms through category browsing or to
-find English wording for a selected construction. It also owns the required
-dictionary search for every selected `tag-based` model rendition. Discovery can precede the
-direction choice; compact terms alone do not explain a form's purpose or make
-it appropriate. Inspect applicable production records and use
+Use this runtime while defining a character and when finding English wording
+for a selected construction. Category browsing can help discover expressive
+forms. It also owns the required dictionary search for every selected
+`tag-based` model rendition. Discovery can precede the direction choice;
+compact terms alone do not explain a form's purpose or make it appropriate.
+Inspect applicable production records and use
 [Production direction](production-direction.md#choose-the-expression) to choose.
 During prompt assembly, use the
 [selected construction and wording questions](prompt-composition.md#catalog-retrieval-and-inspection)
@@ -35,11 +36,113 @@ Resolve the logical resource from the same explicit pack state used by the task:
 python scripts/pack_cli.py resource prompt-vocabulary
 ```
 
-Pass the resolved file to the search command. A tag-based rendition requires
-the active dictionary and owning dialect resources. If they are unavailable,
-resolve that resource need before completing its model-specific wording.
-Descriptive and portable work can proceed from sufficient sources without a
-dictionary; a missing resource never changes the target's input mode.
+Pass the resolved file to the search command. Character-definition authoring
+uses it as described below, even before a target model is selected. A tag-based
+rendition requires the active dictionary and owning dialect resources. If they
+are unavailable, resolve that resource need before completing its model-specific
+wording. Descriptive and portable work can retain precise authored wording when
+a dictionary is unavailable; record the research gap instead of claiming a
+dictionary match. A missing resource never changes the target's input mode.
+
+## Define a character with usable wording
+
+Research wording while creating or materially revising the
+[character definition](production-direction.md#establish-the-character-for-this-use).
+The agent does this work without waiting for the user to request a lookup or
+supply technical terms. Develop the intended meaning and its usable wording
+together, including the distinctions that matter in construction, appearance,
+surface, clothing, equipment and bodily or functional expression. Use the
+subject's actual structures and the task's scope; these are possible areas of
+research, not mandatory fields or a human anatomy checklist.
+
+Follow the definition's current depth. Research the distinctions being
+developed for this proposal and add mappings when later work makes another
+detail relevant. The first idea does not need a complete vocabulary for every
+future outfit, expression or state. Open design choices can remain open;
+dictionary coverage does not decide how much of the character must be settled.
+Make useful provisional choices within delegated scope and show their meaning
+so the user can respond in ordinary language.
+
+Group related meanings into useful searches. A selected expression may need
+eye opening, mouth shape and gaze together; a material choice may need its
+finish, pattern and coverage together. Resolve the active dictionary and run
+the actual [Search](#search) commands, batching related questions with
+`--queries` and recording them with `--record`. Reuse the task's retrieval
+record, initializing one with
+`python scripts/prompt_retrieval.py lookups.json --init` when absent; temporary
+files suffice for conversation work. Reuse applicable earlier investigations
+and mappings, and research additions, changed scope or unresolved distinctions.
+Neither a separate search for every attribute nor a dictionary match for every
+word is required.
+
+If a search cannot run, identify the unavailable resource or operation and
+continue the precise definition with authored wording and that research gap.
+An execution failure is not evidence that the dictionary lacks a term. A
+successful search with no fitting candidate leaves authored wording necessary
+within the examined scope; it does not prove exhaustive absence. Preserve that
+difference without turning wording research into an approval step for creative
+proposals.
+
+Inspect the complete selected entries, including category guidance, aliases,
+other senses sharing the spelling and any usage notes. The [readback](#read-a-finished-prompt)
+command can read a temporary file of candidate phrases before a final prompt
+exists. Search rank, a familiar spelling or an emotion label does not establish
+a semantic match. Compare the candidate's actual meaning, scope and degree
+with the intended individual definition. Where the inspected entries supply no
+fitting term, retain precise authored wording that carries the missing
+distinction; state the remaining limitation when the intended form itself is
+still unresolved.
+
+Write the corresponding wording beside the meaningful definition in its
+existing owner. A short paragraph or table can show:
+
+- the concrete definition, its applicable conditions and permitted variation;
+- the selected dictionary terms or aliases, their applicable sense and the
+  dictionary resource and category that identify the inspected entries;
+- authored phrases needed to preserve distinctions the terms do not carry,
+  with a brief reason where the gap is consequential;
+- the relevant element in the existing retrieval record, or a concise source
+  and query note when no persistent record is being kept.
+
+Shared source and query notes can cover a group of related definitions.
+
+For example, a definition may retain a closed mouth with gently raised corners
+and eyes still open. If the inspected dictionary entry supplies a suitable
+smile term but leaves eye opening unspecified, list that term with its actual
+source and keep the authored eye-opening phrase beside it. The broader term
+does not replace the more precise definition. This is a synthetic authoring
+example, not a claim that any particular dictionary contains that entry.
+
+Keep these associations with the property's existing description or notes:
+Persona PHYSICAL for its embodied repertoire, the applicable Identity or
+Appearance owner for visual properties, or the current scene for a local
+choice. When presenting a character definition or concrete design proposal,
+show the corresponding usable wording with the details it expresses, even
+when the user has not asked for tags. A short parenthetical or a few paired
+lines can do this in conversation; use ordinary explanations and keep commands,
+internal paths and long lookup logs in the working record. Distinguish searched
+dictionary wording from authored phrases. Present only the associations for
+details being developed, not a vocabulary inventory or another questionnaire.
+Reuse the pairing on later turns and show changed associations with changed
+details; unchanged notes need not be repeated.
+
+A final prompt by itself does not preserve this association: a reader cannot
+tell which words were inspected or which concrete meaning they were chosen to
+carry. If an explicit output restriction permits only the prompt, retain the
+pairing in the existing definition source or temporary authoring notes rather
+than adding unrequested output. Do not defer the pairing until prompt delivery,
+leave the selected words only in a search log, create another canon, or use
+the Persona's spoken Vocabulary Registry for image prompt terms. The generic search record preserves queries and returned term
+names; the definition's wording note preserves the chosen source, sense and
+authored completion. It is not a model-bound vocabulary selection record.
+
+Preserve the complete definition as authority. A term's availability does not
+adopt a design choice, supply undeclared anatomy or establish a model's learned
+effect. Without a selected model, the correspondence is semantic authoring
+material. Later prompt assembly selects the applicable wording, carries any
+necessary authored relationships and resolves it again under the actual
+model's input contract, vocabulary scope and parser. The model-bound procedure
+below remains responsible for that rendition's lookup and verification.
 
 ## Select wording for a tag-based model
 
