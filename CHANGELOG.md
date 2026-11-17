@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026.11.17.1
+
+- Expand the shared prompt vocabulary with 2,214 entries for poses, appearance,
+  expressions, clothing, accessories, camera work, visual styles, objects and
+  interactions. Correct inaccurate meanings and fill missing phrase descriptions
+  so every entry has a description.
+- Verify generation packages without a model record instead of failing on an
+  absent record. Keep recorded dictionary searches mandatory for tag-based input.
+
 ## 2026.11.15.8
 
 - Derive prompt-writing instructions, wording preferences and vocabulary work

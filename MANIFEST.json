@@ -1,9 +1,9 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.11.15.8",
+  "version": "2026.11.17.1",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
-  "generated_at": "2026-11-15",
+  "generated_at": "2026-11-17",
   "license": "GPL-3.0-only",
   "language": "English project content and canonical English retrieval; user-language interpretation belongs to the calling agent",
   "purpose": "state-aware expansion of character ideas into coherent model-aware image prompts",
@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1127,
-  "total_bytes_excluding_manifest": 21280933,
+  "total_bytes_excluding_manifest": 21607966,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -97,12 +97,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "ef3673280500bba0a7bffdde4a9c8503d3a9b590347a8d37a2f8c1975781766a"
+      "sha256": "d5fb96d4c02233abb4f4eb5bb13b2caa525a25e1bc1e4f5eecd862bfc01cd529"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "962d2b22663b20fc0d20fb205ffe4f2ab37b949c060a0c77df91b876eef872af"
+      "sha256": "e7a988605cb94bf3b2a78eddb793993f22757f15097806ded0ba1a105225dd50"
     },
     {
       "path": ".python-version",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 117742,
-      "sha256": "0216d4f31402c46e1c2be3d1d0598af96ecf4a503bb5c77cb6471df4708c25f2"
+      "bytes": 118194,
+      "sha256": "5f67f26e3bdba6e57978515432f6aa57a843df6e9899462c8f18eea3a612d279"
     },
     {
       "path": "CLAUDE.md",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 32757,
-      "sha256": "9b40abedd4f8938ed6c527bbf7637ba1913b81ffeca09c9fc724105d465afde9"
+      "sha256": "0e9c4d8f871b7be27db97894dff31a6ceba953e58f7de2b03d09951c5073175f"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -1582,12 +1582,12 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2145,
-      "sha256": "76a4a6a105d8f0d7a4bf2a6ad81a82a3af3ab361a83cc73a9748c3170e3b86da"
+      "sha256": "0e9fc6f7bdaeb89a4f1bbd35fe03372caf3b5e7890ef4a3f4bfc014a03104549"
     },
     {
       "path": "packs/commons/pack.json",
       "bytes": 1888,
-      "sha256": "ffe735c710b64d177a6194b15fbb8d8660c9e4ec49436347086f11292b1e676d"
+      "sha256": "8a9ba411f83639b762773a0661258946ddd238c6323287974845c7e3e0cbf25e"
     },
     {
       "path": "packs/commons/records/base-scenes.json",
@@ -1766,8 +1766,8 @@
     },
     {
       "path": "packs/commons/resources/prompt-vocabulary/dictionary.json",
-      "bytes": 2014770,
-      "sha256": "9d5be25cffe37e3ab10091caeb7aaa7fbef900b2b817f4e491618952a033256f"
+      "bytes": 2341322,
+      "sha256": "55d2bc61c8f746b6dd0adfc01d153adfe63365020dca53613eebc3a63d945d2f"
     },
     {
       "path": "packs/commons/resources/prompt-writing-guide/guide.json",
@@ -2407,7 +2407,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 825,
-      "sha256": "1e6f9e791c09dda67cd233d2c31011bb77a2f07574f8bb55db9880923db9fdc5"
+      "sha256": "e869046e9ea3360bf90a1523c8bebfe24ab158c794d38a60fc72d309b608ef5f"
     },
     {
       "path": "references/adapters/gpt-image.md",
@@ -5356,8 +5356,8 @@
     },
     {
       "path": "scripts/verify_generation_payload.py",
-      "bytes": 44891,
-      "sha256": "793e89ab8d54ac5974865749d7914c5942b27dde50b2470f57699f58777a2f87"
+      "bytes": 44920,
+      "sha256": "3fb3ad192168458d7302b77f3015bd697cc6af2e6c74630bdeac386fa4471ed7"
     },
     {
       "path": "scripts/verify_upscale_package.py",
@@ -5717,7 +5717,7 @@
     {
       "path": "uv.lock",
       "bytes": 113758,
-      "sha256": "8b9c5c4ff5956bb15a1a430da73c47754e5fc0183131e3b88924bd6d7468c5b6"
+      "sha256": "aa1895cd793583bb253ba7ebcde8fd2d7cf257611152cc4e2f1b1fada423718f"
     }
   ]
 }

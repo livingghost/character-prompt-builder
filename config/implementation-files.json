@@ -475,7 +475,7 @@
     "scripts/temporal_state.py": "529b36d7eb8aff9edaee0092174811835e369a084c2de2659d6573885e422c0d",
     "scripts/transport_contract.py": "6380a1ed4813c88d6e7e1f75daf0386c4a595e5a559f26548c9d7c1df5c1080b",
     "scripts/upscale_package.py": "cff9e114e49fad83b3477f10f6441494d11d5bc5073422dc2b85ae28db7cdc8e",
-    "scripts/verify_generation_payload.py": "793e89ab8d54ac5974865749d7914c5942b27dde50b2470f57699f58777a2f87",
+    "scripts/verify_generation_payload.py": "3fb3ad192168458d7302b77f3015bd697cc6af2e6c74630bdeac386fa4471ed7",
     "scripts/visual_continuity.py": "936a6ab6493d5f32f58b8cce117b5a5cd97d40cf4a5b4e870284e31df6b3e671",
     "scripts/visual_evidence.py": "647a091448e8254e9a4adee4c3f4f5b7dee234197e4afb87aeb9601ddc29ac99",
     "scripts/work_ledger.py": "ab2d4215ef551e803440f54377a54fd094276fe7518337e6d3ce3660e528d33f",

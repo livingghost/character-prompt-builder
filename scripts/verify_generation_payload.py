@@ -569,7 +569,7 @@ def _verify(
                 model_record=model_record, syntax=weighting_syntax)
     elif data.get('retrieval_record') is not None:
         require_settled_retrieval(data.get('retrieval_record'), prompt=composition_prompt, plot=plot)
-    elif model_record.get('prompt_input', {}).get('mode') == 'tag-based':
+    elif model_record is not None and model_record.get('prompt_input', {}).get('mode') == 'tag-based':
         raise ValueError('tag-based input requires its recorded dictionary search')
     retrieval_hash = sha256_json(data["retrieval_record"])
     for location, value in (
