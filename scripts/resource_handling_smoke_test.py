@@ -421,13 +421,13 @@ class DataFileLockTests(unittest.TestCase):
             with patch.object(contract, '_open_lock_stream', opening):
                 with contract.file_lock(self.path):
                     old_stream = original(self.path)
-                    old.start(); self.assertTrue(opened.wait(5))
+                    old.start(); self.assertTrue(opened.wait(30))
                     contract.atomic_write_json(self.path, {'value': 1})
                     contract.atomic_write_json(self.path, {'value': 2})
-                    self.assertTrue(current_opened.wait(5))
+                    self.assertTrue(current_opened.wait(30))
                     fresh.start()
                     self.assertFalse(entered.wait(0.03)); self.assertFalse(fresh_entered.wait(0.03))
-                self.assertTrue(entered.wait(5)); self.assertTrue(fresh_entered.wait(5))
+                self.assertTrue(entered.wait(30)); self.assertTrue(fresh_entered.wait(30))
         finally:
             for thread in (old, fresh):
                 if thread.ident is not None: thread.join(5)

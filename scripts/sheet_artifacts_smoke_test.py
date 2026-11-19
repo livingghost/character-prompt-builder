@@ -355,7 +355,8 @@ class SheetArtifactTests(unittest.TestCase):
         with patch.object(c, 'read', wraps=c.read) as reads:
             validate_sidecar(value, sheet_root=self.sheet.parent, verify_files=True)
         for path in (provenance, image, package):
-            self.assertEqual(sum(Path(call.args[0]) == path for call in reads.call_args_list), 1, path)
+            self.assertEqual(sum(Path(call.args[0]).resolve() == path.resolve()
+                                 for call in reads.call_args_list), 1, path)
         package.write_bytes(b'{}')
         with self.assertRaisesRegex(ValueError, 'hash mismatch'):
             validate_sidecar(value, sheet_root=self.sheet.parent, verify_files=True)

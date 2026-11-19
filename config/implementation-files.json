@@ -492,7 +492,7 @@
     "scripts/story_flow.py": "9a98d4280b8a60d2a77af0153176ebe353e234715bbc5e2cc88577f7ad2f067d",
     "scripts/story_timeline.py": "8ef763c2678805dc68b31e50e65da8531832c16daa8b636701e02e2419231b46",
     "scripts/structure_contract.py": "6805798e2b01c619d2b0668028bb4acf2fcefa11275e171fe9e5298c2b051500",
-    "scripts/studio_activity.py": "9f3f8af29dda5979786cd63fff008aa9d0b49a275572871c42b4fae84aec5ae2",
+    "scripts/studio_activity.py": "39846631767c2172672e69d6e35193a80852764b9f2eb9c05bef3ba8d030a6b4",
     "scripts/studio_gallery.py": "b1eb7ba50422e20121131914b593af75a1f11136def9ea4bb314913ba8268d57",
     "scripts/studio_placement.py": "c9f17a13221612ad07e2cc2e3ca1e4567ba0409370f2f3007d609398eb98a94c",
     "scripts/studio_reference.py": "d0d369c2428739d3d1e14d6ad4be3381c8077082044d730fd1a76d950e272bb6",

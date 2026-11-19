@@ -188,6 +188,7 @@ def timeline_owner(root: Path) -> Path:
 
 def _dirty_receipts(root: Path, view: str) -> list[Path]:
     # An atomic writer's temporary file has not become a receipt yet.
+    root = root.resolve()
     return [path for path in (root / 'work/activity/dirty' / view).glob('*')
             if not path.name.startswith(c.TEMPORARY_PREFIX)]
 
@@ -405,6 +406,7 @@ def event(root: Path, kind: str, subject: str, *, revision: str | None = None,
 
 
 def read_events(root: Path) -> tuple[list[dict], list[dict]]:
+    root = root.resolve()
     rows, diagnostics = [], []
     owned = _activity_values(root)
     directory = root / 'work/activity/events'

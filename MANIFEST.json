@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1157,
-  "total_bytes_excluding_manifest": 22383370,
+  "total_bytes_excluding_manifest": 22383479,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 34651,
-      "sha256": "a20e6ffa860f78e1b5f51c5df9193522a5e77d8aea22802e28ce09209ce8049f"
+      "sha256": "60f3795033b8f5843df7f01f93d96b6881460a5132ec20a8ca35d4cd25f5c1e7"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -4736,8 +4736,8 @@
     },
     {
       "path": "scripts/resource_handling_smoke_test.py",
-      "bytes": 28200,
-      "sha256": "3274b701a79e436ae68f8b6e8c82b5046764450ecf0f521d7e02c3a5f9d8d1c2"
+      "bytes": 28204,
+      "sha256": "d2aadc70a75780d235a170dfe97eaac7a6c9dda6825d869debb9e35589813450"
     },
     {
       "path": "scripts/resource_policy.py",
@@ -4916,8 +4916,8 @@
     },
     {
       "path": "scripts/sheet_artifacts_smoke_test.py",
-      "bytes": 30228,
-      "sha256": "d764e01af2104e7bffae58e08e4dc0d28de1ddc09619618a6f9cf3c516359516"
+      "bytes": 30281,
+      "sha256": "693eacd2d1714a59324a2051c495ebc53a0f8cc26ca11c461ce1cf48dafecf69"
     },
     {
       "path": "scripts/sheet_attempts_smoke_test.py",
@@ -5096,8 +5096,8 @@
     },
     {
       "path": "scripts/studio_activity.py",
-      "bytes": 30983,
-      "sha256": "9f3f8af29dda5979786cd63fff008aa9d0b49a275572871c42b4fae84aec5ae2"
+      "bytes": 31035,
+      "sha256": "39846631767c2172672e69d6e35193a80852764b9f2eb9c05bef3ba8d030a6b4"
     },
     {
       "path": "scripts/studio_auth_smoke_test.py",
