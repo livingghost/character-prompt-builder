@@ -405,7 +405,7 @@ class DataFileLockTests(unittest.TestCase):
         first = True
         def opening(path, **options):
             nonlocal first
-            if Path(path) == self.path and threading.current_thread().name == 'old-inode-waiter':
+            if Path(path).resolve() == self.path.resolve() and threading.current_thread().name == 'old-inode-waiter':
                 if first:
                     first = False; opened.set(); return old_stream
                 current_opened.set()
