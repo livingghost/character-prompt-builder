@@ -347,6 +347,15 @@ class DataFileLockTests(unittest.TestCase):
         self.path = self.root / 'state.json'
         self.path.write_bytes(b'{"value":0}\n')
 
+    @unittest.skipUnless(os.name == 'nt', 'Windows path aliases')
+    def test_lock_key_normalizes_short_parent_names(self):
+        import ctypes
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = ctypes.windll.kernel32.GetShortPathNameW(str(self.root), buffer, len(buffer))
+        alias = Path(buffer.value) if length else self.root
+        self.assertEqual(contract._file_lock_key(alias / self.path.name),
+                         contract._file_lock_key(self.path))
+
     def test_nested_updates_keep_data_and_release_all_handles(self):
         streams = []
         original = contract._open_lock_stream

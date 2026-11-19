@@ -568,7 +568,8 @@ if hasattr(os, 'register_at_fork'):
 
 
 def _file_lock_key(path: Path) -> str:
-    return os.path.normcase(os.path.abspath(path))
+    path = Path(path)
+    return os.path.normcase(str(path.parent.resolve() / path.name))
 
 
 def _open_lock_stream(path: Path, *, read_only: bool = False, for_rename: bool = False):

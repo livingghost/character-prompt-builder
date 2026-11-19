@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1157,
-  "total_bytes_excluding_manifest": 22382840,
+  "total_bytes_excluding_manifest": 22383370,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 34651,
-      "sha256": "329285b3faf3ad30e3d3cfb5a17a68d1e75f45abf20ae7515f9a4f15806a3e8f"
+      "sha256": "a20e6ffa860f78e1b5f51c5df9193522a5e77d8aea22802e28ce09209ce8049f"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -3811,8 +3811,8 @@
     },
     {
       "path": "scripts/execution_contract.py",
-      "bytes": 32624,
-      "sha256": "23ba75f7830132a27bdcc8f52f02aef4c416b72b84544591cd3688affbea5d0e"
+      "bytes": 32663,
+      "sha256": "e780870303370535ae09e0a56424b46001cdd10279f3fa61afa515db6baf37d2"
     },
     {
       "path": "scripts/execution_lifecycle.py",
@@ -4736,8 +4736,8 @@
     },
     {
       "path": "scripts/resource_handling_smoke_test.py",
-      "bytes": 27709,
-      "sha256": "0f6b82dca0559f0d9b72289318811829f0c14bd71cc67366fcfd04daab1192f9"
+      "bytes": 28200,
+      "sha256": "3274b701a79e436ae68f8b6e8c82b5046764450ecf0f521d7e02c3a5f9d8d1c2"
     },
     {
       "path": "scripts/resource_policy.py",
