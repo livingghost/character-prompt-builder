@@ -13,7 +13,6 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from state_protocol import finalize_artifact, validate_artifact
 
 
 INTENDED_INFLUENCES = (
@@ -698,16 +697,20 @@ def require_record_semantic_support(
     return report
 
 
-def normalize_selected_records(value: Any) -> list[dict[str, Any]]:
+class WholeInfluenceUse(dict):
+    """The CLI's explicit RECORD=INFLUENCE choice before artifact resolution."""
+
+
+def normalize_selected_records(value: Any, *, require_selection: bool = False) -> list[dict[str, Any]]:
     if not isinstance(value, list) or not value:
         raise ValueError("selected_records must be a non-empty JSON array")
     from reference_delivery import validate_subject_uses
     normalized: list[dict[str, Any]] = []
     seen = set()
     for index, raw in enumerate(value):
-        if not isinstance(raw, Mapping) or not {'record_id', 'intended_influence'} <= set(raw) or set(raw) - {'record_id', 'intended_influence', 'subject_uses'}:
+        if not isinstance(raw, Mapping) or not {'record_id', 'intended_influence'} <= set(raw) or set(raw) - {'record_id', 'intended_influence', 'subject_uses', 'selected_controls', 'control_expressions'}:
             raise ValueError(
-                f"selected_records[{index}] requires record_id, intended_influence and optional subject_uses"
+                f"selected_records[{index}] requires record_id, intended_influence and optional subject_uses, selected_controls and control_expressions"
             )
         record_id = raw.get("record_id")
         influence = raw.get("intended_influence")
@@ -718,6 +721,11 @@ def normalize_selected_records(value: Any) -> list[dict[str, Any]]:
                 f"selected_records[{index}].intended_influence must be one of {list(INTENDED_INFLUENCES)}"
             )
         uses = validate_subject_uses(raw.get('subject_uses', []), allowed_uses=[influence])
+        if require_selection and 'selected_controls' not in raw and not isinstance(raw, WholeInfluenceUse):
+            raise ValueError('select selected_controls for ' + record_id + '=' + influence
+                + ' from its supported capabilities: ' + ', '.join(control_capabilities(influence)))
+        selected_controls_for(influence, raw.get('selected_controls'),
+                              expressions=raw.get('control_expressions'))
         pair = (record_id, str(influence), json.dumps(uses, sort_keys=True))
         if pair in seen:
             raise ValueError(f"selected_records[{index}] duplicates an earlier record use")
@@ -725,6 +733,9 @@ def normalize_selected_records(value: Any) -> list[dict[str, Any]]:
         row = {"record_id": record_id, "intended_influence": str(influence)}
         if 'subject_uses' in raw:
             row['subject_uses'] = uses
+        for key in ('selected_controls', 'control_expressions'):
+            if key in raw:
+                row[key] = copy.deepcopy(raw[key])
         normalized.append(row)
     return normalized
 
@@ -754,7 +765,48 @@ def source_lighting_evidence_roles(
     )
 
 
-def authority_for(technical_role: str, intended_influence: str) -> dict[str, list[str]]:
+def control_capabilities(intended_influence: str, technical_role: str | None = None) -> list[str]:
+    """Return supported contributions for selection, without adopting them."""
+    if intended_influence not in INTENDED_INFLUENCES:
+        raise ValueError(f"unsupported intended influence: {intended_influence!r}")
+    if technical_role is not None:
+        pair = _PAIR_CONTROLS.get((technical_role, intended_influence))
+        if pair is None:
+            raise ValueError(f"technical role {technical_role!r} cannot serve intended influence {intended_influence!r}")
+        return list(pair)
+    return _unique([control for (role, influence), controls in _PAIR_CONTROLS.items()
+                    if influence == intended_influence for control in controls])
+
+
+def selected_controls_for(intended_influence: str, selection: Any = None, *,
+                          technical_role: str | None = None,
+                          expressions: Any = None) -> list[str]:
+    """Resolve an explicit supported subset and its authored input wording.
+
+    A whole-influence selection uses its complete supported contribution.
+    The capability names constrain the declared scope; prose meaning remains
+    the author's judgment. Expressions are actual renderer text, not reasons.
+    """
+    available = control_capabilities(intended_influence, technical_role)
+    if selection is None:
+        selected = available
+    else:
+        if (not isinstance(selection, list) or not selection
+                or any(not isinstance(item, str) or item not in available for item in selection)
+                or len(selection) != len(set(selection))):
+            raise ValueError('selected_controls must be a nonempty unique subset of supported controls: '
+                             + json.dumps(available, ensure_ascii=False))
+        selected = selection
+    if expressions is None:
+        expressions = {}
+    if (not isinstance(expressions, Mapping) or set(expressions) - set(selected)
+            or any(not isinstance(text, str) or not text.strip() for text in expressions.values())):
+        raise ValueError('control_expressions must map selected capability names to nonempty renderer wording')
+    return [expressions.get(control, control) for control in selected]
+
+
+def authority_for(technical_role: str, intended_influence: str, *,
+                  selected_controls: Any = None, control_expressions: Any = None) -> dict[str, list[str]]:
     controls = _PAIR_CONTROLS.get((technical_role, intended_influence))
     if controls is None:
         raise ValueError(
@@ -768,7 +820,9 @@ def authority_for(technical_role: str, intended_influence: str) -> dict[str, lis
             *_TECHNICAL_EXCLUSIONS[technical_role],
         ]
     )
-    return {"controls": list(controls), "must_not_control": exclusions}
+    return {"controls": selected_controls_for(intended_influence, selected_controls,
+                technical_role=technical_role, expressions=control_expressions),
+            "must_not_control": exclusions}
 
 
 def state_authority_for(intended_influences: Sequence[str]) -> dict[str, list[str]]:
@@ -800,8 +854,10 @@ def semantic_role_for(
     return f"{intended_influence}-{technical_role}-{precedence + 1}"
 
 
-def rule_for(technical_role: str, intended_influence: str) -> dict[str, Any]:
-    authority = authority_for(technical_role, intended_influence)
+def rule_for(technical_role: str, intended_influence: str, *,
+             selected_controls: Any = None, control_expressions: Any = None) -> dict[str, Any]:
+    authority = authority_for(technical_role, intended_influence,
+                              selected_controls=selected_controls, control_expressions=control_expressions)
     controls = "; ".join(authority["controls"])
     exclusions = "; ".join(authority["must_not_control"])
     return {
@@ -824,6 +880,8 @@ def build_reference_item(
     technical_role: str,
     source: Mapping[str, Any],
     subject_uses: list[dict[str, Any]] | None = None,
+    selected_controls: list[str] | None = None,
+    control_expressions: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(canonical_record_id, str) or not canonical_record_id:
         raise ValueError("canonical_record_id must be a non-empty string")
@@ -831,7 +889,11 @@ def build_reference_item(
         raise ValueError("asset_id must be a non-empty string")
     if not isinstance(artifact_id, str) or not artifact_id:
         raise ValueError("artifact_id must be a non-empty string")
-    rule = rule_for(technical_role, intended_influence)
+    if selected_controls is None:
+        raise ValueError('select selected_controls for this reference item from its supported capabilities: '
+                         + ', '.join(control_capabilities(intended_influence, technical_role)))
+    rule = rule_for(technical_role, intended_influence, selected_controls=selected_controls,
+                    control_expressions=control_expressions)
     result = {
         "precedence": precedence,
         "semantic_role": semantic_role_for(technical_role, intended_influence, precedence),
@@ -848,7 +910,34 @@ def build_reference_item(
     if subject_uses is not None:
         from reference_delivery import validate_subject_uses
         result['subject_uses'] = validate_subject_uses(subject_uses, allowed_uses=[intended_influence])
+    if selected_controls is not None:
+        result['selected_controls'] = list(selected_controls)
+    if control_expressions is not None:
+        result['control_expressions'] = dict(control_expressions)
     return result
+
+
+def canonical_use_id(item: Mapping[str, Any]) -> str:
+    """Name a canonical source use independently from list position and scope."""
+    identity = {key: item[key] for key in ('canonical_record_id', 'asset_id', 'artifact_id', 'intended_influence')}
+    identity['subject_uses'] = item.get('subject_uses', [])
+    return 'canonical-' + hashlib.sha256(canonical_json(identity).encode('utf-8')).hexdigest()[:32]
+
+
+def recorded_selected_controls(item: Mapping[str, Any]) -> list[str]:
+    """Recover actual contributions from a materialized authority, never availability."""
+    selection = item.get('selected_controls')
+    if selection is not None:
+        selected_controls_for(item['intended_influence'], selection,
+            technical_role=item['technical_role'], expressions=item.get('control_expressions'))
+        return list(selection)
+    expressions = item.get('control_expressions') or {}
+    actual = (item.get('authority') or {}).get('controls', [])
+    supported = control_capabilities(item['intended_influence'], item['technical_role'])
+    selected = [control for control in supported if expressions.get(control, control) in actual]
+    if not selected or [expressions.get(control, control) for control in selected] != actual:
+        raise ValueError('materialized reference authority does not identify its supported contributions')
+    return selected
 
 
 def build_surface_lighting_plan(
@@ -859,6 +948,7 @@ def build_surface_lighting_plan(
     material_responses: Sequence[Mapping[str, Any]] = (),
     unresolved_decisions: Sequence[str] = (),
 ) -> dict[str, Any]:
+    from state_protocol import finalize_artifact
     if source_lighting_mode not in {"preserve", "rescope", "replace"}:
         raise ValueError("source_lighting_mode must be preserve, rescope, or replace")
     roles = sorted(set(str(value) for value in evidence_roles if str(value)))
@@ -921,6 +1011,7 @@ def build_surface_lighting_plan(
 
 
 def validate_surface_lighting_plan(value: Any) -> dict[str, Any]:
+    from state_protocol import validate_artifact
     if not isinstance(value, Mapping):
         return {"ok": False, "errors": ["surface-lighting plan must be an object"]}
     report = validate_artifact(dict(value))
@@ -976,6 +1067,7 @@ def _validate_zero_reason(
 
 
 def validate_reference_use_plan_contract(value: Any) -> dict[str, Any]:
+    from state_protocol import validate_artifact
     if not isinstance(value, Mapping):
         return {"ok": False, "errors": ["reference-use plan must be an object"]}
     report = validate_artifact(dict(value))
@@ -985,10 +1077,11 @@ def validate_reference_use_plan_contract(value: Any) -> dict[str, Any]:
     except ValueError as exc:
         selected = []
         errors.append(str(exc))
-    selected_pairs = {
-        (row["record_id"], row["intended_influence"], json.dumps(row.get('subject_uses', []), sort_keys=True))
+    selected_by_pair = {
+        (row["record_id"], row["intended_influence"], json.dumps(row.get('subject_uses', []), sort_keys=True)): row
         for row in selected
     }
+    selected_pairs = set(selected_by_pair)
     items = value.get("reference_items")
     if not isinstance(items, list):
         items = []
@@ -1006,6 +1099,7 @@ def validate_reference_use_plan_contract(value: Any) -> dict[str, Any]:
     if len(roles) != len(set(roles)):
         errors.append("semantic roles must be unique; unnamed reference averaging is forbidden")
     represented: set[tuple[str, str, str]] = set()
+    delivered_controls: dict[tuple[str, str, str], set[str]] = {}
     for index, item in enumerate(items):
         if not isinstance(item, Mapping):
             errors.append(f"reference_items[{index}] must be an object")
@@ -1021,9 +1115,25 @@ def validate_reference_use_plan_contract(value: Any) -> dict[str, Any]:
             represented.add(pair)
         technical_role = str(item.get("technical_role") or "")
         try:
-            expected_authority = authority_for(technical_role, pair[1])
+            chosen = selected_by_pair.get(pair, {})
+            available = control_capabilities(pair[1], technical_role)
+            selection = recorded_selected_controls(item)
+            effective = selection
+            allowed = chosen.get('selected_controls')
+            if allowed is not None and any(control not in allowed for control in effective):
+                raise ValueError('reference contribution exceeds its selected record use')
+            expressions = item.get('control_expressions')
+            expected_expressions = chosen.get('control_expressions')
+            if expected_expressions is not None:
+                expected_expressions = {key: text for key, text in expected_expressions.items() if key in effective}
+            if expressions != expected_expressions:
+                raise ValueError('reference input wording differs from its selected record use')
+            expected_authority = authority_for(technical_role, pair[1], selected_controls=selection,
+                                               control_expressions=expressions)
+            delivered_controls.setdefault(pair, set()).update(effective)
             expected_role = semantic_role_for(technical_role, pair[1], index)
-            expected_rule = rule_for(technical_role, pair[1])
+            expected_rule = rule_for(technical_role, pair[1], selected_controls=selection,
+                                     control_expressions=expressions)
         except ValueError as exc:
             errors.append(f"reference_items[{index}]: {exc}")
             continue
@@ -1045,6 +1155,10 @@ def validate_reference_use_plan_contract(value: Any) -> dict[str, Any]:
     if items:
         if represented != selected_pairs:
             errors.append("every selected record use must be represented by a reference item")
+        for pair, selected_use in selected_by_pair.items():
+            missing = set(selected_use.get('selected_controls', [])) - delivered_controls.get(pair, set())
+            if missing:
+                errors.append('selected controls have no supporting delivered artifact: ' + ', '.join(sorted(missing)))
         if zero_reason is not None:
             errors.append("zero_reference_reason must be null when references are selected")
     else:
@@ -1082,6 +1196,7 @@ def validate_reference_use_plan_contract(value: Any) -> dict[str, Any]:
 
 
 def finalize_reference_use_plan(value: Mapping[str, Any]) -> dict[str, Any]:
+    from state_protocol import finalize_artifact
     if not isinstance(value, Mapping):
         raise ValueError("reference-use plan must be an object")
     result = copy.deepcopy(dict(value))

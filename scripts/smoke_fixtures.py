@@ -15,18 +15,50 @@ def fixture_retrieval(prompt: str, plot: dict[str, Any]) -> dict[str, Any]:
         prompt=prompt, plot=plot)
 
 
+def fixture_reference_prompt(prompt: str, prepared: dict | None) -> str:
+    """Author generic scope directions for explicit transport-only test fixtures.
+
+    Dedicated depiction tests write their own directions. This helper gives
+    byte/transaction fixtures an operative use of each reference they selected;
+    it is never imported by a production authoring command.
+    """
+    if (not prompt or '{{reference:' in prompt or not isinstance(prepared, dict)
+            or not {'transport_mode', 'selected_references', 'single_board'} <= prepared.keys()):
+        return prompt
+    from reference_delivery import bindings
+    rows = bindings(prepared['transport_mode'], prepared['selected_references'], prepared['single_board'])
+    directions = []
+    for row in rows:
+        use = row['reference_id']
+        direction = 'Image {{reference:' + use + ':attachment_number}}'
+        if row['region_pixels'] is not None:
+            direction += ', panel (x, y, width, height) {{reference:' + use + ':region}}'
+        directions.append(direction + ', supplies {{reference:' + use + ':controls}}.')
+    return prompt + ('\n' + '\n'.join(directions) if directions else '')
+
+
+def fixture_resolved_prompt(prompt: str, prepared: dict | None) -> str:
+    from model_rendition import resolve_reference_text
+    from reference_delivery import bindings
+    source = fixture_reference_prompt(prompt, prepared)
+    rows = bindings(prepared['transport_mode'], prepared['selected_references'], prepared['single_board']) if (
+        isinstance(prepared, dict) and {'transport_mode', 'selected_references', 'single_board'} <= prepared.keys()) else []
+    return resolve_reference_text(source, rows)['text']
+
+
 def fixture_external_delivery(folder: Path, prompt: str, features: list[str], *,
                               model: str | None = None) -> tuple[Path, str]:
     """Prepare input for an independent package-construction test, not automatic dispatch.
 
     These tests inspect reference/package bytes and never execute a service. The
-    external delivery uses a complete synthetic request and no provider claim.
+    external text task holds the literal source template for package compilation;
+    it makes no image-generation request or provider claim.
     Complete automatic execution is covered by production_case_fixtures instead.
     """
     import execution_contract as c
     import production_fixtures
-    import production_workflow
-    import studio
+    import production_operations as production_workflow
+    import studio_workspace as studio
     import work_ledger
     root = studio.init(folder, 'synthetic-cli', 'Synthetic CLI fixture')
     started = work_ledger.begin(root, 'Synthetic package', ['prepare'])
@@ -37,8 +69,7 @@ def fixture_external_delivery(folder: Path, prompt: str, features: list[str], *,
                          'translation_notes': 'Exact synthetic test input.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual fixture bytes.'}],
             'world_views': []}
-    production_fixtures.external_image_input(root, spec)
-    production_fixtures.task(root, spec, artifact='image', execution='external')
+    production_fixtures.task(root, spec, artifact='text', execution='external', focus='supporting-setting')
     if model is not None:
         from reading_fixtures import fixture_reading
         reading = fixture_reading(route=spec['route'], features=features, operation='prepare',
@@ -62,6 +93,22 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
     configure_pack_runtime(default_settings(extra_roots=extra, **values))
     with tempfile.TemporaryDirectory(prefix='synthetic-cli-inputs-') as temp:
         args=list(argv)
+        prepared = None
+        if '--references-file' in args:
+            reference_path = Path(args[args.index('--references-file') + 1])
+            if reference_path.is_file():
+                candidate = json.loads(reference_path.read_text(encoding='utf-8'))
+                if isinstance(candidate, dict) and 'selected_references' in candidate:
+                    prepared = candidate
+        for option in ('--prompt-file', '--integrated-prompt-file'):
+            if option in args:
+                path = Path(args[args.index(option) + 1])
+                if path.is_file():
+                    source = fixture_reference_prompt(path.read_bytes().decode('utf-8'), prepared)
+                    current = Path(temp) / (option[2:] + '.txt')
+                    current.write_bytes(source.encode('utf-8'))
+                    args[args.index(option) + 1] = str(current)
+        argv = args
         model = args[args.index('--model')+1] if '--model' in args else None
         if model is None and '--production-spec-file' in args:
             selected = Path(args[args.index('--production-spec-file')+1])
@@ -74,6 +121,15 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
                 from render_contract_fixtures import intent
                 spec=json.loads(spec_path.read_text(encoding='utf-8'))
                 prompt=prompt_path.read_bytes().decode('utf-8')
+                if '--integrated-prompt-file' in args:
+                    integrated = Path(args[args.index('--integrated-prompt-file') + 1]).read_text(encoding='utf-8')
+                    if integrated.strip():
+                        transport_mode = args[args.index('--negative-transport') + 1] if '--negative-transport' in args else 'auto'
+                        if transport_mode == 'auto' and model is not None:
+                            from generation_references import resolve_model_record
+                            transport_mode = resolve_model_record(model)[1]['negative_transport_mode']
+                        if transport_mode in {'integrated-critical', 'retained-only'}:
+                            prompt = integrated
                 ref_mode='text-to-image'
                 if '--references-file' in args:
                     ref_path=Path(args[args.index('--references-file')+1])
@@ -81,7 +137,7 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
                         ref=json.loads(ref_path.read_text(encoding='utf-8'))
                         if ref.get('selected_references') or ref.get('single_board'):
                             ref_mode='reference-guided'
-                spec['render_intent']=intent(prompt,ref_mode)
+                spec['render_intent']=intent(fixture_resolved_prompt(prompt, prepared),ref_mode)
                 current=Path(temp)/'fixture-current-production-spec.json'
                 current.write_text(json.dumps(spec),encoding='utf-8')
                 args[args.index('--production-spec-file')+1]=str(current)
@@ -121,7 +177,18 @@ def cli_with_fixture_retrieval(main: Callable[..., Any], argv: list[str]) -> Any
                      'inspected_records':[],'outcome':'composed','composed_wording':'synthetic',
                      'reason':'Exercise an intentionally absent input in a test.'}]}
             if prompt_path.is_file() and plot_path.is_file():
-                value=fixture_retrieval(prompt_path.read_text(encoding='utf-8'),json.loads(plot_path.read_text(encoding='utf-8')))
+                selected_prompt = prompt_path.read_text(encoding='utf-8')
+                if '--integrated-prompt-file' in args:
+                    integrated = Path(args[args.index('--integrated-prompt-file') + 1]).read_text(encoding='utf-8')
+                    if integrated.strip():
+                        mode = args[args.index('--negative-transport') + 1] if '--negative-transport' in args else 'auto'
+                        if mode == 'auto' and model is not None:
+                            from generation_references import resolve_model_record
+                            mode = resolve_model_record(model)[1]['negative_transport_mode']
+                        if mode in {'integrated-critical', 'retained-only'}:
+                            selected_prompt = integrated
+                value=fixture_retrieval(fixture_resolved_prompt(selected_prompt, prepared),
+                    json.loads(plot_path.read_text(encoding='utf-8')))
             path.write_text(json.dumps(value),encoding='utf-8')
             args.extend(['--retrieval-record-file',str(path)])
         if main.__module__=='build_generation_payload' and '--prompt-file' in args:

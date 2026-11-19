@@ -7,8 +7,8 @@ Cases come from the active pack's ``catalog-search-regression`` named resource,
 so review findings remain owned by and evaluated with the catalog they target.
 
 The catalog is intentionally large. The default execution path loads it once
-and evaluates small bounded case ranges while clearing query-corpus state after
-each case. An explicit isolated diagnostic mode runs the same ranges in fresh
+and evaluates small bounded case ranges, reusing content-derived corpora within
+each range through the runtime's bounded LRU. An explicit isolated diagnostic mode runs the same ranges in fresh
 worker processes when process-lifetime behavior itself needs examination.
 """
 from __future__ import annotations
@@ -25,14 +25,7 @@ from typing import Any, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from catalog_cli import (  # noqa: E402
-    clear_corpus_cache,
-    configure_pack_runtime,
-    inspire,
-    load_entries,
-    named_resource_path,
-    search_entries,
-)
+from catalog_api import clear_corpus_cache, configure_pack_runtime, inspire, load_entries, named_resource_path, search_entries
 from io_budget import environment_seconds  # noqa: E402
 from pack_runtime_cli import (  # noqa: E402
     PackRuntimeContext,
@@ -115,12 +108,11 @@ def _missing_expected_ids(
 def run_cases(entries: Sequence[Any], cases: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """Evaluate one bounded case range in the current process.
 
-    Reuse immutable indexed-entry views, while clearing query-corpus state
-    after every case. Some adjacent cases share a large eligible subset but
-    exercise very different phrase and facet routes; retaining that corpus
-    across the whole range can accumulate enough query state to make release
-    validation stall. Per-case clearing preserves deterministic assertions and
-    keeps the reusable content-derived entry index warm.
+    Start this range with an empty corpus cache, then reuse its content-derived
+    indexes across cases with the same eligible records and search index.
+    Query-specific scoring stays local to each call. The runtime's bounded LRU
+    limits retained subsets, and the next range releases them at entry while
+    keeping reusable per-record indexing warm.
     """
     missing_expected_ids = _missing_expected_ids(entries, cases)
     failures: list[str] = [
@@ -164,7 +156,6 @@ def run_cases(entries: Sequence[Any], cases: Sequence[dict[str, Any]]) -> dict[s
                 failures.append(
                     f"{name}: top-3 should include one of {checks['top_includes_any']}, got {ids[:3]}"
                 )
-            clear_corpus_cache()
             continue
 
         result = inspire(
@@ -247,12 +238,8 @@ def run_cases(entries: Sequence[Any], cases: Sequence[dict[str, Any]]) -> dict[s
             ]
             if bad:
                 failures.append(f"{name}: {category} must contain no strong result, got {bad}")
-        clear_corpus_cache()
-
-
-    # Retain the last bounded corpus until the caller either clears it or the
-    # process exits. In-process callers already use the catalog LRUs to cap
-    # retained subsets, while isolated workers end immediately after reporting.
+    # The bounded cache remains available until the next range or runtime
+    # boundary. Isolated workers release it when their process exits.
     return {
         "ok": not failures,
         "cases": len(cases),

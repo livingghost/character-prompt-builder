@@ -12,32 +12,32 @@ from pathlib import Path
 import tempfile
 import unittest
 
-import catalog_cli
+import catalog_api as catalog_cli
 import execution_contract as c
 import pack_manager
 import production_case_fixtures as production_fixture
 import production_execution
 import production_fixtures
 import production_spec
-import production_workflow
-import studio
+import production_operations as production_workflow
+import studio_workspace as studio
 import studio_reference
 import studio_reference_fixtures
 import visual_continuity
-from build_generation_payload import materialize_cli_reference_bundle
-from build_state_generation_package import build_package
+from generation_payload_builder import materialize_cli_reference_bundle
+from state_generation_builder import build_package
 from multi_subject_reference_smoke_test import replace_values, selection_for
 from reading_fixtures import fixture_reading
 from reference_contract import state_authority_for
 from reference_delivery import delivered_reference_count
-from reference_runtime import build_reference_use_plan, execute_reference_use_plan
+from reference_plan_runtime import build_reference_use_plan, execute_reference_use_plan
 from reference_runtime_smoke_test import FIXTURE_PACK_ID, FIXTURE_RECORD_ID, _write_fixture_pack
 from request_validation_fixtures import fixture_validation
-from smoke_fixtures import fixture_retrieval
+from smoke_fixtures import fixture_retrieval, fixture_resolved_prompt
 from state_generation_smoke_test import _load_graph, _payload_inputs
 from state_protocol import artifact_hash, finalize_artifact
 from test_production_execution import decisions
-from verify_generation_payload import verify, verify_content
+from generation_payload_validation import verify, verify_content
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -140,9 +140,11 @@ class MixedReferenceSourceTests(unittest.TestCase):
         return graph, spec
 
     def test_mixed_subjects_keep_all_sources_through_portable_package(self):
+        from reference_contract import control_capabilities
         graph, spec = self.scene()
         plan = build_reference_use_plan([
             {'record_id': FIXTURE_RECORD_ID, 'intended_influence': use,
+             'selected_controls': control_capabilities(use, 'faithful-archival-vector'),
              'subject_uses': [{'subject_id': 'C01', 'use': use, 'priority': 0}]}
             for use in ('identity', 'outfit')], transport_mode='multi-image', target_model=MODEL,
             source_lighting_mode='replace', include_technical_roles=['faithful-archival-vector'],
@@ -192,7 +194,7 @@ class MixedReferenceSourceTests(unittest.TestCase):
         visual = visual_continuity.from_decisions({'C01': 'one-off', LISTENER: 'recurring'},
             production_spec=spec, prepared=portable, root=self.root,
             characters={LISTENER: 'robot'}, work_ids={LISTENER: LISTENER})
-        inputs = _payload_inputs(_load_graph())
+        inputs = _payload_inputs(_load_graph(), portable)
         scene_clause = ('\nC01 and C02 converse across the desk in one shared scene. '
             'C01 gestures with the free hand while C02 listens attentively. '
             'Keep both independent identities, physiques and approved wardrobes; show both faces and upper torsos.\n')
@@ -205,7 +207,7 @@ class MixedReferenceSourceTests(unittest.TestCase):
             visual_continuity=visual, visual_root=self.root,
             route_reading=fixture_reading(route='state-series', model=MODEL, studio=self.root,
                                          ledger=self.root / 'work/mixed-reference-reads.jsonl', execution='dispatcher'))
-        inputs['retrieval_record'] = fixture_retrieval(inputs['prompt'], inputs['plot'])
+        inputs['retrieval_record'] = fixture_retrieval(fixture_resolved_prompt(inputs['integrated_prompt'], portable), inputs['plot'])
         package = build_package(**inputs)
         self.assertTrue(verify(package, package_root=package_root, studio=self.root)['verified'])
         self.assertTrue(verify_content(package, package_root=package_root)['content_verified'])

@@ -77,8 +77,8 @@ def _request(manifest: dict, key: str) -> dict:
 
 
 def _validate_job(root: Path, plan: dict, manifest: dict, panel: dict) -> dict:
-    import production_workflow as workflow
-    import studio
+    import production_operations as workflow
+    import studio_workspace as studio
     task = c.load(_relative(root, panel['task']))
     workflow.validate_task(task)
     request = _request(manifest, panel['request_id'])
@@ -175,7 +175,7 @@ def _resolve_task(root: Path, plan: dict, panel: dict, entry: dict, state_file: 
 
 
 def _resolve_references(root: Path, task: dict, selected: list[dict], sheet: Path, directory: Path) -> None:
-    from prepare_generation_references import prepare_references
+    from generation_references import prepare_references
     sources = []
     for row in selected:
         artifact = row['artifact']
@@ -362,8 +362,8 @@ def _output_preflight(root: Path, entry: dict, *, before_send: bool) -> Path:
 
 
 def _export(root: Path, plan: dict, manifest: dict, panel: dict, entry: dict) -> dict | None:
-    import production_workflow as workflow
-    import studio
+    import production_operations as workflow
+    import studio_workspace as studio
     _, prepared, _, _ = workflow.read_run(root, entry['run'])
     character = prepared['task']['recording']['character']
     home = studio.character_home(root, character)
@@ -404,8 +404,13 @@ def _export(root: Path, plan: dict, manifest: dict, panel: dict, entry: dict) ->
     _same_file(folder / (stem + '.artifact.json'), c.encoded(marker))
     # This pointer is a rebuildable convenience, never the owner of an image.
     latest_path = _relative(root, plan['results'].rstrip('/') + '/latest.json', exists=False)
-    with c.lock(latest_path.parent):
-        latest = c.load(latest_path) if latest_path.exists() else {'artifact_type': 'sheet-fill-latest', 'panels': {}}
+    if not latest_path.exists():
+        try:
+            c.atomic(latest_path, c.encoded({'artifact_type': 'sheet-fill-latest', 'panels': {}}))
+        except FileExistsError:
+            pass
+    with c.file_lock(latest_path):
+        latest = c.load(latest_path)
         old = latest['panels'].get(panel['request_id'])
         from studio_activity import chronological
         if old is None or (chronological(row['at']), entry['run']) >= (chronological(old['generated_at']), old['run']):
@@ -420,15 +425,13 @@ def _export(root: Path, plan: dict, manifest: dict, panel: dict, entry: dict) ->
 def advance(root: Path, state_path: str, *, grant: str | None = None,
             decisions: dict[str, str] | None = None, unreceived_only: bool = False) -> dict:
     """Advance independent jobs; recover started requests without consulting raw author drafts."""
-    import production_workflow as workflow
+    import production_operations as workflow
     import production_execution as execution
     import production_store as store
     import studio_activity as activity
     from pack_manager import generate_uuid7
     state_file = _relative(root, state_path)
-    lock_root = state_file.parent / ('.' + state_file.stem + '.lock')
-    lock_root.mkdir(parents=True, exist_ok=True)
-    with c.lock(lock_root):
+    with c.file_lock(state_file):
         state = load(root, state_path)
         plan, manifest = snapshot(root, state)
         decisions = decisions or {}

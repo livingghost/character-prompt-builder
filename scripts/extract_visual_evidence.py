@@ -8,7 +8,6 @@ import json
 import mimetypes
 from pathlib import Path
 
-from native_vector_visual_evidence import process_source
 
 
 def main() -> int:
@@ -34,6 +33,7 @@ def main() -> int:
     parser.add_argument("--record", action="append", default=[])
     parser.add_argument("--disposition", default="reference-evidence")
     args = parser.parse_args()
+    from native_vector_visual_evidence import process_source
     source = args.source
     if not source.is_file():
         parser.error(f"source file does not exist: {source}")

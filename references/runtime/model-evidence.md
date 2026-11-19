@@ -390,7 +390,7 @@ For `unknown`, matching entries with explicit `reported_failure` and `user-repor
 An aesthetic preference or quality report retains `reported_failure: null` and establishes no restriction-related cause.
 Known timeouts, access failures, request defects and visual artifacts retain their own diagnosis even on a discouraged model.
 For a permitted request whose model suitability caused a refusal, use `render_contract.py assess` to identify compatible alternatives.
-Record the reason and comparison in `direction.decisions`; prepare each chosen alternative through the ordinary execution path.
+Compose actual alternatives through [Authoring work](authoring-work.md) when comparison is needed. Record each candidate's current realization in `direction.decisions`, with an optional `note` for its reason; prepare the chosen work through the ordinary execution path.
 This diagnostic command performs no retry, model switch or moderation-setting change.
 
 Provider interfaces expose different signals. OpenAI documents `error.code = moderation_blocked` in its [image-generation guide](https://developers.openai.com/api/docs/guides/image-generation).
@@ -434,7 +434,7 @@ A changed fixed parameter cannot reuse an observed profile outside its measured 
 A new request receives its own assessment and authorization under the current grant.
 An observed image that motivates a revision stays authored source evidence with its candidate and review.
 
-For a dispatcher or external image target change, reopen the run with `draft-inputs --from-run RUN`, select `choices.target`, and use `production_workflow.py retarget --from RUN --choices FILE --reason TEXT --prepare`. An explicit complete task can use `--task TASK` instead.
+For a dispatcher or external image target change, reopen the run with `draft-inputs --from-run RUN --operation amend --request-file FILE`, select `choices.target`, and use `production_workflow.py retarget --from RUN --choices FILE --reason TEXT --prepare`. An explicit complete task can use `--task TASK` instead.
 The authored input retains applicable choices and supplies the target's current guide reading, controls, retrieval assessment and validation evidence.
 See [Production execution](production-variation.md#change-the-target-explicitly) and the [generation example](../../examples/generation/README.md).
 

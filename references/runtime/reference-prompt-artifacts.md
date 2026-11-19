@@ -33,7 +33,7 @@ When a visual contribution is being considered:
 
 1. Inspect each relevant canonical record in full.
 2. Run full `asset-lookup` for each record whose visual evidence is under consideration. Review complete active-pack ownership, resource metadata and source bytes, artifact paths and hashes, linked-record context, and technical roles before deciding whether evidence is adopted.
-3. For an adopted visual contribution, declare `RECORD_ID=INTENDED_INFLUENCE`. The influence is exactly one of `identity`, `pose-camera`, `outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or `local-color`.
+3. For an adopted visual contribution, choose its actual supported `selected_controls` in a JSON record-use declaration. Inspect `reference_runtime.py capabilities --influence INFLUENCE` for the source capability names. Use `RECORD_ID=INTENDED_INFLUENCE` when deliberately selecting the whole supported influence. The influence is exactly one of `identity`, `pose-camera`, `outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or `local-color`.
 4. Build one Reference Use Plan from the declarations.
 5. Review every selected item's subject uses, semantic and technical roles, authority, exclusions, and precedence.
 6. Resolve or explicitly retain prompt-facing Surface and Lighting decisions.
@@ -50,7 +50,19 @@ The gate may produce zero references only with a structured `zero_reference_reas
 
 ## Record-scoped authority
 
-The intended influence states why the canonical record is used. The artifact's technical role states what its pixels or vectors can prove. An item receives only the intersection of those authorities. The whole record and every visible source property do not become authoritative.
+The intended influence states why the canonical record is used. The artifact's technical role states what its pixels or vectors can prove. The chosen `selected_controls` states which of those capabilities this request uses. An item receives only their intersection. New JSON record uses and editable plan items require that choice; omitted scope remains unresolved. Reopening a materialized plan retains the contributions recorded in its actual authority. The whole record and every visible source property do not become authoritative.
+
+For example, this JSON use selects only the pose contribution. Optional
+`control_expressions` supplies the target-facing words for that supported
+contribution; this use leaves camera framing with the current depiction:
+
+```json
+{"record_id":"motion-record","intended_influence":"pose-camera","selected_controls":["target pose and body gesture"],"control_expressions":{"target pose and body gesture":"the raised forelimbs and curved torso"}}
+```
+
+The selected expressions are consumed through the existing prompt or supported
+native reference controls under [Exact reference delivery](reference-delivery.md#author-the-consumed-reference-direction).
+An authority record alone does not deliver reference direction to the model.
 
 | Technical role | Eligible intended influences | Bounded evidence | Must not control by itself |
 | --- | --- | --- | --- |

@@ -81,13 +81,12 @@ def _story(value: Any, errors: list[str]) -> dict[str, str]:
 def schema_errors(value: Any) -> list[str]:
     """The plot against the schema, where one is installed beside this file."""
 
-    if not SCHEMA_PATH.is_file():
+    from state_protocol import schema_documents, validate_against_schema
+    owner = schema_documents()
+    if owner.source is None and not SCHEMA_PATH.is_file():
         return []
     try:
-        import sys as _sys
-        _sys.path.insert(0, str(ROOT / "scripts"))
-        from state_protocol import parse_json, validate_against_schema
-        schema = parse_json(SCHEMA_PATH.read_text(encoding="utf-8"))
+        schema = owner.read(SCHEMA_PATH)
     except Exception as reason:  # noqa: BLE001
         return [f"the prompt plot schema could not be read: {reason}"]
     return [f"schema: {message}" for message in validate_against_schema(value, schema)]

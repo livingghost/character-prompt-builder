@@ -1,7 +1,9 @@
-"""Trace authored identity obligations to original sources and actual input.
+"""Retain identity context and trace explicit scene obligations to actual input.
 
 Selectors and scene treatments are judgments owned by task sources and criteria.
-This module measures explicit coverage, hashes and carrier equality. It neither
+Original definitions remain the independent whole-subject comparison basis;
+their values need not each become a depiction instruction or scene binding.
+This module measures declared bindings, hashes and carrier equality. It neither
 interprets prose or images nor certifies that a depiction preserves identity.
 The returned report belongs with prepared assessment context, never model input.
 """
@@ -104,11 +106,10 @@ def _terminals(value: Any, tokens: tuple[str, ...] = ()):
         yield _pointer(tokens), value
 
 
-def _variations(task: dict) -> dict[str, list[tuple[dict, dict]]]:
-    result: dict[str, list[tuple[dict, dict]]] = {}
-    for decision in task.get('direction', {}).get('decisions', []):
-        for variation in decision.get('accepted_variations', []):
-            result.setdefault(variation['id'], []).append((decision, variation))
+def _variations(task: dict) -> dict[str, list[dict]]:
+    result: dict[str, list[dict]] = {}
+    for variation in task.get('direction', {}).get('source_allowances', []):
+        result.setdefault(variation['id'], []).append(variation)
     return result
 
 
@@ -122,10 +123,11 @@ def _variation(task: dict, criterion: dict, binding: dict, source: dict | None =
     matches = _variations(task).get(ident, [])
     if len(matches) != 1:
         _fail('An identity variation must resolve one existing accepted variation.', variation=ident)
-    decision, variation = matches[0]
-    from production_plan import validate_accepted_variations
+    variation = matches[0]
+    from production_plan import validate_source_allowances
     applied = {row['id'] for row in task['sources'] if row.get('disposition') == 'applied'}
-    validate_accepted_variations(decision, applied, task_id=task.get('task_id'))
+    validate_source_allowances([variation], applied, {row['id'] for row in task['criteria']},
+                               task_id=task.get('task_id'))
     if criterion['id'] not in variation['criteria']:
         _fail('The accepted variation does not govern this identity criterion.', variation=ident)
     scope = variation['scope']
@@ -145,6 +147,73 @@ def _criterion_strength(task: dict, criterion: dict) -> None:
               'and image evidence for an image task.', criterion=criterion.get('id'))
 
 
+def _authority(value: Any, subjects: list[str], *, source: str) -> None:
+    """Validate retained owner scope without treating it as a current reference use."""
+    if not isinstance(value, dict):
+        _fail('Retained identity authority must be an object.', source=source)
+    if 'reference' in value:
+        fields = {'reference', 'use_for', 'controls', 'intended_influence', 'do_not_transfer', 'subject_uses'}
+        c.exact(value, fields | ({'source'} if 'source' in value else set()), 'identity reference authority')
+        reference = c.text(value['reference'], 'identity authority reference')
+        if source.startswith('reference:') and source != 'reference:' + reference:
+            _fail('Retained reference authority names another source.', source=source)
+        for field in ('use_for', 'controls', 'intended_influence', 'do_not_transfer'):
+            _strings(value[field], 'identity authority ' + field,
+                     empty=field in {'intended_influence', 'do_not_transfer'})
+        from reference_contract import INTENDED_INFLUENCES
+        if set(value['intended_influence']) - set(INTENDED_INFLUENCES):
+            _fail('Retained reference authority names an unknown influence.', source=source)
+        if 'identity' not in value['use_for'] or 'identity' in value['do_not_transfer']:
+            _fail('Retained reference authority does not include identity influence.', source=source)
+        from reference_delivery import validate_subject_uses
+        uses = validate_subject_uses(value['subject_uses'],
+                                    allowed_uses=set(value['intended_influence']) | set(value['use_for']))
+        assigned = {row['subject_id'] for row in uses if row['use'] == 'identity'}
+        if not assigned <= set(subjects):
+            _fail('Retained identity authority differs from its subject assignment.', source=source)
+        if 'source' in value:
+            from state_protocol import validate_against_schema
+            schema = {'oneOf': [{'$ref': 'prepared-generation-reference.schema.json#/$defs/' + kind}
+                               for kind in ('pack-artifact-source', 'supplied-file-source',
+                                            'studio-artifact-source', 'studio-accepted-image-source')]}
+            errors = validate_against_schema(value['source'], schema)
+            if errors:
+                _fail('Retained reference authority has an invalid original source.', source=source, errors=errors)
+    else:
+        c.exact(value, {'owner', 'character_id', 'canon_status'}, 'identity graph authority')
+        c.text(value['owner'], 'identity authority graph owner')
+        character = c.text(value['character_id'], 'identity authority character')
+        if set(subjects) != {character}:
+            _fail('Retained graph authority differs from its character assignment.', source=source)
+        if value['canon_status'] is not None:
+            c.text(value['canon_status'], 'identity authority canon status')
+
+
+def _authority_source(authority: dict, record: dict, raw: bytes) -> None:
+    """Bind retained scope to its original media or graph owner bytes."""
+    if 'reference' in authority:
+        original = authority.get('source')
+        if original is not None and original['sha256'] != record['sha256']:
+            _fail('Retained reference authority differs from the original source bytes.',
+                  code='IDENTITY_SOURCE_CHANGED', source=record['id'])
+        return
+    if record['format'] != 'json':
+        _fail('Retained graph authority requires its original JSON graph.', source=record['id'])
+    graphs = c.decode(raw)
+    for selector in record['selectors']:
+        tokens = _tokens(record['source_pointer'] + selector)
+        if (len(tokens) < 2 or tokens[1] != authority['owner']
+                or not isinstance(graphs, list)):
+            _fail('Retained graph authority does not own the selected source scope.', source=record['id'])
+        graph = _at(graphs, _pointer(tokens[:1]))
+        if (not isinstance(graph, dict)
+                or (graph.get('identity_contract') or {}).get('character_id') != authority['character_id']
+                or not isinstance(graph.get(authority['owner']), dict)
+                or graph[authority['owner']].get('canon_status') != authority['canon_status']):
+            _fail('Retained graph authority differs from its original owner.',
+                  code='IDENTITY_SOURCE_CHANGED', source=record['id'])
+
+
 def _validate_task(task: dict) -> None:
     sources = {}
     for source in task.get('sources', []):
@@ -154,11 +223,16 @@ def _validate_task(task: dict) -> None:
         sources[ident] = source
         if 'identity' in source:
             identity = source['identity']
-            c.exact(identity, {'subject_ids', 'selectors'}, 'source identity')
-            _strings(identity['subject_ids'], 'identity subject IDs')
+            fields = {'subject_ids', 'selectors'}
+            c.exact(identity, fields | ({'authority'} if isinstance(identity, dict) and 'authority' in identity else set()),
+                    'source identity')
+            subjects = _strings(identity['subject_ids'], 'identity subject IDs')
             _selectors(identity['selectors'], 'source identity selectors')
+            if 'authority' in identity:
+                _authority(identity['authority'], subjects, source=ident)
             if source.get('disposition') != 'applied':
-                _fail('An identity source must be applied; use criterion treatments to record scene applicability.',
+                _fail('An identity source must be applied as retained comparison context; '
+                      'criterion bindings describe explicit scene obligations.',
                       source=ident)
     criterion_ids = set()
     for criterion in task.get('criteria', []):
@@ -302,8 +376,10 @@ def _source_record(source: dict, read_source: ReadSource, *, derived: bool = Fal
               'value_sha256': c.content_id(value), 'source_pointer': source.get('source_pointer', '') if derived else '',
               'subject_ids': list(subjects), 'selectors': list(selectors), 'scopes': scopes,
               'terminals': terminals, 'derived': derived}
-    if derived and 'authority' in source:
-        result['authority'] = copy.deepcopy(source['authority'])
+    if 'authority' in identity:
+        _authority(identity['authority'], subjects, source=source['id'])
+        _authority_source(identity['authority'], result, raw)
+        result['authority'] = copy.deepcopy(identity['authority'])
     return result
 
 
@@ -358,14 +434,14 @@ def _inventory(task: dict, read_source: ReadSource, context: dict) -> dict:
             if binding['treatment'] == 'unresolved':
                 unresolved.append({'criterion': criterion['id'], 'binding_index': number,
                                    'source': source['id'], 'reason': binding['reason']})
-    uncovered = []
+    unbound_source_values = []
     for source in sources.values():
         for terminal in source['terminals']:
-            missing = []
+            unbound_subjects = []
             for subject in source['subject_ids']:
                 candidates = by_terminal.get((source['id'], terminal['pointer'], subject), [])
                 if not candidates:
-                    missing.append(subject)
+                    unbound_subjects.append(subject)
                     continue
                 specificity = max(level for level, _ in candidates)
                 effective = [index for level, index in candidates if level == specificity]
@@ -376,14 +452,16 @@ def _inventory(task: dict, read_source: ReadSource, context: dict) -> dict:
                           selector=terminal['pointer'], subject_id=subject)
                 terminal['coverage'].append({'subject_id': subject, 'bindings': effective,
                     'treatment': bindings[effective[0]]['treatment'], 'variation': bindings[effective[0]]['variation']})
-            if missing:
-                uncovered.append({'source': source['id'], 'pointer': terminal['pointer'], 'subject_ids': missing})
+            if unbound_subjects:
+                unbound_source_values.append({'source': source['id'], 'pointer': terminal['pointer'],
+                                              'subject_ids': unbound_subjects})
     reviewed = {subject for row in whole_reviews for subject in row['subject_ids']}
     unknown = (subjects | reviewed | required) - actual if 'subject_ids' in context else reviewed - subjects
     return {'artifact_type': 'identity-coverage', 'structural_only': True, 'status': 'inventory',
             'sources': list(sources.values()), 'bindings': bindings, 'whole_reviews': whole_reviews,
             'subject_ids': sorted(subjects), 'actual_subject_ids': sorted(actual),
-            'required_subject_ids': sorted(required), 'uncovered': uncovered, 'unresolved': unresolved,
+            'required_subject_ids': sorted(required), 'unbound_source_values': unbound_source_values,
+            'unresolved': unresolved,
             'missing_carriers': missing_carriers, 'missing_subject_sources': sorted(required - subjects),
             'missing_whole_reviews': sorted((subjects | required) - reviewed),
             'unknown_subject_ids': sorted(unknown),
@@ -391,11 +469,13 @@ def _inventory(task: dict, read_source: ReadSource, context: dict) -> dict:
 
 
 def inventory(task: dict, read_source: ReadSource, *, context: dict | None = None) -> dict:
-    """Return original source values and explicit gaps without assessing meaning.
+    """Return original context, declared obligations and structural review gaps.
 
 The caller reads committed original bytes. Optional derived sources retain their
 original path/hash and a source_pointer when their value is a JSON graph node.
-Missing coverage and review choices remain visible for the normal authoring flow.
+Unbound source values remain comparison context; they are not missing depiction
+instructions, visibility decisions or findings of correctness. Explicit bindings
+and whole-subject review requirements remain available for normal authoring.
 """
     try:
         return _inventory(task, read_source, context or {})
@@ -489,18 +569,19 @@ def _reference_carrier(carrier: dict, binding: dict, references: dict) -> dict:
 
 
 def compile(task: dict, read_source: ReadSource, *, context: dict) -> dict:
-    """Bind complete explicit source coverage to actual rendered input carriers.
+    """Verify explicit obligations and retain their complete source context.
 
 Context contains subject_ids, required_subject_ids, optional identity_sources,
 text.{primary,negative} ({text, field, sha256}), and references carrying stable
 IDs, subject/use scopes, original/delivered hashes and concrete request fields.
-A covered report still needs independent rendition and candidate assessment.
+Values without an explicit binding remain in the whole-subject comparison basis.
+A verified binding still needs independent rendition and candidate assessment.
 """
     report = inventory(task, read_source, context=context)
-    gaps = {key: report[key] for key in ('uncovered', 'missing_carriers', 'missing_subject_sources',
+    gaps = {key: report[key] for key in ('missing_carriers', 'missing_subject_sources',
              'missing_whole_reviews', 'unknown_subject_ids', 'requires_identity_source') if report[key]}
     if gaps:
-        _fail('Identity source coverage or its independent review basis is incomplete.',
+        _fail('An explicit identity obligation or its independent review basis is incomplete.',
               code='IDENTITY_COVERAGE_INCOMPLETE', gaps=gaps)
     try:
         references = {}
@@ -525,7 +606,7 @@ A covered report still needs independent rendition and candidate assessment.
         raise
     except (KeyError, TypeError, ValueError) as error:
         _fail(str(error))
-    report['status'] = 'structurally-covered'
+    report['status'] = 'bindings-verified'
     return report
 
 

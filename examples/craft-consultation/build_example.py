@@ -31,8 +31,12 @@ def build(root):
     (root / 'delivery.txt').write_text('Synthetic local direction with readable subject information.\n', encoding='utf-8')
     task.update(artifact='text', execution='authored', production_id='01900000-0000-7000-8000-000000000030',
                 authority='authority.json', world_views=[], direction={'purpose': 'Synthetic craft consultation.',
-                    'intended_effect': 'Inspect the planned lighting relation.', 'basis': [], 'decisions': [],
+                    'intended_effect': 'Inspect the planned lighting relation.', 'basis': [], 'decisions': [], 'source_allowances': [],
                     'action_slice': None, 'limitations': ['Synthetic local example, not a generated image.']})
+    import production_fixtures
+    production_fixtures.bind_work_basis(root, task,
+        request='Develop a synthetic local lighting study with readable subject information.',
+        focus='supporting-setting')
     (root / 'task.json').write_bytes(c.encoded(task))
     spec = c.load(ROOT / 'templates/production-spec-template.json')
     from render_contract_lib import make_intent

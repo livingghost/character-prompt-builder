@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check explicit model selection and neutral shared sources."""
 from __future__ import annotations
+import prepare_generation_references as prepare_generation_references_cli
 
 import contextlib
 import io
@@ -12,7 +13,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import prepare_generation_references as references
+import generation_references as references
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -313,7 +314,7 @@ class ModelNeutralityTests(unittest.TestCase):
         with patch.object(references, 'resolve_pack_runtime', return_value=SimpleNamespace(settings='fixture-runtime')):
             with patch.object(references, 'configure_pack_runtime'):
                 with contextlib.redirect_stdout(buf):
-                    result = references.main(argv)
+                    result = prepare_generation_references_cli.main(argv)
         return result, json.loads(buf.getvalue())
 
     def test_no_implicit_model_for_supplied_state_or_studio(self):
@@ -369,6 +370,8 @@ class ModelNeutralityTests(unittest.TestCase):
                 argv = base + (['--model', explicit] if explicit else [])
                 with patch('catalog_retrieval.runtime.configure_pack_runtime'), \
                      patch('visual_fixtures.fixture_root', return_value=self.root), \
+                     patch('generation_references.resolve_model_record',
+                           side_effect=AssertionError('no alternate text needs transport selection')), \
                      patch('request_validation_fixtures.fixture_validation',
                            side_effect=lambda root, model, **kwargs: {'selected_model': model}) as validation:
                     result = cli_with_fixture_retrieval(inspect, argv)

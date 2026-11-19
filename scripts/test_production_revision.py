@@ -14,7 +14,7 @@ import execution_contract as c
 import production_case_fixtures as cases
 import production_fixtures as fixtures
 import production_store as store
-import production_workflow as workflow
+import production_operations as workflow
 import test_production_authored as authored_cases
 import work_ledger
 
@@ -23,7 +23,7 @@ SCRIPTS = Path(__file__).resolve().parent
 
 class PublicCLI:
     def invoke(self, *arguments, script='production_workflow.py', json_output=True, expected=0):
-        result = subprocess.run([sys.executable, str(SCRIPTS / script), *map(str, arguments)],
+        result = subprocess.run([sys.executable, str(SCRIPTS / script), *fixtures.authoring_arguments(list(map(str, arguments)))],
             cwd=self.root, env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'},
             capture_output=True, text=True, encoding='utf-8', timeout=90)
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
@@ -126,15 +126,22 @@ class CompletedSourceCLITests(PublicCLI, unittest.TestCase):
 
 
 class ImageBranchCLITests(PublicCLI, unittest.TestCase):
+    _case_template = None
+
+    @staticmethod
+    def build(base):
+        return cases.create(base / 'studio', base / 'runtime', with_alternate=True, with_upscale=True), {}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = cases.CaseTemplate.for_class(cls, cls.build)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='cpb-revision-cli-')
         self.addCleanup(self.temp.cleanup)
         base = Path(self.temp.name)
-        self.enterContext(fixtures.scratch_home(base / 'home'))
-        self.case = cases.create(base / 'studio', base / 'runtime', with_alternate=True, with_upscale=True)
+        self.case, _ = cases.CaseTemplate.for_test(self, base, self.build, self._case_template)
         self.root = self.case['root']
-        from catalog_retrieval import runtime
-        self.addCleanup(runtime.configure_pack_runtime, None)
         settings = self.case['settings']
         self.runtime = ['--state-file', str(settings.state_file), '--cache-dir', str(settings.cache_dir),
                         '--managed-root', str(settings.managed_root), '--pack-root', str(self.case['pack'])]
@@ -152,21 +159,21 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
         self.assertEqual(current['unresolved'], [], current)
         return next(item for item in current['next_actions'] if item.get('operation', item.get('command')) in {'prepare', 'retarget'})
 
-    def test_reopened_scope_error_supplies_the_real_draft_action_and_authored_fields(self):
+    def test_reopened_scope_applies_to_the_actual_candidate_and_retains_its_baseline(self):
         prior = workflow.read_run(self.root, self.run)
-        refused = self.invoke('draft-inputs', '--root', self.root, '--from-run', self.run,
-            '--out-dir', 'scope-revision', '--feature', 'unlisted-interface', *self.runtime, expected=2)
-        diagnostic = refused['diagnostics'][0]
-        self.assertEqual(diagnostic['requested_fields'], {'authoring.task.features': ['unlisted-interface']})
-        self.assertFalse((self.root/'scope-revision').exists())
-        draft = self.run_action(diagnostic['next_actions'][0])
+        draft = self.invoke('draft-inputs', '--root', self.root, '--from-run', self.run,
+            '--out-dir', 'scope-revision', '--operation', 'amend', '--feature', 'recurring-identity', *self.runtime)
         choices = c.load(self.root/draft['choices_file'])
+        self.assertEqual(choices['authoring']['task']['features'], ['recurring-identity'])
+        basis = c.load(self.root / draft['authoring_work']['basis'])
+        self.assertEqual(basis['baseline']['authoring']['task']['features'], prior.prepared['task']['features'])
         self.assertEqual(choices['authoring']['task']['criteria'], prior.prepared['task']['criteria'])
         self.assertEqual((self.root/choices['authoring']['delivery']['file']).read_bytes(),
                          prior.consumer['instructions'].encode('utf-8'))
-        self.assertIn('inspect-inputs', diagnostic['required_action'])
+        self.assertTrue(any(row['field'] == 'reading.reading_key' for row in draft['unresolved']))
         self.assertEqual(store.event_rows(self.root, self.run), [])
 
+    @cases.cold_case
     def test_parallel_prompt_and_model_branches_require_selection_and_keep_parent(self):
         first = self.draft('first-pattern')
         second = self.draft('second-model', model=cases.ALTERNATE_MODEL_ID)
@@ -237,6 +244,10 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
             'references': [{'id': name, 'role': 'palette', 'file': name + '.png',
                 'use_for': ['selected palette'], 'do_not_transfer': ['identity', 'pose']}
                 for name in ('red', 'blue')], 'external_request': None}
+        source_prompt = cases.PROMPT + ''.join(
+            ' Image {{reference:' + name + ':attachment_number}} supplies {{reference:' + name + ':controls}}.'
+            for name in ('red', 'blue'))
+        cases.write(self.root / choices['authoring']['delivery']['file'], source_prompt)
         with cases.edit_document(self.root, choices, 'production_spec') as document:
             document['render_intent']['execution_mode'] = 'reference-guided'
         cases.write(self.root / draft['choices_file'], choices)
@@ -246,6 +257,8 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
         retained = self.draft('one-image', source=first)
         choices = c.load(self.root / retained['choices_file'])
         choices['authoring']['references']['image_input']['references'].pop(0)
+        cases.write(self.root / choices['authoring']['delivery']['file'], cases.PROMPT +
+                    ' Image {{reference:blue:attachment_number}} supplies {{reference:blue:controls}}.')
         cases.write(self.root / retained['choices_file'], choices)
         (self.root / 'red.png').unlink()
         second = self.run_action(self.current_action(retained['choices_file']))['run']
@@ -257,6 +270,7 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
         final = self.draft('without-images', source=second)
         choices = c.load(self.root / final['choices_file'])
         choices['authoring']['references'] = None
+        cases.write(self.root / choices['authoring']['delivery']['file'], cases.PROMPT)
         with cases.edit_document(self.root, choices, 'production_spec') as document:
             document['render_intent']['execution_mode'] = 'text-to-image'
         cases.write(self.root / final['choices_file'], choices)

@@ -56,6 +56,8 @@ def locale_encoded(call: ast.Call) -> str | None:
         return keywords.get(keyword, call.args[index] if len(call.args) > index else None)
 
     def text(mode: ast.expr | None, default: str = "r") -> bool:
+        if isinstance(mode, ast.IfExp):
+            return text(mode.body, default) or text(mode.orelse, default)
         value = default if mode is None else mode.value if isinstance(mode, ast.Constant) else ""
         return "b" not in value
 
@@ -178,9 +180,12 @@ class Sources(unittest.TestCase):
             "tempfile.NamedTemporaryFile('w'); os.fdopen(d, 'w'); io.TextIOWrapper(b)\n"
             "open(p, 'rb'); p.open('rb'); p.read_text('utf-8'); p.write_text(s, encoding='utf-8')\n"
             "zipfile.ZipFile(p).open('member.json'); tarfile.open(p, 'r:gz'); tempfile.TemporaryFile()\n"
+            "os.fdopen(d, 'rb' if ro else 'r+b'); os.fdopen(d, 'r' if ro else 'r+b')\n"
+            "os.fdopen(d, dynamic_mode if ro else 'r+b')\n"
         )) if isinstance(node, ast.Call)]
         self.assertEqual(["open", "open", ".open", ".open", "read_text", "write_text",
-                          "NamedTemporaryFile", "os.fdopen", "TextIOWrapper"], [kind for kind in found if kind])
+                          "NamedTemporaryFile", "os.fdopen", "TextIOWrapper", "os.fdopen", "os.fdopen"],
+                         [kind for kind in found if kind])
 
 
 if __name__ == "__main__":

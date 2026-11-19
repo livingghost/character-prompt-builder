@@ -15,16 +15,13 @@ from contextlib import redirect_stderr
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from unittest import mock
 
 import catalog_retrieval.runtime
+import catalog_retrieval.scoring
 import search_regression
 import sparse_discovery_eval
-from catalog_cli import (
-    begin_catalog_request,
-    configure_pack_runtime,
-    load_entries,
-    named_resource_path,
-)
+from catalog_api import begin_catalog_request, configure_pack_runtime, load_entries, named_resource_path
 from pack_manager import (
     atomic_write_json,
     initialize_pack,
@@ -40,6 +37,7 @@ from pack_runtime_cli import (
 
 
 FIXTURE_RECORD_ID = "runtime-eval-smoke-amber-edge-light"
+ROBOT_RECORD_ID = "runtime-eval-smoke-cobalt-grid-light"
 MISSING_RECORD_ID = "runtime-eval-smoke-missing-record"
 SEARCH_RESOURCE = "catalog-search-regression"
 SPARSE_RESOURCE = "sparse-discovery-evaluation"
@@ -81,7 +79,24 @@ def _record_file() -> dict[str, Any]:
                         "source": "author",
                     }
                 ],
-            }
+            },
+            {
+                "id": ROBOT_RECORD_ID,
+                "label": "Runtime smoke cobalt grid light",
+                "category": "lighting",
+                "curation_status": "curated",
+                "prompt": "Use cobalt grid lights for the synthetic robot fixture.",
+                "domains": ["robot"],
+                "tags": ["runtime smoke", "cobalt grid light"],
+                "search_terms": [
+                    {
+                        "phrase": "runtime smoke cobalt grid light",
+                        "facet": "lighting",
+                        "weight": 1.2,
+                        "source": "author",
+                    }
+                ],
+            },
         ],
     }
 
@@ -250,6 +265,127 @@ def _run_search_resource(name: str) -> dict[str, Any]:
         search_regression.SEARCH_REGRESSION_RESOURCE = original
 
 
+def _search_range_probe(
+    entries: Sequence[Any], cases: Sequence[dict[str, Any]], *, chunk_size: int,
+) -> dict[str, Any]:
+    """Observe real search results and retained indexes through the suite driver."""
+    search = search_regression.search_entries
+    initialize = catalog_retrieval.scoring.Corpus.__init__
+    observations: list[str] = []
+    builds = 0
+    maximum_retained = 0
+
+    def counted_initialize(self, *args, **kwargs):
+        nonlocal builds
+        builds += 1
+        initialize(self, *args, **kwargs)
+
+    def observed_search(loaded, query, **kwargs):
+        nonlocal maximum_retained
+        hits = search(loaded, query, **kwargs)
+        maximum_retained = max(
+            maximum_retained, len(catalog_retrieval.runtime._CORPUS_CACHE),
+        )
+        observations.append(json.dumps(
+            {"query": query, "domain": kwargs.get("domain"), "hits": hits},
+            sort_keys=True,
+        ))
+        return hits
+
+    with (
+        mock.patch.object(search_regression, "load_spec", return_value={"cases": list(cases)}),
+        mock.patch.object(search_regression, "search_entries", side_effect=observed_search),
+        mock.patch.object(catalog_retrieval.scoring.Corpus, "__init__", new=counted_initialize),
+        redirect_stderr(io.StringIO()),
+    ):
+        report = search_regression.run_chunked_in_process(entries, chunk_size=chunk_size)
+    return {
+        "report": report,
+        "observations": sorted(observations),
+        "corpus_constructions": builds,
+        "maximum_retained_corpora": maximum_retained,
+    }
+
+
+def _search_reuse_checks(
+    entries: Sequence[Any], details: list[dict[str, Any]], errors: list[str],
+) -> None:
+    """Keep query outcomes independent of case order, chunking and warm indexes."""
+    cases = [
+        _search_case(FIXTURE_RECORD_ID, name="first human query"),
+        {**_search_case(FIXTURE_RECORD_ID, name="another human query"),
+         "query": "controlled amber edge light"},
+        {**_search_case(ROBOT_RECORD_ID, name="robot query"),
+         "query": "runtime smoke cobalt grid light", "domain": "robot"},
+        _search_case(FIXTURE_RECORD_ID, name="return to human query"),
+    ]
+    for case in cases:
+        if case["domain"] == "human":
+            case["assert"]["must_not_include"] = [ROBOT_RECORD_ID]
+    baseline = _search_range_probe(entries, cases, chunk_size=1)
+    shared = _search_range_probe(entries, cases, chunk_size=len(cases))
+    reordered = _search_range_probe(entries, list(reversed(cases)), chunk_size=2)
+    results = [baseline, shared, reordered]
+    complete = all(
+        row["report"]["ok"]
+        and row["report"]["coverage_complete"]
+        and row["report"]["cases"] == len(cases)
+        and not row["report"]["failures"]
+        and row["observations"] == baseline["observations"]
+        for row in results
+    )
+    _record_check(
+        details, errors, "search-results-survive-case-order-and-chunk-changes", complete,
+        [{"chunk_size": row["report"]["execution"]["chunk_size"],
+          "cases": row["report"]["cases"], "ok": row["report"]["ok"],
+          "same_results": row["observations"] == baseline["observations"]}
+         for row in results],
+    )
+    _record_check(
+        details, errors, "adjacent-searches-reuse-only-their-eligible-corpus",
+        baseline["corpus_constructions"] == len(cases)
+        and shared["corpus_constructions"] == 2
+        and shared["maximum_retained_corpora"] == 2,
+        {"single_case_chunks": baseline["corpus_constructions"],
+         "shared_chunk": shared["corpus_constructions"],
+         "maximum_retained_corpora": shared["maximum_retained_corpora"]},
+    )
+
+    missing = _search_case(MISSING_RECORD_ID, name="missing ID among warm queries")
+    failing_cases = [*cases, missing]
+    failed_one = _search_range_probe(entries, failing_cases, chunk_size=1)
+    failed_shared = _search_range_probe(entries, list(reversed(failing_cases)), chunk_size=len(failing_cases))
+    one_report, shared_report = failed_one["report"], failed_shared["report"]
+    _record_check(
+        details, errors, "search-failures-survive-corpus-reuse",
+        not one_report["ok"] and not shared_report["ok"]
+        and one_report["coverage_complete"] and shared_report["coverage_complete"]
+        and one_report["cases"] == shared_report["cases"] == len(failing_cases)
+        and one_report["missing_expected_ids"] == shared_report["missing_expected_ids"]
+        and MISSING_RECORD_ID in one_report["missing_expected_ids"].get(missing["name"], [])
+        and sorted(one_report["failures"]) == sorted(shared_report["failures"])
+        and bool(one_report["failures"])
+        and failed_one["observations"] == failed_shared["observations"],
+        {"cases": one_report["cases"], "missing_expected_ids": one_report["missing_expected_ids"],
+         "failure_count": len(one_report["failures"]),
+         "same_failures": sorted(one_report["failures"]) == sorted(shared_report["failures"])},
+    )
+
+    retained_before = len(catalog_retrieval.runtime._CORPUS_CACHE)
+    begin_catalog_request()
+    retained_after = len(catalog_retrieval.runtime._CORPUS_CACHE)
+    fresh = _search_range_probe(load_entries(), cases, chunk_size=len(cases))
+    _record_check(
+        details, errors, "fresh-runtime-releases-and-rebuilds-search-corpora",
+        retained_before > 0 and retained_after == 0
+        and fresh["report"]["ok"] and fresh["corpus_constructions"] == 2
+        and fresh["observations"] == baseline["observations"],
+        {"retained_before": retained_before, "retained_after": retained_after,
+         "fresh_constructions": fresh["corpus_constructions"],
+         "same_results": fresh["observations"] == baseline["observations"]},
+    )
+
+
 def _run_sparse_resource(name: str) -> dict[str, Any]:
     original = sparse_discovery_eval.CASES_RESOURCE
     sparse_discovery_eval.CASES_RESOURCE = name
@@ -315,7 +451,7 @@ def run() -> dict[str, Any]:
                 "temporary-pack-is-valid-and-locked",
                 bool(validation.get("ok"))
                 and validation.get("lock_present") is True
-                and validation.get("record_count") == 1
+                and validation.get("record_count") == 2
                 and len(validation.get("resource_bindings") or {}) == 4,
                 {
                     "valid": validation.get("ok"),
@@ -361,9 +497,10 @@ def run() -> dict[str, Any]:
                 errors,
                 "only-temporary-pack-is-active",
                 catalog.active_pack_count == 1
-                and len(entries) == 1
-                and entries[0].source_pack == fixture.pack_id
-                and str(entries[0].record.get("id")) == FIXTURE_RECORD_ID,
+                and len(entries) == 2
+                and all(entry.source_pack == fixture.pack_id for entry in entries)
+                and {str(entry.record.get("id")) for entry in entries}
+                == {FIXTURE_RECORD_ID, ROBOT_RECORD_ID},
                 {
                     "active_pack_count": catalog.active_pack_count,
                     "entry_count": len(entries),
@@ -418,6 +555,8 @@ def run() -> dict[str, Any]:
                     )
                 },
             )
+
+            _search_reuse_checks(entries, details, errors)
 
             sparse_report = _run_sparse_resource(SPARSE_RESOURCE)
             _record_check(
@@ -576,7 +715,7 @@ def run() -> dict[str, Any]:
         "fixture": {
             "temporary": True,
             "active_pack_count": 1,
-            "record_count": 1,
+            "record_count": 2,
             "named_resource_count": 4,
             "successful_search_cases": int(search_report.get("cases", 0)),
             "successful_sparse_cases": int(sparse_report.get("case_count", 0)),

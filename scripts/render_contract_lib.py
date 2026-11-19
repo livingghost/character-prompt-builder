@@ -54,17 +54,39 @@ def exact(value: Any, keys: set[str], where: str) -> None:
         raise ValueError(where + ': expected exactly ' + ', '.join(sorted(keys)))
 
 
-def presets() -> dict[str, dict]:
-    rows = json.loads((ROOT / 'config/render-presets.json').read_text(encoding='utf-8'))['presets']
-    found = {row['id']: row for row in rows}
-    if len(found) != len(rows):
-        raise ValueError('render preset identifiers must be unique')
-    for row in rows:
-        exact(row, {'id', 'label', 'axes', 'guidance'}, 'render preset')
-        exact(row['axes'], set(AXES), 'preset axes')
-        for key, value in row['axes'].items():
-            text(value, key)
-    return found
+class RenderPresets:
+    """One operation's checked rendering definitions from its explicit source.
+
+    An acquired implementation supplies its exact bytes. Standalone operations
+    acquire the installed file. The owner reads only when a preset is used and
+    retains immutable values for the validators participating in that operation.
+    A later operation creates a new owner and observes its own source.
+    """
+
+    def __init__(self, *, source=None):
+        self.source = source
+        self._rows = None
+
+    def read(self) -> Mapping[str, Mapping]:
+        if self._rows is None:
+            from owned_json import freeze
+            raw = (self.source.read_bytes('config/render-presets.json') if self.source is not None
+                   else (ROOT / 'config/render-presets.json').read_bytes())
+            rows = json.loads(raw)['presets']
+            found = {row['id']: row for row in rows}
+            if len(found) != len(rows):
+                raise ValueError('render preset identifiers must be unique')
+            for row in rows:
+                exact(row, {'id', 'label', 'axes', 'guidance'}, 'render preset')
+                exact(row['axes'], set(AXES), 'preset axes')
+                for key, value in row['axes'].items():
+                    text(value, key)
+            self._rows = freeze(found)
+        return self._rows
+
+
+def presets(*, render_presets: RenderPresets | None = None) -> Mapping[str, Mapping]:
+    return (render_presets if render_presets is not None else RenderPresets()).read()
 
 
 def operation_intent(mode: str) -> dict:
@@ -75,18 +97,22 @@ def operation_intent(mode: str) -> dict:
 
 
 def make_intent(preset: str, *, mode: str, chosen_by: str, reason: str,
-                presentation: str, prompt_expression: str) -> dict:
-    if preset not in presets():
+                presentation: str, prompt_expression: str,
+                render_presets: RenderPresets | None = None) -> dict:
+    owner = render_presets if render_presets is not None else RenderPresets()
+    definitions = owner.read()
+    if preset not in definitions:
         raise ValueError('unknown render preset: ' + preset)
     value = {'artifact_type': 'render-intent', 'preset': preset,
-             'axes': copy.deepcopy(presets()[preset]['axes']),
+             'axes': copy.deepcopy(definitions[preset]['axes']),
              'presentation': presentation, 'selection': {'chosen_by': chosen_by, 'reason': reason},
              'execution_mode': mode, 'prompt_expression': prompt_expression, 'regional_overrides': []}
-    validate_intent(value, for_generation=False)
+    validate_intent(value, for_generation=False, render_presets=owner)
     return value
 
 
-def validate_intent(value: Any, *, for_generation: bool = True, prompt: str | None = None) -> None:
+def validate_intent(value: Any, *, for_generation: bool = True, prompt: str | None = None,
+                    render_presets: RenderPresets | None = None) -> None:
     has_rendering = isinstance(value, dict) and bool(RENDERING_FIELDS & set(value))
     exact(value, INTENT_FIELDS | (RENDERING_FIELDS if has_rendering else set()), 'render intent')
     if (value['artifact_type'] != 'render-intent' or not isinstance(value['execution_mode'], str)
@@ -95,9 +121,10 @@ def validate_intent(value: Any, *, for_generation: bool = True, prompt: str | No
     if not has_rendering:
         return
     if value['preset'] is not None:
-        if value['preset'] not in presets():
+        definitions = presets(render_presets=render_presets)
+        if value['preset'] not in definitions:
             raise ValueError('unknown render preset: ' + str(value['preset']))
-        if value['axes'] != presets()[value['preset']]['axes']:
+        if value['axes'] != definitions[value['preset']]['axes']:
             raise ValueError('preset axes differ; use a custom intent with preset=null for a distinct whole-image finish')
     if not isinstance(value['axes'], dict) or set(value['axes']) - set(AXES):
         raise ValueError('render axes must be an object naming only known render axes')
@@ -541,9 +568,11 @@ def media_check(profile: dict, mode: str, *, reference_count: int, offering: Map
 
 
 def compile_contract(record: Mapping, offering: Mapping | None, intent: dict,
-                     parameters: dict, *, prompt: str, reference_count: int) -> dict:
+                     parameters: dict, *, prompt: str, reference_count: int,
+                     render_presets: RenderPresets | None = None) -> dict:
     preserve_without_text = intent.get('execution_mode') == 'upscale' and not prompt
-    validate_intent(intent, for_generation=not preserve_without_text, prompt=prompt)
+    validate_intent(intent, for_generation=not preserve_without_text, prompt=prompt,
+                    render_presets=render_presets)
     if preserve_without_text and intent.get('prompt_expression'):
         raise ValueError('an upscaler without a text channel cannot receive a rendering prompt expression')
     profile = selected_profile(record, offering)
@@ -569,7 +598,7 @@ def _contract_from_inputs(record: Mapping, offering: Mapping | None, intent: dic
 
 def verify_contract(value: Any, *, intent: dict, parameters: dict, prompt: str,
                     record: Mapping | None = None, offering: Mapping | None = None,
-                    reference_count: int) -> None:
+                    reference_count: int, render_presets: RenderPresets | None = None) -> None:
     exact(value, {'artifact_type', 'intent', 'model_card', 'profile_sha256', 'authored_parameters',
                   'parameters', 'parameter_decisions', 'reference_count', 'prompt_expression'}, 'render contract')
     if value['artifact_type'] != 'render-contract' or encoded(value['intent']) != encoded(intent) or encoded(value['parameters']) != encoded(parameters):
@@ -583,7 +612,8 @@ def verify_contract(value: Any, *, intent: dict, parameters: dict, prompt: str,
                 'recommended_negative_prompt': card['recommended_negative_prompt'],
                 'recommendation_merge_mode': card['recommendation_merge_mode'], 'size_hints': card['size_choices']}
     expected = compile_contract(snapshot, None, intent, value['authored_parameters'],
-                                prompt=prompt, reference_count=reference_count)
+                                prompt=prompt, reference_count=reference_count,
+                                render_presets=render_presets)
     for key in ('parameter_decisions', 'parameters', 'reference_count', 'prompt_expression'):
         if encoded(expected[key]) != encoded(value[key]):
             raise ValueError('render contract has inconsistent ' + key)

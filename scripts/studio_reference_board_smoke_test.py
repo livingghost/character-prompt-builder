@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Two adopted identities retain separate authority when delivered on one image."""
 from __future__ import annotations
+import prepare_generation_references as prepare_generation_references_cli
 import contextlib
 import copy
 import io
@@ -12,15 +13,20 @@ from unittest.mock import patch
 import execution_contract as c
 import studio_reference as sr
 import studio_reference_fixtures as fixture
-import prepare_generation_references as refs
+import generation_references as refs
 import visual_continuity as vc
-from build_generation_payload import materialize_cli_reference_bundle
+from production_case_fixtures import cold_case
+from generation_payload_builder import materialize_cli_reference_bundle
 from reference_delivery import delivered_reference_count
 
 
 class StudioBoardTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._adoption_template = fixture.AdoptionTemplate.for_class(cls)
+
     def setUp(self):
-        self.case=fixture.adopted_case(self)
+        self.case=fixture.adopted_case(self, template=self._adoption_template)
         self.root=self.case.root
         self.first=sr.current_source(self.root,'robot',self.case.row['slot'])
         self.second=fixture.adopt_second(self.case,'companion',work_id='C02')
@@ -43,6 +49,7 @@ class StudioBoardTests(unittest.TestCase):
                                                  staging_root=root,companion_name='package.references')
         return root,sealed
 
+    @cold_case
     def test_same_pixels_do_not_merge_two_subjects_or_approvals(self):
         self.assertEqual(self.first['sha256'],self.second['sha256'])
         self.assertNotEqual(self.first['proof_sha256'],self.second['proof_sha256'])
@@ -51,6 +58,34 @@ class StudioBoardTests(unittest.TestCase):
         self.assertEqual([row['character_id'] for row in report['identity_bindings']],['C01','C02'])
         self.assertEqual([row['attachment_number'] for row in report['identity_bindings']],[1,1])
         self.assertNotEqual(report['identity_bindings'][0]['region_pixels'],report['identity_bindings'][1]['region_pixels'])
+
+    def test_adopted_fixture_copies_own_files_events_and_metadata(self):
+        import production_store as store
+        other = fixture.adopted_case(self, work_id='C03', template=self._adoption_template)
+        template = self._adoption_template.case_type
+        relative = self.case.row['result']['path']
+        original = c.read(other.root / relative)
+        own_events = store.event_rows(self.root, self.case.run)
+        other_events = store.event_rows(other.root, other.run)
+        template_events = store.event_rows(template.root, template.prepared_run)
+        other_source = sr.current_source(other.root, 'robot', other.row['slot'])
+        self.case.select(reason='Synthetic private-copy selection.')
+        c.atomic(self.root / relative, b'Synthetic damaged private copy.', replace=True)
+        self.case.task['recording']['slot'] = 'private-copy-slot'
+        self.case.row['slot'] = 'private-copy-slot'
+        self.case.approval['continuity_decision']['character_id'] = 'private-copy-character'
+        self.assertNotEqual(store.event_rows(self.root, self.case.run), own_events)
+        self.assertEqual(store.event_rows(other.root, other.run), other_events)
+        self.assertEqual(store.event_rows(template.root, template.prepared_run), template_events)
+        self.assertEqual(c.read(other.root / relative), original)
+        self.assertEqual(c.read(template.root / relative), original)
+        self.assertNotEqual(other.task['recording']['slot'], 'private-copy-slot')
+        self.assertNotEqual(template.task['recording']['slot'], 'private-copy-slot')
+        self.assertNotEqual(other.row['slot'], 'private-copy-slot')
+        self.assertNotEqual(template.row['slot'], 'private-copy-slot')
+        self.assertEqual(other.approval['continuity_decision']['character_id'], 'C03')
+        self.assertEqual(template.approval['continuity_decision']['character_id'], 'robot')
+        self.assertEqual(sr.current_source(other.root, 'robot', other.row['slot']), other_source)
 
     def test_one_attachment_limit_counts_board_not_sources(self):
         from transport_synthetic import _png
@@ -67,7 +102,7 @@ class StudioBoardTests(unittest.TestCase):
         self.assertEqual(delivered_reference_count(multiple),2)
         original=refs.resolve_model_record('cpb-synthetic-image')
         model=copy.deepcopy(original[1]);model['max_reference_images']=1
-        with patch('prepare_generation_references.resolve_model_record',return_value=(original[0],model)):
+        with patch('generation_references.resolve_model_record',return_value=(original[0],model)):
             prepared=refs.prepare_references(selected,model='cpb-synthetic-image',output_dir=self.out/'board',
                 transport_mode='single-board',max_side=512)
             self.assertEqual(len(prepared['selected_references']),2)
@@ -139,7 +174,7 @@ class StudioBoardTests(unittest.TestCase):
         settings=runtime.selected_pack_settings()
         args += PackRuntimeContext(settings,settings.roots).command_arguments()
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(refs.main(args),0)
+            self.assertEqual(prepare_generation_references_cli.main(args),0)
         result=c.load(self.out/'prepared.json')
         self.assertEqual([row['source'] for row in result['selected_references']],[self.first,self.second])
 

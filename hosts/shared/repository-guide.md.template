@@ -47,12 +47,23 @@ step. `ready` exits 1 until the author settles each `decide:` line it prints.
 reports what the state file settles and says so where it cannot answer, because
 discovery reads every record in every root and that is the runtime's work.
 
-Saved work obtains linked runtime guidance and selected-model knowledge through
-the route reader under [Continue the requested operation](#continue-the-requested-operation-in-its-studio).
-Read the complete selected material. Conversation-only answers read applicable
-documents directly, without a route or Studio. Reuse complete current material
-already delivered in this context; a fresh context reads the necessary material
-again.
+Compose and amend actual candidates through
+[Authoring work](references/runtime/authoring-work.md) for conversational delivery,
+saving and execution. Read the complete applicable knowledge. Saved work obtains
+runtime guidance and selected-model knowledge through the route reader under
+[Continue the requested operation](#continue-the-requested-operation-in-its-studio).
+Conversational work reads the same applicable documents directly. Reuse complete
+current material delivered in this context; a fresh context reads it again.
+
+## Develop the current candidate
+
+Begin with the actual request and source applications. Choose `compose` to
+construct the current candidate or `amend` to change an actual baseline within
+the requested scope. Develop the character definition to the depth the current
+work needs, including its researched wording. Continue open details as the
+candidate develops. Authoring work owns the actual content and derives its
+difference from the baseline. Use its inspection and export actions for a
+conversational result; use Studio for requested saving or execution.
 
 ## Choose rendering and inspect model controls
 
@@ -76,7 +87,7 @@ Preparation shows the complete request. Dispatcher packages seal resolved contro
 python scripts/studio.py init --out STUDIO --studio-id <id> --title "<title>"
 python scripts/production_workflow.py status --root STUDIO
 python scripts/execution_routes.py read <route> --operation <operation> --execution <execution> --root STUDIO
-python scripts/production_workflow.py draft-inputs --root STUDIO --route <route> --artifact <artifact> --execution <execution> --out-dir work/draft
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation compose --request-file request.txt --route <route> --artifact <artifact> --execution <execution> --out-dir work/draft
 ```
 
 Open the work task before drafting. Establish the character's concrete definition
@@ -126,8 +137,12 @@ specialist document still follows its full contract.
 complete operation contract. The status and session-entry reports expose the
 current source files, partial reading and next action. After a content edit,
 compile those source files again; previous saved revisions and prepared inputs
-remain intact. `draft-inputs --from-run` restores a captured revision, with
-`--task-id` when reopening it under another active work task.
+remain intact. `draft-inputs --from-run --operation compose|amend` uses the saved
+work as the current operation's source. Supply a changed commission with
+`--request-file FILE`; continuation of the same commission can reuse its saved
+request. Use `--task-id` when reopening under another active work task. The
+registered goal names the work; the actual request remains the source for
+production and review.
 
 For dispatcher generation, preparation publishes the verified Generation Package,
 exact request and execution plan together. The author's actual authorization
@@ -137,7 +152,7 @@ authority, claims the operation, performs its handoff and records returned media
 submission, media and actual next command. `variant` prepares changed input;
 `repeat` prepares another run of the same input. Offering-attributed parameter
 contracts constrain the request before anything is sent.
-For another model or service, reopen with `draft-inputs --from-run --model --service`
+For another model or service, reopen with `draft-inputs --from-run --operation amend --model --service`
 and follow [Change the target](references/runtime/production-variation.md#change-the-target-explicitly).
 The current target and evidence selectors own regeneration of request validation;
 carry meaningful content and references through that same editable workflow.
@@ -166,7 +181,7 @@ then invoke the returned host request once. `receive-external` takes the actual
 response and images, derives their records and settles that call. `task.image_input` binds original images,
 their uses and the exact provider request. `task.semantic_edit` owns requested
 changes, preservation and review of an existing image.
-For a further external trial, restore sources with `draft-inputs --from-run`,
+For a further external trial, use `draft-inputs --from-run --operation compose|amend`,
 edit the chosen changes, then use `prepare --choices` on that draft.
 Use `status` or `resume` after interruption and recover the existing host result.
 During authoring, `inspect-inputs --root STUDIO` locates the open work task's
@@ -256,8 +271,9 @@ An explicitly selected prepared run executes its saved revision. Changes to
 editable choices, reading records, original files or current Studio placement
 are navigation and impact information, not a reason to require restoration of
 the originals. New preparation acquires the selected revision; a variant,
-repeat or reopened draft retains the source run's meaningful saved input until
-the author replaces it. Keep current authority, saved-content validity and
+repeat or ordinary reopened draft retains the source run's meaningful saved
+input until the author replaces it. A source-based restart retains original
+source scope and current protected requirements while reopening the realization. Keep current authority, saved-content validity and
 execution ownership as their own effect-boundary responsibilities.
 
 Preserve necessary requirements, authored knowledge and the material needed for

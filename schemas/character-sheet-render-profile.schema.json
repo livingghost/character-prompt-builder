@@ -192,6 +192,11 @@
                   "type": "integer",
                   "minimum": 1024,
                   "description": "Overrides panel_long_side for this panel."
+                },
+                "aspect_ratio": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Selected width-to-height ratio of this panel's drawing surface. When absent, the renderer uses the kind's layout starting size; neither value specifies framing or body coverage."
                 }
               },
               "additionalProperties": false

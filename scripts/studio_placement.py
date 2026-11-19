@@ -6,6 +6,7 @@ The character journal and accepted copies project any acceptance transfer;
 the committed decision retains enough information to recover those writes.
 """
 from __future__ import annotations
+import read_context
 
 import copy
 from datetime import datetime
@@ -13,7 +14,6 @@ from pathlib import Path
 
 import execution_contract as c
 import production_store as store
-import runtime_snapshot
 from production_diagnostics import ProductionError
 from studio_activity import mutation
 
@@ -87,7 +87,7 @@ def _validate_decision(value: dict) -> None:
             'reassignment origin')
     c.sha(value['origin']['image_sha256'])
     c.sha(value['expected_placement'])
-    import studio
+    import studio_workspace as studio
     if not studio.valid_character_id(value['origin']['character']):
         raise ValueError('reassignment character is invalid')
     for key in ('recorded_slot',):
@@ -216,10 +216,10 @@ def _require_no_adoption(root: Path, character: str, row: dict, read, *, destina
         raise _withdrawal_error(root, character, name, row['iteration_id'])
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def draft(root: Path, character: str, iteration: str, destination: str) -> dict:
     """Pin the exact source and both current slot states without inventing approval."""
-    import studio
+    import studio_workspace as studio
     root = studio.require_studio(root)
     read = studio.StudioRead(root)
     studio.validate_recording_target(root, character, destination, read=read)
@@ -238,7 +238,7 @@ def draft(root: Path, character: str, iteration: str, destination: str) -> dict:
 def _project_sheet(root: Path, character: str, iteration: str, sources: set[str], destination: str) -> None:
     """Move existing candidate membership; history and adopted artwork stay intact."""
     import sheet_artifacts as fills
-    import studio
+    import studio_workspace as studio
     sheet = studio.character_home(root, character) / 'sheet'
     sidecar = sheet / 'sheet-data.json'
     with fills.sheet_lock(sidecar):
@@ -278,7 +278,7 @@ def _owned_slots(row: dict, records: list[dict]) -> set[str]:
 
 def _clean_accepted(root: Path, character: str, row: dict, read, owned_slots: set[str]) -> None:
     """Remove only this iteration's unowned copies, including interrupted older moves."""
-    import studio
+    import studio_workspace as studio
     if not row.get('acceptances'):
         return
     for name in owned_slots:
@@ -295,7 +295,7 @@ def _clean_accepted(root: Path, character: str, row: dict, read, owned_slots: se
 
 def _publish(root: Path, character: str, event: dict, read) -> dict:
     """Recover derived files only while this exact decision remains current."""
-    import studio
+    import studio_workspace as studio
     decision = event['data']['decision']
     row = studio._find(read.placed_iterations(character), decision['origin']['iteration_id'])
     current = row['placement']['sha256'] == event['sha256']
@@ -325,7 +325,7 @@ def _publish(root: Path, character: str, event: dict, read) -> dict:
 @mutation
 def reassign(root: Path, decision: dict) -> dict:
     """Commit or recover one authored correction without recreating production."""
-    import studio
+    import studio_workspace as studio
     import studio_activity as activity
     root = studio.require_studio(root)
     _validate_decision(decision)
@@ -333,7 +333,7 @@ def reassign(root: Path, decision: dict) -> dict:
     home = studio.character_home(root, character)
     # This operation owns both the character's acceptance journal and the
     # sheet membership it moves. Hold their existing owners in that order.
-    with studio.recording_lock(root, character=character), c.lock(home / 'sheet'):
+    with studio.recording_lock(root, character=character), c.file_lock(home / 'sheet' / 'sheet-data.json'):
         with store.transaction(root):
             read = studio.StudioRead(root)
             records = read.placement_records(character)
@@ -357,7 +357,7 @@ def reassign(root: Path, decision: dict) -> dict:
                     raise _corrupt('The retained image differs from its original hash.')
                 if row.get('production') is not None:
                     loaded = read.run(row['production']['run'])
-                    import production_workflow as workflow
+                    import production_operations as workflow
                     candidate = workflow.find(loaded.rows, 'candidate', row['production']['candidate'])
                     if candidate['data']['files'][0]['sha256'] != row['result']['sha256']:
                         raise _corrupt('The iteration differs from its exact Production candidate.')
@@ -366,7 +366,7 @@ def reassign(root: Path, decision: dict) -> dict:
                                                   run=row['production']['run'])
                 event = store.append(root, scope(character), None, 'iteration-reassigned', {'decision': copy.deepcopy(decision)},
                     expected_previous=records[-1]['sha256'] if records else None, check_previous=True)
-        runtime_snapshot.invalidate_studio(root)
+        read_context.invalidate_studio(root)
         try:
             result = _publish(root, character, event, studio.StudioRead(root))
         except (OSError, ValueError, KeyError, TypeError) as exc:

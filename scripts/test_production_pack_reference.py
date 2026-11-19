@@ -1,5 +1,6 @@
 """A dispatcher run that uses a pack-owned reference asset binds it, previews and executes."""
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 
 import argparse
 import contextlib
@@ -8,7 +9,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-import dispatch
+import dispatch_runtime as dispatch
 import execution_contract as c
 import pack_manager as packs
 import production_case_fixtures as fixtures
@@ -17,10 +18,10 @@ import production_fixtures
 import production_inputs
 import production_reference_inputs as reference_inputs
 import production_store as store
-import production_workflow as workflow
+import production_operations as workflow
 import runtime_snapshot
 from catalog_retrieval import runtime
-from reference_runtime import build_reference_use_plan, execute_reference_use_plan
+from reference_plan_runtime import build_reference_use_plan, execute_reference_use_plan
 from reference_runtime_smoke_test import DIRECT_RASTER_RECORD_ID, FIXTURE_PACK_ID, _write_fixture_pack
 from test_production_execution import decisions
 
@@ -45,6 +46,7 @@ class PackReferenceRunTests(unittest.TestCase):
         parent = fixtures.reference_retarget_case(self.case)['parent']['run']
         plan = build_reference_use_plan(
             [{'record_id': DIRECT_RASTER_RECORD_ID, 'intended_influence': 'pose-camera',
+              'selected_controls': ['target silhouette', 'subject-background separation'],
               'subject_uses': [{'subject_id': 'robot', 'use': 'pose-camera', 'priority': 0}]}],
             transport_mode='multi-image', source_lighting_mode='replace', target_model=fixtures.MODEL_ID,
             include_technical_roles=['subject-mask'],
@@ -53,10 +55,15 @@ class PackReferenceRunTests(unittest.TestCase):
             material_responses=[{'material': 'matte sample', 'roughness': 'matte', 'specular_strength': 'low',
                                  'highlight_shape': 'broad', 'wetness': 'dry', 'anisotropy': 'none'}])
         delivered = execute_reference_use_plan(plan, output_dir=self.root / 'pack-source')
-        draft = production_inputs.draft_inputs(self.root, None, 'pack-reference', from_run=parent)
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'pack-reference', from_run=parent)
         choices = draft['choices']
         choices['authoring']['references']['reference_use_plan'] = reference_inputs.draft(
             delivered, package_root=self.root / 'pack-source')['reference_use_plan']
+        identifier = choices['authoring']['references']['reference_use_plan']['items'][0]['id']
+        delivery = choices['authoring']['delivery']
+        prompt_path = self.root / delivery['file']
+        prompt_path.write_text(prompt_path.read_text(encoding='utf-8') + '\nImage {{reference:'
+            + identifier + ':attachment_number}} supplies {{reference:' + identifier + ':controls}}.', encoding='utf-8')
         fixtures.write(self.root / draft['choices_file'], choices)
         self.prepared_run = workflow.prepare(self.root, choices=draft['choices_file'])['run']
 

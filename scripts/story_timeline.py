@@ -285,7 +285,7 @@ def _reference(inputs: Inputs, raw: dict, sources: dict[str, dict]) -> dict:
 
 def _scene_images(inputs: Inputs, config: dict, diagnostics: list[dict]) -> list[dict]:
     """Only an explicitly mapped currently adopted artifact supplies a scene image."""
-    import studio
+    import studio_workspace as studio
     import sheet_artifacts as fills
     states, verification = {}, {}
     output = []
@@ -470,6 +470,23 @@ def _publication_target(root: Path, out: Path | None) -> Path:
     return path
 
 
+def _unavailable_document(output: Path, message: str, preserved: Path | None = None) -> bytes:
+    link = ('<p><a href="' + html.escape(_href(preserved, output), quote=True) + '">Inspect last successful view (stale)</a></p>') if preserved else ''
+    page = MARKER + '<!doctype html><html lang="en"><meta charset="utf-8"><title>Story timeline update failed</title><body><h1>Story timeline update failed</h1><p role="alert">No current state is asserted. Canonical files were not changed.</p><pre>' + html.escape(message) + '</pre>' + link + '<p>Repair the named input and run studio.py sync.</p></body></html>'
+    return page.encode('utf-8')
+
+
+def _initial_document(output: Path, raw: bytes) -> bool:
+    """Publish a complete actual page when this output has no existing owner."""
+    if not output.is_file():
+        try:
+            c.atomic(output, raw)
+            return True
+        except FileExistsError:
+            pass
+    return False
+
+
 def _failure(root: Path, output: Path, exc: Exception) -> dict:
     """Publish an explicit unavailable page; retain the previous successful view as stale."""
     status_path = output.with_suffix('.status.json')
@@ -487,9 +504,7 @@ def _failure(root: Path, output: Path, exc: Exception) -> dict:
         candidate = _path(root, old['last_good'], exists=False)
         if candidate.is_file(): preserved = candidate
     message = str(exc)
-    link = ('<p><a href="' + html.escape(_href(preserved, output), quote=True) + '">Inspect last successful view (stale)</a></p>') if preserved else ''
-    failed = MARKER + '<!doctype html><html lang="en"><meta charset="utf-8"><title>Story timeline update failed</title><body><h1>Story timeline update failed</h1><p role="alert">No current state is asserted. Canonical files were not changed.</p><pre>' + html.escape(message) + '</pre>' + link + '<p>Repair the named input and run studio.py sync.</p></body></html>'
-    c.atomic(output, failed.encode('utf-8'), replace=True)
+    c.atomic(output, _unavailable_document(output, message, preserved), replace=True)
     result = {'artifact_type': 'story-timeline-publication', 'ok': False, 'code': 'STORY_TIMELINE_UPDATE_FAILED', 'status': 'unavailable', 'message': message,
               'generated_at': _now(), 'output': output.relative_to(root).as_posix(), 'last_good': preserved.relative_to(root).as_posix() if preserved else None,
               'last_success_projection_id': old.get('projection_id') or old.get('last_success_projection_id'),
@@ -565,8 +580,28 @@ def _require_implementation(implementation: BuilderInputs) -> None:
         raise ValueError('story implementation changed during projection')
 
 
-def _publish_failure(root: Path, output: Path, exc: Exception) -> dict:
+def _publication_revision(output: Path) -> tuple | None:
+    """Observe whether another publisher replaced this actual status receipt."""
+    try:
+        value = output.with_suffix('.status.json').stat()
+        return value.st_dev, value.st_ino, value.st_mtime_ns, value.st_size
+    except FileNotFoundError:
+        return None
+
+
+def _publish_failure(root: Path, output: Path, exc: Exception, *, request: dict,
+                     observed_receipt: tuple | None) -> dict:
     """Update recovery files while the caller holds the publication owner lock."""
+    current = None
+    if _publication_revision(output) != observed_receipt:
+        try:
+            current = _reuse_publication(root, output, request, capture_implementation(ROOT))
+        except (ValueError, OSError, KeyError, TypeError):
+            pass
+    if current is not None:
+        # A successful competitor may have completed while this failed reader
+        # waited. Its verified current inputs supersede the earlier failure.
+        return current
     try:
         return _failure(root, output, exc)
     except (ValueError, OSError) as publication_error:
@@ -580,10 +615,10 @@ def refresh(root: Path, *, out: Path | None = None, config_path: str = CONFIG,
             selection: dict | None = None) -> dict:
     root = root.resolve(strict=True)
     output = _publication_target(root, out)
-    owner = output.parent / ('.' + output.stem + '.publication')
+    request = {'config_path': config_path, 'selection': copy.deepcopy(selection)}
+    observed_receipt = _publication_revision(output)
     try:
         implementation = capture_implementation(ROOT)
-        request = {'config_path': config_path, 'selection': copy.deepcopy(selection)}
         current = _reuse_publication(root, output, request, implementation)
         if current is not None:
             return current
@@ -597,11 +632,13 @@ def refresh(root: Path, *, out: Path | None = None, config_path: str = CONFIG,
         generated = _now()
         raw = render_html(model, generated, implementation=implementation).encode('utf-8')
     except (ValueError, OSError, KeyError, TypeError) as exc:
-        with c.lock(owner):
+        _initial_document(output, _unavailable_document(output, str(exc)))
+        with c.file_lock(output):
             _publication_target(root, output)
-            return _publish_failure(root, output, exc)
+            return _publish_failure(root, output, exc, request=request, observed_receipt=observed_receipt)
 
-    with c.lock(owner):
+    initialized = _initial_document(output, raw)
+    with c.file_lock(output):
         # A competing writer may have completed this projection while we built
         # or waited. Recheck ownership, its receipt and the observed inputs.
         _publication_target(root, output)
@@ -610,22 +647,24 @@ def refresh(root: Path, *, out: Path | None = None, config_path: str = CONFIG,
             inputs.recheck()
             _require_implementation(implementation)
             if current is not None:
-                return current
+                return {**current, 'written': True} if initialized else current
             # One atomic document contains its data and all resolved states.
-            c.atomic(output, raw, replace=True)
+            if c.read(output) != raw:
+                c.atomic(output, raw, replace=True)
             result = _receipt(root, output, model, generated, raw)
             c.atomic_write_json(output.with_suffix('.status.json'), result)
+            observed_receipt = _publication_revision(output)
             from studio_activity import event
             event(root, 'story-timeline-refreshed', result['output'], revision=model['projection_id'],
                   details={'projection_id': model['projection_id'], 'ledger_ok': model['ok'], 'diagnostics': result['diagnostics']})
             return result
         except (ValueError, OSError, KeyError, TypeError) as exc:
-            return _publish_failure(root, output, exc)
+            return _publish_failure(root, output, exc, request=request, observed_receipt=observed_receipt)
 
 
 def notify_state_write(path: Path) -> None:
     """Known CLI writes refresh this projection; external editors explicitly call sync."""
-    import studio
+    import studio_workspace as studio
     root = studio.studio_root(path.parent)
     if root is None or not configured(root):
         return
@@ -651,7 +690,7 @@ def notify_state_write(path: Path) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    import studio
+    import studio_workspace as studio
     parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument('--studio', type=Path, required=True)
     parser.add_argument('--out', type=Path, help='Studio-relative HTML path; replaces only a timeline-owned page')

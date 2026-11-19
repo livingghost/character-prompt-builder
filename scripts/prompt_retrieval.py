@@ -80,8 +80,8 @@ def validate_prompt_retrieval_record(value: Any) -> dict[str, Any]:
     if pack_state is not None and (not isinstance(pack_state, str) or not pack_state.strip()):
         errors.append("pack_state must be a non-empty string when present")
     if "vocabulary" in value:
-        from state_protocol import validate_against_schema
-        vocabulary_schema = json.loads((ROOT / 'schemas/prompt-vocabulary-selection.schema.json').read_text(encoding='utf-8'))
+        from state_protocol import read_schema, validate_against_schema
+        vocabulary_schema = read_schema(ROOT / 'schemas/prompt-vocabulary-selection.schema.json')
         errors.extend('vocabulary: ' + error for error in validate_against_schema(value['vocabulary'], vocabulary_schema))
 
     entries = value.get("elements")
@@ -292,16 +292,22 @@ def mark_outcome(value: Any, element: str, *, adopted: str | Sequence[str] = (),
     return value
 
 
-def require_settled_retrieval(value: Any, *, prompt: str, plot: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Check an authored record's binding, including immutable past artifacts.
-
-    This checks construction provenance, not eligibility for a new model request.
-    """
+def require_settled_retrieval_record(value: Any) -> dict[str, Any]:
+    """Check required retrieval structure before final model text is available."""
     report = validate_prompt_retrieval_record(value)
     if not report["ok"]:
         raise ValueError("generation requires a valid retrieval record: " + "; ".join(report["errors"]))
     if value.get("settled") is not True:
         raise ValueError("generation requires a settled retrieval record")
+    return report
+
+
+def require_settled_retrieval(value: Any, *, prompt: str, plot: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Check an authored record's binding, including immutable past artifacts.
+
+    This checks construction provenance, not eligibility for a new model request.
+    """
+    report = require_settled_retrieval_record(value)
     if value.get("context") != retrieval_context(prompt, plot):
         raise ValueError("retrieval record belongs to a different prompt or plot; repeat affected retrieval and settle explicitly")
     return report
@@ -331,7 +337,7 @@ def resolve_selected_model(model: str | None, model_file: Path | None) -> dict |
     if model and model_file:
         raise ValueError('select --model or --model-file, not both')
     if model:
-        from prepare_generation_references import resolve_model_record
+        from generation_references import resolve_model_record
         _, record = resolve_model_record(model)
     elif model_file:
         record = json.loads(model_file.read_text(encoding='utf-8'))
@@ -369,7 +375,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
     add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
-    from catalog_cli import configure_pack_runtime
+    from catalog_api import configure_pack_runtime
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     try:

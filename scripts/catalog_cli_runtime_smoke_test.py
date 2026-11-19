@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Focused runtime tests for catalog request, inspection, and batch contracts."""
 from __future__ import annotations
+import catalog_cli as catalog_cli_cli
 
 import os
 import tempfile
@@ -18,7 +19,7 @@ from typing import Any, get_type_hints
 from pathlib import Path
 from unittest import mock
 
-import catalog_cli
+import catalog_api as catalog_cli
 import catalog_retrieval.batch
 import catalog_retrieval.retrieval
 import catalog_retrieval.runtime
@@ -117,7 +118,7 @@ class CatalogAnnotationTest(unittest.TestCase):
 
     def test_fresh_import_orders_resolve_annotations_without_pack_io(self) -> None:
         script_dir = Path(__file__).resolve().parent
-        modules = ("catalog_retrieval.runtime", "catalog_retrieval.scoring", "catalog_cli")
+        modules = ("catalog_retrieval.runtime", "catalog_retrieval.scoring", "catalog_api")
         probe = r"""
 import importlib
 import sys
@@ -132,7 +133,7 @@ with mock.patch.object(pack_cache, "load_runtime_catalog", side_effect=Assertion
         importlib.import_module(name)
     runtime = importlib.import_module("catalog_retrieval.runtime")
     scoring = importlib.import_module("catalog_retrieval.scoring")
-    facade = importlib.import_module("catalog_cli")
+    facade = importlib.import_module("catalog_api")
     hints = get_type_hints(runtime)
     assert hints["_CORPUS_CACHE"] == OrderedDict[tuple[Any, ...], scoring.Corpus]
     assert hints["_INDEXED_ENTRY_CACHE"] == OrderedDict[tuple[str, str], scoring.IndexedEntry]
@@ -352,7 +353,7 @@ class CatalogRuntimeTest(unittest.TestCase):
                 return_value=fixture_catalog,
             ):
                 with contextlib.redirect_stdout(stdout):
-                    exit_code = catalog_cli.main([
+                    exit_code = catalog_cli_cli.main([
                         "inspect",
                         "fixture-many",
                         "--out",
@@ -376,7 +377,7 @@ class CatalogRuntimeTest(unittest.TestCase):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             with self.assertRaises(SystemExit) as raised:
-                catalog_cli.main(["select-references", "identity=asset-a"])
+                catalog_cli_cli.main(["select-references", "identity=asset-a"])
         self.assertEqual(raised.exception.code, 2)
         self.assertIn("invalid choice", stderr.getvalue())
 
@@ -393,7 +394,7 @@ class CatalogRuntimeTest(unittest.TestCase):
             )
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
-                exit_code = catalog_cli.main([
+                exit_code = catalog_cli_cli.main([
                     "--state-file", str(state_file),
                     "--cache-dir", str(root / "cache"),
                     "--managed-root", str(root / "managed"),
@@ -419,7 +420,7 @@ class CatalogRuntimeTest(unittest.TestCase):
                         io.StringIO()
                     ):
                         with self.assertRaises(SystemExit) as raised:
-                            catalog_cli.main([*runtime_arguments, "stats"])
+                            catalog_cli_cli.main([*runtime_arguments, "stats"])
                     self.assertEqual(raised.exception.code, 2)
 
     def test_asset_resource_cannot_escape_owning_pack(self) -> None:
@@ -690,7 +691,7 @@ class CatalogRuntimeTest(unittest.TestCase):
             ):
                 brief = "아침 안개 속의 회색 왜가리 배달부"
                 with self.assertRaises(SystemExit) as raised:
-                    catalog_cli.main(["search", brief])
+                    catalog_cli_cli.main(["search", brief])
 
             guidance = str(raised.exception)
             for required in (
@@ -727,7 +728,7 @@ class CatalogRuntimeTest(unittest.TestCase):
                 with mock.patch.dict(os.environ, UNPAINTED):
                     with contextlib.redirect_stdout(stdout):
                         with self.assertRaises(SystemExit) as stopped:
-                            catalog_cli.main([command, "--help"])
+                            catalog_cli_cli.main([command, "--help"])
                 self.assertEqual(stopped.exception.code, 0)
                 help_by_command[command] = stdout.getvalue()
 
@@ -759,7 +760,7 @@ class CatalogRuntimeTest(unittest.TestCase):
                     return_value={"mode": "public-inspire-fixture"},
                 ) as inspire_call:
                     with contextlib.redirect_stdout(stdout):
-                        self.assertEqual(catalog_cli.main([
+                        self.assertEqual(catalog_cli_cli.main([
                             "inspire",
                             "fixture identity",
                             "--tier",
@@ -789,7 +790,7 @@ class CatalogRuntimeTest(unittest.TestCase):
                     return_value={"mode": "public-recommend-fixture"},
                 ) as recommend_call:
                     with contextlib.redirect_stdout(stdout):
-                        self.assertEqual(catalog_cli.main([
+                        self.assertEqual(catalog_cli_cli.main([
                             "recommend",
                             "fixture identity",
                             "--limit",
@@ -922,7 +923,7 @@ class CatalogRuntimeTest(unittest.TestCase):
         stdout = io.StringIO()
         with self.assertRaises(SystemExit) as stopped:
             with contextlib.redirect_stdout(stdout):
-                catalog_cli.main(["batch", "--help"])
+                catalog_cli_cli.main(["batch", "--help"])
         self.assertEqual(stopped.exception.code, 0)
         help_text = stdout.getvalue()
         example = catalog_cli.batch_help_example()
@@ -1075,7 +1076,7 @@ class CatalogRuntimeTest(unittest.TestCase):
                     wraps=catalog_cli.load_entries,
                 ) as entry_loader:
                     with contextlib.redirect_stdout(stdout):
-                        exit_code = catalog_cli.main([
+                        exit_code = catalog_cli_cli.main([
                             "batch",
                             "--input",
                             str(batch_path),
@@ -1143,7 +1144,7 @@ class CatalogRuntimeTest(unittest.TestCase):
         )
         with mock.patch.object(catalog_retrieval.runtime, "load_runtime_catalog", return_value=catalog):
             with self.assertRaisesRegex(SystemExit, "No active content pack"):
-                catalog_cli.main(["search", "fixture query"])
+                catalog_cli_cli.main(["search", "fixture query"])
 
     def test_absent_category_is_a_valid_empty_result(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1963,7 +1964,7 @@ class CatalogDiscoveryTest(unittest.TestCase):
             output = io.StringIO()
             with mock.patch.object(catalog_retrieval.runtime, "load_runtime_catalog", return_value=fixture) as loader:
                 with contextlib.redirect_stdout(output):
-                    catalog_cli.main(["batch", "--input", json.dumps(requests)])
+                    catalog_cli_cli.main(["batch", "--input", json.dumps(requests)])
             self.assertEqual(loader.call_count, 1)
             result = json.loads(output.getvalue())
             self.assertEqual([row["request_id"] for row in result["results"]], [row["request_id"] for row in requests])
@@ -2041,7 +2042,7 @@ class RetrievalRecordingTests(unittest.TestCase):
                                return_value=self.catalog):
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
                 try:
-                    code = catalog_cli.main([*runtime, *arguments])
+                    code = catalog_cli_cli.main([*runtime, *arguments])
                 except SystemExit as stopped:
                     code = stopped.code
         return code, stdout.getvalue()
@@ -2186,7 +2187,7 @@ class RetrievalRecordingTests(unittest.TestCase):
                     failure = PackError("catalog startup unavailable")
                     with mock.patch.object(catalog_cli, "begin_catalog_request", side_effect=failure):
                         with self.assertRaises(PackError) as raised:
-                            catalog_cli.main(arguments)
+                            catalog_cli_cli.main(arguments)
                     self.assertIs(raised.exception, failure)
                     value = json.loads(record.read_text(encoding="utf-8"))
                     expected = {"element": "construction", "queries": [], "inspected_records": []}
@@ -2205,7 +2206,7 @@ class RetrievalRecordingTests(unittest.TestCase):
             before = record.read_bytes()
             with mock.patch.object(catalog_cli, "begin_catalog_request", side_effect=PackError("unavailable")) as load:
                 with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as refused:
-                    catalog_cli.main(arguments)
+                    catalog_cli_cli.main(arguments)
             self.assertEqual(refused.exception.code, 2)
             load.assert_not_called()
             self.assertEqual(record.read_bytes(), before)
@@ -2238,7 +2239,7 @@ class LeftOutPackWarningTests(unittest.TestCase):
 
         core = folder / "core"
         if not core.exists():
-            copy_check_tree(Path(catalog_cli.__file__).resolve().parents[1], core)
+            copy_check_tree(Path(catalog_cli_cli.__file__).resolve().parents[1], core)
         save_state(folder / "state.json", {"pack_roots": [str(folder / "packs")],
                                            "enabled_packs": enabled})
         return subprocess.run(

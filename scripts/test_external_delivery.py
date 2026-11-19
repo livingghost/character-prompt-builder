@@ -1,5 +1,7 @@
 """Saved external media delivery, with synthetic local files and no host calls."""
 from __future__ import annotations
+import production_workflow as production_workflow_cli
+import production_fixtures as authoring_fixtures
 
 import copy
 import io
@@ -16,7 +18,8 @@ import production_external_inputs as authored
 import production_fixtures as fixtures
 from catalog_retrieval.runtime import configure_pack_runtime
 from input_evidence import InputEvidence
-from semantic_edit_plan_smoke_test import PROMPT, png, setup_plan, sync_external_prompt, write
+from semantic_edit_plan_smoke_test import (PROMPT, PROMPT_FINAL, BOARD_REFERENCE_DIRECTION,
+                                           png, setup_plan, sync_external_prompt, write)
 
 
 class DeliveryFixture:
@@ -99,6 +102,7 @@ class ExternalDeliveryTests(DeliveryFixture, unittest.TestCase):
         (self.root / 'scene.png').unlink()
         (self.root / 'design.png').unlink()
         delivery = self.delivery(binding)
+        request['prompt'] = PROMPT_FINAL
         self.assertEqual(delivery['request'], request)
         self.assertTrue(all(Path(row['file']).is_file() for row in delivery['references']))
 
@@ -161,7 +165,7 @@ class ExternalDeliveryTests(DeliveryFixture, unittest.TestCase):
 
     def test_board_delivery_keeps_one_saved_carrier_and_independent_panel_roles(self):
         import production_case_fixtures as cases
-        import prepare_generation_references as refs
+        import generation_references as refs
         cases.create(self.base / 'catalog-studio', self.base / 'runtime')
         self.plan = setup_plan(self.root)
         selected = [{'role': row['role'], 'source': {'kind': 'supplied-file',
@@ -181,8 +185,7 @@ class ExternalDeliveryTests(DeliveryFixture, unittest.TestCase):
                        do_not_transfer=reference['authority']['must_not_control'])
             field.pop('evidence')
             field.update(field=['images', 0], value=board['resolved_path'], local_file=True)
-        sync_external_prompt(self.root, self.plan,
-            'Use the scene and geometry panels of the supplied board for their assigned uses.')
+        sync_external_prompt(self.root, self.plan, BOARD_REFERENCE_DIRECTION)
         board_bytes = Path(board['resolved_path']).read_bytes()
         binding = self.capture_binding(extra=[board_bytes])
         Path(board['resolved_path']).unlink()
@@ -215,20 +218,21 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
             'criteria': [{'id': 'wall', 'strength': 'hard', 'text': 'Inspect the wall edit.'},
                          {'id': 'geometry', 'strength': 'hard', 'text': 'Inspect preserved vase geometry.'}],
             'world_views': [], 'semantic_edit': 'edit-plan.json', 'image_input': 'image-input.json'}
-        fixtures.task(self.root, task, artifact='image', execution='external')
+        fixtures.task(self.root, task, artifact='image', execution='external', focus='supporting-setting')
         for row in task['criteria']:
             row['evidence'] = 'image'
         write(self.root, 'task.json', task)
 
     def test_from_run_draft_and_preparation_keep_saved_external_inputs_without_originals(self):
         import production_inputs
-        import production_workflow as workflow
+        import production_operations as workflow
         run = workflow.prepare(self.root, 'task.json')['run']
         original = copy.deepcopy(workflow.read_run(self.root, run).consumer['image_input'])
         for name in ('scene.png', 'design.png', 'image-input.json', 'request.json',
                      'model-evidence.json', 'prompt.txt', 'edit-plan.json', 'task.json'):
             (self.root / name).unlink()
-        draft = production_inputs.draft_inputs(self.root, None, 'continued', from_run=run)
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'continued', from_run=run,
+                                                   focus='supporting-setting')
         self.assertEqual(draft['unresolved'], [], draft)
         choices = c.load(self.root / draft['choices_file'])
         for reference in choices['external']['image_input']['references']:
@@ -244,7 +248,7 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
                          [row['role'] for row in original['references']])
 
     def test_manual_claim_refuses_an_unusable_native_projection_before_committing(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         schema = {'type': 'object', 'properties': {'images': {
             'const': c.load(self.root / 'request.json')['images']}}}
         write(self.root, 'request-schema.json', schema)
@@ -260,13 +264,15 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
 
     def test_canonical_board_draft_survives_deleted_svg_sources_and_panel_carriers(self):
         import shutil
-        import prepare_generation_references as refs
+        import generation_references as refs
         import production_case_fixtures as cases
         import production_inputs
-        import production_workflow as workflow
+        import production_operations as workflow
         cases.create(self.base / 'catalog-studio', self.base / 'runtime')
         task = c.load(self.root / 'task.json')
-        for row, source, color in zip(self.plan['references'], task['sources'], ('#145064', '#781e50'), strict=True):
+        sources = {row['id']: row for row in task['sources']}
+        for row, source, color in zip(self.plan['references'], [sources['scene'], sources['geometry']],
+                                       ('#145064', '#781e50'), strict=True):
             row['file'] = row['id'] + '.svg'
             source['path'] = row['file']
             write(self.root, row['file'], ('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="24" '
@@ -288,10 +294,13 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
             self.assertNotEqual(selected['source']['sha256'], selected['transport']['sha256'])
             field.update(field=['images', 0], value=request['images'][0])
         sync_external_prompt(self.root, self.plan,
-            'Edit the scene panel wall color; preserve its camera and use the geometry panel for the vase only.')
+            'Edit the scene panel wall color. ' + BOARD_REFERENCE_DIRECTION)
         write(self.root, 'image-input.json', self.plan)
         from reading_fixtures import task_reading
         task_reading(self.root, task)
+        fixtures.bind_work_basis(self.root, task,
+            request='Edit the cafe scene panel while preserving the original vase geometry.',
+            focus='supporting-setting')
         write(self.root, 'task.json', task)
         from production_diagnostics import CompilationError
         try:
@@ -302,7 +311,8 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
                      'model-evidence.json', 'prompt.txt', 'edit-plan.json', 'task.json'):
             (self.root / name).unlink()
         shutil.rmtree(self.base / 'carriers')
-        draft = production_inputs.draft_inputs(self.root, None, 'continued-board', from_run=run)
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'continued-board', from_run=run,
+                                                   focus='supporting-setting')
         self.assertEqual(draft['unresolved'], [], draft)
         try:
             child = workflow.prepare(self.root, choices=draft['choices_file'])['run']
@@ -321,7 +331,7 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
     def test_execute_and_receive_share_saved_local_arguments_after_authoring_edits(self):
         import production_case_fixtures as cases
         import production_execution as execution
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_workspace
         run = workflow.prepare(self.root, 'task.json')['run']
         expected = production_workspace.workspace(self.root, run, phase='input')['prepared_input']
@@ -347,7 +357,7 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
 
     def test_manual_claim_command_exposes_the_same_saved_host_instruction(self):
         import production_execution as execution
-        import production_workflow as workflow
+        import production_operations as workflow
         run = workflow.prepare(self.root, 'task.json')['run']
         fixtures.handoff(self.root, run, 'synthetic-host', 'manual')
         token = fixtures.grant(self.root, run, workflow.external_intent(self.root, run, 1))
@@ -355,7 +365,7 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
         output = io.StringIO()
         with redirect_stdout(output), patch('sys.argv', ['production_workflow.py', 'claim-external',
                 '--root', str(self.root), '--run', run, '--count', '1', '--authorization', token]):
-            result = workflow.main()
+            result = production_workflow_cli.main()
         self.assertEqual(result, 0, output.getvalue())
         instruction = json.loads(output.getvalue())
         self.assertEqual(instruction['artifact_type'], 'external-execution-instruction')

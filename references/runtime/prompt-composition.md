@@ -560,7 +560,14 @@ rendition. A revision request framed as "less" or "not" still needs the intended
 remaining quality and degree, unless the requested boundary alone completely
 defines the change.
 
-Use [Revision Contract](revision-contract.md). `edit` is the default: preserve the current baseline except the requested paths and necessary, explained consistency changes. `explore` varies non-frozen axes only when a new alternative is requested. `retarget` preserves structured meaning while changing interface-specific rendition. Keeping a draft choice during a local edit does not promote it into permanent identity.
+Use [Authoring work](authoring-work.md) to compose or amend the actual candidate.
+Choose from what the request retains and reopens: an amendment carries the
+authorized changes through the selected baseline, while composition builds the
+current candidate from its requirements and sources. Apply the
+[Revision Contract](revision-contract.md) to inspect the actual change and its
+source bindings. A target conversion preserves required meaning through the
+new interface's supported wording. Retained provisional choices keep their
+existing scope.
 
 Interpret a newly supplied reference against the current request to establish
 its role, assigned properties and effect on the revision's scope. Inspect the

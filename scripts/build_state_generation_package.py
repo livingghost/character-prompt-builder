@@ -2,137 +2,11 @@
 """Build a verified generation package from concrete character state graphs in one scene."""
 from __future__ import annotations
 import operation_context as _operation_context
-
 import json
 from pathlib import Path
 from typing import Any, Sequence
-
-from build_generation_payload import (
-    TRANSPORT_MODES,
-    add_production_arguments,
-    build_payload,
-    create_cli_package_staging,
-    generation_inputs,
-    generation_package_recovery_path,
-    materialize_cli_reference_bundle,
-    prepared_run,
-    production_inputs,
-    studio_document,
-    studio_text,
-    publish_cli_generation_package,
-    remove_cli_package_staging,
-    run_inputs,
-)
-from catalog_cli import configure_pack_runtime
-from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
-from prepare_generation_references import validate_prepared_reference_set
-from state_protocol import (
-    artifact_hash,
-    validate_subject_state_graphs,
-    parse_json,
-    write_json,
-)
-
-
-def build_package(
-    *,
-    execution: str,
-    model: str,
-    prompt: str,
-    negative_prompt: str,
-    brief: str,
-    creative_intent: dict[str, Any],
-    production_spec: dict[str, Any],
-    state_graphs: list[dict[str, Any]],
-    plot: dict[str, Any],
-    parameters: dict[str, Any],
-    retrieval_record: dict[str, Any] | None = None,
-    visual_continuity: dict[str, Any] | None = None,
-    visual_root: Path | None = None,
-    request_validation: dict[str, Any] | None = None,
-    input_root: Path | None = None,
-    route_reading: dict[str, Any] | None = None,
-    reading_ledgers: list[Path] | None = None,
-    integrated_prompt: str = "",
-    native_negative: str = "",
-    negative_provenance: dict[str, Any] | None = None,
-    prepared_reference_set: dict[str, Any] | None = None,
-    prepared_reference_root: Path | None = None,
-    negative_transport: str = "auto",
-    critical_avoidance_integrated: bool = False,
-    production_root: Path | None = None,
-    production_run: str | None = None,
-) -> dict[str, Any]:
-    from prompt_retrieval import require_settled_retrieval
-    require_settled_retrieval(retrieval_record, prompt=prompt, plot=plot)
-    if production_spec.get("target_model") != model:
-        raise ValueError("package model differs from production specification target_model")
-    if prepared_reference_set is None:
-        raise ValueError(
-            "state-aware package requires a prepared reference set, including when "
-            "no references are selected"
-        )
-    reference_set = validate_prepared_reference_set(
-        prepared_reference_set,
-        model=model,
-        package_root=prepared_reference_root,
-    )
-    selection = reference_set["reference_selection"]
-    if not isinstance(selection, dict):
-        raise ValueError("state-aware package requires a finalized reference-selection")
-    state_graphs = validate_subject_state_graphs(state_graphs, production_spec=production_spec,
-        reference_selection=selection)
-    primary_hash = production_spec['state_context']['state_lineage_sha256']
-    primary = next(graph for graph in state_graphs if graph['lineage']['lineage_sha256'] == primary_hash)
-
-    payload = build_payload(
-        execution=execution,
-        plot=plot,
-        retrieval_record=retrieval_record,
-        request_validation=request_validation, input_root=input_root,
-        route_reading=route_reading,
-        visual_continuity=visual_continuity, visual_root=visual_root,
-        reading_ledgers=reading_ledgers,
-        model=model,
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        integrated_prompt=integrated_prompt,
-        native_negative=native_negative,
-        negative_provenance=negative_provenance,
-        brief=brief,
-        creative_intent=creative_intent,
-        production_spec=production_spec,
-        state_lineage=primary["lineage"],
-        state_snapshot=primary["state_snapshot"],
-        state_graphs=state_graphs,
-        prepared_reference_set=reference_set,
-        prepared_reference_root=prepared_reference_root,
-        parameters=parameters,
-        negative_transport=negative_transport,
-        critical_avoidance_integrated=critical_avoidance_integrated,
-        production_root=production_root,
-        production_run=production_run,
-    )
-    verification = verify_package(payload, package_root=prepared_reference_root,
-        studio=visual_root or production_root or prepared_reference_root, execution=execution)
-    if verification.get("verified") is not True:
-        raise ValueError(
-            "generated package failed verification: "
-            + "; ".join(verification.get("errors", []))
-        )
-    return payload
-
-
-def verify_package(
-    payload: dict[str, Any],
-    *,
-    package_root: Path | None = None,
-    studio: Path | None = None,
-    execution: str | None = None,
-) -> dict[str, Any]:
-    from verify_generation_payload import verify
-
-    return verify(payload, package_root=package_root, studio=studio, execution=execution)
+from pack_runtime_cli import add_pack_runtime_arguments
+from generation_cli_arguments import TRANSPORT_MODES, add_production_arguments
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -176,8 +50,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", required=True, help="New Generation Package file; an existing file is kept")
     add_production_arguments(parser)
     args = parser.parse_args(argv)
-    runtime = resolve_pack_runtime(parser, args)
-    configure_pack_runtime(runtime.settings)
+    import state_generation_builder as implementation
+    runtime = implementation.resolve_pack_runtime(parser, args)
+    implementation.configure_pack_runtime(runtime.settings)
     staging_root: Path | None = None
     pending_error: BaseException | None = None
     payload: dict[str, Any] | None = None
@@ -186,44 +61,44 @@ def main(argv: Sequence[str] | None = None) -> int:
         from production_binding import new_output, studio_file
         root = args.production_root.absolute()
         output_path = new_output(root, args.out, option="--out", root_option="--production-root")
-        loaded = prepared_run(root, args.production_run)
-        chosen = generation_inputs(args, root, run_inputs(loaded[1], loaded[2]))
+        loaded = implementation.prepared_run(root, args.production_run)
+        chosen = implementation.generation_inputs(args, root, implementation.run_inputs(loaded[1], loaded[2]))
         production_spec = chosen["production_spec"]
         model = args.model or production_spec.get("target_model")
         if not isinstance(model, str) or not model.strip():
             raise ValueError("the production specification names no target_model; pass --model")
 
         def graph(option: str) -> dict[str, Any] | None:
-            return studio_document(root, getattr(args, option[2:].replace("-", "_")), option)
+            return implementation.studio_document(root, getattr(args, option[2:].replace("-", "_")), option)
 
-        brief = studio_text(root, args.brief_file, "--brief-file") if args.brief_file else args.brief
+        brief = implementation.studio_text(root, args.brief_file, "--brief-file") if args.brief_file else args.brief
         staging_root, staged_json, _staged_companion_path, final_companion = (
-            create_cli_package_staging(output_path)
+            implementation.create_cli_package_staging(output_path)
         )
         references_path = studio_file(root, args.references_file, option="--references-file",
                                        root_option="--production-root").resolve(strict=True)
-        staged_reference_set, staged_companion = materialize_cli_reference_bundle(
-            studio_document(root, str(references_path), "--references-file"),
+        staged_reference_set, staged_companion = implementation.materialize_cli_reference_bundle(
+            implementation.studio_document(root, str(references_path), "--references-file"),
             model=model,
             source_root=references_path.parent,
             staging_root=staging_root,
             companion_name=final_companion.name,
         )
-        state_graphs = parse_json(studio_text(root, args.state_graphs_file, "--state-graphs-file"))
-        state_graphs = validate_subject_state_graphs(state_graphs, production_spec=production_spec,
+        state_graphs = implementation.parse_json(implementation.studio_text(root, args.state_graphs_file, "--state-graphs-file"))
+        state_graphs = implementation.validate_subject_state_graphs(state_graphs, production_spec=production_spec,
             reference_selection=staged_reference_set['reference_selection'])
         work_ids = {graph['identity_contract']['character_id']: graph['identity_contract']['character_id']
                     for graph in state_graphs}
-        derived = production_inputs(args, model=model, production_spec=production_spec,
+        derived = implementation.production_inputs(args, model=model, production_spec=production_spec,
                                     prepared_reference_set=staged_reference_set, staging_root=staging_root,
                                     work_ids=work_ids, loaded=loaded)
-        payload = build_package(
+        payload = implementation.build_package(
             execution=derived['execution'],
             model=model,
             prompt=loaded[3]["instructions"],
-            negative_prompt=studio_text(root, args.negative_file, "--negative-file"),
-            integrated_prompt=studio_text(root, args.integrated_prompt_file, "--integrated-prompt-file"),
-            native_negative=studio_text(root, args.native_negative_file, "--native-negative-file"),
+            negative_prompt=implementation.studio_text(root, args.negative_file, "--negative-file"),
+            integrated_prompt=implementation.studio_text(root, args.integrated_prompt_file, "--integrated-prompt-file"),
+            native_negative=implementation.studio_text(root, args.native_negative_file, "--native-negative-file"),
             negative_provenance=graph("--negative-provenance-file") or {},
             brief=brief,
             creative_intent=chosen['creative_intent'],
@@ -244,11 +119,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             production_root=derived["root"],
             production_run=derived["run"],
         )
-        write_json(staged_json, payload)
+        implementation.write_json(staged_json, payload)
         failure_phase = "publication"
         from route_reading import copy_issuance
         copy_issuance(derived["route_reading"], output_path.parent / "reads.jsonl", ledgers=[staging_root / "reads.jsonl"])
-        publish_cli_generation_package(
+        implementation.publish_cli_generation_package(
             output_path=output_path,
             staged_json=staged_json,
             staged_companion=staged_companion,
@@ -265,10 +140,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             if (
                 staging_root is not None
                 and staging_root.exists()
-                and generation_package_recovery_path(pending_error) is None
+                and implementation.generation_package_recovery_path(pending_error) is None
             ):
                 try:
-                    remove_cli_package_staging(staging_root)
+                    implementation.remove_cli_package_staging(staging_root)
                 except Exception as cleanup_error:
                     if pending_error is None:
                         raise
@@ -282,7 +157,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         f"{type(cleanup_error).__name__}: {cleanup_error}{location}"
                     )
         finally:
-            configure_pack_runtime(None)
+            implementation.configure_pack_runtime(None)
     if pending_error is not None:
         from production_binding import report_failure
         return report_failure(pending_error, phase=failure_phase)

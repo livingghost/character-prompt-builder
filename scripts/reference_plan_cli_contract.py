@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Derive reference-plan CLI help and examples from the canonical schema."""
 from __future__ import annotations
+from reference_contract import TRANSPORT_MODES, TECHNICAL_CAPABILITIES, normalize_selected_records
+import argparse
 
 import json
 from functools import lru_cache
@@ -163,3 +165,75 @@ __all__ = [
     "surface_lighting_argument_contract",
     "surface_lighting_schema",
 ]
+
+
+def _parse_record_use(value: str) -> dict[str, Any]:
+    if str(value).lstrip().startswith('{'):
+        try:
+            return normalize_selected_records([json.loads(value)], require_selection=True)[0]
+        except (ValueError, TypeError) as exc:
+            raise argparse.ArgumentTypeError(str(exc)) from exc
+    record_id, separator, influence = str(value).partition("=")
+    if not separator or not record_id or not influence:
+        raise argparse.ArgumentTypeError(
+            "record use must be RECORD_ID=INTENDED_INFLUENCE"
+        )
+    try:
+        from reference_contract import WholeInfluenceUse
+        return WholeInfluenceUse(normalize_selected_records(
+            [{"record_id": record_id, "intended_influence": influence}]
+        )[0])
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+def _parse_json_object(value: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise argparse.ArgumentTypeError(f"invalid JSON object: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise argparse.ArgumentTypeError("value must be a JSON object")
+    return parsed
+
+def add_reference_plan_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the canonical planning argument contract to a CLI parser."""
+    parser.add_argument(
+        "--record-use",
+        action="append",
+        type=_parse_record_use,
+        required=True,
+        help="RECORD_ID=INTENDED_INFLUENCE selects the whole influence. A JSON record use can select supported selected_controls, their control_expressions and subject_uses. Inspect capabilities before choosing a subset.",
+    )
+    parser.add_argument(
+        "--transport-mode",
+        choices=sorted(TRANSPORT_MODES),
+        default="prompt-artifacts",
+    )
+    parser.add_argument("--target-model")
+    parser.add_argument(
+        "--source-lighting-mode",
+        choices=["preserve", "rescope", "replace"],
+        required=True,
+    )
+    parser.add_argument(
+        "--light-source-json",
+        action="append",
+        type=_parse_json_object,
+        default=[],
+        help=surface_argument_help("light_source"),
+    )
+    parser.add_argument(
+        "--material-response-json",
+        action="append",
+        type=_parse_json_object,
+        default=[],
+        help=surface_argument_help("material_response"),
+    )
+    parser.add_argument("--unresolved-decision", action="append", default=[])
+    parser.add_argument("--max-assets-per-record", type=int, default=1)
+    parser.add_argument("--max-references", type=int, default=None)
+    parser.add_argument(
+        "--technical-role",
+        action="append",
+        choices=sorted(TECHNICAL_CAPABILITIES),
+    )

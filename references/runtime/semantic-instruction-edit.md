@@ -33,7 +33,7 @@ its iteration, image bytes and exact acceptance receipt. An applicable canonical
 identity remains an independently verified adopted reference.
 
 ```sh
-python scripts/production_workflow.py draft-inputs --root STUDIO --route generation --execution dispatcher \
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation amend --request-file request.txt --route generation --execution dispatcher \
   --edit-character CHARACTER --edit-slot SLOT --new-task "GOAL" --out-dir work/edit
 ```
 
@@ -95,7 +95,10 @@ Studio character. The draft selects `recurring-identity` for that separate
 adoption or for an original canonical identity reference that it carries, which
 delivers the [character identity contract](../character-identity-contract.md#source-to-input-and-review-coverage).
 An identity adoption of the edited image becomes `reference:edit-identity`, and the
-draft reports its uncovered identity and the missing whole-subject review.
+draft retains it as identity context and reports the missing whole-subject review.
+Add a source-to-input binding for a specific preservation obligation when that
+relationship needs checking; retaining the image does not require a blanket
+binding or a declaration for every feature outside the selected view.
 Select `--feature recurring-identity` yourself when the edit also applies the
 character's adopted identity definition, such as its design or identity
 contract, declared in `authoring.task.sources` with `identity.subject_ids` and
@@ -105,16 +108,17 @@ identity still has to be preserved through such a definition.
 Everything the author decides stays unanswered: the purpose and intended
 effect, the instruction text, the criteria, what changes and what stays in the
 edit plan, the recording slot, whether it is a sheet panel and the recording's
-role, the passage of the prompt that states the finish, and each identity
-binding's reason. The draft reports each as an `unresolved` entry with its
-repair. In a synthetic Studio whose fixture author adopted a robot image as the
-identity of slot `base.front`, with no work task open, this command printed the
+role, the passage of the prompt that states the finish, and the scope and reason
+of any explicit identity binding. The draft reports required unanswered choices
+as `unresolved` entries with their repair. In a synthetic Studio whose fixture
+author adopted a robot image as the identity of slot `base.front`, with no work
+task open, this command printed the
 output below. It is trimmed to `state`, selected `edit_source` fields,
 and the field and reason of each entry (the code and gaps of the
 identity entries); every entry also carries its message, repair and guidance:
 
 ```sh
-python scripts/production_workflow.py draft-inputs --root STUDIO --route generation --execution dispatcher \
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation amend --request-file request.txt --route generation --execution dispatcher \
   --edit-character robot --edit-slot base.front \
   --new-task "Replace the plain background of the adopted robot image with a pale green wall." --out-dir work/edit
 ```
@@ -140,8 +144,6 @@ python scripts/production_workflow.py draft-inputs --root STUDIO --route generat
   {"field": "task_changes.semantic_edit.edit.preserve", "reason": "authored-choice-required"},
   {"field": "task_changes.semantic_edit.review_criteria", "reason": "authored-choice-required"},
   {"field": "authoring.delivery.content", "reason": "authored-choice-required"},
-  {"field": "authoring.task.criteria", "code": "IDENTITY_COVERAGE_INCOMPLETE",
-   "gaps": {"uncovered": [{"source": "reference:edit-identity", "pointer": "", "subject_ids": ["robot"]}]}},
   {"field": "authoring.task.criteria", "code": "IDENTITY_COVERAGE_INCOMPLETE",
    "gaps": {"missing_whole_reviews": ["robot"]}}]}
 ```

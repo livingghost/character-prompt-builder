@@ -376,12 +376,14 @@ class SchemaDocument(Mapping[str, Any]):
     """
 
     _content: Mapping[str, Any] = field(repr=False)
+    _plans: dict[int, tuple[Mapping[str, Any], Any]] = field(repr=False, compare=False)
 
     def __init__(self, value: Mapping[str, Any]):
         if not isinstance(value, Mapping):
             raise ValueError("schema root must be an object")
         content = value._content if isinstance(value, SchemaDocument) else _freeze(value)
         object.__setattr__(self, "_content", content)
+        object.__setattr__(self, "_plans", {})
 
     def __getitem__(self, key: str) -> Any:
         return self._content[key]
@@ -394,6 +396,80 @@ class SchemaDocument(Mapping[str, Any]):
 
     def get(self, key: str, default: Any = None) -> Any:
         return self._content.get(key, default)
+
+    def plan(self, schema: Mapping[str, Any]):
+        """Own keyword dispatch for an immutable node, independent of instance results."""
+        key = id(schema)
+        held = self._plans.get(key)
+        if held is None or held[0] is not schema:
+            held = schema, _SchemaPlan(schema)
+            self._plans[key] = held
+        return held[1]
+
+
+_SCHEMA_ABSENT = object()
+
+
+class _SchemaPlan:
+    """The constraints present at one schema node, with lazy value evaluation.
+
+    Compiling dispatch neither reads a reference nor validates an instance.
+    Numeric conversions, regex compilation and malformed keyword values are
+    evaluated only when their original instance branch is reached.
+    """
+    __slots__ = ('reference', 'siblings', 'all_of', 'any_of', 'one_of', 'not_schema',
+                 'condition', 'then_schema', 'else_schema', 'combinations',
+                 'constant', 'enum', '_constant_key', '_enum_keys', 'expected',
+                 'string', 'numeric', 'array', 'object', 'properties', 'property_keys',
+                 'property_names', 'additional', 'dependent', 'identity')
+
+    def __init__(self, schema: Mapping[str, Any]):
+        keys = schema.keys()
+        self.reference = schema.get('$ref', _SCHEMA_ABSENT)
+        self.siblings = ({key: value for key, value in schema.items() if key != '$ref'}
+                         if self.reference is not _SCHEMA_ABSENT else None)
+        for name, keyword in (('all_of', 'allOf'), ('any_of', 'anyOf'), ('one_of', 'oneOf')):
+            branches = schema.get(keyword)
+            setattr(self, name, tuple(branch for branch in branches if isinstance(branch, Mapping))
+                    if isinstance(branches, (list, tuple)) else None)
+        for name, keyword in (('not_schema', 'not'), ('condition', 'if'),
+                              ('then_schema', 'then'), ('else_schema', 'else'),
+                              ('property_names', 'propertyNames')):
+            value = schema.get(keyword)
+            setattr(self, name, value if isinstance(value, Mapping) else None)
+        self.combinations = any(value is not None for value in
+            (self.all_of, self.any_of, self.one_of, self.not_schema, self.condition))
+        self.constant = schema.get('const', _SCHEMA_ABSENT)
+        self.enum = schema.get('enum', _SCHEMA_ABSENT)
+        self._constant_key = self._enum_keys = _SCHEMA_ABSENT
+        self.expected = schema.get('type')
+        self.string = not keys.isdisjoint(('minLength', 'maxLength', 'pattern'))
+        self.numeric = not keys.isdisjoint(('minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf'))
+        self.array = not keys.isdisjoint(('minItems', 'maxItems', 'uniqueItems', 'items', 'contains'))
+        self.object = not keys.isdisjoint(('minProperties', 'maxProperties', 'required', 'properties',
+                                          'propertyNames', 'additionalProperties', 'dependentRequired'))
+        properties = schema.get('properties', {})
+        if isinstance(properties, Mapping):
+            self.properties = tuple((name, child) for name, child in properties.items() if isinstance(child, Mapping))
+            self.property_keys = frozenset(properties)
+        else:
+            self.properties = self.property_keys = None
+        additional = schema.get('additionalProperties', True)
+        self.additional = additional if additional is False or isinstance(additional, Mapping) else None
+        dependent = schema.get('dependentRequired')
+        self.dependent = (tuple((name, needed) for name, needed in dependent.items()
+                               if isinstance(needed, (list, tuple))) if isinstance(dependent, Mapping) else ())
+        self.identity = schema.get('$id')
+
+    def constant_key(self):
+        if self._constant_key is _SCHEMA_ABSENT:
+            self._constant_key = _instance_key(self.constant, schema_value=True)
+        return self._constant_key
+
+    def enum_keys(self):
+        if self._enum_keys is _SCHEMA_ABSENT:
+            self._enum_keys = frozenset(_instance_key(item, schema_value=True) for item in self.enum)
+        return self._enum_keys
 
 
 class SchemaReferences:
@@ -813,78 +889,109 @@ def _validate_schema(
     *,
     resolver: Resolver,
     semantic_checks: SchemaChecks,
+    first_error: bool = False,
 ) -> list[str]:
-    """Evaluate one node in schema order against its owned root document."""
+    """Evaluate one node, retaining only the diagnostics its caller needs.
+
+    Alternative and condition predicates need one failure to establish a
+    mismatch. Stop that branch at its first error instead of visiting unrelated
+    descendants. Ordinary validation retains every diagnostic in schema order.
+    Both modes evaluate the current instance; plans never retain its outcome.
+    """
     root_schema = schema if _root_schema is None else _root_schema
+    plan = root_schema.plan(schema) if isinstance(root_schema, SchemaDocument) else _SchemaPlan(schema)
     errors: list[str] = []
-    if "$ref" in schema:
-        resolved, resolved_root = resolver(str(schema["$ref"]), root_schema)
-        errors.extend(_validate_schema(value, resolved, path, resolved_root, resolver=resolver, semantic_checks=semantic_checks))
-        siblings = {key: item for key, item in schema.items() if key != "$ref"}
+    if plan.reference is not _SCHEMA_ABSENT:
+        resolved, resolved_root = resolver(str(plan.reference), root_schema)
+        errors.extend(_validate_schema(value, resolved, path, resolved_root,
+            resolver=resolver, semantic_checks=semantic_checks, first_error=first_error))
+        if first_error and errors:
+            return errors
+        siblings = plan.siblings
         if siblings:
-            errors.extend(_validate_schema(value, siblings, path, root_schema, resolver=resolver, semantic_checks=semantic_checks))
+            errors.extend(_validate_schema(value, siblings, path, root_schema,
+                resolver=resolver, semantic_checks=semantic_checks, first_error=first_error))
         return errors
 
-    all_of = schema.get("allOf")
-    if isinstance(all_of, (list, tuple)):
-        for branch in all_of:
-            if isinstance(branch, Mapping):
-                errors.extend(_validate_schema(value, branch, path, root_schema, resolver=resolver, semantic_checks=semantic_checks))
+    if plan.combinations:
+        if plan.all_of is not None:
+            for branch in plan.all_of:
+                errors.extend(_validate_schema(value, branch, path, root_schema,
+                    resolver=resolver, semantic_checks=semantic_checks, first_error=first_error))
+                if first_error and errors:
+                    return errors
 
-    any_of = schema.get("anyOf")
-    if isinstance(any_of, (list, tuple)):
-        branch_errors = [
-            _validate_schema(value, branch, path, root_schema, resolver=resolver, semantic_checks=semantic_checks)
-            for branch in any_of
-            if isinstance(branch, Mapping)
-        ]
-        if not branch_errors or not any(not item for item in branch_errors):
-            errors.append(_no_alternative(path, branch_errors))
+        if plan.any_of is not None:
+            branch_errors = []
+            for branch in plan.any_of:
+                findings = _validate_schema(value, branch, path, root_schema,
+                    resolver=resolver, semantic_checks=semantic_checks, first_error=True)
+                if not findings:
+                    break
+                branch_errors.append(findings)
+            else:
+                errors.append(_no_alternative(path, branch_errors))
+                if first_error:
+                    return errors
 
-    one_of = schema.get("oneOf")
-    if isinstance(one_of, (list, tuple)):
-        branch_errors = [
-            _validate_schema(value, branch, path, root_schema, resolver=resolver, semantic_checks=semantic_checks)
-            for branch in one_of
-            if isinstance(branch, Mapping)
-        ]
-        matching = sum(1 for item in branch_errors if not item)
-        if matching == 0:
-            errors.append(_no_alternative(path, branch_errors))
-        elif matching > 1:
-            errors.append(
-                f"{path}: value matches {matching} of the {len(branch_errors)} alternatives; exactly one must match"
-            )
+        if plan.one_of is not None:
+            branch_errors = [_validate_schema(value, branch, path, root_schema,
+                resolver=resolver, semantic_checks=semantic_checks, first_error=True) for branch in plan.one_of]
+            matching = sum(1 for item in branch_errors if not item)
+            if matching == 0:
+                errors.append(_no_alternative(path, branch_errors))
+            elif matching > 1:
+                errors.append(
+                    f"{path}: value matches {matching} of the {len(branch_errors)} alternatives; exactly one must match"
+                )
+            if first_error and errors:
+                return errors
 
-    not_schema = schema.get("not")
-    if isinstance(not_schema, Mapping):
-        if not _validate_schema(value, not_schema, path, root_schema, resolver=resolver, semantic_checks=semantic_checks):
-            errors.append(f"{path}: value satisfies a forbidden schema")
+        if plan.not_schema is not None:
+            if not _validate_schema(value, plan.not_schema, path, root_schema,
+                    resolver=resolver, semantic_checks=semantic_checks, first_error=True):
+                errors.append(f"{path}: value satisfies a forbidden schema")
+                if first_error:
+                    return errors
 
-    condition = schema.get("if")
-    if isinstance(condition, Mapping):
-        branch = "then" if not _validate_schema(value, condition, path, root_schema, resolver=resolver, semantic_checks=semantic_checks) else "else"
-        consequence = schema.get(branch)
-        if isinstance(consequence, Mapping):
-            errors.extend(_validate_schema(value, consequence, path, root_schema, resolver=resolver, semantic_checks=semantic_checks))
+        if plan.condition is not None:
+            matched = not _validate_schema(value, plan.condition, path, root_schema,
+                resolver=resolver, semantic_checks=semantic_checks, first_error=True)
+            consequence = plan.then_schema if matched else plan.else_schema
+            if consequence is not None:
+                errors.extend(_validate_schema(value, consequence, path, root_schema,
+                    resolver=resolver, semantic_checks=semantic_checks, first_error=first_error))
+                if first_error and errors:
+                    return errors
 
-    if "const" in schema and _instance_key(value) != _instance_key(schema["const"], schema_value=True):
+    if plan.constant is not _SCHEMA_ABSENT and _instance_key(value) != plan.constant_key():
         errors.append(f"{path}: expected constant {_mutable(schema['const'])!r}")
-    if "enum" in schema and _instance_key(value) not in {_instance_key(item, schema_value=True) for item in schema["enum"]}:
+        if first_error:
+            return errors
+    if plan.enum is not _SCHEMA_ABSENT and _instance_key(value) not in plan.enum_keys():
         errors.append(f"{path}: value {value!r} is not in {_mutable(schema['enum'])!r}")
+        if first_error:
+            return errors
 
-    expected = schema.get("type")
+    expected = plan.expected
     if expected is not None:
-        types = list(expected) if isinstance(expected, (list, tuple)) else [expected]
-        if not any(_type_matches(value, str(item)) for item in types):
+        multiple = isinstance(expected, (list, tuple))
+        matches = (any(_type_matches(value, str(item)) for item in expected) if multiple
+                   else _type_matches(value, str(expected)))
+        if not matches:
+            types = list(expected) if multiple else [expected]
             errors.append(f"{path}: expected type {types}, got {type(value).__name__}")
             return errors
 
-    if isinstance(value, str):
+    if plan.string and isinstance(value, str):
         if len(value) < int(schema.get("minLength", 0)):
             errors.append(f"{path}: string is shorter than minLength")
+            if first_error:
+                return errors
         if "maxLength" in schema and len(value) > int(schema["maxLength"]):
             errors.append(f"{path}: string is longer than maxLength")
+            if first_error:
+                return errors
         pattern = schema.get("pattern")
         if pattern:
             expr = str(pattern)
@@ -899,96 +1006,127 @@ def _validate_schema(
                 matched = re.search(expr, value) is not None
             if not matched:
                 errors.append(f"{path}: string does not match pattern {expr!r}")
+                if first_error:
+                    return errors
 
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        if isinstance(value, float) and not math.isfinite(value):
-            errors.append(f"{path}: number must be finite")
-            return errors
+    if isinstance(value, float) and not math.isfinite(value):
+        errors.append(f"{path}: number must be finite")
+        return errors
+    if plan.numeric and isinstance(value, (int, float)) and not isinstance(value, bool):
         if "minimum" in schema and value < schema["minimum"]:
             errors.append(f"{path}: value is below minimum {schema['minimum']}")
+            if first_error:
+                return errors
         if "maximum" in schema and value > schema["maximum"]:
             errors.append(f"{path}: value is above maximum {schema['maximum']}")
+            if first_error:
+                return errors
         if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
             errors.append(f"{path}: value is not above {schema['exclusiveMinimum']}")
+            if first_error:
+                return errors
         if "exclusiveMaximum" in schema and value >= schema["exclusiveMaximum"]:
             errors.append(f"{path}: value is not below {schema['exclusiveMaximum']}")
+            if first_error:
+                return errors
         step = schema.get("multipleOf")
         if isinstance(step, (int, float)) and not isinstance(step, bool) and step > 0:
             quotient = value / step
             if abs(quotient - round(quotient)) > 1e-9:
                 errors.append(f"{path}: value is not a multiple of {step}")
+                if first_error:
+                    return errors
 
-    if isinstance(value, list):
+    if plan.array and isinstance(value, list):
         if len(value) < int(schema.get("minItems", 0)):
             errors.append(f"{path}: array is shorter than minItems")
+            if first_error:
+                return errors
         if "maxItems" in schema and len(value) > int(schema["maxItems"]):
             errors.append(f"{path}: array is longer than maxItems")
+            if first_error:
+                return errors
         contains = schema.get("contains")
-        if isinstance(contains, Mapping) and not any(
-            not _validate_schema(item, contains, f"{path}[{index}]", root_schema, resolver=resolver, semantic_checks=semantic_checks)
+        if contains is not None and isinstance(contains, Mapping) and not any(
+            not _validate_schema(item, contains, f"{path}[{index}]", root_schema,
+                resolver=resolver, semantic_checks=semantic_checks, first_error=True)
             for index, item in enumerate(value)
         ):
             errors.append(f"{path}: no item satisfies contains")
+            if first_error:
+                return errors
         if schema.get("uniqueItems"):
             keys = [_instance_key(item) for item in value]
             if len(keys) != len(set(keys)):
                 errors.append(f"{path}: array items are not unique")
+                if first_error:
+                    return errors
         item_schema = schema.get("items")
-        if isinstance(item_schema, Mapping):
+        if item_schema is not None and isinstance(item_schema, Mapping):
             for index, item in enumerate(value):
                 errors.extend(
-                    _validate_schema(item, item_schema, f"{path}[{index}]", root_schema, resolver=resolver, semantic_checks=semantic_checks)
+                    _validate_schema(item, item_schema, f"{path}[{index}]", root_schema,
+                        resolver=resolver, semantic_checks=semantic_checks, first_error=first_error)
                 )
+                if first_error and errors:
+                    return errors
 
-    if isinstance(value, dict):
+    if plan.object and isinstance(value, dict):
         if len(value) < int(schema.get("minProperties", 0)):
             errors.append(f"{path}: object has fewer properties than minProperties")
+            if first_error:
+                return errors
         if "maxProperties" in schema and len(value) > int(schema["maxProperties"]):
             errors.append(f"{path}: object has more properties than maxProperties")
+            if first_error:
+                return errors
         required = schema.get("required", [])
         for name in required:
             if name not in value:
                 errors.append(f"{path}: missing required property {name!r}")
-        dependent = schema.get("dependentRequired")
-        if isinstance(dependent, Mapping):
-            for name, needed in dependent.items():
-                if name in value and isinstance(needed, (list, tuple)):
-                    for other in needed:
-                        if other not in value:
-                            errors.append(f"{path}: {name!r} requires {other!r}")
-        properties = schema.get("properties", {})
-        if isinstance(properties, Mapping):
-            for name, child_schema in properties.items():
-                if name in value and isinstance(child_schema, Mapping):
-                    errors.extend(
-                        _validate_schema(value[name], child_schema, f"{path}.{name}", root_schema, resolver=resolver, semantic_checks=semantic_checks)
-                    )
-        property_names = schema.get("propertyNames")
-        if isinstance(property_names, Mapping):
+                if first_error:
+                    return errors
+        for name, needed in plan.dependent:
+            if name in value:
+                for other in needed:
+                    if other not in value:
+                        errors.append(f"{path}: {name!r} requires {other!r}")
+                        if first_error:
+                            return errors
+        if plan.properties is not None:
+            for name, child_schema in plan.properties:
+                if name in value:
+                    errors.extend(_validate_schema(value[name], child_schema, f"{path}.{name}", root_schema,
+                        resolver=resolver, semantic_checks=semantic_checks, first_error=first_error))
+                    if first_error and errors:
+                        return errors
+        if plan.property_names is not None:
             for name in value:
-                errors.extend(
-                    _validate_schema(
-                        str(name), property_names, f"{path}.<property-name:{name}>", root_schema,
-                        resolver=resolver, semantic_checks=semantic_checks
-                    )
-                )
-        if isinstance(properties, Mapping):
-            extras = sorted(set(value) - set(properties))
-            additional = schema.get("additionalProperties", True)
-            if additional is False and extras:
-                errors.append(f"{path}: unexpected properties {extras}; permitted properties {sorted(properties)}")
-            elif isinstance(additional, Mapping):
+                errors.extend(_validate_schema(str(name), plan.property_names, f"{path}.<property-name:{name}>", root_schema,
+                    resolver=resolver, semantic_checks=semantic_checks, first_error=first_error))
+                if first_error and errors:
+                    return errors
+        additional = plan.additional
+        if additional is not None and plan.property_keys is not None:
+            extras = sorted(set(value) - plan.property_keys)
+            if additional is False:
+                if extras:
+                    errors.append(f"{path}: unexpected properties {extras}; permitted properties {sorted(plan.property_keys)}")
+                    if first_error:
+                        return errors
+            else:
                 for name in extras:
-                    errors.extend(
-                        _validate_schema(value[name], additional, f"{path}.{name}", root_schema, resolver=resolver, semantic_checks=semantic_checks)
-                    )
+                    errors.extend(_validate_schema(value[name], additional, f"{path}.{name}", root_schema,
+                        resolver=resolver, semantic_checks=semantic_checks, first_error=first_error))
+                    if first_error and errors:
+                        return errors
 
-    identity = schema.get("$id")
+    identity = plan.identity
     if not errors and isinstance(identity, str):
         check = semantic_checks.get(identity)
         if check is not None:
             errors.extend(check(value, path))
-    return errors
+    return errors[:1] if first_error else errors
 
 
 

@@ -26,10 +26,10 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
-import catalog_cli
+import catalog_api as catalog_cli
 import execution_contract as c
 import pack_manager as pm
-import studio
+import studio_workspace as studio
 from prompt_plot import content_sha256
 
 MODEL = 'walkthrough-synthetic-image'
@@ -218,6 +218,9 @@ def run(out: Path) -> dict:
                      '--prompt-expression','Photographic portrait.','--out',str(root/'render-intent.json'))
             walk.run('production_spec','draft',str(root/'production-spec.json'),'--render-intent',str(root/'render-intent.json'),
                      '--model',MODEL,'--brief',BRIEF,'--kind','human','--continuity','one-off')
+            specification=c.load(root/'production-spec.json')
+            specification['subjects'][0]['identity']='An adult woman wearing a green raincoat.'
+            write(root/'production-spec.json',specification)
             write(root/'parameters.json',{'width':832,'height':1248,'settings':{'quality':'medium'}})
             write(root/'creative-intent.json',{'image_promise':'An explicitly synthetic preview of a quiet rainy-day portrait.'})
             # The fixture helper delivers the complete current contract.
@@ -230,10 +233,12 @@ def run(out: Path) -> dict:
                 'delivery':{'path':'prompt.txt','translation_notes':'The prompt is sent exactly as authored, including its final newline.'},
                 'criteria':[{'id':'framing','strength':'hard','evidence':'image','text':'One woman in a green raincoat, waist-up, at a bus stop in light rain.'}],
                 'direction':{'purpose':'Preview the request for one one-off portrait.','intended_effect':'A quiet readable rainy-day portrait.',
-                             'basis':[],'decisions':[],'action_slice':None,'limitations':[SYNTHETIC]},
+                             'basis':[],'decisions':[],'source_allowances':[],'action_slice':None,'limitations':[SYNTHETIC]},
                 'generation':{'parameters':'parameters.json','production_spec':'production-spec.json','plot':'plot.json','retrieval_record':'retrieval.json',
                               'creative_intent':'creative-intent.json','service':SERVICE,'count':1,'seed':None,'continuity':{'C01':'one-off'}},
                 'recording':{'character':'C01','slot':'explore','subject_map':{},'sheet_panel':False,'role':'walkthrough-preview'}}
+            import production_fixtures
+            production_fixtures.bind_work_basis(root,task,request=BRIEF)
             write(root/'task.json',task)
             prepared=json.loads(walk.run('production_workflow','prepare','--root',str(root),'--task','task.json',*runtime))
             run_id=prepared['run'];directory=Path(prepared['package']).parent

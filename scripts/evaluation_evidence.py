@@ -6,6 +6,7 @@ Add --blind to export media-only review cards, with the operator key outside the
 No model is called. Missing observations and measurements are never invented.
 """
 from __future__ import annotations
+import read_context
 import operation_context as _operation_context
 
 import argparse
@@ -20,8 +21,7 @@ from typing import Any
 
 import artifact_review as review
 import execution_contract as c
-import runtime_snapshot
-import production_workflow as workflow
+import production_operations as workflow
 
 
 def _rows(value: Any, label: str, *, nonempty: bool = True) -> list[dict]:
@@ -226,7 +226,7 @@ def _page(title: str, body: str) -> bytes:
             + html.escape(title) + '</h1>' + body + '</body></html>\n').encode('utf-8')
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def export(root: Path, study_path: str, out: str, *, blind: bool = False) -> dict:
     root = review.studio_root(root)
     result, cards, files = build(root, study_path)

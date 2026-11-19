@@ -5,9 +5,10 @@ journal records transitions, never grants authority. Projection failures do not
 undo a committed transition or turn it into a reason to submit another request.
 """
 from __future__ import annotations
+import read_context
 
 from datetime import datetime, timezone
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, ExitStack
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import wraps
@@ -19,7 +20,7 @@ import threading
 import uuid
 
 import execution_contract as c
-import runtime_snapshot
+from owned_json import freeze, mutable
 
 
 ALL_VIEWS = frozenset({'gallery', 'active-references', 'story-timeline', 'activity-timeline'})
@@ -44,24 +45,38 @@ _PUBLICATIONS: ContextVar[dict[tuple[int, int, str], _Publication] | None] = Con
     'studio_projection_publications', default=None)
 
 
+def _activity_values(root: Path) -> dict | None:
+    """Retain immutable activity values acquired or emitted by this operation."""
+    scope = read_context.call_scope()
+    if scope is None:
+        return None
+    key = ('studio-activity-inputs', str(root.resolve()))
+    return scope.setdefault(key, {'events': {}, 'written_events': set(), 'receipts': {}})
+
+
+def owned_events(root: Path) -> frozenset[Path]:
+    """Identify this operation's emissions when reconciling another writer."""
+    values = _activity_values(root)
+    return frozenset() if values is None else frozenset(values['written_events'])
+
+
 def artwork_owner(root: Path, out: Path | None = None) -> Path:
-    """Gallery and active references share one publication and one decoded model."""
-    root = root.resolve()
-    output = Path(out or root / 'gallery.html').absolute().resolve()
-    if output == root / 'gallery.html':
-        return root / 'work/activity/publications/artwork'
-    return output.parent / ('.' + output.name + '.publication')
+    """The gallery's existing ownership document also orders its publishers."""
+    import studio_workspace as studio
+    from studio_gallery import output_owner
+    return output_owner(root, studio.manifest(root)['studio_id'], out)
 
 
 @contextmanager
 def publication(owner: Path):
-    """Order one display's readers, publishers and receipt acknowledgements.
+    """Order a display through the actual file that owns its published data.
 
     Canonical Studio writers and read-only consumers do not acquire this owner.
-    Nested publishers share the fresh read boundary established after admission.
+    Nested publishers share the operation's owned inputs. Admission orders
+    output writes; it does not turn saved observations back into new inputs.
     """
     identity = os.getpid(), threading.get_ident(), str(owner.resolve())
-    with c.lock(owner):
+    with c.file_lock(owner):
         held = _PUBLICATIONS.get() or {}
         if identity in held and held[identity].active:
             yield False
@@ -69,7 +84,7 @@ def publication(owner: Path):
         admission = _Publication()
         token = _PUBLICATIONS.set({**held, identity: admission})
         try:
-            with runtime_snapshot.public_call(fresh=True):
+            with read_context.public_call():
                 yield True
         finally:
             # A copied context cannot prolong an owner's completed admission.
@@ -78,14 +93,97 @@ def publication(owner: Path):
 
 
 def publication_read(root: Path, read=None):
-    """Begin a model only after its publisher has captured pending receipts."""
-    import studio
+    """Reconcile other writers after admission, then keep the operation's model."""
+    import studio_workspace as studio
+    import production_store as store
+    store.refresh_observation(root)
+    studio._reconcile_written_iterations(root)
+    scope = read_context.check_scope(root)
+    key = ('studio-publication-model', str(root.resolve()))
     if read is None:
-        return studio.StudioRead(root)
+        read = scope.get(key) if scope is not None else None
+        if read is None:
+            read = studio.StudioRead(root)
     if read.root != root.resolve():
         raise ValueError('Studio read model belongs to another Studio')
-    read.reload()
+    read.refresh()
+    if scope is not None:
+        scope[key] = read
     return read
+
+
+@contextmanager
+def reference_publication(root: Path, characters: set[str] | None, *, read=None):
+    """Acquire affected reference outputs before their shared current model.
+
+    A first output contains its actual calculated index. Canonical writers use
+    their own files, so they can commit while display publishers are waiting.
+    """
+    import studio_workspace as studio
+    if read is not None:
+        read.require_root(root)
+    else:
+        scope = read_context.check_scope(root)
+        read = scope.get(('studio-publication-model', str(root.resolve()))) if scope is not None else None
+        if read is None:
+            read = studio.StudioRead(root)
+    while True:
+        initial = set(read.characters)
+        selected = initial if characters is None else initial & characters
+        errors = []
+        missing = []
+        with ExitStack() as owners:
+            for character in sorted(selected):
+                path = studio.character_dir(root, character) / 'sheet/active-references.json'
+                try:
+                    owners.enter_context(publication(path))
+                except FileNotFoundError:
+                    missing.append((character, path))
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    errors.append({'projection': 'active-references', 'character': character,
+                                   'message': str(exc)})
+            # First publications also keep their operation's owned values.
+            owners.enter_context(read_context.public_call())
+            current = publication_read(root, read)
+            observed = set(current.characters) if characters is None else set(current.characters) & characters
+            if observed != selected:
+                # Release the complete ordered set before acquiring a changed
+                # character set; a new name may sort before one already held.
+                continue
+            initialized = set()
+            contested = False
+            for character, path in missing:
+                try:
+                    c.atomic(path, c.encoded(current.reference_index(character)))
+                except FileExistsError:
+                    # A first publisher completed while this model was built.
+                    # Its new file becomes an ordinary owner on the next pass.
+                    contested = True
+                    break
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    errors.append({'projection': 'active-references', 'character': character,
+                                   'message': str(exc)})
+                else:
+                    initialized.add(character)
+            if contested:
+                continue
+            # These complete first publications already contain this model's
+            # index. Replacing them again could erase a later publisher.
+            yield current, errors, initialized
+            return
+
+
+def timeline_owner(root: Path) -> Path:
+    """Initialize the real generated journal with the currently recorded events."""
+    target = root / 'work/activity/timeline.jsonl'
+    if not target.is_file():
+        rows, _ = read_events(root)
+        raw = b''.join((json.dumps(row, ensure_ascii=False, sort_keys=True) + '\n').encode('utf-8') for row in rows)
+        try:
+            c.atomic(target, raw)
+        except FileExistsError:
+            pass
+    return target
 
 
 def _dirty_receipts(root: Path, view: str) -> list[Path]:
@@ -95,7 +193,7 @@ def _dirty_receipts(root: Path, view: str) -> list[Path]:
 
 
 def _character_scope(value) -> set[str] | None:
-    import studio
+    import studio_workspace as studio
     if value is None:
         return None
     if not isinstance(value, (set, frozenset, list, tuple)) or any(not studio.valid_character_id(item) for item in value):
@@ -108,13 +206,36 @@ def _receipt_characters(paths: list[Path]) -> set[str] | None:
     selected: set[str] = set()
     complete = False
     for path in paths:
-        raw = c.read(path)
+        values = _activity_values(path.parents[4])
+        if values is not None and path in values['receipts']:
+            names = values['receipts'][path]
+            if names is None:
+                complete = True
+            else:
+                selected.update(names)
+            continue
+        try:
+            raw = c.read(path)
+        except (FileNotFoundError, ValueError):
+            # c.read's regular-file check can observe the deletion before its
+            # open and report ValueError. Only absence of this immutable
+            # receipt means another publisher consumed it. Corrupt files,
+            # directories and dangling symbolic links retain their error.
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                continue
+            raise
         if not raw:
+            if values is not None:
+                values['receipts'][path] = None
             complete = True
             continue
         value = c.decode(raw)
         c.exact(value, {'characters'}, 'artwork projection receipt')
         names = _character_scope(value['characters'])
+        if values is not None:
+            values['receipts'][path] = None if names is None else frozenset(names)
         if names is None:
             complete = True
         else:
@@ -166,7 +287,7 @@ def operation(root: Path):
     update = _Update()
     token = _UPDATES.set({**updates, key: update})
     try:
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             try:
                 yield update.result
             finally:
@@ -202,11 +323,14 @@ def mutation(function=None, *, receipt: bool = True):
     def call(path, *args, **kwargs):
         root = scope(path)
         with operation(root) as projection:
-            runtime_snapshot.invalidate_studio(root)
             try:
                 result = function(path, *args, **kwargs)
-            finally:
-                runtime_snapshot.invalidate_studio(root)
+            except BaseException:
+                # A filesystem mutation may have committed a partial result
+                # before raising. Successful writers publish their own change;
+                # an unchanged retry does not end the operation's read phase.
+                read_context.invalidate_studio(root)
+                raise
         return project_result(result, projection) if receipt and isinstance(result, dict) else result
     return call
 
@@ -225,7 +349,7 @@ def chronological(value: str | None) -> float:
 
 
 def scope(path: Path) -> Path:
-    import studio
+    import studio_workspace as studio
     selected = path if path.is_dir() else path.parent
     return studio.studio_root(selected.resolve()) or selected.resolve()
 
@@ -239,8 +363,10 @@ def event(root: Path, kind: str, subject: str, *, revision: str | None = None,
     characters = _character_scope(characters)
     identity = c.content_id({'kind': kind, 'subject': subject, 'revision': revision}) if revision else uuid.uuid4().hex
     target = c.local(root, f'work/activity/events/{identity[:2]}/{identity}.json', exists=False)
+    owned = _activity_values(root)
     if target.exists():
-        value = c.load(target)
+        value = (mutable(owned['events'][target])
+                 if owned is not None and target in owned['events'] else c.load(target))
     else:
         value = {'event_id': identity, 'at': at or timestamp(), 'event': kind, 'subject': subject,
                  'revision': revision, 'operation_id': current_operation_id(),
@@ -250,6 +376,11 @@ def event(root: Path, kind: str, subject: str, *, revision: str | None = None,
         except FileExistsError:
             # Exclusive publication is the arbitration point for concurrent retries.
             value = c.load(target)
+        else:
+            if owned is not None:
+                owned['written_events'].add(target)
+    if owned is not None:
+        owned['events'][target] = freeze(value)
     # Every emission owns its receipts, including an idempotent event retry.
     # A retry during projection must not merge into the receipt being consumed.
     receipt = identity + '-' + uuid.uuid4().hex
@@ -259,9 +390,15 @@ def event(root: Path, kind: str, subject: str, *, revision: str | None = None,
         try:
             raw = (c.encoded({'characters': sorted(characters)})
                    if characters is not None and view in {'gallery', 'active-references'} else b'')
-            c.atomic(root / 'work/activity/dirty' / view / receipt, raw)
+            receipt_path = root / 'work/activity/dirty' / view / receipt
+            c.atomic(receipt_path, raw)
         except FileExistsError:
             pass
+        else:
+            if owned is not None:
+                owned['receipts'][receipt_path] = (
+                    frozenset(characters) if characters is not None and view in {'gallery', 'active-references'}
+                    else None)
     dirty = root / 'work/activity/projections-pending.json'
     c.atomic_write_json(dirty, {'event_id': identity, 'at': value['at']})
     return value
@@ -269,17 +406,21 @@ def event(root: Path, kind: str, subject: str, *, revision: str | None = None,
 
 def read_events(root: Path) -> tuple[list[dict], list[dict]]:
     rows, diagnostics = [], []
+    owned = _activity_values(root)
     directory = root / 'work/activity/events'
     for path in sorted(directory.glob('*/*.json')):
         try:
-            value = c.load(path)
+            value = (owned['events'][path]
+                     if owned is not None and path in owned['events'] else c.load(path))
             if not isinstance(value, dict) or value.get('event_id') != path.stem:
                 raise ValueError('event identifier differs from its file')
             if any(not isinstance(value.get(key), str) or not value[key] for key in ('at', 'event', 'subject')):
                 raise ValueError('event time, kind and subject must be nonempty strings')
             if chronological(value['at']) == float('-inf') or not isinstance(value.get('details'), dict):
                 raise ValueError('event needs a timezone-aware time and object details')
-            rows.append(value)
+            if owned is not None:
+                owned['events'][path] = freeze(value)
+            rows.append(mutable(value))
         except (ValueError, OSError, KeyError) as exc:
             diagnostics.append({'path': path.relative_to(root).as_posix(), 'message': str(exc)})
     rows.sort(key=lambda row: (chronological(row.get('at')), row['event_id']))
@@ -288,7 +429,7 @@ def read_events(root: Path) -> tuple[list[dict], list[dict]]:
 
 def write_timeline(root: Path) -> dict:
     """JSONL and Markdown are displays of immutable event records, not another authority."""
-    with publication(root / 'work/activity/publications/activity-timeline'):
+    with publication(timeline_owner(root)):
         return _write_timeline(root)
 
 
@@ -308,11 +449,11 @@ def _write_timeline(root: Path) -> dict:
     return {'events': len(rows), 'diagnostics': diagnostics}
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def refresh(root: Path, *, read=None, views=None, scoped: bool = False,
             current_only: bool = False) -> dict:
     """Rebuild independent displays; one unavailable view cannot undo committed work."""
-    import studio
+    import studio_workspace as studio
     root = root.resolve()
     selected = set(ALL_VIEWS if views is None else views)
     if selected - ALL_VIEWS:
@@ -348,25 +489,40 @@ def refresh(root: Path, *, read=None, views=None, scoped: bool = False,
         except (ValueError, OSError) as exc:
             present = False
             projection_errors.extend({'projection': view, 'message': str(exc)} for view in sorted(artwork))
-        with publication(artwork_owner(root)) if present else nullcontext():
+        with ExitStack() as owners:
+            gallery_ready = 'gallery' in artwork
+            gallery_owner = None
+            initialized_references = set()
             if present:
-                # Capture again after admission, before loading the fresh model.
-                dirty = {view: _dirty_receipts(root, view) for view in artwork}
+                if gallery_ready:
+                    try:
+                        gallery_owner = artwork_owner(root)
+                        owners.enter_context(publication(gallery_owner))
+                        dirty['gallery'] = _dirty_receipts(root, 'gallery')
+                    except (ValueError, OSError, KeyError, TypeError) as exc:
+                        gallery_ready = False
+                        projection_errors.append({'projection': 'gallery', 'message': str(exc)})
                 try:
-                    read = publication_read(root, read) if (root / studio.MANIFEST).is_file() else None
+                    if 'active-references' in artwork:
+                        affected = _receipt_characters(dirty['active-references']) if scoped and not current_only else None
+                        read, errors, initialized_references = owners.enter_context(
+                            reference_publication(root, affected, read=read))
+                        projection_errors.extend(errors)
+                    else:
+                        read = publication_read(root, read) if (root / studio.MANIFEST).is_file() else None
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     read = None
                     projection_errors.extend({'projection': view, 'message': str(exc)} for view in sorted(artwork))
             else:
                 read = None
             if read is not None:
-                if 'gallery' in artwork:
+                if gallery_ready:
                     try:
                         affected = _receipt_characters(dirty['gallery']) if scoped or current_only else None
                         studio.write_gallery(root, read=read,
                             characters=affected if scoped and not current_only else None,
                             current_only=current_only and affected is not None,
-                            full_characters=affected)
+                            full_characters=affected, publication_owner=gallery_owner)
                     except (ValueError, OSError, KeyError, TypeError) as exc:
                         projection_errors.append({'projection': 'gallery', 'message': str(exc)})
                 if 'active-references' in artwork:
@@ -375,8 +531,11 @@ def refresh(root: Path, *, read=None, views=None, scoped: bool = False,
                     except (ValueError, OSError, KeyError, TypeError) as exc:
                         projection_errors.append({'projection': 'active-references', 'message': str(exc)})
                     else:
+                        unavailable = {error.get('character') for error in projection_errors
+                                       if error.get('projection') == 'active-references'}
                         for character in read.characters:
-                            if affected is not None and character not in affected:
+                            if (character in unavailable or character in initialized_references
+                                    or (affected is not None and character not in affected)):
                                 continue
                             try:
                                 reference_view = studio.character_dir(root, character) / 'sheet/active-references.json'
@@ -396,22 +555,20 @@ def refresh(root: Path, *, read=None, views=None, scoped: bool = False,
         except (ValueError, OSError, KeyError, TypeError) as exc:
             configured = False
             projection_errors.append({'projection': 'story-timeline', 'message': str(exc)})
-        # No output means no publisher to exclude. A configured story uses its
-        # existing owner and rechecks the source after admission.
-        with publication(root / '.timeline.publication') if configured else nullcontext():
-            if configured:
-                paths = _dirty_receipts(root, 'story-timeline')
-                try:
-                    if story_timeline.configured(root):
-                        story = story_timeline.refresh(root)
-                        if not story['ok']:
-                            projection_errors.append({'projection': 'story-timeline', **story})
-                except (ValueError, OSError, KeyError, TypeError) as exc:
-                    projection_errors.append({'projection': 'story-timeline', 'message': str(exc)})
-            _acknowledge(root, 'story-timeline', paths, projection_errors)
+        # The story publisher owns its actual self-contained HTML. Captured
+        # receipts precede its fresh input read; later emissions stay pending.
+        if configured:
+            try:
+                if story_timeline.configured(root):
+                    story = story_timeline.refresh(root)
+                    if not story['ok']:
+                        projection_errors.append({'projection': 'story-timeline', **story})
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                projection_errors.append({'projection': 'story-timeline', 'message': str(exc)})
+        _acknowledge(root, 'story-timeline', paths, projection_errors)
     timeline = None
     if 'activity-timeline' in selected:
-        with publication(root / 'work/activity/publications/activity-timeline'):
+        with publication(timeline_owner(root)):
             # Include the story projection's event in this same refresh.
             paths = _dirty_receipts(root, 'activity-timeline')
             try:
@@ -463,7 +620,7 @@ def changed(path: Path, kind: str, *, subject: str | None = None, revision: str 
         if len(relative) >= 2 and relative[0] == 'characters':
             characters = {relative[1]}
     characters = _character_scope(characters)
-    runtime_snapshot.invalidate_studio(root)
+    read_context.invalidate_studio(root)
     selected = set(ALL_VIEWS if views is None else views)
     update = (_UPDATES.get() or {}).get(str(root.resolve()))
     from operation_context import current

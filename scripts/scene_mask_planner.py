@@ -269,7 +269,8 @@ def check_task(root: Path, task: dict, binding: dict, *, read: Callable) -> dict
         raise ValueError('Scene mask binding requires dispatched still-image generation.')
     result = validate_binding(root, binding, read=read)
     source = result['bundle']['definition']['source']
-    if not any(row['path'] == source['path'] and row['disposition'] == 'applied' for row in task['sources']):
+    if not any(row['disposition'] == 'applied' and c.digest(read(row['path'])) == source['sha256']
+               for row in task['sources']):
         raise ValueError('Declare the mask source as an applied production source.')
     return result
 

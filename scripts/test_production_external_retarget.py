@@ -1,5 +1,6 @@
 """Retarget exact external requests while retaining applicable authored evidence."""
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 
 import copy
 from pathlib import Path
@@ -8,14 +9,15 @@ import unittest
 from unittest.mock import patch
 
 import execution_contract as c
+import authoring_work
 from catalog_retrieval.runtime import configure_pack_runtime
 import production_fixtures as fixtures
 import production_inputs as inputs
 import production_store as store
 import production_variation as variation
-import production_workflow as workflow
+import production_operations as workflow
 from production_diagnostics import ProductionError
-from semantic_edit_plan_smoke_test import PROMPT, TARGET, setup_plan, write
+from semantic_edit_plan_smoke_test import PROMPT, PROMPT_FINAL, TARGET, setup_plan, write
 import transport_synthetic
 import work_ledger
 
@@ -51,22 +53,18 @@ class ExternalRetargetTests(unittest.TestCase):
             'criteria': [{'id': 'wall', 'strength': 'hard', 'text': 'Inspect the requested wall color change.'},
                          {'id': 'geometry', 'strength': 'hard', 'text': 'Inspect the preserved vase geometry.'}],
             'world_views': [], 'semantic_edit': 'edit-plan.json', 'image_input': 'image-input.json'}
-        fixtures.task(self.root, task, artifact='image', execution='external')
+        self.request = 'Compare the explicitly selected external interface while preserving the supplied vase-scene edit and reference uses.'
+        fixtures.current_request(self.root, self.request)
+        fixtures.task(self.root, task, artifact='image', execution='external', focus='supporting-setting')
         for criterion in task['criteria']:
             criterion['evidence'] = 'image'
         task['direction'].update(purpose='Retain the authored edit and preservation scope across the interface choice.',
             basis=['brief'], decisions=[{
-                'id': 'expression', 'question': 'Which depiction should be carried forward?', 'importance': 'material',
-                'basis': ['brief'], 'options': [
-                    {'id': 'preserve-scene', 'expression': 'Preserve the existing scene and object geometry.',
-                        'realization': {'method': 'authored instruction', 'instructions': PROMPT,
-                            'capability_source': None, 'limitations': ['Synthetic fixture only.']},
-                        'tradeoffs': ['Requires the accepted scene and construction reference.']},
-                    {'id': 'recompose', 'expression': 'Recompose the room around the same vase.',
-                        'realization': {'method': 'authored instruction', 'instructions': 'Recompose the room.',
-                            'capability_source': None, 'limitations': ['Outside the selected preservation scope.']},
-                        'tradeoffs': ['Would change the camera framing.']}],
-                'selected': 'preserve-scene', 'reason': 'The synthetic commission fixes the framing.',
+                'id': 'expression', 'basis': ['brief'],
+                'expression': 'Preserve the existing scene and object geometry.',
+                'realization': {'method': 'authored instruction', 'instructions': PROMPT,
+                    'capability_source': None, 'limitations': ['Synthetic fixture only.']},
+                'note': 'The synthetic commission fixes the framing.',
                 'criteria': ['wall', 'geometry'], 'depends_on': [], 'deviations': []}])
         write(self.root, 'task.json', task)
         self.task = task
@@ -75,7 +73,8 @@ class ExternalRetargetTests(unittest.TestCase):
         self.loaded = workflow.read_run(self.root, self.run)
 
     def draft(self):
-        result = inputs.draft_inputs(self.root, None, 'edit', from_run=self.run)
+        result = authoring_fixtures.authoring_inputs(self.root, None, 'edit', from_run=self.run,
+                                                     focus='supporting-setting')
         self.assertEqual(result['unresolved'], [], result)
         return result['choices_file'], c.load(self.root / result['choices_file'])
 
@@ -95,7 +94,8 @@ class ExternalRetargetTests(unittest.TestCase):
         parent_files = {path.relative_to(self.loaded.directory).as_posix(): path.read_bytes()
             for path in self.loaded.directory.rglob('*') if path.is_file()}
         choices_path, choices = self.draft()
-        inherited = copy.deepcopy(choices)
+        basis_path = Path(choices_path).parent / 'work-basis.json'
+        inherited_basis = c.load(self.root / basis_path)
         self.choose(choices, model='vendor:example-editor@2')
         write(self.root, choices_path, choices)
         result = variation.retarget(self.root, self.run, choices=choices_path,
@@ -104,10 +104,16 @@ class ExternalRetargetTests(unittest.TestCase):
         request = child.artifacts['execution-plan.json']['request']
         self.assertEqual(request['model'], 'vendor:example-editor@2')
         self.assertEqual(request['operation'], TARGET['operation'])
-        self.assertEqual(request['prompt'], PROMPT)
+        self.assertEqual(request['prompt'], PROMPT_FINAL)
         self.assertEqual(request['images'], ['synthetic-scene', 'synthetic-design'])
         self.assertEqual(child.prepared['task']['criteria'], self.task['criteria'])
-        self.assertEqual(child.prepared['task']['direction'], self.task['direction'])
+        expected_direction = copy.deepcopy(self.loaded.prepared['task']['direction'])
+        request_id = 'request:' + c.digest(self.request.encode('utf-8'))
+        expected_direction['basis'].append(request_id)
+        self.assertEqual(child.prepared['task']['direction'], expected_direction)
+        request_source = next(row for row in child.prepared['task']['sources'] if row['id'] == request_id)
+        self.assertEqual((self.root / request_source['path']).read_text(encoding='utf-8'),
+                         self.request)
         self.assertEqual(child.prepared['authority']['grants'], self.loaded.prepared['authority']['grants'])
         old_references = self.loaded.consumer['image_input']['references']
         references = child.consumer['image_input']['references']
@@ -133,11 +139,15 @@ class ExternalRetargetTests(unittest.TestCase):
             self.assertEqual((self.root / evidence['path']).read_bytes(), upload)
             self.assertEqual(child.evidence.read(evidence['sha256']), upload)
         self.assertEqual(child.consumer['semantic_edit']['edit'], self.loaded.consumer['semantic_edit']['edit'])
-        self.assertEqual(inherited['authoring']['sources']['model-card'], choices['authoring']['sources']['model-card'])
+        dependency = next(row for row in child.prepared['dependencies'] if row['path'] == basis_path.as_posix())
+        captured_basis = c.decode(child.evidence.read(dependency['sha256']))
+        self.assertEqual(captured_basis['sources']['model-card'], inherited_basis['sources']['model-card'])
+        self.assertEqual(captured_basis['applications'], inherited_basis['applications'])
         sources = {row['id']: row for row in child.prepared['task']['sources']}
         notes = c.load(self.root / sources['model-card']['path'])
         self.assertEqual(notes, {'author_note': 'Keep this original artistic choice.',
             'mentioned_model': TARGET['model_identifier']})
+        self.assertEqual(authoring_work.source_value(captured_basis['sources']['model-card']), notes)
         lineage = child.prepared['parent']
         self.assertEqual((lineage['kind'], lineage['run']), ('retarget', self.run))
         self.assertEqual(lineage['input_sha256'], self.loaded.prepared['input_sha256'])

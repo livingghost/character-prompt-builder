@@ -28,8 +28,8 @@ from state_protocol import (
     validate_artifact,
     validate_state_artifact_graph,
 )
-from prepare_generation_references import validate_prepared_reference_set
-from verify_generation_payload import verify
+from generation_references import validate_prepared_reference_set
+from generation_payload_validation import verify
 from shot_request import validate_request as validate_shot_request
 from shot_request_smoke_test import run as run_shot_binding_smoke
 from default_only_example_resolution_smoke_test import evaluate as evaluate_default_only_examples

@@ -33,12 +33,16 @@ TARGET_KEYS = {'model', 'service', 'offering', 'target', 'target-model'}
 RETARGET = 'python scripts/production_workflow.py retarget --root {root} --from {run} --choices CHOICES_FILE --reason REASON --prepare'
 
 
-def _redirect_source(task: dict, old: str | None, new: str) -> None:
+def _redirect_source(task: dict, old: str | None, new: str, *, acquired: dict | None = None) -> None:
     """A declared replacement also replaces that input's named source role."""
     if old is not None:
         for source in task['sources']:
-            if source['path'] == old:
+            record = (acquired or {}).get(source['id'], {})
+            original = (record.get('origin') or {}).get('source') or {}
+            if old in {source['path'], (source.get('origin') or {}).get('path'), original.get('path')}:
                 source['path'] = new
+                if source.get('origin') is not None:
+                    source['origin']['path'] = new
 
 
 def _captured(loaded, path: str) -> bytes:
@@ -73,7 +77,7 @@ def _target_change(root: Path, run: str, pointer: str, message: str) -> Producti
 
 def _implementation_notices(root: Path, run: str, prepared: dict, dependencies: list[dict]) -> list[dict]:
     """Explain a current installation change independently of retained source selection."""
-    import production_workflow as workflow
+    import production_operations as workflow
     from production_diagnostics import from_exception
     retained = {(d['space'], d['path']) for d in dependencies}
     installation = []
@@ -97,7 +101,7 @@ def _implementation_notices(root: Path, run: str, prepared: dict, dependencies: 
 
 def _basis(rows: list[dict], run: str, candidates: Sequence[str]) -> list[dict]:
     """The captured candidates, and their latest reviews, that a change answers."""
-    import production_workflow as workflow
+    import production_operations as workflow
     basis = []
     for candidate in dict.fromkeys(candidates):
         try:
@@ -116,7 +120,7 @@ def _basis(rows: list[dict], run: str, candidates: Sequence[str]) -> list[dict]:
 
 def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bool = False,
            candidates: Sequence[str] = ()) -> dict:
-    import production_workflow as workflow
+    import production_operations as workflow
     import production_compiler as compiler
     import runtime_snapshot
     from state_protocol import validate_against_schema
@@ -134,12 +138,16 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     plan = loaded.artifacts['execution-plan.json']
     task = copy.deepcopy(prepared['task'])
     task.pop('execution_decisions', None)
+    prior_work = c.decode(_captured(loaded, task['work_basis']))
     fields = plan['mutable_fields']
     changes = {}
     reason = 'Intentional additional run of the same fixed input.'
+    request = None
     if changes_file is not None:
         try:
-            selected = c.read_json_input(changes_file, root=root)
+            request_raw = c.read_input_bytes(changes_file, root=root)
+            selected = c.decode(request_raw)
+            request = request_raw.decode('utf-8')
             workflow.schema_check(selected, 'changes')
         except (OSError, ValueError) as exc:
             raise ProductionError('INPUT_SCHEMA_INVALID', str(exc), phase='variation', file=str(changes_file),
@@ -282,7 +290,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
             if field == 'production-spec':
                 generation.pop('model', None)
                 generation.pop('render_intent', None)
-            _redirect_source(task, old, value['path'])
+            _redirect_source(task, old, value['path'], acquired=prior_work['sources'])
             if old:
                 replaced.add(old)
             if field == 'production-spec' and document.get('target_model') != original_model:
@@ -320,8 +328,10 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     from production_authoring import materialize_file
     for name, raw in replacements.items():
         file = f'{name}.txt' if name in {'prompt', 'negative'} else f'{name}.json'
-        materialize_file(task, derived, prefix, field='delivery' if name in {'prompt', 'upscale-input'} else name,
-                         filename=file, raw=raw)
+        field = 'delivery' if name in {'prompt', 'upscale-input'} else name
+        before = task['delivery']['path'] if field == 'delivery' else task.get('generation', {}).get(field)
+        path = materialize_file(task, derived, prefix, field=field, filename=file, raw=raw)
+        _redirect_source(task, before, path, acquired=prior_work['sources'])
     task_path = prefix + '/task.json'
     derived['task.json'] = c.encoded(task)
     if changes_file is not None:
@@ -339,6 +349,30 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
         current_fields.add('delivery')
     retained = CapturedInputs(root, loaded).selected(task, current_paths=replaced,
                                                    current_fields=current_fields, inherit_task_inputs=True)
+    if changes_file is not None:
+        import production_authoring_work
+
+        def read_current(path):
+            name = path[len(prefix) + 1:] if path.startswith(prefix + '/') else None
+            if name in derived:
+                return derived[name]
+            return retained.read(path) if retained.selected_path(path) else store.stable_bytes(root, path)
+
+        def content(selected_task, read):
+            documents = {name: c.decode(read(path)) for name, path in (selected_task.get('generation') or {}).items()
+                         if name in DOCUMENT_FIELDS.values() or name == 'parameters'}
+            return {'task': copy.deepcopy(selected_task),
+                    'delivery': read(selected_task['delivery']['path']).decode('utf-8'), 'documents': documents}
+
+        before = content(prepared['task'], lambda path: _captured(loaded, path))
+        current = content(task, read_current)
+        task, work_files = production_authoring_work.amend_task(prior_work, task=task,
+            baseline=before, request=request, delivery=current['delivery'], documents=current['documents'],
+            read_source=read_current, out_dir=prefix)
+        derived.update(work_files)
+        derived['task.json'] = c.encoded(task)
+        retained.task = task
+        retained.current_fields.add('work_basis')
     current_task = work_ledger.require_open(root) if prepare else None
     compiled = compiler.compile_task(root, task_path, persist=prepare, identity=identity,
                                      runtime_inputs=runtime_inputs, derived=derived, retained_inputs=retained)
@@ -377,7 +411,7 @@ def retarget(root: Path, run: str, task_file: str | None = None, *, choices: str
     lineage names the previous exact request without pretending a new request
     has already been executed or reviewed.
     """
-    import production_workflow as workflow
+    import production_operations as workflow
     import production_compiler as compiler
     import work_ledger
     import shutil
@@ -468,30 +502,8 @@ def retarget(root: Path, run: str, task_file: str | None = None, *, choices: str
     return result
 
 
-HELP = {
-    'variant': 'Prepare a new input from a run with declared field changes; nothing is claimed or sent.',
-    'repeat': 'Prepare another run of a run\'s unchanged input, with its own claim and authorization.',
-    'retarget': 'Prepare a run from another one against a reassessed target or the current pack runtime.'}
 
 
-def add_arguments(subparsers) -> None:
-    for name in ('variant', 'repeat', 'retarget'):
-        parser = subparsers.add_parser(name, help=HELP[name], description=HELP[name])
-        parser.add_argument('--root', type=Path, required=True, help='The studio directory that owns the run.')
-        parser.add_argument('--from', dest='source_run', required=True, metavar='RUN', help='The prepared run to derive from.')
-        parser.add_argument('--prepare', action='store_true', help='Publish the new run; without it the result is a check only.')
-        if name == 'variant':
-            parser.add_argument('--changes-file', required=True, metavar='FILE',
-                                help='JSON {"changes": {FIELD_ID: value}, "reason": text}, studio-relative, absolute, or - for stdin.')
-            parser.add_argument('--candidate', action='append', default=[], metavar='CANDIDATE_ID',
-                                help='A captured candidate of the source run that this change answers; repeat for each.')
-        elif name == 'retarget':
-            selected = parser.add_mutually_exclusive_group(required=True)
-            selected.add_argument('--task', help='Complete reassessed task with current target and evidence.')
-            selected.add_argument('--choices', help='Editable choices.json owning the current target and authored inputs.')
-            parser.add_argument('--reason', required=True, help='Authored reason for changing the target or adopting the current runtime.')
-            from pack_runtime_cli import add_pack_runtime_arguments
-            add_pack_runtime_arguments(parser)
 
 
 def command(args, parser):

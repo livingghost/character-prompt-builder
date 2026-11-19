@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 import execution_contract as c
 import production_case_fixtures as cases
-import production_workflow as workflow
+import production_operations as workflow
 
 import production_fixtures
 
@@ -67,7 +67,7 @@ class ObjectInputTests(unittest.TestCase):
         validate_recommendation_audit(audit['negative'],negative)
 
     def test_integrated_rendition_preserves_authored_whitespace(self):
-        from build_generation_payload import build_transports
+        from generation_payload_builder import build_transports
         integrated='  Exact affirmative rendition.\r\n'
         result=build_transports(prompt='ordinary prompt',negative_prompt='exclusion',integrated_prompt=integrated,
                                 native_negative='',critical_avoidance_integrated=False)
@@ -118,6 +118,9 @@ class PackageFileInputTests(unittest.TestCase):
         task['route_reading']='external-reading.json'
         cases.write(self.root/task['route_reading'],fixture_reading(route=task['route'],features=task['features'],
             execution=task['execution'],operation='prepare',studio=self.root,model=self.case['model'],service='synthetic'))
+        for source in task['sources']:
+            source.pop('definition_owner', None)
+        production_fixtures.bind_work_basis(self.root, task)
         cases.write(self.root/'external-task.json',task)
         return workflow.prepare(self.root,'external-task.json')['run']
 

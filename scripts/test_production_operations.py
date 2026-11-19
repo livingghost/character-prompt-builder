@@ -403,7 +403,7 @@ class OperationTests(unittest.TestCase):
         import execution_contract as c
         root = self.new_studio(); self._fake_operation(root, 'exported')
         out = root/'exports/diagnostics'
-        with patch.object(c, '_rename_directory_exclusive', side_effect=OSError(errno.EXDEV, 'Invalid cross-device link')), \
+        with patch.object(c, '_rename_exclusive', side_effect=OSError(errno.EXDEV, 'Invalid cross-device link')), \
                 self.assertRaises(ProductionError) as caught:
             ops.export_logs(root, out)
         told = caught.exception.diagnostic
@@ -414,7 +414,7 @@ class OperationTests(unittest.TestCase):
         def another_writer(_staging, target):
             Path(target).mkdir(); (Path(target)/'theirs.txt').write_text('another export', encoding='utf-8')
             raise FileExistsError(errno.EEXIST, 'File exists', str(target))
-        with patch.object(c, '_rename_directory_exclusive', another_writer), self.assertRaises(ProductionError) as caught:
+        with patch.object(c, '_rename_exclusive', another_writer), self.assertRaises(ProductionError) as caught:
             ops.export_logs(root, out)
         told = caught.exception.diagnostic
         self.assertEqual((told.code, told.phase, told.required_action), ('OUTPUT_ALREADY_EXISTS', 'logs-export', 'Choose a new --out.'))
@@ -793,7 +793,7 @@ class ProductionOperationTests(unittest.TestCase):
     def test_disk_full_before_send_stops_execution_and_stays_incomplete(self):
         import production_execution as execution
         import production_store as store
-        import production_workflow as workflow
+        import production_operations as workflow
         import transport_synthetic
         from test_production_execution import decisions
         run = workflow.prepare(self.root, 'task.json')['run']
@@ -830,7 +830,7 @@ class ProductionOperationTests(unittest.TestCase):
         import production_case_fixtures as fixtures
         import production_execution as execution
         import production_store as store
-        import production_workflow as workflow
+        import production_operations as workflow
         import execution_lifecycle as accounting
         import transport_synthetic
         import execution_contract as c

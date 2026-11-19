@@ -4,6 +4,7 @@ Catalog search supplies candidates. The agent chooses the records, their scope,
 changes and review questions. Existing production sources preserve that work.
 """
 from __future__ import annotations
+from craft_consultation_contract import LAYERS
 
 import copy
 from collections import Counter
@@ -19,15 +20,6 @@ from catalog_retrieval.retrieval import catalog_stats, inspect_record
 from pack_manager import configured_roots, discover_packs, load_effective_state
 
 # These are explicit navigation choices, not classifications of query text.
-LAYERS = {
-    'scene': (('scenes', ('scene',)), ('recipes', ('recipe',))),
-    'detail': (('modules', ('module',)),),
-    'finish': (('families', ('style-family',)), ('profiles', ('profile',)),
-               ('aesthetic', ('aesthetic-core',)), ('realizations', ('domain-realization',))),
-    'repair': (('corrections', ('correction',)),),
-    'identity': (('archetypes', ('archetype',)),),
-}
-COMMANDS = frozenset({'consult-presets', 'apply-presets'})
 ROLE = 'preset-application'
 
 
@@ -198,12 +190,39 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
           spec_path: str, out_dir: str, *, settings=None, runtime_arguments: dict | None = None) -> dict:
     """Snapshot selected knowledge and annotate existing sources, never compose text."""
     import production_inputs as inputs
-    import production_workflow as workflow
+    import production_operations as workflow
     import production_spec
+    import production_authoring_work
+    from production_compiler import GENERATION_FILES, JSON_FILES
     root = root.resolve(strict=True)
     reader = InputEvidence(root)
     task_ref = reader.select(task_path); task = reader.json(task_ref)
     workflow.validate_task(task)
+    if task.get('work_basis') is None:
+        raise ValueError('craft application needs the task\'s acquired authoring work basis')
+    work_basis = reader.json(reader.select(task['work_basis']))
+
+    def read_source(path):
+        return reader.read(reader.select(path))
+
+    documents = {}
+    for field in GENERATION_FILES:
+        path = (task.get('generation') or {}).get(field)
+        if path is not None:
+            raw = read_source(path)
+            documents[field] = c.decode(raw) if field in JSON_FILES else raw.decode('utf-8')
+    if 'production_spec' not in documents:
+        specification = next((row['path'] for row in task['sources']
+            if row['role'] == 'production-spec' and row['disposition'] == 'applied'), None)
+        if specification is not None:
+            documents['production_spec'] = c.decode(read_source(specification))
+    if task.get('image_input') is not None:
+        image_input = documents['image_input'] = c.decode(read_source(task['image_input']))
+        external = image_input.get('external_request') or {}
+        if external.get('file'):
+            documents['external_request'] = c.decode(read_source(external['file']))
+    delivery = read_source(task['delivery']['path']).decode('utf-8')
+    baseline = {'task': copy.deepcopy(task), 'delivery': delivery, 'documents': copy.deepcopy(documents)}
     report_ref = reader.select(report_path); report = reader.json(report_ref)
     decisions_ref = reader.select(decisions_path); decisions = reader.json(decisions_ref)
     spec_ref = reader.select(spec_path); spec = reader.json(spec_ref)
@@ -228,7 +247,8 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
     c.exact(decisions, {'source_id', 'reason', 'uses', 'not_used'}, 'record decisions')
     source_id = c.text(decisions['source_id'], 'application source ID')
     c.text(decisions['reason'], 'application reason')
-    if source_id in {row['id'] for row in task['sources']}:
+    decision_source = source_id + '-decisions'
+    if {source_id, decision_source}.intersection(work_basis['sources']):
         raise ValueError('application source ID already exists; select a distinct source ID')
     if not isinstance(decisions['uses'], list) or not isinstance(decisions['not_used'], list):
         raise ValueError('uses and not_used must be explicit arrays')
@@ -267,9 +287,17 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
     changed_spec = copy.deepcopy(spec); changed_spec['selected_preset_ids'] = selected_ids
     app_path = out_dir + '/preset-application.json'; new_spec = out_dir + '/production-spec.json'
     output_task = copy.deepcopy(task)
-    spec_sources = [row for row in output_task['sources'] if row['path'] == spec_path]
+    spec_inputs = {spec_path, (task.get('generation') or {}).get('production_spec')} - {None}
+    def owns_specification(row):
+        acquired = (work_basis['sources'].get(row['id'], {}).get('origin') or {}).get('source') or {}
+        return bool(spec_inputs.intersection({row['path'], (row.get('origin') or {}).get('path'), acquired.get('path')}))
+    spec_sources = [row for row in output_task['sources'] if owns_specification(row)]
     for row in spec_sources:
         row['path'] = new_spec
+        if row.get('origin') is not None:
+            row['origin']['path'] = new_spec
+    if (output_task.get('generation') or {}).get('production_spec') is not None:
+        output_task['generation']['production_spec'] = new_spec
     if not spec_sources:
         spec_id = source_id + '-spec'
         if spec_id in {row['id'] for row in task['sources']}:
@@ -280,10 +308,13 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
     output_task['sources'].append({'id': source_id, 'path': app_path, 'role': ROLE,
         'disposition': 'applied' if applications else 'considered-not-used',
         'locator': 'applications and not_used', 'reason': decisions['reason']})
+    output_task['sources'].append({'id': decision_source, 'path': decisions_path, 'role': 'craft-decisions',
+        'disposition': 'applied', 'locator': 'whole authored decisions', 'reason': decisions['reason']})
     output_task['delivery']['translation_notes'] += '\nRead source ' + source_id + ' for scoped craft applications and review questions.'
     workflow.validate_task(output_task)
     application = {'artifact_type': ROLE, 'task_id': task['task_id'], 'reason': decisions['reason'],
         'consultation': report, 'consultation_file': report_ref, 'decisions_file': decisions_ref,
+        'decisions': copy.deepcopy(decisions),
         'production_spec_sha256': production_spec.digest(changed_spec),
         'applications': applications, 'not_used': copy.deepcopy(decisions['not_used']),
         'assessment': 'Intended application only. Review the actual candidate against its declared criteria.'}
@@ -297,14 +328,23 @@ def apply(root: Path, task_path: str, report_path: str, decisions_path: str,
         now = settings.state_file.read_bytes() if settings.state_file.is_file() else None
         if now != state_bytes or any(c.digest(c.read(path)) != digest for path, digest in witnesses.items()):
             raise ValueError('selected record inputs changed before publication')
-    files = {'preset-application.json': c.encoded(application), 'production-spec.json': c.encoded(changed_spec),
-             'production-task.json': c.encoded(output_task), 'input-snapshots.json': c.encoded(reader.snapshots)}
+    files = {'preset-application.json': c.encoded(application), 'production-spec.json': c.encoded(changed_spec)}
+    def read_current(path):
+        name = path[len(out_dir) + 1:] if path.startswith(out_dir + '/') else None
+        return files[name] if name in files else read_source(path)
+    output_task, work_files = production_authoring_work.amend_task(work_basis, task=output_task,
+        baseline=baseline, request=work_basis['request'], delivery=delivery,
+        documents={**documents, 'production_spec': changed_spec}, read_source=read_current, out_dir=out_dir)
+    files.update(work_files)
+    workflow.validate_task(output_task)
+    files.update({'production-task.json': c.encoded(output_task), 'input-snapshots.json': c.encoded(reader.snapshots)})
     inputs._publish(root, out_dir, files, reader=reader, before_publish=recheck)
     return {'ok': True, 'task': out_dir + '/production-task.json', 'production_spec': new_spec,
             'application': app_path, 'selected_preset_ids': selected_ids,
             'preserved_selected_preset_ids': preserved, 'applied_record_ids': selected, 'execution_ready': False,
             'external_effect': False, 'next_actions': [{'operation': 'draft-inputs', 'script': 'scripts/production_workflow.py',
-                'args': {'root': str(root), 'task': out_dir + '/production-task.json', **(runtime_arguments or {})},
+                'args': {'root': str(root), 'task': out_dir + '/production-task.json', 'operation': 'amend',
+                         **(runtime_arguments or {})},
                 'required_args': ['out-dir'], 'external_effect': False}]}
 
 
@@ -331,25 +371,6 @@ def review_questions(root: Path, task: dict, *, directory: Path | None = None,
     return output
 
 
-def add_arguments(subparsers) -> None:
-    from pack_runtime_cli import add_pack_runtime_arguments
-    for name in sorted(COMMANDS):
-        parser = subparsers.add_parser(name, help='Consult craft assets or record their scoped application without execution.')
-        parser.add_argument('--root', type=Path, required=True)
-        parser.add_argument('--task', required=True)
-        parser.add_argument('--out-dir', required=True, help='New studio-relative directory.')
-        add_pack_runtime_arguments(parser)
-        if name == 'consult-presets':
-            group = parser.add_mutually_exclusive_group()
-            group.add_argument('--query', help='Agent-authored canonical craft question.')
-            group.add_argument('--questions', help='Studio-relative array of explicit questions and focuses.')
-            parser.add_argument('--focus', choices=['all', *LAYERS], default='all')
-            parser.add_argument('--inspect', nargs='*', default=[], metavar='ID')
-            parser.add_argument('--previous', help='Previous studio-relative consultation report from this runtime.')
-        else:
-            parser.add_argument('--consultation', required=True)
-            parser.add_argument('--decisions', required=True)
-            parser.add_argument('--spec', required=True)
 
 
 def command(args, parser) -> dict:

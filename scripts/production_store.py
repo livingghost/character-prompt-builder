@@ -5,9 +5,10 @@ files inside published run directories are immutable content addressed by that
 record. JSONL/HTML views are projections, never another editable ledger.
 """
 from __future__ import annotations
+import read_context
 import contextlib
 import contextvars
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 import json
 import os
 from pathlib import Path
@@ -19,9 +20,10 @@ from typing import Any, Iterator
 import execution_contract as c
 from production_diagnostics import ProductionError
 from private_state import PrivateStateError, assert_public_path
-from owned_json import freeze, mutable
+from owned_json import freeze, mutable, json_value
 
 _CONNECTIONS: contextvars.ContextVar[dict[str, sqlite3.Connection]] = contextvars.ContextVar('production_connections', default={})
+_READERS: contextvars.ContextVar[dict[str, sqlite3.Connection]] = contextvars.ContextVar('production_readers', default={})
 _DDL = '''
 CREATE TABLE IF NOT EXISTS runs (
  run_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, production_id TEXT NOT NULL, input_sha256 TEXT NOT NULL,
@@ -102,20 +104,145 @@ class VerifiedHistory:
     """
     scope: str
     rows: list[dict]
+    connection: sqlite3.Connection | None = field(default=None, repr=False, compare=False)
+    owner: object | None = field(default=None, repr=False, compare=False)
 
     @property
     def tail(self) -> str | None:
         return self.rows[-1]['sha256'] if self.rows else None
 
 
+@dataclass(frozen=True, slots=True)
+class EventAppend:
+    """Canonical event bytes proposed against one acquired writer history."""
+
+    history: VerifiedHistory
+    row: dict
+    raw: bytes | None
+
+
+@dataclass
+class _StoreSession:
+    """One operation's connection and observed external-commit boundary.
+
+    SQLite's data_version is compared only on the same live connection. Its
+    own commits do not advance that value; commits by any other connection do.
+    Keeping the handle does not keep a transaction or a write lock open.
+    """
+
+    root: Path
+    connection: sqlite3.Connection | None = None
+    writable: bool = False
+    identity: tuple[int, int] | None = None
+    version: int | None = None
+
+    def close(self) -> None:
+        if self.connection is not None:
+            self.connection.close()
+            self.connection = None
+
+    def _path(self, *, write: bool) -> Path | None:
+        path = database(self.root)
+        if not path.is_file():
+            if self.connection is not None:
+                self.close()
+                self.identity = self.version = None
+                read_context.invalidate_runs(self.root, source_boundary=True)
+            if not write:
+                self.identity = self.version = None
+                return None
+            path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            info = path.stat()
+            identity = (info.st_dev, info.st_ino)
+            if self.identity is not None and self.identity != identity:
+                self.close()
+                self.version = None
+                read_context.invalidate_runs(self.root, source_boundary=True)
+            self.identity = identity
+        return path
+
+    def observe(self) -> None:
+        version = self.connection.execute('PRAGMA data_version').fetchone()[0]
+        if self.version is not None and version != self.version:
+            read_context.invalidate_runs(self.root)
+        self.version = version
+
+    def read(self) -> sqlite3.Connection | None:
+        path = self._path(write=False)
+        if path is None:
+            return None
+        if self.connection is None:
+            self.connection = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True,
+                                              timeout=30, isolation_level=None)
+            self.connection.row_factory = sqlite3.Row
+            self.writable = False
+            self.version = None
+        return self.connection
+
+    def begin(self) -> sqlite3.Connection:
+        path = self._path(write=True)
+        previous = self.connection
+        if previous is not None and self.writable:
+            try:
+                _begin_transaction(previous)
+                self.observe()
+            except BaseException:
+                previous.rollback()
+                raise
+            return previous
+        connection = sqlite3.connect(path, timeout=30, isolation_level=None)
+        connection.row_factory = sqlite3.Row
+        try:
+            connection.execute('PRAGMA foreign_keys=ON')
+            _enable_wal(connection)
+            connection.execute('PRAGMA synchronous=FULL')
+            _begin_transaction(connection)
+            # The writer lock excludes another commit while a read-only
+            # observation is transferred to this writable connection.
+            if previous is not None:
+                self.observe()
+            self.connection = connection
+            self.writable = True
+            self.version = connection.execute('PRAGMA data_version').fetchone()[0]
+            info = path.stat()
+            self.identity = (info.st_dev, info.st_ino)
+        except BaseException:
+            connection.close()
+            raise
+        if previous is not None:
+            previous.close()
+        return connection
+
+
+def _session(root: Path) -> _StoreSession:
+    return read_context.resource(('production-store', str(root.resolve())),
+                                 lambda: _StoreSession(root.resolve()))
+
+
+def refresh_observation(root: Path) -> None:
+    """Observe external commits without rereading unchanged owned documents."""
+    with reader(root):
+        pass
+
+
 @contextlib.contextmanager
 def transaction(root: Path) -> Iterator[sqlite3.Connection]:
-    import runtime_snapshot
+    identity = str(root.resolve())
+    independent = identity in _READERS.get() and identity not in _CONNECTIONS.get()
+    with read_context.public_call(isolated=independent):
+        with _transaction(root) as connection:
+            yield connection
+
+
+@contextlib.contextmanager
+def _transaction(root: Path) -> Iterator[sqlite3.Connection]:
     root = root.resolve()
     key = str(root)
     existing = _CONNECTIONS.get().get(key)
     if existing is not None:
         savepoint = 's' + uuid.uuid4().hex
+        before = read_context.transaction_checkpoint(existing)
         existing.execute('SAVEPOINT ' + savepoint)
         try:
             yield existing
@@ -123,52 +250,53 @@ def transaction(root: Path) -> Iterator[sqlite3.Connection]:
         except BaseException:
             existing.execute('ROLLBACK TO ' + savepoint)
             existing.execute('RELEASE ' + savepoint)
-            runtime_snapshot.invalidate_runs(root, source_boundary=True)
+            read_context.restore_transaction(existing, before)
+            read_context.invalidate_studio(root)
             raise
         return
-    path = database(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(path, timeout=30, isolation_level=None)
-    connection.row_factory = sqlite3.Row
+    connection = _session(root).begin()
     token = None
     try:
-        connection.execute('PRAGMA foreign_keys=ON')
-        _enable_wal(connection)
-        connection.execute('PRAGMA synchronous=FULL')
-        # SQLite owns writer serialization, including the expected tail and
-        # unique claim checks. An additional filesystem lock adds no guarantee.
-        _begin_transaction(connection)
+        read_context.begin_transaction(connection)
+        before = dict(read_context._transaction_scope(connection))
         token = _CONNECTIONS.set({**_CONNECTIONS.get(), key: connection})
-        runtime_snapshot.invalidate_runs(root, source_boundary=True)
         yield connection
         connection.commit()
+        read_context.commit_transaction(connection, before)
         from operation_context import current
         if current():
-            current().event('formal_transaction_committed', database=str(path), phase='storage')
+            current().event('formal_transaction_committed', database=str(database(root)), phase='storage')
     except BaseException:
         connection.rollback()
+        read_context.invalidate_studio(root)
         from operation_context import current
         if current():
-            current().event('formal_transaction_rolled_back', database=str(path), phase='storage')
+            current().event('formal_transaction_rolled_back', database=str(database(root)), phase='storage')
         raise
     finally:
         if token is not None:
-            runtime_snapshot.invalidate_runs(root, source_boundary=True)
             _CONNECTIONS.reset(token)
-        runtime_snapshot.release_transaction(connection)
-        connection.close()
+        read_context.release_transaction(connection)
 
 
 @contextlib.contextmanager
 def reader(root: Path) -> Iterator[sqlite3.Connection | None]:
-    connection = _CONNECTIONS.get().get(str(root.resolve()))
+    with read_context.public_call():
+        with _reader(root) as connection:
+            yield connection
+
+
+@contextlib.contextmanager
+def _reader(root: Path) -> Iterator[sqlite3.Connection | None]:
+    identity = str(root.resolve())
+    connection = _CONNECTIONS.get().get(identity) or _READERS.get().get(identity)
     if connection is not None:
         yield connection; return
-    path = database(root)
-    if not path.exists():
+    session = _session(root)
+    connection = session.read()
+    if connection is None:
         yield None; return
-    connection = sqlite3.connect(path.as_uri()+'?mode=ro', uri=True, timeout=30)
-    connection.row_factory = sqlite3.Row
+    token = None
     try:
         # All reads made through this handle see one WAL snapshot. This does
         # not serialize readers or prevent another connection from writing.
@@ -180,9 +308,14 @@ def reader(root: Path) -> Iterator[sqlite3.Connection | None]:
             yield None
             return
         _require_schema(objects)
+        session.observe()
+        token = _READERS.set({**_READERS.get(), identity: connection})
         yield connection
     finally:
-        connection.close()
+        if token is not None:
+            _READERS.reset(token)
+        connection.rollback()
+        session.observe()
 
 
 EXPORT_AGAIN = ('Take the event export again from the Studio that holds this run, with observe_model_schema.py '
@@ -212,22 +345,42 @@ def validate_event_chain(rows: list[dict], scope: str) -> None:
         previous = row['sha256']
 
 
+@read_context.operation
 def read_history(root: Path, scope: str) -> VerifiedHistory:
     """Read and verify stored rows once, retaining their verified chain boundary."""
     with reader(root) as connection:
         if connection is None:
-            return VerifiedHistory(scope, [])
+            return VerifiedHistory(scope, freeze([]))
+        owner = read_context.check_scope(root)
+        key = ('verified-history', str(root.resolve()), scope)
+        if owner is not None and key in owner:
+            held = bind_history(root, owner[key])
+            owner[key] = held
+            return held
         entries = list(connection.execute('SELECT * FROM events WHERE scope=? ORDER BY sequence', (scope,)))
-    return _verified_history(scope, entries)
+        writer = connection if _CONNECTIONS.get().get(str(root.resolve())) is connection else None
+        held = _verified_history(scope, entries, connection=writer)
+        if owner is not None:
+            owner[key] = held
+        return held
 
 
-def _verified_history(scope: str, entries: list[sqlite3.Row]) -> VerifiedHistory:
+def bind_history(root: Path, history: VerifiedHistory) -> VerifiedHistory:
+    """Bind acquired rows to this writer without replaying or decoding them."""
+    connection = _CONNECTIONS.get().get(str(root.resolve()))
+    owner = read_context.transaction_token(connection) if connection is not None else None
+    return history if history.connection is connection and history.owner is owner else replace(
+        history, connection=connection, owner=owner)
+
+
+def _verified_history(scope: str, entries: list[sqlite3.Row], *,
+                      connection: sqlite3.Connection | None = None) -> VerifiedHistory:
     """Decode rows captured from one SQLite snapshot and check their stored chain."""
     result = []
     previous = None
     for entry in entries:
         try:
-            row = c.decode(bytes(entry['body']))
+            row = c.decode(bytes(entry['body']), owned=True)
             c.exact(row, {'sequence', 'previous', 'input_sha256', 'event', 'data', 'created_at', 'sha256'}, 'formal event')
             content = dict(row)
             digest = content.pop('sha256', None)
@@ -247,51 +400,105 @@ def _verified_history(scope: str, entries: list[sqlite3.Row]) -> VerifiedHistory
                 required_action='Restore the exact committed event from verified evidence; do not recreate approval.')
         previous = digest
         result.append(row)
-    return VerifiedHistory(scope, result)
+    return VerifiedHistory(scope, freeze(result), connection,
+                           read_context.transaction_token(connection) if connection is not None else None)
 
 
 def event_rows(root: Path, scope: str) -> list[dict]:
     """Return an editable event export from a freshly verified storage read."""
-    return read_history(root, scope).rows
+    return mutable(read_history(root, scope).rows)
+
+
+def owns_history(root: Path, history: VerifiedHistory) -> bool:
+    """Whether this observation belongs to the currently open writer."""
+    return (history.connection is not None
+            and _CONNECTIONS.get().get(str(root.resolve())) is history.connection
+            and read_context.transaction_token(history.connection) is history.owner)
+
+
+def propose_append(history: VerifiedHistory, input_sha256: str | None,
+                   event: str, data: dict, *, expected_previous: str | None = None,
+                   check_previous: bool = False) -> EventAppend:
+    """Construct one event from acquired rows, retaining its exact stored form."""
+    data = json_value(data)
+    for row in reversed(history.rows):
+        if row['event'] == event and row['data'] == data:
+            return EventAppend(history, row, None)
+    previous = history.tail
+    if check_previous and previous != expected_previous:
+        raise ProductionError('EVENT_CONFLICT', 'Another operation committed first; reload the current state.',
+            phase='storage', run=history.scope,
+            required_action='Read the run again with status --run, then repeat this command if its step is still open.')
+    row = {'sequence': len(history.rows) + 1, 'previous': previous, 'input_sha256': input_sha256,
+           'event': event, 'data': data, 'created_at': c.now()}
+    row['sha256'] = c.content_id(row)
+    raw = c.encoded(row)
+    return EventAppend(history, freeze(row), raw)
+
+
+def commit_append(root: Path, proposal: EventAppend) -> VerifiedHistory:
+    """Insert a checked event without acquiring its already verified prefix again.
+
+    The owning writer and current SQL predecessor must still match. Callers
+    publish a successor read state only after this insert succeeds.
+    """
+    history, row = proposal.history, proposal.row
+    if not owns_history(root, history):
+        raise ValueError('event history does not belong to the current writer')
+    connection = history.connection
+    tail = connection.execute('SELECT sequence, sha256 FROM events WHERE scope=? ORDER BY sequence DESC LIMIT 1',
+                              (history.scope,)).fetchone()
+    actual = (tail['sequence'], tail['sha256']) if tail is not None else (0, None)
+    if actual != (len(history.rows), history.tail):
+        raise ProductionError('EVENT_CONFLICT', 'Another operation changed the acquired event history.',
+            phase='storage', run=history.scope,
+            required_action='Read the run again with status --run, then repeat this command if its step is still open.')
+    if proposal.raw is None:
+        return history
+    try:
+        connection.execute('INSERT INTO events VALUES (?,?,?,?,?,?,?)',
+            (history.scope, row['sequence'], row['sha256'], row['previous'], row['input_sha256'], row['event'], proposal.raw))
+    except sqlite3.IntegrityError as exc:
+        raise ProductionError('DISPATCH_ALREADY_CLAIMED' if 'claim' in row['event'] else 'EVENT_CONFLICT',
+            'The run already has this committed operation.', phase='storage', run=history.scope,
+            required_action='Use resume for the same execution, variant for changed input, or repeat for an intentional additional run.') from exc
+    from operation_context import current
+    operation = current()
+    if operation:
+        data = row['data']
+        links = {'run': history.scope} if row['input_sha256'] is not None else {}
+        if data.get('execution_id'):
+            links['execution'] = data['execution_id']
+        if row['event'] == 'authorization':
+            links['grant'] = data['request']['grant']
+        if row['event'] == 'candidate':
+            links['candidate'] = row['sha256']
+        operation.link(**links)
+        operation.event('formal_event_staged', phase='storage', scope=history.scope,
+                        kind=row['event'], event_sha256=row['sha256'], input_sha256=row['input_sha256'])
+    successor = VerifiedHistory(history.scope, freeze([*history.rows, row]), connection, history.owner)
+    scope = read_context.check_scope(root)
+    if scope is not None:
+        scope[('verified-history', str(root.resolve()), history.scope)] = successor
+    return successor
 
 
 def append(root: Path, scope: str, input_sha256: str | None, event: str, data: dict,
            *, expected_previous: str | None = None, check_previous: bool = False) -> dict:
-    with transaction(root) as connection:
+    with transaction(root):
         history = read_history(root, scope)
-        rows = history.rows
-        for row in reversed(rows):
-            if row['event'] == event and row['data'] == data: return row
-        previous = history.tail
-        if check_previous and previous != expected_previous:
-            raise ProductionError('EVENT_CONFLICT', 'Another operation committed first; reload the current state.', phase='storage', run=scope,
-                                  required_action='Read the run again with status --run, then repeat this command if its step is still open.')
-        row = {'sequence': len(rows)+1, 'previous': previous, 'input_sha256': input_sha256,
-               'event': event, 'data': data, 'created_at': c.now()}
-        row['sha256'] = c.content_id(row)
-        try:
-            connection.execute('INSERT INTO events VALUES (?,?,?,?,?,?,?)',
-                (scope,row['sequence'],row['sha256'],previous,input_sha256,event,c.encoded(row)))
-        except sqlite3.IntegrityError as exc:
-            raise ProductionError('DISPATCH_ALREADY_CLAIMED' if 'claim' in event else 'EVENT_CONFLICT',
-                'The run already has this committed operation.', phase='storage', run=scope,
-                required_action='Use resume for the same execution, variant for changed input, or repeat for an intentional additional run.') from exc
-        import runtime_snapshot
-        runtime_snapshot.invalidate_runs(root)
-        from operation_context import current
-        operation = current()
-        if operation:
-            links = {'run': scope} if input_sha256 is not None else {}
-            if data.get('execution_id'):
-                links['execution'] = data['execution_id']
-            if event == 'authorization':
-                links['grant'] = data['request']['grant']
-            if event == 'candidate':
-                links['candidate'] = row['sha256']
-            operation.link(**links)
-            operation.event('formal_event_staged', phase='storage', scope=scope,
-                            kind=event, event_sha256=row['sha256'], input_sha256=input_sha256)
-        return row
+        proposal = propose_append(history, input_sha256, event, data,
+                                  expected_previous=expected_previous, check_previous=check_previous)
+        commit_append(root, proposal)
+        if proposal.raw is None:
+            return mutable(proposal.row)
+        owned = read_context.check_scope(root)
+        if owned is not None:
+            identity = str(root.resolve())
+            owned.pop(('verified-run', identity, scope), None)
+            owned.pop(('run-decisions', identity, scope), None)
+        read_context.invalidate_studio(root)
+        return mutable(proposal.row)
 
 
 def register_run(root: Path, run: str, prepared: dict, directory: Path) -> None:
@@ -299,8 +506,12 @@ def register_run(root: Path, run: str, prepared: dict, directory: Path) -> None:
         connection.execute('INSERT INTO runs VALUES (?,?,?,?,?,?,?,?)',
             (run,prepared['task']['task_id'],prepared['task']['production_id'],prepared['input_sha256'],prepared['envelope_sha256'],
              c.sha256_file(directory/'manifest.json'),directory.relative_to(root).as_posix(),c.now()))
-        import runtime_snapshot
-        runtime_snapshot.invalidate_runs(root)
+        owned = read_context.check_scope(root)
+        if owned is not None:
+            identity = str(root.resolve())
+            for kind in ('verified-run', 'verified-publication', 'run-decisions', 'verified-history'):
+                owned.pop((kind, identity, run), None)
+        read_context.invalidate_studio(root)
 
 
 def latest_run(root: Path, task_id: str, *, production_id: str | None = None,
@@ -526,9 +737,8 @@ def verify_evidence(root: Path, snapshot: dict, *, run: str | None = None, event
 class CurrentAuthority:
     """A checked grant event and the exact evidence bytes read with it.
 
-    The acquisition belongs to this current-authority check. Consumers pass
-    this value through their decision phase; a new writer or effect boundary
-    acquires current authority independently.
+    Each effect checks the current SQL grant state. Its unchanged immutable
+    event and evidence are shared by the operation that already acquired them.
     """
 
     task_id: str
@@ -540,17 +750,24 @@ class CurrentAuthority:
         return self.event['data']['authority']
 
 
+@read_context.operation
 def read_authority(root: Path, task_id: str, *, required: bool = True) -> CurrentAuthority | None:
     """Read and verify one current grant state without changing run input."""
     scope = 'authority:' + task_id
     with reader(root) as connection:
         state = connection.execute('SELECT * FROM authority_states WHERE task_id=?',(task_id,)).fetchone() if connection else None
-        entries = list(connection.execute('SELECT * FROM events WHERE scope=? ORDER BY sequence', (scope,))) if state else []
+        owner = read_context.check_scope(root)
+        cache_key = ('current-authority', str(root.resolve()), task_id)
+        if state is not None:
+            observed = dict(state)
+            previous = owner.get(cache_key) if owner is not None else None
+            if previous is not None and previous[0] == observed:
+                return previous[1]
+            rows = read_history(root, scope).rows
     if state is None:
         if not required: return None
         raise ProductionError('AUTHORIZATION_REQUIRED','The work task has no registered current authority.',phase='authorization',
                               required_action='Import an actual authority declaration with its evidence before execution.')
-    rows = _verified_history(scope, entries).rows
     matches = [row for row in rows if row['sha256'] == state['event_sha256']]
     if len(matches) != 1 or matches[0] != rows[-1]:
         raise ProductionError('AUTHORITY_STATE_CORRUPT','Authority state is not the terminal committed event.',phase='integrity')
@@ -573,7 +790,10 @@ def read_authority(root: Path, task_id: str, *, required: bool = True) -> Curren
                 file=str(c.local(root, 'production/objects/' + key, exists=False)), event=state['event_sha256'],
                 expected=key, actual=key, impact=AUTHORITY_EVIDENCE_IMPACT, source=item['path'])
         evidence.append(freeze({**item, 'raw': raw}))
-    return CurrentAuthority(task_id, freeze(matches[0]), tuple(evidence))
+    held = CurrentAuthority(task_id, freeze(matches[0]), tuple(evidence))
+    if owner is not None:
+        owner[cache_key] = (freeze(observed), held)
+    return held
 
 
 def authority(root: Path, task_id: str, *, required: bool = True) -> dict | None:
@@ -688,8 +908,7 @@ def import_authority(root: Path, file: str, *, expected: str | None = None, init
                    {'authority':document,'evidence':evidence,'previous_state':prior['sha256'] if prior else None,'effective_at':c.now()})
         connection.execute('INSERT INTO authority_states VALUES (?,?,?) ON CONFLICT(task_id) DO UPDATE SET content_sha256=excluded.content_sha256,event_sha256=excluded.event_sha256',
                            (document['task_id'],c.content_id(document),row['sha256']))
-        import runtime_snapshot
-        runtime_snapshot.invalidate_runs(root)
+        read_context.invalidate_studio(root)
         return row
 
 

@@ -82,7 +82,7 @@ follows the accepted iteration's own adoption evidence and approved influence,
 including when another iteration retains identical image bytes. `references`
 exports that exact supplied-file selection in the reference preparer's own format.
 
-Adoption progress states are `candidate-accepted`, `sheet-bound`, and `catalog-registered`. The durable `adoptions/<iteration>.json` records `next_action` and a failure when a step cannot finish. Repeat the same command with the same approval and destination to resume; it is idempotent and adds no image iteration. A pending pre-acceptance operation is visible too. The operating system releases the recording lock when a process ends, even a killed one, so repeat the approved command and leave `.cpb.lock` in place. A later authored withdrawal stays in the sheet history and does not rewrite that completed adoption record.
+Adoption progress states are `candidate-accepted`, `sheet-bound`, and `catalog-registered`. The durable `adoptions/<iteration>.json` records `next_action` and a failure when a step cannot finish. Repeat the same command with the same approval and destination to resume; it is idempotent and adds no image iteration. A pending pre-acceptance operation is visible too. The operation owns the character's existing iteration journal and sheet data through OS file locks, which end when their process exits. Resume the approved command after an interruption. A later authored withdrawal stays in the sheet history and does not rewrite that completed adoption record.
 
 `status` uses the same source checks as adoption preflight. Each binding's
 `adoption` view names its owner, Production origin when present, `source_ready`

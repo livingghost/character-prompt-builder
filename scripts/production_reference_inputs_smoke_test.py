@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise reference editing through the authored choices and actual builders."""
 from __future__ import annotations
+import runtime_paths
 
 import copy
 import io
@@ -11,10 +12,10 @@ import tempfile
 import unittest
 
 from PIL import Image
-import catalog_cli
+import catalog_api as catalog_cli
 import execution_contract as c
 import pack_manager
-import prepare_generation_references as refs
+import generation_references as refs
 import production_reference_inputs as inputs
 from production_case_fixtures import create_pack, MODEL_ID, PACK_ID, write
 from production_fixtures import scratch_home
@@ -31,7 +32,7 @@ class ReferenceInputTests(unittest.TestCase):
         self.enterContext(scratch_home(self.work / 'home'))
         self.addCleanup(catalog_cli.configure_pack_runtime, None)
         self.pack = create_pack(self.work / 'model-pack')
-        self.settings = pack_manager.PackSettings(roots=(self.pack,), state_file=self.work / 'state.json',
+        self.settings = runtime_paths.PackSettings(roots=(self.pack,), state_file=self.work / 'state.json',
             cache_dir=self.work / 'cache', managed_root=self.work / 'managed',
             quarantine_root=self.work / 'managed/.quarantine')
         self.activate()
@@ -84,6 +85,14 @@ class ReferenceInputTests(unittest.TestCase):
         plan['external_request']['reference_fields'] = fields
         request = c.load(self.root / 'request.json')
         request['images'] = uploaded
+        instructions = []
+        for row in selected:
+            identifier = row['id']
+            instruction = 'Image {{reference:' + identifier + ':attachment_number}}'
+            if prepared['transport_mode'] == 'single-board':
+                instruction += ', panel (x, y, width, height) {{reference:' + identifier + ':region}}'
+            instructions.append(instruction + ', supplies {{reference:' + identifier + ':controls}}.')
+        request['prompt'] = ' '.join(instructions)
         (self.root / 'request.json').write_bytes(c.encoded(request))
         image_input.validate(plan, self.root)
         return plan
@@ -225,11 +234,12 @@ class ReferenceInputTests(unittest.TestCase):
 
     def test_external_mixed_pack_state_and_direct_choices_keep_each_source_owner(self):
         from reference_runtime_smoke_test import _write_fixture_pack, FIXTURE_PACK_ID, DIRECT_RASTER_RECORD_ID
-        from reference_runtime import build_reference_use_plan, execute_reference_use_plan
+        from reference_plan_runtime import build_reference_use_plan, execute_reference_use_plan
         from state_protocol import finalize_artifact
         fixture = _write_fixture_pack(self.work)
         self.activate(fixture, FIXTURE_PACK_ID)
         uses = [{'record_id': DIRECT_RASTER_RECORD_ID, 'intended_influence': 'pose-camera',
+                 'selected_controls': ['target silhouette', 'subject-background separation'],
                  'subject_uses': [{'subject_id': subject, 'use': 'pose-camera', 'priority': 0}]} for subject in ('A', 'B')]
         plan = build_reference_use_plan(uses, transport_mode='multi-image', source_lighting_mode='replace',
             target_model=MODEL_ID, include_technical_roles=['subject-mask'],
@@ -253,6 +263,13 @@ class ReferenceInputTests(unittest.TestCase):
         choices['reference_selection'] = state
         choices['additional_references'] = [self.direct(1, 'D')]
         prepared = self.build(choices, 'mixed')
+        source_ids = [row['reference_id'] for row in prepared['selected_references']]
+        reopened = inputs.draft(prepared, package_root=self.root / 'mixed')
+        self.assertEqual([row['id'] for row in inputs._authored_rows(reopened)], source_ids)
+        rebuilt = self.build(reopened, 'mixed-reopened')
+        self.assertEqual([row['reference_id'] for row in rebuilt['selected_references']], source_ids)
+        self.assertEqual([row['selected_controls'] for row in reopened['reference_use_plan']['items']],
+                         [row['selected_controls'] for row in prepared['reference_use_plan']['reference_items']])
         external = self.external_plan(prepared, 'mixed')
         edited = inputs.draft_external(external, prepared, package_root=self.root / 'mixed', root=self.root)
         edited['choices']['reference_use_plan']['items'].pop(0)
@@ -319,10 +336,11 @@ class ReferenceInputTests(unittest.TestCase):
 
     def test_pack_item_removal_rebuilds_plan_precedence_without_expanding_authority(self):
         from reference_runtime_smoke_test import _write_fixture_pack, FIXTURE_PACK_ID, DIRECT_RASTER_RECORD_ID
-        from reference_runtime import build_reference_use_plan, execute_reference_use_plan
+        from reference_plan_runtime import build_reference_use_plan, execute_reference_use_plan
         fixture = _write_fixture_pack(self.work)
         self.activate(fixture, FIXTURE_PACK_ID)
         uses = [{'record_id': DIRECT_RASTER_RECORD_ID, 'intended_influence': 'pose-camera',
+                 'selected_controls': ['target silhouette', 'subject-background separation'],
                  'subject_uses': [{'subject_id': subject, 'use': 'pose-camera', 'priority': 0}]} for subject in ('A', 'B')]
         plan = build_reference_use_plan(uses, transport_mode='multi-image', source_lighting_mode='replace',
             target_model=MODEL_ID, include_technical_roles=['subject-mask'],

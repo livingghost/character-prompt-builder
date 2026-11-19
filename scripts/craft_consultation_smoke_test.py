@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import execution_contract as c
 import craft_consultation as tool
-import production_workflow as workflow
+import production_operations as workflow
 import production_workflow_smoke_test as fixtures
 import production_inputs
 import production_spec
@@ -113,6 +113,7 @@ class ConsultationTests(unittest.TestCase):
         self.assertEqual({row['record_id'] for row in result['inspected']}, {'lighting-cool-window', 'camera-close-eye-level'})
 
     def test_application_changes_only_selected_ids_in_spec(self):
+        import authoring_work
         before = (self.root / 'task.json').read_bytes()
         output = self.apply(); updated = c.load(self.root / output['production_spec'])
         expected = copy.deepcopy(self.spec); expected['selected_preset_ids'] = ['lighting-cool-window']
@@ -121,6 +122,17 @@ class ConsultationTests(unittest.TestCase):
         self.assertEqual(c.load(self.root / 'spec.json'), self.spec)
         task = c.load(self.root / output['task']); workflow.validate_task(task)
         self.assertTrue(any(source['role'] == tool.ROLE for source in task['sources']))
+        basis = c.load(self.root / task['work_basis'])
+        previous = c.load(self.root / self.task['work_basis'])
+        self.assertEqual(basis['request'], previous['request'])
+        self.assertEqual(basis['operation'], 'amend')
+        self.assertEqual(basis['baseline']['task'], self.task)
+        self.assertEqual(basis['baseline']['delivery'], (self.root / self.task['delivery']['path']).read_text(encoding='utf-8'))
+        decisions = basis['applications']['window-study-decisions']
+        self.assertEqual(authoring_work.source_bytes(basis['sources'][decisions['source']]),
+                         (self.root / 'decisions.json').read_bytes())
+        self.assertEqual(c.load(self.root / output['application'])['decisions'], self.choices)
+        self.assertEqual(output['next_actions'][0]['args']['operation'], 'amend')
         self.assertFalse(output['execution_ready'])
         self.assertFalse((self.root / 'production').exists())
 
@@ -130,13 +142,37 @@ class ConsultationTests(unittest.TestCase):
         self.assertEqual(record['applications'][0]['source']['record'], self.report['inspected'][0]['record'])
 
     def test_nonuse_preserves_existing_intent(self):
+        import authoring_work
         self.choices['uses'] = []
         self.choices['not_used'] = [{'record_id': 'lighting-cool-window', 'reason': 'The declared direction uses another light.'}]
         self.write('decisions.json', self.choices)
         output = self.apply()
         self.assertEqual(c.load(self.root / output['production_spec']), self.spec)
         task = c.load(self.root / output['task'])
-        self.assertEqual(task['sources'][-1]['disposition'], 'considered-not-used')
+        basis = c.load(self.root / task['work_basis'])
+        self.assertEqual(basis['sources']['window-study']['origin']['source']['disposition'], 'considered-not-used')
+        self.assertEqual(authoring_work.source_value(basis['sources']['window-study'])['not_used'], self.choices['not_used'])
+        self.assertNotIn('window-study', {row['source'] for row in basis['applications'].values()})
+        self.assertNotIn('window-study', {row['id'] for row in task['sources']})
+
+    def test_selected_specification_source_is_updated_with_its_original_retained(self):
+        import authoring_work
+        import production_fixtures
+        self.task['sources'].append({'id': 'specification', 'path': 'spec.json', 'role': 'production-spec',
+            'disposition': 'applied', 'locator': 'whole specification', 'reason': 'Current authored lighting study.'})
+        production_fixtures.bind_work_basis(self.root, self.task, focus='supporting-setting')
+        self.write('task.json', self.task)
+        previous = c.load(self.root / self.task['work_basis'])
+        original = copy.deepcopy(previous['sources']['specification'])
+        output = self.apply()
+        task = c.load(self.root / output['task'])
+        basis = c.load(self.root / task['work_basis'])
+        self.assertEqual(basis['baseline']['documents']['production_spec'], self.spec)
+        self.assertEqual(authoring_work.source_value(basis['sources']['specification'])['selected_preset_ids'],
+                         ['lighting-cool-window'])
+        self.assertIn(original, list(basis['sources'].values()))
+        self.assertEqual([row['id'] for row in task['sources'] if row['role'] == 'production-spec'], ['specification'])
+        self.assertEqual(c.load(self.root / 'spec.json'), self.spec)
 
     def test_existing_selections_survive_a_local_application(self):
         self.spec['selected_preset_ids'] = ['camera-close-eye-level']; self.write('spec.json', self.spec)
@@ -227,9 +263,10 @@ class ConsultationTests(unittest.TestCase):
         _, candidate = self.fixture.candidate(run=run, name='result.txt',
                                               content='One lamp with readable shadow detail.')
         saved=workflow.read_run(self.root,run)
-        app = c.load(self.root / result['application'])
+        applied_path = next(row['path'] for row in saved.prepared['task']['sources'] if row['id'] == 'window-study')
+        app = c.load(self.root / applied_path)
         app['applications'][0]['review_question'] = 'Changed after preparation.'
-        self.write(result['application'], app)
+        self.write(applied_path, app)
         basis = workflow.review_basis(self.root, run, candidate['sha256'])
         self.assertIn('shadow side', ' '.join(basis['criteria'][0]['craft_questions']))
         self.assertNotIn('Changed after', ' '.join(basis['criteria'][0]['craft_questions']))
@@ -237,7 +274,7 @@ class ConsultationTests(unittest.TestCase):
         self.assertEqual((current.prepared,current.consumer),(saved.prepared,saved.consumer))
         failures,notices=workflow.freshness(self.root,run)
         self.assertEqual(failures,[])
-        self.assertIn(('SOURCE_CHANGED','warning',result['application']),
+        self.assertIn(('SOURCE_CHANGED','warning',applied_path),
                       [(item['code'],item['severity'],item['file']) for item in notices])
         # Review and execution retain this run's captured application.
         self.assertEqual(basis, workflow.review_basis(self.root, run, candidate['sha256']))

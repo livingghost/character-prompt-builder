@@ -3098,11 +3098,11 @@
     ],
     "settled": true,
     "context": {
-      "prompt_sha256": "19c16123526b5af191d2a8981416b5d3043b7b413c0d6bfd14027049cc0e4dd6",
+      "prompt_sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121",
       "plot_content_sha256": "58dd32ffbba312183167b59baa25e737f7ea21de2e692b37db7b92f8790541fe"
     }
   },
-  "retrieval_record_sha256": "588108ff6fee4ddc156770fab454e0a6063aac698903a752d32023a5313c29ac",
+  "retrieval_record_sha256": "04c74ef3d86eb23fd323a20d7510338d173859298aa7672dc1955f5afc2f98bd",
   "plot": {
     "artifact_type": "prompt-plot",
     "story": [
@@ -9550,6 +9550,40 @@
       "negative_preset": "",
       "resolved_model_id": "gpt-image-2.5-flare"
     },
+    "reference_text": {
+      "mode": "none",
+      "selected_channel": "integrated_prompt",
+      "channels": {
+        "prompt": {
+          "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
+          "source_text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use warm window light with cool neutral office fill, crisp facial markings, restrained soft modeling on broad fur and shoulder planes, and a quiet field-office background. No pendant hangs at his neck.",
+          "source_sha256": "19c16123526b5af191d2a8981416b5d3043b7b413c0d6bfd14027049cc0e4dd6",
+          "sha256": "19c16123526b5af191d2a8981416b5d3043b7b413c0d6bfd14027049cc0e4dd6",
+          "trace": []
+        },
+        "negative_prompt": {
+          "text": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
+          "source_text": "photorealistic rendering, 3D render, swapped left and right details, missing ear stud, intact left ear tip, extra pendant on the wolf, fused desk and hand, unreadable facial markings",
+          "source_sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
+          "sha256": "6240bc891290379a6288c8eef754694f952eabbeee3bf1c05a053bfd2cdbd570",
+          "trace": []
+        },
+        "integrated_prompt": {
+          "text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
+          "source_text": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
+          "source_sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121",
+          "sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121",
+          "trace": []
+        },
+        "native_negative": {
+          "text": "",
+          "source_text": "",
+          "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "trace": []
+        }
+      }
+    },
     "parameters": {
       "height": 1024,
       "safety": {
@@ -9583,16 +9617,16 @@
     "prompt_recommendations_sha256": "525c66a877c41b6b30015a6cdb645a146b70d4c910fa99539c9ec8b159898029",
     "production_spec_sha256": "c9563e165e314de71e2285c3348e13e624f32dabe2b40e28c626a178afb8bc41",
     "plot_sha256": "12379b02bc4cc79db80bbd6ce9f74dec157a0f59150965c2928125733acdff4f",
-    "retrieval_record_sha256": "588108ff6fee4ddc156770fab454e0a6063aac698903a752d32023a5313c29ac",
+    "retrieval_record_sha256": "04c74ef3d86eb23fd323a20d7510338d173859298aa7672dc1955f5afc2f98bd",
     "state_lineage_sha256": "79c0efd1a0d94040494b0d9aba983294ff9289a87d045aa39162ac6ab08dfb99",
     "state_graphs_sha256": "9639bdbd5f1cb2b3b33f5515b7cbb9c47ac6ee26f7726360e6948c0b75a1d231",
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "91ef6aefa67665462cc77eeba8fc34419c19175276d4762bc452b77ea89aad86",
+    "route_reading_sha256": "76dbbfe89425f9b1a83060ef38c2983e5920c9ca5bf1ffb3e6fed190a1c132ea",
     "request_validation_sha256": "753a532103432f1ad28f7901525099f1b9379b8e167dbb9549320a8099e12036",
     "input_snapshots_sha256": "b8a4b22d7106b7c2cd541c933a191bfc1d5c651cc53f96050c5f4779333339a1",
-    "generation_input_sha256": "82d5d1b19746f65c3e6ea733bafcc64b125021fb7bb7bc87c11f139c7ffeb3f6"
+    "generation_input_sha256": "8c337211b2578f080d7b30475d0b6486cea02a5dcc309f1aada0148c5e78fe46"
   },
   "visual_continuity": {
     "purpose": "image",
@@ -9614,16 +9648,20 @@
   "route_reading": {
     "documents": [
       {
+        "path": "references/runtime/authoring-work.md",
+        "sha256": "b3b8d0b56311fc5015aef5e1e1c428118ead422f3dcc60629d512a8f85a4b6a5"
+      },
+      {
         "path": "references/runtime/production-workflow.md",
-        "sha256": "ee229313226a76541fad6da863ba506212e26edfa42876a6b19e04f506c1cb3a"
+        "sha256": "dc15e0f2697a373620e54700d95aa68c3322987598addb96c41cbc784ac07491"
       },
       {
         "path": "references/runtime/production-direction.md",
-        "sha256": "af908c2389f135d2a58029493e4e172b657d9c529336b4cd24c549ef5f17b272"
+        "sha256": "6aae7b3f58fa49aa10e54e2bb4c5874839a4b3bf681516456c545a8db28d322b"
       },
       {
         "path": "references/runtime/production-authoring.md",
-        "sha256": "af1f17334e0dddd9eafb0427fd028fe2d927cf541ca1e240f01b74e4701196c3"
+        "sha256": "8c07faa8b2d43fb412b630f4acb5a07d7baddae3370d41ce6428d44f77ffdc58"
       },
       {
         "path": "references/runtime/production-preparation.md",
@@ -9667,11 +9705,11 @@
       },
       {
         "path": "references/runtime/reference-delivery.md",
-        "sha256": "3a85edf207da8a7ddd580d6e0341d0c0347ce16f43c525511430744f4660cafa"
+        "sha256": "20ab6b20a51274c6329b16b8fff8685b4c93e197dde148c3a4ec5acf8c4cc2be"
       },
       {
         "path": "references/runtime/render-contract.md",
-        "sha256": "08dba18106080e5e8e8ca6141da3a7c5f2bbb0c6b955d64385f30a77a42f4dcd"
+        "sha256": "78a8964b12edd96b8fea640249e5bfe5c681377d9169f5206c715a627889e3a9"
       },
       {
         "path": "references/runtime/studio.md",
@@ -9715,9 +9753,9 @@
       }
     },
     "route": "state-series",
-    "reading_key": "976257b739f97952b1f17719c3480d02"
+    "reading_key": "0b25b60c9bd89416b8ad7bfe382d5868"
   },
-  "route_reading_sha256": "91ef6aefa67665462cc77eeba8fc34419c19175276d4762bc452b77ea89aad86",
+  "route_reading_sha256": "76dbbfe89425f9b1a83060ef38c2983e5920c9ca5bf1ffb3e6fed190a1c132ea",
   "request_validation": {
     "mode": "target-schema",
     "target": {
@@ -9782,5 +9820,5 @@
     }
   },
   "input_snapshots_sha256": "b8a4b22d7106b7c2cd541c933a191bfc1d5c651cc53f96050c5f4779333339a1",
-  "generation_input_sha256": "82d5d1b19746f65c3e6ea733bafcc64b125021fb7bb7bc87c11f139c7ffeb3f6"
+  "generation_input_sha256": "8c337211b2578f080d7b30475d0b6486cea02a5dcc309f1aada0148c5e78fe46"
 }

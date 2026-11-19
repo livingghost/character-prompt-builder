@@ -1,15 +1,16 @@
 # Art Direction Template
 
-Use this optional working surface for the direction developed through
-[Production direction](../references/runtime/production-direction.md). Record
-the actual selected depiction, consequential choices and unresolved questions.
-Saved production retains its existing task, specification and reference owners;
-this template is not an additional approval or completeness gate. Keep only
-sections that contribute to the current work.
+Use this optional working surface while developing an actual candidate through
+[Authoring work](../references/runtime/authoring-work.md) and
+[Production direction](../references/runtime/production-direction.md). Locate
+the candidate and record explanations or unresolved questions that help the
+current work. Its actual content, source applications and choices retain their
+owning files. Keep only sections that contribute to the current work.
 
 ## Source brief
 
-- original wording:
+- authoring work and candidate:
+- current request source:
 - target model:
 - creative latitude:
 - interaction mode:
@@ -59,9 +60,10 @@ only to the precision the intended effect or fixed requirements need.
 
 ## Compared constructions, when relevant
 
-Record an actual comparison when alternatives expose a consequential tradeoff
-or the user requested them. Describe their different effects, what was selected
-and why. A fixed or already resolved construction can proceed directly.
+Locate actual candidates when alternatives expose a consequential tradeoff or
+the user requested them. Compare their different effects against the current
+request and retained requirements, and explain the resulting choice. A fixed
+or already resolved construction can proceed directly.
 
 ## Reference activation decision
 

@@ -7,16 +7,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from catalog_cli import (
-    configure_pack_runtime,
-    inspire,
-    load_entries,
-    load_pack_catalog,
-    recommend,
-    search_entries,
-)
+from catalog_api import configure_pack_runtime, inspire, load_entries, load_pack_catalog, recommend, search_entries
 from package_metadata import CORE_RELEASE_REGRESSION_CONTRACT, load_package_metadata
-from pack_manager import PackSettings
+from runtime_paths import PackSettings
 
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -12,14 +12,19 @@ import unittest
 import execution_contract as c
 import studio_reference as sr
 import studio_reference_fixtures as fixture
-import prepare_generation_references as refs
+import generation_references as refs
 import state_protocol as state
 from production_fixtures import scratch_home_dir
+from production_case_fixtures import cold_case
 
 
 class StudioStateTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._adoption_template = fixture.AdoptionTemplate.for_class(cls)
+
     def setUp(self):
-        self.case = fixture.adopted_case(self)
+        self.case = fixture.adopted_case(self, template=self._adoption_template)
         self.root = self.case.root
         self.source = sr.current_source(self.root,'robot',self.case.row['slot'])
         from catalog_retrieval.runtime import configure_pack_runtime
@@ -45,7 +50,7 @@ class StudioStateTests(unittest.TestCase):
             output_dir=self.out / 'images',transport_mode=mode)
 
     def packaged(self):
-        from build_generation_payload import materialize_cli_reference_bundle
+        from generation_payload_builder import materialize_cli_reference_bundle
         self.package_root = self.out/'package'; self.package_root.mkdir()
         prepared, _ = materialize_cli_reference_bundle(self.prepared(),model='gpt-image-2.5-flare',
             source_root=self.out,staging_root=self.package_root,companion_name='package.references')
@@ -55,14 +60,14 @@ class StudioStateTests(unittest.TestCase):
         from state_generation_smoke_test import _payload_inputs
         from request_validation_fixtures import fixture_validation
         from reading_fixtures import fixture_reading
-        from build_state_generation_package import build_package
+        from state_generation_builder import build_package
         import visual_continuity as vc
         graph = copy.deepcopy(self.graph)
         graph['production_spec']['render_intent']['execution_mode']='reference-guided'
         prepared = self.packaged()
         visual = vc.from_decisions({'C01':'recurring'},production_spec=graph['production_spec'],prepared=prepared,
             root=self.root,characters={'C01':'robot'},work_ids={'C01':'C01'})
-        inputs = _payload_inputs(graph)
+        inputs = _payload_inputs(graph, prepared)
         inputs.update(input_root=self.root,
             request_validation=fixture_validation(self.root,'gpt-image-2.5-flare',reference_mode='authored-rendition'),
             parameters={'width':1024,'height':1024,'settings':{'quality':'high'}})
@@ -129,8 +134,9 @@ class StudioStateTests(unittest.TestCase):
         self.assertEqual(panel['source_sha256'],self.source['sha256'])
         self.assertEqual(panel['transport_sha256'],prepared['selected_references'][0]['transport']['sha256'])
 
+    @cold_case
     def test_state_package_build_and_live_verify(self):
-        from build_state_generation_package import verify_package
+        from state_generation_builder import verify_package
         package=self.payload()
         self.assertTrue(verify_package(package,package_root=self.package_root,studio=self.root)['verified'])
         ref=package['visual_continuity']['subjects']['C01']['identity_refs'][0]
@@ -138,7 +144,7 @@ class StudioStateTests(unittest.TestCase):
         self.assertEqual(ref['proof_sha256'],self.source['proof_sha256'])
 
     def test_package_replay_survives_source_removal_but_live_verify_stops(self):
-        from verify_generation_payload import verify,verify_content
+        from generation_payload_validation import verify, verify_content
         package=self.payload()
         # Remove only original source/proof bytes, not the owned package companion.
         shutil.rmtree(self.root/'characters/robot/sheet/.fills')

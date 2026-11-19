@@ -26,22 +26,22 @@ class GenerationInputs:
 
     @classmethod
     def acquire(cls,values:dict,*,resolve_target,prepare_references,preflight_references=None,
-                evidence,check=None,validation_factory=None):
+                evidence,check=None,validation_factory=None,render_presets=None):
         """Run the same checks under an aggregate reporter or a standalone call.
 
         The reporter invokes each action and records its diagnostics. Only
         actions that actually return supply values to the result. A blocked or
         failed action leaves no completed GenerationInputs to consume.
         """
-        import build_generation_payload as builder
+        import generation_payload_builder as builder
         import render_contract_lib as render
         from production_spec import require as require_spec
         from prompt_plot import validate_prompt_plot
-        from revision_contract import require_intent_revision
         from prompt_weighting import selected as selected_weighting
         from prompt_retrieval import require_generation_retrieval
         from model_prompt_input import resolve_prompt_input
 
+        render_presets = render_presets if render_presets is not None else render.RenderPresets()
         values=dict(values)
         specification=values.get('production_spec')
         selected_intent=values.get('render_intent')
@@ -60,7 +60,7 @@ class GenerationInputs:
         def specification():
             value=authored.get('production_spec')
             if value is not None:
-                require_spec(value)
+                require_spec(value, render_presets=render_presets)
                 if selected_intent is not None and selected_intent!=value['render_intent']:
                     raise ValueError('selected render intent differs from its production specification')
             elif any(authored.get(key) is not None for key in ('state_snapshot','state_graphs','state_lineage')):
@@ -82,7 +82,6 @@ class GenerationInputs:
             value=authored.get('creative_intent')
             if value is None:return None
             if not isinstance(value,dict):raise ValueError('creative intent must be an object')
-            require_intent_revision(value)
             return value
         perform('creative-intent',creative)
         perform('target-contract',resolve_target)
@@ -93,9 +92,39 @@ class GenerationInputs:
         else:
             facts['reference-preparation']=builder.empty_stateless_reference_set()
 
+        if authored.get('request_validation') is not None or validation_factory is not None:
+            def validation():
+                from input_contracts import acquire_validation
+                record=authored.get('request_validation')
+                if record is None:return validation_factory(facts['target-contract'])
+                return acquire_validation(record,evidence)
+            perform('request-validation-evidence',validation)
+
+        def reference_text():
+            from reference_delivery import bindings
+            from model_rendition import reference_contract, resolve_reference_channels
+            target = facts['target-contract']
+            prepared = facts['reference-preparation']
+            rows = bindings(prepared['transport_mode'], prepared['selected_references'], prepared['single_board'])
+            mode = 'none'
+            if rows:
+                validation, policy = facts['request-validation-evidence']
+                record = validation.record
+                local = evidence.at(record['execution_policy']) if record.get('execution_policy') else evidence
+                contract = reference_contract(policy.get('reference_instruction_transport'), local,
+                    record['target'], policy.get('text_dialect') or target.model.get('prompt_dialect'), rows)
+                mode = contract['mode']
+            negative = authored['negative_transport']
+            if negative == 'auto':
+                negative = target.model.get('negative_transport_mode')
+            return freeze(resolve_reference_channels(authored, rows, reference_mode=mode, negative_transport=negative))
+        perform('reference-input', reference_text)
+
         def intent():
             value=authored.get('render_intent')
-            render.validate_intent(value,prompt=authored['prompt'])
+            texts = facts['reference-input']
+            render.validate_intent(value,prompt=texts['channels'][texts['selected_channel']]['text'],
+                                   render_presets=render_presets)
             return value
         perform('render-intent',intent)
         perform('execution-profile',lambda:freeze(render.selected_profile(
@@ -112,13 +141,6 @@ class GenerationInputs:
                           'intent':facts['render-intent']}
                 return render.dispatch_values(contract,seed=authored['seed'],count=authored['count'])
             perform('execution-quantity',quantity)
-        if authored.get('request_validation') is not None or validation_factory is not None:
-            def validation():
-                from input_contracts import acquire_validation
-                record=authored.get('request_validation')
-                if record is None:return validation_factory(facts['target-contract'])
-                return acquire_validation(record,evidence)
-            perform('request-validation-evidence',validation)
         if authored.get('negative_provenance') is not None:
             perform('negative-provenance',lambda:freeze(builder.normalize_negative_provenance(authored['negative_provenance'])))
         else:
@@ -127,12 +149,15 @@ class GenerationInputs:
         def channels():
             target=facts['target-contract'];profile=facts['execution-profile']
             mode=facts['render-intent']['execution_mode']
-            return freeze(builder.prepare_text_transports(model_id=target.model_id,model_record=target.model,
-                prompt=authored['prompt'],negative_prompt=authored['negative_prompt'],
-                integrated_prompt=authored['integrated_prompt'],native_negative=authored['native_negative'],
+            sources = facts['reference-input']['channels']
+            result = builder.prepare_text_transports(model_id=target.model_id,model_record=target.model,
+                prompt=sources['prompt']['text'],negative_prompt=sources['negative_prompt']['text'],
+                integrated_prompt=sources['integrated_prompt']['text'],native_negative=sources['native_negative']['text'],
                 negative_transport=authored['negative_transport'],
                 critical_avoidance_integrated=authored['critical_avoidance_integrated'],
-                weighting_syntax=selected_weighting(facts['execution-controls'][0],profile['modes'][mode]['prompt_syntax'])))
+                weighting_syntax=selected_weighting(facts['execution-controls'][0],profile['modes'][mode]['prompt_syntax']))
+            result['reference_text'] = facts['reference-input']
+            return freeze(result)
         perform('negative-transport',channels)
 
         def retrieval():
@@ -140,11 +165,13 @@ class GenerationInputs:
             tag_input=resolve_prompt_input(target.model)['mode']=='tag-based'
             syntax=selected_weighting(facts['execution-controls'][0],
                 facts['execution-profile']['modes'][facts['render-intent']['execution_mode']]['prompt_syntax']) if tag_input else 'literal'
-            return require_generation_retrieval(authored.get('retrieval_record'),prompt=authored['prompt'],plot=authored.get('plot'),
-                model_record=target.model,negative=authored['negative_prompt'] if tag_input else '',syntax=syntax)
+            texts = facts['reference-input']
+            return require_generation_retrieval(authored.get('retrieval_record'),
+                prompt=texts['channels'][texts['selected_channel']]['text'],plot=authored.get('plot'),
+                model_record=target.model,negative=facts['negative-transport']['selected_negative'] if tag_input else '',syntax=syntax)
         perform('retrieval',retrieval)
         required={'specification','plot','creative-intent','target-contract','reference-preparation','render-intent',
-                  'execution-profile','execution-controls','negative-provenance','negative-transport','retrieval'}
+                  'execution-profile','execution-controls','negative-provenance','negative-transport','retrieval','reference-input'}
         if authored.get('prepared_reference_set') is not None and preflight_references is not None:
             required.add('dependency-preflight')
         if authored.get('request_validation') is not None or validation_factory is not None:required.add('request-validation-evidence')

@@ -88,12 +88,22 @@ Use no record when none fits; application records are useful evidence, not a new
 For an unchanged technique, describe its retained scope rather than inventing a modification.
 
 The tool resolves record hashes, target values, and selected IDs from these choices.
-It snapshots the full consulted knowledge and appends a `preset-application` source to a copied task.
+It snapshots the full consulted knowledge and projects chosen uses as a `preset-application` source.
+The complete authored decision file is acquired as a current source and also
+retained in that application document. A nonuse-only application remains in the
+acquired catalog; its unused records receive no current application.
 The copied specification retains all authored fields and existing selected IDs, then adds the newly used IDs.
 Existing task sources retain earlier applications and judgments.
 Nonuse of a previously selected ID requires an explicit revision of that earlier choice.
 
-`apply-presets` publishes the copied task, copied specification, application source, and input snapshots together.
+The task's [authoring work](authoring-work.md) supplies the ongoing request.
+`apply-presets` amends the actual parent task, delivery and documents, acquiring
+the newly selected sources and updating the current specification owner. The
+common projector derives the task sources from those applications and retains
+the original acquisitions for comparison.
+
+`apply-presets` publishes the copied task, copied specification, application
+document, current source files, `work-basis.json`, and input snapshots together.
 An existing output directory, stale source, missing selection, or unknown target/criterion returns an error before publication.
 Change the authored decisions or sources and rebuild in a new directory.
 
@@ -111,8 +121,9 @@ open treatment. Inspect actual assets before transferring their visual authority
 ## Review and return to the packs
 
 Preparation captures the application as an ordinary production source.
-`draft-review` copies its authored questions into the matching criterion reasons with `not-assessed` verdicts and empty observations.
-Replace those prompts with judgments supported by the actual candidate and cited observations.
+The review basis places its authored questions in the matching criterion's
+`craft_questions`. Draft checks retain `not-assessed` verdicts, empty reasons
+and empty observations. Judge the actual candidate using cited observations.
 
 Review the borrowed relationship, preserved constraints, deliberate changes, and any unrelated subject or setting carried into the output.
 Distinguish successful lookup, intended application, and observed effect.

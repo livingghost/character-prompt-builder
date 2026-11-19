@@ -344,6 +344,22 @@ class SheetArtifactTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'hash mismatch'):
             validate_sidecar(c.load(self.sheet), sheet_root=self.sheet.parent, verify_files=True)
 
+    def test_complete_sheet_check_acquires_shared_artwork_once_and_rechecks_next_call(self):
+        artifact = accepted(self.sheet)
+        ending = withdrawal_decision(self.sheet)
+        fills.withdraw(self.sheet, ending, evidence_root=self.sheet.parent)
+        value = c.load(self.sheet)
+        provenance = self.sheet.parent / artifact['provenance']['path']
+        image = self.sheet.parent / artifact['image']['path']
+        package = provenance.parent / 'package.json'
+        with patch.object(c, 'read', wraps=c.read) as reads:
+            validate_sidecar(value, sheet_root=self.sheet.parent, verify_files=True)
+        for path in (provenance, image, package):
+            self.assertEqual(sum(Path(call.args[0]) == path for call in reads.call_args_list), 1, path)
+        package.write_bytes(b'{}')
+        with self.assertRaisesRegex(ValueError, 'hash mismatch'):
+            validate_sidecar(value, sheet_root=self.sheet.parent, verify_files=True)
+
     def test_provenance_and_package_tampering_are_detected(self):
         artifact = accepted(self.sheet)
         folder = (self.sheet.parent / artifact['provenance']['path']).parent

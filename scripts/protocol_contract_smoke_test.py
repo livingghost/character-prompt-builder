@@ -5,6 +5,7 @@ Conformance uses explicitly supplied protocol artifacts and the bundled validato
 Synthetic samples validate shape and commitments, not media or author approval.
 """
 from __future__ import annotations
+import read_context
 import argparse
 import copy
 import io
@@ -23,7 +24,6 @@ import temporal_state as temporal
 import state_protocol as state
 import shot_request as shot
 import viewpoint_protocol as viewpoint
-import runtime_snapshot
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -91,7 +91,7 @@ class Contracts(unittest.TestCase):
             seen=[];read=Path.read_bytes
             def observe(path):
                 seen.append(path);return read(path)
-            with mock.patch.object(Path,'read_bytes',observe),runtime_snapshot.public_call():
+            with mock.patch.object(Path,'read_bytes',observe),read_context.public_call():
                 contracts=pc.contract_set();self.assertIs(contracts,pc.contract_set())
                 value=fixture('state-event')
                 self.assertTrue(pc.validate_artifact(value,contracts=contracts)['ok'])
@@ -112,17 +112,17 @@ class Contracts(unittest.TestCase):
         with mock.patch.object(pc,'ROOT',root):
             for relative in (pc.SEMANTICS_PATH,pc.VALIDATOR_PATH,'protocols/shared-state/schemas/state-event.schema.json'):
                 with self.subTest(relative=relative):
-                    with runtime_snapshot.public_call():pc.contract_set().schema_named('state-event.schema.json')
+                    with read_context.public_call():pc.contract_set().schema_named('state-event.schema.json')
                     path=root/relative;raw=path.read_bytes();metadata=path.stat()
                     path.write_bytes(bytes([raw[0]^1])+raw[1:]);os.utime(path,ns=(metadata.st_atime_ns,metadata.st_mtime_ns))
                     try:
-                        with runtime_snapshot.public_call(),self.assertRaisesRegex(ValueError,'byte hash mismatch'):
+                        with read_context.public_call(),self.assertRaisesRegex(ValueError,'byte hash mismatch'):
                             pc.contract_set().schema_named('state-event.schema.json')
                     finally:
                         path.write_bytes(raw);os.utime(path,ns=(metadata.st_atime_ns,metadata.st_mtime_ns))
     def test_authoring_schema_read_scope_and_same_metadata_edit(self):
         path=self.save('authoring.schema.json',{'type':'object','properties':{'value':{'const':1}},'required':['value']})
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             schema=state.read_schema(path)
             self.assertIs(schema,state.read_schema(path))
             self.assertEqual(state.validate_against_schema({'value':1},schema),[])
@@ -130,7 +130,7 @@ class Contracts(unittest.TestCase):
             with self.assertRaises(TypeError):schema['properties']['value']['const']=2
         raw=path.read_bytes();metadata=path.stat()
         path.write_bytes(raw.replace(b'"const": 1',b'"const": 2'));os.utime(path,ns=(metadata.st_atime_ns,metadata.st_mtime_ns))
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             self.assertEqual(state.validate_against_schema({'value':2},state.read_schema(path)),[])
     def test_public_validator_runs_without_product_modules(self):
         root=self.root/'standalone';shutil.copytree(ROOT/'protocols',root/'protocols')

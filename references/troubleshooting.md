@@ -126,7 +126,8 @@ Establish the requested scope through Production direction before projecting
 the change into the [Revision Contract](runtime/revision-contract.md). A local
 edit preserves the baseline outside the requested change and its necessary
 consequences. A request to reconsider the depiction can reopen selected means;
-requested alternatives use `explore` within the remaining fixed requirements.
+compose actual candidates through [Authoring work](runtime/authoring-work.md)
+within the retained requirements.
 Judge whether the repeated construction serves the brief or merely preserves
 incidental retrieval choices. Rebuild the affected act, relationship or visual
 organization before choosing new wardrobe, camera or gesture details. Retaining

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Synthetic current-acceptance references and portable proof verification."""
 from __future__ import annotations
+import read_context
 import copy
 import json
 from pathlib import Path
@@ -10,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 import execution_contract as c
-import studio
+import studio_workspace as studio
 import studio_reference as sr
 import sheet_artifacts as fills
 from sheet_artifacts_smoke_test import accepted, make_artifact, decision
@@ -32,23 +33,22 @@ class StudioSourceTests(unittest.TestCase):
         self.assertEqual(self.source['artifact_id'], self.artifact['artifact_id'])
         self.assertEqual(self.source['acceptance_sha256'], c.content_id(c.load(self.sheet)['slots']['canon.primary']['current']))
         self.assertEqual(proof['studio_id'], 'synthetic-source-owner')
-        from prepare_generation_references import validate_committed_source
+        from generation_references import validate_committed_source
         self.assertEqual(validate_committed_source(self.source), self.source)
 
     def test_live_reference_reads_do_not_take_writer_locks(self):
-        with patch.object(c, 'lock', side_effect=AssertionError('reference reads must not acquire writer locks')):
+        with patch.object(c, 'file_lock', side_effect=AssertionError('reference reads must not acquire writer locks')):
             current = sr.current_source(self.root, 'robot', 'canon.primary')
             proof = sr.validate_source(current)
         self.assertEqual(current, self.source)
         self.assertEqual(proof['acceptance']['artifact'], self.artifact)
 
     def test_one_reference_phase_keeps_independent_studio_owners(self):
-        import runtime_snapshot
         other = studio.init(self.base / 'other', 'another-source-owner', 'Another synthetic source')
         studio.add_character(other, 'robot', 'general')
         accepted(other / 'characters/robot/sheet/sheet-data.json')
         reads = sr.ReferenceReads()
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             first = sr.current_source(self.root, 'robot', 'canon.primary', read=reads.studio(self.root))
             second = sr.current_source(other, 'robot', 'canon.primary', read=reads.studio(other))
             self.assertEqual(sr.validate_source(first, reads=reads)['studio_id'], 'synthetic-source-owner')
@@ -88,7 +88,7 @@ class StudioSourceTests(unittest.TestCase):
         source = sr.current_source(self.root, 'C01', 'canon.primary')
         self.assertEqual(source['artifact_id'], artifact['artifact_id'])
         self.assertEqual(source['character'], 'C01')
-        from prepare_generation_references import validate_committed_source
+        from generation_references import validate_committed_source
         self.assertEqual(validate_committed_source(source), source)
 
     def test_replacement_is_rejected_even_when_old_bytes_remain(self):
@@ -229,7 +229,7 @@ class AcceptedStudioImageTests(unittest.TestCase):
                               response=None, note='Synthetic accepted scene fixture.')
 
     def test_scene_source_keeps_exact_acceptance_without_declaring_a_sheet_panel(self):
-        from prepare_generation_references import validate_committed_source
+        from generation_references import validate_committed_source
         from visual_continuity import declared_sheet_slots
         proof = sr.validate_source(self.source)
         self.assertEqual(self.source['kind'], 'studio-accepted-image')
@@ -309,7 +309,7 @@ class ProductionStudioSourceTests(unittest.TestCase):
         import production_case_fixtures as fixtures
         import production_execution as execution
         import production_fixtures as fixture
-        import production_workflow as workflow
+        import production_operations as workflow
         from catalog_retrieval import runtime
         from revision_contract import digest
         from test_production_execution import decisions
@@ -376,14 +376,14 @@ class ProductionStudioSourceTests(unittest.TestCase):
 
     def promotion_authorization(self):
         import production_fixtures as fixture
-        import production_workflow as workflow
+        import production_operations as workflow
         intent = workflow.adoption_intent(self.root, self.run, self.candidate,
             'robot', self.row['iteration_id'], self.catalog_approval,
             registration_record=self.record, pack_dir=self.pack)
         return fixture.grant(self.root, self.run, intent)
 
     def promote(self, token=None):
-        import production_workflow as workflow
+        import production_operations as workflow
         return workflow.adopt(self.root, self.run, self.candidate, 'robot', self.row['iteration_id'],
             'catalog-approval.json', token or self.promotion_authorization(),
             registration_record=self.record, pack_dir=self.pack, settings=self.settings)
@@ -451,12 +451,12 @@ class ProductionStudioSourceTests(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostic.code, 'ADOPTION_RECORD_CORRUPT')
 
     def test_catalog_reference_waits_for_its_completed_result_and_resumes_same_claim(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import adoption_workflow as adoption
         token = self.promotion_authorization()
         append = workflow.append_record
         def interrupted(*args, **kwargs):
-            if args[3] == 'adoption-result':
+            if args[1] == 'adoption-result':
                 raise OSError('Synthetic interruption before recording the catalog adoption result.')
             return append(*args, **kwargs)
         with patch.object(workflow, 'append_record', side_effect=interrupted):

@@ -8,6 +8,8 @@ an author's evidenced statement that the provider holds no such task is
 recorded as one.
 """
 from __future__ import annotations
+from execution_watch_options import WATCH_LIMIT_SECONDS
+import read_context
 
 import contextlib
 import copy
@@ -36,7 +38,6 @@ SCRIPT = str(Path(__file__).with_name('production_workflow.py'))
 # service record polls an asynchronous task about every ten seconds. The limit keeps one watch within
 # about two minutes, a common time limit of an agent's command; a pending run is watched again from
 # its next action.
-WATCH_LIMIT_SECONDS = 120
 
 
 def _public_call(function):
@@ -45,9 +46,9 @@ def _public_call(function):
     The root is checked and resolved once here (`execution_contract._root`), so a
     root given through a directory junction names the same files as the paths
     the run and the Studio record. The stages of the call reuse what the call
-    already verified. Each production transaction still starts its own scope.
-    `accounting.begin_step` checks the saved run, fixed runtime and current
-    imported authority again even inside a caller's transaction.
+    already verified, including across successful commits. Each external step
+    checks current imported authority and its unique claim in the transaction;
+    its request and fixed runtime remain the operation's immutable inputs.
     """
     @functools.wraps(function)
     def call(*args, **kwargs):
@@ -56,13 +57,13 @@ def _public_call(function):
             kwargs['root'] = c._root(kwargs['root'])
         else:
             args = (c._root(args[0]), *args[1:])
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             return function(*args, **kwargs)
     return call
 
 
 def compiled(root: Path, run: str, *, fresh: bool = False, loaded=None) -> tuple:
-    import production_workflow as workflow
+    import production_operations as workflow
     import transport_contract
     loaded = workflow.assert_current(root, run) if fresh else loaded or workflow.read_run(root, run)
     directory, prepared, consumer, rows = loaded
@@ -122,7 +123,7 @@ def receipts(root: Path, prepared: dict, rows: list[dict], plan: dict, *,
              loaded=None,
              required_action: str = 'Fill the execution decision file from the actual approval or delegation, then execute with --decisions-file.') -> dict[str, str]:
     """Select only receipts covering each entire operation under current grants."""
-    import production_workflow as workflow
+    import production_operations as workflow
     selected = {}
     for intent in plan['operations']:
         matches = [row for row in reversed(rows) if row['event'] == 'authorization' and
@@ -154,7 +155,7 @@ def require_recording(root: Path, prepared: dict) -> None:
     condition or the subject mapping changed after preparation. A destination
     that cannot be written keeps its own operating-system error.
     """
-    import studio
+    import studio_workspace as studio
     from production_compiler import validate_recording
     recording = prepared['task'].get('recording')
     if recording is None:
@@ -171,17 +172,19 @@ def require_recording(root: Path, prepared: dict) -> None:
 
 
 def _append(root: Path, run: str, event: str, data: dict) -> dict:
-    import production_workflow as workflow
-    directory, prepared, _, rows = workflow.read_run(root, run)
-    return workflow.append_record(directory, prepared, rows, event, data)
+    import production_operations as workflow
+    with store.transaction(root):
+        loaded = workflow.read_run(root, run)
+        return workflow.append_record(loaded, event, data)
 
 
 def _evidence(root: Path, run: str, journal, names: list[str]) -> list[dict]:
     """Snapshot the named journal files into the run, as formal event evidence."""
-    import production_workflow as workflow
+    import production_operations as workflow
     directory = workflow.run_dir(root, run)
     base = journal.path.absolute().relative_to(Path(root).absolute()).as_posix()
-    return [workflow.file_record(root, directory, base + '/' + name) for name in names if (journal.path / name).is_file()]
+    return [workflow.file_record(root, directory, base + '/' + name, raw=journal.bytes(name))
+            for name in names if (journal.path / name).is_file()]
 
 
 def _credential(root: Path, transport: Any, service_id: str, *, expected: dict | None = None):
@@ -204,7 +207,7 @@ def authentication_readiness(root: Path, transport: Any, service_id: str, *,
 
 def claim_authentication(claim: dict, transport: Any, service_id: str) -> dict | None:
     """The claim's non-secret source identity; an absent declaration is an invalid claim."""
-    import production_workflow as workflow
+    import production_operations as workflow
     if 'authentication' not in claim['data']:
         raise ProductionError('ARTIFACT_CORRUPT', 'The dispatch claim has no authentication selection.',
                               phase='integrity', required_action='Restore the complete recorded dispatch claim.')
@@ -216,8 +219,8 @@ def claim_authentication(claim: dict, transport: Any, service_id: str) -> dict |
 
 
 def _journal(root: Path, run: str, data: tuple, *, loaded=None):
-    import dispatch
-    import production_workflow as workflow
+    import dispatch_runtime as dispatch
+    import production_operations as workflow
     from publication_artifacts import ArtifactSet
     directory, prepared, _, _, package, rendered, plan, target, _ = data
     loaded = loaded if loaded is not None else workflow.read_run(root, run)
@@ -227,14 +230,14 @@ def _journal(root: Path, run: str, data: tuple, *, loaded=None):
     if operation == 'upscale':
         companion = 'upscale.references'
     else:
-        from build_generation_payload import validate_generation_package_carrier_paths
+        from generation_payload_builder import validate_generation_package_carrier_paths
         companion = validate_generation_package_carrier_paths(package['prepared_reference_set'], package_root=directory)
     journal = dispatch.RunJournal.create(root, operation=operation, character=recording['character'] if recording else None,
         slot=recording['slot'] if recording else None, service=plan['service'], transport=plan['transport'], model=plan['model'],
         production_run=run, expected=plan['quantities']['outputs'], note='Executed from the sealed production input.',
         offering=dispatch.offering_summary(target['offering'], target['model_id'], target['model']), companion=companion)
-    for name in ('package.json', 'consumer.json'):
-        artifacts.copy_file(name, journal.path / name)
+    journal.write('package.json', package)
+    journal.write('consumer.json', loaded.consumer)
     if companion:
         artifacts.subtree(companion).copy_to(journal.path / companion)
     if operation=='upscale':
@@ -253,7 +256,7 @@ def _journal(root: Path, run: str, data: tuple, *, loaded=None):
 def _execute_external(root: Path, run: str, *, decisions_file: str | None) -> dict:
     """Hand the exact input to the host once after both independent decisions pass."""
     import production_decisions
-    import production_workflow as workflow
+    import production_operations as workflow
     with store.transaction(root):
         boundary = workflow.read_current(root, run)
         loaded = boundary.view
@@ -295,7 +298,7 @@ def _external_instruction(run: str, claim: dict, delivery: dict) -> dict:
 def external_instruction(root: Path, run: str, *, claim: dict) -> dict:
     """Expose the same saved host call for the explicit handoff/claim commands."""
     import image_input
-    import production_workflow as workflow
+    import production_operations as workflow
     loaded = workflow.read_run(root, run)
     binding = loaded.consumer.get('image_input')
     if binding is None:
@@ -307,8 +310,8 @@ def external_instruction(root: Path, run: str, *, claim: dict) -> dict:
 
 @_public_call
 def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
-    import production_workflow as workflow
-    import studio
+    import production_operations as workflow
+    import studio_workspace as studio
 
     loaded = workflow.read_run(root, run)
     if loaded.prepared['task']['execution'] == 'external':
@@ -317,8 +320,8 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
     with stage('execution-preflight'):
         # The publication read above verified the sealed package, request and
         # target by content. They are sent as prepared, not built again. The
-        # claim transaction checks the saved run before any journal or handoff
-        # is written; each later external step checks them again.
+        # claim transaction receives these owned values before any journal or
+        # handoff is written; later external steps retain these same inputs.
         data = compiled(root, run, loaded=loaded)
         directory, prepared, _, rows, package, rendered, plan, target, transport = data
         if any(row['event'] == 'dispatch-claim' for row in rows):
@@ -329,9 +332,8 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
         if current():
             current().link(run=run, task=prepared['task']['task_id'])
             current().durable()
-        # Every external step performs its own fresh integrity check inside
-        # accounting.begin_step, after authorization and immediately before I/O.
-        # That check is independent of the presence of a diagnostic operation.
+        # Every external step checks current authority and records its unique
+        # durable start immediately before I/O, using this operation's inputs.
 
     with stage('authorization-and-claim'), store.transaction(root):
         boundary = workflow.read_current(root, run)
@@ -363,10 +365,10 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
 def _upload_receipt(root: Path, run: str, journal, rendered: dict, claim: dict,
                     authorization: str, index: int) -> dict:
     """Validate one actual upload response and persist its independently billed effect."""
-    import production_workflow as workflow
+    import production_operations as workflow
     item=rendered['media'][index]
     path=journal.path/f'upload-{index+1:03d}.json'
-    receipt=c.load(path)
+    receipt=journal.read(path.name)
     c.exact(receipt,{'index','source','source_sha256','provider_id','response','usage'},'upload receipt')
     if receipt['index']!=index or receipt['source']!=item['path'] or receipt['source_sha256']!=item['sha256']:
         raise ProductionError('ARTIFACT_CORRUPT','The upload receipt belongs to another sealed media input.',phase='result-capture',run=run)
@@ -375,7 +377,7 @@ def _upload_receipt(root: Path, run: str, journal, rendered: dict, claim: dict,
         raise ProductionError('TRANSPORT_RESULT_INVALID','The actual upload response must be a JSON object.',phase='result-capture')
     accounting.validate_usage(receipt['usage'])
     directory=workflow.run_dir(root,run)
-    witness=workflow.file_record(root,directory,path.relative_to(root).as_posix())
+    witness=workflow.file_record(root,directory,path.relative_to(root).as_posix(),raw=journal.bytes(path.name))
     accounting.record_effect(root,run,authorization,claim=claim['sha256'],step=f'upload:{index}',
                              usage=receipt['usage'],evidence=[witness])
     return receipt
@@ -384,11 +386,12 @@ def _upload_receipt(root: Path, run: str, journal, rendered: dict, claim: dict,
 def _record_no_effect(root: Path, run: str, authorization: str, claim: dict, step: str, outcome: str,
                       evidence: list[dict]) -> dict:
     """Record that one started external step made nothing, as the provider or the author evidenced."""
-    import production_workflow as workflow
+    import production_operations as workflow
     if outcome not in NO_EFFECT_OUTCOMES:
         raise ValueError('a step without effect is rejected or not_executed')
     with store.transaction(root):
-        directory, prepared, _, rows = workflow.read_run(root, run)
+        loaded = workflow.read_run(root, run)
+        directory, prepared, _, rows = loaded
         state = accounting.require_active(rows, prepared, run, authorization)
         if not any(item['step'] == step and item['claim'] == claim['sha256'] for item in state['steps']):
             raise ProductionError('SETTLEMENT_EVIDENCE_REQUIRED', 'No exact external boundary supports this outcome.',
@@ -402,7 +405,7 @@ def _record_no_effect(root: Path, run: str, authorization: str, claim: dict, ste
                                       phase='result-capture', run=run,
                                       required_action='Inspect the recorded result; a step keeps the first evidenced outcome.')
             return next(row for row in rows if row['event'] == 'external-effect-result' and row['data'] == data)
-        return workflow.append_record(directory, prepared, rows, 'external-effect-result', data)
+        return workflow.append_record(loaded, 'external-effect-result', data)
 
 
 
@@ -548,7 +551,7 @@ def _stop_on_unknown_upload(root: Path, run: str, journal, claim: dict, target: 
     this execution uploaded before are deleted, as after a refused upload. An
     upload of unknown outcome has no recorded identifier and is never deleted.
     """
-    import production_workflow as workflow
+    import production_operations as workflow
     if cause is not None:
         _keep_unanswered_upload(journal, positions[0], cause)
     error = _upload_outcome_unknown(root, run, journal, positions, phase=phase, cause=cause)
@@ -571,11 +574,11 @@ def _stop_on_unknown_upload(root: Path, run: str, journal, claim: dict, target: 
 
 def _transmit(root: Path, run: str, journal, rendered: dict, claim: dict, authorization: str,
               target: dict, transport: Any, key: str, *, previous_runtime=None) -> dict:
-    """Carry fixed metadata while each external step reacquires its actual inputs."""
-    import dispatch
+    """Carry owned request and runtime values through upload, send and capture."""
+    import dispatch_runtime as dispatch
     import request_contract as rc
     import transport_contract
-    import production_workflow as workflow
+    import production_operations as workflow
     try:
         media_ids = {}
         # The journal names the operation that transmits now, for its uploads and its send.
@@ -648,7 +651,7 @@ def _acknowledge(root: Path, run: str, journal, claim: dict, *, witnesses: tuple
     """Commit the receipt of the saved answer, with the journal files that witness it."""
     names = ['request-contract.json', 'request.json', *witnesses, 'answer.json', 'transport-outcome.json']
     return _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'acknowledged',
-        'response_sha256': c.sha256_file(journal.path / 'answer.json'), **facts,
+        'response_sha256': c.digest(journal.bytes('answer.json')), **facts,
         'evidence': _evidence(root, run, journal, names)})
 
 
@@ -657,8 +660,9 @@ def _unfinished(root: Path, run: str, journal, claim: dict, transport: Any, answ
     """Keep an unfinished observation and capture outputs without finalizing the send."""
     import transport_contract
     observed = transport_contract.outcome(transport, answer)
+    import production_operations as workflow
     known_accepted = any(row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
-                         and row['data'].get('submission') == 'pending' for row in store.event_rows(root, run))
+                         and row['data'].get('submission') == 'pending' for row in workflow.read_run(root, run).rows)
     submission = 'pending' if observed == transport_contract.ACCEPTED or known_accepted else 'outcome_unknown'
     reason = ('The provider accepted the request and has unfinished outputs.' if submission == 'pending'
               else 'The saved provider observation does not settle whether the request was carried out.')
@@ -751,7 +755,7 @@ def _record_execution_failure(root: Path, run: str, journal, claim: dict, error:
     its send and the inputs it uploaded before may be deleted.
     """
     try:
-        import production_workflow as workflow
+        import production_operations as workflow
         _, prepared, _, rows = workflow.read_run(root, run)
         # The failing process owns the attempt and is stopping now.
         outcome, effects = submission_state(rows, prepared, run, sender_alive=False)
@@ -776,7 +780,7 @@ def _record_execution_failure(root: Path, run: str, journal, claim: dict, error:
 def _finish(root: Path, run: str, journal, transport: Any, *, answer_name: str = 'answer.json',
             provider_complete: bool = True, previous_runtime=None) -> dict:
     """Acquire the recorded run once for result capture and its sealed target."""
-    import production_workflow as workflow
+    import production_operations as workflow
     import runtime_snapshot
     loaded = workflow.read_run(root, run)
     descriptor = loaded.prepared['runtime_snapshot']
@@ -789,16 +793,16 @@ def _finish(root: Path, run: str, journal, transport: Any, *, answer_name: str =
 def _finish_captured(root: Path, run: str, journal, transport: Any, *, loaded,
                      answer_name: str = 'answer.json', provider_complete: bool = True, previous_runtime=None) -> dict:
     """Commit every acquired candidate and accounting before updating Studio."""
-    import dispatch
-    import production_workflow as workflow
-    import studio
+    import dispatch_runtime as dispatch
+    import production_operations as workflow
+    import studio_workspace as studio
     rows = loaded.rows
     target = loaded.artifacts['execution-target.json']
     answer_path = journal.path / answer_name
     relative_answer = answer_path.relative_to(root).as_posix()
     expected = {item['sha256'] for row in rows for item in row['data'].get('evidence', [])
                 if item['path'] == relative_answer}
-    if expected and expected != {c.sha256_file(answer_path)}:
+    if expected and expected != {c.digest(journal.bytes(answer_name))}:
         raise ProductionError('RESPONSE_CORRUPT', 'Saved provider response differs from its durable receipt.',
                               phase='result-capture', run=run, file=str(answer_path),
                               required_action='Restore the recorded response bytes; do not resend the request.')
@@ -810,7 +814,7 @@ def _finish_captured(root: Path, run: str, journal, transport: Any, *, loaded,
             for row in rows for item in row['data'].get('evidence', []) if item['path'].startswith(base)}
     with stage('result-capture'):
         acquisition = dispatch.acquire(journal, transport, answer_name=answer_name, captured=captured, kept=kept)
-    package = c.load(journal.path / 'package.json')
+    package = journal.read('package.json')
     capture_diagnostics=[]
     if acquisition['refused']:
         capture_diagnostics.append({'code':'PROVIDER_REJECTION','severity':'warning','phase':'result-capture',
@@ -835,30 +839,32 @@ def _finish_captured(root: Path, run: str, journal, transport: Any, *, loaded,
             indices=[index for index, _, _ in acquisition['acquired']], returned_count=acquisition['entries'],
             upscale_packages=result_packages if journal.document['operation']=='upscale' else None,
             invalid_output_indices=invalid_upscale, answer_name=answer_name, provider_complete=provider_complete)
-        directory, prepared, _, rows = workflow.read_run(root, run)
+        loaded = workflow.read_run(root, run)
+        directory, prepared, _, rows = loaded
         claim = workflow.find(rows, 'dispatch-claim')
         handoff = workflow.find(rows, 'handoff')
         for index, item in zip(result['data']['output_indices'], result['data']['files']):
-            response = c.load(journal.path / f'response-{index}.json')
-            workflow.append_record(directory, prepared, store.event_rows(root, run), 'candidate',
+            response = journal.read(f'response-{index}.json')
+            loaded = workflow.read_run(root, run)
+            workflow.append_record(loaded, 'candidate',
                 {'handoff': handoff['sha256'], 'files': [item],
                  'media': workflow.media.inspect(c.object_read(directory, item['sha256']), prepared['task']['artifact']),
                  'note': 'Captured provider output; not a review or selection.',
                  'output_index': index, 'provider_output_id': response.get('id')})
-        answer = c.load(answer_path)
+        answer = journal.read(answer_name)
         usage = transport.usage(answer)
         if usage is not None and len(acquisition['observed_indices']) != acquisition['entries']:
             # This charge covers only the latest observation. Earlier outputs
             # remain captured, but their costs cannot be inferred or counted twice.
             usage = {**usage, 'final': False}
-        response_ref = workflow.file_record(root, directory, relative_answer)
+        response_ref = workflow.file_record(root, directory, relative_answer, raw=journal.bytes(answer_name))
         authorization=claim['data']['authorizations'][0]
-        rendered=c.load(journal.path/'request-contract.json')
+        rendered=journal.read('request-contract.json')
         for index in range(len(rendered['media'])):
             _upload_receipt(root,run,journal,rendered,claim,authorization,index)
         if provider_complete:
             accounting.record_effect(root,run,authorization,claim=claim['sha256'],step='send',usage=usage,evidence=[response_ref])
-        state=accounting.require_active(store.event_rows(root,run),prepared,run,authorization)
+        state=accounting.require_active(workflow.read_run(root,run).rows,prepared,run,authorization)
         # The generation result is immutable. Later input deletion keeps its
         # own billed receipts in aggregate accounting, not a rewritten result.
         actual_cost,_=accounting.effect_total(state, operations={'upload', 'send'})
@@ -885,10 +891,10 @@ def _finish_captured(root: Path, run: str, journal, transport: Any, *, loaded,
                 if found is None:
                     row = studio.iterate(root, journal.document['character'], journal.document['slot'], path,
                         package=result_packages.get(index,journal.path / 'package.json'), request=journal.path / 'request.json', response=response,
-                        answer=c.local(journal.path, c.load(response)['answer']), note='Projection of the captured Production candidate.',
+                        answer=c.local(journal.path, journal.read(response.name)['answer']), note='Projection of the captured Production candidate.',
                         service=journal.document['offering'],
                         package_companion=(journal.path / journal.document['companion']) if journal.document.get('companion') else None,
-                        layout=c.load(journal.path / 'request-contract.json')['layout'])
+                        layout=journal.read('request-contract.json')['layout'])
                     found = row['iteration_id']
                 if prepared['task']['recording']['sheet_panel']:
                     import sheet_artifacts
@@ -958,9 +964,10 @@ def _recorded_observation(root: Path, run: str, journal, claim: dict, transport:
     answer, and while nothing is recorded.
     """
     import transport_contract
-    import production_workflow as workflow
+    import production_operations as workflow
     base = journal.path.absolute().relative_to(Path(root).absolute()).as_posix() + '/'
-    for row in reversed(store.event_rows(root, run)):
+    loaded = workflow.read_run(root, run)
+    for row in reversed(loaded.rows):
         data = row['data']
         if row['event'] != 'execution-outcome' or data.get('claim') != claim['sha256']:
             continue
@@ -971,7 +978,7 @@ def _recorded_observation(root: Path, run: str, journal, claim: dict, transport:
         answer = next((sha for name, sha in kept.items() if name == 'send-observation.json'
                        or (name.startswith('lookup-') and name.endswith('-answer.json'))), None)
         if answer is not None:
-            saved = c.decode(c.object_read(workflow.run_dir(root, run), answer))
+            saved = loaded.evidence.document(answer)
             return {'outcome': 'found', 'answer': transport_contract.reading(transport, saved)}
         if 'indeterminate.json' in kept:
             return None
@@ -988,8 +995,8 @@ def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transpo
     transport_contract.lookup_once gives it; it is recorded instead of asking again.
     """
     import transport_contract
-    import dispatch
-    request = c.load(journal.path / 'request.json')
+    import dispatch_runtime as dispatch
+    request = journal.read('request.json')
     if found is None:
         selected = claim_authentication(claim, transport, target['offering']['service'])
         credential = _credential(root, transport, target['offering']['service'], expected=selected)
@@ -1001,14 +1008,14 @@ def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transpo
         result.update(ok=False, execution_completed=False, external_effect=False)
         return result
     receipt = {'outcome': found['outcome'], 'reason': found['reason'], 'transport': target['service']['transport'],
-               'request_sha256': c.sha256_file(journal.path / 'request.json'), 'looked_up_at': c.now()}
+               'request_sha256': c.digest(journal.bytes('request.json')), 'looked_up_at': c.now()}
     if found.get('evidence') is not None:
         receipt['evidence'] = found['evidence']
     name = _lookup_receipt_name(journal)
     if found['outcome'] == 'found':
         answer_name = name.removesuffix('.json') + '-answer.json'
         answer_path = journal.write(answer_name, found['answer'])
-        response_sha256 = c.sha256_file(answer_path)
+        response_sha256 = c.digest(journal.bytes(answer_name))
         journal.write(name, {**receipt, 'response_sha256': response_sha256})
         if not dispatch.keep_answer(journal, transport, found['answer']):
             return _unfinished(root, run, journal, claim, transport, found['answer'], answer_name,
@@ -1018,8 +1025,9 @@ def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transpo
         result.update(external_effect=True)
         return result
     journal.write(name, receipt)
+    import production_operations as workflow
     known_accepted = any(row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
-                         and row['data'].get('submission') == 'pending' for row in store.event_rows(root, run))
+                         and row['data'].get('submission') == 'pending' for row in workflow.read_run(root, run).rows)
     _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'pending' if known_accepted else 'outcome_unknown',
         'lookup': found['outcome'], 'reason': found['reason'], 'evidence': _evidence(root, run, journal, [name])})
     result = status(root, run)
@@ -1039,7 +1047,7 @@ def _response_observations(directory: Path) -> list[Path]:
 @_public_call
 def draft_outcome(root: Path, run: str) -> dict:
     """The statement to fill when the provider's own records hold no task for the started send."""
-    import production_workflow as workflow
+    import production_operations as workflow
     _, prepared, _, rows = workflow.read_run(root, run)
     claim = workflow.find(rows, 'dispatch-claim')
     return {'run': run, 'claim': claim['sha256'], 'outcome': 'not_executed', 'actor': '', 'reason': '',
@@ -1063,14 +1071,14 @@ def _statement_not_applicable(root: Path, run: str, message: str, why: str) -> P
 
 def _record_not_executed(root: Path, run: str, journal, claim: dict, execution_state: dict, outcome_file: str) -> dict:
     """Record the author's evidenced statement that the provider never executed the started send."""
-    import production_workflow as workflow
+    import production_operations as workflow
     send = next((item for item in execution_state['steps'] if item['operation'] == 'send'), None)
     if send is None:
         raise _statement_not_applicable(root, run, 'No send started for this execution.',
                                         'No send started, so the provider holds no task of this execution to state.')
     if (journal.path / 'answer.json').is_file() or any(
             row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
-            and row['data'].get('submission') == 'pending' for row in store.event_rows(root, run)):
+            and row['data'].get('submission') == 'pending' for row in workflow.read_run(root, run).rows):
         raise ProductionError('OUTCOME_STATEMENT_CONFLICT', 'The provider answer for this send is saved.', phase='resume', run=run,
                               required_action='Run resume without --outcome-file to register the saved answer.')
     raw = store.stable_bytes(root, outcome_file)
@@ -1087,18 +1095,15 @@ def _record_not_executed(root: Path, run: str, journal, claim: dict, execution_s
                               run=run, expected=execution_state['outcome_actors'], actual=statement['actor'],
                               required_action='Have one of the outcome actors listed in expected make the statement and '
                                               'name that actor in the outcome file.')
-    if c.digest(store.stable_bytes(root, statement['evidence']['path'])) != statement['evidence']['sha256']:
+    evidence_raw = store.stable_bytes(root, statement['evidence']['path'])
+    if c.digest(evidence_raw) != statement['evidence']['sha256']:
         raise ProductionError('SOURCE_CHANGED', 'The statement evidence differs from its declared digest.', phase='resume',
                               file=statement['evidence']['path'], expected=statement['evidence']['sha256'],
                               required_action='Set evidence.sha256 in the outcome file to the SHA-256 of the evidence '
                                               'file it names, or restore that file, then resume with --outcome-file.')
     directory = workflow.run_dir(root, run)
-    files = [workflow.file_record(root, directory, outcome_file),
-             workflow.file_record(root, directory, statement['evidence']['path'])]
-    if files[0]['sha256'] != c.digest(raw) or files[1]['sha256'] != statement['evidence']['sha256']:
-        raise ProductionError('SOURCE_CHANGED', 'The statement or its evidence changed while it was read.', phase='resume',
-                              required_action='Leave the outcome file and its evidence file unchanged while resume reads '
-                                              'them, then run resume --outcome-file again.')
+    files = [workflow.file_record(root, directory, outcome_file, raw=raw),
+             workflow.file_record(root, directory, statement['evidence']['path'], raw=evidence_raw)]
     with store.transaction(root):
         _record_no_effect(root, run, claim['data']['authorizations'][0], claim, send['step'], 'not_executed', files)
         _append(root, run, 'execution-outcome', {'claim': claim['sha256'], 'submission': 'not_executed',
@@ -1122,8 +1127,8 @@ def resume(root: Path, run: str, *, outcome_file: str | None = None) -> dict:
 
 def _resume(root: Path, run: str, *, outcome_file: str | None = None, found: dict | None = None) -> dict:
     """resume, where `found` is a lookup answer resume --watch received for the started send."""
-    import dispatch
-    import production_workflow as workflow
+    import dispatch_runtime as dispatch
+    import production_operations as workflow
     import transport_contract
     initial = workflow.read_run(root, run)
     mode = initial[1]['task']['execution']
@@ -1157,9 +1162,10 @@ def _resume(root: Path, run: str, *, outcome_file: str | None = None, found: dic
                 # The response may be durable before its event is committed.
                 # Recover it before deciding whether earlier uploads can be deleted.
                 return _refused_upload(root, run, journal, claim, execution_state['authorization_sha256'],
-                                       index, c.load(refusal))
+                                       index, journal.read(refusal.name))
     import production_cleanup
-    cleanup = production_cleanup.inspect(data[0], c.load(journal.path / 'request-contract.json'), execution_state, transport)
+    cleanup = production_cleanup.inspect(data[0], journal.read('request-contract.json'), execution_state, transport,
+                                         read_document=initial.evidence.document)
     if cleanup['eligible'] and (cleanup['state'] in {'pending', 'outcome_unknown'}
             or (cleanup['state'] in {'failed', 'unsupported'} and _registration(root, prepared, rows) == 'registered')):
         # Provider completion and captured output facts are already durable.
@@ -1170,12 +1176,12 @@ def _resume(root: Path, run: str, *, outcome_file: str | None = None, found: dic
         observation = observations[-1]
         relative = observation.relative_to(root).as_posix()
         recorded = {item['sha256'] for row in rows for item in row['data'].get('evidence', []) if item['path'] == relative}
-        if recorded and recorded != {c.sha256_file(observation)}:
+        if recorded and recorded != {c.digest(journal.bytes(observation.name))}:
             raise ProductionError('RESPONSE_CORRUPT', 'The saved provider observation differs from its durable receipt.',
                                   phase='resume', run=run, file=str(observation), expected=sorted(recorded),
                                   required_action='Copy ' + str(workflow.run_dir(root, run) / 'objects' / sorted(recorded)[0])
                                                   + ' to this file; do not resend the request.')
-        saved = c.load(observation)
+        saved = journal.read(observation.name)
         if transport_contract.complete(transport, saved):
             # Recover a crash after saving the observation but before publishing the final answer.
             dispatch.keep_answer(journal, transport, saved)
@@ -1187,7 +1193,7 @@ def _resume(root: Path, run: str, *, outcome_file: str | None = None, found: dic
                     or list(journal.path.glob('response-*.json'))):
                 _finish(root, run, journal, transport, answer_name=observation.name, provider_complete=False)
     if (journal.path / 'answer.json').is_file():
-        if not transport_contract.complete(transport, c.load(journal.path / 'answer.json')):
+        if not transport_contract.complete(transport, journal.read('answer.json')):
             raise ProductionError('RESPONSE_CORRUPT', 'The sealed final answer no longer settles this request.',
                                   phase='resume', run=run, required_action='Restore the recorded answer bytes; do not resend.')
         acknowledged = any(row['event'] == 'execution-outcome' and row['data'].get('claim') == claim['sha256']
@@ -1229,7 +1235,7 @@ def _resume(root: Path, run: str, *, outcome_file: str | None = None, found: dic
     except BaseException as exc:
         _record_execution_failure(root, run, journal, claim, exc)
         raise
-    return _transmit(root, run, journal, c.load(journal.path / 'request-contract.json'), claim,
+    return _transmit(root, run, journal, journal.read('request-contract.json'), claim,
                      claim['data']['authorizations'][0], target, transport,
                      credential.value if credential is not None else '', previous_runtime=boundary.runtime)
 
@@ -1325,21 +1331,20 @@ def _seconds_since(moment: datetime.datetime) -> float:
 
 
 class _WatchLookup:
-    """One lookup of the started send per call, without reading or checking the run again.
+    """One provider lookup using the operation's owned request and target.
 
-    It is built from a run that resume has just read and checked. A lookup has
-    no effect at the provider; whatever it finds is recorded only by a resume,
-    which reads and checks the run again.
+    The returned observation is new input. Only another committed writer ends
+    reuse of the current run state; unchanged polls do not replay its history.
     """
 
     def __init__(self, root: Path, run: str) -> None:
-        import dispatch
-        import production_workflow as workflow
+        import dispatch_runtime as dispatch
+        import production_operations as workflow
         loaded = workflow.read_run(root, run)
         _, prepared, _, rows, _, _, _, target, transport = compiled(root, run, loaded=loaded)
         self.claim = [row for row in rows if row['event'] == 'dispatch-claim'][-1]
         self.journal = dispatch.RunJournal.open(c.local(root, self.claim['data']['journal']))
-        self.request = c.load(self.journal.path / 'request.json')
+        self.request = self.journal.read('request.json')
         self.root, self.run, self.target, self.transport = root, run, target, transport
         self.artifact = prepared['task']['artifact']
         selected = claim_authentication(self.claim, transport, target['offering']['service'])
@@ -1353,19 +1358,22 @@ class _WatchLookup:
 
     def is_new(self, found: dict) -> bool:
         """Whether resume would record this lookup: it differs from the latest observation the run records."""
+        store.refresh_observation(self.root)
         return (_lookup_observation(self.transport, found)
                 != _recorded_observation(self.root, self.run, self.journal, self.claim, self.transport))
 
 
+@_public_call
 def watch(root: Path, run: str, *, interval: float | None = None,
           limit: float = WATCH_LIMIT_SECONDS) -> dict:
     """Resume the run, then ask for its provider task again while that task is pending.
 
     The first pass is one resume. While the task stays pending, each later pass
-    is one lookup through the transport, with no reading of the run: a lookup
+    is one lookup through the transport: a lookup
     that reports what the run already records is dropped, and a lookup that
-    reports something new goes to a resume in a read boundary of its own, which
-    records that answer and registers the outputs that finished. The watch never
+    reports something new goes to a resume, which records that answer and
+    registers the outputs that finished. The operation retains immutable inputs
+    and checks for other committed writers after each wait. The watch never
     sends or uploads again. `interval` fixes every wait; without it the run's
     sealed service record declares the schedule for its kind of output, its
     first delay after the provider's acceptance and its growing waits, as
@@ -1387,19 +1395,18 @@ def watch(root: Path, run: str, *, interval: float | None = None,
             raise ProductionError('INPUT_ARGUMENT_INVALID', f'{option} of resume --watch is not a positive number of seconds.',
                                   phase='resume', run=run,
                                   required_action=f'Give {option} a positive number of seconds, or leave it out for {default}.')
-    import production_workflow as workflow
+    import production_operations as workflow
     root = c._root(root)
     deadline = time.monotonic() + limit
 
     def as_resume_leaves_it() -> dict:
         # Nothing new was recorded since the last pass, as a plain resume would find the run.
-        with runtime_snapshot.public_call(fresh=True):
-            report = _status(root, run)
+        store.refresh_observation(root)
+        report = _status(root, run)
         report.update(ok=False, execution_completed=False, external_effect=False)
         return report
 
-    with runtime_snapshot.public_call(fresh=True):
-        schedule, delay = _watch_start(workflow.read_run(root, run), run, interval)
+    schedule, delay = _watch_start(workflow.read_run(root, run), run, interval)
     if delay > 0:
         # The service record asks for this time between the provider's acceptance and the first lookup.
         wait = min(delay, max(deadline - time.monotonic(), 0.0))
@@ -1407,11 +1414,11 @@ def watch(root: Path, run: str, *, interval: float | None = None,
             time.sleep(wait)
         if wait < delay:
             return as_resume_leaves_it()
-    with runtime_snapshot.public_call(fresh=True):
-        result = _resume(root, run)
-        if not _pending(result, run):
-            return result
-        asking = _WatchLookup(root, run)
+    store.refresh_observation(root)
+    result = _resume(root, run)
+    if not _pending(result, run):
+        return result
+    asking = _WatchLookup(root, run)
     if schedule is None:
         service = asking.target['offering']['service']
         raise ProductionError('INPUT_ARGUMENT_INVALID',
@@ -1429,8 +1436,7 @@ def watch(root: Path, run: str, *, interval: float | None = None,
             time.sleep(wait)
         found = asking.ask()
         if asking.is_new(found):
-            with runtime_snapshot.public_call(fresh=True):
-                result = _resume(root, run, found=found)
+            result = _resume(root, run, found=found)
             unchanged = False
             if not _pending(result, run):
                 return result
@@ -1553,7 +1559,7 @@ def _draft_action(root: Path, run: str, kind: str, *, candidate: str | None = No
     """
     import production_authoring_state
     if prepared is None:
-        import production_workflow
+        import production_operations as production_workflow
         prepared = production_workflow.read_run(root, run).prepared
     context = decision_context(prepared, candidate=candidate, basis=basis, grant=grant, scope=scope)
     filename_basis = 'provider-no-answer' if kind == 'outcome' else basis
@@ -1696,7 +1702,7 @@ def _candidate_action(root: Path, run: str, candidate: dict, prepared: dict,
             scopes.remove(previous[-1])
             scopes.insert(0, previous[-1])
         actions = [_acceptance_action(root, run, candidate, prepared, rows, authority, scope) for scope in scopes]
-        import production_workflow
+        import production_operations as production_workflow
         selection = _draft_action(root, run, 'selection', candidate=candidate['candidate'],
             basis={'review': candidate['review'], 'replaces': production_workflow.replaced_selection(rows)},
             prepared=prepared, existing_only=True)
@@ -1780,10 +1786,11 @@ def _execution_draft_action(root: Path, prepared: dict) -> dict:
 
 def _sender_alive(root: Path, claims: list[dict]) -> bool:
     from production_compiler import _pid_active
+    from dispatch_runtime import RunJournal
     if not claims:
         return False
     try:
-        document = c.load(c.local(root, claims[-1]['data']['journal']) / 'run.json')
+        document = RunJournal.open(c.local(root, claims[-1]['data']['journal'])).read('run.json')
     except INSPECTION_ERRORS:
         return False
     pid = (document.get('sender') or document.get('owner') or {}).get('pid')
@@ -1792,7 +1799,7 @@ def _sender_alive(root: Path, claims: list[dict]) -> bool:
 
 def _registration(root: Path, prepared: dict, rows: list[dict]) -> str:
     """Whether captured candidates are formally registered, and whether Studio still shows each of them."""
-    import studio
+    import studio_workspace as studio
     candidates = [row for row in rows if row['event'] == 'candidate']
     if not candidates:
         return 'unregistered'
@@ -1853,7 +1860,7 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
     authored run has none. `schedule` is the lookup schedule its sealed service
     record declares for its kind of output, or None.
     """
-    import production_workflow as workflow
+    import production_operations as workflow
     run = report['run']
     mode = prepared['task']['execution']
     events = {row['event'] for row in rows}
@@ -1998,10 +2005,11 @@ def _run_authentication(root: Path, prepared: dict, claims: list[dict], report: 
         if not claims:
             required = report['task_disposition'] == 'open' and report['readiness'] not in {'blocked', 'unchecked'}
         elif (report['next_action'] or {}).get('command') == 'resume':
+            from dispatch_runtime import RunJournal
             journal = c.local(root, claims[-1]['data']['journal'])
             observations = _response_observations(journal)
             saved_answer = ((journal / 'answer.json').is_file() or bool(observations and
-                transport_contract.complete(transport, c.load(observations[-1]))))
+                transport_contract.complete(transport, RunJournal.open(journal).read(observations[-1].name))))
             if report['cleanup']['eligible'] and report['cleanup']['state'] in {'pending', 'outcome_unknown'}:
                 required = True
             elif not saved_answer and report['submission'] in {'pending', 'outcome_unknown'}:
@@ -2032,7 +2040,7 @@ def _work_open(root: Path, task_id: str, states: dict) -> bool:
 
 def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities: dict, *, loaded=None,
                 previous_runtime=None, work_states: dict | None = None, selected_by_id: bool = True) -> dict:
-    import production_workflow as workflow
+    import production_operations as workflow
     identifier = item['run_id']
     loaded = loaded if loaded is not None else workflow.read_run(root, identifier)
     directory, prepared, consumer, rows = loaded
@@ -2184,8 +2192,11 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
             # An unusable sealed schedule leaves the choice to the caller, as a missing one does.
             schedule = None
         media_directory = c.local(root, claims[-1]['data']['journal']) if claims else directory
-        rendered = c.load(media_directory / 'request-contract.json') if claims else loaded.artifacts['request-contract.json']
-        report['cleanup'] = production_cleanup.inspect(directory, rendered, execution_state, transport)
+        from dispatch_runtime import RunJournal
+        rendered = (RunJournal.open(media_directory).read('request-contract.json') if claims else
+                    loaded.artifacts['request-contract.json'])
+        report['cleanup'] = production_cleanup.inspect(directory, rendered, execution_state, transport,
+                                                       read_document=loaded.evidence.document)
     # Authoring-source observations explain later edits without changing the
     # saved request. Recovery and a new claim use their own effect boundaries.
     report['next_action'] = (_action('status', root, ['--run', identifier],
@@ -2238,7 +2249,7 @@ def status(root: Path, run: str | None = None) -> dict:
 
 def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime=None) -> dict:
     """Inspect the complete status, receiving an already acquired selected run."""
-    import production_workflow as workflow
+    import production_operations as workflow
     import production_authoring_state
     from production_compiler import inspect_staging, unregistered_publications
     root = c._root(root)

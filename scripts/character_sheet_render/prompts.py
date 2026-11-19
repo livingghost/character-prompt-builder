@@ -13,7 +13,7 @@ FILL_TRANSPORTS = frozenset({PANEL_FILL_TRANSPORT, MASKED_SHEET_TRANSPORT})
 
 
 def character_anchor_lines(sheet: Mapping[str, Any]) -> list[str]:
-    """Return the author's complete visual descriptions for the image maker."""
+    """Retain the authored identity and configuration sources for the selected view."""
     fields = sheet.get("fields") if isinstance(sheet.get("fields"), Mapping) else {}
     descriptions = (
         ("Character design", "field.model_fill_visual_design_brief"),
@@ -74,7 +74,7 @@ def build_fill_prompt(
     def drawing_text(box: Mapping[str, Any]) -> str:
         text = meaningful(str(box["hint"]))
         guide = KIND_DRAW_GUIDE.get(str(box.get("kind", "")), "")
-        return text if not guide or text.startswith(guide) else guide + " " + text
+        return text if not guide or guide in text else text + " " + guide
 
     if target_slot_id is None:
         lines = [
@@ -87,19 +87,10 @@ def build_fill_prompt(
         lines = [
             "Generate only the artwork for one Character Sheet panel.",
             "Return artwork only. Do not draw a sheet frame, title, label, panel code, caption, profile block, color key, border, or any other text.",
-            f"Produce a {width} by {height} pixel image with the complete described subject filling the frame.",
+            f"Produce a {width} by {height} pixel image using the framing and scale of the panel depiction below.",
             "Return a single image with no additional panels or contact-sheet layout.",
         ]
-    lines.extend([
-        "Preserve the described identity, topology, proportions, materials, colors, and fixed details wherever visible.",
-        "Use the described body plan and component count. Never add humanoid anatomy unless it is described.",
-        "Show only the requested view, configuration, or action.",
-        "Use plain panel interiors and even lighting unless the rendering description specifies otherwise.",
-    ])
-    anchors = character_anchor_lines(sheet)
-    if anchors:
-        lines.extend(["", *anchors])
-    lines.append("")
+    lines.extend(["", "Panel depiction:" if target_slot_id is not None else "Panel depictions:"])
     for box in boxes:
         state = box["fill_state"]
         if target_slot_id is not None:
@@ -117,6 +108,21 @@ def build_fill_prompt(
         else:
             instruction = drawing_text(box)
         lines.append(f"- {title}: {instruction}")
+    lines.extend([
+        "",
+        "Preserve the described identity, topology, proportions, materials, colors, and fixed details in the selected view.",
+        "Keep the subject's connected construction coherent through overlap and the frame edges.",
+        "Use the described body plan and component count. Never add humanoid anatomy unless it is described.",
+        "Where the panel depiction and rendering descriptions leave the background or light open, use plain panel interiors and even lighting.",
+    ])
+    anchors = character_anchor_lines(sheet)
+    if anchors:
+        lines.extend([
+            "",
+            "Identity and rendering sources:",
+            "These descriptions define the same subject across views. Apply them to the framing, configuration, and action selected above; the panel depicts the specified view of that subject.",
+            *anchors,
+        ])
     lines.extend(["", "Return only the requested image, with no explanations or annotations."])
     return "\n".join(lines) + "\n"
 

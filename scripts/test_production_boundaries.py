@@ -1,5 +1,7 @@
 """Current low-level request and formal-event boundaries; no network generation."""
 from __future__ import annotations
+import read_context
+import production_fixtures as authoring_fixtures
 import copy
 import json
 import os
@@ -11,7 +13,7 @@ import execution_contract as c
 import production_case_fixtures as f
 import production_execution as execution
 import production_store as store
-import production_workflow as workflow
+import production_operations as workflow
 import execution_lifecycle as accounting
 import transport_synthetic
 from production_diagnostics import ProductionError
@@ -21,12 +23,22 @@ import production_fixtures
 
 
 class BoundaryTests(unittest.TestCase):
+    @staticmethod
+    def build_case(base):
+        case = f.create(base / 'studio', base / 'runtime')
+        return case, {'run': workflow.prepare(case['root'], 'task.json')['run']}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.template = f.CaseTemplate.for_class(cls, cls.build_case)
+
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        base=Path(self.temp.name);self.case=f.create(base/'studio',base/'runtime');self.root=self.case['root']
-        # Operations created directly in these tests log under the home directory.
-        home=production_fixtures.scratch_home(base/'home');home.start();self.addCleanup(home.stop)
-        self.run=workflow.prepare(self.root,'task.json')['run']
+        self.case, metadata = f.CaseTemplate.for_test(
+            self, Path(self.temp.name), self.build_case, getattr(type(self), 'template', None))
+        self.root = self.case['root']
+        self.run = metadata['run']
         self.data=execution.compiled(self.root,self.run)
 
     def authorized_journal(self):
@@ -40,6 +52,7 @@ class BoundaryTests(unittest.TestCase):
         workflow.handoff(self.root,self.run,hand['recipient'],hand['method'],tokens['direction'],journal=journal.path)
         return journal,rendered,tokens
 
+    @f.cold_case
     def test_dispatcher_handoff_is_recorded_only_by_execute(self):
         plan=self.data[6]
         with store.transaction(self.root):
@@ -122,7 +135,7 @@ class BoundaryTests(unittest.TestCase):
             with self.assertRaises(ProductionError):execution.resume(self.root,self.run)
 
 
-    def test_runtime_changed_after_claim_blocks_io_even_with_operation_cache(self):
+    def test_execution_keeps_owned_runtime_after_claim_and_new_audit_detects_storage_damage(self):
         import operation_context as operations
         import runtime_snapshot
         decision_file = decisions(self.root, self.run)
@@ -139,22 +152,31 @@ class BoundaryTests(unittest.TestCase):
             pinned.write_bytes(pinned.read_bytes() + b'\ncorrupt')
             return claim
         try:
-            # Prime the per-operation cache, then change a resource after the
-            # run claim. The actual irreversible boundary must hash again.
-            runtime_snapshot.read(directory, descriptor)
-            with patch.object(workflow, '_claim_dispatch_from', side_effect=corrupt_after_claim), \
-                 patch.object(transport_synthetic, 'send') as send:
+            with read_context.public_call():
+                owned = runtime_snapshot.acquire_runtime(directory, descriptor)
+                with patch.object(workflow, '_claim_dispatch_from', side_effect=corrupt_after_claim), \
+                     patch.object(transport_synthetic, 'send', wraps=transport_synthetic.send) as send:
+                    result = execution.execute(self.root, self.run, decisions_file=decision_file)
+                self.assertTrue(result['execution_completed'], result)
+                self.assertEqual(send.call_count, 1)
+                self.assertIs(runtime_snapshot.acquire_runtime(directory, descriptor), owned)
+                expected = copy.deepcopy(self.data[5]['request'])
+                actual = send.call_args.args[0]
+                expected['request_id'] = actual['request_id']
+                self.assertEqual(actual, expected)
                 with self.assertRaises(ProductionError) as caught:
-                    execution.execute(self.root, self.run, decisions_file=decision_file)
-            self.assertEqual(caught.exception.diagnostic.code, 'RUNTIME_SNAPSHOT_CORRUPT')
-            send.assert_not_called()
+                    runtime_snapshot.acquire_runtime(directory, descriptor, force_verify=True)
+                self.assertEqual(caught.exception.diagnostic.code, 'RUNTIME_SNAPSHOT_CORRUPT')
+            with read_context.public_call(), self.assertRaises(ProductionError):
+                runtime_snapshot.acquire_runtime(directory, descriptor)
             rows = store.event_rows(self.root, self.run)
-            self.assertFalse(any(row['event'] == 'external-step' for row in rows))
+            self.assertEqual(sum(row['event'] == 'external-step' and row['data']['step'] == 'send'
+                                 for row in rows), 1)
         finally:
             operation.finish(0)
             operations._CURRENT.reset(token)
 
-    def test_api_execution_checks_snapshot_at_external_boundary_without_logger(self):
+    def test_api_execution_uses_owned_snapshot_and_current_consent_without_logger(self):
         import operation_context as operations
         import runtime_snapshot
         decision_file = decisions(self.root, self.run)
@@ -180,10 +202,10 @@ class BoundaryTests(unittest.TestCase):
                  patch.object(transport_synthetic, 'send', side_effect=send_saved) as send:
                 result = execution.execute(self.root, self.run, decisions_file=decision_file)
             self.assertTrue(result['execution_completed'])
-            self.assertEqual(len(forced), 1)
+            self.assertEqual(forced, [])
             self.assertEqual(send.call_count, 1)
-            # Only the returned navigation report compares current drafts;
-            # the effect boundary verifies the saved runtime instead.
+            # Only returned navigation compares current drafts. External steps
+            # keep the operation's saved runtime and check current consent.
             self.assertEqual(len(comparisons), 1)
         finally:
             operations._CURRENT.reset(token)
@@ -202,13 +224,13 @@ class BoundaryTests(unittest.TestCase):
 
     def test_nested_rollback_rechecks_sources_left_changed_by_the_interrupted_writer(self):
         import runtime_snapshot
-        with runtime_snapshot.public_call(), store.transaction(self.root):
+        with read_context.public_call(), store.transaction(self.root):
             workflow.assert_current(self.root, self.run)
             with self.assertRaisesRegex(RuntimeError, 'synthetic interrupted writer'):
                 with store.transaction(self.root):
                     loaded = workflow.read_run(self.root, self.run)
                     (self.root / 'prompt.txt').write_text('Changed source survives a database rollback.\n', encoding='utf-8')
-                    workflow.append_record(loaded.directory, loaded.prepared, loaded.rows, 'abandoned',
+                    workflow.append_record(loaded, 'abandoned',
                         {'actor': 'Synthetic author', 'reason': 'Synthetic transaction that will roll back.'})
                     self.assertEqual(workflow.read_run(self.root, self.run).rows[-1]['event'], 'abandoned')
                     raise RuntimeError('synthetic interrupted writer')
@@ -257,7 +279,7 @@ class BoundaryTests(unittest.TestCase):
 
     def test_editable_choices_and_reading_key_do_not_replace_an_explicit_saved_request(self):
         import production_inputs
-        draft = production_inputs.draft_inputs(self.root, 'task.json', 'work/editable')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'work/editable')
         self.run = workflow.prepare(self.root, choices=draft['choices_file'])['run']
         self.data = execution.compiled(self.root, self.run)
         prepared = self.data[1]
@@ -318,28 +340,15 @@ class BoundaryTests(unittest.TestCase):
         token = fixture.grant(self.root, run, workflow.external_intent(self.root, run, 1))
         return run, token
 
-    def refused_external_claim(self, change) -> tuple[str, object]:
-        """Refuse saved-artifact damage applied just after an external claim row."""
-        run, token = self.prepared_external_claim()
-        original_commit = accounting.commit_effect
-        def change_after_commit(*args, **kwargs):
-            row = original_commit(*args, **kwargs)
-            change(run)
-            return row
-        with patch.object(accounting, 'commit_effect', side_effect=change_after_commit):
-            with self.assertRaises(ProductionError) as caught:
-                workflow.claim_external(self.root, run, 1, token)
-        events = {row['event'] for row in store.event_rows(self.root, run)}
-        self.assertFalse(events & {'external-claim', 'external-step'})
-        return run, caught.exception.diagnostic
-
     def test_source_edited_inside_the_external_claim_keeps_the_saved_request(self):
         run, token = self.prepared_external_claim()
-        before = workflow.read_run(self.root, run).consumer
+        prepared = workflow.read_run(self.root, run)
+        before = prepared.consumer
+        source_path = next(row['path'] for row in prepared.prepared['task']['sources'] if row['id'] == 'brief')
         original_commit = accounting.commit_effect
         def edit_after_commit(*args, **kwargs):
             row = original_commit(*args, **kwargs)
-            (self.root / 'brief.md').write_text('A brief edited inside the claim transaction.\n', encoding='utf-8')
+            (self.root / source_path).write_text('A brief edited inside the claim transaction.\n', encoding='utf-8')
             return row
         with patch.object(accounting, 'commit_effect', side_effect=edit_after_commit):
             claim = workflow.claim_external(self.root, run, 1, token)
@@ -349,17 +358,44 @@ class BoundaryTests(unittest.TestCase):
         self.assertEqual(len([row for row in loaded.rows if row['event'] == 'external-step']), 1)
         failures, notices = workflow.freshness(self.root, run)
         self.assertEqual(failures, [])
-        self.assertIn(('SOURCE_CHANGED', 'brief.md'), [(item['code'], item.get('file')) for item in notices])
+        self.assertIn(('SOURCE_CHANGED', source_path), [(item['code'], item.get('file')) for item in notices])
 
-    def test_run_object_corrupted_inside_the_external_claim_blocks_the_send_boundary(self):
-        def corrupt(run):
-            prepared = workflow.load_run(self.root, run)[1]
-            dependency = next(item for item in prepared['dependencies'] if item['space'] == 'studio')
-            (workflow.run_dir(self.root, run) / 'objects' / dependency['sha256']).write_bytes(b'corrupt stored source snapshot')
-        _, diagnostic = self.refused_external_claim(corrupt)
-        self.assertEqual(diagnostic.code, 'EVIDENCE_SNAPSHOT_CORRUPT')
+    def test_external_claim_keeps_owned_request_when_its_stored_object_changes(self):
+        run, token = self.prepared_external_claim()
+        original_commit = accounting.commit_effect
+        with read_context.public_call():
+            held = workflow.read_run(self.root, run)
+            dependency = next(item for item in held.prepared['dependencies'] if item['space'] == 'studio')
+            key = dependency['sha256']
+            original = held.evidence.read(key)
+            self.assertEqual(c.digest(original), key)
 
-    def test_corrupt_run_object_after_claim_blocks_the_send(self):
+            def corrupt_after_commit(*args, **kwargs):
+                row = original_commit(*args, **kwargs)
+                (held.directory / 'objects' / key).write_bytes(b'corrupt stored source snapshot')
+                return row
+
+            with patch.object(accounting, 'commit_effect', side_effect=corrupt_after_commit):
+                claim = workflow.claim_external(self.root, run, 1, token)
+            current = workflow.read_run(self.root, run)
+            self.assertIs(current.consumer, held.consumer)
+            self.assertIs(current.evidence, held.evidence)
+            self.assertEqual(current.evidence.read(key), original)
+            self.assertEqual(claim['data']['external_request_sha256'],
+                             held.consumer['image_input']['external_request']['sha256'])
+            self.assertEqual(claim['data']['authorizations'], [token])
+            steps = [row for row in current.rows if row['event'] == 'external-step']
+            self.assertEqual(len(steps), 1)
+            self.assertEqual((steps[0]['data']['step'], steps[0]['data']['claim']),
+                             ('external-send', claim['sha256']))
+            with self.assertRaises(ProductionError) as forced:
+                workflow.read_run(self.root, run, force=True)
+            self.assertEqual(forced.exception.diagnostic.code, 'EVIDENCE_SNAPSHOT_CORRUPT')
+        with read_context.public_call(), self.assertRaises(ProductionError) as audited:
+            workflow.read_run(self.root, run)
+        self.assertEqual(audited.exception.diagnostic.code, 'EVIDENCE_SNAPSHOT_CORRUPT')
+
+    def test_send_keeps_owned_run_bytes_after_its_stored_object_changes(self):
         decision_file = decisions(self.root, self.run)
         directory = workflow.run_dir(self.root, self.run)
         dependency = next(item for item in self.data[1]['dependencies'] if item['space'] == 'studio')
@@ -368,15 +404,33 @@ class BoundaryTests(unittest.TestCase):
             claim = original_claim(*args, **kwargs)
             (directory / 'objects' / dependency['sha256']).write_bytes(b'corrupt stored source snapshot')
             return claim
-        with patch.object(workflow, '_claim_dispatch_from', side_effect=corrupt_after_claim), \
-             patch.object(transport_synthetic, 'send') as send:
-            with self.assertRaises(ProductionError) as caught:
-                execution.execute(self.root, self.run, decisions_file=decision_file)
-        self.assertEqual(caught.exception.diagnostic.code, 'EVIDENCE_SNAPSHOT_CORRUPT')
-        send.assert_not_called()
-        self.assertFalse(any(row['event'] == 'external-step' for row in store.event_rows(self.root, self.run)))
+        with read_context.public_call():
+            held = workflow.read_run(self.root, self.run)
+            original = held.evidence.read(dependency['sha256'])
+            self.assertEqual(c.digest(original), dependency['sha256'])
+            with patch.object(workflow, '_claim_dispatch_from', side_effect=corrupt_after_claim), \
+                 patch.object(transport_synthetic, 'send', wraps=transport_synthetic.send) as send:
+                result = execution.execute(self.root, self.run, decisions_file=decision_file)
+            self.assertTrue(result['execution_completed'], result)
+            self.assertEqual(send.call_count, 1)
+            expected = copy.deepcopy(self.data[5]['request'])
+            actual = send.call_args.args[0]
+            expected['request_id'] = actual['request_id']
+            self.assertEqual(actual, expected)
+            current = workflow.read_run(self.root, self.run)
+            self.assertIs(current.prepared, held.prepared)
+            self.assertIs(current.evidence, held.evidence)
+            self.assertEqual(current.evidence.read(dependency['sha256']), original)
+            with self.assertRaises(ProductionError) as forced:
+                workflow.read_run(self.root, self.run, force=True)
+            self.assertEqual(forced.exception.diagnostic.code, 'EVIDENCE_SNAPSHOT_CORRUPT')
+        with read_context.public_call(), self.assertRaises(ProductionError) as audited:
+            workflow.read_run(self.root, self.run)
+        self.assertEqual(audited.exception.diagnostic.code, 'EVIDENCE_SNAPSHOT_CORRUPT')
+        rows = store.event_rows(self.root, self.run)
+        self.assertEqual(sum(row['event'] == 'external-step' and row['data']['step'] == 'send' for row in rows), 1)
 
-    def test_runtime_changed_after_claim_blocks_io_in_an_api_call(self):
+    def test_api_send_keeps_owned_runtime_and_new_audit_detects_changed_storage(self):
         import operation_context as operations
         import runtime_snapshot
         decision_file = decisions(self.root, self.run)
@@ -384,22 +438,36 @@ class BoundaryTests(unittest.TestCase):
         directory = runtime_snapshot.path(self.root, descriptor)
         pack = runtime_snapshot.read(directory, descriptor)['packs'][0]
         pinned = directory / 'packs' / pack['pack_id'] / pack['files'][0]['path']
+        original = pinned.read_bytes()
         original_claim = workflow._claim_dispatch_from
+        original_send = transport_synthetic.send
+        owners = []
         def corrupt_after_claim(*args, **kwargs):
             claim = original_claim(*args, **kwargs)
-            pinned.write_bytes(pinned.read_bytes() + b'\ncorrupt')
+            owners.append(runtime_snapshot.acquire_runtime(directory, descriptor))
+            pinned.write_bytes(original + b'\ncorrupt')
             return claim
+        def send_owned(*args, **kwargs):
+            self.assertIs(runtime_snapshot.acquire_runtime(directory, descriptor), owners[0])
+            self.assertEqual(owners[0].read_pack(pack['pack_id'], pack['files'][0]['path']), original)
+            expected = copy.deepcopy(self.data[5]['request'])
+            expected['request_id'] = args[0]['request_id']
+            self.assertEqual(args[0], expected)
+            return original_send(*args, **kwargs)
         token = operations._CURRENT.set(None)
         try:
             with patch.object(workflow, '_claim_dispatch_from', side_effect=corrupt_after_claim), \
-                 patch.object(transport_synthetic, 'send') as send:
-                with self.assertRaises(ProductionError) as caught:
-                    execution.execute(self.root, self.run, decisions_file=decision_file)
+                 patch.object(transport_synthetic, 'send', side_effect=send_owned) as send:
+                result = execution.execute(self.root, self.run, decisions_file=decision_file)
+            self.assertTrue(result['execution_completed'], result)
+            self.assertEqual(send.call_count, 1)
+            with read_context.public_call(), self.assertRaises(ProductionError) as audited:
+                workflow.assert_current(self.root, self.run)
+            self.assertEqual(audited.exception.diagnostic.code, 'RUNTIME_SNAPSHOT_CORRUPT')
         finally:
             operations._CURRENT.reset(token)
-        self.assertEqual(caught.exception.diagnostic.code, 'RUNTIME_SNAPSHOT_CORRUPT')
-        send.assert_not_called()
-        self.assertFalse(any(row['event'] == 'external-step' for row in store.event_rows(self.root, self.run)))
+        rows = store.event_rows(self.root, self.run)
+        self.assertEqual(sum(row['event'] == 'external-step' and row['data']['step'] == 'send' for row in rows), 1)
 
 
 class PublicationBoundaryTests(unittest.TestCase):
@@ -502,10 +570,10 @@ class PublicationBoundaryTests(unittest.TestCase):
             directory = Path(temporary)
             artifacts = ArtifactSet(directory)
             artifacts.write('delivery.txt', b'delivery')
-            artifacts.write(c.LOCK_FILE, b'0')
+            artifacts.write('owner.json', c.encoded({'operation_id': 'synthetic-owner'}))
             manifest = compiler.write_manifest(directory, artifacts)
             self.assertEqual(compiler.verify_publication(directory), manifest)
-            (directory / c.LOCK_FILE).write_bytes(b'changed')
+            (directory / 'owner.json').write_bytes(c.encoded({'operation_id': 'changed-owner'}))
             with self.assertRaises(ProductionError) as caught:
                 compiler.verify_publication(directory)
             self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_CORRUPT')

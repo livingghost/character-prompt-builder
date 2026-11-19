@@ -108,7 +108,7 @@ def run(out: Path):
     import work_ledger
     task=work_ledger.begin(out,'Synthetic moment text delivery',['compose'])
     write(out,'delivery.txt','A pauses in the soft light, then gives a brief answer.\n')
-    spec=production_authoring.seed(out,route='story-context',artifact='text',execution='authored',task_id=task['task_id'])
+    spec=production_authoring.seed(route='story-context',artifact='text',execution='authored',task_id=task['task_id'])
     spec.update(criteria=[{'id':'moment','strength':'hard','text':'Respect the selected moment and portrayal direction.','evidence':'text'}],
         moment_views=[{'query':'query.json','bundle':'moment','view_id':'depiction.main'}],
         authored={'requirements':['save','delivery','review']})
@@ -116,7 +116,11 @@ def run(out: Path):
         intended_effect='A concise portrayal of the selected pause and response, preserving the bounded state.')
     reading_fixtures.task_reading(out,spec)
     write(out,'task.json',spec)
-    draft=command('production_workflow.py','draft-inputs','--root',out,'--task','task.json','--out-dir','editing')
+    write(out,'request.txt','Write one sentence using the selected moment and the supplied portrayal of A.')
+    draft=command('production_workflow.py','draft-inputs','--root',out,'--task','task.json',
+        '--operation','amend','--request-file','request.txt','--out-dir','editing')
+    command('authoring_work.py','context',out/draft['authoring_work']['basis'],'--basis-only',
+        '--source','persona='+str(out/'persona.md'),'--application','portrayal=persona#','--subject','A=portrayal')
     choices=json.loads((out/draft['choices_file']).read_text(encoding='utf-8'))
     choices['reading']['reading_key']=json.loads((out/spec['route_reading']).read_text(encoding='utf-8'))['reading_key']
     write(out,draft['choices_file'],choices)

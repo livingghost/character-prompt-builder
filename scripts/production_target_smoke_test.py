@@ -48,7 +48,8 @@ class TargetProjectionTests(unittest.TestCase):
             'sources': [{'id': 'unusual-spec-name', 'role': 'production-spec'},
                         {'id': 'model-card', 'role': 'design'},
                         {'id': 'model-direction', 'role': 'design'}],
-            'direction': {'decisions': [{'selected': 'authored-option', 'reason': 'Synthetic author reason.'}]},
+            'direction': {'decisions': [{'expression': 'The actual authored depiction.', 'note': 'Synthetic author reason.'}],
+                          'source_allowances': []},
             'criteria': [{'id': 'preserve', 'text': 'Keep the authored composition.'}],
             'authority': 'original-authority.json'}
         self.authored = {'task': copy.deepcopy(self.task),
@@ -56,12 +57,23 @@ class TargetProjectionTests(unittest.TestCase):
             'delivery': {'content': fixtures.PROMPT},
             'documents': {'production_spec': {'target_model': fixtures.MODEL_ID,
                 'brief': 'Keep the authored brief.'}, 'parameters': {'steps': 20}},
-            'sources': {'unusual-spec-name': {'format': 'json', 'content': {
-                'target_model': fixtures.MODEL_ID, 'brief': 'Keep the applied source.'}},
-                'model-card': {'format': 'json', 'content': {'target_model': fixtures.MODEL_ID,
-                    'claim': 'This is generic author content, not a replaceable generated card.'}},
-                'model-direction': {'format': 'text', 'content': 'Keep the author direction.'}},
             'references': None, 'upscale': None}
+        self.source_values = {'unusual-spec-name': {'target_model': fixtures.MODEL_ID,
+                'brief': 'Keep the applied source.'},
+            'model-card': {'target_model': fixtures.MODEL_ID,
+                'claim': 'This is independently acquired author content.'},
+            'model-direction': 'Keep the author direction.'}
+        self.source_bytes = {}
+        for source in self.task['sources']:
+            source['path'] = source['id'] + '.json'
+            raw = c.encoded(self.source_values[source['id']])
+            (self.root / source['path']).write_bytes(raw)
+            self.source_bytes[source['path']] = raw
+        self.authored['task'] = copy.deepcopy(self.task)
+
+    def assert_acquired_sources_unchanged(self):
+        for path, raw in self.source_bytes.items():
+            self.assertEqual((self.root / path).read_bytes(), raw)
 
     def project(self, selection, *, authored=True, task=None, external=None):
         choices = {'target': selection, 'external': external}
@@ -75,9 +87,8 @@ class TargetProjectionTests(unittest.TestCase):
         self.assertEqual(selected, {'kind': 'catalog', 'model': fixtures.MODEL_ID, 'service': 'synthetic'})
         self.assertEqual(self.authored['generation'], {'count': 2, 'seed': 17})
         self.assertNotIn('target_model', self.authored['documents']['production_spec'])
-        self.assertNotIn('target_model', self.authored['sources']['unusual-spec-name']['content'])
-        for identifier in ('model-card', 'model-direction'):
-            self.assertEqual(self.authored['sources'][identifier], original[1]['sources'][identifier])
+        self.assert_acquired_sources_unchanged()
+        self.assertEqual(self.task['sources'], original[0]['sources'])
         for field in ('direction', 'criteria', 'authority'):
             self.assertEqual(self.task[field], original[0][field])
 
@@ -92,9 +103,8 @@ class TargetProjectionTests(unittest.TestCase):
         self.assertEqual(built['generation'], {'model': fixtures.ALTERNATE_MODEL_ID,
             'service': 'synthetic', 'count': 2, 'seed': 17})
         self.assertEqual(built['documents']['production_spec']['target_model'], fixtures.ALTERNATE_MODEL_ID)
-        self.assertEqual(built['sources']['unusual-spec-name']['content']['target_model'], fixtures.ALTERNATE_MODEL_ID)
-        for identifier in ('model-card', 'model-direction'):
-            self.assertEqual(built['sources'][identifier], self.authored['sources'][identifier])
+        self.assert_acquired_sources_unchanged()
+        self.assertEqual(result['task']['sources'], self.task['sources'])
         self.assertEqual(built['documents']['parameters'], {'steps': 20})
         self.assertEqual(built['delivery']['content'], fixtures.PROMPT)
         for field in ('direction', 'criteria', 'authority'):

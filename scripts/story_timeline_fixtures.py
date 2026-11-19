@@ -41,7 +41,7 @@ def view(identifier, order, *, scene=None, timeline='main') -> dict:
 
 def setup(root: Path, *, events=None, processes=None, views=None, create_studio=True) -> dict:
     if create_studio:
-        import studio
+        import studio_workspace as studio
         studio.init(root, 'timeline-fixture', 'Synthetic story timeline')
     else:
         root.mkdir(parents=True, exist_ok=True)

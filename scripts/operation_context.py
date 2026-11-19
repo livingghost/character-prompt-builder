@@ -5,6 +5,8 @@ argument vector, environment dump, HTTP dump or exception locals are retained.
 A child process started during a call records that call as its parent.
 """
 from __future__ import annotations
+import read_context
+import runtime_paths
 import argparse
 import contextlib
 import contextvars
@@ -799,8 +801,7 @@ def stage(name: str, **facts: Any) -> Iterator[None]:
 
 def run_cli(function: Callable[[], int | None]) -> int:
     """Run one command with a single verified-read boundary."""
-    import runtime_snapshot
-    with runtime_snapshot.public_call():
+    with read_context.public_call():
         return _run_cli(function)
 
 
@@ -847,9 +848,8 @@ def _run_cli(function: Callable[[], int | None]) -> int:
 
 
 def _configuration_home() -> Path:
-    """The configuration directory pack_manager defines, which holds the logs of an operation outside a Studio."""
-    import pack_manager
-    return pack_manager.user_data_home()
+    """The configured home for the logs of an operation outside a Studio."""
+    return runtime_paths.user_data_home()
 
 
 def _log_base(root: Path | None) -> Path:
@@ -1020,7 +1020,7 @@ def _run_has_unresolved_external_effect(root: Path, run: str) -> bool:
     started steps have evidenced no-effect outcomes. Unknown results keep logs.
     """
     try:
-        import production_workflow as workflow
+        import production_operations as workflow
         import execution_lifecycle as accounting
         _, prepared, _, rows = workflow.read_run(root, run)
         claims = [row for row in rows if row['event'] in {'dispatch-claim', 'external-claim'}]

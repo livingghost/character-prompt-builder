@@ -146,6 +146,15 @@ def validate_authority_scope(authority: Mapping[str, Any]) -> None:
         raise ValueError('reference authority both allows and forbids: ' + ', '.join(sorted(conflict)))
 
 
+def reference_id(row: Mapping[str, Any]) -> str:
+    """Resolve one selected use independently from its source or image position."""
+    source = row.get('source') or {}
+    selected = row.get('reference_id') or source.get('reference_id') or row.get('binding_id') or source.get('artifact_id')
+    if not isinstance(selected, str) or not selected.strip():
+        raise ValueError('a transported reference requires its stable selected use id')
+    return selected
+
+
 def bindings(mode: str, references: Sequence[Mapping[str, Any]],
              board: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     if mode not in {'multi-image', 'single-board'}:
@@ -178,6 +187,7 @@ def bindings(mode: str, references: Sequence[Mapping[str, Any]],
                     raise ValueError('invalid board pixel bounds')
             region = dict(box)
         item = {'reference_number': index, 'attachment_number': 1 if mode == 'single-board' else positions[index - 1],
+                       'reference_id': reference_id(row),
                        'region_pixels': region, 'role': row['role'],
                        'controls': list(row['authority']['controls']),
                        'must_not_control': list(row['authority']['must_not_control'])}
@@ -196,6 +206,9 @@ def main() -> int:
     source.add_argument('--image-input-plan', type=Path)
     parser.add_argument('--package-root', type=Path)
     parser.add_argument('--studio', type=Path, help='Resolve an image input plan\'s existing prepared references')
+    parser.add_argument('--prompt-file', type=Path,
+        help='Resolve the authored reference markers in this UTF-8 source and return complete final text and trace')
+    parser.add_argument('--out', type=Path, help='Write the resolved prompt bytes for model grammar and dictionary work')
     add_pack_runtime_arguments(parser)
     args = parser.parse_args()
     from catalog_retrieval.runtime import configure_pack_runtime
@@ -207,16 +220,24 @@ def main() -> int:
             import image_input
             plan = load(args.image_input_plan)
             rows = image_input.reference_bindings(plan, base=args.studio)
-            print(json.dumps({'ok': True, 'bindings': rows,
-                'limit': 'Request field and scope projection does not establish visual suitability.'},
-                ensure_ascii=False, indent=2))
-            return 0
-        from prepare_generation_references import validate_prepared_reference_set
-        source_path = args.prepared_set.resolve()
-        package_root = args.package_root if args.package_root is not None else source_path.parent
-        value = validate_prepared_reference_set(load(source_path), package_root=package_root)
-        result = {'ok': True, 'bindings': bindings(value['transport_mode'], value['selected_references'], value['single_board']),
-                  'limit': 'Byte and order verification does not establish visual suitability.'}
+        else:
+            from generation_references import validate_prepared_reference_set
+            source_path = args.prepared_set.resolve()
+            package_root = args.package_root if args.package_root is not None else source_path.parent
+            value = validate_prepared_reference_set(load(source_path), package_root=package_root)
+            rows = bindings(value['transport_mode'], value['selected_references'], value['single_board'])
+        from model_rendition import reference_text_slots, resolve_reference_text
+        result = {'ok': True, 'bindings': rows, 'reference_text_slots': reference_text_slots(rows),
+                  'limit': 'Scope delivery and byte verification do not establish visual suitability or adherence.'}
+        if args.prompt_file is not None:
+            resolved = resolve_reference_text(args.prompt_file.read_bytes().decode('utf-8'), rows)
+            result['reference_text'] = resolved
+            if args.out is not None:
+                args.out.parent.mkdir(parents=True, exist_ok=True)
+                args.out.write_bytes(resolved['text'].encode('utf-8'))
+                result['output'] = str(args.out)
+        elif args.out is not None:
+            raise ValueError('--out requires --prompt-file')
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:

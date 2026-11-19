@@ -1,5 +1,6 @@
 """Author one canonical-use decision and derive its exact recoverable operation."""
 from __future__ import annotations
+import read_context
 
 import copy
 from pathlib import Path
@@ -7,7 +8,6 @@ from pathlib import Path
 import execution_contract as c
 import production_permissions as permissions
 import production_store as store
-import runtime_snapshot
 from production_diagnostics import ProductionError, compare_exact
 
 
@@ -39,7 +39,7 @@ def require_approval_authority(root: Path, prepared: dict, approval: dict, reque
     expected = reassessed or approval.get('authority_sha256')
     if expected is None:
         return
-    import production_workflow as workflow
+    import production_operations as workflow
     authority = workflow.current_authority(root, prepared)
     actual = authority_basis(authority, request['grant'], approval['scope'])
     if expected != actual:
@@ -55,8 +55,8 @@ def require_approval_authority(root: Path, prepared: dict, approval: dict, reque
 def _source(root: Path, loaded, candidate: str) -> tuple[dict, dict, object]:
     import adoption_workflow as adoption
     import production_acceptance as acceptance
-    import production_workflow as workflow
-    import studio
+    import production_operations as workflow
+    import studio_workspace as studio
     selected, choice, _ = workflow.current_selection(loaded.prepared, loaded.rows)
     workflow.require_selected(loaded.prepared, loaded.rows, candidate, run=loaded.prepared['run'])
     target, raw = acceptance._target(root, loaded.prepared['run'], candidate, loaded=loaded)
@@ -76,13 +76,13 @@ def _source(root: Path, loaded, candidate: str) -> tuple[dict, dict, object]:
             'review': choice['review'], 'source_state': state}, row, read
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def draft(root: Path, run: str, candidate: str, *, scope: str, influence: str,
           grant: str | None = None, registration_file: str | None = None,
           pack_dir: Path | None = None) -> dict:
     """Pin the selected image and destination, leaving actual judgments unanswered."""
     import adoption_workflow as adoption
-    import production_workflow as workflow
+    import production_operations as workflow
     if scope not in adoption.SCOPES or influence not in adoption.INFLUENCES:
         raise ValueError('select the intended adoption scope and influence')
     loaded = workflow.read_run(root, run)
@@ -132,7 +132,7 @@ def decision_basis(value: dict) -> dict:
 
 def _expand(root: Path, loaded, value: dict) -> tuple[dict, dict, dict | None, Path | None]:
     import adoption_workflow as adoption
-    import production_workflow as workflow
+    import production_operations as workflow
     workflow.schema_check(value, 'adoption')
     source, row, read = _source(root, loaded, value['candidate'])
     expected = {'run': loaded.prepared['run'], 'input_sha256': loaded.prepared['input_sha256'], **source}
@@ -196,17 +196,17 @@ def _expand(root: Path, loaded, value: dict) -> tuple[dict, dict, dict | None, P
 
 def _retained_claim(loaded, identifier: str) -> tuple[dict, dict]:
     import execution_lifecycle as lifecycle
-    import production_workflow as workflow
+    import production_operations as workflow
     claim = workflow.find(loaded.rows, 'adoption-claim', identifier)
     lifecycle.require_operation(loaded.rows, loaded.prepared, loaded.prepared['run'], **claim['data']['intent'])
     approval = c.decode(loaded.evidence.read(claim['data']['files'][0]['sha256']))
     return claim, approval
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def draft_reassessment(root: Path, run: str, claim_id: str, *, grant: str | None = None) -> dict:
     """Ask for current authority judgments while retaining the exact canonical use."""
-    import production_workflow as workflow
+    import production_operations as workflow
     loaded = workflow.read_run(root, run)
     claim, approval = _retained_claim(loaded, claim_id)
     authority = workflow.current_authority(root, loaded.prepared)
@@ -220,7 +220,7 @@ def draft_reassessment(root: Path, run: str, claim_id: str, *, grant: str | None
 
 def _reassessment(root: Path, loaded, value: dict) -> tuple[dict, dict]:
     import adoption_workflow as adoption
-    import production_workflow as workflow
+    import production_operations as workflow
     workflow.schema_check(value, 'adoption')
     claim, approval = _retained_claim(loaded, value['claim'])
     expected = {'run': loaded.prepared['run'], 'input_sha256': loaded.prepared['input_sha256'],
@@ -254,7 +254,7 @@ def _reassessment(root: Path, loaded, value: dict) -> tuple[dict, dict]:
 
 def _claim_for_decision(loaded, raw: bytes) -> dict | None:
     """Match one validated decision by its content, not its newline or formatting bytes."""
-    import production_workflow as workflow
+    import production_operations as workflow
     value = c.decode(raw)
     workflow.schema_check(value, 'adoption')
     identity = c.content_id(value)
@@ -281,7 +281,7 @@ def _claim_for_decision(loaded, raw: bytes) -> dict | None:
 
 def _resume(root: Path, loaded, claim: dict, *, settings=None) -> dict:
     import adoption_workflow as adoption
-    import production_workflow as workflow
+    import production_operations as workflow
     run, rows = loaded.prepared['run'], loaded.rows
     intent = claim['data']['intent']
     payload = intent['payload']
@@ -295,7 +295,7 @@ def _resume(root: Path, loaded, claim: dict, *, settings=None) -> dict:
     completed = [row for row in rows if row['event'] == 'adoption-result' and row['data']['claim'] == claim['sha256']]
     if completed:
         adoption.restore_journal(root, payload['character'], payload['iteration'], production_claim=claim['sha256'])
-        result = workflow._refresh_studio_projection(root, completed[-1])
+        result = workflow._refresh_studio_projection(root, completed[-1], prepared=loaded.prepared)
     else:
         registration = (c.decode(loaded.evidence.read(payload['registration_sha256']))
                         if payload['registration_sha256'] is not None else None)
@@ -306,11 +306,11 @@ def _resume(root: Path, loaded, claim: dict, *, settings=None) -> dict:
             'resume': {'command': 'adopt', 'arguments': ['--run', run, '--claim', claim['sha256']]}}
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def apply(root: Path, run: str, *, decision_file: str | None = None,
           claim_id: str | None = None, settings=None) -> dict:
     """Authorize authored choices once, then use the existing adoption effect owner."""
-    import production_workflow as workflow
+    import production_operations as workflow
     import studio_activity as activity
     if (decision_file is None) == (claim_id is None):
         raise ValueError('adopt needs one --file decision or --claim to recover')
@@ -327,7 +327,7 @@ def apply(root: Path, run: str, *, decision_file: str | None = None,
                     authorization = workflow.authorize_value(root, run, request, evidence_files=[decision_file],
                         expected_source=(decision_file, c.digest(raw)))
                     current = workflow.read_run(root, run)
-                    workflow.append_record(current.directory, current.prepared, current.rows, 'adoption-authority',
+                    workflow.append_record(current, 'adoption-authority',
                         {'claim': claim['sha256'], 'authorization': authorization['sha256'],
                          'authority_sha256': value['authority_sha256']})
             if claim is None:
@@ -346,7 +346,7 @@ def apply(root: Path, run: str, *, decision_file: str | None = None,
                     expected_source=(decision_file, c.digest(raw)))
                 current = workflow.read_run(root, run)
                 item = workflow.file_record(root, current.directory, approval_path)
-                claim = workflow.append_record(current.directory, current.prepared, current.rows, 'adoption-claim',
+                claim = workflow.append_record(current, 'adoption-claim',
                     {'intent': {key: request[key] for key in ('operation', 'targets', 'payload')},
                      'files': [item], 'authorizations': [authorization['sha256']]})
         result = _resume(root, workflow.read_run(root, run), claim, settings=settings)
@@ -355,7 +355,7 @@ def apply(root: Path, run: str, *, decision_file: str | None = None,
 
 def scope(root: Path, run: str, *, decision_file: str | None, claim_id: str | None) -> str:
     """Locate the selected catalog runtime without inventing a new decision."""
-    import production_workflow as workflow
+    import production_operations as workflow
     if decision_file is not None:
         value = c.load(c.local(root, decision_file))
         workflow.schema_check(value, 'adoption')
@@ -367,7 +367,7 @@ def scope(root: Path, run: str, *, decision_file: str | None, claim_id: str | No
 def saved_actions(root: Path, loaded) -> list[dict]:
     """Inspect only this explicitly selected run's registered adoption branches."""
     import production_authoring_state as authored
-    import production_workflow as workflow
+    import production_operations as workflow
     from cli_invocation import python_argv
     from production_diagnostics import from_exception
     run = loaded.prepared['run']

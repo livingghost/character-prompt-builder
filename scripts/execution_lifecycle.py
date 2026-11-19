@@ -72,7 +72,8 @@ class ReplayState:
     __slots__ = ('prepared', 'run', 'rows', 'executions', '_events', '_latest', '_reviews',
                  '_decisions', '_adoption_tokens', '_adoption_authorities', '_adoption_starts',
                  '_adoption_results', '_steps', '_delete_indices', '_delete_limits', '_send_steps',
-                 '_failed_uploads', '_execution_authorizations', 'closed', '_sealed')
+                 '_failed_uploads', '_execution_authorizations', '_selection_bases',
+                 '_selection_adoptions', 'closed', '_sealed')
 
     def __setattr__(self, name, value):
         if getattr(self, '_sealed', False):
@@ -104,6 +105,8 @@ class ReplayState:
         self._send_steps: dict[str, str] = {}
         self._failed_uploads: set[str] = set()
         self._execution_authorizations: dict[str, str] = {}
+        self._selection_bases: dict[str, tuple[dict, dict, str]] = {}
+        self._selection_adoptions: dict[str, tuple[dict, dict]] = {}
         self.closed: str | None = None
 
     def seal(self) -> ReplayState:
@@ -121,6 +124,31 @@ class ReplayState:
         self.rows = EventHistory(self.rows, self)
         self._sealed = True
         return self
+
+    def successor(self, row: dict) -> ReplayState:
+        """Advance one checked row while preserving the prior sealed observation.
+
+        Event records are immutable. Only the indexes and execution containers
+        that advance can change; they belong to the successor alone.
+        """
+        if not self._sealed:
+            raise ValueError('a successor needs a sealed lifecycle observation')
+        result = ReplayState(self.prepared, self.run)
+        result.rows = list(self.rows)
+        for name in ('_events', '_latest', '_reviews', '_decisions', '_adoption_authorities',
+                     '_adoption_starts', '_delete_limits', '_send_steps', '_execution_authorizations',
+                     '_selection_bases', '_selection_adoptions'):
+            setattr(result, name, dict(getattr(self, name)))
+        for name in ('_adoption_tokens', '_adoption_results', '_failed_uploads'):
+            setattr(result, name, set(getattr(self, name)))
+        result.executions = {identifier: {**state, 'steps': list(state['steps']),
+            'effect_results': dict(state['effect_results']), 'unknown_uploads': list(state['unknown_uploads'])}
+            for identifier, state in self.executions.items()}
+        result._steps = {identifier: dict(steps) for identifier, steps in self._steps.items()}
+        result._delete_indices = {identifier: set(indices) for identifier, indices in self._delete_indices.items()}
+        result.closed = self.closed
+        result.advance(row)
+        return result
 
     @property
     def tail(self) -> str | None:
@@ -416,7 +444,7 @@ def require_operation(records: list[dict] | ReplayState, prepared: dict, run: st
     still check the current grant immediately before an effect; replay checks
     the exact recorded links without renewing historical permission.
     """
-    import production_workflow as w
+    import production_operations as w
     state = _indexed(records, prepared, run)
     if operation == 'adopt':
         c.exact(payload, {'candidate', 'review', 'character', 'iteration', 'approval_sha256',
@@ -433,7 +461,7 @@ def require_operation(records: list[dict] | ReplayState, prepared: dict, run: st
         else:
             c.sha(payload['registration_sha256'])
             c.text(payload['pack_dir'], 'catalog pack directory')
-        selected = w.require_selected(prepared, state.selection_context(), payload['candidate'], run=run)
+        selected = w.require_selected(prepared, state, payload['candidate'], run=run)
         if payload['review'] != selected['data']['selection']['review']:
             raise ValueError('adoption must use the current selected review')
         return
@@ -459,7 +487,7 @@ def _validate_disposition(state: ReplayState, prepared: dict, run: str, data: di
     Nonselection records the disposition of retained output. It changes neither
     the run's completed delivery nor its evaluation, and grants no new work.
     """
-    import production_workflow as w
+    import production_operations as w
     c.exact(data, {'disposition', 'files', 'previous_decision'}, 'candidate disposition event')
     decision = data['disposition']
     w.schema_check(decision, 'disposition')
@@ -490,7 +518,7 @@ def _validate_selection(state: ReplayState, data: dict) -> None:
 def validate_transition(records: list[dict] | ReplayState, prepared: dict, run: str, event: str, data: dict, *,
                         read_object) -> None:
     """Check append and replay against the same accumulated state and indices."""
-    import production_workflow as w
+    import production_operations as w
     state = _indexed(records, prepared, run)
     from production_authored import EVENTS as AUTHORED_EVENTS, validate_event
     if prepared['task']['execution'] == 'authored':
@@ -615,7 +643,7 @@ def require_active(records: list[dict], prepared: dict, run: str, authorization:
 
 
 def claim_execution(root: Path, run: str, authorization: str) -> dict:
-    import production_workflow as w
+    import production_operations as w
     with store.transaction(root):
         loaded = w.assert_current(root, run)
         authority = w.current_authority(root, loaded.prepared)
@@ -624,7 +652,7 @@ def claim_execution(root: Path, run: str, authorization: str) -> dict:
 
 def _claim_execution_from(root: Path, loaded, authority, authorization: str) -> dict:
     """Claim from the current inputs and authority acquired by this transaction."""
-    import production_workflow as w
+    import production_operations as w
     directory, prepared, _, rows = loaded
     run = prepared['run']
     request = w.find(rows, 'authorization', authorization)['data']['request']
@@ -645,38 +673,40 @@ def _claim_execution_from(root: Path, loaded, authority, authorization: str) -> 
             'outcome_actors': sorted({request['actor'], authority.document['issuer']}),
             'request_sha256': request['payload'].get('request_sha256', c.content_id(request['payload'])),
             'requested_outputs': request['outputs'], 'created_at': c.now()}
-    w.append_record(directory, prepared, rows, 'execution-created', data)
+    w.append_record(loaded, 'execution-created', data)
     return w.read_run(root, run).lifecycle.executions[identifier]
 
 
 def begin(root: Path, run: str, authorization: str, *, effect: str, claim: str | None = None) -> dict:
-    import production_workflow as w
+    import production_operations as w
     with store.transaction(root):
-        directory, prepared, _, rows = w.read_run(root, run)
+        loaded = w.read_run(root, run)
+        directory, prepared, _, rows = loaded
         request = w.find(rows, 'authorization', authorization)['data']['request']
         if request['operation'] != 'submit':
             w._permission(root, prepared, rows, authorization,
                           request['operation'], request['targets'], request['payload'])
-            return w.append_record(directory, prepared, rows, 'operation-start',
+            return w.append_record(loaded, 'operation-start',
                 {'authorization_sha256': authorization, 'effect': effect, 'claim': claim})
         state = by_authorization(rows, prepared, run, authorization)
         if state is None:
             state = claim_execution(root, run, authorization)
-            directory, prepared, _, rows = w.read_run(root, run)
+            loaded = w.read_run(root, run)
+            directory, prepared, _, rows = loaded
         if state['status'] != 'claimed':
             raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'Execution start already exists; inspect or resume it.',
                                   phase='execution', run=run,
                                   required_action='Inspect this execution with status --run and continue from its '
                                                   'next action; it is not started again.')
-        return w.append_record(directory, prepared, rows, 'execution-start',
+        return w.append_record(loaded, 'execution-start',
             {'execution_id': state['execution_id'], 'claim': claim, 'effect': effect,
              'request_sha256': state['request_sha256'], 'started_at': c.now()})
 
 
 def begin_step(root: Path, run: str, authorization: str, *, claim: str, step: str, operation: str,
                identifiers: list[dict] | None = None, previous_runtime=None) -> dict:
-    """Commit one exact external boundary after fresh consent and runtime checks."""
-    import production_workflow as w
+    """Commit one exact external step using owned inputs and current consent."""
+    import production_operations as w
     from operation_context import current
     c.text(step, 'external step')
     if operation not in {'upload', 'send'}:
@@ -690,7 +720,8 @@ def begin_step(root: Path, run: str, authorization: str, *, claim: str, step: st
                 raise ValueError('step identifier field must be a nonempty path')
     with store.transaction(root):
         c.recheck_roots()
-        directory, prepared, _, rows = w.assert_current(root, run, force=True,previous_runtime=previous_runtime)
+        loaded = w.assert_current(root, run, previous_runtime=previous_runtime)
+        directory, prepared, _, rows = loaded
         request = w.find(rows, 'authorization', authorization)['data']['request']
         w._permission(root, prepared, rows, authorization, request['operation'], request['targets'], request['payload'])
         state = require_active(rows, prepared, run, authorization)
@@ -705,23 +736,25 @@ def begin_step(root: Path, run: str, authorization: str, *, claim: str, step: st
             current().durable()
         if state['status'] == 'claimed':
             begin(root, run, authorization, effect='external-io', claim=claim)
-            directory, prepared, _, rows = w.read_run(root, run)
+            loaded = w.read_run(root, run)
+            directory, prepared, _, rows = loaded
         data = {'execution_id': state['execution_id'], 'claim': claim, 'step': step, 'operation': operation,
                 'request_sha256': state['request_sha256'], 'started_at': c.now()}
         if identifiers is not None:
             data['identifiers'] = identifiers
-        return w.append_record(directory, prepared, rows, 'external-step', data)
+        return w.append_record(loaded, 'external-step', data)
 
 
 def record_effect(root: Path, run: str, authorization: str, *, claim: str,
                   step: str, usage: dict | None, evidence: list[dict]) -> dict:
     """Save a provider response once. Usage may be unknown without blocking capture."""
-    import production_workflow as w
+    import production_operations as w
     validate_usage(usage)
     if not evidence:
         raise ProductionError('SETTLEMENT_EVIDENCE_REQUIRED', 'An effect receipt needs a saved response.', phase='result-capture')
     with store.transaction(root):
-        directory, prepared, _, rows = w.read_run(root, run)
+        loaded = w.read_run(root, run)
+        directory, prepared, _, rows = loaded
         state = require_active(rows, prepared, run, authorization)
         if not any(s['step'] == step and s['claim'] == claim for s in state['steps']):
             raise ProductionError('SETTLEMENT_EVIDENCE_REQUIRED', 'No exact external boundary supports this receipt.', phase='result-capture', run=run)
@@ -732,7 +765,7 @@ def record_effect(root: Path, run: str, authorization: str, *, claim: str,
                 raise ProductionError('SETTLEMENT_CONFLICT', 'The saved receipt for this effect differs.', phase='result-capture', run=run,
                     required_action='Inspect the recorded result of this step with status --run; a step keeps its first saved receipt.')
             return next(row for row in rows if row['event'] == 'external-effect-result' and row['data'] == data)
-        return w.append_record(directory, prepared, rows, 'external-effect-result', data)
+        return w.append_record(loaded, 'external-effect-result', data)
 
 
 def begin_cleanup_step(root: Path, run: str, authorization: str, *, claim: str,
@@ -743,12 +776,13 @@ def begin_cleanup_step(root: Path, run: str, authorization: str, *, claim: str,
     freshness and a new submission approval cannot alter that recorded scope.
     The exact delete request and upload response are durable before I/O.
     """
-    import production_workflow as w
+    import production_operations as w
     import production_request
     from operation_context import current
     with store.transaction(root):
         c.recheck_roots()
-        directory, prepared, _, rows = w.read_run(root, run)
+        loaded = w.read_run(root, run)
+        directory, prepared, _, rows = loaded
         authorization_row = w.find(rows, 'authorization', authorization)
         authorized = authorization_row['data']['request']
         production_request.validate_payload(authorized['payload'])
@@ -785,19 +819,20 @@ def begin_cleanup_step(root: Path, run: str, authorization: str, *, claim: str,
         _indexed(rows, prepared, run).check_execution('external-step', data)
         if current():
             current().durable()
-        return w.append_record(directory, prepared, rows, 'external-step', data)
+        return w.append_record(loaded, 'external-step', data)
 
 
 def record_result(root: Path, run: str, authorization: str, *, outputs: int, cost: dict | None,
                   final: bool, evidence: list[dict]) -> dict:
     """Capture outputs monotonically; completion depends on results, not billing."""
-    import production_workflow as w
+    import production_operations as w
     if type(outputs) is not int or outputs < 0 or type(final) is not bool or not evidence:
         raise ValueError('a result needs output count, completion state and saved evidence')
     if cost is not None:
         validate_cost(cost)
     with store.transaction(root):
-        directory, prepared, _, rows = w.read_run(root, run)
+        loaded = w.read_run(root, run)
+        directory, prepared, _, rows = loaded
         state = require_active(rows, prepared, run, authorization)
         if not state['submissions']:
             raise ProductionError('SETTLEMENT_EVIDENCE_REQUIRED', 'No send boundary supports this result.', phase='result-capture')
@@ -811,7 +846,7 @@ def record_result(root: Path, run: str, authorization: str, *, outputs: int, cos
                 raise ProductionError('SETTLEMENT_CONFLICT', 'Captured results cannot be erased or finalized differently.', phase='result-capture',
                     required_action='Inspect the recorded result with status --run; captured outputs, a final result and '
                                     'a confirmed charge are kept as recorded.')
-        return w.append_record(directory, prepared, rows, 'execution-result', data)
+        return w.append_record(loaded, 'execution-result', data)
 
 
 def _add_money(values: list[dict]) -> dict[str, str]:
@@ -848,7 +883,7 @@ def effect_total(state: dict, *, operations: set[str] | None = None) -> tuple[di
 
 def all_states(root: Path, *, task_id: str | None = None, grant: str | None = None, run: str | None = None,
                blocked: list[dict] | None = None) -> list[dict]:
-    import production_workflow as w
+    import production_operations as w
     from production_diagnostics import from_exception
     output = []
     for item in store.runs(root, task_id=task_id):
@@ -931,13 +966,15 @@ def completion_tail(records: list[dict], prepared: dict, run: str, *, read_objec
 
 
 def commit_effect(root: Path, run: str, event: str, data: dict, tokens: list[str], *, effect: str) -> dict:
-    import production_workflow as w
+    import production_operations as w
     with store.transaction(root):
-        directory, prepared, _, rows = w.read_run(root, run)
+        loaded = w.read_run(root, run)
+        directory, prepared, _, rows = loaded
         previous = [row for row in rows if row['event'] == event and row['data'] == data]
         if previous:
             return previous[-1]
         for authorization in tokens:
             begin(root, run, authorization, effect=effect)
-        directory, prepared, _, rows = w.read_run(root, run)
-        return w.append_record(directory, prepared, rows, event, data)
+        loaded = w.read_run(root, run)
+        directory, prepared, _, rows = loaded
+        return w.append_record(loaded, event, data)

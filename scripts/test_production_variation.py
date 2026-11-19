@@ -1,5 +1,7 @@
 """Input-derived variants and repeats of the current prepared-run contract."""
 from __future__ import annotations
+import production_workflow as production_workflow_cli
+import production_fixtures as authoring_fixtures
 import copy
 from contextlib import redirect_stdout
 import io
@@ -12,35 +14,60 @@ from unittest.mock import patch
 import execution_contract as c
 import production_case_fixtures as fixtures
 import production_variation as variation
-import production_workflow as workflow
+import production_operations as workflow
 import production_execution as execution
 import production_store as store
 from production_diagnostics import ProductionError, CompilationError
 
 
 class VariationTests(unittest.TestCase):
+    @staticmethod
+    def build(base):
+        case = fixtures.create(base / 'studio', base / 'runtime')
+        return case, {'run': workflow.prepare(case['root'], 'task.json')['run']}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = fixtures.CaseTemplate.for_class(cls, cls.build)
+
     def setUp(self):
+        from production_compiler import published_preparation
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         base = Path(self.temp.name)
-        case = fixtures.create(base / 'studio', base / 'runtime')
+        case, metadata = fixtures.CaseTemplate.for_test(self, base, self.build, self._case_template)
         self.root = case['root']
-        self.parent = workflow.prepare(self.root, 'task.json')
-        self.run = self.parent['run']
+        self.run = metadata['run']
+        self.parent = published_preparation(self.root, self.run)
 
     def change(self, values):
         fixtures.write(self.root / 'changes.json', {'changes': values, 'reason': 'Explicit synthetic input variation.'})
         return variation.derive(self.root, self.run, changes_file='changes.json', prepare=True)
 
+    def reference_changes(self, references, path):
+        """The fixture author adds operative reference directions and reassesses their final text."""
+        from smoke_fixtures import fixture_reference_prompt
+        from studio_reference_fixtures import reference_retrieval
+        task = c.load(self.root / 'task.json')
+        prompt = fixture_reference_prompt((self.root / task['delivery']['path']).read_text(encoding='utf-8'), references)
+        retrieval = (Path(path).parent / 'retrieval.json').as_posix()
+        fixtures.write(self.root / retrieval, reference_retrieval(self.root, task, prompt, references))
+        return {'references': {'path': path}, 'execution-mode': 'reference-guided',
+                'prompt': prompt, 'retrieval-record': {'path': retrieval}}
+
     def identity_task(self):
         task = c.load(self.root / 'task.json')
         task['sources'][0]['identity'] = {'subject_ids': ['robot'], 'selectors': ['']}
+        task['sources'][0]['applications'] = [{'id': 'brief', 'pointer': '',
+            'subjects': ['robot'], 'requirement': False}]
         task['criteria'][0].update(evidence='image', identity_review=['robot'], identity_bindings=[{
             'source': 'brief', 'subject_ids': ['robot'], 'selectors': [''], 'treatment': 'preserve',
             'reason': 'Retain the original synthetic definition.', 'variation': None,
             'carriers': [{'kind': 'text', 'surface': 'primary', 'selection': {'text': 'synthetic robot', 'occurrence': 1}}]}])
+        authoring_fixtures.bind_work_basis(self.root, task)
         return task
 
+    @fixtures.cold_case
     def test_parameter_variant_needs_no_candidate_or_claim(self):
         child = self.change({'parameter:steps': 22})
         self.assertNotEqual(child['run'], self.run)
@@ -60,6 +87,35 @@ class VariationTests(unittest.TestCase):
         self.assertEqual(child['input_sha256'], self.parent['input_sha256'])
         self.assertEqual(child['execution_plan']['request_sha256'], self.parent['execution_plan']['request_sha256'])
         self.assertEqual(store.event_rows(self.root, child['run']), [])
+
+    def test_case_copies_isolate_files_metadata_ledgers_and_synthetic_responses(self):
+        import os
+        import transport_synthetic
+        template = self._case_template
+        prompt = (template.case['root'] / 'prompt.txt').read_bytes()
+        criterion = copy.deepcopy(template.case['task']['criteria'][0])
+        for index in range(2):
+            owner = unittest.FunctionTestCase(lambda: None)
+            with tempfile.TemporaryDirectory() as temporary:
+                try:
+                    case, metadata = fixtures.CaseTemplate.for_test(
+                        owner, Path(temporary), self.build, template)
+                    self.assertEqual(case['pack'], template.case['pack'])
+                    self.assertEqual(case['task']['criteria'][0], criterion)
+                    self.assertEqual((case['root'] / 'prompt.txt').read_bytes(), prompt)
+                    self.assertEqual(os.environ['CPB_READS_LEDGER'], str(case['root'] / 'work/reads.jsonl'))
+                    self.assertEqual(transport_synthetic._ANSWERED, {})
+                    self.assertEqual(transport_synthetic._DELETIONS, {})
+                    workflow.read_run(case['root'], metadata['run'])
+                    if index == 0:
+                        (case['root'] / 'prompt.txt').write_bytes(b'Private test edit.\n')
+                        case['task']['criteria'][0]['text'] = 'Private metadata edit.'
+                        transport_synthetic._ANSWERED['private'] = {'data': []}
+                        transport_synthetic._DELETIONS['private'] = {'deleted': True}
+                finally:
+                    owner.doCleanups()
+        self.assertEqual((template.case['root'] / 'prompt.txt').read_bytes(), prompt)
+        self.assertEqual(template.case['task']['criteria'][0], criterion)
 
     def test_declared_input_without_a_pinned_snapshot_stops_derivation_and_names_its_continuation(self):
         import types
@@ -115,9 +171,14 @@ class VariationTests(unittest.TestCase):
                          'scene-materials','world-views','moment-views','features',
                          'state-lineage','state-snapshot'} <= set(fields))
         task = copy.deepcopy(workflow.load_run(self.root, self.run)[1]['task'])
-        task['direction']['decisions'][0]['reason'] = 'An explicitly reassessed synthetic direction reason.'
+        task['direction']['decisions'][0]['note'] = 'An explicitly reassessed synthetic direction.'
         child = self.change({'direction': task['direction']})
-        self.assertEqual(workflow.load_run(self.root, child['run'])[1]['task']['direction'], task['direction'])
+        selected = workflow.read_run(self.root, child['run'])
+        basis = c.decode(variation._captured(selected, selected.prepared['task']['work_basis']))
+        expected = copy.deepcopy(task['direction'])
+        expected['basis'] = [ident for ident in expected['basis'] if not ident.startswith('request:')]
+        expected['basis'].append('request:' + basis['request_sha256'])
+        self.assertEqual(selected.prepared['task']['direction'], expected)
         self.assertFalse(child['authorization_inherited'])
 
     def test_saved_field_schemas_validate_nested_identity_and_recording_values(self):
@@ -149,11 +210,26 @@ class VariationTests(unittest.TestCase):
                 argv = ['production_workflow.py', 'variant', '--root', str(self.root), '--from', parent['run'],
                         '--changes-file', 'changes.json', '--prepare']
                 with patch.object(sys, 'argv', argv), redirect_stdout(output):
-                    exit_code = workflow.main()
+                    exit_code = production_workflow_cli.main()
                 self.assertEqual(exit_code, 0, output.getvalue())
                 child = json.loads(output.getvalue())
                 prepared = workflow.load_run(self.root, child['run'])[1]
-                self.assertEqual(prepared['task'][name], value)
+                if name == 'sources':
+                    selected = workflow.read_run(self.root, child['run'])
+                    current_sources = {row['id']: row for row in prepared['task']['sources']
+                                       if row.get('applications')}
+                    expected_sources = {row['id']: row for row in value if row.get('applications')}
+                    self.assertEqual(current_sources.keys(), expected_sources.keys())
+                    for ident, row in current_sources.items():
+                        expected = expected_sources[ident]
+                        self.assertEqual({key: item for key, item in row.items() if key not in {'path', 'origin'}},
+                                         {key: item for key, item in expected.items() if key not in {'path', 'origin'}})
+                        self.assertEqual(variation._captured(selected, row['path']),
+                                         (self.root / expected['path']).read_bytes())
+                    work = c.decode(variation._captured(selected, prepared['task']['work_basis']))
+                    self.assertEqual(work['request'], (self.root / 'changes.json').read_text(encoding='utf-8'))
+                else:
+                    self.assertEqual(prepared['task'][name], value)
                 self.assertEqual(prepared['parent']['run'], parent['run'])
                 self.assertEqual(store.event_rows(self.root, child['run']), [])
                 self.assertFalse(child['authorization_inherited'])
@@ -182,18 +258,51 @@ class VariationTests(unittest.TestCase):
         self.assertEqual(len(store.runs(self.root)), 1)
 
     def test_replaced_named_source_is_not_left_pointing_at_the_old_file(self):
+        import authoring_work
         task = c.load(self.root/'task.json')
         task['sources'].append({'id':'intent-source','path':'creative-intent.json',
             'role':'intent','disposition':'applied','locator':'whole',
             'reason':'Synthetic authored intention source.'})
+        authoring_fixtures.bind_work_basis(self.root, task)
+        prior_basis = c.load(self.root / task['work_basis'])
+        prior_source = copy.deepcopy(prior_basis['sources']['intent-source'])
         fixtures.write(self.root/'source-task.json', task)
         self.run = workflow.prepare(self.root, 'source-task.json')['run']
         fixtures.write(self.root/'new-intent.json', {'image_promise':'Reassessed synthetic protocol demonstration.'})
         (self.root/'creative-intent.json').unlink()
         child = self.change({'creative-intent':{'path':'new-intent.json'}})
         prepared = workflow.load_run(self.root, child['run'])[1]
-        self.assertEqual(next(x for x in prepared['task']['sources'] if x['id']=='intent-source')['path'], 'new-intent.json')
+        selected = next(x for x in prepared['task']['sources'] if x['id']=='intent-source')
+        self.assertEqual(variation._captured(workflow.read_run(self.root, child['run']), selected['path']),
+                         (self.root / 'new-intent.json').read_bytes())
+        work = c.decode(variation._captured(workflow.read_run(self.root, child['run']), prepared['task']['work_basis']))
+        self.assertEqual(work['operation'], 'amend')
+        self.assertEqual(work['request'], (self.root / 'changes.json').read_text(encoding='utf-8'))
+        self.assertEqual(work['baseline']['task'], task)
+        self.assertEqual(authoring_work.source_bytes(work['sources']['intent-source']),
+                         (self.root / 'new-intent.json').read_bytes())
+        self.assertIn(prior_source, list(work['sources'].values()))
+        self.assertEqual(work['applications']['intent-source']['source'], 'intent-source')
         self.assertNotIn('creative-intent.json', {d['path'] for d in prepared['dependencies'] if d['space']=='studio'})
+
+    def test_specification_edit_updates_the_applied_definition_and_retains_its_original(self):
+        import authoring_work
+        before = workflow.read_run(self.root, self.run)
+        original = c.decode(variation._captured(before, before.prepared['task']['work_basis']))
+        original_definition = copy.deepcopy(original['sources']['task-subject:robot'])
+        specification = c.load(self.root / 'spec.json')
+        specification['subjects'][0]['identity'] = ['A synthetic robot with a segmented bronze chest plate.']
+        fixtures.write(self.root / 'revised-specification.json', specification)
+        child = self.change({'production-spec': {'path': 'revised-specification.json'}})
+        saved = workflow.read_run(self.root, child['run'])
+        basis = c.decode(variation._captured(saved, saved.prepared['task']['work_basis']))
+        application = basis['applications'][basis['subjects']['robot'][0]]
+        self.assertEqual(authoring_work.source_value(basis['sources'][application['source']], application['pointer']),
+                         specification['subjects'][0]['identity'])
+        self.assertIn(original_definition, list(basis['sources'].values()))
+        self.assertNotEqual(basis['baseline']['documents']['production_spec']['subjects'][0]['identity'],
+                            specification['subjects'][0]['identity'])
+        self.assertEqual(workflow.read_run(self.root, self.run).prepared, before.prepared)
 
     def test_repeat_mismatch_does_not_publish_a_run(self):
         import production_compiler as compiler
@@ -312,7 +421,15 @@ class VariationTests(unittest.TestCase):
         prefix = f"production/runs/{child['run']}/inputs/"
         self.assertTrue(prepared['task_path'].startswith(prefix))
         owned = {d['path']: d['space'] for d in prepared['dependencies'] if d['path'].startswith(prefix)}
-        self.assertEqual(owned, {prefix + 'task.json': 'task-source', prefix + 'parameters.json': 'task-source'})
+        expected = {prefix + 'task.json', prefix + 'parameters.json', prepared['task']['work_basis']}
+        for source in prepared['task']['sources']:
+            expected.add(source['path'])
+            if source.get('origin') is not None:
+                expected.add(source['origin']['path'])
+        self.assertEqual(owned, {path: 'task-source' for path in expected})
+        basis = c.load(self.root / prepared['task']['work_basis'])
+        self.assertEqual(basis['request'], (self.root / 'changes.json').read_text(encoding='utf-8'))
+        self.assertEqual(basis['baseline']['documents']['parameters']['steps'], 20)
         self.assertEqual(c.load(self.root / prefix / 'parameters.json')['steps'], 22)
         self.assertEqual(c.load(self.root / prefix / 'requested-changes.json')['changes'], {'parameter:steps': 22})
         workflow.assert_current(self.root, child['run'])
@@ -333,14 +450,14 @@ class VariationTests(unittest.TestCase):
         self.assertTrue((staged[0] / 'inputs' / 'prompt.txt').is_file())
 
     def test_a_run_without_references_gains_a_prepared_reference_set(self):
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
         from transport_synthetic import _png
         c.atomic(self.root / 'variants/palette.png', _png(32, 32, b'\x50\x78\xa0'))
         references = prepare_references([{'role': 'palette', 'source': {'kind': 'supplied-file', 'reference_id': 'synthetic-palette',
             'resolved_path': str(self.root / 'variants/palette.png')}}], model=fixtures.MODEL_ID,
             output_dir=self.root / 'variants/reference-preparation')
         fixtures.write(self.root / 'variants/references.json', references)
-        child = self.change({'references': {'path': 'variants/references.json'}, 'execution-mode': 'reference-guided'})
+        child = self.change(self.reference_changes(references, 'variants/references.json'))
         self.assertEqual(len(child['request_preview']['inputs']['references']), 1)
         self.assertEqual(len(list(workflow.run_dir(self.root, child['run']).glob('package.*.references'))), 1)
         self.assertNotIn('inputs', self.parent['request_preview'])
@@ -348,7 +465,7 @@ class VariationTests(unittest.TestCase):
     def test_review_retains_shared_carrier_scopes_after_original_sources_are_removed(self):
         import shutil
         import production_evidence as media
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
         from test_production_execution import decisions
         from transport_synthetic import _png
         svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
@@ -370,8 +487,8 @@ class VariationTests(unittest.TestCase):
                 references = prepare_references(selections, model=fixtures.MODEL_ID,
                     output_dir=folder / 'prepared', max_side=64, transport_mode=mode)
                 fixtures.write(folder / 'references.json', references)
-                child = self.change({'references': {'path': (folder / 'references.json').relative_to(self.root).as_posix()},
-                                     'execution-mode': 'reference-guided'})
+                child = self.change(self.reference_changes(references,
+                    (folder / 'references.json').relative_to(self.root).as_posix()))
                 run = child['run']
                 result = execution.execute(self.root, run, decisions_file=decisions(self.root, run))
                 self.assertTrue(result['execution_completed'], result.get('warnings'))
@@ -381,8 +498,14 @@ class VariationTests(unittest.TestCase):
                 prepared = c.load(directory / 'package.json')['prepared_reference_set']
                 shutil.rmtree(folder)
                 draft = workflow.draft_review(self.root, run, candidate)
-                evidence = workflow.review_basis(self.root, run, candidate)['evidence']
-                self.assertEqual([item['id'] for item in evidence], ['delivered-reference:1', 'delivered-reference:2'])
+                basis_evidence = workflow.review_basis(self.root, run, candidate)['evidence']
+                evidence_by_id = {item['id']: item for item in basis_evidence}
+                self.assertIn('authoring-work', evidence_by_id)
+                self.assertEqual(c.read(c.local(self.root, evidence_by_id['task-source:brief']['path'])),
+                                 c.read(self.root / 'brief.md'))
+                evidence = [item for item in basis_evidence if item['id'].startswith('delivered-reference:')]
+                self.assertEqual([item['id'] for item in evidence],
+                    ['delivered-reference:1', 'delivered-reference:2'])
                 self.assertEqual(len({item['path'] for item in evidence}), 1)
                 self.assertEqual(draft['observations'], [])
                 self.assertTrue(all(check['verdict'] == 'not-assessed' for check in draft['checks']))
@@ -421,7 +544,7 @@ class VariationTests(unittest.TestCase):
                              conclusion='Prepared delivery remains inspectable within each source assignment.')
                 fixtures.write(self.root / 'review.json', draft)
                 recorded = workflow.review(self.root, run, 'review.json')
-                self.assertEqual(recorded['data']['review']['evidence'], evidence)
+                self.assertEqual(recorded['data']['review']['evidence'], basis_evidence)
                 self.assertEqual(len(recorded['data']['review']['observations']), 2)
 
     def test_changed_unreplaced_source_uses_the_selected_parent_revision(self):
@@ -460,26 +583,36 @@ class VariationTests(unittest.TestCase):
         self.assertEqual(c.decode(variation._captured(workflow.read_run(self.root, self.run), 'creative-intent.json')), original)
 
     def test_reopened_choices_explicitly_reselect_current_original_source(self):
-        import production_inputs
+        import authoring_work
         task = c.load(self.root / 'task.json')
         task['sources'].append({'id': 'auxiliary-source', 'path': 'source.bin', 'role': 'design',
             'disposition': 'applied', 'locator': 'whole file', 'reason': 'Explicit synthetic source selection.'})
         fixtures.write(self.root / 'source.bin', 'Original selected content.\n')
         original = (self.root / 'source.bin').read_bytes()
+        authoring_fixtures.bind_work_basis(self.root, task)
+        original_path = next(row['path'] for row in task['sources'] if row['id'] == 'auxiliary-source')
         fixtures.write(self.root / 'source-task.json', task)
         parent = workflow.prepare(self.root, 'source-task.json')
+        parent_prepared = workflow.read_run(self.root, parent['run']).prepared
         fixtures.write(self.root / 'source.bin', 'Current content explicitly selected for this draft.\n')
         current = (self.root / 'source.bin').read_bytes()
-        draft = production_inputs.draft_inputs(self.root, None, 'work/reselect-source', from_run=parent['run'])
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'work/reselect-source', from_run=parent['run'])
         choices = draft['choices']
         row = next(row for row in choices['authoring']['task']['sources'] if row['id'] == 'auxiliary-source')
         restored_path = row['path']
         self.assertEqual((self.root / restored_path).read_bytes(), original)
-        row['path'] = 'source.bin'
-        fixtures.write(self.root / draft['choices_file'], choices)
+        basis = authoring_fixtures.acquire_application(self.root, draft['choices_file'],
+            'current-auxiliary-source', current.decode('utf-8'), application='auxiliary-source')
+        self.assertEqual(authoring_work.source_bytes(basis['sources']['auxiliary-source']), original)
         child = workflow.prepare(self.root, choices=draft['choices_file'])
-        self.assertEqual(variation._captured(workflow.read_run(self.root, child['run']), 'source.bin'), current)
-        self.assertEqual(variation._captured(workflow.read_run(self.root, parent['run']), 'source.bin'), original)
+        saved = workflow.read_run(self.root, child['run'])
+        applied = next(row for row in saved.prepared['task']['sources'] if row['id'] == 'current-auxiliary-source')
+        self.assertEqual(variation._captured(saved, applied['path']), current)
+        saved_basis = c.decode(variation._captured(saved, draft['authoring_work']['basis']))
+        self.assertEqual(authoring_work.source_bytes(saved_basis['sources']['auxiliary-source']), original)
+        self.assertEqual(saved_basis['applications']['auxiliary-source']['source'], 'current-auxiliary-source')
+        self.assertEqual(variation._captured(workflow.read_run(self.root, parent['run']), original_path), original)
+        self.assertEqual(workflow.read_run(self.root, parent['run']).prepared, parent_prepared)
         self.assertEqual((self.root / restored_path).read_bytes(), original)
         self.assertEqual((self.root / 'source.bin').read_bytes(), current)
 
@@ -496,7 +629,7 @@ class VariationTests(unittest.TestCase):
         policy = c.decode(graph[policy_path])
         basis_path = policy['basis']['path']
         shutil.rmtree(self.root / 'synthetic-validation')
-        draft = production_inputs.draft_inputs(self.root, None, 'work/retained-validation', from_run=self.run)
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'work/retained-validation', from_run=self.run)
         self.assertEqual(draft['choices']['validation']['execution_policy'], '@run/' + self.run + '/' + policy_path)
         child = workflow.prepare(self.root, choices=draft['choices_file'])
         saved = workflow.read_run(self.root, child['run'])
@@ -506,7 +639,7 @@ class VariationTests(unittest.TestCase):
 
         # Reopening this child consumes the graph it already owns. The named
         # source keeps its identity without rereading an ancestor publication.
-        again = production_inputs.draft_inputs(self.root, None, 'work/validation-again', from_run=child['run'])
+        again = authoring_fixtures.authoring_inputs(self.root, None, 'work/validation-again', from_run=child['run'])
         with patch.object(production_saved_inputs, 'read_named', side_effect=AssertionError('ancestor source reread')):
             grandchild = workflow.prepare(self.root, choices=again['choices_file'])
         self.assertTrue(grandchild['formal_run_created'])
@@ -534,7 +667,7 @@ class VariationTests(unittest.TestCase):
 
     def test_retained_reference_graph_survives_removal_and_explicit_replacement_uses_current_media(self):
         import shutil
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
         from transport_synthetic import _png
         folder = self.root / 'reference-revision'
         path = folder / 'source.png'
@@ -544,9 +677,9 @@ class VariationTests(unittest.TestCase):
             return prepare_references([{'role': 'palette', 'source': {'kind': 'supplied-file',
                 'reference_id': 'synthetic-palette', 'resolved_path': str(path)}}],
                 model=fixtures.MODEL_ID, output_dir=output)
-        fixtures.write(folder / 'references.json', reference_document(folder / 'prepared'))
-        parent = self.change({'references': {'path': 'reference-revision/references.json'},
-                              'execution-mode': 'reference-guided'})
+        references = reference_document(folder / 'prepared')
+        fixtures.write(folder / 'references.json', references)
+        parent = self.change(self.reference_changes(references, 'reference-revision/references.json'))
         parent_run = parent['run']
         parent_prepared = workflow.read_run(self.root, parent_run).prepared
         shutil.rmtree(folder)

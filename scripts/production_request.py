@@ -189,7 +189,7 @@ def external_intent(consumer: dict, recipient: str) -> dict:
     return {'operation': 'submit', 'targets': ['delivery'], 'payload': {
         'consumer_sha256': c.content_id(consumer), 'recipient': recipient,
         'count': external['count'], 'image_input_sha256': binding['binding_sha256'],
-        'external_request_sha256': external['sha256'], 'target': binding['model']['target']}}
+        'external_request_sha256': external['request_sha256'], 'target': binding['model']['target']}}
 
 
 def check_external_authorization(consumer: dict, request: dict, grant: dict) -> None:
@@ -202,7 +202,7 @@ def check_external_authorization(consumer: dict, request: dict, grant: dict) -> 
     c.exact(payload, {'consumer_sha256', 'recipient', 'count', 'image_input_sha256',
                       'external_request_sha256', 'target'}, 'external image submission payload')
     expected = {'consumer_sha256': c.content_id(consumer), 'count': external['count'],
-                'image_input_sha256': binding['binding_sha256'], 'external_request_sha256': external['sha256'],
+                'image_input_sha256': binding['binding_sha256'], 'external_request_sha256': external['request_sha256'],
                 'target': binding['model']['target']}
     if any(c.encoded(payload[key]) != c.encoded(value) for key, value in expected.items()):
         raise ValueError('external image authorization differs from the prepared complete model input')

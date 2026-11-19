@@ -1,0 +1,38 @@
+{
+  "kind": "module",
+  "category": "rendering",
+  "records": [
+    {
+      "id": "rendering-molded-vinyl-surface",
+      "label": "Smooth molded vinyl surface",
+      "category": "rendering",
+      "curation_status": "curated",
+      "record_role": "atomic-visual-instruction",
+      "visual_function": "Give the selected forms a continuous molded vinyl surface with smooth rounded transitions and clean material grouping, at the depiction's existing view and scale.",
+      "prompt": "Render the selected surfaces as smooth molded vinyl with softly rounded transitions, continuous clean surface groups, and broad gentle highlights that follow the forms. Preserve the selected construction, pose, proportions and framing through the material treatment.",
+      "invariants": [
+        "the selected surfaces share a coherent molded material response",
+        "surface transitions preserve the underlying connected forms",
+        "the material treatment retains the depicted pose, proportions and frame"
+      ],
+      "misreadings_to_avoid": [
+        "photoreal pores or loose fibers replacing the selected molded surface",
+        "material highlights breaking across a continuous molded form",
+        "a display pose or backdrop introduced solely by the material treatment"
+      ],
+      "misreading_policy": {
+        "role": "diagnostic-only",
+        "automatic_prompt_injection": false
+      },
+      "applies_to": "material rendering on the selected subjects or regions",
+      "domains": ["shared"],
+      "tags": ["molded vinyl", "smooth toy material", "vinyl surface"],
+      "search_terms": [
+        {"phrase": "smooth molded vinyl surface", "facet": "rendering", "weight": 1.25, "source": "author"},
+        {"phrase": "soft toy material on the selected forms", "facet": "rendering", "weight": 1.1, "source": "author"},
+        {"phrase": "designer toy finish", "facet": "rendering", "weight": 1.0, "source": "author"},
+        {"phrase": "clean vinyl highlights without changing the pose", "facet": "rendering", "weight": 1.0, "source": "author"}
+      ]
+    }
+  ]
+}

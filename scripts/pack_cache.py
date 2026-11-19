@@ -12,22 +12,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from builder_inputs import capture as capture_builder_inputs
-from pack_manager import (
-    DiscoveredPack,
-    PackError,
-    PackRecord,
-    PackSettings,
-    PackValidation,
-    RuntimeInputs,
-    acquire_runtime_inputs,
-    canonical_json,
-    default_settings,
-    pack_cli_command,
-    required_dependency_cycles,
-    sha256_bytes,
-    validate_pack_input,
-)
+from builder_inputs import BuilderInputs, capture as capture_builder_inputs
+from pack_manager import DiscoveredPack, PackError, PackRecord, PackValidation, PackValidationResult, RuntimeInputs, acquire_runtime_inputs, canonical_json, default_settings, pack_cli_command, required_dependency_cycles, sha256_bytes, validate_pack_input
+from runtime_paths import PackSettings
 from owned_json import freeze
 from state_protocol import schema_read_scope
 
@@ -81,6 +68,9 @@ class RuntimePackCatalog:
     inputs: RuntimeInputs | None = field(default=None, compare=False, repr=False)
     # Fixed catalogs pass their acquired resource owner to read-only consumers.
     resource_reader: Callable[[str], tuple[dict, bytes] | None] | None = field(default=None, compare=False, repr=False)
+    # Only outcomes produced for this acquired runtime and builder are shared.
+    validations: Mapping[str, PackValidationResult] = field(default_factory=dict, compare=False, repr=False)
+    builder_inputs: BuilderInputs | None = field(default=None, compare=False, repr=False)
 
 
 CACHE_STEM, _, CACHE_SUFFIX = CACHE_FILENAME.rpartition(".")
@@ -786,6 +776,7 @@ class CatalogBuild:
     diagnostics: tuple[Mapping[str, Any], ...]
     phrases: tuple[tuple, ...]
     profiles: tuple[tuple[str, Mapping[str, Any]], ...]
+    validations: Mapping[str, PackValidationResult]
 
 
 def _derive_catalog(inputs: RuntimeInputs, fingerprint: str, builder: str) -> CatalogBuild:
@@ -804,7 +795,8 @@ def _derive_catalog(inputs: RuntimeInputs, fingerprint: str, builder: str) -> Ca
     return CatalogBuild(inputs.snapshot, fingerprint, builder, tuple(selected), freeze(reports),
                         frozenset(pack.pack_id for pack, _ in valid_packs), tuple(records),
                         tuple(resources), tuple(freeze(row) for row in diagnostics),
-                        tuple(phrases), tuple(profiles))
+                        tuple(phrases), tuple(profiles),
+                        freeze({pack_id: report.snapshot() for pack_id, report in validations.items()}))
 
 
 def _create_database(path: Path, catalog: CatalogBuild) -> None:
@@ -958,7 +950,7 @@ def _build(
     builder: str,
     *,
     force: bool = False,
-) -> None:
+) -> CatalogBuild | None:
     """Build privately and atomically replace the cache for this exact input.
 
     Concurrent builders may duplicate derivation, but readers see one complete
@@ -974,6 +966,7 @@ def _build(
         catalog = _derive_catalog(inputs, fingerprint, builder)
         _create_database(temporary, catalog)
         _publish(temporary, output_path)
+        return catalog
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -986,12 +979,13 @@ def refresh_cache(
     resolved_settings = settings or default_settings()
     builder = capture_builder_inputs(ROOT)
     with schema_read_scope(source=builder):
-        return _refresh_inputs(resolved_settings, acquire_runtime_inputs(resolved_settings),
-                               builder=builder.fingerprint, force=force)
+        report, _ = _refresh_inputs(resolved_settings, acquire_runtime_inputs(resolved_settings),
+                                    builder=builder.fingerprint, force=force)
+        return report
 
 
 def _refresh_inputs(resolved_settings: PackSettings, inputs: RuntimeInputs, *,
-                    builder: str, force: bool) -> dict[str, Any]:
+                    builder: str, force: bool) -> tuple[dict[str, Any], CatalogBuild | None]:
     """Select and construct a cache from this acquired input only."""
     snapshot = inputs.snapshot
     fingerprint = _expected_fingerprint(snapshot, builder=builder)
@@ -1016,8 +1010,8 @@ def _refresh_inputs(resolved_settings: PackSettings, inputs: RuntimeInputs, *,
         # arrives under it whole. Nothing is opened and no lock is taken.
         result["active_pack_count"] = _cached_active_pack_count(output_path)
         _discard_superseded(resolved_settings, output_path)
-        return result
-    _build(inputs, fingerprint, output_path, builder, force=force)
+        return result, None
+    built = _build(inputs, fingerprint, output_path, builder, force=force)
     result["active_pack_count"] = _cached_active_pack_count(output_path)
     # Which cache is current is settled on both paths, so the caches that are
     # not go on both. One a reader still holds survives the attempt and is
@@ -1025,7 +1019,7 @@ def _refresh_inputs(resolved_settings: PackSettings, inputs: RuntimeInputs, *,
     _discard_superseded(resolved_settings, output_path)
     result["rebuilt"] = True
     result["discovery_issues"] = snapshot.get("discovery_issues") or []
-    return result
+    return result, built
 
 
 def cache_status(settings: PackSettings | None = None) -> dict[str, Any]:
@@ -1102,7 +1096,7 @@ def refresh_runtime_catalog(
     with schema_read_scope(source=builder):
         for final_attempt in (False, True):
             inputs = acquire_runtime_inputs(resolved_settings)
-            report = _refresh_inputs(resolved_settings, inputs, builder=builder.fingerprint, force=force)
+            report, built = _refresh_inputs(resolved_settings, inputs, builder=builder.fingerprint, force=force)
             try:
                 connection = _connect_readonly(Path(report["cache_path"]))
             except sqlite3.Error:
@@ -1112,7 +1106,10 @@ def refresh_runtime_catalog(
                         "Something outside this runtime is removing the catalog cache."
                     ) from None
                 continue
-            return report, _read_runtime_catalog(connection, resolved_settings, inputs, quiet=quiet)
+            return report, _read_runtime_catalog(
+                connection, resolved_settings, inputs, quiet=quiet, builder=builder,
+                validations=built.validations if built is not None else {},
+            )
     raise PackError("the catalog cache could not be opened")  # pragma: no cover
 
 
@@ -1122,6 +1119,8 @@ def _read_runtime_catalog(
     inputs: RuntimeInputs,
     *,
     quiet: bool,
+    builder: BuilderInputs,
+    validations: Mapping[str, PackValidationResult],
 ) -> RuntimePackCatalog:
     """Read and close the cache handle selected by the freshness owner."""
     try:
@@ -1243,4 +1242,27 @@ def _read_runtime_catalog(
         pack_roots=freeze(pack_roots),
         pack_reports=freeze(pack_reports),
         inputs=inputs,
+        validations=freeze(validations),
+        builder_inputs=builder,
     )
+
+
+def validate_catalog_pack(catalog: RuntimePackCatalog, root: Path) -> PackValidationResult | None:
+    """Validate this catalog's captured pack values under its captured schemas.
+
+    A freshly built catalog already owns the result. A warm cache can derive
+    the same full raw-record result from its acquired inputs without mixing a
+    later filesystem or schema read into the catalog's read phase.
+    """
+    if catalog.inputs is None or catalog.builder_inputs is None:
+        return None
+    root = root.resolve()
+    for pack_id, inputs in catalog.inputs.packs.items():
+        if inputs.root != root:
+            continue
+        report = catalog.validations.get(pack_id)
+        if report is not None:
+            return report
+        with schema_read_scope(source=catalog.builder_inputs):
+            return validate_pack_input(inputs).snapshot()
+    return None

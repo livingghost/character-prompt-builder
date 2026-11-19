@@ -9,8 +9,8 @@ import production_case_fixtures as fixtures
 import production_execution as execution
 import production_fixtures as fixture
 import production_store as store
-import production_workflow as workflow
-import studio
+import production_operations as workflow
+import studio_workspace as studio
 from production_diagnostics import ProductionError
 from test_production_review import ReviewCase
 
@@ -164,10 +164,11 @@ class OwnerAcceptanceTests(ReviewCase):
 
     def unsaved_authorization(self, selection):
         """Record a copy of the selection's authorization that saved no owner-acceptance witness."""
-        directory, prepared, _, rows = workflow.load_run(self.root, self.run)
-        data = copy.deepcopy(workflow.find(rows, 'authorization', selection['authorization'])['data'])
-        data['files'] = [item for item in data['files'] if item.get('purpose') != 'owner-acceptance']
-        return workflow.append_record(directory, prepared, rows, 'authorization', data)
+        with store.transaction(self.root):
+            loaded = workflow.read_run(self.root, self.run)
+            data = copy.deepcopy(workflow.find(loaded.rows, 'authorization', selection['authorization'])['data'])
+            data['files'] = [item for item in data['files'] if item.get('purpose') != 'owner-acceptance']
+            return workflow.append_record(loaded, 'authorization', data)
 
     def test_an_authorization_without_its_saved_owner_instruction_is_authorized_again(self):
         self.record_review([('output', 'pass'), ('palette', 'fail')])
@@ -194,7 +195,9 @@ class OwnerAcceptanceTests(ReviewCase):
         directory, prepared, _, rows = workflow.load_run(self.root, self.run)
         raw = c.encoded(chosen)
         key = c.object_store(directory, raw)
-        workflow.append_record(directory, prepared, rows, 'selection', {
+        # Inject a storage record that bypassed the selection owner, so replay
+        # must still diagnose the missing saved witness.
+        store.append(self.root, self.run, prepared['input_sha256'], 'selection', {
             'files': [{'path': f'production/runs/{self.run}/objects/{key}', 'sha256': key, 'size': len(raw)}],
             'selection': chosen, 'authorizations': [unsaved['sha256']]})
         with self.assertRaises(ProductionError) as caught:

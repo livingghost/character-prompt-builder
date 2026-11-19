@@ -5,6 +5,8 @@ python scripts/feature_workflow_smoke_test.py
 No image-generation service is contacted. Fixtures are synthetic, not real consent.
 """
 from __future__ import annotations
+import catalog_cli as catalog_cli_cli
+import runtime_paths
 from reading_fixtures import fixture_reading
 import argparse
 import contextlib
@@ -24,16 +26,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 import adoption_workflow as adoption
-import catalog_cli
-import dispatch
+import catalog_api as catalog_cli
+import dispatch_runtime as dispatch
 import pack_manager as pm
-import studio
+import studio_workspace as studio
 from generation_payload_smoke_test import _write_fixture_pack, _package, PACK_ID, MODEL_ID, APPROVED_PLOT, PROMPT
-from prepare_generation_references import empty_stateless_reference_set, resolve_model_record
+from generation_references import empty_stateless_reference_set, resolve_model_record
 from prompt_retrieval import require_generation_retrieval, settle_retrieval_record
-from revision_contract import validate_revision, digest
+from revision_contract import digest
+from authoring_work_fixtures import prompt_work
 from smoke_fixtures import fixture_retrieval
-from verify_generation_payload import verify
+from generation_payload_validation import verify
 from validate_studio import validate as validate_studio
 
 
@@ -44,7 +47,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         cls.base = Path(cls.temporary.name)
         cls.pack = cls.base / 'pack'
         _write_fixture_pack(cls.pack)
-        cls.settings = pm.PackSettings(roots=(cls.pack,), state_file=cls.base/'state.json',
+        cls.settings = runtime_paths.PackSettings(roots=(cls.pack,), state_file=cls.base/'state.json',
             cache_dir=cls.base/'cache', managed_root=cls.base/'managed', quarantine_root=cls.base/'quarantine',
             default_enabled_packs=(PACK_ID,))
         pm.save_state(cls.settings.state_file, {'pack_roots': [], 'enabled_packs': [PACK_ID]})
@@ -99,13 +102,6 @@ class FeatureWorkflowTests(unittest.TestCase):
 
     def index(self): return adoption.reference_index(self.root, 'C01')
 
-    def revision(self, operation='edit'):
-        baseline = {'identity': {'face': 'unchanged', 'fixed_wardrobe': None},
-                    'identity_slots': {'base.front': 'a'*64},
-                    'scene': {'eyes': 'green', 'outfit': 'blue coat', 'lighting': 'soft', 'pose': 'standing'}}
-        candidate = copy.deepcopy(baseline); candidate['scene']['eyes'] = 'blue'
-        return {'operation': operation, 'baseline': baseline, 'candidate': candidate,
-                'requested_paths': ['/scene/eyes'], 'frozen_paths': []}
 
     def test_01_package_requires_real_settled_record_and_verifies(self):
         self.assertTrue(verify(self.package, studio=self.root)['verified'])
@@ -528,12 +524,14 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertIn(reg['pack_id'],pm.load_state(self.work/'registration-state.json')['enabled_packs'])
         settings=replace(self.settings,state_file=self.work/'registration-state.json',cache_dir=self.work/'reg-cache')
         catalog_cli.configure_pack_runtime(settings);catalog_cli.begin_catalog_request()
-        from catalog_cli import load_entries, inspect_record, asset_lookup
+        from catalog_api import load_entries, inspect_record, asset_lookup
         self.assertEqual(inspect_record(load_entries(),reg['record_id'])['record']['id'],reg['record_id'])
         assets=asset_lookup(reg['record_id'],summary=False)
         self.assertIn(reg['asset_id'],json.dumps(assets))
-        from reference_runtime import build_reference_use_plan, execute_reference_use_plan
-        plan=build_reference_use_plan([{'record_id':reg['record_id'],'intended_influence':'identity'}],
+        from reference_plan_runtime import build_reference_use_plan, execute_reference_use_plan
+        from reference_contract import control_capabilities
+        plan=build_reference_use_plan([{'record_id':reg['record_id'],'intended_influence':'identity',
+             'selected_controls': control_capabilities('identity', 'adopted-reference')}],
              transport_mode='multi-image',target_model=MODEL_ID,source_lighting_mode='replace',
              light_sources=[{'light_id':'key','direction':'front','apparent_size':'large','color':'neutral','relative_intensity':'primary','softness':'soft'}],
              material_responses=[{'material':'textile','roughness':'matte','specular_strength':'low','highlight_shape':'broad','wetness':'dry','anisotropy':'none'}])
@@ -541,7 +539,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual(plan['reference_items'][0]['technical_role'],'adopted-reference')
         produced=execute_reference_use_plan(plan,output_dir=self.work/'prepared')
         prepared=pm.load_json(self.work/'prepared'/'prepared-reference-set.json')
-        from build_generation_payload import materialize_cli_reference_bundle
+        from generation_payload_builder import materialize_cli_reference_bundle
         final=self.work/'generation';final.mkdir()
         prepared,_=materialize_cli_reference_bundle(prepared,model=MODEL_ID,source_root=self.work/'prepared',staging_root=final,companion_name='package.references')
         package=_package(prepared,prepared_reference_root=final)
@@ -577,30 +575,10 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertFalse((self.work/'pack').exists())
         self.assertEqual(self.catalog_adopt(row)['status'],'catalog-registered')
 
-    def test_17_scene_outfit_does_not_change_identity_or_its_slots(self):
-        value=self.revision();value['candidate']=copy.deepcopy(value['baseline']);value['candidate']['scene']['outfit']='red coat';value['requested_paths']=['/scene/outfit']
-        self.assertTrue(validate_revision(value)['ok'])
-        value['candidate']['identity_slots']['base.front']='b'*64
-        self.assertFalse(validate_revision(value)['ok'])
-        value['candidate']=copy.deepcopy(value['baseline']);value['candidate']['identity']['fixed_wardrobe']='red coat';value['requested_paths']=['/identity/fixed_wardrobe']
-        self.assertFalse(validate_revision(value)['ok'])
 
-    def test_18_edit_preserves_unrequested_baseline(self):
-        value=self.revision();self.assertTrue(validate_revision(value)['ok'])
-        value['candidate']['scene']['lighting']='harsh';self.assertFalse(validate_revision(value)['ok'])
-        value['consistency_changes']=[{'path':'/scene/lighting','reason':'Explicitly disclosed consistency repair fixture'}]
-        self.assertTrue(validate_revision(value)['ok'])
 
-    def test_19_explore_changes_free_axes_but_not_frozen_ones(self):
-        value=self.revision('explore');value['candidate']['scene']['lighting']='harsh';self.assertTrue(validate_revision(value)['ok'])
-        value['frozen_paths']=['/scene/lighting'];self.assertFalse(validate_revision(value)['ok'])
 
-    def test_20_retarget_preserves_structured_meaning(self):
-        value=self.revision('retarget');self.assertFalse(validate_revision(value)['ok'])
-        value['candidate']=copy.deepcopy(value['baseline']);self.assertTrue(validate_revision(value)['ok'])
 
-    def test_21_ancestor_replacement_cannot_bypass_local_edit(self):
-        value=self.revision();value['candidate']['scene']='replacement';self.assertFalse(validate_revision(value)['ok'])
 
     def test_22_fresh_initialization_enables_all_and_preserves_existing_state(self):
         second=self.work/'second';_write_fixture_pack(second)
@@ -632,7 +610,7 @@ class FeatureWorkflowTests(unittest.TestCase):
         args=['--state-file',str(self.settings.state_file),'--cache-dir',str(self.settings.cache_dir),
               '--managed-root',str(self.settings.managed_root),'--pack-root',str(self.pack),
               'inspect-many','fixture-generic-subject',MODEL_ID]
-        with contextlib.redirect_stdout(output):code=catalog_cli.main(args)
+        with contextlib.redirect_stdout(output):code=catalog_cli_cli.main(args)
         self.assertEqual(code,0,output.getvalue());result=json.loads(output.getvalue())
         self.assertEqual(len(result['records']),2);self.assertTrue(result['runtime_fingerprint'])
         self.assertIn('assets',result['records'][0]);self.assertIn('timing',result)
@@ -640,13 +618,13 @@ class FeatureWorkflowTests(unittest.TestCase):
 
     def test_26_inspect_many_missing_record_fails(self):
         with contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as exc:
-            catalog_cli.main(['--state-file',str(self.settings.state_file),'--cache-dir',str(self.settings.cache_dir),
+            catalog_cli_cli.main(['--state-file',str(self.settings.state_file),'--cache-dir',str(self.settings.cache_dir),
                  '--managed-root',str(self.settings.managed_root),'--pack-root',str(self.pack),'inspect-many','does-not-exist'])
         self.assertNotEqual(exc.exception.code,0)
 
     def test_27_mock_dispatch_keeps_real_verifier_and_records_returned_result(self):
         import production_case_fixtures as cases
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_execution as execution
         import transport_synthetic
         from test_production_execution import decisions
@@ -695,51 +673,62 @@ class FeatureWorkflowTests(unittest.TestCase):
         self.assertEqual(commands[-2:],['scripts/production_workflow.py','scripts/production_workflow.py'])
         with self.assertRaises(ValueError):module.run(self.work/'walkthrough output')
 
-    def prompt_artifacts(self, extra, destination='draft'):
+    def prompt_artifacts(self, content=None, destination='draft', *, work=None, preparation=False):
         import build_prompt_artifacts
-        prompt=self.work/'prompt.txt';prompt.write_text(PROMPT,encoding='utf-8')
+        path=self.work/'authoring-work.json'
+        pm.atomic_write_json(path, work if work is not None else prompt_work(content or {'prompt': PROMPT}))
         out=self.work/destination
-        with patch.object(sys,'argv',['build_prompt_artifacts.py','--prompt',str(prompt),'--out-dir',str(out),*extra]), contextlib.redirect_stdout(io.StringIO()):
-            code=build_prompt_artifacts.main()
+        with contextlib.redirect_stdout(io.StringIO()):
+            code=build_prompt_artifacts.main(['--work',str(path),'--out-dir',str(out),
+                *(['--prepare-for-generation'] if preparation else [])])
         self.assertEqual(code,0)
         return pm.load_json(out/'prompt-artifact-manifest.json')
 
-    def test_29_unapproved_draft_needs_no_plot_or_studio_authorization(self):
-        manifest=self.prompt_artifacts(['--retrieval-unavailable','test lookup unavailability explicitly disclosed'])
+    def test_29_actual_work_finishes_without_studio_execution_authority(self):
+        content={'prompt':PROMPT,'retrieval_unavailable':'Synthetic dictionary is unavailable.'}
+        manifest=self.prompt_artifacts(content)
         self.assertEqual(manifest['mode'],'prompt-only');self.assertFalse(manifest['plot']['approved'])
         self.assertFalse(manifest['execution_authorized']);self.assertFalse(manifest['canonical_update_authorized'])
-        with self.assertRaises(ValueError):self.prompt_artifacts(['--retrieval-unavailable','test lookup unavailable','--prepare-for-generation'],'blocked')
+        with self.assertRaises(ValueError):self.prompt_artifacts(content,'blocked',preparation=True)
 
-    def test_30_draft_revision_contract_is_validated_and_preserved(self):
-        path=self.work/'revision.json';pm.atomic_write_json(path,self.revision())
-        manifest=self.prompt_artifacts(['--retrieval-unavailable','test lookup unavailable','--revision-contract',str(path)])
-        self.assertTrue(manifest['revision']['ok']);self.assertIn('/scene/eyes',manifest['revision']['changed_paths'])
-        changed=self.revision();changed['candidate']['scene']['lighting']='unrequested';pm.atomic_write_json(path,changed)
-        with self.assertRaisesRegex(ValueError,'revision'):self.prompt_artifacts(['--retrieval-unavailable','test lookup unavailable','--revision-contract',str(path)],'bad-revision')
+    def test_30_actual_amendment_reaches_the_delivered_text(self):
+        from authoring_work import begin_work, replace_text
+        original=prompt_work({'prompt':'The robot supports the tray with its right gripper. Its left gripper presents the cup.'})
+        basis=original['basis']
+        work=begin_work(operation='amend',request='Exchange the grippers used for supporting the tray and presenting the cup.',
+            sources=basis['sources'],applications=basis['applications'],subjects=basis['subjects'],
+            requirements=basis['requirements'],baseline=original['content'])
+        work=replace_text(work,'/prompt','supports the tray with its right gripper','supports the tray with its left gripper')
+        work=replace_text(work,'/prompt','Its left gripper presents the cup','Its right gripper presents the cup')
+        manifest=self.prompt_artifacts(work=work)
+        self.assertEqual((self.work/'draft/final-prompt.txt').read_text(encoding='utf-8'),work['content']['prompt'])
+        self.assertEqual(pm.load_json(self.work/'draft/authoring-work.json')['basis'],work['basis'])
+        self.assertIn('authoring',manifest)
 
-    def test_31_descriptive_builder_preserves_selected_revision_requirements(self):
+    def test_31_descriptive_builder_keeps_actual_creative_intent(self):
         import generation_payload_smoke_test as fixture
-        from build_generation_payload import build_payload
+        from generation_payload_builder import build_payload
         with patch.object(fixture,'build_payload') as capture:
             fixture._package(empty_stateless_reference_set())
         args=capture.call_args.kwargs;args['retrieval_record']=None
-        self.assertIsNone(build_payload(**args)['retrieval_record'])
-        args['retrieval_record']=fixture_retrieval(PROMPT,APPROVED_PLOT)
-        invalid=self.revision();invalid['candidate']['scene']['lighting']='unrequested'
-        args['creative_intent']['revision_contract']=invalid
-        with self.assertRaisesRegex(ValueError,'revision'):build_payload(**args)
-        value=copy.deepcopy(self.package);value['creative_intent']['revision_contract']=invalid
-        with self.assertRaisesRegex(ValueError,'revision'):verify(value, studio=self.root)
+        args['creative_intent']={'depiction':'The two articulated subjects cooperate at the tray.'}
+        built=build_payload(**args)
+        self.assertIsNone(built['retrieval_record'])
+        self.assertEqual(built['creative_intent']['depiction'],args['creative_intent']['depiction'])
+        self.assertTrue(verify(built,studio=self.root)['verified'])
 
-    def test_32_canonical_revision_approval_is_version_bound_and_not_scene_authority(self):
-        value=self.revision();value['candidate']=copy.deepcopy(value['baseline'])
-        value['candidate']['identity']['fixed_wardrobe']='red coat';value['requested_paths']=['/identity/fixed_wardrobe']
-        value['scope']='identity'
-        self.assertFalse(validate_revision(value)['ok'])
-        value['canonical_approval']={'by':'SYNTHETIC FIXTURE','at':'2026-09-15T00:00:00Z',
-              'baseline_sha256':digest(value['baseline']),'candidate_sha256':digest(value['candidate'])}
-        self.assertTrue(validate_revision(value)['ok'])
-        value['candidate']['identity']['fixed_wardrobe']='green coat';self.assertFalse(validate_revision(value)['ok'])
+    def test_32_compose_keeps_the_previous_work_as_comparison(self):
+        from authoring_work import begin_work
+        original=prompt_work({'prompt':PROMPT,'model_record':self.model_record})
+        basis=original['basis']
+        work=begin_work(operation='compose',request='Develop the requested effect from the character definition.',
+            sources=basis['sources'],applications=basis['applications'],subjects=basis['subjects'],
+            requirements=basis['requirements'],baseline=original['content'])
+        self.assertEqual(work['content'],{})
+        work['content']['prompt']='The articulated character braces a tray as the cups tilt toward its receiving gripper.'
+        manifest=self.prompt_artifacts(work=work)
+        self.assertIsNone(manifest['target'])
+        self.assertEqual((self.work/'draft/final-prompt.txt').read_text(encoding='utf-8'),work['content']['prompt'])
 
     def test_33_registration_activation_failure_resumes_without_new_pack_or_iteration(self):
         row=self.iteration()
@@ -763,11 +752,13 @@ class FeatureWorkflowTests(unittest.TestCase):
         row=self.iteration();result=self.catalog_adopt(row)
         settings=replace(self.settings,state_file=self.work/'registration-state.json',cache_dir=self.work/'reg-cache')
         catalog_cli.configure_pack_runtime(settings)
-        from reference_runtime import build_reference_use_plan
+        from reference_plan_runtime import build_reference_use_plan
+        from reference_contract import control_capabilities
         # Identity has semantic support, but the registered image is not approved
         # to define a pose or outfit. A new plan must not expand that authority.
         with self.assertRaises(ValueError):
-            build_reference_use_plan([{'record_id':result['registration']['record_id'],'intended_influence':'outfit'}],
+            build_reference_use_plan([{'record_id':result['registration']['record_id'],'intended_influence':'outfit',
+                  'selected_controls': control_capabilities('outfit', 'adopted-reference')}],
                   transport_mode='prompt-artifacts',source_lighting_mode='replace')
 
     def test_36_fresh_pack_state_names_a_duplicate_uuid_instead_of_hiding_it(self):
@@ -783,17 +774,25 @@ class FeatureWorkflowTests(unittest.TestCase):
 
     def test_37_state_builder_checks_retrieval_before_expensive_graph_work(self):
         import inspect
-        import build_state_generation_package as state_builder
+        import state_generation_builder as state_builder
         required = {name: {} for name, param in inspect.signature(state_builder.build_package).parameters.items()
                     if param.default is inspect.Parameter.empty}
         required.update(execution='dispatcher', model=MODEL_ID, prompt=PROMPT, negative_prompt='', brief='', plot=APPROVED_PLOT,
                         production_spec=copy.deepcopy(self.package['production_spec']), state_graphs=[],
                         prepared_reference_set=empty_stateless_reference_set())
-        for record in (None, {'settled': False}, fixture_retrieval(PROMPT+' other', APPROVED_PLOT)):
-            with self.subTest(record=record), self.assertRaisesRegex(ValueError, 'retrieval'):
-                state_builder.build_package(**required, retrieval_record=record)
-        with self.assertRaisesRegex(ValueError, '^state-aware package requires a finalized reference-selection$'):
-            state_builder.build_package(**required, retrieval_record=fixture_retrieval(PROMPT, APPROVED_PLOT))
+        unsettled = fixture_retrieval(PROMPT, APPROVED_PLOT)
+        unsettled['settled'] = False
+        for record in (None, {'settled': False}, unsettled):
+            with self.subTest(record=record), patch.object(state_builder, 'validate_prepared_reference_set') as references:
+                with self.assertRaisesRegex(ValueError, 'retrieval'):
+                    state_builder.build_package(**required, retrieval_record=record)
+                references.assert_not_called()
+        # A well-formed record cannot be matched against the raw primary text:
+        # transport selection and reference expansion have not happened yet.
+        for source in (PROMPT, PROMPT + ' other'):
+            with self.subTest(source=source), self.assertRaisesRegex(
+                    ValueError, '^state-aware package requires a finalized reference-selection$'):
+                state_builder.build_package(**required, retrieval_record=fixture_retrieval(source, APPROVED_PLOT))
 
     def test_38_documented_state_package_commands_include_required_gates(self):
         import re
@@ -829,7 +828,7 @@ class FeatureWorkflowTests(unittest.TestCase):
               '--managed-root',str(self.work/'managed'),'inspect-many','fixture-generic-subject']
         def read():
             out=io.StringIO()
-            with contextlib.redirect_stdout(out): self.assertEqual(catalog_cli.main(args),0)
+            with contextlib.redirect_stdout(out): self.assertEqual(catalog_cli_cli.main(args),0)
             return json.loads(out.getvalue())
         first=read()
         changed=False

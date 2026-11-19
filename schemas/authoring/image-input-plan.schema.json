@@ -268,6 +268,10 @@
               },
               "minItems": 1
             },
+            "reference_text": {
+              "type": "object",
+              "description": "Compiler-derived source text, final text and marker traces. image_input recomputes this transformation from the selected references and verifies the actual request text. Omit it on an editable source request; author reference markers directly in that request prompt."
+            },
             "count_field": {
               "anyOf": [
                 {

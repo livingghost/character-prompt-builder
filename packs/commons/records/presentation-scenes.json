@@ -1,0 +1,91 @@
+{
+  "kind": "scene",
+  "records": [
+    {
+      "id": "aesthetic-touch-blind-box-presentation",
+      "label": "Complete blind-box figure display",
+      "curation_status": "vocabulary",
+      "record_role": "adaptable-scene-blueprint",
+      "domain": "shared",
+      "domains": ["shared"],
+      "image_promise": "A complete collectible blind-box figure displayed against one clean solid backdrop, with a readable silhouette, smooth molded surfacing and soft product lighting.",
+      "staging": {
+        "body_geometry": "Use the figure's selected toy construction as connected molded masses, with compact proportions when the design chooses them and the full figure readable within the frame.",
+        "action_geometry": "The figure stands or holds a gently posed display configuration, maintaining its authored support and the shape relationships that identify the design.",
+        "gaze_and_expression": "Use the figure's selected expression and orientation; the display construction supplies no additional emotional or facial state.",
+        "prop_or_contact_geometry": "The figure rests on the plain display surface with coherent support and a subtle contact shadow. Any fixed carried component retains its authored connection.",
+        "focal_hierarchy": "The complete figure and its silhouette lead. Clean molded material groups keep the design readable across the visible surfaces.",
+        "depth_order": "The figure sits in front of one solid backdrop color, with the supporting plane indicated by its soft ground shadow.",
+        "lighting_geometry": "Soft even studio illumination describes the molded volumes with broad highlights and a subtle ground shadow."
+      },
+      "defaults": {
+        "subject": "one collectible figure of the selected character design",
+        "body": "the selected connected toy construction with smooth vinyl-like surfaces",
+        "pose": "standing or gently posed display",
+        "expression": "the selected character expression",
+        "composition": "the whole figure inside the frame with crisp silhouette readability",
+        "camera": "a display view that presents the figure's selected orientation without losing its complete extent",
+        "lighting": "soft even studio light and a subtle ground shadow",
+        "environment": "one clean solid backdrop color",
+        "mood": "the character's selected register",
+        "constraints": "molded material continuity, complete display coverage and the selected character design"
+      },
+      "must_preserve": [
+        "the whole figure stays inside the frame for this complete display",
+        "one solid backdrop color with a soft ground shadow",
+        "surfacing reads as smooth molded toy material across the selected skin, hair, clothing or other declared forms"
+      ],
+      "adaptable_fields": ["character design", "selected proportions", "figure orientation", "gentle display pose", "expression", "backdrop color"],
+      "specific_failure_modes": ["environmental clutter competing with the display", "photoreal skin texture replacing the molded material", "harsh single-direction shadows replacing the soft product illumination"],
+      "failure_modes": ["environmental clutter behind the figure", "photoreal skin texture breaking the toy read", "harsh single-direction shadows"],
+      "adaptation_rules": "Select this whole presentation when complete figure coverage, a plain backdrop and product lighting serve the work. For the molded surface alone, use rendering-molded-vinyl-surface with the current depiction.",
+      "tags": ["blind box", "designer toy", "figure presentation", "complete collectible display"],
+      "search_terms": [
+        {"phrase": "blind box figure presentation", "facet": "scene", "weight": 1.25, "source": "author"},
+        {"phrase": "collectible toy display", "facet": "scene", "weight": 1.05, "source": "author"},
+        {"phrase": "complete figure on a solid product backdrop", "facet": "scene", "weight": 1.1, "source": "author"},
+        {"phrase": "softly lit designer toy display", "facet": "scene", "weight": 1.0, "source": "author"}
+      ]
+    },
+    {
+      "id": "scene-cheerful-kawaii-character-presentation",
+      "label": "Cheerful kawaii character presentation",
+      "curation_status": "vocabulary",
+      "record_role": "adaptable-scene-blueprint",
+      "domain": "shared",
+      "domains": ["shared"],
+      "image_promise": "A deliberately friendly kawaii character presentation combining rounded softened shapes, large friendly eyes, a bright sweet palette, simple clean detailing and an approachable expression.",
+      "staging": {
+        "body_geometry": "Develop the selected character with rounded softened forms and large readable eyes when those design choices are open or already adopted. Preserve the identifying connections and proportions selected for this design.",
+        "action_geometry": "Use the current selected activity or held pose as the connected construction; the friendliness is expressed through its authored response rather than a mandatory gesture.",
+        "gaze_and_expression": "Use the individual's concrete friendly expression, including the selected eye opening, gaze, mouth configuration and any other participating channels.",
+        "prop_or_contact_geometry": "Any selected prop or support remains connected at the actual contact and retains its scale within the chosen activity.",
+        "focal_hierarchy": "The friendly character read leads, with broad rounded shapes, clean details and the sweet color groups supporting that encounter.",
+        "depth_order": "Keep the current selected framing and spatial relationships legible through clean color grouping and simplified detail."
+      },
+      "defaults": {
+        "subject": "a character whose selected design includes large friendly eyes",
+        "body": "rounded softened shapes at the adopted proportions",
+        "pose": "the selected activity or held configuration",
+        "expression": "the individual's concrete friendly expression",
+        "composition": "the chosen character relationship with clean visual hierarchy",
+        "camera": "the view selected for that relationship",
+        "lighting": "the selected light carried through a bright sweet palette",
+        "environment": "the chosen setting or field at supporting detail",
+        "mood": "warm and approachable",
+        "constraints": "friendly character expression, rounded shapes and clean sweet color groups"
+      },
+      "must_preserve": ["the selected rounded shape language", "the bright sweet palette", "the concrete friendly expression at the selected degree"],
+      "adaptable_fields": ["subject", "activity", "framing", "setting", "gaze target", "individual friendly expression"],
+      "specific_failure_modes": ["a newly invented face replacing a design without facial channels", "unapproved changes to fixed eye size or structure", "dark gritty treatment replacing the selected bright sweet presentation", "muddy color groups obscuring the clean design"],
+      "failure_modes": ["sharp aggressive shapes replacing the selected soft shape language", "muddy desaturated color flattening the chosen cheer"],
+      "adaptation_rules": "This is a whole character-presentation proposal. Choose it within the design and performance authority available. For only the shape-transition, palette and detail treatment while retaining another expression, use aesthetic-touch-kawaii-finish.",
+      "tags": ["friendly kawaii character", "large friendly eyes", "cheerful character design", "sweet palette"],
+      "search_terms": [
+        {"phrase": "friendly kawaii character presentation", "facet": "scene", "weight": 1.25, "source": "author"},
+        {"phrase": "rounded character with large friendly eyes", "facet": "scene", "weight": 1.1, "source": "author"},
+        {"phrase": "warm approachable character in a sweet palette", "facet": "scene", "weight": 1.0, "source": "author"}
+      ]
+    }
+  ]
+}

@@ -16,15 +16,11 @@ from pathlib import Path
 from typing import Any, Callable
 from unittest import mock
 
-import catalog_cli
-import build_generation_payload as generation_builder
-from build_generation_payload import (
-    build_payload,
-    generation_input_sha256,
-    main as _build_main,
-    materialize_cli_reference_bundle,
-)
-from catalog_cli import configure_pack_runtime
+import catalog_api as catalog_cli
+import generation_payload_builder as generation_builder
+from build_generation_payload import main as _build_main
+from generation_payload_builder import build_payload, generation_input_sha256, materialize_cli_reference_bundle
+from catalog_api import configure_pack_runtime
 from pack_manager import (
     atomic_write_json,
     default_settings,
@@ -36,22 +32,18 @@ from pack_manager import (
 import production_spec
 from production_spec import validate as validate_production_spec
 from prompt_plot import content_sha256
-from prepare_generation_references import (
-    build_prepared_reference_set,
-    empty_stateless_reference_set,
-    main as prepare_main,
-    prepare_references,
-    validate_prepared_reference_set,
-)
-from reference_contract import build_reference_item
-from reference_runtime import _build_board, build_reference_use_plan, execute_reference_use_plan
+from prepare_generation_references import main as prepare_main
+from generation_references import build_prepared_reference_set, empty_stateless_reference_set, prepare_references, validate_prepared_reference_set
+from reference_contract import build_reference_item, control_capabilities
+from reference_plan_runtime import _build_board, build_reference_use_plan, execute_reference_use_plan
 from state_protocol import finalize_artifact, validate_artifact
-from verify_generation_payload import main as _verify_main, verify_transports
+from verify_generation_payload import main as _verify_main
+from generation_payload_validation import verify_transports
 from visual_fixtures import emit_paste_for_target, verify
 from visual_evidence import render_svg
 
 
-from smoke_fixtures import fixture_retrieval, cli_with_fixture_retrieval
+from smoke_fixtures import fixture_retrieval, cli_with_fixture_retrieval, fixture_reference_prompt, fixture_resolved_prompt
 
 
 def verify_main(argv):
@@ -577,22 +569,31 @@ def _package(
     negative_provenance: dict[str, Any] | None = None,
     retrieval_record: Any = _UNSET,
 ) -> dict[str, Any]:
+    if isinstance(prepared_reference_set, dict) and 'selected_references' in prepared_reference_set:
+        prompt = fixture_reference_prompt(prompt, prepared_reference_set)
+        integrated_prompt = fixture_reference_prompt(integrated_prompt, prepared_reference_set)
     production_spec = (
         _production_spec(production_target_model or model)
         if production_spec_override is _UNSET
         else production_spec_override
     )
+    from generation_references import resolve_model_record
+    mode = resolve_model_record(model)[1]['negative_transport_mode'] if negative_transport == 'auto' else negative_transport
+    selected_text = integrated_prompt if mode in {'integrated-critical', 'retained-only'} and integrated_prompt.strip() else prompt
     if production_spec_override is _UNSET:
         from render_contract_fixtures import intent
         refs = prepared_reference_set if isinstance(prepared_reference_set, dict) else {}
         has_refs = bool(refs.get("selected_references") or refs.get("single_board"))
         selected_mode = ("image-to-image" if model == SEED_MODEL_ID else "reference-guided") if has_refs else "text-to-image"
-        production_spec["render_intent"] = intent(prompt, selected_mode)
+        production_spec["render_intent"] = intent(fixture_resolved_prompt(selected_text, refs), selected_mode)
     from request_validation_fixtures import fixture_validation
     validation = fixture_validation(fixture_root(), model, reference_mode='authored-rendition')
 
+    if retrieval_record is _UNSET:
+        retrieval_record = fixture_retrieval(fixture_resolved_prompt(selected_text, prepared_reference_set), APPROVED_PLOT)
+
     return build_payload(execution='dispatcher', request_validation=validation, input_root=fixture_root(), visual_continuity=fixture_visual(production_spec), visual_root=fixture_root(), route_reading=fixture_reading(route='generation', model=model, execution='dispatcher'),
-        retrieval_record=(fixture_retrieval(prompt, APPROVED_PLOT) if retrieval_record is _UNSET else retrieval_record),
+        retrieval_record=retrieval_record,
         plot=copy.deepcopy(APPROVED_PLOT),
         model=model,
         prompt=prompt,
@@ -710,6 +711,7 @@ def run() -> dict[str, Any]:
                     {
                         "record_id": "fixture-generic-subject",
                         "intended_influence": "identity",
+                        "selected_controls": control_capabilities('identity', 'faithful-archival-vector'),
                     }
                 ],
                 transport_mode="multi-image",
@@ -723,6 +725,7 @@ def run() -> dict[str, Any]:
                     {
                         "record_id": "fixture-generic-subject",
                         "intended_influence": "identity",
+                        "selected_controls": control_capabilities('identity', 'faithful-archival-vector'),
                     }
                 ],
                 "explicit canonical record use changed during reference planning",
@@ -1006,7 +1009,7 @@ def run() -> dict[str, Any]:
                     f"{count}-reference host forwarding exposed source/provenance fields",
                 )
                 checked(
-                    _forwarding_preserves_authored_rendition(verified, PROMPT)
+                    _forwarding_preserves_authored_rendition(verified, fixture_resolved_prompt(PROMPT, prepared))
                     and verified["paste"]["paste_prompt"] == verified["host_forwarding"]["effective_prompt"],
                     f"{count}-reference authored rendition was not preserved",
                 )
@@ -1353,6 +1356,7 @@ def run() -> dict[str, Any]:
                     {
                         "record_id": "fixture-generic-subject",
                         "intended_influence": "identity",
+                        "selected_controls": control_capabilities('identity', 'faithful-archival-vector'),
                     }
                 ],
                 transport_mode="multi-image",
@@ -1413,7 +1417,7 @@ def run() -> dict[str, Any]:
             )
             runtime_verified = verify(runtime_package, package_root=runtime_package_root)
             checked(
-                _forwarding_preserves_authored_rendition(runtime_verified, PROMPT)
+                _forwarding_preserves_authored_rendition(runtime_verified, fixture_resolved_prompt(PROMPT, runtime_packaged_set))
                 and len(runtime_verified["host_forwarding"]["selected_references"]) == 1,
                 "runtime plan did not reach verified Generation Package host forwarding",
             )
@@ -1626,6 +1630,7 @@ def run() -> dict[str, Any]:
                 artifact_id=original_item["artifact_id"],
                 technical_role=original_item["technical_role"],
                 source=original_item["source"],
+                selected_controls=control_capabilities('outfit', original_item['technical_role']),
             )
             semantic_plan = finalize_artifact(semantic_plan)
             try:
@@ -1936,7 +1941,7 @@ def run() -> dict[str, Any]:
                 == [
                     "$.subjects[0]: unexpected properties "
                     "['fixture_unexpected_subject_field']; permitted properties "
-                    + str(sorted(production_spec.PRODUCTION_SPEC_SCHEMA['properties']['subjects']['items']['properties'])),
+                    + str(sorted(production_spec.schema()['properties']['subjects']['items']['properties'])),
                 ],
                 "unexpected production subject field was not reported exactly once by the subject contract",
             )
@@ -1967,7 +1972,7 @@ def run() -> dict[str, Any]:
                 unexpected_property_report["ok"] is False
                 and unexpected_property_report["errors"]
                 == ["$: unexpected properties ['unsupported_property']; permitted properties "
-                    + str(sorted(production_spec.PRODUCTION_SPEC_SCHEMA['properties']))],
+                    + str(sorted(production_spec.schema()['properties']))],
                 "unsupported production property did not produce current schema errors",
             )
 
@@ -2983,11 +2988,11 @@ def run() -> dict[str, Any]:
                 verified_base["negative_transport_mode"] == "separate-field"
                 and verified_base["selected_transport"]["rendition"]
                 == base["generation_payload"]["transports"]["separate"]
-                and verified_base["selected_transport"]["rendition"]["prompt"] == PROMPT
+                and verified_base["selected_transport"]["rendition"]["prompt"] == fixture_resolved_prompt(PROMPT, base['prepared_reference_set'])
                 and verified_base["selected_transport"]["rendition"]["negative"]
                 == NEGATIVE
                 and verified_base["selected_transport"]["rendition"]["prompt_sha256"]
-                == generation_builder.sha256_text(PROMPT)
+                == generation_builder.sha256_text(fixture_resolved_prompt(PROMPT, base['prepared_reference_set']))
                 and verified_base["selected_transport"]["rendition"]["negative_sha256"]
                 == generation_builder.sha256_text(NEGATIVE)
                 and exported["mode"] == "separate-field"
@@ -3144,16 +3149,16 @@ def run() -> dict[str, Any]:
 def run_derived_inputs() -> dict[str, Any]:
     """Derived CLI inputs retain the saved request and validate explicitly supplied inputs."""
     import production_fixtures
-    import production_workflow
+    import production_operations as production_workflow
     import request_contract
     import request_validation
     import runtime_evidence
     import service_profile
-    import studio
+    import studio_workspace as studio
     import transport_synthetic
     from catalog_retrieval.runtime import load_pack_catalog, using_pack_runtime
-    from prepare_generation_references import resolve_model_record
-    from verify_generation_payload import verify as verify_live
+    from generation_references import resolve_model_record
+    from generation_payload_validation import verify as verify_live
     from visual_continuity import file_ref
 
     checked = CheckCounter()
@@ -3172,7 +3177,14 @@ def run_derived_inputs() -> dict[str, Any]:
                 cache_dir=base / "cache", managed_root=base / "managed", default_enabled_packs=())
             configure_pack_runtime(settings)
             root = studio.init(base / "studio", "derived-inputs", "Derived input checks")
-            run_id = production_fixtures.prepare_external_delivery(root, PROMPT + "\n", model=model)
+            definition = 'An adult human with short dark hair, a plain light jacket and a poised bearing.'
+            atomic_write_json(root / 'character-definition.json', {'definition': definition})
+            source = {'id': 'character', 'path': 'character-definition.json', 'role': 'definition',
+                'disposition': 'applied', 'locator': '/definition',
+                'reason': 'The concrete one-off human in this synthetic input-construction test.',
+                'applications': [{'id': 'character', 'pointer': '/definition',
+                                  'subjects': ['C01'], 'requirement': False}]}
+            run_id = production_fixtures.prepare_external_delivery(root, PROMPT + "\n", model=model, sources=[source])
             (base / "prompt.txt").write_text(PROMPT + "\n", encoding="utf-8")
             for name, value in {"plot.json": APPROVED_PLOT, "retrieval.json": fixture_retrieval(PROMPT, APPROVED_PLOT)}.items():
                 atomic_write_json(base / name, value)
@@ -3212,6 +3224,8 @@ def run_derived_inputs() -> dict[str, Any]:
                 checked(production_spec.main([*draft_relative, "--root", str(base)]) == 0
                         and json.loads((base / "drafts/spec.json").read_text(encoding="utf-8")) == lean,
                         "a draft relative to --root differs from the absolute draft")
+            lean['subjects'][0]['identity'] = definition
+            atomic_write_json(base / 'spec.json', lean)
             atomic_write_json(base / "parameters.json", {"width": 1024, "height": 1024})
             # The prompt is the run's delivery, so the builder takes no prompt file.
             common = ["--model", model, "--plot-file", str(base / "plot.json"),
@@ -3320,7 +3334,7 @@ def run_studio_paths() -> dict[str, Any]:
     """A prepared run supplies its own inputs, and every relative path is below a root with a space and Japanese text."""
     import execution_contract
     import production_case_fixtures as cases
-    import production_workflow
+    import production_operations as production_workflow
 
     checked = CheckCounter()
     try:

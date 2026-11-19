@@ -229,7 +229,7 @@ def adopted_identities(root: Path, character_id: str) -> list[dict]:
     two values a reader of the material can check. Where the studio keeps the
     image stays in the studio's own records.
     """
-    import studio
+    import studio_workspace as studio
     if not (root / studio.MANIFEST).is_file():
         return []
     import adoption_workflow as adoption
@@ -584,7 +584,7 @@ def draft(root: Path, scene_plot: str, output: str, medium: str, subjects: list[
 
 def material_runs(root: Path) -> dict[str, list[dict]]:
     """The production runs that used each material, by its content hash."""
-    import production_workflow as workflow
+    import production_operations as workflow
     used: dict[str, list[dict]] = {}
     for run in workflow.run_ids(root):
         try:
@@ -608,7 +608,7 @@ def material_iterations(root: Path) -> dict[str, list[dict]]:
     characters = root / 'characters'
     if not characters.is_dir():
         return used
-    import studio
+    import studio_workspace as studio
     try:
         read = studio.StudioRead(root)
     except (ValueError, OSError, KeyError, TypeError, UnicodeError):

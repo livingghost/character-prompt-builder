@@ -17,12 +17,13 @@ import time
 import unittest
 from unittest.mock import patch
 
+import read_context
 import execution_contract as c
 import sheet_artifacts as fills
 import sheet_edits
 import sheet_inventory
 import sheet_review
-import studio
+import studio_workspace as studio
 import studio_gallery
 import studio_activity as activity
 import work_ledger as work
@@ -158,6 +159,63 @@ class EditingTests(unittest.TestCase):
         self.assertEqual(len(result['candidates']), 205)
         print(json.dumps({'probe':'205-candidate-comparison', 'image_verifications':206,
                           'seconds':round(elapsed,4), 'pages':35, 'maximum_pairs_per_page':6}))
+
+
+class ActivityOwnershipTests(unittest.TestCase):
+    def test_written_iterations_are_handed_off_until_another_writer_replaces_them(self):
+        with tempfile.TemporaryDirectory() as temporary, read_context.public_call():
+            root = Path(temporary)
+            home = root / 'characters' / 'robot'
+            path = home / 'iterations.jsonl'
+            c.atomic(path, b'')
+            rows = [{'iteration_id': 'first', 'notes': ['Owned iteration.']}]
+            expected = copy.deepcopy(rows)
+            read_text = Path.read_text
+
+            def refuse_owned_read(selected, *args, **kwargs):
+                if selected == path:
+                    raise AssertionError('just-written iteration rows must come from their owner')
+                return read_text(selected, *args, **kwargs)
+
+            with studio.recording_lock(root, character='robot'):
+                studio.write_iterations(home, rows)
+                rows[0]['notes'].append('Caller edit after publication.')
+                with patch.object(Path, 'read_text', refuse_owned_read):
+                    first = studio.read_iteration_records(home)
+                    self.assertEqual(first, expected)
+                    first[0]['notes'].append('Caller edit to returned rows.')
+                    self.assertEqual(studio.read_iteration_records(home), expected)
+            replacement = [{'iteration_id': 'second', 'notes': ['Another writer.']}]
+            c.atomic(path, (json.dumps(replacement[0]) + '\n').encode(), replace=True)
+            with studio.recording_lock(root, character='robot'):
+                self.assertEqual(studio.read_iteration_records(home), replacement)
+
+    def test_written_events_and_receipts_are_reused_without_a_file_roundtrip(self):
+        with tempfile.TemporaryDirectory() as temporary, read_context.public_call():
+            root = Path(temporary)
+            details = {'notes': ['An actual owner observation.']}
+            expected = copy.deepcopy(details)
+            receipt = activity.event(root, 'synthetic-observation', 'robot', revision='a' * 64,
+                                     details=details, views={'gallery'}, characters={'robot'})
+            details['notes'].append('An edit by the caller.')
+            receipt['details']['notes'].append('An edit to the returned receipt.')
+            paths = activity._dirty_receipts(root, 'gallery')
+            self.assertEqual(len(paths), 1)
+            with patch.object(c, 'load', side_effect=AssertionError('owned activity document must not be reopened')), \
+                 patch.object(c, 'read', side_effect=AssertionError('owned activity bytes must not be reopened')):
+                rows, diagnostics = activity.read_events(root)
+                self.assertEqual(diagnostics, [])
+                self.assertEqual(rows[0]['details'], expected)
+                rows[0]['details']['notes'].append('An edit to the returned timeline.')
+                self.assertEqual(activity.read_events(root)[0][0]['details'], expected)
+                selected = activity._receipt_characters(paths)
+                self.assertEqual(selected, {'robot'})
+                selected.add('another-character')
+                self.assertEqual(activity._receipt_characters(paths), {'robot'})
+                retry = activity.event(root, 'synthetic-observation', 'robot', revision='a' * 64,
+                                       details=expected, views={'gallery'}, characters={'robot'})
+                self.assertEqual(retry['details'], expected)
+            self.assertEqual(len(activity._dirty_receipts(root, 'gallery')), 2)
 
 
 class StudioIterationTests(unittest.TestCase):
@@ -433,6 +491,59 @@ class StudioIterationTests(unittest.TestCase):
         self.assertEqual([call.args[1] for call in rows.call_args_list], ['owl'])
         self.assertFalse(list((self.root/'work/activity/dirty/gallery').glob('*')))
 
+    def test_consumed_captured_receipt_cannot_skip_the_latest_artwork(self):
+        self.import_image('first')
+        activity.event(self.root, 'synthetic-completed-reference', 'robot', revision='consumed',
+                       views={'active-references'}, characters={'robot'})
+        receipt = next((self.root/'work/activity/dirty/active-references').glob('*'))
+        original, consumed = c.read, []
+        def consume_before_read(path, *args, **kwargs):
+            if path == receipt and not consumed:
+                receipt.unlink()
+                consumed.append(path)
+            return original(path, *args, **kwargs)
+        with patch.object(c, 'read', side_effect=consume_before_read):
+            result = self.import_image('second')
+        self.assertEqual(consumed, [receipt])
+        self.assertNotIn('projection_warning', result)
+        self.assertEqual(len(c.load(self.root/'gallery.json')['entries']), 2)
+        self.assertIsNone(studio.gallery_stale(self.root))
+        self.assertFalse(list((self.root/'work/activity/dirty/active-references').glob('*')))
+
+    def test_receipt_scope_keeps_corrupt_and_nonregular_file_errors(self):
+        directory = self.root/'work/activity/dirty/active-references/not-a-file'
+        directory.mkdir(parents=True)
+        with self.assertRaises(ValueError):
+            activity._receipt_characters([directory])
+        corrupt = directory.parent/'invalid-json'
+        corrupt.write_bytes(b'An invalid receipt document')
+        with self.assertRaises(ValueError):
+            activity._receipt_characters([corrupt])
+        self.assertTrue(directory.is_dir())
+        self.assertEqual(corrupt.read_bytes(), b'An invalid receipt document')
+
+    def test_contested_first_reference_publication_reacquires_current_sources(self):
+        first = self.import_image('first')
+        studio.accept(self.root, 'robot', first['iteration_id'])
+        second = self.import_image('second')
+        view = self.sheet.parent/'active-references.json'
+        view.unlink()
+        original, completed = c.atomic, []
+        def competing_first_publication(path, *args, **kwargs):
+            if path == view and not kwargs.get('replace', False) and not completed:
+                completed.append(True)
+                studio.accept(self.root, 'robot', second['iteration_id'])
+            return original(path, *args, **kwargs)
+        read = studio.StudioRead(self.root)
+        with patch.object(c, 'atomic', side_effect=competing_first_publication):
+            report = activity.refresh(self.root, read=read, views={'gallery', 'active-references'})
+        self.assertTrue(report['ok'], report)
+        self.assertEqual(completed, [True])
+        expected = [second['iteration_id']]
+        self.assertEqual([row['iteration_id'] for row in c.load(view)['bindings']], expected)
+        self.assertEqual([row['iteration_id'] for row in read.reference_index('robot')['bindings']], expected)
+        self.assertIsNone(studio.gallery_stale(self.root))
+
     def test_failed_event_queue_retains_exact_character_scope(self):
         self.three_characters()
         with patch.object(activity, 'event', side_effect=OSError('Synthetic receipt failure')):
@@ -449,12 +560,12 @@ class StudioIterationTests(unittest.TestCase):
                  for character in ('robot', 'owl', 'fox')}
         for path in paths.values():
             path.unlink()
-        original = c.atomic_write_json
+        original = c.atomic
         def blocked(path, *args, **kwargs):
             if path == paths['robot']:
                 raise OSError('Synthetic one-character output failure')
             return original(path, *args, **kwargs)
-        with patch.object(c, 'atomic_write_json', side_effect=blocked):
+        with patch.object(c, 'atomic', side_effect=blocked):
             report = activity.refresh(self.root, views={'active-references'})
         self.assertFalse(report['ok'])
         self.assertFalse(paths['robot'].exists())
@@ -578,7 +689,7 @@ class StudioIterationTests(unittest.TestCase):
 
     def test_unconfigured_story_needs_no_publisher_and_keeps_a_new_source_notice(self):
         import story_timeline
-        with patch.object(c, 'lock', wraps=c.lock) as locks:
+        with patch.object(c, 'file_lock', wraps=c.file_lock) as locks:
             self.assertTrue(activity.refresh(self.root, views={'story-timeline'})['ok'])
         locks.assert_not_called()
         activity.event(self.root, 'synthetic-old-story', 'timeline', revision='old', views={'story-timeline'})
@@ -592,7 +703,7 @@ class StudioIterationTests(unittest.TestCase):
             return configured
 
         with (patch.object(story_timeline, 'configured', side_effect=source_arrives),
-              patch.object(c, 'lock', wraps=c.lock) as locks):
+              patch.object(c, 'file_lock', wraps=c.file_lock) as locks):
             report = activity.refresh(self.root, views={'story-timeline'})
         locks.assert_not_called()
         self.assertTrue(report['ok'])
@@ -621,7 +732,7 @@ class StudioIterationTests(unittest.TestCase):
             return present
 
         with (patch.object(Path, 'is_file', new=manifest_arrives),
-              patch.object(c, 'lock', wraps=c.lock) as locks):
+              patch.object(c, 'file_lock', wraps=c.file_lock) as locks):
             report = activity.refresh(root, views=views)
         locks.assert_not_called()
         self.assertTrue(appeared)
@@ -695,6 +806,27 @@ class StudioIterationTests(unittest.TestCase):
         self.assertIn('loading="lazy"', detail)
         self.assertIn('views/browser/gallery.assets/index.js', page)
         self.assertIn('work/activity/timeline.md',page)
+
+    def test_concurrent_initial_gallery_publishers_share_actual_asset_ownership(self):
+        import threading
+        self.import_image('first')
+        output = self.root / 'views/first/gallery.html'
+        barrier = threading.Barrier(2)
+        original = c.atomic
+        def simultaneous_owner(path, *args, **kwargs):
+            if path.name == 'owner.json' and path.parent.name.startswith('.gallery-assets-'):
+                barrier.wait(timeout=10)
+            return original(path, *args, **kwargs)
+        with patch.object(c, 'atomic', side_effect=simultaneous_owner), ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(studio.write_gallery, self.root, output) for _ in range(2)]
+            written = [future.result(timeout=20) for future in futures]
+        self.assertEqual(written, [(output, output.with_suffix('.json'))] * 2)
+        index = c.load(output.with_suffix('.json'))
+        self.assertEqual(len(index['entries']), 1)
+        self.assertIn(index['revision'], output.read_text(encoding='utf-8'))
+        self.assertEqual(c.load(output.with_suffix('.assets') / 'owner.json'), {
+            'kind': 'studio-gallery-projection', 'studio_id': studio.manifest(self.root)['studio_id'],
+            'view': output.name})
 
 
 if __name__ == '__main__':

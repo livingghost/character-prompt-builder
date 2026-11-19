@@ -327,18 +327,223 @@ class TransientRefusalTests(unittest.TestCase):
         self.assertEqual(b'new\n', target.read_bytes())
         self.assertEqual(2, len(calls))
 
-    def test_lock_flushes_a_new_lock_file_through_the_patient_retry(self):
-        if os.name != 'nt':
-            self.skipTest('the lock-file byte is Windows-only')
-        calls = []
-        real = contract._patiently
-        def watching(operation, *, patience=10.0):
-            calls.append(operation)
-            return real(operation)
-        with patch.object(contract, '_patiently', watching):
-            with contract.lock(self.root / 'locked'):
-                pass
-        self.assertTrue(calls)
+def _file_lock_process(path, pipe, hold=False):
+    """Coordinate the process test through a pipe, using only its real data file."""
+    try:
+        pipe.send('waiting')
+        with contract.file_lock(Path(path)):
+            pipe.send('acquired')
+            if hold:
+                pipe.recv()
+    finally:
+        pipe.close()
+
+
+class DataFileLockTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.path = self.root / 'state.json'
+        self.path.write_bytes(b'{"value":0}\n')
+
+    def test_nested_updates_keep_data_and_release_all_handles(self):
+        streams = []
+        original = contract._open_lock_stream
+        def opening(path, **options):
+            stream = original(path, **options); streams.append(stream); return stream
+        with patch.object(contract, '_open_lock_stream', opening):
+            with contract.file_lock(self.path):
+                for value in range(8):
+                    with contract.file_lock(self.path):
+                        contract.atomic_write_json(self.path, {'value': value})
+                    self.assertLessEqual(sum(not stream.closed for stream in streams), 2)
+                self.assertEqual(contract.load(self.path), {'value': 7})
+        self.assertTrue(all(stream.closed for stream in streams))
+        self.assertEqual({path.name for path in self.root.iterdir()}, {'state.json'})
+
+    def test_thread_waits_through_atomic_replacement(self):
+        import threading
+        acquired = threading.Event()
+        errors = []
+
+        def waiting():
+            try:
+                with contract.file_lock(self.path):
+                    acquired.set()
+            except BaseException as exc:
+                errors.append(exc)
+
+        thread = threading.Thread(target=waiting, daemon=True)
+        with contract.file_lock(self.path):
+            thread.start()
+            self.assertFalse(acquired.wait(0.05))
+            contract.atomic_write_json(self.path, {'value': 2})
+            self.assertFalse(acquired.wait(0.05))
+        self.assertTrue(acquired.wait(5))
+        thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(contract.load(self.path), {'value': 2})
+
+    def test_waiters_follow_replacements_until_the_update_finishes(self):
+        import threading
+        opened, current_opened = threading.Event(), threading.Event()
+        entered, fresh_entered = threading.Event(), threading.Event()
+        errors = []
+        original = contract._open_lock_stream
+        old_stream = None
+        first = True
+        def opening(path, **options):
+            nonlocal first
+            if Path(path) == self.path and threading.current_thread().name == 'old-inode-waiter':
+                if first:
+                    first = False; opened.set(); return old_stream
+                current_opened.set()
+            return original(path, **options)
+        def waiting(done):
+            try:
+                with contract.file_lock(self.path): done.set()
+            except BaseException as exc:
+                errors.append(exc)
+        old = threading.Thread(target=waiting, args=(entered,), name='old-inode-waiter', daemon=True)
+        fresh = threading.Thread(target=waiting, args=(fresh_entered,), daemon=True)
+        try:
+            with patch.object(contract, '_open_lock_stream', opening):
+                with contract.file_lock(self.path):
+                    old_stream = original(self.path)
+                    old.start(); self.assertTrue(opened.wait(5))
+                    contract.atomic_write_json(self.path, {'value': 1})
+                    contract.atomic_write_json(self.path, {'value': 2})
+                    self.assertTrue(current_opened.wait(5))
+                    fresh.start()
+                    self.assertFalse(entered.wait(0.03)); self.assertFalse(fresh_entered.wait(0.03))
+                self.assertTrue(entered.wait(5)); self.assertTrue(fresh_entered.wait(5))
+        finally:
+            for thread in (old, fresh):
+                if thread.ident is not None: thread.join(5)
+            if old_stream is not None and not old_stream.closed: old_stream.close()
+        self.assertFalse(old.is_alive()); self.assertFalse(fresh.is_alive()); self.assertEqual(errors, [])
+        self.assertEqual(contract.load(self.path), {'value': 2})
+
+    def test_failed_replacement_keeps_the_current_owner_and_can_retry(self):
+        before = self.path.read_bytes()
+        with contract.file_lock(self.path):
+            with patch.object(contract, 'replace_file', side_effect=OSError(5, 'synthetic rename failure')):
+                with self.assertRaises(OSError): contract.atomic_write_json(self.path, {'value': 1})
+            self.assertEqual(self.path.read_bytes(), before)
+            contract.atomic_write_json(self.path, {'value': 2})
+        self.assertEqual(contract.load(self.path), {'value': 2})
+        self.assertEqual({path.name for path in self.root.iterdir()}, {'state.json'})
+
+    def test_release_failure_still_closes_every_owned_handle(self):
+        streams = []
+        original_open = contract._open_lock_stream
+        original_release = contract._release_file_lock
+        def opening(path, **options):
+            stream = original_open(path, **options); streams.append(stream); return stream
+        failed = False
+        def releasing(stream):
+            nonlocal failed
+            original_release(stream)
+            if not failed:
+                failed = True
+                raise OSError(5, 'synthetic unlock failure')
+        with patch.object(contract, '_open_lock_stream', opening):
+            with self.assertRaisesRegex(OSError, 'synthetic unlock failure'):
+                with patch.object(contract, '_release_file_lock', releasing):
+                    with contract.file_lock(self.path):
+                        contract.atomic_write_json(self.path, {'value': 1})
+        self.assertTrue(all(stream.closed for stream in streams))
+        with contract.file_lock(self.path):
+            self.assertEqual(contract.load(self.path), {'value': 1})
+
+    def _process_exclusion(self, method):
+        import multiprocessing
+        context = multiprocessing.get_context(method)
+        parent, child = context.Pipe()
+        process = context.Process(target=_file_lock_process, args=(str(self.path), child))
+        try:
+            with contract.file_lock(self.path):
+                process.start(); child.close()
+                self.assertTrue(parent.poll(10)); self.assertEqual(parent.recv(), 'waiting')
+                self.assertFalse(parent.poll(0.05))
+                contract.atomic_write_json(self.path, {'value': 1})
+                self.assertFalse(parent.poll(0.05))
+            self.assertTrue(parent.poll(10)); self.assertEqual(parent.recv(), 'acquired')
+            process.join(10); self.assertEqual(process.exitcode, 0)
+        finally:
+            if process.is_alive(): process.terminate(); process.join(5)
+            parent.close(); child.close()
+
+    def test_process_waits_through_atomic_replacement(self):
+        self._process_exclusion('spawn')
+
+    @unittest.skipUnless(hasattr(os, 'fork'), 'POSIX fork ownership')
+    def test_forked_child_reacquires_without_unlocking_parent(self):
+        self._process_exclusion('fork')
+
+    def test_terminated_owner_releases_the_real_data_file(self):
+        import multiprocessing
+        context = multiprocessing.get_context('spawn')
+        parent, child = context.Pipe()
+        process = context.Process(target=_file_lock_process, args=(str(self.path), child, True))
+        try:
+            process.start(); child.close()
+            for expected in ('waiting', 'acquired'):
+                self.assertTrue(parent.poll(10)); self.assertEqual(parent.recv(), expected)
+            process.terminate(); process.join(10); self.assertFalse(process.is_alive())
+            with contract.file_lock(self.path):
+                contract.atomic_write_json(self.path, {'value': 3})
+            self.assertEqual(contract.load(self.path), {'value': 3})
+        finally:
+            if process.is_alive(): process.terminate(); process.join(5)
+            parent.close(); child.close()
+
+    def test_missing_data_is_not_initialized_by_synchronization(self):
+        missing = self.root / 'missing' / 'document.json'
+        with self.assertRaises(FileNotFoundError):
+            with contract.file_lock(missing): pass
+        self.assertFalse(missing.parent.exists())
+
+    def test_first_publication_without_hard_links_publishes_complete_bytes(self):
+        import errno
+        destination = self.root / 'first.json'
+        raw = b'{"complete":true}\n'
+        original = contract._rename_exclusive
+        seen = []
+        def publish(staging, target):
+            self.assertFalse(target.exists())
+            self.assertEqual(staging.read_bytes(), raw)
+            seen.append(target)
+            return original(staging, target)
+        with patch.object(contract.os, 'link', side_effect=OSError(errno.EPERM, 'no hard links')), \
+             patch.object(contract, '_rename_exclusive', side_effect=publish):
+            contract.atomic(destination, raw)
+        self.assertEqual(seen, [destination]); self.assertEqual(destination.read_bytes(), raw)
+
+    def test_first_publication_keeps_a_competing_complete_file(self):
+        import errno
+        destination = self.root / 'first.json'
+        original = contract._rename_exclusive
+        def competitor(staging, target):
+            target.write_bytes(b'{"writer":"other"}\n')
+            return original(staging, target)
+        with patch.object(contract.os, 'link', side_effect=OSError(errno.EPERM, 'no hard links')), \
+             patch.object(contract, '_rename_exclusive', side_effect=competitor), \
+             self.assertRaises(FileExistsError):
+            contract.atomic(destination, b'{"writer":"this"}\n')
+        self.assertEqual(destination.read_bytes(), b'{"writer":"other"}\n')
+        self.assertEqual({path.name for path in self.root.iterdir()}, {'state.json', 'first.json'})
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows data byte-range locking')
+    def test_windows_lock_allows_reading_and_atomic_replacement(self):
+        before = self.path.read_bytes()
+        with contract.file_lock(self.path):
+            self.assertEqual(self.path.read_bytes(), before)
+            self.assertEqual(self.path.stat().st_size, len(before))
+            contract.atomic_write_json(self.path, {'value': 4})
+            self.assertEqual(contract.load(self.path), {'value': 4})
 
 
 if __name__ == '__main__':

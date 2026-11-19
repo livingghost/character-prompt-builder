@@ -9,6 +9,7 @@ without hand-written derived records. No provider is contacted, and no image
 quality or user approval is asserted.
 """
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 
 import copy
 import os
@@ -21,7 +22,7 @@ import execution_contract as c
 import production_case_fixtures as cases
 import production_fixtures as fixture
 import production_inputs
-import production_workflow as workflow
+import production_operations as workflow
 import work_ledger
 from production_diagnostics import DEFAULT_ACTION, ProductionError
 from test_production_choice_reports import ChoiceReports
@@ -30,6 +31,10 @@ from test_production_review import ReviewCase
 GOAL = 'Replace the plain background of the adopted robot image with a pale green wall.'
 PROMPT = ('Edit the supplied image: replace the plain background behind the robot with a pale green wall. '
           'Keep the robot, its pose, its framing and its flat graphic finish unchanged.')
+SCENE_REFERENCE = (' Use Image {{reference:edit-source:attachment_number}} '
+                   'for {{reference:edit-source:controls}}.')
+IDENTITY_REFERENCE = (' Use Image {{reference:edit-identity:attachment_number}} '
+                      'for {{reference:edit-identity:controls}}.')
 EDIT_FIELDS = ['task_changes.semantic_edit.' + part for part in
                ('edit.target', 'edit.change', 'edit.preserve', 'review_criteria')]
 
@@ -59,8 +64,9 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
             work_ledger.abandon(self.root, 'Synthetic edit test ends its work task.', actor=fixture.ACTOR)
 
     def draft(self, execution: str, directory: str, **options) -> dict:
-        return production_inputs.draft_inputs(self.root, None, directory, route='generation', execution=execution,
-            edit_character='robot', edit_slot='base.front', new_task=GOAL, **options)
+        return authoring_fixtures.authoring_inputs(self.root, None, directory, route='generation', execution=execution,
+            edit_character='robot', edit_slot='base.front', new_task=GOAL,
+            request_file=fixture.current_request(self.root, GOAL), **options)
 
     def answer(self, result: dict) -> dict:
         """The synthetic fixture author's answers to every entry the draft reported."""
@@ -73,7 +79,8 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
             ledger=self.root / 'work/reads.jsonl', execution=task['execution'], model=target['model'],
             service=target['service'])
         choices['reading']['reading_key'] = reading['reading_key']
-        (self.root / choices['authoring']['delivery']['file']).write_bytes(PROMPT.encode('utf-8'))
+        (self.root / choices['authoring']['delivery']['file']).write_bytes(
+            (PROMPT + SCENE_REFERENCE + IDENTITY_REFERENCE).encode('utf-8'))
         task['direction'].update(purpose='Change only the background of the adopted robot front image.',
             intended_effect='The same adopted robot reads clearly against a pale green wall.')
         task['criteria'] = [
@@ -116,9 +123,18 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         self.assertEqual(authored['task']['features'],
                          ['semantic-instruction-edit', 'instruction-edit', 'recurring-identity'])
         self.assertEqual(authored['task']['artifact'], 'image')
-        path = Path(source['resolved_path']).relative_to(self.root).as_posix()
-        self.assertEqual([(row['id'], row['path'], row['role'], row['disposition']) for row in authored['task']['sources']],
-                         [('edit-source', path, 'accepted-source', 'applied')])
+        request_id = result['current_request']['source']
+        request_path = result['current_request']['path']
+        declared = {row['id']: row for row in authored['task']['sources']}
+        self.assertEqual(set(declared), {'edit-source', 'task-subject:robot', request_id})
+        self.assertEqual((declared['edit-source']['role'], declared['edit-source']['disposition']),
+                         ('accepted-source', 'applied'))
+        self.assertEqual((self.root / declared['edit-source']['path']).read_bytes(),
+                         Path(source['resolved_path']).read_bytes())
+        self.assertEqual(declared['task-subject:robot']['definition_owner'],
+                         {'document': 'production_spec', 'subject_id': 'robot'})
+        self.assertEqual((self.root / request_path).read_text(encoding='utf-8'), GOAL)
+        self.assertIn(request_id, authored['task']['direction']['basis'])
         self.assertEqual(result['edit_source']['source'], source)
         self.assertEqual(result['edit_source']['origin'], {'run': self.case['run'], 'candidate': self.case['candidate']})
         specification = cases.read_document(self.root, choices, 'production_spec')
@@ -143,9 +159,9 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
             self.assert_guidance(row['guidance'])
         identity = {next(iter(row['gaps'])): row['gaps'] for row in result['unresolved']
                     if row['code'] == 'IDENTITY_COVERAGE_INCOMPLETE'}
-        self.assertEqual(identity['uncovered']['uncovered'],
+        self.assertEqual(result['identity_coverage']['unbound_source_values'],
                          [{'source': 'reference:edit-identity', 'pointer': '', 'subject_ids': ['robot']}])
-        self.assertEqual(identity['missing_whole_reviews']['missing_whole_reviews'], ['robot'])
+        self.assertEqual(identity, {'missing_whole_reviews': {'missing_whole_reviews': ['robot']}})
 
     def test_dispatcher_edit_draft_names_every_requirement_and_prepares_after_they_are_answered(self):
         result = self.draft('dispatcher', 'work/edit-dispatcher')
@@ -199,7 +215,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         self.assertEqual([ref['artifact_id'] for ref in robot['identity_refs']], [self.case['source']['artifact_id']])
 
         # Reopening the edit run restores the same editable plan and mirrored Studio reference.
-        again = production_inputs.draft_inputs(self.root, None, 'work/edit-dispatcher-again', from_run=prepared['run'])
+        again = authoring_fixtures.authoring_inputs(self.root, None, 'work/edit-dispatcher-again', from_run=prepared['run'])
         self.assertEqual(again['unresolved'], [])
         reopened = again['choices']
         self.assertEqual(reopened['authoring']['references']['image_input'], {})
@@ -247,14 +263,20 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         bound = consumer['image_input']
         self.assertEqual(bound['prepared_reference_set']['selected_references'][0]['source'], self.case['accepted_source'])
         self.assertEqual(bound['external_request']['request']['inputs']['references'], ['synthetic-robot-front'])
-        self.assertEqual(bound['external_request']['request']['prompt'], PROMPT)
+        references = bound['prepared_reference_set']['selected_references']
+        self.assertEqual([row['role'] for row in references], ['scene', 'identity'])
+        expected = (PROMPT + ' Use Image 1 for ' + ', '.join(references[0]['authority']['controls']) +
+                    '. Use Image 1 for ' + ', '.join(references[1]['authority']['controls']) + '.')
+        self.assertEqual(bound['external_request']['request']['prompt'], expected)
+        self.assertNotIn('{{reference:', bound['external_request']['request']['prompt'])
 
-    def test_an_accepted_image_without_an_origin_or_identity_invents_no_subject(self):
+    def test_an_independent_accepted_image_uses_an_explicit_current_definition(self):
         from sheet_artifacts_smoke_test import accepted
         accepted(self.root / 'characters/robot/sheet/sheet-data.json', slot='canon.primary')
-        result = production_inputs.draft_inputs(self.root, None, 'work/edit-external-import',
+        result = authoring_fixtures.authoring_inputs(self.root, None, 'work/edit-external-import',
             route='generation', execution='dispatcher', model=cases.MODEL_ID, service='synthetic',
-            edit_character='robot', edit_slot='canon.primary', new_task=GOAL)
+            edit_character='robot', edit_slot='canon.primary', new_task=GOAL,
+            request_file=fixture.current_request(self.root, GOAL))
         self.assertIsNone(result['edit_source']['origin'])
         self.assertIsNone(result['edit_source']['identity'])
         choices = result['choices']
@@ -262,13 +284,19 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         self.assertNotIn('production_spec', authored['documents'])
         self.assertEqual(authored['generation']['continuity'], {})
         self.assertEqual(authored['task']['recording']['subject_map'], {})
+        import authoring_work
+        basis_path = self.root / result['authoring_work']['basis']
+        basis = c.load(basis_path)
+        self.assertEqual(basis['subjects'], {})
+        basis = authoring_work.revise_basis(basis, subjects={'pictured-character': ['edit-source']})
+        basis_path.write_bytes(c.encoded(basis))
         task = authored['task']
         from reading_fixtures import fixture_reading
         reading = fixture_reading(route='generation', features=task['features'], studio=self.root,
             ledger=self.root / 'work/reads.jsonl', execution=task['execution'],
             model=cases.MODEL_ID, service='synthetic')
         choices['reading']['reading_key'] = reading['reading_key']
-        (self.root / authored['delivery']['file']).write_bytes(PROMPT.encode('utf-8'))
+        (self.root / authored['delivery']['file']).write_bytes((PROMPT + SCENE_REFERENCE).encode('utf-8'))
         task['direction'].update(purpose='Change only the background of the accepted image.',
             intended_effect='The same robot reads clearly against a pale green wall.')
         task['criteria'] = [{'id': 'requested-background', 'strength': 'hard', 'evidence': 'image',
@@ -308,7 +336,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
             options = {'route': 'generation', 'execution': 'dispatcher', 'edit_character': 'robot',
                        'edit_slot': 'base.front', 'new_task': GOAL, **change}
             with self.subTest(name=name), self.assertRaises(ProductionError) as caught:
-                production_inputs.draft_inputs(self.root, None, 'work/refused-' + name, **options)
+                authoring_fixtures.authoring_inputs(self.root, None, 'work/refused-' + name, **options)
             diagnostic = caught.exception.diagnostic
             self.assertEqual(diagnostic.phase, 'authoring')
             self.assertNotEqual(diagnostic.required_action, DEFAULT_ACTION)
@@ -316,7 +344,7 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
             self.assertIsNone(work_ledger.read_current(self.root))
             self.assertFalse((self.root / ('work/refused-' + name)).exists())
         with self.assertRaises(ProductionError) as caught:
-            production_inputs.draft_inputs(self.root, 'task.json', 'work/refused-task', edit_character='robot',
+            authoring_fixtures.authoring_inputs(self.root, 'task.json', 'work/refused-task', edit_character='robot',
                                            edit_slot='base.front', route='generation', execution='dispatcher')
         self.assertIn('--from-run', caught.exception.diagnostic.required_action)
 
@@ -325,7 +353,7 @@ class AcceptedSceneEditTests(ReviewCase):
     """A two-subject scene remains editable before and after separate scene adoption."""
 
     def configure_task(self, task):
-        import studio
+        import studio_workspace as studio
         studio.add_character(self.root, 'partner', 'general')
         specification = c.load(self.root / 'spec.json')
         partner = copy.deepcopy(specification['subjects'][0]); partner['id'] = 'partner'
@@ -343,12 +371,12 @@ class AcceptedSceneEditTests(ReviewCase):
         super().setUp()
         self.record_review([('output', 'pass'), ('palette', 'pass')])
         self.select()
-        import studio
+        import studio_workspace as studio
         studio.accept(self.root, 'robot', self.iteration)
 
     def answered_draft(self, destination, directory):
         from reading_fixtures import fixture_reading
-        result = production_inputs.draft_inputs(self.root, None, directory, route='generation',
+        result = authoring_fixtures.authoring_inputs(self.root, None, directory, route='generation',
             execution='dispatcher', edit_character='robot', edit_slot='episode.opening')
         choices = result['choices']; authored = choices['authoring']; task = authored['task']
         self.assertEqual(result['edit_source']['source']['kind'], 'studio-accepted-image')
@@ -361,7 +389,7 @@ class AcceptedSceneEditTests(ReviewCase):
             ledger=self.root / 'work/reads.jsonl', execution='dispatcher', model=cases.MODEL_ID, service='synthetic')
         choices['reading']['reading_key'] = reading['reading_key']
         prompt = ('Edit the supplied scene: make the backdrop pale green. Preserve both robots, their positions, '
-                  'the camera framing and the flat graphic finish.')
+                  'the camera framing and the flat graphic finish.' + SCENE_REFERENCE)
         cases.write(self.root / authored['delivery']['file'], prompt)
         task['direction'].update(purpose='Change the two-subject scene backdrop.',
                                  intended_effect='Both existing participants remain in the edited scene.')
@@ -381,7 +409,7 @@ class AcceptedSceneEditTests(ReviewCase):
         return result
 
     def test_same_slot_and_deliberate_new_slot_preserve_both_subjects_without_sheet_adoption(self):
-        import studio
+        import studio_workspace as studio
         self.assertNotIn('episode.opening', studio.StudioRead(self.root).sheet('robot')['slots'])
         for destination in ('episode.opening', 'episode.alternate'):
             with self.subTest(destination=destination):
@@ -413,7 +441,7 @@ class AcceptedSceneEditTests(ReviewCase):
     def test_acceptance_change_during_upload_preserves_saved_scene_input(self):
         import production_execution as execution
         import production_store as store
-        import studio
+        import studio_workspace as studio
         import studio_reference
         import transport_synthetic as transport
         from test_production_execution import decisions
@@ -451,7 +479,7 @@ class AcceptedSceneEditTests(ReviewCase):
         import pack_manager
         import studio_reference
         from model_prompt_input_fixtures import prompt_input
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
         from catalog_retrieval import runtime
         models = c.load(self.case['pack'] / 'records/models.json')
         tagged = copy.deepcopy(models['records'][0]); tagged['id'] = 'cpb-synthetic-tags'
@@ -472,9 +500,9 @@ class AcceptedSceneEditTests(ReviewCase):
 class InheritedIdentityEditTests(unittest.TestCase):
     def test_scene_edit_carries_exact_identity_reference_scope_and_guidance(self):
         import production_execution as execution
-        import studio
+        import studio_workspace as studio
         import studio_reference_fixtures as reference_fixtures
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
         from test_production_execution import decisions
 
         case = reference_fixtures.adopted_case(self)
@@ -502,7 +530,7 @@ class InheritedIdentityEditTests(unittest.TestCase):
                          if (row.get('production') or {}).get('candidate') == candidate)
         studio.accept(root, 'robot', iteration['iteration_id'])
 
-        result = production_inputs.draft_inputs(root, None, 'work/inherited-edit', route='generation',
+        result = authoring_fixtures.authoring_inputs(root, None, 'work/inherited-edit', route='generation',
             execution='dispatcher', edit_character='robot', edit_slot='scene.result')
         authored = result['choices']['authoring']
         self.assertIsNone(result['edit_source']['identity'])

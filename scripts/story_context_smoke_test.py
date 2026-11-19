@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise moment semantics, selected guidance, publication and production linkage."""
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 from production_diagnostics import CompilationError
 import copy
 import hashlib
@@ -17,7 +18,7 @@ from unittest.mock import patch
 import story_context as sc
 import temporal_state as ts
 import protocol_contract as pc
-import production_workflow as production
+import production_operations as production
 import production_fixtures
 import work_ledger
 
@@ -255,7 +256,10 @@ class ProductionTests(MomentTests):
     # Select only the additional production cases below, avoiding repeated inherited cases.
     def setup_run(self):
         self.build();task=work_ledger.begin(self.root,'Moment fixture',['prepare','deliver']);fixture.write(self.root,'delivery.txt','Follow the selected moment.\n')
-        spec={'task_id':task['task_id'],'route':'story-context','features':[], 'sources':[],
+        spec={'task_id':task['task_id'],'route':'story-context','features':[],
+              'sources':[{'id':'persona','path':'persona.md','role':'definition','disposition':'applied',
+                          'locator':'whole','reason':'Actual portrayal definition for the selected subject.',
+                          'applications':[{'id':'persona','pointer':'','subjects':['A'],'requirement':False}]}],
               'delivery':{'path':'delivery.txt','translation_notes':'Only selected information.'},'criteria':[{'id':'bounded','strength':'hard','text':'Inspect only the declared bounded moment.'}],
               'world_views':[],'moment_views':[{'query':'query.json','bundle':'bundle','view_id':'depiction.main'}]}
         production_fixtures.task(self.root,spec)
@@ -323,7 +327,7 @@ class ProductionTests(MomentTests):
         self.assertTrue(all(not (self.root/relative).exists() for relative in removed))
         self.assertFalse((self.root/'bundle').exists())
 
-        draft=production_inputs.draft_inputs(self.root,None,'reopened',from_run=run)
+        draft=authoring_fixtures.authoring_inputs(self.root,None,'reopened',from_run=run)
         exported=production_inputs.build_inputs(self.root,None,draft['choices_file'],'exported')
         self.assertTrue(exported['ok'],exported)
         task_path=exported['inputs']['production-task']['path']
@@ -350,6 +354,9 @@ class ProductionTests(MomentTests):
     def test_source_change_between_resolve_and_pin_is_caught(self):
         self.build();task=work_ledger.begin(self.root,'fixture',['step']);fixture.write(self.root,'delivery.txt','Use selected facts')
         spec={'task_id':task['task_id'],'route':'story-context','features':[],'sources':[], 'delivery':{'path':'delivery.txt','translation_notes':'test'},'criteria':[{'id':'bounded','strength':'hard','text':'Inspect only the declared bounded moment.'}],'world_views':[],'moment_views':[{'query':'query.json','bundle':'bundle','view_id':'depiction.main'}]}
+        spec['sources']=[{'id':'persona','path':'persona.md','role':'definition','disposition':'applied',
+                         'locator':'whole','reason':'Actual portrayal definition for the selected subject.',
+                         'applications':[{'id':'persona','pointer':'','subjects':['A'],'requirement':False}]}]
         production_fixtures.task(self.root,spec)
         fixture.write(self.root,'task.json',spec);original=sc.verify_output
         def mutate(*args,**kw):

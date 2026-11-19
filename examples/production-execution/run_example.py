@@ -33,7 +33,7 @@ def run(out: Path) -> dict:
     task_id=json.loads((out/'work/current.json').read_text(encoding='utf-8'))['task_id']
     (out/'world.md').write_bytes(b'A room contains one lamp. No characters are specified.\n')
     (out/'delivery.txt').write_bytes(b'One lamp stands in the room.\n')
-    spec=production_authoring.seed(out,route='development',artifact='text',execution='authored',task_id=task_id)
+    spec=production_authoring.seed(route='development',artifact='text',execution='authored',task_id=task_id)
     spec.update(sources=[{'id':'world','path':'world.md','role':'world','disposition':'applied','locator':'whole','reason':'Synthetic fixture premise.'}],
         criteria=[{'id':'world','strength':'hard','text':'One lamp, no added characters.','evidence':'text'}],
         authored={'requirements':['save','delivery','review']})
@@ -41,7 +41,9 @@ def run(out: Path) -> dict:
         intended_effect='Preserve the supplied room and lamp without adding a cast.',basis=['world'])
     reading_fixtures.task_reading(out,spec)
     write('task.json',spec)
-    draft=command('production_workflow.py','draft-inputs','--root',out,'--task','task.json','--out-dir','editing')
+    (out/'request.txt').write_text('Write, deliver and review one sentence about the declared empty room.', encoding='utf-8')
+    draft=command('production_workflow.py','draft-inputs','--root',out,'--task','task.json',
+        '--operation','amend','--request-file','request.txt','--focus','supporting-setting','--out-dir','editing')
     choices=json.loads((out/draft['choices_file']).read_text(encoding='utf-8'))
     choices['reading']['reading_key']=json.loads((out/spec['route_reading']).read_text(encoding='utf-8'))['reading_key']
     write(draft['choices_file'],choices)

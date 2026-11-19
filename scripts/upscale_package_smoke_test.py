@@ -10,7 +10,7 @@ from typing import Any, Callable
 
 from PIL import Image
 
-from catalog_cli import configure_pack_runtime
+from catalog_api import configure_pack_runtime
 from pack_manager import default_settings, write_lock
 from state_protocol import finalize_artifact
 from upscale_package import build_upscale_package, verify_upscale_package

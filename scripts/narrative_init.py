@@ -29,7 +29,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from narrative import MEDIA, validate_narrative  # noqa: E402
-from narrative_entity import design_document, persona_document  # noqa: E402
 
 TEMPLATES = ROOT / "templates" / "narrative"
 SERIES_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]+$")
@@ -75,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Neutral starts with no cast, themes, arcs or chapters. Example explicitly "
              "adds one placeholder character and a teaching outline, not creative defaults.")
     args = parser.parse_args(argv)
+    from narrative_entity import design_document, persona_document  # noqa: E402
 
     if not args.title.strip() or any(char in args.title for char in "\r\n"):
         raise SystemExit("title must be non-empty single-line text")

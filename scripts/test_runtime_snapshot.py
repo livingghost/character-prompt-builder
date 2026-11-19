@@ -1,5 +1,6 @@
 """Fixed pack runtime: binding, content storage, drift diagnostics and reuse."""
 from __future__ import annotations
+import read_context
 from contextlib import closing
 import json
 import os
@@ -17,7 +18,7 @@ import production_case_fixtures as fixtures
 import production_execution as execution
 import production_store as store
 import production_variation as variation
-import production_workflow as workflow
+import production_operations as workflow
 import runtime_snapshot
 from catalog_retrieval import runtime
 from production_diagnostics import ProductionError
@@ -69,7 +70,7 @@ class RuntimeMembershipTests(unittest.TestCase):
             with self.subTest(place=place):
                 staged, _ = self.snapshot('second-' + place)
                 extra = (staged if place == 'staged' else target) / 'unowned.txt'
-                with runtime_snapshot.public_call():
+                with read_context.public_call():
                     runtime_snapshot.read(staged, descriptor)
                     runtime_snapshot.read(target, descriptor)
                     c.atomic(extra, b'preserved')
@@ -102,7 +103,7 @@ class RuntimeMembershipTests(unittest.TestCase):
 
     def test_force_verification_checks_membership_within_a_cached_call(self):
         directory, descriptor = self.snapshot('staged')
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             runtime_snapshot.read(directory, descriptor)
             c.atomic(directory / 'additional.txt', b'added after the first read')
             with self.assertRaises(ProductionError):
@@ -116,7 +117,7 @@ class RuntimeMembershipTests(unittest.TestCase):
         directory, descriptor = self.snapshot('staged')
         directory = runtime_snapshot.publish(self.root, directory, descriptor)
         pinned = directory / 'packs' / fixtures.PACK_ID / 'records/models.json'
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             runtime_snapshot.read(directory, descriptor)
             pinned.write_bytes(b'changed fixed runtime')
             with self.assertRaises(ProductionError) as caught:
@@ -139,15 +140,16 @@ class RuntimeMembershipTests(unittest.TestCase):
 
     def test_unchanged_metadata_has_one_decoded_owner_across_forced_checks(self):
         directory,descriptor=self.snapshot('owned-metadata')
-        with runtime_snapshot.public_call(), patch.object(c,'decode',wraps=c.decode) as decode, \
+        with read_context.public_call(), patch.object(c,'decode',wraps=c.decode) as decode, \
                 patch.object(runtime_snapshot,'_verify_fixed_file',wraps=runtime_snapshot._verify_fixed_file) as verify:
             first=runtime_snapshot.acquire_runtime(directory,descriptor)
             second=runtime_snapshot.acquire_runtime(directory,descriptor,previous=first)
             forced=runtime_snapshot.acquire_runtime(directory,descriptor,force_verify=True,previous=first)
             self.assertIs(first.payload,second.payload)
             self.assertIs(first.payload,forced.payload)
+            self.assertIs(first,second)
             self.assertEqual(decode.call_count,1)
-            self.assertEqual(verify.call_count,3)
+            self.assertEqual(verify.call_count,2)
             with self.assertRaises(TypeError):first.payload['packs'].append({})
             exported=runtime_snapshot.read(directory,descriptor)
             exported['packs'].clear()
@@ -155,7 +157,7 @@ class RuntimeMembershipTests(unittest.TestCase):
 
     def test_changed_metadata_is_checked_even_with_an_owned_payload(self):
         directory,descriptor=self.snapshot('metadata-change')
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             owned=runtime_snapshot.acquire_runtime(directory,descriptor)
             (directory/'snapshot.json').write_bytes(b'{"packs":[]}\n')
             with self.assertRaisesRegex(ProductionError,'RUNTIME_SNAPSHOT_CORRUPT'):
@@ -184,7 +186,7 @@ class RuntimeMembershipTests(unittest.TestCase):
         inputs={'config/execution-routes.json':c.encoded(manifest),'guide.md':b'Complete synthetic route.\n'}
         for path,raw in inputs.items():c.atomic(skill/path,raw)
         sources=LiveSourceRead(self.root,skill,[{'space':'skill','path':path} for path in inputs])
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             owned=runtime_snapshot.acquire_runtime(directory,descriptor)
             removed=directory/'packs'/fixtures.PACK_ID/'resources/prompt-writing-guide.json'
             removed.unlink()
@@ -209,7 +211,7 @@ class RuntimeMembershipTests(unittest.TestCase):
 
     def test_publication_retires_the_stage_and_target_acquisition_is_independent(self):
         directory,descriptor=self.snapshot('owner-transfer')
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             owned=runtime_snapshot.acquire_runtime(directory,descriptor)
             target=runtime_snapshot.publish(self.root,directory,descriptor,read=owned)
             published=runtime_snapshot.acquire_runtime(target,descriptor)
@@ -221,14 +223,28 @@ class RuntimeMembershipTests(unittest.TestCase):
 
 
 class RuntimeSnapshotTests(unittest.TestCase):
+    _case_template = None
+
+    @staticmethod
+    def build(base):
+        case = fixtures.create(base / 'studio', base / 'runtime')
+        run = workflow.prepare(case['root'], 'task.json')['run']
+        descriptor = workflow.read_run(case['root'], run).prepared['runtime_snapshot']
+        return case, {'run': run, 'descriptor': descriptor}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = fixtures.CaseTemplate.for_class(cls, cls.build)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
-        self.case = fixtures.create(self.base / 'studio', self.base / 'runtime')
+        self.case, metadata = fixtures.CaseTemplate.for_test(
+            self, self.base, self.build, self._case_template)
         self.root = self.case['root']
-        self.run = workflow.prepare(self.root, 'task.json')['run']
-        self.descriptor = workflow.load_run(self.root, self.run)[1]['runtime_snapshot']
+        self.run = metadata['run']
+        self.descriptor = metadata['descriptor']
         self.models = self.case['pack'] / 'records/models.json'
 
     def diagnostics(self, run: str | None = None):
@@ -255,7 +271,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.addCleanup(lambda: operation.closed or operation.finish(0))
         return operation, token
 
-    def test_explicit_fixed_acquisitions_check_every_member_inside_an_operation(self):
+    def test_operation_keeps_fixed_bytes_until_forced_acquisition(self):
         directory = runtime_snapshot.path(self.root, self.descriptor)
         payload = runtime_snapshot.read(directory, self.descriptor)
         expected = sum(len(pack['files']) for pack in payload['packs'])
@@ -270,14 +286,14 @@ class RuntimeSnapshotTests(unittest.TestCase):
             try:
                 runtime_snapshot.read(directory, self.descriptor)
                 runtime_snapshot.read(directory, self.descriptor)
-                self.assertEqual(len(calls), expected * 2)
+                self.assertEqual(len(calls), expected)
                 runtime_snapshot.read(directory, self.descriptor, force_verify=True)
-                self.assertEqual(len(calls), expected * 3)
+                self.assertEqual(len(calls), expected * 2)
             finally:
                 operation.finish(0)
                 operations._CURRENT.reset(token)
 
-    def test_public_call_scope_does_not_replace_a_new_fixed_acquisition(self):
+    def test_each_public_call_acquires_fixed_bytes_once_and_force_replaces_them(self):
         directory = runtime_snapshot.path(self.root, self.descriptor)
         payload = runtime_snapshot.read(directory, self.descriptor)
         expected = sum(len(pack['files']) for pack in payload['packs'])
@@ -291,21 +307,21 @@ class RuntimeSnapshotTests(unittest.TestCase):
             with patch.object(runtime_snapshot, '_verify_fixed_file', side_effect=counted):
                 runtime_snapshot.read(directory, self.descriptor)
                 self.assertEqual(len(calls), expected)
-                with runtime_snapshot.public_call():
+                with read_context.public_call():
                     runtime_snapshot.read(directory, self.descriptor)
                     runtime_snapshot.read(directory, self.descriptor)
-                    self.assertEqual(len(calls), expected * 3)
+                    self.assertEqual(len(calls), expected * 2)
                     runtime_snapshot.read(directory, self.descriptor, force_verify=True)
-                    self.assertEqual(len(calls), expected * 4)
+                    self.assertEqual(len(calls), expected * 3)
                 runtime_snapshot.read(directory, self.descriptor)
-                self.assertEqual(len(calls), expected * 5)
+                self.assertEqual(len(calls), expected * 4)
         finally:
             operations._CURRENT.reset(token)
 
     def test_fixed_runtime_pack_file_changed_within_a_call_is_refused_when_forced(self):
         directory = runtime_snapshot.path(self.root, self.descriptor)
         pinned = directory / 'packs' / fixtures.PACK_ID / 'records/models.json'
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             runtime_snapshot.read(directory, self.descriptor)
             pinned.write_bytes(pinned.read_bytes() + b'\n')
             with self.assertRaises(ProductionError) as caught:
@@ -316,6 +332,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         with self.assertRaises(ProductionError):
             runtime_snapshot.read(directory, self.descriptor)
 
+    @fixtures.cold_case
     def test_prior_runtime_metadata_preserves_current_acquisition_and_failure_recovery(self):
         first = workflow.read_current(self.root, self.run)
         owned = first.runtime
@@ -374,7 +391,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         stored = next(e['record'] for e in payload['entries'] if e['record'].get('id') == fixtures.MODEL_ID)
         def model():
             return next(entry for entry in runtime.load_entries() if entry.record.get('id') == fixtures.MODEL_ID)
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             with runtime_snapshot.using(directory, self.descriptor):
                 first = runtime.load_pack_catalog()
                 found = model()
@@ -396,7 +413,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
 
     def test_run_retains_the_runtime_it_used_and_status_needs_no_catalogue(self):
         directory=runtime_snapshot.path(self.root,self.descriptor)
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             owned=runtime_snapshot.acquire_runtime(directory,self.descriptor)
             with patch.object(runtime_snapshot,'catalogue',side_effect=AssertionError('status built a catalogue')):
                 report=workflow.status(self.root,self.run)
@@ -425,8 +442,9 @@ class RuntimeSnapshotTests(unittest.TestCase):
             self.assertTrue(owned.payload['entries'])
             pack,relative=next(iter(declared-required))
             (directory/'packs'/pack/relative).write_bytes(b'Changed archived member outside the used binding.')
+            self.assertIs(runtime_snapshot.acquire_runtime(directory,self.descriptor),forced)
             with self.assertRaisesRegex(ProductionError,'RUNTIME_SNAPSHOT_CORRUPT'):
-                runtime_snapshot.acquire_runtime(directory,self.descriptor)
+                runtime_snapshot.acquire_runtime(directory,self.descriptor,force_verify=True)
 
     def test_run_binds_the_model_service_and_guides_it_used(self):
         binding = self.descriptor['binding']
@@ -443,6 +461,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertNotIn('warnings', payload)
         self.assertEqual(self.codes(), [])
 
+    @fixtures.cold_case
     def test_capture_preserves_full_edition_and_owned_evidence_without_a_file_roundtrip(self):
         values={'resources/selected-schema.json':{'schema':{'type':'object'}},
                 'resources/selected-policy.json':{'basis':'resources/selected-basis.txt'},
@@ -483,6 +502,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
                 reading_resources={})
         self.assertFalse(destination.exists())
 
+    @fixtures.cold_case
     def test_live_edit_of_a_used_record_changes_nothing_fixed(self):
         bound = self.descriptor['binding']['records'][0]['sha256']
         self.models.write_bytes(self.models.read_bytes().replace(b'Authored synthetic prose.', b'Edited live prose.'))
@@ -507,6 +527,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertTrue(result['execution_completed'])
         self.assertEqual(c.sha256_file(fixed), bound)
 
+    @fixtures.cold_case
     def test_removed_record_and_vanished_pack_are_not_found(self):
         document = c.load(self.models)
         document['records'][0]['id'] = 'cpb-synthetic-renamed'
@@ -520,6 +541,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertNotIn('PINNED_RESOURCE_MISSING', [code for code, _ in codes])
         self.assertEqual(self.diagnostics()[0]['pack'], fixtures.PACK_ID)
 
+    @fixtures.cold_case
     def test_release_change_is_reported_on_its_own(self):
         manifest = c.load(self.case['pack'] / 'pack.json')
         manifest['release'] = '2026.09.25.1'
@@ -529,6 +551,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertEqual((row['code'], row['expected'], row['actual']),
                          ('PACK_RELEASE_MISMATCH', '2026.09.24.1', '2026.09.25.1'))
 
+    @fixtures.cold_case
     def test_variant_compiles_against_the_current_packs_and_is_told_what_differs(self):
         services = self.case['pack'] / 'resources/services.json'
         document = c.load(services)
@@ -545,6 +568,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertEqual(bound['sha256'], c.sha256_file(services))
         self.assertEqual(self.codes(result['run']), [])
 
+    @fixtures.cold_case
     def test_disabled_pack_cannot_compile_a_variant_and_leaves_the_prepared_run_usable(self):
         pack_manager.disable_pack(self.case['settings'], fixtures.PACK_ID)
         self.assertEqual(self.codes(), [('PACK_NOT_ENABLED', 'error')])
@@ -560,6 +584,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         result = execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
         self.assertTrue(result['execution_completed'])
 
+    @fixtures.cold_case
     def test_a_resource_is_fixed_as_the_file_of_the_pack_that_outranks(self):
         directory = runtime_snapshot.path(self.root, self.descriptor)
         payload = runtime_snapshot.read(directory, self.descriptor)
@@ -576,6 +601,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertEqual((row['code'], row['severity'], row['pack'], row['resource']),
                          ('PACK_CONTENT_MISMATCH', 'error', fixtures.PACK_ID, 'resources/services.json'))
 
+    @fixtures.cold_case
     def test_newly_enabled_pack_is_an_error_only_when_it_declares_a_used_record(self):
         extra = self.base / 'runtime' / 'packs' / 'extra'
         shutil.copytree(MINIMAL_PACK, extra)
@@ -594,6 +620,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
                           ('PACK_SELECTION_CHANGED', rival_id, None, ['service-profiles'])])
         self.assertEqual([row['actions'][0]['operation'] for row in errors], ['disable-pack', 'disable-pack'])
 
+    @fixtures.cold_case
     def test_newly_enabled_pack_binding_a_used_resource_is_an_error(self):
         extra = self.base / 'runtime' / 'packs' / 'extra'
         shutil.copytree(MINIMAL_PACK, extra)
@@ -609,6 +636,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
                          ('PACK_SELECTION_CHANGED', 'error', ident, ['service-profiles'], [self.run]))
         self.assertEqual(row['actions'][0]['operation'], 'disable-pack')
 
+    @fixtures.cold_case
     def test_existing_enabled_pack_cannot_redirect_a_used_resource(self):
         extra=self.base/'runtime/packs/extra'
         shutil.copytree(MINIMAL_PACK,extra)
@@ -626,6 +654,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         self.assertEqual([(row['pack'],row['resource']) for row in changed],[(ident,['service-profiles'])])
         self.assertEqual(changed[0]['actual'],{'pack':ident,'path':'resources/services.json'})
 
+    @fixtures.cold_case
     def test_current_selection_ignores_changes_to_unused_resource_names(self):
         extra=self.base/'runtime/packs/extra'
         shutil.copytree(MINIMAL_PACK,extra)
@@ -638,6 +667,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         fixtures.write(extra/'resources/notes.txt','Only an unused authored resource changed.\n')
         self.assertEqual(self.codes(run),[])
 
+    @fixtures.cold_case
     def test_pack_order_is_an_explicit_fixed_selection_contract(self):
         payload=runtime_snapshot.read(runtime_snapshot.path(self.root,self.descriptor),self.descriptor)
         original=[fixtures.PACK_ID,COMMONS]
@@ -651,6 +681,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
             [('PACK_SELECTION_CHANGED','error',original,changed)])
         self.assertIn('retarget',[action['operation'] for action in rows[0]['actions']])
 
+    @fixtures.cold_case
     def test_equal_unordered_used_resources_keep_the_existing_selected_source(self):
         extra=self.base/'runtime/packs/extra'
         shutil.copytree(MINIMAL_PACK,extra)
@@ -679,6 +710,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
             self.diagnostics()
         self.assertEqual(caught.exception.diagnostic.code, 'RUNTIME_SNAPSHOT_CORRUPT')
 
+    @fixtures.cold_case
     def test_unlocked_pack_being_edited_still_prepares(self):
         development = self.base / 'runtime' / 'packs' / 'development'
         shutil.copytree(MINIMAL_PACK, development)
@@ -698,6 +730,7 @@ class RuntimeSnapshotTests(unittest.TestCase):
         fixtures.write(record, document)
         self.assertEqual(self.codes(run), [])
 
+    @fixtures.cold_case
     def test_warm_preparation_reuses_stored_content_by_stage_records(self):
         with patch.dict(os.environ, {'CPB_HOME': str(self.base / 'home')}):
             def prepared(name):
@@ -825,7 +858,7 @@ class ForcedReadBoundaryTests(unittest.TestCase):
             state_file = root / 'synthetic-pack-state.json'
             state_file.write_bytes(b'{}')
             descriptor = {'sha256': 'e' * 64, 'binding': {}, 'settings': {}}
-            with runtime_snapshot.public_call(), patch.object(runtime_snapshot, 'acquire_runtime', return_value=SimpleNamespace(payload={})), \
+            with read_context.public_call(), patch.object(runtime_snapshot, 'acquire_runtime', return_value=SimpleNamespace(payload={})), \
                  patch.object(runtime_snapshot, 'settings_from', return_value=SimpleNamespace(state_file=state_file)), \
                  patch.object(pack_manager, 'pack_cli_command', return_value='synthetic command'):
                 with patch.object(runtime_snapshot, '_compare', return_value=[]):
@@ -847,7 +880,7 @@ class ForcedReadBoundaryTests(unittest.TestCase):
                         'task': {'route': 'synthetic', 'features': [], 'execution': 'authored'},
                         'dependencies': [{'space': 'studio', 'path': source.name, 'sha256': c.sha256_file(source)}]}
             loaded = RunSnapshot(root, prepared, {}, [])
-            with runtime_snapshot.public_call(), patch.object(workflow, 'read_run', return_value=loaded), \
+            with read_context.public_call(), patch.object(workflow, 'read_run', return_value=loaded), \
                  patch.object(route_reading, 'require_route_reading'):
                 workflow.assert_current(root, 'synthetic-run')
                 self.assertEqual(workflow.freshness(root, 'synthetic-run'), ([], []))
@@ -882,8 +915,9 @@ class ForcedReadBoundaryTests(unittest.TestCase):
             write_manifest(directory, artifacts)
             store.register_run(root, run, prepared, directory)
             reader = RunReader(root, lambda *args: None,
-                               lambda run, prepared, *args: ReplayState(prepared, run))
-            with runtime_snapshot.public_call():
+                               lambda run, prepared, *args: ReplayState(prepared, run),
+                               workflow._validate_run_append)
+            with read_context.public_call():
                 self.assertEqual(reader.read(run).prepared, prepared)
                 # A separate connection has no access to the caller's cache,
                 # just as a different process cannot invalidate it directly.
@@ -905,13 +939,13 @@ class TransactionScopeTests(unittest.TestCase):
             def open_scope(index):
                 root = Path(temp) / str(index)
                 with store.transaction(root) as connection:
-                    scope = runtime_snapshot.check_scope(root)
+                    scope = read_context.check_scope(root)
                     scope['owner'] = index
                     start.wait(timeout=20)
-                    self.assertIs(runtime_snapshot.check_scope(root), scope)
+                    self.assertIs(read_context.check_scope(root), scope)
                     self.assertEqual(scope['owner'], index)
-                    self.assertEqual(set(runtime_snapshot._TRANSACTIONS.get()), {id(connection)})
-                self.assertEqual(runtime_snapshot._TRANSACTIONS.get(), {})
+                    self.assertEqual(set(read_context._TRANSACTIONS.get()), {id(connection)})
+                self.assertEqual(read_context._TRANSACTIONS.get(), {})
                 return scope
             with concurrent.futures.ThreadPoolExecutor(max_workers=count) as pool:
                 scopes = list(pool.map(open_scope, range(count)))

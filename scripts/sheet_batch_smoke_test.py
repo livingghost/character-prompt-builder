@@ -119,7 +119,7 @@ class BatchTests(unittest.TestCase):
         fixtures.write(self.root/'panel-fill-requests.json',self.manifest)
         (self.root/'batch.json').unlink();batch.initialize(self.root,'batch-plan.json','batch.json')
         run=self.prepare()
-        import production_workflow as workflow
+        import production_operations as workflow
         loaded=workflow.read_run(self.root,run)
         actual=loaded.artifacts['package.json']['render_contract']['parameters']
         self.assertEqual((actual['width'],actual['height']),(32,32))
@@ -128,12 +128,15 @@ class BatchTests(unittest.TestCase):
 
     def reference_stage(self) -> dict:
         """A second-stage panel whose request uploads the accepted anchor, prepared and awaiting approval."""
-        from sheet_artifacts_smoke_test import accepted
+        from sheet_artifacts_smoke_test import make_artifact, decision
+        anchor = make_artifact(self.sheet, marker='source', size=(32, 32))
+        fills.register_candidates(self.sheet, [('canon.primary', anchor)])
         spec = c.load(self.root / 'spec.json')
         spec['render_intent']['execution_mode'] = 'reference-guided'
         fixtures.write(self.root / 'spec.json', spec)
         task = c.load(self.root / 'task.json')
         task['recording']['slot'] = 'canon.side'
+        self.side_reference_prompt(task, anchor)
         fixtures.write(self.root / 'side-task.json', task)
         self.manifest['requests'].append({'request_id':'canon.side', 'resolved_slot_id':'canon.side',
             'result_file':'side.png','target':{'generation_w':32,'generation_h':32},
@@ -143,10 +146,25 @@ class BatchTests(unittest.TestCase):
         fixtures.write(self.root / 'panel-fill-requests.json', self.manifest)
         fixtures.write(self.root / 'batch-plan.json', self.plan)
         (self.root / 'batch.json').unlink(); batch.initialize(self.root, 'batch-plan.json', 'batch.json')
-        accepted(self.sheet, size=(32,32))
+        fills.adopt(self.sheet, decision(self.sheet, 'canon.primary', anchor), evidence_root=self.sheet.parent)
         entry = batch.advance(self.root, 'batch.json', grant='fixture-grant')['panels']['canon.side']
         self.assertEqual(entry['status'], 'approval-required', entry)
         return entry
+
+    def side_reference_prompt(self, task, anchor):
+        """Author the known candidate's scope before the batch resolves its later acceptance."""
+        from generation_references import prepare_references
+        from smoke_fixtures import fixture_reference_prompt
+        from studio_reference_fixtures import reference_retrieval
+        references = prepare_references([{'role': 'identity', 'source': {
+            'kind': 'supplied-file', 'reference_id': anchor['artifact_id'],
+            'resolved_path': str(fills._file(self.sheet.parent, anchor['image']['path']))}}],
+            model=fixtures.MODEL_ID, output_dir=self.root / 'side-reference-scope', max_side=32)
+        prompt = fixture_reference_prompt(fixtures.PROMPT, references)
+        fixtures.write(self.root / 'side-prompt.txt', prompt)
+        fixtures.write(self.root / 'side-retrieval.json', reference_retrieval(self.root, task, prompt, references))
+        task['delivery']['path'] = 'side-prompt.txt'
+        task['generation']['retrieval_record'] = 'side-retrieval.json'
 
     def test_unknown_upload_blocks_the_panel_with_its_diagnostic(self):
         entry = self.reference_stage()
@@ -166,12 +184,15 @@ class BatchTests(unittest.TestCase):
                          second['panels']['canon.side']['diagnostic'])
 
     def test_reference_stage_pins_one_accepted_anchor_and_copies_companion(self):
-        from sheet_artifacts_smoke_test import accepted
+        from sheet_artifacts_smoke_test import make_artifact, decision
+        anchor = make_artifact(self.sheet, marker='source', size=(32, 32))
+        fills.register_candidates(self.sheet, [('canon.primary', anchor)])
         spec = c.load(self.root / 'spec.json')
         spec['render_intent']['execution_mode'] = 'reference-guided'
         fixtures.write(self.root / 'spec.json', spec)
         task = c.load(self.root / 'task.json')
         task['recording']['slot'] = 'canon.side'
+        self.side_reference_prompt(task, anchor)
         fixtures.write(self.root / 'side-task.json', task)
         self.manifest['requests'].append({'request_id':'canon.side', 'resolved_slot_id':'canon.side',
             'result_file':'side.png','target':{'generation_w':32,'generation_h':32},
@@ -183,21 +204,21 @@ class BatchTests(unittest.TestCase):
         (self.root / 'batch.json').unlink(); batch.initialize(self.root, 'batch-plan.json', 'batch.json')
         blocked = batch.advance(self.root, 'batch.json', grant='fixture-grant')['panels']['canon.side']
         self.assertEqual(blocked['status'], 'blocked')
-        anchor = accepted(self.sheet, size=(32,32))
+        fills.adopt(self.sheet, decision(self.sheet, 'canon.primary', anchor), evidence_root=self.sheet.parent)
         entry = batch.advance(self.root, 'batch.json', grant='fixture-grant')['panels']['canon.side']
         self.assertEqual(entry['status'], 'approval-required', entry)
         self.assertEqual(entry['selected_references'][0]['artifact'], anchor)
         approved = fixtures.fill_decisions(self.root, entry['run'], 'side-approved.json')
         result = batch.advance(self.root, 'batch.json', decisions={'canon.side':approved})
         self.assertTrue(result['ok'], result)
-        from verify_generation_payload import verify
+        from generation_payload_validation import verify
         package_path = self.root / result['panels']['canon.side']['results'] / 'side.package.json'
         package = c.load(package_path)
         self.assertEqual(len(package['prepared_reference_set']['selected_references']), 1)
-        from build_generation_payload import validate_generation_package_carrier_paths
+        from generation_payload_builder import validate_generation_package_carrier_paths
         companion = validate_generation_package_carrier_paths(package['prepared_reference_set'], package_root=package_path.parent)
         self.assertTrue((package_path.parent / companion).is_dir())
-        from production_workflow import load_run
+        from production_operations import load_run
         directory, prepared, _, _ = load_run(self.root, entry['run'])
         import runtime_snapshot
         with runtime_snapshot.using(runtime_snapshot.path(self.root,prepared['runtime_snapshot']),prepared['runtime_snapshot']):

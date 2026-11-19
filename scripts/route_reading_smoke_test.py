@@ -252,16 +252,17 @@ class ReadingTests(unittest.TestCase):
 
     def test_each_operation_delivers_its_complete_contract(self):
         required = {
-            ('author', 'authored'): {'references/runtime/production-authoring.md', 'references/runtime/production-authored-storage.md',
+            ('author', 'authored'): {'references/runtime/authoring-work.md', 'references/runtime/production-authoring.md', 'references/runtime/production-authored-storage.md',
                        'references/runtime/production-direction.md'},
-            ('prepare', 'dispatcher'): {'references/runtime/production-preparation.md', 'references/runtime/production-diagnostic-navigation.md'},
-            ('prepare', 'external'): {'references/runtime/production-image-inputs.md', 'references/runtime/production-external-inputs.md'},
+            ('save', 'authored'): {'references/runtime/authoring-work.md', 'references/runtime/production-authored-storage.md'},
+            ('prepare', 'dispatcher'): {'references/runtime/authoring-work.md', 'references/runtime/production-preparation.md', 'references/runtime/production-diagnostic-navigation.md'},
+            ('prepare', 'external'): {'references/runtime/authoring-work.md', 'references/runtime/production-image-inputs.md', 'references/runtime/production-external-inputs.md'},
             ('execute', 'dispatcher'): {'references/runtime/production-dispatch.md', 'references/runtime/production-permissions.md',
                                        'references/runtime/production-request-execution.md', 'references/runtime/production-recovery.md'},
             ('execute', 'external'): {'references/runtime/production-external-execution.md', 'references/runtime/production-permissions.md',
                                      'references/runtime/production-request-execution.md', 'references/runtime/production-recovery.md'},
-            ('review', 'external'): {'references/runtime/production-review.md'},
-            ('review', 'authored'): {'references/runtime/production-authored-storage.md'},
+            ('review', 'external'): {'references/runtime/authoring-work.md', 'references/runtime/production-review.md'},
+            ('review', 'authored'): {'references/runtime/authoring-work.md', 'references/runtime/production-authored-storage.md'},
             ('adopt', 'dispatcher'): {'references/runtime/production-adoption.md', 'references/runtime/production-permissions.md'},
         }
         for (operation, execution), names in required.items():
@@ -333,7 +334,7 @@ class ReadingTests(unittest.TestCase):
         return path, record
 
     def exercise_cli_paged_actions(self, *, explicit):
-        import studio as studio_runtime
+        import studio_workspace as studio_runtime
 
         studio = self.root / "Studio with spaces and an apostrophe's"
         studio_runtime.init(studio, 'paged-reading', 'Paged reading fixture')
@@ -540,24 +541,27 @@ class ReadingTests(unittest.TestCase):
             r.require_route_reading(universal, root=self.root, ledgers=[self.ledger], dialect=None)
             with self.assertRaisesRegex(ValueError, 'read the current model'):
                 r.require_route_reading(universal, root=self.root, ledgers=[self.ledger], dialect='family-a')
-    def read_command_to_completion(self,args,parser):
+    def read_command_to_completion(self,args,parser,*,bodies=None):
         result=r.read_command(args,parser)
+        if bodies is not None:bodies.extend(result['body'])
         while result['reading'] is None:
             args=parser.parse_args((result['actions']['continue'] or result['actions']['all'])['argv'][3:])
             result=r.read_command(args,parser)
+            if bodies is not None:bodies.extend(result['body'])
         return result
     def test_read_command_without_a_target_selects_neutral_guidance(self):
         import contextlib
         catalog,self.guide=self.family_catalog()
-        out=io.StringIO()
+        out=io.StringIO();bodies=[]
         with catalog,patch.dict(os.environ),contextlib.redirect_stdout(out):
             os.environ.pop('CPB_READS_LEDGER',None)
-            result=self.read_command_to_completion(*self.read_args('generation'))
+            result=self.read_command_to_completion(*self.read_args('generation'),bodies=bodies)
         draft=c.load(self.root/result['reading']['record'])
         self.assertEqual({x['dialect'] for x in draft['resources'].values()},{None})
-        self.assertIn(self.guide['sections'][0]['rules'][0],out.getvalue())
+        delivered=''.join(segment['text'] for segment in bodies)
+        self.assertIn(self.guide['sections'][0]['rules'][0],delivered)
         for section in self.guide['sections'][1:]:
-            self.assertNotIn(section['rules'][0],out.getvalue())
+            self.assertNotIn(section['rules'][0],delivered)
     def test_paged_family_reading_issues_its_family(self):
         catalog,self.guide=self.family_catalog()
         with catalog:
@@ -569,7 +573,9 @@ class ReadingTests(unittest.TestCase):
         self.assertNotIn(self.guide['sections'][2]['rules'][0],stream.getvalue())
         self.assertEqual({x['dialect'] for x in result['issued']['row']['resources'].values()},{'family-a'})
     def test_read_command_takes_the_family_from_the_model_record(self):
-        import argparse,contextlib,prepare_generation_references
+        import argparse
+        import contextlib
+        import generation_references as prepare_generation_references
         catalog,self.guide=self.family_catalog()
         parser=argparse.ArgumentParser();r.add_read_arguments(parser)
         state=self.root/'runtime'
@@ -691,7 +697,7 @@ class ReadingTests(unittest.TestCase):
         self.assertFalse(self.ledger.exists())
 
     def test_studio_status_shares_partial_reading_and_fresh_context_actions(self):
-        import studio
+        import studio_workspace as studio
         import work_ledger
         import production_authoring_state
         studio_root = self.root / 'studio'
@@ -735,7 +741,7 @@ class ReadingTests(unittest.TestCase):
         row=next(x for x in r.ledger_rows(self.root/'work/reads.jsonl') if x['key_sha256']==c.digest(draft['reading_key'].encode()))
         self.assertEqual(row['resources'],draft['resources'])
     def test_an_unknown_model_names_the_models_and_the_prompt_families(self):
-        import prepare_generation_references
+        import generation_references as prepare_generation_references
         catalog,self.guide=self.family_catalog()
         models=[RuntimePackEntry(kind='model',category=None,record={'id':name},source_pack='synthetic-pack',
                                  source_root=self.root/'pack',source_file='models/synthetic.json')
@@ -1192,7 +1198,9 @@ class ReadingTests(unittest.TestCase):
                                      ledgers=[self.ledger],dialect='family-b')
 
     def test_out_of_order_section_recovery_preserves_selected_continuation_and_work(self):
-        import production_authoring_state,studio,work_ledger
+        import production_authoring_state
+        import studio_workspace as studio
+        import work_ledger
         studio_root=self.root.resolve()/'studio'
         studio.init(studio_root,'section-continuation','Section continuation')
         work_ledger.begin(studio_root,'Keep the authored choices and continue the source reading.',['Compose'])

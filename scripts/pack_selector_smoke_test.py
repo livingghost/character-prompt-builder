@@ -144,7 +144,7 @@ class PackSelectorTests(unittest.TestCase):
 
     def test_all_suboperations_use_one_resolved_runtime(self) -> None:
         from unittest.mock import patch
-        import pack_cli
+        import pack_commands as pack_cli
         original = pack_cli.resolve_pack_runtime
         with patch.object(pack_cli, "resolve_pack_runtime", wraps=original) as resolve:
             code, payload = self.call("validate", "--pack", self.manifest["pack_id"], "--released")
@@ -166,7 +166,7 @@ class PackSelectorTests(unittest.TestCase):
         self.assertEqual(payload['inventory_changes'], {'added': [], 'modified': [], 'removed': []})
 
     def test_release_lock_publishes_the_one_fully_validated_inventory(self) -> None:
-        import pack_cli
+        import pack_commands as pack_cli
         manifest = json.loads((self.pack / 'pack.json').read_text(encoding='utf-8'))
         manifest['release'] = '2026.11.10.1'
         (self.pack / 'pack.json').write_text(json.dumps(manifest), encoding='utf-8')
@@ -234,10 +234,6 @@ class PackSelectorTests(unittest.TestCase):
             for name in ("README.md", "NOTICE.md", "LICENSE"):
                 (pack / name).write_text("top-level document\n", encoding="utf-8", newline="\n")
             self.assertEqual([issue.code for issue in pack_manager.validate_pack(pack).issues if issue.severity == "error"], [])
-            # The process lock file coordinates commands and is neither content nor an error.
-            (pack / ".cpb.lock").write_bytes(b"")
-            self.assertEqual([issue.code for issue in pack_manager.validate_pack(pack).issues if issue.severity == "error"], [])
-            self.assertNotIn(".cpb.lock", {row["path"] for row in write_lock(pack)["files"]})
             (pack / "records").mkdir(exist_ok=True)
             (pack / "records" / "scratch.txt").write_text("not a record\n", encoding="utf-8", newline="\n")
             issues = [issue for issue in pack_manager.validate_pack(pack).issues if issue.code == "undeclared-file"]
@@ -284,7 +280,8 @@ class BrowserCatalogTests(unittest.TestCase):
 
     def setUp(self) -> None:
         import browser_catalog
-        from pack_manager import PackSettings, atomic_write_json
+        from pack_manager import atomic_write_json
+        from runtime_paths import PackSettings
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -300,16 +297,31 @@ class BrowserCatalogTests(unittest.TestCase):
         atomic_write_json(self.settings.state_file, {
             "pack_roots": [], "enabled_packs": [self.pack_id], "disabled_packs": [],
         })
-        self.output = browser_catalog.output_directory(self.settings)
+        self.outputs: dict[str, Path] = {}
+
+    @property
+    def output(self) -> Path:
+        import browser_catalog
+        return self.outputs[browser_catalog.context_identity(self.settings)]
 
     def call(self, *arguments: str, settings=None) -> tuple[int, str]:
         from pack_runtime_cli import PackRuntimeContext
         output = io.StringIO()
         context = PackRuntimeContext(settings or self.settings, ())
-        with mock.patch("pack_cli.resolve_pack_runtime", return_value=context), \
+        with mock.patch('pack_commands.resolve_pack_runtime', return_value=context), \
                 contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
             code = pack_cli_main(list(arguments))
-        return code, output.getvalue()
+        text = output.getvalue()
+        try:
+            value = json.loads(text)
+            index = value.get('visual_catalog', {}).get('index')
+        except (ValueError, AttributeError):
+            index = next((line[len('catalog: '):] for line in text.splitlines()
+                          if line.startswith('catalog: ')), None)
+        if index:
+            import browser_catalog
+            self.outputs[browser_catalog.context_identity(settings or self.settings)] = Path(index).parent
+        return code, text
 
     def manifest(self, output: Path | None = None) -> dict:
         return json.loads(((output or self.output) / "catalog-manifest.json").read_text(encoding="utf-8"))
@@ -370,10 +382,11 @@ class BrowserCatalogTests(unittest.TestCase):
         first = browser_catalog.maintain_catalog(self.settings, runtime)
         self.assertTrue(first["ok"], first)
         self.assertTrue(first["rebuilt"])
+        self.outputs[browser_catalog.context_identity(self.settings)] = Path(first['index']).parent
         files = self.manifest()["generated_files"]
         before = {name: ((self.output / name).read_bytes(), (self.output / name).stat().st_mtime_ns)
                   for name in files}
-        with mock.patch.object(browser_catalog, "lock", side_effect=AssertionError("current view acquired a writer lock")):
+        with mock.patch.object(browser_catalog.c, "file_lock", side_effect=AssertionError("current view acquired a writer lock")):
             current = browser_catalog.maintain_catalog(self.settings, runtime)
         self.assertTrue(current["ok"], current)
         self.assertTrue(current["fresh"])
@@ -413,14 +426,14 @@ class BrowserCatalogTests(unittest.TestCase):
         atomic_write_json(second_settings.state_file, json.loads(self.settings.state_file.read_text(encoding="utf-8")))
         code, text = self.call("ready", settings=second_settings)
         self.assertEqual(code, 0, text)
-        second_output = browser_catalog.output_directory(second_settings)
+        second_output = self.outputs[browser_catalog.context_identity(second_settings)]
         self.assertNotEqual(self.output, second_output)
         self.assertEqual(self.manifest()["runtime_projection"]["source_fingerprint"],
                          self.manifest(second_output)["runtime_projection"]["source_fingerprint"])
         alternate_roots = replace(self.settings, roots=(*self.settings.roots, self.root / "additional-root"))
         code, text = self.call("ready", settings=alternate_roots)
         self.assertEqual(code, 0, text)
-        third_output = browser_catalog.output_directory(alternate_roots)
+        third_output = self.outputs[browser_catalog.context_identity(alternate_roots)]
         self.assertEqual(len({self.output, second_output, third_output}), 3)
         self.assertTrue((third_output / "index.html").is_file())
         self.assertEqual(first_mtime, (self.output / "index.html").stat().st_mtime_ns)
@@ -449,7 +462,7 @@ class BrowserCatalogTests(unittest.TestCase):
     def test_lock_publication_preserves_unselected_runtime_and_updates_selected_view(self) -> None:
         from pack_manager import atomic_write_json
         self.settings.state_file.unlink()
-        with mock.patch("pack_cli.refresh_runtime_catalog", side_effect=AssertionError("lock publication selected a runtime")):
+        with mock.patch('pack_commands.refresh_runtime_catalog', side_effect=AssertionError("lock publication selected a runtime")):
             code, text = self.call("build-lock", "--directory", str(self.pack))
         self.assertEqual(code, 0, text)
         self.assertEqual(json.loads(text)["visual_catalog"]["status"], "unselected")
@@ -487,6 +500,50 @@ class BrowserCatalogTests(unittest.TestCase):
         code, text = self.call("cache-status")
         self.assertEqual(code, 0, text)
         self.assertTrue(json.loads(text)["visual_catalog"]["fresh"])
+
+    def test_late_older_generation_cannot_replace_the_current_runtime_view(self) -> None:
+        import browser_catalog
+        from pack_cache import load_runtime_catalog
+        first = load_runtime_catalog(self.settings, quiet=True)
+        old = browser_catalog.maintain_catalog(self.settings, first)
+        self.assertTrue(old['ok'], old)
+        path = self.pack / 'records/lighting.json'
+        value = json.loads(path.read_text(encoding='utf-8'))
+        value['records'][0]['prompt'] = 'a current generation with broad soft light'
+        pack_manager.atomic_write_json(path, value)
+        second = load_runtime_catalog(self.settings, quiet=True)
+        current = browser_catalog.maintain_catalog(self.settings, second)
+        self.assertTrue(current['ok'], current)
+        self.assertNotEqual(old['index'], current['index'])
+        before = Path(current['index']).read_bytes()
+        late = browser_catalog.maintain_catalog(self.settings, first)
+        self.assertTrue(late['ok'], late)
+        status = browser_catalog.catalog_status(self.settings, second.fingerprint)
+        self.assertTrue(status['fresh'], status)
+        self.assertEqual(status['index'], current['index'])
+        self.assertEqual(Path(current['index']).read_bytes(), before)
+
+    def test_generation_repair_preserves_unowned_output_files(self) -> None:
+        import browser_catalog
+        from pack_cache import load_runtime_catalog
+        runtime = load_runtime_catalog(self.settings, quiet=True)
+        output = browser_catalog.output_directory(self.settings, runtime.fingerprint)
+        output.mkdir(parents=True)
+        kept = output / 'authored.txt'
+        kept.write_text('An independently authored document.', encoding='utf-8')
+        result = browser_catalog.maintain_catalog(self.settings, runtime)
+        self.assertFalse(result['ok'], result)
+        self.assertEqual(kept.read_text(encoding='utf-8'), 'An independently authored document.')
+        self.assertFalse((output / 'catalog-manifest.json').exists())
+
+    def test_missing_generation_inventory_is_rebuilt_from_matching_output(self) -> None:
+        code, text = self.call('ready')
+        self.assertEqual(code, 0, text)
+        initial = self.manifest()
+        (self.output / 'catalog-manifest.json').unlink()
+        code, text = self.call('ready')
+        self.assertEqual(code, 0, text)
+        self.assertEqual(self.manifest(), initial)
 
 
 if __name__ == '__main__':

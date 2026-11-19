@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the common editable surface without provider calls or invented consent."""
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 
 import copy
 import json
@@ -22,14 +23,14 @@ class CommonAuthoringTests(unittest.TestCase):
     save_choices = fixtures.InputToolsTests.save_choices
 
     def setUp(self):
-        fixtures.InputToolsTests.setUp(self)
+        fixtures.InputToolsTests.setUp(self, draft=False)
         import work_ledger
         self.work = work_ledger.begin(self.root, 'Synthetic editable authoring.', ['Compose'])
         self.task['task_id'] = self.work['task_id']
         (self.root / 'task.json').write_bytes(c.encoded(self.task))
 
     def editable(self, directory='draft'):
-        result = inputs.draft_inputs(self.root, 'task.json', directory)
+        result = authoring_fixtures.authoring_inputs(self.root, 'task.json', directory)
         choices = c.load(self.root / result['choices_file'])
         choices['reading'] = copy.deepcopy(self.choices['reading'])
         return result, choices
@@ -57,20 +58,24 @@ class CommonAuthoringTests(unittest.TestCase):
             'reason': 'Explicit synthetic direction.'}]
         (self.root / 'task.json').write_bytes(c.encoded(self.task))
         result, choices = self.editable()
-        self.assertEqual(choices['authoring']['sources']['owner-direction']['content'], text)
+        import authoring_work
+        basis = c.load(self.root / result['authoring_work']['basis'])
+        self.assertEqual(authoring_work.source_bytes(basis['sources']['owner-direction']).decode('utf-8'), text)
         changed = '# Direction\n\nThe synthetic subject sits by the window.\n'
-        choices['authoring']['sources']['owner-direction']['content'] = changed
+        authoring_fixtures.acquire_application(self.root, result['choices_file'], 'current-direction', changed,
+                                                application='owner-direction')
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
         built = inputs.build_inputs(self.root, None, result['choices_file'], 'built')
         task = c.load(self.root / built['inputs']['production-task']['path'])
-        self.assertEqual((self.root / task['sources'][0]['path']).read_text(encoding='utf-8'), changed)
+        source = next(row for row in task['sources'] if row['id'] == 'current-direction')
+        self.assertEqual((self.root / source['path']).read_text(encoding='utf-8'), changed)
         self.assertEqual((self.root / 'owner-direction.md').read_text(encoding='utf-8'), text)
         self.assertEqual(task['criteria'], self.task['criteria'])
-        self.assertEqual({key: value for key, value in task['sources'][0].items() if key != 'path'},
-                         {key: value for key, value in self.task['sources'][0].items() if key != 'path'})
+        retained = c.load(self.root / result['authoring_work']['basis'])
+        self.assertEqual(authoring_work.source_bytes(retained['sources']['owner-direction']).decode('utf-8'), text)
 
     def test_initial_creation_uses_open_work_identity_and_same_choices_build(self):
-        result = inputs.draft_inputs(self.root, None, 'initial', route='development')
+        result = authoring_fixtures.authoring_inputs(self.root, None, 'initial', route='development')
         choices = c.load(self.root / result['choices_file'])
         self.assertEqual(choices['authoring']['task']['task_id'], self.work['task_id'])
         delivery = self.root / choices['authoring']['delivery']['file']
@@ -150,7 +155,7 @@ class CommonAuthoringTests(unittest.TestCase):
 class InitialCLITests(unittest.TestCase):
     def setUp(self):
         import production_fixtures
-        import studio
+        import studio_workspace as studio
         import work_ledger
         self.temporary = tempfile.TemporaryDirectory(prefix='cpb-initial-authoring-')
         self.addCleanup(self.temporary.cleanup)
@@ -162,7 +167,7 @@ class InitialCLITests(unittest.TestCase):
         self.cli = [sys.executable, str(inputs.ROOT / 'scripts/production_workflow.py')]
 
     def call(self, arguments, code=0):
-        result = subprocess.run(self.cli + arguments, cwd=self.base, env=self.env,
+        result = subprocess.run(self.cli + authoring_fixtures.authoring_arguments(arguments), cwd=self.base, env=self.env,
             capture_output=True, text=True, encoding='utf-8', timeout=60)
         self.assertEqual(result.returncode, code, result.stdout + result.stderr)
         return json.loads(result.stdout)
@@ -181,7 +186,7 @@ class InitialCLITests(unittest.TestCase):
                 self.assertTrue((self.root / draft['choices_file']).is_file())
                 self.assertFalse(draft['external_effect'])
 
-    def test_initial_flags_cannot_silently_replace_an_existing_task(self):
+    def test_selected_scope_is_applied_to_the_current_candidate_and_preserves_its_baseline(self):
         draft = self.call(['draft-inputs', '--root', str(self.root), '--route', 'development', '--out-dir', 'initial'])
         context = c.load(self.root / draft['context_file'])
         task = context['task_content']
@@ -190,13 +195,15 @@ class InitialCLITests(unittest.TestCase):
         (self.root / 'task.json').write_bytes(c.encoded(task))
         for flag, value in (('--artifact', 'image'), ('--execution', 'external')):
             with self.subTest(flag=flag):
-                refused = self.call(['draft-inputs', '--root', str(self.root), '--task', 'task.json',
-                    '--out-dir', 'rejected-' + flag[2:], flag, value], code=2)
-                diagnostic = refused['diagnostics'][0]
-                self.assertEqual(diagnostic['code'], 'INPUT_CONSISTENCY_ERROR')
-                self.assertIn('authoring.task.' + flag[2:], diagnostic['requested_fields'])
-                self.assertEqual(diagnostic['next_actions'][0]['operation'], 'draft-inputs')
-                self.assertFalse((self.root / ('rejected-' + flag[2:])).exists())
+                revised = self.call(['draft-inputs', '--root', str(self.root), '--task', 'task.json',
+                    '--out-dir', 'selected-' + flag[2:], '--operation', 'amend', flag, value])
+                key = flag[2:]
+                self.assertEqual(revised['choices']['authoring']['task'][key], value)
+                basis = c.load(self.root / revised['authoring_work']['basis'])
+                self.assertEqual(basis['baseline']['authoring']['task'][key], task[key])
+                self.assertEqual(basis['baseline']['authoring']['delivery']['content'],
+                                 'Synthetic existing delivery.')
+                self.assertEqual(c.load(self.root / 'task.json'), task)
 
     def test_local_upscale_draft_imports_actual_bytes_and_initializes_only_requested_content(self):
         from PIL import Image
@@ -239,8 +246,8 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.addCleanup(runtime.configure_pack_runtime, None)
 
     def test_standalone_document_edits_change_new_inputs_and_preserve_captured_revisions(self):
-        import production_workflow as workflow
-        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        import production_operations as workflow
+        drafted = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'editor')
         choices = drafted['choices']
         for selected in choices['authoring']['documents'].values():
             self.assertEqual(set(selected), {'file'})
@@ -265,14 +272,14 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.assertEqual(revised.prepared['authoring']['choices_ref']['files'][parameters_path],
                          c.digest(current_raw))
         self.assertEqual(workflow.read_run(self.root, first['run']).artifacts['request-contract.json']['request']['steps'], 20)
-        reopened = inputs.draft_inputs(self.root, None, 'reopened', from_run=first['run'])
+        reopened = authoring_fixtures.authoring_inputs(self.root, None, 'reopened', from_run=first['run'])
         self.assertEqual(cases.read_document(self.root, reopened['choices'], 'parameters')['steps'], 20)
         self.assertEqual((self.root / parameters_path).read_bytes(), current_raw)
 
     def test_document_repair_names_its_source_contract_and_needs_no_choices_copy(self):
         import production_document_contracts
-        import production_workflow as workflow
-        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        import production_operations as workflow
+        drafted = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'editor')
         choices = drafted['choices']
         cases.write_document(self.root, choices, 'negative_provenance', {'activated_sources': 'invalid'})
         cases.write(self.root / drafted['choices_file'], choices)
@@ -293,7 +300,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.assertTrue(repaired['publishable'], repaired['diagnostics'])
 
     def test_parameter_repair_does_not_direct_an_edit_to_a_blocked_negative_source(self):
-        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        drafted = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'editor')
         choices = drafted['choices']
         cases.write_document(self.root, choices, 'parameters', {'width': 'wide', 'height': 32, 'steps': 20})
         cases.write_document(self.root, choices, 'negative', 'Synthetic exclusion text.')
@@ -316,7 +323,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
 
     def reference_task(self):
         from PIL import Image
-        import prepare_generation_references as references
+        import generation_references as references
         import production_case_fixtures as cases
         selections = []
         for index, color in enumerate(('red', 'blue')):
@@ -342,10 +349,11 @@ class DispatcherAuthoringTests(unittest.TestCase):
 
     def test_reference_removal_prunes_only_unused_url_choices_without_reading_removed_carriers(self):
         original, _ = self.reference_task()
-        draft = inputs.draft_inputs(self.root, 'task.json', 'draft')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         choices = c.load(self.root / draft['choices_file'])
         self.assertEqual(set(choices['authoring']['source_files']),
-            {row['file'] for row in original['upload_sources']})
+            {row['file'] for row in original['upload_sources']} |
+            {row['path'] for row in choices['authoring']['task']['sources']})
         choices['authoring']['references']['additional_references'].pop(0)
         (self.root / original['upload_sources'][0]['file']).unlink()
         (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
@@ -355,7 +363,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.assertEqual(task['upload_sources'], [original['upload_sources'][1]])
         self.assertEqual(task['criteria'], original['criteria'])
         import request_contract
-        from prepare_generation_references import host_reference_transports
+        from generation_references import host_reference_transports
         prepared = c.load(self.root / task['generation']['references'])
         media = [request_contract.media_metadata(Path(row['resolved_path']), role=row['role'])
             for row in host_reference_transports(prepared, package_root=(self.root / task['generation']['references']).parent)]
@@ -365,7 +373,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
 
     def test_retained_url_never_follows_changed_bytes_at_its_selected_source_path(self):
         original, _ = self.reference_task()
-        draft = inputs.draft_inputs(self.root, 'task.json', 'draft')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         path = self.root / original['upload_sources'][0]['file']
         from PIL import Image
         Image.new('RGB', (16, 16), 'green').save(path)
@@ -376,16 +384,19 @@ class DispatcherAuthoringTests(unittest.TestCase):
     def test_common_reference_revision_prepares_one_carrier_with_captured_url_source(self):
         from unittest.mock import patch
         import production_case_fixtures as cases
-        import production_workflow as workflow
+        import production_operations as workflow
         import request_contract
         import transport_synthetic
         original, _ = self.reference_task()
-        draft = inputs.draft_inputs(self.root, 'task.json', 'draft')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         choices = c.load(self.root / draft['choices_file'])
         with cases.edit_document(self.root, choices, 'production_spec') as document:
             document['render_intent']['execution_mode'] = 'reference-guided'
         choices['authoring']['references']['additional_references'].pop(0)
         removed, retained = original['upload_sources']
+        (self.root / choices['authoring']['delivery']['file']).write_text(
+            cases.PROMPT + ' Image {{reference:reference-1:attachment_number}} supplies '
+            '{{reference:reference-1:controls}}.', encoding='utf-8')
         (self.root / removed['file']).unlink()
         (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
         built = inputs.build_inputs(self.root, None, draft['choices_file'], 'built')
@@ -412,14 +423,15 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.assertEqual(len(rendered['media']), 1)
         self.assertEqual(rendered['media'][0]['sha256'], c.digest(raw))
         self.assertEqual(rendered['media'][0]['upload_source'], {'kind': 'url', 'url': retained['url']})
-        self.assertEqual(rendered['request']['prompt'], cases.PROMPT)
+        controls = c.load(directory / 'package.json')['prepared_reference_set']['selected_references'][0]['authority']['controls']
+        self.assertEqual(rendered['request']['prompt'], cases.PROMPT + ' Image 1 supplies ' + ', '.join(controls) + '.')
         self.assertEqual(len(rendered['request']['inputs']['references']), 1)
 
     def test_image_input_follows_reference_edits_from_task_and_saved_run(self):
         from unittest.mock import patch
         from PIL import Image
         import production_case_fixtures as cases
-        import production_workflow as workflow
+        import production_operations as workflow
         import transport_synthetic
         self.enterContext(patch.object(transport_synthetic, 'send',
             side_effect=AssertionError('prepare must not send')))
@@ -428,7 +440,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.enterContext(patch('urllib.request.OpenerDirector.open',
             side_effect=AssertionError('prepare must not fetch URLs')))
         Image.new('RGB', (16, 16), 'blue').save(self.root / 'palette.png')
-        draft = inputs.draft_inputs(self.root, 'task.json', 'image-draft')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'image-draft')
         choices = c.load(self.root / draft['choices_file'])
         self.assertEqual(choices['target'], {'kind': 'catalog', 'model': cases.MODEL_ID, 'service': 'synthetic'})
         zero_reason = copy.deepcopy(choices['authoring']['references']['zero_reference_reason'])
@@ -437,6 +449,9 @@ class DispatcherAuthoringTests(unittest.TestCase):
             'references': [{'id': 'palette', 'role': 'palette', 'file': 'palette.png',
                 'use_for': ['selected color palette'], 'do_not_transfer': ['subject identity', 'pose']}],
             'external_request': None}
+        (self.root / choices['authoring']['delivery']['file']).write_text(
+            cases.PROMPT + ' Image {{reference:palette:attachment_number}} supplies '
+            '{{reference:palette:controls}}.', encoding='utf-8')
         with cases.edit_document(self.root, choices, 'production_spec') as document:
             document['render_intent']['execution_mode'] = 'reference-guided'
         (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
@@ -452,7 +467,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
         self.assertTrue(first_run['ok'], first_run)
         for origin in ('task', 'run'):
             with self.subTest(origin=origin):
-                draft = inputs.draft_inputs(self.root,
+                draft = authoring_fixtures.authoring_inputs(self.root,
                     original_task_path if origin == 'task' else None, origin + '-draft',
                     from_run=first_run['run'] if origin == 'run' else None)
                 choices = c.load(self.root / draft['choices_file'])
@@ -468,12 +483,13 @@ class DispatcherAuthoringTests(unittest.TestCase):
                 updated_run = workflow.prepare(self.root, task_path)
                 self.assertTrue(updated_run['ok'], updated_run)
 
-                removed = inputs.draft_inputs(self.root, task_path if origin == 'task' else None,
+                removed = authoring_fixtures.authoring_inputs(self.root, task_path if origin == 'task' else None,
                     origin + '-removed-draft', from_run=updated_run['run'] if origin == 'run' else None)
                 choices = c.load(self.root / removed['choices_file'])
                 references = choices['authoring']['references']
                 references.update(image_input=None, additional_references=[], reference_selection=None,
                     reference_use_plan=None, source_files={}, zero_reference_reason=zero_reason)
+                (self.root / choices['authoring']['delivery']['file']).write_text(cases.PROMPT, encoding='utf-8')
                 with cases.edit_document(self.root, choices, 'production_spec') as document:
                     document['render_intent']['execution_mode'] = 'text-to-image'
                 self.assertEqual(choices['task_changes'], {})
@@ -499,7 +515,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
                 self.assertEqual((self.root / original_task['image_input']).read_bytes(), original_plan)
 
     def test_prompt_parameters_and_direction_share_one_edit_source(self):
-        result = inputs.draft_inputs(self.root, 'task.json', 'draft')
+        result = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         choices = c.load(self.root / result['choices_file'])
         original = c.load(self.root / 'task.json')
         prompt = 'A flat graphic portrait of one synthetic robot beside a simple bench.'
@@ -521,7 +537,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
         retrieval = c.load(self.root / task['generation']['retrieval_record'])
         self.assertEqual(retrieval['context'], retrieval_context(prompt, new_plot))
         self.assertEqual(cases.read_document(self.root, choices, 'retrieval_record')['elements'], retrieval['elements'])
-        next_draft = inputs.draft_inputs(self.root, built['inputs']['production-task']['path'], 'second-draft')
+        next_draft = authoring_fixtures.authoring_inputs(self.root, built['inputs']['production-task']['path'], 'second-draft')
         self.assertEqual((self.root / next_draft['choices']['authoring']['delivery']['file']).read_text(encoding='utf-8'), prompt)
 
     def test_upscale_reuses_valid_validation_and_builds_edited_request(self):
@@ -530,7 +546,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
         source = cases.upscale_task(self.root)
         original_task = c.load(self.root / source)
         previous = c.load(self.root / original_task['delivery']['path'])['request_validation']
-        result = inputs.draft_inputs(self.root, source, 'upscale/draft')
+        result = authoring_fixtures.authoring_inputs(self.root, source, 'upscale/draft')
         self.assertEqual(result['unresolved'], [])
         choices = c.load(self.root / result['choices_file'])
         self.assertEqual(choices['target'], {'kind': 'catalog', 'model': cases.UPSCALE_MODEL_ID, 'service': 'synthetic'})
@@ -555,14 +571,19 @@ class DispatcherAuthoringTests(unittest.TestCase):
         original = c.load(self.root / source)
         declaration = c.load(self.root / original['delivery']['path'])
         original_image = declaration['source']['path']
-        result = inputs.draft_inputs(self.root, source, 'upscale/selected',
+        result = authoring_fixtures.authoring_inputs(self.root, source, 'upscale/selected',
             source_image=self.root / original_image, scale=4.0,
             purpose='Enlarge the already selected image for this delivery.')
         authoring = result['choices']['authoring']
         self.assertEqual(authoring['upscale']['source'], original_image)
         self.assertIs(type(authoring['upscale']['scale_factor']), int)
         self.assertEqual(authoring['task']['criteria'], original['criteria'])
-        self.assertEqual(authoring['task']['direction'], original['direction'])
+        expected_direction = copy.deepcopy(original['direction'])
+        if result['current_request']['source'] not in expected_direction['basis']:
+            expected_direction['basis'].append(result['current_request']['source'])
+        self.assertEqual(authoring['task']['direction'], expected_direction)
+        request = result['current_request']
+        self.assertEqual((self.root / request['path']).read_text(encoding='utf-8'), request['text'])
         self.assertEqual(authoring['task']['authority'], original['authority'])
         self.assertEqual(result['selected_image']['sha256'], declaration['source']['sha256'])
 
@@ -578,7 +599,7 @@ class DispatcherAuthoringTests(unittest.TestCase):
 class DuplicateDependencyTests(unittest.TestCase):
     def setUp(self):
         import production_fixtures
-        import production_workflow
+        import production_operations as production_workflow
         import work_ledger
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -592,21 +613,27 @@ class DuplicateDependencyTests(unittest.TestCase):
             'criteria': [{'id': 'output', 'text': 'Preserve the declared source.', 'strength': 'hard', 'evidence': 'text'}],
             'world_views': []}
         (self.root / 'delivery.txt').write_bytes(b'Synthetic shared delivery.')
-        production_fixtures.task(self.root, self.task)
+        sources, self.task['sources'] = self.task['sources'], []
+        production_fixtures.task(self.root, self.task, focus='supporting-setting')
         (self.root / 'owner-direction.json').write_bytes((self.root / 'fixture-authority.json').read_bytes())
+        self.task['sources'] = sources
         self.task['authority'] = 'owner-direction.json'
+        production_fixtures.bind_work_basis(self.root, self.task, focus='supporting-setting')
+        next(row for row in self.task['sources'] if row['id'] == 'owner-direction')['path'] = 'owner-direction.json'
         (self.root / 'task.json').write_bytes(c.encoded(self.task))
         self.run = production_workflow.prepare(self.root, 'task.json')['run']
 
     def test_from_run_uses_studio_content_when_authority_shares_the_source_path(self):
-        import production_workflow
+        import production_operations as production_workflow
         _, prepared, _, _ = production_workflow.load_run(self.root, self.run)
         spaces = [row['space'] for row in prepared['dependencies'] if row['path'] == 'owner-direction.json']
         self.assertEqual(spaces, ['evidence', 'studio'])
-        drafted = inputs.draft_inputs(self.root, None, 'draft', from_run=self.run)
-        choices = c.load(self.root / drafted['choices_file'])
-        self.assertEqual(choices['authoring']['sources']['owner-direction']['content'],
-                         c.load(self.root / 'owner-direction.json'))
+        drafted = authoring_fixtures.authoring_inputs(self.root, None, 'draft', from_run=self.run)
+        import authoring_work
+        basis = c.load(self.root / drafted['authoring_work']['basis'])
+        self.assertEqual(authoring_work.source_bytes(basis['sources']['owner-direction']),
+                         (self.root / 'owner-direction.json').read_bytes())
+        self.assertEqual(basis['applications']['owner-direction'], {'source': 'owner-direction', 'pointer': ''})
         saved = inputs._source_run(self.root, self.run)
         self.assertEqual(inputs._saved_delivery(self.root, saved, prepared['task']), b'Synthetic shared delivery.')
         built = inputs.build_inputs(self.root, None, drafted['choices_file'], 'built')

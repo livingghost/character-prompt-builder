@@ -274,7 +274,7 @@ def acquire_target_choices(choices:dict,target,reader:InputEvidence):
     Explicit evidence and execution policies keep their authored scope; a
     target change never relabels those sources or invents replacement policy.
     """
-    from build_generation_payload import ResolvedTarget
+    from generation_payload_builder import ResolvedTarget
     if not isinstance(target,ResolvedTarget):raise TypeError('validation requires an acquired target')
     c.exact(choices,CHOICE_FIELDS,'validation input choices')
     if choices['mode'] not in MODES:raise ValueError('select a request validation mode')

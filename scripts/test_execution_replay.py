@@ -8,6 +8,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 import copy
+import contextvars
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -18,6 +19,7 @@ from unittest.mock import patch
 import execution_contract as c
 import execution_lifecycle as lifecycle
 import production_store as store
+import read_context
 from production_diagnostics import ProductionError
 
 
@@ -333,6 +335,78 @@ class ReplayTests(unittest.TestCase):
 
 
 class StoredHistoryTests(unittest.TestCase):
+    def test_appended_values_match_their_json_form_before_and_after_recovery(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = {'outputs': ({'positions': (1, 2)},)}
+            expected = {'outputs': [{'positions': [1, 2]}]}
+            with read_context.public_call():
+                row = store.append(root, RUN, None, 'synthetic-output', source)
+                owned = store.read_history(root, RUN)
+                self.assertEqual(row['data'], expected)
+                self.assertEqual(owned.rows[0]['data'], expected)
+                with self.assertRaises(TypeError):
+                    owned.rows[0]['data']['outputs'][0]['positions'].append(3)
+                with self.assertRaisesRegex(TypeError, 'JSON object names must be strings'):
+                    store.append(root, RUN, None, 'synthetic-invalid', {1: 'ambiguous name'})
+                self.assertEqual(len(store.read_history(root, RUN).rows), 1)
+            recovered = store.read_history(root, RUN)
+            self.assertEqual(recovered.rows, owned.rows)
+            self.assertEqual(recovered.rows[0]['data'], expected)
+
+    def test_failed_schema_admission_releases_a_reused_writer_lock(self):
+        with tempfile.TemporaryDirectory() as temporary, read_context.public_call():
+            root = Path(temporary)
+            with store.transaction(root) as retained:
+                store.append(root, RUN, None, 'synthetic-first', {})
+            with closing(sqlite3.connect(store.database(root), timeout=0.1, isolation_level=None)) as another:
+                another.execute('DROP TABLE authority_states')
+                with self.assertRaisesRegex(sqlite3.DatabaseError, 'schema is incomplete'):
+                    with store.transaction(root):
+                        self.fail('An incomplete schema must not admit a writer')
+                self.assertFalse(retained.in_transaction)
+                another.execute('BEGIN IMMEDIATE')
+                another.rollback()
+
+    def test_writer_inside_a_reader_keeps_the_outer_snapshot_and_then_exposes_its_commit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = store.append(root, RUN, None, 'synthetic-first', {})
+            with read_context.public_call():
+                with store.reader(root) as outer:
+                    before = store.read_history(root, RUN)
+                    self.assertEqual([row['sha256'] for row in before.rows], [first['sha256']])
+                    with store.transaction(root):
+                        second = store.append(root, RUN, None, 'synthetic-second', {})
+                        written = store.read_history(root, RUN)
+                        self.assertEqual([row['sha256'] for row in written.rows], [first['sha256'], second['sha256']])
+                    self.assertEqual(outer.execute('SELECT COUNT(*) FROM events').fetchone()[0], 1)
+                    self.assertEqual([row['sha256'] for row in store.read_history(root, RUN).rows], [first['sha256']])
+                with store.reader(root) as current:
+                    self.assertEqual(current.execute('SELECT COUNT(*) FROM events').fetchone()[0], 2)
+                    after = store.read_history(root, RUN)
+                    self.assertEqual([row['sha256'] for row in after.rows], [first['sha256'], second['sha256']])
+                self.assertEqual([row['sha256'] for row in before.rows], [first['sha256']])
+
+    def test_copied_context_cannot_reuse_another_threads_or_expired_database_owner(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = store.append(root, RUN, PREPARED['input_sha256'], 'synthetic-first', {})
+            with read_context.public_call(), store.reader(root) as original_connection:
+                original = store.read_history(root, RUN)
+                copied = contextvars.copy_context()
+                with ThreadPoolExecutor(max_workers=1) as worker:
+                    parallel = worker.submit(copied.run, store.read_history, root, RUN).result(timeout=20)
+                self.assertEqual(parallel.rows, original.rows)
+                self.assertIsNot(parallel, original)
+                self.assertEqual(original_connection.execute('SELECT COUNT(*) FROM events').fetchone()[0], 1)
+            second = store.append(root, RUN, PREPARED['input_sha256'], 'synthetic-second', {})
+            current = copied.run(store.read_history, root, RUN)
+            self.assertEqual([row['sha256'] for row in current.rows], [first['sha256'], second['sha256']])
+            self.assertEqual([row['sha256'] for row in original.rows], [first['sha256']])
+            third = copied.run(store.append, root, RUN, PREPARED['input_sha256'], 'synthetic-third', {})
+            self.assertEqual(third['previous'], second['sha256'])
+
     def test_first_operation_rollback_keeps_an_empty_readable_store(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -466,6 +540,40 @@ class StoredHistoryTests(unittest.TestCase):
             self.assertEqual(results.count('committed'), 1)
             self.assertEqual(results.count('EVENT_CONFLICT'), 3)
             self.assertEqual(len(store.read_history(root, RUN).rows), 2)
+
+    def test_owned_authority_still_observes_current_sql_and_another_connections_update(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            task = 'synthetic-task'
+
+            def commit_authority(revision):
+                document = {'synthetic_revision': revision}
+                with store.transaction(root) as connection:
+                    event = store.append(root, 'authority:' + task, None, 'authority-updated',
+                                         {'authority': document, 'evidence': []})
+                    connection.execute('INSERT INTO authority_states VALUES (?, ?, ?) '
+                        'ON CONFLICT(task_id) DO UPDATE SET content_sha256=excluded.content_sha256, event_sha256=excluded.event_sha256',
+                        (task, c.content_id(document), event['sha256']))
+
+            commit_authority(1)
+            with read_context.public_call():
+                held = store.read_authority(root, task)
+                with store.transaction(root):
+                    self.assertIs(store.read_authority(root, task), held)
+                with self.assertRaisesRegex(RuntimeError, 'Synthetic rollback'):
+                    with store.transaction(root) as connection:
+                        connection.execute('DELETE FROM authority_states WHERE task_id=?', (task,))
+                        self.assertIsNone(store.read_authority(root, task, required=False))
+                        with self.assertRaisesRegex(ProductionError, 'AUTHORIZATION_REQUIRED'):
+                            store.read_authority(root, task)
+                        raise RuntimeError('Synthetic rollback')
+                self.assertIs(store.read_authority(root, task), held)
+                with ThreadPoolExecutor(max_workers=1) as worker:
+                    worker.submit(commit_authority, 2).result(timeout=20)
+                current = store.read_authority(root, task)
+                self.assertEqual(current.document, {'synthetic_revision': 2})
+                self.assertEqual(held.document, {'synthetic_revision': 1})
+                self.assertIs(store.read_authority(root, task), current)
 
     def test_authority_state_and_history_share_one_reader_snapshot(self):
         with tempfile.TemporaryDirectory() as temporary:

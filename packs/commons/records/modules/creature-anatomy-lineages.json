@@ -5,9 +5,10 @@
     {
       "id": "creature-anatomy-anthro-canine-lineage",
       "category": "creature-anatomy",
-      "label": "anthro canine lineage anatomy",
-      "visual_function": "Propose a readable canid muzzle, ear, pad, and tail relationship for an upright subject, leaving build, coat length, markings, and personal traits to the author's declaration.",
-      "prompt": "Anthropomorphic canine lineage (dog, wolf, fox, jackal, coyote): full-body fur with a dense neck ruff, upright triangular canine ears, a long tapered muzzle with a broad nose, paw pads on both hands and feet, a keen sense of smell, and a large fluffy tail. Draw tail motion as an exaggerated emotion amplifier: a big fast wag for joy and high drive, a small hesitant sway for uncertain expectation.",
+      "label": "Ruffed upright canid anatomy construction",
+      "description": "One authored construction for a dog, wolf, fox, jackal or coyote character when those design choices remain open. Its dense ruff, pads and fluffy tail are selected design features, not anatomy inferred for every canid. A keen sense of smell can be a separately authored capability; the anatomical construction alone specifies no reaction or emotional display.",
+      "visual_function": "Construct a long tapered muzzle, broad nose, upright triangular ears, dense neck ruff, padded hands and feet, and a large fluffy tail as one connected upright canid design.",
+      "prompt": "Construct the selected upright canid design with fur across the body, a dense neck ruff, upright triangular ears, a long tapered muzzle with a broad nose, paw pads on the declared hand and foot surfaces, and a large fluffy tail whose root joins the surrounding coat as one continuous mass.",
       "invariants": [
         "the muzzle, nose, and triangular ear relationship reads as one canid head structure",
         "paw pads appear on both the hand and the foot surfaces wherever those surfaces show",
@@ -34,7 +35,11 @@
         "creature",
         "hybrid"
       ],
-      "applies_to": "lineage anatomy grammar",
+      "applies_to": "the selected ruffed upright canid construction",
+      "variation_examples": [
+        "A big fast tail wag can be selected for an individual's joy or high-drive display under body-language-cue-tail-wag-joy; it is a separate performance choice.",
+        "A small hesitant tail sway can be selected for an individual's uncertain expectation under body-language-cue-tail-small-sway-anticipation; the current performance defines its degree and circumstances."
+      ],
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
       "search_terms": [

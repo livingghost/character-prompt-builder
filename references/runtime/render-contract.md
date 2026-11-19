@@ -45,7 +45,7 @@ When choosing additional rendering constraints, read `python scripts/render_cont
 use [discovery](sparse-discovery.md#conceive-the-open-picture) before committing
 to it. The presets expose construction envelopes, not a closed set of art
 directions or evidence that a treatment fits. Inspect relevant full knowledge
-for the concrete alternatives in the conception study, reusing complete
+for the concrete treatment being developed or compared, reusing complete
 material already delivered in the current context. Use a fitting preset or
 author a custom intent with `preset: null`. A custom intent records only the
 selected constraints among medium, dimensionality, linework, shading, surface
@@ -424,7 +424,7 @@ python scripts/render_contract.py assess --model-identifier EXACT_IDENTIFIER --s
 
 This reports author preferences while interface compatibility remains unknown until the target's controls are acquired.
 Preference inspection, assessment and diagnosis honor the same `--state-file`, `--cache-dir` and `--managed-root` runtime arguments for catalog and external targets.
-Preserve the assessment as an applied task source and cite the selection reason in `direction.decisions`.
+Preserve the assessment as an applied task source and express the selected realization in `direction.decisions`. An optional decision `note` records its substantive reason.
 Parameter contracts keep their own immutable interface controls; preference changes affect new selection decisions and leave those controls intact.
 
 ## Declare controls by operation

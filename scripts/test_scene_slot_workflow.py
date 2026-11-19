@@ -15,9 +15,9 @@ import production_case_fixtures as fixtures
 import production_edit_inputs
 import production_fixtures as fixture
 import production_store as store
-import production_workflow as workflow
+import production_operations as workflow
 import sheet_artifacts as fills
-import studio
+import studio_workspace as studio
 import studio_gallery
 import studio_placement
 import studio_reference

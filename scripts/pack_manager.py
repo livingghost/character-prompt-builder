@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate, discover, install, and activate Character Prompt Builder packs."""
 from __future__ import annotations
+import runtime_paths
 
 import codecs
 import functools
@@ -25,11 +26,8 @@ from types import MappingProxyType
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from cli_invocation import python_argv, shown
-from execution_contract import LOCK_FILE, atomic, atomic_write_json, lock, sha256_file
-from package_metadata import calver_key
-from model_contract import recommended_parameter_issues, validate_model_record
-from resource_policy import KNOWN_RESOURCE_VALIDATORS, validate_known_resource
-from state_protocol import read_schema, schema_read_scope, validate_against_schema
+from execution_contract import atomic, atomic_write_json, file_lock, sha256_file
+from package_identity import calver_key
 from owned_json import freeze, mutable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,16 +81,7 @@ class PackRecord:
     source_file: str
 
 
-@dataclass
-class PackValidation:
-    root: Path
-    manifest: dict[str, Any] | None = None
-    records: list[PackRecord] = field(default_factory=list)
-    resource_files: list[str] = field(default_factory=list)
-    resource_bindings: dict[str, str] = field(default_factory=dict)
-    issues: list[PackIssue] = field(default_factory=list)
-    lock_present: bool = False
-
+class _PackValidationView:
     @property
     def valid(self) -> bool:
         return not any(issue.severity == "error" for issue in self.issues)
@@ -130,6 +119,36 @@ class PackValidation:
         }
 
 
+@dataclass
+class PackValidation(_PackValidationView):
+    root: Path
+    manifest: dict[str, Any] | None = None
+    records: list[PackRecord] = field(default_factory=list)
+    resource_files: list[str] = field(default_factory=list)
+    resource_bindings: dict[str, str] = field(default_factory=dict)
+    issues: list[PackIssue] = field(default_factory=list)
+    lock_present: bool = False
+
+    def snapshot(self) -> PackValidationResult:
+        """Retain this completed validation as an immutable read-phase value."""
+        return PackValidationResult(
+            self.root, freeze(self.manifest), tuple(self.records),
+            tuple(self.resource_files), freeze(self.resource_bindings),
+            tuple(self.issues), self.lock_present,
+        )
+
+
+@dataclass(frozen=True)
+class PackValidationResult(_PackValidationView):
+    root: Path
+    manifest: Mapping[str, Any] | None
+    records: tuple[PackRecord, ...]
+    resource_files: tuple[str, ...]
+    resource_bindings: Mapping[str, str]
+    issues: tuple[PackIssue, ...]
+    lock_present: bool
+
+
 @dataclass(frozen=True)
 class DiscoveredPack:
     root: Path
@@ -144,20 +163,6 @@ class DiscoveredPack:
         return str(self.manifest["release"])
 
 
-@dataclass(frozen=True)
-class PackSettings:
-    roots: tuple[Path, ...]
-    state_file: Path
-    cache_dir: Path
-    managed_root: Path
-    quarantine_root: Path
-    default_enabled_packs: tuple[str, ...] = ()
-    # Two different jobs. ``default_enabled_packs`` seeds a runtime that has no
-    # state file yet; ``protected_pack_ids`` stands as a floor under explicit
-    # user state and refuses to let those packs be disabled. Only the runtime
-    # that uses the user's own state file carries the floor.
-    protected_pack_ids: tuple[str, ...] = ()
-    initialize_all_discovered: bool = False
 
 
 def load_json(path: Path) -> Any:
@@ -259,6 +264,7 @@ def initialize_pack(
 
 def _load_schema(path: Path) -> dict[str, Any]:
     """Use the operation's checked schema documents for every pack member."""
+    from state_protocol import read_schema
     try:
         return read_schema(path)
     except (OSError, ValueError) as exc:
@@ -266,6 +272,7 @@ def _load_schema(path: Path) -> dict[str, Any]:
 
 
 def _schema_issues(value: Any, schema_path: Path, source_path: Path) -> list[PackIssue]:
+    from state_protocol import validate_against_schema
     schema = _load_schema(schema_path)
     return [
         PackIssue("error", "schema", message, str(source_path))
@@ -279,6 +286,7 @@ def species_scaffold_issues(records: Iterable[Mapping[str, Any]]) -> list[str]:
     The records may come from every enabled pack at once, so the check reads
     the resolved catalog rather than one pack's files.
     """
+    from state_protocol import validate_against_schema
     schema = _load_schema(PACK_RECORD_SCHEMA_PATH)
     reference = {"$ref": "#/$defs/species-scaffold"}
     issues: list[str] = []
@@ -399,9 +407,6 @@ def _all_pack_files(root: Path, *, nodes: dict[str, str] | None = None) -> tuple
     def walk(directory: Path) -> None:
         for path in sorted(directory.iterdir(), key=lambda item: item.name):
             relative = path.relative_to(root).as_posix()
-            if relative == LOCK_FILE:
-                # The process lock coordinates concurrent commands; it is never pack content.
-                continue
             if _is_link(path):
                 if nodes is not None:
                     nodes[relative] = "link"
@@ -633,6 +638,7 @@ def inventory_rows(root: Path) -> list[dict[str, Any]]:
 
 
 def build_lock_data(root: Path) -> dict[str, Any]:
+    from state_protocol import schema_read_scope
     inputs = PackInput.read(root)
     with schema_read_scope():
         validation = validate_pack_input(inputs, require_lock=False, verify_lock=False)
@@ -1018,6 +1024,7 @@ def validate_pack(
     verify_lock: bool = True,
 ) -> PackValidation:
     """Acquire one pack at the public file boundary, then validate its values."""
+    from state_protocol import schema_read_scope
     with schema_read_scope():
         return validate_pack_input(PackInput.read(root), require_lock=require_lock, verify_lock=verify_lock)
 
@@ -1029,6 +1036,8 @@ def validate_pack_input(
     verify_lock: bool = True,
 ) -> PackValidation:
     """Validate one acquired input without reopening any pack member."""
+    from model_contract import recommended_parameter_issues, validate_model_record
+    from resource_policy import KNOWN_RESOURCE_VALIDATORS, validate_known_resource
     root = inputs.root
     report = PackValidation(root=root)
     if not inputs.exists:
@@ -1448,14 +1457,6 @@ def require_valid(report: PackValidation) -> PackValidation:
     raise PackError("Pack validation failed: " + "; ".join(messages))
 
 
-def user_data_home() -> Path:
-    """Return the configuration directory: CPB_HOME when it is set, ~/.character-prompt-builder otherwise.
-
-    The pack state, the catalog cache, the managed packs, the home reading
-    ledger and the operation logs live under it.
-    """
-    configured = os.environ.get("CPB_HOME", "").strip()
-    return (Path(configured) if configured else Path.home() / ".character-prompt-builder").resolve()
 
 
 def default_settings(
@@ -1465,8 +1466,8 @@ def default_settings(
     cache_dir: Path | None = None,
     managed_root: Path | None = None,
     default_enabled_packs: Sequence[str] | None = None,
-) -> PackSettings:
-    state_home = user_data_home()
+) -> runtime_paths.PackSettings:
+    state_home = runtime_paths.user_data_home()
     if state_file is not None:
         resolved_state_file = state_file.resolve()
     elif cache_dir is not None:
@@ -1503,7 +1504,7 @@ def default_settings(
     # explicitly keeps the floor and moving the state file elsewhere, however
     # it moved, drops it.
     isolated = resolved_state_file != (state_home / "pack-state.json").resolve()
-    return PackSettings(
+    return runtime_paths.PackSettings(
         roots=tuple(unique),
         state_file=resolved_state_file,
         cache_dir=resolved_cache_dir,
@@ -1518,16 +1519,17 @@ def default_settings(
     )
 
 
-def state_lock(settings: PackSettings):
+def state_lock(settings: runtime_paths.PackSettings):
     """Hold the state file for one read-modify-write, across threads and processes."""
-    return lock(settings.state_file.parent)
+    initialize_state_file(settings)
+    return file_lock(settings.state_file)
 
 
 def _under_state_lock(operation):
     """Run one change to the state file while holding its lock, so none is lost."""
 
     @functools.wraps(operation)
-    def locked(settings: PackSettings, *arguments: Any, **options: Any) -> Any:
+    def locked(settings: runtime_paths.PackSettings, *arguments: Any, **options: Any) -> Any:
         with state_lock(settings):
             return operation(settings, *arguments, **options)
 
@@ -1535,7 +1537,7 @@ def _under_state_lock(operation):
 
 
 def pack_runtime_arguments(
-    settings: PackSettings, *, pack_roots: Sequence[Path] | None = None,
+    settings: runtime_paths.PackSettings, *, pack_roots: Sequence[Path] | None = None,
 ) -> list[str]:
     """Reproduce the selected runtime, including every explicit discovery root."""
     arguments = [
@@ -1548,7 +1550,7 @@ def pack_runtime_arguments(
     return arguments
 
 
-def pack_cli_command(settings: PackSettings) -> str:
+def pack_cli_command(settings: runtime_paths.PackSettings) -> str:
     """The `pack_cli.py` invocation that acts on this runtime, for a printed fix."""
     return shown(python_argv(Path(__file__).with_name("pack_cli.py"), *pack_runtime_arguments(settings)))
 
@@ -1568,7 +1570,7 @@ def _manifest_only(pack_root: Path, *, acquired: AcquiredFile | None = None) -> 
 
 
 def configured_roots(
-    settings: PackSettings,
+    settings: runtime_paths.PackSettings,
     state: Mapping[str, Any] | None = None,
 ) -> tuple[Path, ...]:
     state_value = dict(state or load_effective_state(settings))
@@ -1586,7 +1588,7 @@ def configured_roots(
 
 
 def _configured_pack_locations(
-    settings: PackSettings,
+    settings: runtime_paths.PackSettings,
     state: Mapping[str, Any] | None = None,
 ) -> dict[str, Path]:
     locations_by_path: dict[str, Path] = {}
@@ -1654,7 +1656,7 @@ def _discover_pack_locations(
 
 
 def discover_packs(
-    settings: PackSettings,
+    settings: runtime_paths.PackSettings,
     state: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, DiscoveredPack], list[PackIssue]]:
     return _discover_pack_locations(_configured_pack_locations(settings, state))
@@ -1720,7 +1722,7 @@ def _state_value(path: Path, value: Any) -> dict[str, Any]:
 
 
 def load_effective_state(
-    settings: PackSettings,
+    settings: runtime_paths.PackSettings,
     *,
     only: Sequence[str] | None = None,
 ) -> dict[str, Any]:
@@ -1774,7 +1776,7 @@ def save_state(path: Path, state: Mapping[str, Any], *, replace: bool = True) ->
 
 
 @_under_state_lock
-def add_pack_root(settings: PackSettings, root: Path) -> dict[str, Any]:
+def add_pack_root(settings: runtime_paths.PackSettings, root: Path) -> dict[str, Any]:
     state = load_effective_state(settings)
     resolved = root.expanduser().resolve()
     if not resolved.is_dir():
@@ -1792,7 +1794,7 @@ def add_pack_root(settings: PackSettings, root: Path) -> dict[str, Any]:
 
 
 @_under_state_lock
-def remove_pack_root(settings: PackSettings, root: Path) -> dict[str, Any]:
+def remove_pack_root(settings: runtime_paths.PackSettings, root: Path) -> dict[str, Any]:
     state = load_effective_state(settings)
     resolved_key = os.path.normcase(str(root.expanduser().resolve()))
     retained = [
@@ -1882,7 +1884,7 @@ def _resolve_enabled_from_discovery(
 
 
 def resolve_enabled(
-    settings: PackSettings,
+    settings: runtime_paths.PackSettings,
     state: Mapping[str, Any] | None = None,
 ) -> list[DiscoveredPack]:
     state_value = dict(state or load_effective_state(settings))
@@ -1891,7 +1893,7 @@ def resolve_enabled(
 
 
 def _resolve_enabled_with_managed_candidate(
-    settings: PackSettings,
+    settings: runtime_paths.PackSettings,
     state: Mapping[str, Any],
     *,
     target: Path,
@@ -1905,7 +1907,7 @@ def _resolve_enabled_with_managed_candidate(
 
 
 def resolve_enabled_lenient(
-    settings: PackSettings,
+    settings: runtime_paths.PackSettings,
     state: Mapping[str, Any] | None = None,
 ) -> tuple[list[DiscoveredPack], list[PackIssue]]:
     """Resolve available enabled packs without retaining records from missing packs.
@@ -1936,7 +1938,7 @@ def resolve_enabled_lenient(
 
 
 @_under_state_lock
-def enable_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
+def enable_pack(settings: runtime_paths.PackSettings, pack_id: str) -> dict[str, Any]:
     if not PACK_ID_RE.fullmatch(pack_id):
         raise PackError(f"Pack ID must be a lowercase UUIDv7: {pack_id!r}")
     state = load_effective_state(settings)
@@ -1981,7 +1983,7 @@ def enable_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
 
 
 @_under_state_lock
-def disable_pack(settings: PackSettings, pack_id: str, *, cascade: bool = False) -> dict[str, Any]:
+def disable_pack(settings: runtime_paths.PackSettings, pack_id: str, *, cascade: bool = False) -> dict[str, Any]:
     if not PACK_ID_RE.fullmatch(pack_id):
         raise PackError(f"Pack ID must be a lowercase UUIDv7: {pack_id!r}")
     if pack_id in settings.protected_pack_ids:
@@ -2044,13 +2046,14 @@ class RuntimeInputs:
     snapshot: Mapping[str, Any]
 
 
-def acquire_runtime_inputs(settings: PackSettings, *, strict: bool = False) -> RuntimeInputs:
+def acquire_runtime_inputs(settings: runtime_paths.PackSettings, *, strict: bool = False) -> RuntimeInputs:
     """Acquire the runtime once; downstream stages consume these values.
 
     Disabled packs contribute only their manifests to discovery. Selected pack
     files are streamed once for their digests and retained text. The snapshot
     hashes those same contents, including the manifest already read by discovery.
     """
+    from state_protocol import schema_read_scope
     with schema_read_scope():
         acquired_state = StateInput.read(settings.state_file, default_enabled_packs=settings.default_enabled_packs)
         state = mutable(acquired_state.value)
@@ -2103,7 +2106,7 @@ def quick_pack_snapshot(pack: DiscoveredPack) -> dict[str, Any]:
     return PackInput.read(pack.root).snapshot(pack.pack_id)
 
 
-def active_snapshot(settings: PackSettings, *, strict: bool = False) -> dict[str, Any]:
+def active_snapshot(settings: runtime_paths.PackSettings, *, strict: bool = False) -> dict[str, Any]:
     """Export the content identity from the same owner used by cache construction."""
     return mutable(acquire_runtime_inputs(settings, strict=strict).snapshot)
 
@@ -2243,7 +2246,7 @@ def _note_secondary_failure(
 
 
 def install_pack(
-    settings: PackSettings,
+    settings: runtime_paths.PackSettings,
     source: Path,
     *,
     update: bool = False,
@@ -2340,7 +2343,7 @@ def install_pack(
 
 
 @_under_state_lock
-def remove_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
+def remove_pack(settings: runtime_paths.PackSettings, pack_id: str) -> dict[str, Any]:
     if not PACK_ID_RE.fullmatch(pack_id):
         raise PackError(f"Pack ID must be a lowercase UUIDv7: {pack_id!r}")
     state = load_effective_state(settings)
@@ -2386,7 +2389,7 @@ def remove_pack(settings: PackSettings, pack_id: str) -> dict[str, Any]:
 
 
 def list_packs(
-    settings: PackSettings,
+    settings: runtime_paths.PackSettings,
     *,
     verify_lock: bool = True,
 ) -> dict[str, Any]:
@@ -2454,7 +2457,7 @@ def list_packs(
     }
 
 
-def _catalog_diagnostics(settings: PackSettings) -> list[dict[str, Any]]:
+def _catalog_diagnostics(settings: runtime_paths.PackSettings) -> list[dict[str, Any]]:
     try:
         from pack_cache import load_runtime_catalog
 
@@ -2463,7 +2466,7 @@ def _catalog_diagnostics(settings: PackSettings) -> list[dict[str, Any]]:
         return []
 
 
-def initialize_state_file(settings: PackSettings, *, only: Sequence[str] | None = None) -> bool:
+def initialize_state_file(settings: runtime_paths.PackSettings, *, only: Sequence[str] | None = None) -> bool:
     """Persist the first-use state when the state file is absent; say whether it was.
 
     `only` names the packs a new state enables instead of every discovered one.

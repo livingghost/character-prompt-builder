@@ -22,7 +22,7 @@ def validate_shape(choices: Any) -> dict:
 
 
 def context(root: Path, run: str, *, fresh: bool = True):
-    import production_workflow as workflow
+    import production_operations as workflow
     loaded = workflow.assert_current(root, run) if fresh else workflow.read_run(root, run)
     directory, prepared, consumer, rows = loaded
     plan = loaded.artifacts['execution-plan.json']
@@ -44,7 +44,7 @@ def _request_choices(request: dict) -> dict:
 
 def draft(root: Path, run: str, grant: str | None = None) -> dict:
     """Keep operation identity and authored answers, without copied request payloads."""
-    import production_workflow as workflow
+    import production_operations as workflow
     loaded = context(root, run)
     prepared = loaded.prepared
     plan = loaded.artifacts['execution-plan.json']
@@ -107,7 +107,7 @@ def _request_decision(root: Path, request: dict, choice: dict, authority: dict) 
 
 def expand(root: Path, run: str, choices: dict, loaded, authority) -> list[dict]:
     """Materialize separate authorizations without interpreting or approving their answers."""
-    import production_workflow as workflow
+    import production_operations as workflow
     prepared = loaded.prepared
     plan = loaded.artifacts['execution-plan.json']
     report = validate_shape(choices)
@@ -140,7 +140,7 @@ def expand(root: Path, run: str, choices: dict, loaded, authority) -> list[dict]
 
 
 def authorize(root: Path, run: str, path: str, prepared: dict, plan: dict) -> None:
-    import production_workflow as workflow
+    import production_operations as workflow
     raw = store.stable_bytes(root, path)
     with store.transaction(root):
         loaded = context(root, run)
@@ -152,7 +152,7 @@ def authorize(root: Path, run: str, path: str, prepared: dict, plan: dict) -> No
 
 def _authorize_from(root: Path, loaded, authority, path: str, plan: dict, *, raw: bytes | None = None) -> None:
     """Authorize from the command's current run, grant and exact decision bytes."""
-    import production_workflow as workflow
+    import production_operations as workflow
     if raw is None:
         raw=store.stable_bytes(root,path)
     run=loaded.prepared['run']

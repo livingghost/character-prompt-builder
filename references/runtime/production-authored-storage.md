@@ -10,8 +10,9 @@ requested state and all requested results.
 
 ## Edit and save
 
-Use the editable choices from `draft-inputs` and the text files named there. The
-author supplies the content, material use and assessment basis. The input owner
+Use the actual candidate from [Authoring work](authoring-work.md), with its
+editable choices and text files exposed by `draft-inputs`. The author supplies
+the content, material use and assessment basis. The input owner
 resolves selected material, captures source bytes, assigns stable reference use
 IDs and compiles the current choices.
 
@@ -44,7 +45,7 @@ save and deliver an unfinished artifact uses:
 Those are the task's `authored` choices. Saving with `--draft` retains the
 unfinished artifact; it does not change a request for a finished result into a
 draft request. Delivery preserves the saved state. To continue,
-use `draft-inputs --from-run REVISION`; the input owner restores editable source
+use `draft-inputs --from-run REVISION --operation amend`; the input owner restores editable source
 files, then a later save publishes a new revision. The previous revision and
 its records remain unchanged.
 
@@ -138,10 +139,13 @@ uv run python scripts/production_workflow.py review-authored --root STUDIO --run
 
 The input view exposes the artifact before the assessment basis. The review
 view supplies the original commission, its criteria, current direction and
-criteria, and complete saved source evidence. `source:ID` identifies the
-captured original when the author edited a source rendition;
-`adaptation:ID` identifies that separate rendition. Restoring an authored run
-retains the originals even when the working source files have since changed.
+criteria, and complete saved source evidence. For a materialized selection,
+`source:ID` identifies the currently applied content and `source-origin:ID`
+identifies the complete acquired original. Read their assigned scope and
+relationship in that workspace. A deliberate adaptation is acquired as a
+separate actual source, with its original retained in the source catalog.
+Restoring an authored run retains captured
+source bytes even when the working files have since changed.
 An optional `build-inputs` export carries the same captured basis in the
 generated task's `authored_basis` and its copied original files, following
 [`production-authored-basis.schema.json`](../../schemas/authoring/production-authored-basis.schema.json).

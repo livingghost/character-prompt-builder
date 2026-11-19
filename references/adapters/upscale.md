@@ -17,7 +17,7 @@ purpose opens one once the draft is produced; an existing task continues with
 its identity. A refused command opens no work.
 
 ```sh
-python scripts/production_workflow.py draft-inputs --root STUDIO --route upscale --source-image /absolute/path/input.png --scale 4 --purpose "Enlarge this image four times for the requested delivery." --model MODEL_ID --service SERVICE_ID --out-dir work/upscale
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation compose --request-file request.txt --route upscale --source-image /absolute/path/input.png --scale 4 --purpose "Enlarge this image four times for the requested delivery." --model MODEL_ID --service SERVICE_ID --out-dir work/upscale
 ```
 
 Follow its actual `next_actions`: read the selected contract and model guidance,
@@ -57,7 +57,7 @@ Use that same file after resuming; its location is registered even when it is
 outside the standard decisions directory. The unapproved request-scope template
 describes the prepared request but supplies no approval or delegation itself.
 
-For a model change, reopen with `draft-inputs --from-run RUN_ID --model MODEL_ID`
+For a model change, reopen with `draft-inputs --from-run RUN_ID --operation amend --request-file request.txt --model MODEL_ID`
 and the selected service. Follow the returned `retarget` action and supply the
 actual reason. The new run preserves its parent, source image and applicable
 criteria. Reopening edited choices recomputes the action from the current target.

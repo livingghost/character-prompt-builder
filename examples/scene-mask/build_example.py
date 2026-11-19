@@ -11,7 +11,7 @@ sys.path.insert(0,str(ROOT/'scripts'))
 import execution_contract as c
 import scene_mask_fixtures as f
 import production_case_fixtures as base
-import production_workflow as workflow
+import production_operations as workflow
 import scene_mask_planner as masks
 
 

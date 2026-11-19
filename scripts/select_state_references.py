@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
-from catalog_cli import configure_pack_runtime
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from state_protocol import (
     artifact_hash,
@@ -53,6 +52,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", required=True)
     add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
+    from catalog_api import configure_pack_runtime
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     try:

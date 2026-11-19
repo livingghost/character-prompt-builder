@@ -10,13 +10,20 @@ import unittest
 from unittest.mock import patch
 
 import execution_contract as c
+import production_case_fixtures as cases
 import semantic_edit_plan as edits
 import image_input as inputs
 from model_prompt_input_fixtures import prompt_input
 
-PROMPT = ('Edit the first image. Change the wall color behind the vase and preserve the cafe interior. '
-          'Use the second image for the vase geometry only; keep the first image camera framing, '
-          'and do not copy the second image pose or background.')
+REFERENCE_DIRECTION = ('Use Image {{reference:design:attachment_number}} for {{reference:design:controls}}; '
+                       'retain {{reference:scene:controls}} from Image {{reference:scene:attachment_number}}.')
+PROMPT = ('Edit the cafe interior. Change the wall color behind the vase. ' + REFERENCE_DIRECTION)
+PROMPT_FINAL = ('Edit the cafe interior. Change the wall color behind the vase. '
+                'Use Image 2 for vase geometry; retain composition, camera framing from Image 1.')
+BOARD_REFERENCE_DIRECTION = ('Image {{reference:scene:attachment_number}}, panel (x, y, width, height): '
+    '{{reference:scene:region}}, supplies {{reference:scene:controls}}. '
+    'Image {{reference:design:attachment_number}}, panel (x, y, width, height): '
+    '{{reference:design:region}}, supplies {{reference:design:controls}}.')
 TARGET = {'service': 'synthetic-host', 'model_identifier': 'vendor:example-editor@1', 'operation': 'edit'}
 
 
@@ -43,6 +50,14 @@ def sync_external_prompt(root, plan, body=PROMPT):
     write(root, external['file'], request)
     write(root, 'prompt.txt', prompt.encode('utf-8'))
     return prompt
+
+
+def reauthor_bound_text(binding):
+    """Recompute source transformation for an intentional malformed-text probe."""
+    external = binding['external_request']
+    external.pop('reference_text')
+    request, record = inputs.resolve_request_text(binding, external, external['request'])
+    external.update(request=request, reference_text=record, request_sha256=c.content_id(request))
 
 
 def setup_plan(root):
@@ -236,7 +251,7 @@ class SemanticEditPlanTests(unittest.TestCase):
         self.assertEqual(inputs.revision_scopes(before, self.validate())['scopes'], ['delivery'])
 
     def test_revision_uncomparable_input_retains_dependency_scope(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         before_input = self.validate()
         request = c.load(self.root / 'request.json')
         request['prompt'] += ' Use a pale blue wall.'
@@ -247,7 +262,7 @@ class SemanticEditPlanTests(unittest.TestCase):
         task = {'delivery': {'path': 'prompt.txt'}, 'sources': [], 'criteria': [],
                 'image_input': 'image-input.json', 'direction': {
                     'purpose': 'Synthetic scene.', 'intended_effect': 'Visible wall color.', 'basis': [],
-                    'action_slice': None, 'limitations': [], 'decisions': []}}
+                    'action_slice': None, 'limitations': [], 'decisions': [], 'source_allowances': []}}
         before = {'task': task, 'task_path': 'task.json', 'dependencies': [
             {'space': 'studio', 'path': 'image-input.json', 'sha256': before_input['plan_sha256']},
             {'space': 'studio', 'path': 'request.json', 'sha256': before_input['external_request']['sha256']}]}
@@ -277,7 +292,7 @@ class SemanticEditPlanTests(unittest.TestCase):
             request = {'actor': ACTOR, 'request_decision': copy.deepcopy(decision), 'payload': {
                 'consumer_sha256': c.content_id(consumer), 'recipient': 'synthetic-host',
                 'count': value['external_request']['count'], 'image_input_sha256': value['binding_sha256'],
-                'external_request_sha256': value['external_request']['sha256'], 'target': value['model']['target']}}
+                'external_request_sha256': value['external_request']['request_sha256'], 'target': value['model']['target']}}
             return consumer, request
 
         check_external_authorization(*authorization(binding), grant)
@@ -479,7 +494,7 @@ class SemanticEditPlanTests(unittest.TestCase):
 
     def test_authored_prompt_is_preserved_with_reference_scope(self):
         binding = self.validate()
-        self.assertEqual(binding['external_request']['request']['prompt'], PROMPT)
+        self.assertEqual(binding['external_request']['request']['prompt'], PROMPT_FINAL)
         self.assertEqual(binding['references'][0]['use_for'], ['composition', 'camera framing'])
         self.assertEqual(binding['references'][1]['do_not_transfer'], ['reference pose', 'reference background'])
 
@@ -496,11 +511,14 @@ class SemanticEditPlanTests(unittest.TestCase):
             write(self.root, target, (self.root / reference['file']).read_bytes())
             reference['file'] = target
         renamed['external_request']['file'] = 'relocated/request.json'
-        write(self.root, renamed['external_request']['file'], c.load(self.root / 'request.json'))
+        request = c.load(self.root / 'request.json')
+        request['prompt'] = request['prompt'].replace('reference:scene:', 'reference:asset-7:').replace(
+            'reference:design:', 'reference:asset-8:')
+        write(self.root, renamed['external_request']['file'], request)
         after = inputs.validate(renamed, self.root)
         self.assertEqual(after['external_request']['request'], before['external_request']['request'])
         self.assertEqual([row['sha256'] for row in after['references']], [row['sha256'] for row in before['references']])
-        self.assertEqual(after['external_request']['request']['prompt'], PROMPT)
+        self.assertEqual(after['external_request']['request']['prompt'], PROMPT_FINAL)
         self.assertNotEqual(after['binding_sha256'], before['binding_sha256'])
         self.assertEqual([row['subject_uses'][0]['priority'] for row in after['references']], [0, 1])
 
@@ -520,6 +538,48 @@ class SemanticEditPlanTests(unittest.TestCase):
                 contextlib.redirect_stdout(output):
             self.assertEqual(reference_delivery.main(), 0)
         self.assertEqual(json.loads(output.getvalue())['bindings'], rows)
+
+    def test_external_array_reordering_changes_actual_locator_bytes_by_stable_use(self):
+        request = c.load(self.root / 'request.json')
+        request['images'].reverse()
+        for field in self.plan['external_request']['reference_fields']:
+            field['field'][-1] = 1 - field['field'][-1]
+        write(self.root, 'request.json', request)
+        bound = self.validate()
+        self.assertEqual(bound['external_request']['request']['prompt'],
+            'Edit the cafe interior. Change the wall color behind the vase. '
+            'Use Image 1 for vase geometry; retain composition, camera framing from Image 2.')
+        self.assertEqual([row['attachment_number'] for row in inputs.reference_bindings(self.plan)], [2, 1])
+        self.assertEqual(bound['external_request']['reference_text']['channels']['prompt']['source_text'], PROMPT)
+        self.assertEqual(bound['external_request']['request_sha256'], c.content_id(bound['external_request']['request']))
+        self.assertNotEqual(bound['external_request']['request_sha256'], bound['external_request']['sha256'])
+        inputs.validate_binding(bound)
+
+    def test_selected_reference_contribution_changes_actual_external_request(self):
+        from reference_contract import authority_for
+        self.plan['references'] = self.plan['references'][:1]
+        self.plan['references'][0]['role'] = 'pose-camera'
+        self.plan['external_request']['reference_fields'] = self.plan['external_request']['reference_fields'][:1]
+        request = c.load(self.root / 'request.json')
+        request['images'] = request['images'][:1]
+        source = 'Image {{reference:scene:attachment_number}} supplies {{reference:scene:controls}}. A close action scene.'
+        request['prompt'] = source
+        write(self.root, 'request.json', request)
+        outputs = []
+        for scope in ('target pose and body gesture', 'target camera framing and crop'):
+            authority = authority_for('adopted-reference', 'pose-camera', selected_controls=[scope])
+            self.plan['references'][0].update(use_for=authority['controls'], do_not_transfer=authority['must_not_control'])
+            bound = self.validate()
+            external = bound['external_request']
+            self.assertEqual(external['request']['prompt'], 'Image 1 supplies ' + scope + '. A close action scene.')
+            self.assertEqual(external['reference_text']['channels']['prompt']['source_text'], source)
+            self.assertEqual(external['request_sha256'], c.content_id(external['request']))
+            self.assertNotIn('must not', external['request']['prompt'])
+            self.assertNotIn('silhouette', external['request']['prompt'])
+            inputs.validate_binding(bound)
+            outputs.append(external)
+        self.assertEqual(outputs[0]['sha256'], outputs[1]['sha256'])
+        self.assertNotEqual(outputs[0]['request_sha256'], outputs[1]['request_sha256'])
 
     def test_reference_binding_field_paths_require_valid_components(self):
         for path in ([], [''], [True], [-1], ['image', {}]):
@@ -553,7 +613,7 @@ class SemanticEditPlanTests(unittest.TestCase):
         self.plan['external_request'] = None
         self.plan['model'].update(catalog_status='defined', catalog_model='example-editor')
         record = synthetic_external_record(self.plan)
-        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+        with patch('generation_references.resolve_model_record', return_value=(record['id'], record)):
             binding = self.validate()
         prepared = {'transport_mode': 'multi-image', 'selected_references': [
             {'source': {'sha256': row['sha256']}, 'role': row['role'],
@@ -609,6 +669,8 @@ class SemanticEditPlanTests(unittest.TestCase):
         self.plan['references'][1].update(id='subject-b', role='identity')
         for field, ident in zip(self.plan['external_request']['reference_fields'], ('subject-a', 'subject-b')):
             field['reference'] = ident
+        sync_external_prompt(self.root, self.plan, PROMPT.replace('reference:scene:', 'reference:subject-a:').replace(
+            'reference:design:', 'reference:subject-b:'))
         binding = self.validate()
         self.assertNotIn('source', binding)
         self.assertNotIn('edit', binding)
@@ -671,15 +733,21 @@ class SemanticEditPlanTests(unittest.TestCase):
         request = c.load(self.root / 'request.json')
         request['images'] = ['synthetic-image-' + str(index) for index in range(3)]
         write(self.root, 'request.json', request)
-        body = ('Two characters converse across a desk. Use the first image for the left character identity '
-                'and outfit. Use the second image for the right character identity and the third image '
-                'for that character outfit. Give both characters the new conversational poses and desk setting.')
+        body = ('Two characters converse across a desk. '
+                'Image {{reference:a-face:attachment_number}} supplies {{reference:a-face:controls}}; '
+                'Image {{reference:a-outfit:attachment_number}} supplies {{reference:a-outfit:controls}}. '
+                'Image {{reference:b-face:attachment_number}} supplies {{reference:b-face:controls}}; '
+                'Image {{reference:b-outfit:attachment_number}} supplies {{reference:b-outfit:controls}}. '
+                'Give both characters the new conversational poses and desk setting.')
         prompt = sync_external_prompt(self.root, self.plan, body)
         binding = self.validate()
         self.assertEqual(len(binding['references']), 4)
         self.assertEqual(len(binding['external_request']['request']['images']), 3)
         self.assertEqual(prompt, body)
-        self.assertEqual(binding['external_request']['request']['prompt'], body)
+        self.assertEqual(binding['external_request']['request']['prompt'],
+            'Two characters converse across a desk. Image 1 supplies a identity construction; '
+            'Image 1 supplies a outfit construction. Image 2 supplies b identity construction; '
+            'Image 3 supplies b outfit construction. Give both characters the new conversational poses and desk setting.')
         self.assertEqual([row['request_field'] for row in inputs.reference_bindings(self.plan)],
                          [['images', 0], ['images', 0], ['images', 1], ['images', 2]])
 
@@ -688,7 +756,7 @@ class SemanticEditPlanTests(unittest.TestCase):
         self.plan['model'].update(catalog_status='defined', catalog_model='example-editor')
         self.plan['references'][0]['subject_uses'] = [{'subject_id': 'a', 'use': 'identity', 'priority': 0}]
         record = synthetic_external_record(self.plan)
-        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+        with patch('generation_references.resolve_model_record', return_value=(record['id'], record)):
             binding = self.validate()
         prepared = {'transport_mode': 'multi-image', 'selected_references': [
             {'source': {'sha256': row['sha256']}, 'role': row['role'],
@@ -709,7 +777,7 @@ class SemanticEditPlanTests(unittest.TestCase):
         read = lambda path: (self.root / path).read_bytes()
         with self.assertRaisesRegex(ValueError, 'not evidence of an actual host call'):
             inputs.submission_evidence(binding, selector, read)
-        call = {'synthetic': True, 'call_id': 'synthetic-call-1', 'arguments': c.load(self.root / 'request.json')}
+        call = {'synthetic': True, 'call_id': 'synthetic-call-1', 'arguments': copy.deepcopy(binding['external_request']['request'])}
         write(self.root, 'host-call.json', call)
         selector.update(path='host-call.json', sha256=c.sha256_file(self.root / 'host-call.json'), request_pointer=['arguments'])
         self.assertEqual(inputs.submission_evidence(binding, selector, read)['status'], 'matched-recorded-call')
@@ -726,7 +794,7 @@ class SemanticEditPlanTests(unittest.TestCase):
         self.plan['external_request'].update(model_field=None, model_identity={
             'kind': 'tool', 'value': 'synthetic_tool', 'evidence': copy.deepcopy(self.plan['model']['evidence'])})
         binding = self.validate()
-        call = {'synthetic': True, 'tool': 'synthetic_tool', 'arguments': request}
+        call = {'synthetic': True, 'tool': 'synthetic_tool', 'arguments': copy.deepcopy(binding['external_request']['request'])}
         write(self.root, 'host-call.json', call)
         selector = {'path': 'host-call.json', 'sha256': c.sha256_file(self.root / 'host-call.json'),
                     'locator': 'whole', 'request_pointer': ['arguments'], 'model_identity_pointer': ['tool']}
@@ -762,7 +830,7 @@ class ExternalPromptInputTests(unittest.TestCase):
             'categories': [{'id': 'depiction', 'name': 'Depiction',
                             'description': 'Materials and markings used by this fixture.',
                             'entries': [{'term': term} for term in
-                                        ('ribbed glass', 'striped fabric', 'lettering', 'watermark')]}]})
+                                        ('ribbed glass', 'striped fabric', 'raised tentacles', 'lettering', 'watermark')]}]})
         write(pack, 'resources/dialects.json', {
             'format': 'character-prompt-builder-prompt-dialects',
             'name': 'Synthetic external dialects',
@@ -831,6 +899,48 @@ class ExternalPromptInputTests(unittest.TestCase):
         self.assertEqual(check['vocabulary'], receipt['vocabulary'])
         with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('mutable source')):
             inputs.validate_binding(bound)
+
+    def test_reference_scope_expands_before_tag_grammar_vocabulary_and_immutable_replay(self):
+        from prompt_vocabulary_selection import search_selection, resolve_authored
+        from reference_contract import authority_for
+        record, receipt = self.tag_plan(text='ribbed glass, striped fabric')
+        write(self.root, 'sample.png', png((30, 60, 90)))
+        self.plan['references'] = [{'id': 'gesture', 'role': 'pose', 'file': 'sample.png',
+            'use_for': authority_for('adopted-reference', 'pose-camera',
+                selected_controls=['target pose and body gesture'],
+                control_expressions={'target pose and body gesture': 'raised tentacles'})['controls'],
+            'do_not_transfer': []}]
+        external = self.plan['external_request']
+        external['reference_fields'] = [{'reference': 'gesture', 'field': ['images', 0],
+            'value': 'sample.png', 'local_file': True}]
+        schema = c.load(self.root / 'request-schema.json')
+        schema['properties']['images'] = {'type': 'array', 'items': {'type': 'string'}}
+        write(self.root, 'request-schema.json', schema)
+        external['schema']['sha256'] = c.sha256_file(self.root / 'request-schema.json')
+        source = 'reference_{{reference:gesture:attachment_number}}, {{reference:gesture:controls}}, striped fabric'
+        actual = 'reference_1, raised tentacles, striped fabric'
+        request = c.load(self.root / 'request.json')
+        request.update(prompt=source, images=['sample.png'])
+        self.request(request)
+        receipt['vocabulary'] = search_selection(prompt=actual, negative='lettering', model_record=record, syntax='literal')
+        receipt['vocabulary'] = resolve_authored(receipt['vocabulary'], 'reference_1',
+            'This native-style locator points to the one supplied synthetic image.')
+        self.receipt(receipt)
+        with patch('prompt_vocabulary_selection.search_selection', wraps=search_selection) as search:
+            bound = inputs.validate(self.plan, self.root)
+        self.assertEqual(search.call_args.kwargs['prompt'], actual)
+        self.assertEqual(bound['external_request']['request']['prompt'], actual)
+        self.assertEqual(bound['external_request']['reference_text']['channels']['prompt']['source_text'], source)
+        self.assertEqual(bound['external_request']['request_sha256'], c.content_id(bound['external_request']['request']))
+        for name in ('request.json', 'sample.png', 'retrieval.json', 'request-schema.json'):
+            (self.root / name).unlink()
+        with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('mutable source')):
+            inputs.validate_binding(bound)
+        changed = copy.deepcopy(bound)
+        changed['references'][0]['use_for'] = ['camera framing']
+        changed['binding_sha256'] = c.content_id({key: value for key, value in changed.items() if key != 'binding_sha256'})
+        with self.assertRaisesRegex(ValueError, 'reference input'):
+            inputs.validate_binding(changed)
 
     def test_authored_expression_remains_available_after_actual_search(self):
         from prompt_vocabulary_selection import resolve_authored
@@ -980,6 +1090,7 @@ class ExternalPromptInputTests(unittest.TestCase):
                 altered = copy.deepcopy(bound)
                 altered['external_request']['request'] = malformed
                 altered['external_request']['sha256'] = c.content_id(malformed)
+                reauthor_bound_text(altered)
                 altered['binding_sha256'] = c.content_id({key: value for key, value in altered.items()
                                                          if key != 'binding_sha256'})
                 with self.subTest(saved_channel=field), self.assertRaisesRegex(ValueError, 'violates its declared target'):
@@ -994,7 +1105,7 @@ class ExternalPromptInputTests(unittest.TestCase):
         self.tag_plan(model_id='synthetic-tag-external')
         self.plan['model'].update(catalog_status='defined', catalog_model='synthetic-tag-external')
         record = synthetic_external_record(self.plan, 'synthetic-tag-external')
-        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+        with patch('generation_references.resolve_model_record', return_value=(record['id'], record)):
             bound = inputs.validate(self.plan, self.root)
             self.assertEqual(bound['external_request']['prompt_check']['model'], record['id'])
             changed = copy.deepcopy(self.plan)
@@ -1042,7 +1153,7 @@ class ExternalPromptInputTests(unittest.TestCase):
         self.plan['model'].pop('prompt_input')
         self.plan['model'].pop('prompt_dialect')
         with patch('catalog_retrieval.runtime.load_pack_catalog', return_value=catalog), \
-                patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+                patch('generation_references.resolve_model_record', return_value=(record['id'], record)):
             selected, _offering = inputs._model_contract(self.plan['model'])
             self.assertEqual(selected, record)
             self.assertEqual(self.plan['model']['prompt_input'], record['prompt_input'])
@@ -1067,7 +1178,7 @@ class ExternalPromptInputTests(unittest.TestCase):
         task = {'execution': 'external', 'artifact': 'image', 'delivery': {'path': 'prompt.txt'},
                 'sources': [{'path': 'render-intent.json', 'role': 'render-intent', 'disposition': 'applied'}]}
         read = lambda base, path: (base / path).read_bytes()
-        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+        with patch('generation_references.resolve_model_record', return_value=(record['id'], record)):
             bound = inputs.validate(self.plan, self.root)
             write(self.root, 'render-intent.json', intent(prompt))
             inputs.external_documents(self.root, task, read, inputs=bound)
@@ -1084,6 +1195,7 @@ class ExternalPromptInputTests(unittest.TestCase):
                 altered['external_request'].pop('prompt_check')
             else:
                 altered['external_request']['request']['negative_text'] = 'watermark'
+                reauthor_bound_text(altered)
             altered['binding_sha256'] = c.content_id({key: value for key, value in altered.items()
                                                      if key != 'binding_sha256'})
             with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'vocabulary check'):
@@ -1127,6 +1239,7 @@ class ExternalPromptInputTests(unittest.TestCase):
             external['request'][field] = malformed
             external['prompt_check']['vocabulary']['context'][channel + '_sha256'] = c.digest(malformed.encode())
             external['sha256'] = c.content_id(external['request'])
+            reauthor_bound_text(altered)
             self.assertEqual(external['prompt_check']['findings'], [])
             altered['binding_sha256'] = c.content_id({key: value for key, value in altered.items()
                                                      if key != 'binding_sha256'})
@@ -1138,7 +1251,7 @@ class ExternalPromptInputTests(unittest.TestCase):
         self.plan['model'].update(catalog_status='defined', catalog_model='synthetic-tag-external')
         record = synthetic_external_record(self.plan, 'synthetic-tag-external')
         record.update(max_positive_prompt_chars=100, max_negative_prompt_chars=80)
-        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+        with patch('generation_references.resolve_model_record', return_value=(record['id'], record)):
             bound = inputs.validate(self.plan, self.root)
         self.assertEqual(bound['external_request']['prompt_check']['model_constraints'], {
             'max_positive_prompt_chars': 100, 'max_negative_prompt_chars': 80,
@@ -1163,17 +1276,21 @@ class ExternalPromptInputTests(unittest.TestCase):
 class SemanticEditSuppliedDispatchTests(unittest.TestCase):
     """Public scoped preparation, real carrier bytes and frozen dispatcher evidence."""
 
+    @staticmethod
+    def build(base):
+        return cases.create(base / 'studio', base / 'runtime'), {}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = cases.CaseTemplate.for_class(cls, cls.build)
+
     def setUp(self):
-        import production_case_fixtures as cases
-        import production_fixtures as fixture
-        import prepare_generation_references as refs
+        import generation_references as refs
         self.refs = refs
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
-        self.enterContext(fixture.scratch_home(self.base / 'home'))
-        self.case = cases.create(self.base / 'studio', self.base / 'runtime')
-        self.addCleanup(refs.configure_pack_runtime, None)
+        self.case, _ = cases.CaseTemplate.for_test(self, self.base, self.build, self._case_template)
         self.root = self.case['root']
         self.model = cases.MODEL_ID
         self.plan = setup_plan(self.root)
@@ -1197,7 +1314,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
     def assert_review_sources_and_carriers(self, draft, references, directory, evidence):
         selected = references['selected_references']
         original = [item for item in evidence if item['id'].startswith('input-reference:')]
-        delivered = [item for item in evidence if item not in original]
+        delivered = [item for item in evidence if item['id'].startswith('delivered-reference:')]
         self.assertEqual(len(original), len(selected))
         self.assertEqual(len(delivered), len(selected))
         self.assertEqual(draft['observations'], [])
@@ -1228,6 +1345,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         return delivered
 
     def external_carrier_fixture(self, mode):
+        import production_fixtures as fixture
         external = setup_plan(self.root)
         if mode == 'multi-image':
             for row, color in zip(external['references'], ('#145064', '#781e50'), strict=True):
@@ -1257,8 +1375,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
             attachment = 0 if mode == 'single-board' else index
             field.update(field=['images', attachment], value=values[attachment])
             field['evidence']['sha256'] = c.sha256_file(self.root / 'upload-evidence.json')
-        body = ('Use the scene and geometry panels of the supplied board for their assigned uses.'
-                if mode == 'single-board' else 'Use the supplied scene and geometry images for their assigned uses.')
+        body = BOARD_REFERENCE_DIRECTION if mode == 'single-board' else REFERENCE_DIRECTION
         sync_external_prompt(self.root, external, body + ' Show a blue vase on a table.')
         write(self.root, 'external-input.json', external)
         task = copy.deepcopy(self.case['task'])
@@ -1267,11 +1384,13 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         task.update(execution='external', image_input='external-input.json')
         from reading_fixtures import task_reading
         task_reading(self.root, task)
+        task['sources'] = [source for source in task['sources'] if 'definition_owner' not in source]
+        fixture.bind_work_basis(self.root, task, focus='supporting-setting')
         write(self.root, 'external-task.json', task)
         return external, references, carriers
 
     def check_external_carrier_review(self, mode):
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_fixtures as fixture
         from production_diagnostics import ProductionError
         external, references, carriers = self.external_carrier_fixture(mode)
@@ -1380,8 +1499,10 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, 'violates acquired schema'):
                         inputs.validate(external, self.root)
 
+    @cases.cold_case
     def test_public_cli_derives_model_files_and_exact_scopes_without_selection_json(self):
         import contextlib
+        import prepare_generation_references as references_cli
         from pack_runtime_cli import PackRuntimeContext
         output = self.root / 'prepared.json'
         write(self.root, 'plans/image-input.json', self.plan)
@@ -1389,7 +1510,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
             '--output-dir', str(self.base / 'carriers'), '--out', str(output)]
         arguments += PackRuntimeContext(self.case['settings'], (self.case['pack'],)).command_arguments()
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(self.refs.main(arguments), 0)
+            self.assertEqual(references_cli.main(arguments), 0)
         self.refs.configure_pack_runtime(self.case['settings'])
         value = c.load(output)
         self.assertEqual(value['target_model'], self.model)
@@ -1404,7 +1525,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
 
     def test_external_binding_keeps_canonical_studio_provenance_and_its_scope(self):
         import studio_reference
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_execution as execution
         import production_fixtures as fixture
         from sheet_artifacts_smoke_test import accepted
@@ -1429,7 +1550,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         write(self.root, 'upload-evidence.json', {'synthetic': True, 'source_sha256': source['sha256'],
                                                 'image_id': 'synthetic-scene'})
         external['external_request']['reference_fields'][0]['evidence']['sha256'] = c.sha256_file(self.root / 'upload-evidence.json')
-        sync_external_prompt(self.root, external)
+        sync_external_prompt(self.root, external,
+            'Use Image {{reference:adopted:attachment_number}} for {{reference:adopted:controls}}.')
         binding = inputs.validate(external, self.root)
         selected = binding['prepared_reference_set']['selected_references'][0]
         self.assertEqual(selected['source'], source)
@@ -1446,6 +1568,9 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         write(self.root, 'external-input.json', external)
         from reading_fixtures import task_reading
         task_reading(self.root, task)
+        for task_source in task['sources']:
+            task_source.pop('definition_owner', None)
+        fixture.bind_work_basis(self.root, task)
         write(self.root, 'external-task.json', task)
         run = workflow.prepare(self.root, 'external-task.json')['run']
         self.assertEqual(workflow.impact(self.root, run).get('provenance'), [])
@@ -1503,17 +1628,21 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         request = c.load(self.root / 'request.json')
         request['images'] = request['images'][:1]
         write(self.root, 'request.json', request)
-        body = 'Show the character from the attached image walking beside a stone wall. Preserve the left ear detail.'
+        body = ('Show the character from Image {{reference:state-face:attachment_number}} walking beside a stone wall. '
+                'Preserve {{reference:state-face:controls}}, including the left ear detail.')
         prompt = sync_external_prompt(self.root, external, body)
         binding = inputs.validate(external, self.root)
         self.assertNotIn('subject_uses', binding['references'][0])
         self.assertEqual(inputs.request_context(binding)['references'][0]['subject_id'], 'C01')
         self.assertEqual(prompt, body)
-        self.assertEqual(binding['external_request']['request']['prompt'], body)
-        import production_workflow as workflow
+        self.assertEqual(binding['external_request']['request']['prompt'],
+            'Show the character from Image 1 walking beside a stone wall. Preserve '
+            + ', '.join(row['authority']['controls']) + ', including the left ear detail.')
+        import production_operations as workflow
         archive = self.base / 'review-objects'
         c.object_store(archive, (self.root / 'scene.png').read_bytes())
-        evidence = workflow._review_reference_evidence(archive, 'fixture', {'image_input': binding}, {},
+        evidence = workflow._review_reference_evidence(archive, 'fixture', {'image_input': binding},
+            {'dependencies': [], 'task': {'sources': []}},
             artifacts={}, read_object=lambda key: c.object_read(archive, key))
         scope = json.loads(evidence[0]['relation'].split(': ', 1)[1])
         self.assertEqual(scope['subject_id'], 'C01')
@@ -1615,7 +1744,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
 
     def test_frozen_reference_bundle_keeps_binding_and_verifies_without_original_studio(self):
         import shutil
-        from build_generation_payload import materialize_cli_reference_bundle
+        from generation_payload_builder import materialize_cli_reference_bundle
         from reference_delivery import bindings
         self.plan['references'][1]['do_not_transfer'] = []
         original = self.prepare(transport_mode='single-board')
@@ -1638,13 +1767,22 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
             self.refs.validate_prepared_reference_content(value, package_root=moved)
 
     def object_task(self, model_name=None, **reference_options):
-        import studio
+        import production_fixtures
+        import studio_workspace as studio
         import production_spec
         import prompt_plot
         import prompt_retrieval
         from reading_fixtures import fixture_reading
         from render_contract_fixtures import intent
         from request_validation_fixtures import fixture_validation
+        from reference_delivery import bindings
+        from model_rendition import resolve_reference_text
+        prepared_references = self.prepare(**reference_options)
+        source_prompt = ('Edit the cafe interior. Change the wall color behind the vase. ' +
+            (BOARD_REFERENCE_DIRECTION if prepared_references['transport_mode'] == 'single-board' else REFERENCE_DIRECTION))
+        resolved_prompt = resolve_reference_text(source_prompt, bindings(
+            prepared_references['transport_mode'], prepared_references['selected_references'], prepared_references['single_board']))['text']
+        write(self.root, 'prompt.txt', source_prompt.encode('utf-8'))
         task = self.case['task']
         task['features'] = ['semantic-instruction-edit', 'instruction-edit']
         task['semantic_edit'] = 'edit-plan.json'
@@ -1654,8 +1792,9 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         task['criteria'] += [{'id': ident, 'strength': 'hard', 'text': text, 'evidence': 'image'}
             for ident, text in [('wall', 'The wall change is visible.'), ('geometry', 'The vase geometry remains fixed.')]]
         spec = production_spec.load(production_spec.TEMPLATE)
-        spec.update(source_brief=PROMPT, target_model=model_name or self.model, image_promise=PROMPT,
-                    render_intent=intent(PROMPT, 'instruction-edit'))
+        spec.update(source_brief='Edit the cafe interior wall.', target_model=model_name or self.model,
+                    image_promise='A repainted cafe wall behind the existing vase.',
+                    render_intent=intent(resolved_prompt, 'instruction-edit'))
         spec['scene']['environment'] = 'A ceramic vase on a cafe table with a painted wall behind it.'
         spec['constraints']['construction_invariants'] = ['Preserve the vase geometry and source framing.']
         write(self.root, 'spec.json', spec)
@@ -1668,27 +1807,28 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         plot['approved']['content_sha256'] = prompt_plot.content_sha256(plot)
         write(self.root, 'plot.json', plot)
         retrieval = c.load(self.root / 'retrieval.json')
-        retrieval['elements'][0]['composed_wording'] = PROMPT
-        write(self.root, 'retrieval.json', prompt_retrieval.settle_retrieval_record(retrieval, prompt=PROMPT, plot=plot))
+        retrieval['elements'][0]['composed_wording'] = resolved_prompt
+        write(self.root, 'retrieval.json', prompt_retrieval.settle_retrieval_record(retrieval, prompt=resolved_prompt, plot=plot))
         write(self.root, 'validation.json', fixture_validation(self.root, self.model,
             reference_mode='authored-rendition', service='synthetic'))
-        write(self.root, 'references.json', self.prepare(**reference_options))
+        write(self.root, 'references.json', prepared_references)
         task['generation'].update(references='references.json', continuity={})
         studio.add_character(self.root, 'product-scene', 'general')
         task['recording'].update(character='product-scene', slot='candidate', subject_map={}, sheet_panel=False)
         write(self.root, 'reading.json', fixture_reading(route=task['route'], features=task['features'], model=self.model,
                                                         studio=self.root, ledger=self.root / 'work/reads.jsonl', execution=task['execution']))
+        production_fixtures.bind_work_basis(self.root, task, request=source_prompt, focus='supporting-setting')
         write(self.root, 'task.json', task)
         return task
 
     def test_object_only_dispatcher_prepares_exact_scopes_and_recovers_frozen_evidence(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_execution as execution
         import execution_lifecycle as accounting
         import transport_synthetic
         from production_compiler import check_task
         from test_production_execution import decisions
-        from verify_generation_payload import verify_content
+        from generation_payload_validation import verify_content
         self.object_task()
         check = check_task(self.root, 'task.json')
         self.assertTrue(check['ok'], check)
@@ -1712,7 +1852,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
 
     def test_bound_dispatcher_review_keeps_sources_and_board_after_live_inputs_are_removed(self):
         import shutil
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_execution as execution
         from test_production_execution import decisions
         self.object_task(transport_mode='single-board', max_side=96)
@@ -1731,7 +1871,7 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         self.assert_review_sources_and_carriers(draft, references, directory, basis['evidence'])
 
     def test_alias_declared_target_still_seals_the_request(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_execution as execution
         from production_compiler import check_task
         from test_production_execution import decisions
@@ -1788,13 +1928,13 @@ class SemanticEditProductionTests(unittest.TestCase):
                      'criteria': [{'id': 'wall', 'strength': 'hard', 'text': 'Requested wall edit is visible.'},
                                   {'id': 'geometry', 'strength': 'hard', 'text': 'Product geometry remains stable.'}],
                      'world_views': [], 'semantic_edit': 'edit-plan.json', 'image_input': 'image-input.json'}
-        fixture.task(self.root, self.task, artifact='image', execution='external')
+        fixture.task(self.root, self.task, artifact='image', execution='external', focus='supporting-setting')
         for row in self.task['criteria']:
             row['evidence'] = 'image'
         write(self.root, 'task.json', self.task)
 
     def prepared(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         result = workflow.prepare(self.root, 'task.json')
         run = result['run']
         self.fixture.handoff(self.root, run, 'synthetic-host', 'manual')
@@ -1802,7 +1942,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         return run, token
 
     def test_shared_source_keeps_distinct_reference_scopes_in_review(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         self.plan['references'][1]['file'] = 'scene.png'
         self.plan['external_request']['reference_fields'][1]['value'] = 'synthetic-scene'
         request = c.load(self.root / 'request.json')
@@ -1819,7 +1959,8 @@ class SemanticEditProductionTests(unittest.TestCase):
         write(self.root, 'output.png', png((90, 110, 130)))
         candidate = workflow.capture(self.root, run, 'output.png', 'Synthetic shared-source scope test.')
         review = workflow.draft_review(self.root, run, candidate['sha256'])
-        source_evidence = workflow.review_basis(self.root, run, candidate['sha256'])['evidence']
+        all_evidence = workflow.review_basis(self.root, run, candidate['sha256'])['evidence']
+        source_evidence = [item for item in all_evidence if item['id'].startswith('input-reference:')]
         self.assertEqual([item['id'] for item in source_evidence], ['input-reference:scene', 'input-reference:design'])
         self.assertEqual(source_evidence[0]['path'], source_evidence[1]['path'])
         scopes = [json.loads(item['relation'].split(': ', 1)[1]) for item in source_evidence]
@@ -1839,7 +1980,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         review['conclusion'] = 'Both source scopes remain distinct; candidate criteria await assessment.'
         write(self.root, 'review.json', review)
         recorded = workflow.review(self.root, run, 'review.json')
-        self.assertEqual(recorded['data']['review']['evidence'], source_evidence)
+        self.assertEqual(recorded['data']['review']['evidence'], all_evidence)
         self.assertEqual(len(recorded['data']['review']['observations']), 2)
 
     def update_authority(self, authority):
@@ -1854,7 +1995,8 @@ class SemanticEditProductionTests(unittest.TestCase):
         from reading_fixtures import fixture_reading
         self.task.pop('semantic_edit')
         self.task['features'] = []
-        self.task['sources'][0]['role'] = 'reference-images'
+        next(source for source in self.task['sources']
+             if source['id'] == 'source-scene')['role'] = 'reference-images'
         for index, row in enumerate(self.plan['references']):
             subject = 'a' if index == 0 else 'b'
             row['role'] = 'identity'
@@ -1869,8 +2011,10 @@ class SemanticEditProductionTests(unittest.TestCase):
                     'variation': None}]})
         spec = production_spec.draft(model=self.plan['model']['requested'], brief='Synthetic scene using two source identities.',
             subject='a', kind='robot', render_intent=intent(PROMPT, 'reference-guided'))
+        spec['subjects'][0]['identity'] = 'Synthetic robot A with the original form supplied by the scene reference.'
         second = copy.deepcopy(spec['subjects'][0])
         second['id'] = 'b'
+        second['identity'] = 'Synthetic robot B with the original form supplied by the design reference.'
         spec['subjects'].append(second)
         write(self.root, 'external-spec.json', spec)
         self.task['sources'].append({'id': 'specification', 'path': 'external-spec.json', 'role': 'production-spec',
@@ -1880,11 +2024,13 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.task['route_reading'] = 'reading.json'
         sync_external_prompt(self.root, self.plan)
         write(self.root, 'image-input.json', self.plan)
+        self.fixture.bind_work_basis(self.root, self.task,
+            request='Create a synthetic scene using the two supplied robot identities.', focus='character')
         write(self.root, 'task.json', self.task)
         return spec
 
     def test_ordinary_external_reference_generation_uses_the_shared_binding(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         from production_compiler import check_task
         self.new_scene_task()
         check = check_task(self.root, 'task.json')
@@ -1897,7 +2043,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(claim['data']['image_input_sha256'], consumer['image_input']['binding_sha256'])
 
     def test_text_only_external_check_prepare_and_settlement_keep_exact_request(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         from production_compiler import check_task
         from reading_fixtures import fixture_reading
         self.plan = setup_text_only_plan(self.root)
@@ -1910,6 +2056,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
             ledger=self.root / 'work/reads.jsonl', execution=self.task['execution']))
         self.task['route_reading'] = 'reading.json'
+        self.fixture.bind_work_basis(self.root, self.task, focus='supporting-setting')
         write(self.root, 'task.json', self.task)
         request = c.load(self.root / 'request.json')
         checked = check_task(self.root, 'task.json')
@@ -1941,7 +2088,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(result['request_evidence']['status'], 'matched-recorded-call')
 
     def test_reference_free_external_submission_requires_complete_author_review(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         from reading_fixtures import fixture_reading
         self.plan = setup_text_only_plan(self.root)
         self.task.pop('semantic_edit')
@@ -1950,6 +2097,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
             ledger=self.root / 'work/reads.jsonl', execution=self.task['execution']))
         self.task['route_reading'] = 'reading.json'
+        self.fixture.bind_work_basis(self.root, self.task, focus='supporting-setting')
         write(self.root, 'task.json', self.task)
         run = workflow.prepare(self.root, 'task.json')['run']
         self.fixture.handoff(self.root, run, 'synthetic-host', 'manual')
@@ -1987,7 +2135,7 @@ class SemanticEditProductionTests(unittest.TestCase):
                          intent['payload']['image_input_sha256'])
 
     def test_external_image_requires_an_exact_request_while_nonimage_submission_keeps_its_contract(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         from production_compiler import check_task
         from reading_fixtures import fixture_reading
         self.task.pop('semantic_edit')
@@ -1997,6 +2145,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
             ledger=self.root / 'work/reads.jsonl', execution=self.task['execution']))
         self.task['route_reading'] = 'reading.json'
+        self.fixture.bind_work_basis(self.root, self.task, focus='supporting-setting')
         write(self.root, 'task.json', self.task)
         checked = check_task(self.root, 'task.json')
         self.assertFalse(checked['ok'])
@@ -2014,14 +2163,14 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(workflow.claim_external(self.root, run, 1, token)['data']['count'], 1)
 
     def test_check_and_prepare_keep_authored_reference_instructions(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         from production_compiler import check_task
         self.new_scene_task()
         check = check_task(self.root, 'task.json')
         self.assertTrue(check['ok'], check)
         prepared = workflow.prepare(self.root, 'task.json')
         self.assertTrue(prepared['ok'], prepared)
-        self.assertEqual(prepared['request_preview']['prompt'], PROMPT)
+        self.assertEqual(prepared['request_preview']['prompt'], PROMPT_FINAL)
 
     def test_external_specification_and_render_checks_are_not_dispatcher_only(self):
         from production_compiler import check_task
@@ -2037,22 +2186,31 @@ class SemanticEditProductionTests(unittest.TestCase):
             else:
                 current.pop('scene')
             write(self.root, 'external-spec.json', current)
+            source = next(row for row in self.task['sources'] if row['id'] == 'specification')
+            source['path'] = 'external-spec.json'
+            request = c.load(self.root / self.task['work_basis'])['request']
+            self.fixture.bind_work_basis(self.root, self.task, request=request)
+            write(self.root, 'task.json', self.task)
             with self.subTest(change=change):
                 check = check_task(self.root, 'task.json')
                 self.assertFalse(check['ok'], check)
                 self.assertIn('external-image-contract', str(check))
 
     def test_external_shared_generation_inputs_need_no_dispatcher_parameters(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         from production_compiler import check_task
         self.new_scene_task()
         self.task['sources'] = [row for row in self.task['sources'] if row['role'] != 'production-spec']
         write(self.root, 'state-graphs.json', [])
         self.task['generation'] = {'production_spec': 'external-spec.json', 'state_graphs': 'state-graphs.json'}
+        request = c.load(self.root / self.task['work_basis'])['request']
+        self.fixture.bind_work_basis(self.root, self.task, request=request)
         write(self.root, 'task.json', self.task)
         check = check_task(self.root, 'task.json')
         self.assertTrue(check['ok'], check)
-        self.assertEqual(check['request_preview'], c.load(self.root / 'request.json'))
+        expected = c.load(self.root / 'request.json')
+        expected['prompt'] = PROMPT_FINAL
+        self.assertEqual(check['request_preview'], expected)
         run, token = self.prepared()
         prepared = workflow.load_run(self.root, run)[1]
         self.assertIn('external-spec.json', [row['path'] for row in prepared['dependencies']])
@@ -2060,7 +2218,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         workflow.claim_external(self.root, run, 1, token)
 
     def test_external_settlement_records_actual_call_comparison(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         self.new_scene_task()
         run, token = self.prepared()
         claim = workflow.claim_external(self.root, run, 1, token)
@@ -2068,7 +2226,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         workflow.capture(self.root, run, 'output.png', 'Synthetic local result, no quality claim.')
         write(self.root, 'host-response.json', {'synthetic': True, 'status': 'received'})
         write(self.root, 'host-call.json', {'synthetic': True, 'call_id': 'synthetic-call-1',
-            'arguments': c.load(self.root / 'request.json')})
+            'arguments': workflow.load_run(self.root, run)[2]['image_input']['external_request']['request']})
         result = workflow.receive_external(self.root, run, response_file='host-response.json', artifacts=['output.png'],
             submission_file='host-call.json', request_pointer=['arguments'],
             final=True, reason='Synthetic host-call and result records.')
@@ -2076,7 +2234,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(result['request_evidence']['status'], 'matched-recorded-call')
 
     def test_one_source_edit_needs_no_auxiliary_image(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         self.plan['references'] = self.plan['references'][:1]
         edit = c.load(self.root / 'edit-plan.json')
         edit['edit']['required_reference_roles'] = ['scene']
@@ -2084,10 +2242,14 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.plan['external_request']['reference_fields'] = self.plan['external_request']['reference_fields'][:1]
         request = c.load(self.root / 'request.json')
         request['images'] = request['images'][:1]
-        self.task['sources'] = self.task['sources'][:1]
+        self.task['sources'] = [source for source in self.task['sources']
+                                if source['id'] == 'source-scene']
         write(self.root, 'request.json', request)
-        sync_external_prompt(self.root, self.plan)
+        sync_external_prompt(self.root, self.plan,
+            'Edit the cafe interior. Change the wall color behind the vase. '
+            'Use Image {{reference:scene:attachment_number}} for {{reference:scene:controls}}.')
         write(self.root, 'image-input.json', self.plan)
+        self.fixture.bind_work_basis(self.root, self.task, focus='supporting-setting')
         write(self.root, 'task.json', self.task)
         (self.root / 'design.png').unlink()
         run, token = self.prepared()
@@ -2098,7 +2260,8 @@ class SemanticEditProductionTests(unittest.TestCase):
 
     def test_scene_must_match_the_applied_task_source(self):
         from production_diagnostics import DEFAULT_ACTION, ProductionError
-        self.task['sources'][0]['path'] = 'design.png'
+        next(source for source in self.task['sources']
+             if source['id'] == 'source-scene')['path'] = 'design.png'
         with self.assertRaisesRegex(ProductionError, 'applied accepted-source') as caught:
             edits.task_binding(self.root, self.task, lambda base, path: (base / path).read_bytes())
         diagnostic = caught.exception.diagnostic
@@ -2152,7 +2315,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(edits.unresolved(plan, path='draft/edit-plan.json', criteria=self.task['criteria']), [])
 
     def test_external_readiness_requires_exact_current_submission_authority(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_execution as execution
         import execution_lifecycle as lifecycle
         from production_diagnostics import ProductionError
@@ -2201,7 +2364,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(lifecycle.summary(self.root)['submissions'], 0)
 
     def test_bounded_probe_uses_actual_validation_mode_authority(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import execution_lifecycle as lifecycle
         from production_diagnostics import ProductionError
         authority = c.load(self.root / self.task['authority'])
@@ -2220,7 +2383,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(workflow.claim_external(self.root, run, 1, token)['data']['count'], 1)
 
     def test_changed_validation_mode_authority_blocks_a_prepared_claim(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import execution_lifecycle as lifecycle
         from production_diagnostics import ProductionError
         run, token = self.prepared()
@@ -2233,7 +2396,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(lifecycle.summary(self.root)['submissions'], 0)
 
     def test_external_request_cannot_use_an_unassessed_dispatcher_scope(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import execution_lifecycle as lifecycle
         from production_diagnostics import ProductionError
         authority = c.load(self.root / self.task['authority'])
@@ -2254,13 +2417,15 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(lifecycle.summary(self.root)['submissions'], 0)
 
     def test_check_prepare_external_capture_and_resume_keep_exact_input_and_result(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_execution as execution
         import execution_lifecycle as lifecycle
         from production_compiler import check_task
         result = check_task(self.root, 'task.json')
         self.assertTrue(result['ok'], result)
-        self.assertEqual(result['request_preview'], c.load(self.root / 'request.json'))
+        actual = c.load(self.root / 'request.json')
+        actual['prompt'] = PROMPT_FINAL
+        self.assertEqual(result['request_preview'], actual)
         run, token = self.prepared()
         _, prepared, consumer, _ = workflow.load_run(self.root, run)
         bound = consumer['image_input']
@@ -2268,7 +2433,7 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertIn('design.png', [x['path'] for x in prepared['dependencies']])
         claim = workflow.claim_external(self.root, run, 1, token)
         self.assertEqual(claim['data']['target'], TARGET)
-        self.assertEqual(claim['data']['external_request_sha256'], c.sha256_file(self.root / 'request.json'))
+        self.assertEqual(claim['data']['external_request_sha256'], c.content_id(actual))
         self.assertEqual(workflow.claim_external(self.root, run, 1, token)['sha256'], claim['sha256'])
         output = png((40, 120, 70))
         write(self.root, 'output.png', output)
@@ -2287,7 +2452,9 @@ class SemanticEditProductionTests(unittest.TestCase):
         review = workflow.draft_review(self.root, run, candidate['sha256'])
         self.assertTrue(all(x['verdict'] == 'not-assessed' for x in review['checks']))
         self.assertEqual(review['observations'], [])
-        evidence = workflow.review_basis(self.root, run, candidate['sha256'])['evidence']
+        all_evidence = workflow.review_basis(self.root, run, candidate['sha256'])['evidence']
+        evidence = [item for item in all_evidence
+                    if item['id'].startswith('input-reference:')]
         self.assertEqual([item['id'] for item in evidence], ['input-reference:scene', 'input-reference:design'])
         self.assertEqual(review['evidence'], [])
         for item, reference in zip(evidence, bound['references']):
@@ -2308,10 +2475,10 @@ class SemanticEditProductionTests(unittest.TestCase):
         recorded = workflow.review(self.root, run, 'review.json')
         self.assertEqual(recorded['data']['review']['checks'], review['checks'])
         self.assertEqual([item['sha256'] for item in recorded['data']['evidence']],
-                         [item['sha256'] for item in bound['references']])
+                         [c.sha256_file(self.root / item['path']) for item in all_evidence])
 
     def test_changed_original_reference_keeps_the_saved_external_claim(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_execution as execution
         import execution_lifecycle as lifecycle
         run, token = self.prepared()
@@ -2327,14 +2494,14 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.assertEqual(lifecycle.summary(self.root)['submissions'], 1)
 
     def test_claim_count_and_delivery_prompt_must_match_exact_request(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         run, _ = self.prepared()
         with self.assertRaisesRegex(ValueError, 'claim count'):
             workflow.external_intent(self.root, run, 2)
         other = Path(self.temp.name) / 'other'
         plan = setup_plan(other)
         task = copy.deepcopy(self.task)
-        write(other, 'prompt.txt', b'Different instruction')
+        write(other, 'prompt.txt', ('Different instruction. ' + REFERENCE_DIRECTION).encode('utf-8'))
         with self.assertRaisesRegex(ValueError, 'production delivery'):
             edits.task_binding(other, task, lambda base, path: (base / path).read_bytes())
 

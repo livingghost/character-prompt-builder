@@ -8,7 +8,7 @@ from pathlib import Path
 import unittest
 
 import execution_contract as c
-import production_workflow as workflow
+import production_operations as workflow
 import production_request
 import reimplementation_smoke_test as fixture
 
@@ -17,7 +17,7 @@ class PreviewTests(unittest.TestCase):
     setUp = fixture.UpscaleIntegration.setUp
 
     def preview(self, **changes):
-        import dispatch
+        import dispatch_runtime as dispatch
         options = copy.copy(self.options)
         options.preview_out = 'preview.json'
         for key, value in changes.items():
@@ -65,7 +65,7 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(self.refused(), 'EXECUTION_NOT_APPLICABLE')
 
     def test_upscale_goes_under_the_open_task_run(self):
-        import dispatch
+        import dispatch_runtime as dispatch
         self.assertEqual(dispatch.open_run(self.root), self.run)
 
     def test_preview_checks_supplied_upscale_arguments_against_the_saved_request(self):
@@ -77,7 +77,7 @@ class PreviewTests(unittest.TestCase):
     def test_preview_refuses_a_run_that_owns_an_execution(self):
         with contextlib.redirect_stdout(io.StringIO()):
             self.execution.execute(self.root, self.run, decisions_file=self.decision_file)
-        import dispatch
+        import dispatch_runtime as dispatch
         options = copy.copy(self.options)
         with self.assertRaises(ValueError) as caught:
             dispatch.dispatch_upscale(options, self.root)

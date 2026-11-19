@@ -22,6 +22,14 @@ The changes file follows `schemas/authoring/production-changes.schema.json`:
 {"changes": {"parameter:steps": 22}, "reason": "Compare one declared parameter under the same fixed inputs."}
 ```
 
+`variant` applies these declared changes through the common
+[Authoring work](authoring-work.md) `amend` operation. The exact UTF-8 contents of
+the changes file or standard input become the current request. The parent's
+captured task, delivered text and documents form the actual baseline. The source
+catalog retains the earlier request and acquired source records for comparison.
+`task.work_basis` selects the resulting
+basis for completion and publication.
+
 Each key of `changes` is a field the execution plan's `mutable_fields` declares; none is an internal JSON pointer.
 Editable model controls are package parameters and explicit dispatch seed or count choices.
 The transport owns `dispatch-generated` values, so these are absent from `mutable_fields` even when the request requires them.
@@ -55,7 +63,16 @@ references relative to `schemas/`, and the nested location of the invalid value.
 [Diagnostic codes](production-diagnostics.md#diagnostic-codes) lists the variation codes.
 `references: null` removes the selected reference set and reruns the required contracts.
 Replacing a named document also updates the task source role that points at it.
-A removed dependency has no remaining use in the child. Unchanged inputs come
+The current source selections are acquired and projected through the same
+application owner as editable choices. JSON pointers, subject bindings and
+requirement selections retain their exact relationships. Replacing a source
+updates its current application and keeps the previous acquisition as catalog
+evidence. A Production Specification identity edit updates its task-owned
+definition application; independently selected definitions keep their source
+scope. Applicable criteria and source allowances are checked against the
+resulting task.
+
+The child compiles its current selected dependency graph. Unchanged inputs come
 from the parent's captured revision, including nested source material and
 prepared reference bytes. A changed file, deleted original or moved original
 does not require restoration before a variant or repeat. An explicit
@@ -74,7 +91,7 @@ Where the installation or the packs differ from what the parent pinned, the resu
 Compare the new request with the parent's before approving it.
 A pack that no longer holds the model or the service stops the compilation, as it stops any preparation.
 
-The derived task and replaced inputs are published with the new run under `production/runs/RUN/inputs/`.
+The derived task, `work-basis.json`, current selected source bytes and replaced inputs are published with the new run under `production/runs/RUN/inputs/`.
 They are recorded as `task-source` dependencies, and nothing is written under `production/inputs/`.
 A failed `--prepare` keeps its staging, with `failure.json` and `inputs/`, for `staging-cleanup`.
 A synthetic parameter variant from standard input reports this derivation (trimmed):
@@ -84,9 +101,13 @@ A synthetic parameter variant from standard input reports this derivation (trimm
   "changes": [{"field": "parameter:steps", "before": 20, "after": 22}], "basis": []}}
 ```
 
-Its new run holds `inputs/parameters.json`, `inputs/requested-changes.json` and `inputs/task.json`.
+Its new run holds `inputs/parameters.json`, `inputs/requested-changes.json`,
+`inputs/task.json` and `inputs/work-basis.json`, together with the selected source
+files named by that task. The basis retains the exact current request, original
+acquisitions and current applications.
 
 `repeat` creates another run for the same input and semantic request, with its own future execution claim.
+It retains the same authoring basis and current request.
 It compares the authored input, the task with its sources and references, before registration and publishes nothing on a mismatch.
 The installation and the packs are not part of that comparison; each run pins its own.
 It never borrows its parent's exact execution decisions; `resume` instead recovers the parent's execution.
@@ -107,7 +128,7 @@ select the target in the common editable input. Keep its production series ID,
 use its work task or an explicitly reopened task, and record why the target changes.
 
 ```text
-python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --model MODEL_ID --service SERVICE_ID --out-dir work/retarget
+python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --operation amend --request-file request.txt --model MODEL_ID --service SERVICE_ID --out-dir work/retarget
 python scripts/production_workflow.py retarget --root STUDIO --from RUN --choices work/retarget/choices.json --reason "Use the selected target for this expression." --prepare
 ```
 
@@ -153,8 +174,13 @@ they assessed, and remain available as source evidence for later judgment.
 ## Revise the editable source across production steps
 
 The common choices file supports broader revisions than the bounded field map.
-Reopen the exact source run with `draft-inputs --from-run RUN`, edit the selected
-content, and follow `inspect-inputs` for that draft. Same-target `prepare`
+Use `draft-inputs --from-run RUN --operation compose|amend`, supplying a changed
+request with `--request-file FILE`. Through [Authoring work](authoring-work.md),
+`amend` applies the scoped change to an actual baseline and `compose` builds the
+current candidate from its requirements and source applications. Retain useful
+earlier inputs for comparison. Choose the operation through
+[Production direction](production-direction.md#observe-and-repair), author the
+candidate, and follow `inspect-inputs` for that draft. Same-target `prepare`
 records the source run as its parent. A target change supplies the explicit
 `retarget` action and authored reason. A saved image is not required to compare
 several prompts or models. Keep each intended branch in a separate directory;
@@ -174,7 +200,7 @@ unused carrier or URL ceases to be a live requirement when its reference is
 removed. Original prepared requests and their media remain available for review.
 
 An accepted or completed result can be the source of later authorized work.
-Use `draft-inputs --from-run RUN --new-task GOAL --out-dir DIRECTORY` after the
+Use `draft-inputs --from-run RUN --operation compose|amend --request-file FILE --new-task GOAL --out-dir DIRECTORY` after the
 earlier work task has closed, or `--task-id ACTIVE_TASK_ID` to bind it explicitly
 to current work. The new task reuses content and records its source without
 altering the earlier completion. An existing open task must be continued,

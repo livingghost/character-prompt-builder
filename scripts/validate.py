@@ -22,28 +22,18 @@ from typing import Any, Iterable
 
 sys.dont_write_bytecode = True
 
-from catalog_cli import (
-    VALID_DOMAINS,
-    VALID_TIERS,
-    catalog_stats,
-    configure_pack_runtime,
-    load_entries,
-    load_pack_catalog,
-    named_resource_path,
-    record_tier,
-)
+from catalog_api import VALID_DOMAINS, VALID_TIERS, catalog_stats, configure_pack_runtime, load_entries, load_pack_catalog, named_resource_path, record_tier
 import catalog_cli as catalog_cli_module
-from pack_manager import PackSettings, species_scaffold_issues, validate_pack
+from pack_manager import species_scaffold_issues, validate_pack
+from runtime_paths import PackSettings
 from execution_contract import sha256_file
 from validate_state_protocol import template_digest_errors, validate as validate_state_protocol
 from validate_reference_corpus import validate as validate_reference_corpus
 from check_dependencies import check as check_dependencies
 from shot_request import validate_request as validate_shot_request
-from build_generation_payload import (
-    TRANSPORT_MODES,
-    infer_negative_transport,
-)
-from prepare_generation_references import resolve_model_record
+from generation_payload_builder import infer_negative_transport
+from generation_cli_arguments import TRANSPORT_MODES
+from generation_references import resolve_model_record
 from search_discovery import catalog_query_from_mapping
 from resource_policy import validate_known_resource
 from state_protocol import unsupported_schema_keywords, validate_against_schema
@@ -173,6 +163,9 @@ ROOT_REQUIRED = (
     'schemas/authoring/production-input-draft.schema.json',
     'scripts/studio_recipe_smoke_test.py',
     'scripts/revision_contract.py',
+    'scripts/authoring_work.py',
+    'schemas/authoring/authoring-work.schema.json',
+    'references/runtime/authoring-work.md',
     'config/pack-initialization.json',
     'scripts/verify_generation_payload.py',
     'scripts/production_spec.py',
@@ -513,6 +506,7 @@ def check_carried_implementation(root, contract_relative, errors) -> None:
                 "its hash travel together, and an edit to one has to travel with the other"
             )
 FRESH_SESSION_RUNTIME_DOCUMENTS = (
+    "references/runtime/authoring-work.md",
     "references/runtime/production-workflow.md",
     "references/runtime/prompt-composition.md",
     "references/runtime/sparse-discovery.md",
@@ -521,6 +515,7 @@ FRESH_SESSION_RUNTIME_DOCUMENTS = (
 )
 # SKILL.md routes each of these by a link or by naming a route or feature that delivers it.
 SKILL_ROUTED_DOCUMENTS = (
+    "references/runtime/authoring-work.md",
     "references/runtime/production-workflow.md",
     "references/runtime/narrative-development.md",
     "references/runtime/cast-and-persona-depth.md",
@@ -537,8 +532,9 @@ SKILL_ROUTED_DOCUMENTS = (
     "references/maintenance/search-discovery.md",
     "references/release/validation.md",
 )
-# Prompt work in conversation reads these without a route read, so SKILL.md links each one.
+# Core authoring knowledge is directly reachable for every delivery and storage context.
 SKILL_DIRECT_LINKS = (
+    "references/runtime/authoring-work.md",
     "references/runtime/production-workflow.md",
     "references/runtime/prompt-only-core.md",
     "references/runtime/prompt-composition.md",
@@ -701,6 +697,14 @@ SKILL_FORBIDDEN_DEEP_RUNTIME_TOKENS = (
     "python -m pip install",
 )
 AUTHORITATIVE_DOCUMENT_MARKERS = {
+    "references/runtime/authoring-work.md": (
+        "# Authoring work",
+        "## Begin from the current request",
+        "## Apply sources to this candidate",
+        "## Compose or amend actual content",
+        "## Inspect and deliver",
+        "## Save or execute the same work",
+    ),
     "references/runtime/production-workflow.md": (
         "# Production workflow",
         "## Open the current work",
@@ -1097,7 +1101,7 @@ def check_skill_documentation_contract(root: Path, errors: list[str]) -> dict[st
     link_targets = _markdown_link_targets(skill)
     for relative in SKILL_DIRECT_LINKS:
         if relative not in link_targets:
-            errors.append(f"SKILL.md does not link the conversational prompt document: {relative}")
+            errors.append(f"SKILL.md does not link the core authoring document: {relative}")
 
     all_reference_documents = {
         path.relative_to(root).as_posix()
@@ -1429,7 +1433,7 @@ def check_version_consistency(root: Path, errors: list[str]) -> dict[str, Any]:
 
     # The implementation index a prepared run pins is generated from the import
     # closure of the production modules; a stale index pins the wrong files.
-    import production_workflow
+    import production_operations as production_workflow
     try:
         indexed = production_workflow.implementation_files()
     except ValueError as exc:
@@ -2492,7 +2496,7 @@ def validate(
     if generation_payload_template.get("prompt_recommendations", {}).get("resolved_model_id") != "":
         errors.append("generation package template must not select a recommendation model")
     contract_template = payload_template.get("generation_contract", {})
-    from verify_generation_payload import GENERATION_CONTRACT_FIELDS
+    from generation_payload_validation import GENERATION_CONTRACT_FIELDS
     expected_generation_contract_fields = GENERATION_CONTRACT_FIELDS
     if set(contract_template) != expected_generation_contract_fields:
         errors.append(

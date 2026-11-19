@@ -3,7 +3,11 @@
 from __future__ import annotations
 import copy
 import json
+import os
+from pathlib import Path
+import tempfile
 import unittest
+from unittest import mock
 import render_contract_lib as r
 from render_contract_fixtures import control, intent, profile
 
@@ -808,6 +812,93 @@ class ExternalPackGuidanceTests(unittest.TestCase):
             with self.subTest(script=script):
                 result = self.command(script,*args,variant='disabled',succeeds=False)
                 self.assertIn('model',result.stdout+result.stderr)
+
+class RenderPresetOwnershipTests(unittest.TestCase):
+    """Rendering definitions belong to one explicitly supplied operation."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='render-preset-inputs-')
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.path = self.root / 'config/render-presets.json'
+        self.path.parent.mkdir()
+        self.document = {'presets': [{'id': 'synthetic', 'label': 'Synthetic definition',
+            'axes': {'medium': 'digital-illustration', 'dimensionality': 'flat-shapes',
+                     'linework': 'clean', 'shading': 'solid-flat-colors', 'surface': 'matte', 'detail': 'simple'},
+            'guidance': 'Synthetic ownership check only.'}]}
+        self.path.write_text(json.dumps(self.document), encoding='utf-8')
+        patch = mock.patch.object(r, 'ROOT', self.root)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def make(self, owner=None):
+        return r.make_intent('synthetic', mode='text-to-image', chosen_by='agent', reason='Synthetic fixture.',
+            presentation='A synthetic flat image.', prompt_expression='Flat synthetic image.',render_presets=owner)
+
+    def test_construction_and_its_validation_acquire_the_preset_once(self):
+        original = Path.read_bytes
+        reads = []
+        def read(path):
+            reads.append(path)
+            return original(path)
+        with mock.patch.object(Path, 'read_bytes', read):
+            value = self.make()
+        self.assertEqual(reads, [self.path])
+        self.assertEqual(value['axes'], self.document['presets'][0]['axes'])
+
+    def test_one_owner_supplies_specification_and_render_projection_checks(self):
+        import production_spec
+        original = Path.read_bytes
+        reads = []
+        def read(path):
+            if path == self.path:
+                reads.append(path)
+            return original(path)
+        owner = r.RenderPresets()
+        with mock.patch.object(Path, 'read_bytes', read):
+            value = self.make(owner)
+            specification = production_spec.draft(model='synthetic', brief='A synthetic robot.',
+                subject='robot', kind='robot', render_intent=value, render_presets=owner)
+            production_spec.require(specification,render_presets=owner)
+            r.validate_intent(value,prompt='Flat synthetic image.',render_presets=owner)
+        self.assertEqual(reads, [self.path])
+        value['axes']['linework'] = 'altered-private-intent'
+        self.assertEqual(owner.read()['synthetic']['axes']['linework'], 'clean')
+        with self.assertRaises(TypeError):
+            owner.read()['synthetic']['axes']['linework'] = 'altered-definition'
+
+    def test_new_operation_observes_changed_bytes_with_the_same_file_metadata(self):
+        owner = r.RenderPresets()
+        original = self.make(owner)
+        metadata = self.path.stat()
+        self.document['presets'][0]['axes']['linework'] = 'rough'
+        self.path.write_text(json.dumps(self.document), encoding='utf-8')
+        os.utime(self.path, ns=(metadata.st_atime_ns,metadata.st_mtime_ns))
+        self.assertEqual(self.path.stat().st_size,metadata.st_size)
+        r.validate_intent(original,prompt='Flat synthetic image.',render_presets=owner)
+        with self.assertRaisesRegex(ValueError,'preset axes differ'):
+            r.validate_intent(original,prompt='Flat synthetic image.',render_presets=r.RenderPresets())
+        self.assertEqual(self.make()['axes']['linework'], 'rough')
+
+    def test_acquired_implementation_bytes_have_no_live_fallback(self):
+        from builder_inputs import BuilderInputs,FileInput
+        acquired = BuilderInputs(self.root, (FileInput('config/render-presets.json', self.path.read_bytes()),))
+        self.path.unlink()
+        owner = r.RenderPresets(source=acquired)
+        with mock.patch.object(Path,'read_bytes',side_effect=AssertionError('Use acquired implementation bytes')):
+            value = self.make(owner)
+            r.validate_intent(value,prompt='Flat synthetic image.',render_presets=owner)
+        missing = r.RenderPresets(source=BuilderInputs(self.root, ()))
+        with self.assertRaises(FileNotFoundError):
+            missing.read()
+
+    def test_operation_only_and_custom_rendering_need_no_preset_acquisition(self):
+        custom = self.make()
+        custom['preset'] = None
+        with mock.patch.object(r.RenderPresets,'read',side_effect=AssertionError('No selected preset')):
+            r.operation_intent('upscale')
+            r.validate_intent(custom,prompt='Flat synthetic image.',render_presets=r.RenderPresets())
+
 
 if __name__=='__main__':
     import stdio_utf8

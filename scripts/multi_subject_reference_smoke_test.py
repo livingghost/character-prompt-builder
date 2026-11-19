@@ -9,10 +9,9 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from build_state_generation_package import build_package
-from build_generation_payload import build_payload
-from prepare_generation_references import (build_prepared_reference_set, prepare_references,
-    prepare_state_reference_selection, validate_prepared_references)
+from state_generation_builder import build_package
+from generation_payload_builder import build_payload
+from generation_references import build_prepared_reference_set, prepare_references, prepare_state_reference_selection, validate_prepared_references
 from reading_fixtures import fixture_reading
 from state_generation_smoke_test import _load_graph, _payload_inputs
 from state_protocol import (acquire_subject_state_graphs, artifact_hash, combine_reference_selections, finalize_artifact,

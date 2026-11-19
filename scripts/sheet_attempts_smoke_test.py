@@ -8,12 +8,12 @@ from unittest.mock import patch
 
 import execution_contract as c
 import production_case_fixtures as fixtures
-import production_workflow as workflow
+import production_operations as workflow
 import production_execution as execution
 import sheet_batch as batch
 import sheet_batch_smoke_test as fixture
 import sheet_inventory
-import studio
+import studio_workspace as studio
 import transport_synthetic
 
 

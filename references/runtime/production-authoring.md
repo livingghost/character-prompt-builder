@@ -1,6 +1,9 @@
 # Production authoring
 
-Edit the commission, selected depiction and source use at their owning locations. Save authored text or prepare an image request from those same choices. The author judges meaning; the input owners derive paths, hashes and repeated bindings.
+Compose or amend the actual candidate through [Authoring work](authoring-work.md).
+Edit its commission, selected depiction and source use at their owning locations.
+Save authored text or prepare an image request from those same choices. The author
+judges meaning; the input owners derive paths, hashes and repeated bindings.
 
 ## Assemble authored choices
 
@@ -27,18 +30,37 @@ contextual checks. A document-level success does not establish request readiness
 
 The draft is an empty scaffold, not a character definition. For character work,
 [establish the subject for this use](production-direction.md#establish-the-character-for-this-use)
-before writing its rendition. Bind the applicable original definition, or the
-new task-local definition, through `authoring.task.sources`; `authoring.sources`
-can hold its editable text. Preserve the concrete meanings and their
+before writing its rendition. Acquire the applicable original or task-local
+definition through [Authoring work](authoring-work.md). The saved
+`work-basis.json` owns the acquired sources, current applications and their
+subject assignments; the compiler derives `authoring.task.sources` from them.
+Use the [saved-basis context command](authoring-work.md#save-or-execute-the-same-work)
+to acquire or update a definition and its applications. It derives the hashes
+from the actual source bytes.
+The compiler selects this acquired basis in the public task's `work_basis`.
+For a directly authored ProductionTask, acquire the basis with those same core
+commands and select its actual path. Completed checking, saving and preparation
+capture the current task, delivery and selected documents, require the applicable
+character definition, and verify their source applications and subject bindings
+against the basis. Draft structure inspection allows this work to remain open.
+Preserve the concrete meanings and their
 [researched wording](prompt-vocabulary.md#define-a-character-with-usable-wording)
 together at that owner. An existing definition remains authoritative; do not
 replace it with a summary of the prompt being authored. The builder captures
-source bytes in `authored_basis` but does not invent or judge the definition.
+source bytes in `authored_basis` for independent review.
 For a selected Production Specification, project the relevant identity, current
 state and performance into its subjects. Carry the meanings needed for this
 depiction into the actual delivery, retaining authored phrases when tags alone
 lose detail. A saved definition or an internal source path is not model input.
 Explicit supporting setting work follows its declared scope.
+
+A task-local definition derived from the current Production Specification
+carries the compiler-derived `definition_owner` with `document: "production_spec"`
+and its `subject_id`. Reacquiring a public task restores that actual document
+as the editable owner. Its subject identity edits update the applied definition;
+removing a subject updates the corresponding applications. A definition retained
+as independent source material during composition keeps its source owner.
+Canonical and external definitions retain their own authority and ownership.
 
 The [complete first-input example](../../examples/input-authoring/README.md)
 creates all selected inputs and prepares one reference-guided image in a fresh
@@ -257,13 +279,14 @@ For a new agent or lost context, read the complete contract for the current work
 again using the status action. A prior delivery record alone supplies no knowledge.
 
 - `inspect-inputs` gathers the current task, authored content, source roles, recorded candidates and unresolved choices.
-- `draft-inputs` creates `choices.json` as the editing source and a separate `context.json` for provenance and the selected starting point. `choices.target` owns the model and service selection. `choices.authoring` holds meaningful task decisions, selectors for editable delivery and selected documents, and reference-use choices. The original files own their content; the context file owns derived provenance.
+- `compare-inputs` reads selected editable candidates together through the common authoring comparison owner, including their current delivery, selected documents and source applications.
+- `draft-inputs` creates `choices.json` for the actual candidate and `work-basis.json` for the acquired request, sources and current applications. `context.json` registers those owners and the starting point. `choices.target` owns the model and service; `choices.authoring` holds current task decisions, selectors for editable delivery and selected documents, and reference-use choices. Each selected file owns its content.
 - `save --choices FILE` saves an authored revision; `prepare --choices FILE` compiles the current editable sources and prepares a model request. Both use the same input owners. `build-inputs` exports the derived files when a separate input package is wanted; it is not a required step before saving or preparation.
 
 Start a new authored text task without first constructing a production-task file:
 
 ```bash
-python scripts/production_workflow.py draft-inputs --root STUDIO --route prompt-only --artifact text --execution authored --out-dir work/first-draft
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation compose --request-file request.txt --route prompt-only --artifact text --execution authored --out-dir work/first-draft
 python scripts/production_workflow.py save --root STUDIO --choices work/first-draft/choices.json
 ```
 
@@ -273,8 +296,10 @@ work task supplies its identity. Select the actual execution kind and route;
 new image work additionally needs its target, rendering and input evidence.
 Unresolved choices stay explicit. `save --draft` preserves them with unfinished text. A completed target-specific prompt and an executable request apply their required input and vocabulary contracts; a saved draft does not certify either.
 
-To edit existing work, draft with `--task FILE` or `--from-run RUN` instead of
-the new-task selectors. Add `--model MODEL_ID` and `--service SERVICE_ID` when
+To edit existing work, select `--task FILE` or `--from-run RUN` and the current
+`--operation compose|amend`. Supply a changed request with `--request-file FILE`;
+continuation under the same request can use its saved authoring work.
+Add `--model MODEL_ID` and `--service SERVICE_ID` when
 selecting another target for that draft. Edit the same source files, then save
 or prepare that draft.
 Reopening a run restores editable source copies and reference media from its
@@ -298,7 +323,7 @@ candidate directly. `status` and the review workspace identify all candidates;
 choose the intended result even when several came from one request:
 
 ```bash
-python scripts/production_workflow.py draft-inputs --root STUDIO --route upscale --source-run RUN --source-candidate CANDIDATE --scale 2 --purpose "Enlarge the selected image while preserving its content." --model MODEL_ID --service SERVICE_ID --out-dir work/enlargement
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation compose --request-file request.txt --route upscale --source-run RUN --source-candidate CANDIDATE --scale 2 --purpose "Enlarge the selected image while preserving its content." --model MODEL_ID --service SERVICE_ID --out-dir work/enlargement
 ```
 
 The input owner verifies and selects the retained image bytes, records the
@@ -317,7 +342,7 @@ To change depicted content of an accepted Studio image, select the image by its
 Studio character and slot:
 
 ```bash
-python scripts/production_workflow.py draft-inputs --root STUDIO --route generation --execution dispatcher --edit-character CHARACTER --edit-slot SLOT --new-task "Replace the background of the accepted image." --out-dir work/edit
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation amend --request-file request.txt --route generation --execution dispatcher --edit-character CHARACTER --edit-slot SLOT --new-task "Replace the background of the accepted image." --out-dir work/edit
 ```
 
 Use `--execution external` for a host call. The draft selects the image with
@@ -341,16 +366,27 @@ beside its choices. Inspect the emitted request before preparing or sending it.
 
 | Authored area | Edit here | Builder responsibility |
 | --- | --- | --- |
+| `work-basis.json` | Acquire the request and source bytes through Authoring work; select applications, subjects and retained requirements. Acquire a deliberate adaptation as its own source. | Resolve current applications into task sources and preserve complete acquired originals alongside selected content |
 | `target` | One selected catalog model and service, acquired model file, or evidenced external interface | Acquire that target and derive its model identity, offering, specification bindings and reference transport inputs |
-| `authoring.task` | Direction, criteria, declared source use and applicable task choices | Bind materialized inputs into the task |
+| `authoring.task` | Direction, criteria and applicable task choices | Bind materialized inputs and the current source applications into the task |
 | `authoring.delivery.file` | Directly editable text, or a JSON document with an optional `field` key/index array; translation notes only for an actual translation | Read the exact selected content and bind its delivered bytes |
 | `authoring.documents` | Selected settings and specialist files with `{ "file": "path", "field": ["key"] }`; omit `field` to select the entire file | Read each editable owner, materialize derived content and bind task references |
-| `authoring.sources` | Declared text or JSON source content by source ID | Preserve source roles and locators, write the selected body and update its path |
 | `authoring.generation` | Count, seed, continuity and applicable generation choices | Combine these choices with the selected target in the declared generation input |
 | `authoring.references` | Ordered source selection, uses, exclusions, subject scope and transport choice | Rebuild the prepared set, attachment order, board placement and content hashes |
 | `authoring.upscale` | Selected source, scale, settings, guidance and applicable evidence | Build the upscale declaration for the selected target and reuse its valid evidence |
 | `validation` | The request-validation mode, selected contract or evidence, and execution policy | Resolve that evidence against the same acquired target and derive its exact binding |
 | `task_changes.semantic_edit` | The Studio path of the editable edit plan of an existing-image edit | Bind the plan to the scene reference, the applied `accepted-source` and the declared criteria |
+
+When a JSON application selects part of a source, the compiler can publish that
+selected content at the task source's `path` and retain the complete original
+under its derived `origin: {path, sha256}`. The source's derived `applications`
+contains `{id, pointer, subjects, requirement}` for each actual application.
+Its ordered pointers produce one selected value or, for several applications,
+an ordered array of their values. Snapshot checks bind that content to the
+complete original. Acquiring the exported task restores each application's
+subject and requirement relationships independently of canonical identity
+metadata. The compiler owns these files and bindings; acquire changed material
+or update the application through the source context command.
 
 `authoring.references.image_input` selects how a dispatcher image input is
 formed from the references. `null` writes no image input. The mirrored form `{}`
@@ -407,7 +443,7 @@ to interpret them independently.
 For example, reopen a saved request with another selected catalog target:
 
 ```bash
-python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --model MODEL_ID --service SERVICE_ID --out-dir work/next-target
+python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --operation amend --request-file request.txt --model MODEL_ID --service SERVICE_ID --out-dir work/next-target
 ```
 
 The draft retains the saved content, source definitions, references and authored
@@ -436,14 +472,50 @@ Existing grants still apply according to their actual scope. Follow
 
 ### Keep branches and reopen completed work
 
-Create one draft directory for each intended model or prompt variation using
-`draft-inputs --from-run RUN --out-dir DIRECTORY`. Each draft starts from the
-selected saved bytes. Change the prompt, target, parameters, reference uses or
-other meaningful choices in that draft, then follow its current action. The
-builder recomputes request fields, media positions, hashes and bindings from
-those choices. It preserves unchanged criteria, source meanings and applicable
-evidence. A prompt change does not require a different medium or composition,
-and a model change does not invent equivalent syntax or reference capability.
+Select `draft-inputs --from-run RUN --operation compose|amend --out-dir DIRECTORY`
+for the current work. Supply the actual changed request with `--request-file FILE`.
+The saved source catalog keeps original identity bytes, subject assignments,
+selectors and scoped authority available, including information acquired through
+a reference or state graph. The agent applies the sources relevant to this
+candidate and retains the requirements the current request relies on.
+
+`amend` starts from the actual selected baseline and retains the choices outside
+the declared change. `compose` builds a candidate from the current request and
+source applications, with the previous candidate available for comparison. The
+request determines which relationships to retain or reconsider; a property name
+does not determine the operation. Follow [Authoring work](authoring-work.md) for
+the candidate and its exact change contract. Resolve the proposed construction
+within delegated authority and ask only for necessary authorial decisions.
+
+Create one directory per intended branch, edit its owning files and follow the
+current action. Both operations use the same editable authoring interface and
+ordinary preparation. The builder recomputes request fields, media positions,
+hashes and bindings from those choices. A target selection retains the need to
+author wording and source applications appropriate to it.
+
+For requested alternatives or a broad reconsideration, compare the current
+editable works while developing their constructions:
+
+```bash
+python scripts/production_workflow.py compare-inputs --root STUDIO \
+  --choices work/first-draft/choices.json --choices work/second-draft/choices.json
+```
+
+Repeat `--choices` for the actual works under consideration. The command reads
+the current selected files and resolves task-local definitions from the current
+Production Specification. It passes those actual values and their acquired
+bases to [Authoring work comparison](authoring-work.md#compare-actual-candidates).
+The same derived report exposes retained definitions and requirements, complete
+candidate inputs, and shared or differing source applications. Use it to
+reconsider a governing authored choice within the current commission, then
+continue editing the owning files.
+
+Unfinished candidates can be compared. The command returns an intermediate
+read-only view; it updates neither the choices, acquired bases, source files
+nor saved history. A changed definition appears in the comparison without
+publishing its derived source files. Comparison provides no completed-input or
+artistic-quality verdict. Refresh it after consequential edits; ordinary saving
+and preparation still read and check the current owners.
 
 When several independent drafts remain pending, `inspect-inputs` returns
 `selection_required` and an `input_options` action for each. Choose the intended
@@ -460,12 +532,15 @@ Completion belongs to the saved result and its earlier scope. For another
 authorized revision after its work task has closed, name the new work goal:
 
 ```bash
-python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --new-task "Revise the requested character prompt." --out-dir work/revision
+python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --operation compose --request-file request.txt --new-task "Revise the requested character prompt." --out-dir work/revision
 ```
 
 This opens a new task, retains the production series and source content, and
-registers the new editable location. The earlier task, result and completion
-stay intact. The new task opens when its draft is produced; a refused command
+registers the new editable location. The supplied request file preserves the
+actual commission for production and review. The goal names the work for
+navigation; it may summarize the request. Earlier requests and candidates remain
+available in their source roles. The earlier task, result and completion stay
+intact. The new task opens when its draft is produced; a refused command
 opens no work. Task-specific grants and exact execution decisions remain with
 their owning tasks; record current authority for new work at its normal
 boundary. Add `--new-task GOAL` to the captured-result upscale command in the
@@ -514,12 +589,17 @@ Choose the text and reference views that communicate that depiction through
 the same source and criterion choices. Follow
 [source to input and review coverage](../character-identity-contract.md#source-to-input-and-review-coverage)
 to bind that construction to original identity sources, their scene treatment,
-actual text or reference carriers and independent whole-subject review. The
+actual text or reference carriers and whole-subject review against original sources. The
 authoring context and input report expose the derived inventory, including
 identity references and state-contract owners already selected elsewhere.
-Complete uncovered definitions at those choices. Canonical identity sources
-stay at their owning paths while the authored rendition supplies this scene's
-depiction.
+The report distinguishes explicit scene bindings from unbound original source
+values. Bind the concrete obligations this scene must carry, preserving exact
+source, subject, carrier and review relationships. Unbound source values remain
+whole-subject comparison context; they create no requirement to show every part
+or write an exclusion for each part beyond the frame. The hard whole-subject
+review still compares the result with the complete applicable source, at its
+original authority and the current change scope. Original identity sources
+retain their meaning while the authored rendition supplies this scene's depiction.
 
 ### Resume input authoring
 

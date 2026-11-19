@@ -64,6 +64,7 @@ PHASE_DOCUMENTS = {
     'execution-quantity': 'references/runtime/render-contract.md#declare-controls-by-operation',
     'request-validation-evidence': 'references/runtime/model-evidence.md#the-request-validation-record',
     'reference-preparation': 'references/runtime/reference-delivery.md#bind-the-actual-transport',
+    'reference-input': 'references/runtime/reference-delivery.md#author-the-consumed-reference-direction',
     'dependency-preflight': 'DEPENDENCIES.md#environment-check-and-installation',
     'runtime-resolution': 'references/runtime/production-preparation.md#prepare-one-complete-input',
     'recording-validation': 'references/runtime/studio.md#production-owned-candidates',

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Current execution recovery and visibility, using real synthetic run records."""
 from __future__ import annotations
+import production_workflow as production_workflow_cli
+import production_fixtures as authoring_fixtures
 import json
 import os
 from pathlib import Path
@@ -14,11 +16,11 @@ import execution_contract as c
 import production_case_fixtures as fixtures
 import production_fixtures
 import production_execution as execution
-import production_workflow as workflow
+import production_operations as workflow
 import production_store as store
 import production_variation as variation
 import execution_lifecycle as accounting
-import studio
+import studio_workspace as studio
 import transport_synthetic
 from test_production_execution import decisions
 
@@ -82,7 +84,7 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(action['command'],'draft-execution')
         # The command keeps this interpreter, the checked root and the exact run.
         self.assertEqual(action['argv'], [
-            os.path.abspath(sys.executable), str(Path(workflow.__file__).resolve()),
+            os.path.abspath(sys.executable), str(Path(production_workflow_cli.__file__).resolve()),
             'draft-execution', '--root', str(self.root.resolve()), '--run', self.run,
             '--out', action['draft'],
         ])
@@ -185,7 +187,7 @@ class ResumeTests(unittest.TestCase):
 
     def resume_cli(self,*arguments):
         """resume through the public CLI: the exit status, the printed JSON or None, and stderr."""
-        completed=subprocess.run([sys.executable,str(Path(workflow.__file__)),'resume','--root',str(self.root),
+        completed=subprocess.run([sys.executable,str(Path(production_workflow_cli.__file__)),'resume','--root',str(self.root),
                                   '--run',self.run,*arguments],capture_output=True,text=True,encoding='utf-8',
                                  env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'},check=False)
         return completed.returncode,(json.loads(completed.stdout) if completed.stdout.strip() else None),completed.stderr
@@ -266,7 +268,7 @@ class ResumeTests(unittest.TestCase):
         # The provider returned two outputs, but acquiring one fails once.
         task=c.load(self.root/'task.json');task['generation']['count']=2;fixtures.write(self.root/'two.json',task)
         self.run=workflow.prepare(self.root,'two.json')['run']
-        import dispatch
+        import dispatch_runtime as dispatch
         real=dispatch.inline_image;calls=[]
         def first_failure(data):
             calls.append(1)
@@ -455,9 +457,9 @@ class AuthoringContinuationTests(unittest.TestCase):
             'delivery': {'path': 'delivery.txt', 'translation_notes': 'One authored depiction.'},
             'criteria': [{'id': 'subject', 'strength': 'hard', 'text': 'Describe one quiet courtyard.'}],
             'world_views': []}
-        production_fixtures.task(self.root, self.task)
+        production_fixtures.task(self.root, self.task, focus='supporting-setting')
         fixtures.write(self.root / 'task.json', self.task)
-        drafted = self.inputs.draft_inputs(self.root, 'task.json', 'draft')
+        drafted = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         self.choices_path = drafted['choices_file']
         self.choices = c.load(self.root / self.choices_path)
         reading = c.load(self.root / self.task['route_reading'])
@@ -476,7 +478,9 @@ class AuthoringContinuationTests(unittest.TestCase):
         self.assertEqual(context['input']['choices'], self.choices)
         self.assertEqual(context['input']['task_content']['criteria'], self.task['criteria'])
         source = next(item for item in context['input']['sources'] if item['id'] == 'brief')
-        self.assertEqual(source['current_file'], str((self.root / 'brief.txt').resolve()))
+        self.assertEqual(Path(source['current_file']).read_bytes(), (self.root / 'brief.txt').read_bytes())
+        self.assertEqual(self.choices['authoring']['source_files'][source['path']],
+                         c.digest((self.root / 'brief.txt').read_bytes()))
         self.assertTrue(source['current_available'])
 
     def test_reediting_built_choices_returns_to_authoring_and_keeps_the_prepared_run(self):
@@ -524,8 +528,8 @@ class AuthoringContinuationTests(unittest.TestCase):
         original=next(item for item in saved.prepared['task']['sources'] if item['id']=='brief')
         dependency=next(item for item in saved.prepared['dependencies'] if item['path']==original['path'])
         captured=saved.evidence.read(dependency['sha256'])
-        fixtures.write(self.root/original['path'],'A later brief belongs to another intended revision.')
-        drafted = self.inputs.draft_inputs(self.root, None, 'next-draft', from_run=self.run)
+        fixtures.write(self.root/'brief.txt','A later brief belongs to another intended revision.')
+        drafted = authoring_fixtures.authoring_inputs(self.root, None, 'next-draft', from_run=self.run)
         report = status(self.root)
         current = report['current_task']
         self.assertEqual(current['focus'], 'authoring')
@@ -562,7 +566,7 @@ class InitialAuthoringContinuationTests(unittest.TestCase):
 
     def initial(self):
         import copy
-        drafted = self.inputs.draft_inputs(self.root, None, 'initial', route='development')
+        drafted = authoring_fixtures.authoring_inputs(self.root, None, 'initial', route='development')
         choices = c.load(self.root / drafted['choices_file'])
         choices['reading'] = copy.deepcopy(self.choices['reading'])
         choices['authoring']['task']['direction'] = copy.deepcopy(self.task['direction'])
@@ -617,7 +621,7 @@ class InitialAuthoringContinuationTests(unittest.TestCase):
     def test_unpublished_initial_draft_restarts_with_its_route_and_task(self):
         with patch.object(self.inputs, '_publish', side_effect=OSError('Synthetic draft interruption.')):
             with self.assertRaisesRegex(OSError, 'draft interruption'):
-                self.inputs.draft_inputs(self.root, None, 'initial', route='development')
+                authoring_fixtures.authoring_inputs(self.root, None, 'initial', route='development')
         report = self.inputs.inspect_inputs(self.root)
         self.assertEqual(report['diagnostics'], [])
         action = report['next_actions'][0]
@@ -641,7 +645,7 @@ class AuthoredResumeTests(unittest.TestCase):
             task={'task_id':task_id,'route':'development','features':[],'sources':[],
                   'delivery':{'path':'delivery.txt','translation_notes':'Explicit authored text.'},
                   'criteria':[{'id':'text','strength':'hard','text':'A sentence exists.'}],'world_views':[]}
-            production_fixtures.task(root,task);fixtures.write(root/'task.json',task)
+            production_fixtures.task(root,task,focus='supporting-setting');fixtures.write(root/'task.json',task)
             run=workflow.prepare(root,'task.json')['run']
             shown=checked(execution.resume(root,run))['runs'][0]
             self.assertEqual(shown['next_action']['command'],'finish')

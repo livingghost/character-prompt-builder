@@ -11,10 +11,35 @@ from unittest.mock import patch
 
 import execution_contract as c
 import operation_context as ops
+import production_case_fixtures as case_fixtures
 import production_store as store
 from production_diagnostics import ProductionError, compare_exact
 
 import production_fixtures
+
+
+class ProductionCase(unittest.TestCase):
+    """Private unprepared Studios sharing one class's unchanged synthetic pack."""
+    with_upscale = False
+    _case_template = None
+
+    @classmethod
+    def build(cls, base):
+        return case_fixtures.create(base / 'studio', base / 'runtime', with_upscale=cls.with_upscale), {}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._case_template = case_fixtures.CaseTemplate.for_class(cls, cls.build)
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.case, _ = case_fixtures.CaseTemplate.for_test(
+            self, self.base, self.build, self._case_template)
+        self.root = self.case['root']
+        self.fixtures = case_fixtures
 
 
 class FoundationTests(unittest.TestCase):
@@ -79,11 +104,11 @@ class FoundationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp); source = base/'staged'; target = base/'published'
             source.mkdir(); (source/'result.txt').write_text('whole', encoding='utf-8')
-            rename = c._rename_directory_exclusive
+            rename = c._rename_exclusive
             def race(a, b):
                 b.mkdir()
                 return rename(a, b)
-            with patch.object(c, '_rename_directory_exclusive', side_effect=race):
+            with patch.object(c, '_rename_exclusive', side_effect=race):
                 with self.assertRaisesRegex(ProductionError, 'OUTPUT_ALREADY_EXISTS'):
                     c.publish_directory(source, target)
             self.assertTrue(source.is_dir()); self.assertEqual(list(target.iterdir()), [])
@@ -93,7 +118,7 @@ class FoundationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp); source = base/'staged'; target = base/'published'
             source.mkdir(); (source/'result.txt').write_text('whole', encoding='utf-8')
-            with patch.object(c, '_rename_directory_exclusive', side_effect=OSError(errno.EIO, 'Synthetic I/O failure')):
+            with patch.object(c, '_rename_exclusive', side_effect=OSError(errno.EIO, 'Synthetic I/O failure')):
                 with self.assertRaises(ProductionError) as caught:
                     c.publish_directory(source, target)
             self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_PUBLISH_FAILED')
@@ -326,7 +351,7 @@ class FoundationTests(unittest.TestCase):
             self.assertEqual(result['deleted'],0);self.assertTrue((outside/'owner.json').exists())
 
     def test_prepare_does_not_write_through_linked_staging_parent(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         from execution_lifecycle_smoke_test import setup
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)/'studio';root.mkdir()
@@ -357,17 +382,12 @@ class FoundationTests(unittest.TestCase):
             query.assert_called_once_with(123);kill.assert_not_called()
 
 
-class PublicationRecoveryTests(unittest.TestCase):
+class PublicationRecoveryTests(ProductionCase):
     def setUp(self):
-        import production_case_fixtures as fixtures
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        base = Path(self.temporary.name)
-        self.case = fixtures.create(base/'studio', base/'runtime')
-        self.root = self.case['root']
+        super().setUp()
 
     def interrupted_publication(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         with patch.object(store, 'register_run', side_effect=OSError('Synthetic registration interruption')):
             with self.assertRaises(OSError):
                 workflow.prepare(self.root, 'task.json')
@@ -375,7 +395,7 @@ class PublicationRecoveryTests(unittest.TestCase):
         return next((self.root/'production/runs').iterdir()).name
 
     def test_directory_flush_failure_keeps_staging_unregistered_and_unpublished(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         from publication_artifacts import StagedArtifacts
         failure = OSError('Synthetic staging directory flush interruption')
         flush = StagedArtifacts.flush_directories
@@ -400,7 +420,7 @@ class PublicationRecoveryTests(unittest.TestCase):
     def test_durable_publication_is_discoverable_and_recovered_without_reauthorization(self):
         import production_compiler as compiler
         import production_execution as execution
-        import production_workflow as workflow
+        import production_operations as workflow
         run = self.interrupted_publication()
         before = execution.status(self.root)
         self.assertEqual(len(before['unregistered_publications']), 1)
@@ -419,7 +439,7 @@ class PublicationRecoveryTests(unittest.TestCase):
         import errno
         import execution_contract as c
         import production_compiler as compiler
-        import production_workflow as workflow
+        import production_operations as workflow
         runs = self.root / 'production/runs'
         flush = c.fsync_dir
 
@@ -502,7 +522,7 @@ class PublicationRecoveryTests(unittest.TestCase):
         self.assertEqual(store.runs(self.root), [])
 
     def test_work_task_mismatch_at_publication_names_both_task_ids(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import work_ledger
         opened = work_ledger.require_open(self.root)
         other = {**opened, 'task_id': 'synthetic-other-work-task'}
@@ -525,7 +545,7 @@ class PublicationRecoveryTests(unittest.TestCase):
 
     def test_status_reports_authority_readiness_without_creating_events(self):
         import production_execution as execution
-        import production_workflow as workflow
+        import production_operations as workflow
         prepared = workflow.prepare(self.root, 'task.json')
         self.assertEqual(prepared['execution_plan']['readiness']['state'], 'authorization_required')
         state = execution.status(self.root, prepared['run'])['runs'][0]
@@ -536,7 +556,7 @@ class PublicationRecoveryTests(unittest.TestCase):
 
     def test_bad_unreferenced_tree_does_not_hide_a_healthy_run(self):
         import production_execution as execution
-        import production_workflow as workflow
+        import production_operations as workflow
         prepared = workflow.prepare(self.root, 'task.json')
         directory = self.root/'production/runs/unrecognized-publication'
         directory.mkdir()
@@ -547,16 +567,10 @@ class PublicationRecoveryTests(unittest.TestCase):
         self.assertFalse(report['unregistered_publications'][0]['recoverable'])
         self.assertTrue(report['unregistered_publications'][0]['diagnostics'])
 
-class AuthorityEvidenceTests(unittest.TestCase):
+class AuthorityEvidenceTests(ProductionCase):
     """Approval evidence held in a growing work ledger, and saved snapshots that go missing."""
     def setUp(self):
-        import production_case_fixtures as fixtures
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        base = Path(self.temporary.name)
-        self.fixtures = fixtures
-        self.case = fixtures.create(base/'studio', base/'runtime')
-        self.root = self.case['root']
+        super().setUp()
         self.task_id = self.case['task']['task_id']
 
     def use_ledger_as_authority_evidence(self):
@@ -565,7 +579,7 @@ class AuthorityEvidenceTests(unittest.TestCase):
         self.fixtures.write(self.root/'fixture-authority.json', authority)
 
     def prepared_run(self) -> str:
-        import production_workflow as workflow
+        import production_operations as workflow
         return workflow.prepare(self.root, 'task.json')['run']
 
     def executed_run(self) -> str:
@@ -580,7 +594,7 @@ class AuthorityEvidenceTests(unittest.TestCase):
         self.assertTrue(result['execution_completed'])
 
     def test_ledger_evidence_append_does_not_invalidate_authorization(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import work_ledger
         self.use_ledger_as_authority_evidence()
         run = self.prepared_run()
@@ -606,7 +620,7 @@ class AuthorityEvidenceTests(unittest.TestCase):
         import copy
         import production_execution as execution
         import production_request
-        import production_workflow as workflow
+        import production_operations as workflow
         import work_ledger
         from test_production_execution import decisions
         self.use_ledger_as_authority_evidence()
@@ -621,7 +635,8 @@ class AuthorityEvidenceTests(unittest.TestCase):
         # An authorization record that saved no reading of the approval it cites.
         data = copy.deepcopy(submit['data'])
         data['files'] = [item for item in data['files'] if item.get('purpose') != 'principal-approval']
-        unsaved = workflow.append_record(directory, prepared, rows, 'authorization', data)
+        with store.transaction(self.root):
+            unsaved = workflow.append_record(workflow.read_run(self.root, run), 'authorization', data)
         intent = next(item for item in plan['operations'] if item['operation'] == 'submit')
         with self.assertRaises(ProductionError) as caught:
             workflow._permission(self.root, prepared, store.event_rows(self.root, run), unsaved['sha256'], **intent)
@@ -654,7 +669,7 @@ class AuthorityEvidenceTests(unittest.TestCase):
         self.assertEqual(changed['data']['authority']['issuer'], issuer)
 
     def test_missing_run_snapshot_names_run_event_digest_and_restoration(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         run = self.executed_run()
         rows = store.event_rows(self.root, run)
         receipt = next(r for r in rows if r['event'] == 'authorization')
@@ -693,7 +708,7 @@ class AuthorityEvidenceTests(unittest.TestCase):
         task = c.load(self.root/'task.json')
         second_series = dict(task, production_id=generate_uuid7())
         self.fixtures.write(self.root/'second.json', second_series)
-        import production_workflow as workflow
+        import production_operations as workflow
         second = workflow.prepare(self.root, 'second.json')['run']
         # A stale projection does not move the formal answer.
         current = work_ledger.read_current(self.root)
@@ -706,7 +721,7 @@ class AuthorityEvidenceTests(unittest.TestCase):
 
     def test_authorization_records_protected_criteria(self):
         import production_fixtures
-        import production_workflow as workflow
+        import production_operations as workflow
         run = self.prepared_run()
         document = store.authority(self.root, self.task_id)
         document['grants'][0]['protected_criteria'] = ['output']
@@ -748,12 +763,12 @@ class SchemaDocumentContextTests(unittest.TestCase):
                 self.assertEqual(protocol.validate_against_schema(['now-a-string'],schema),[])
                 self.assertEqual(len(reads),3)
 
-class AggregateInputTests(unittest.TestCase):
+class AggregateInputTests(ProductionCase):
+    with_upscale = True
+
     def setUp(self):
-        import production_case_fixtures as fixture
-        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        base=Path(self.temp.name);self.case=fixture.create(base/'studio',base/'runtime',with_upscale=True)
-        self.root=self.case['root'];self.fixture=fixture
+        super().setUp()
+        self.fixture = self.fixtures
     def check(self):
         import production_compiler as compiler
         report=compiler.check_task(self.root,'task.json')
@@ -794,7 +809,7 @@ class AggregateInputTests(unittest.TestCase):
         self.assertTrue(any(x['phase']=='target-contract' and x['state']=='passed' for x in report['checks']))
         self.assertTrue(any(x['phase']=='execution-controls' and x['state']=='passed' for x in report['checks']))
     def test_missing_reference_file_does_not_hide_bad_output_recording(self):
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
         from PIL import Image
         path=self.root/'palette.png';Image.new('RGB',(32,32)).save(path)
         references=prepare_references([{'role':'palette','source':{'kind':'supplied-file','reference_id':'synthetic-palette',
@@ -826,7 +841,7 @@ class AggregateInputTests(unittest.TestCase):
         self.assertTrue(any(x['code']=='CONTROL_NOT_AVAILABLE' and x['pointer']=='$.scale_factor' for x in report['diagnostics']))
         self.assertEqual(store.runs(self.root),[])
     def test_input_changed_after_its_capture_is_not_published(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         snapshot=workflow.snapshot
         def race(*args,**kwargs):
             parameters=c.load(self.root/'parameters.json');parameters['steps']=21
@@ -839,6 +854,7 @@ class AggregateInputTests(unittest.TestCase):
         self.assertEqual((diagnostic.code,diagnostic.file,diagnostic.phase),('SOURCE_CHANGED','parameters.json','publication'))
         self.assertNotEqual(diagnostic.details['expected'],diagnostic.details['actual'])
         self.assertEqual(store.runs(self.root),[])
+    @case_fixtures.cold_case
     def test_each_declared_input_is_read_once_per_compilation(self):
         import collections
         import production_compiler as compiler
@@ -853,7 +869,7 @@ class AggregateInputTests(unittest.TestCase):
                   *(task['generation'][name] for name in ('parameters','production_spec','plot','retrieval_record','creative_intent'))]
         self.assertEqual({path:counts[path] for path in declared},{path:1 for path in declared})
     def test_failed_prepare_adds_no_formal_run(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         self.break_recording()
         with self.assertRaises(ProductionError):workflow.prepare(self.root,'task.json')
         self.assertEqual(store.runs(self.root),[])
@@ -864,13 +880,10 @@ class AggregateInputTests(unittest.TestCase):
         self.assertIn('recording-validation',{x['phase'] for x in report['diagnostics']})
 
 
-class CompilerContractTests(unittest.TestCase):
+class CompilerContractTests(ProductionCase):
     """Check reports every independent problem with its code, file and pointer, and writes nothing."""
     def setUp(self):
-        import production_case_fixtures as fixtures
-        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        self.base=Path(self.temp.name);self.fixtures=fixtures
-        self.case=fixtures.create(self.base/'studio',self.base/'runtime');self.root=self.case['root']
+        super().setUp()
     def check(self,task='task.json'):
         import production_compiler as compiler
         return compiler.check_task(self.root,task)
@@ -890,6 +903,7 @@ class CompilerContractTests(unittest.TestCase):
     def coded(self,report):
         return {(row['code'],row['pointer']) for row in report['diagnostics']}
 
+    @case_fixtures.cold_case
     def test_successful_check_changes_no_file(self):
         import glob
         def files():
@@ -910,7 +924,7 @@ class CompilerContractTests(unittest.TestCase):
 
     def test_check_and_prepare_outputs_follow_their_schemas(self):
         import production_compiler as compiler
-        import production_workflow as workflow
+        import production_operations as workflow
         report=self.check()
         compiler.validate_document(report,compiler.REPORT_SCHEMA,'compilation report')
         self.assertIsNone(report['run']);self.assertIsNone(report['execution_plan']['run'])
@@ -928,7 +942,9 @@ class CompilerContractTests(unittest.TestCase):
 
     def test_selected_integrated_text_survives_check_and_prepare(self):
         import production_compiler as compiler
-        import production_workflow as workflow
+        import production_operations as workflow
+        import prompt_retrieval
+        from render_contract_fixtures import intent
         def integrated_model(records):
             records[0].update(negative_transport_mode='integrated-critical',supports_negative_prompt=False,
                               max_positive_prompt_chars=40,max_negative_prompt_chars=4)
@@ -939,6 +955,11 @@ class CompilerContractTests(unittest.TestCase):
         task=c.load(root/'task.json')
         task['generation'].update(integrated_prompt='integrated.txt',negative='negative.txt')
         self.fixtures.write(root/'task.json',task)
+        specification=c.load(root/'spec.json');specification['render_intent']=intent('A flat graphic robot.')
+        self.fixtures.write(root/'spec.json',specification)
+        retrieval=c.load(root/'retrieval.json');retrieval['elements'][0]['composed_wording']=integrated
+        self.fixtures.write(root/'retrieval.json',prompt_retrieval.settle_retrieval_record(
+            retrieval,prompt=integrated,plot=c.load(root/'plot.json')))
         self.assertGreater(len((root/'prompt.txt').read_text(encoding='utf-8')),40)
         checked=compiler.check_task(root,'task.json')
         self.assertTrue(checked['publishable'],checked['diagnostics'])
@@ -974,6 +995,8 @@ class CompilerContractTests(unittest.TestCase):
 
     def test_selected_text_limits_fail_during_preflight(self):
         import production_compiler as compiler
+        import prompt_retrieval
+        from render_contract_fixtures import intent
         for mode,field in (('integrated-critical','integrated_prompt'),('native-subset','native_negative')):
             with self.subTest(mode=mode):
                 def limited_model(records):
@@ -981,9 +1004,16 @@ class CompilerContractTests(unittest.TestCase):
                                       max_negative_prompt_chars=4)
                     if mode=='integrated-critical':records[0]['max_positive_prompt_chars']=40
                 root=self.case_with(limited_model)['root']
-                self.fixtures.write(root/'selected.txt','A selected text that exceeds the declared channel character limit.')
+                selected='A flat graphic robot with layered color blocks and crisp outlines.'
+                self.fixtures.write(root/'selected.txt',selected)
                 task=c.load(root/'task.json');task['generation'][field]='selected.txt'
                 self.fixtures.write(root/'task.json',task)
+                if mode=='integrated-critical':
+                    specification=c.load(root/'spec.json');specification['render_intent']=intent('flat graphic')
+                    self.fixtures.write(root/'spec.json',specification)
+                    retrieval=c.load(root/'retrieval.json');retrieval['elements'][0]['composed_wording']=selected
+                    self.fixtures.write(root/'retrieval.json',prompt_retrieval.settle_retrieval_record(
+                        retrieval,prompt=selected,plot=c.load(root/'plot.json')))
                 report=compiler.check_task(root,'task.json')
                 self.assertFalse(report['publishable'])
                 self.assertTrue(any(row['phase']=='negative-transport' and 'limit' in row['message']
@@ -1102,9 +1132,9 @@ class CompilerContractTests(unittest.TestCase):
         self.assertTrue({'source-validation','package-compilation','request-compilation','execution-plan'}<=set(states))
 
     def test_missing_dependency_is_reported_for_reference_tasks(self):
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
         from transport_synthetic import _png
-        import reference_runtime
+        import reference_plan_runtime as reference_runtime
         c.atomic(self.root/'palette.png',_png(32,32,b'\x50\x78\xa0'))
         references=prepare_references([{'role':'palette','source':{'kind':'supplied-file','reference_id':'synthetic-palette',
             'resolved_path':str(self.root/'palette.png')}}],model=self.fixtures.MODEL_ID,output_dir=self.root/'reference-preparation')
@@ -1122,14 +1152,14 @@ class CompilerContractTests(unittest.TestCase):
         self.assertEqual({row['phase']:row['state'] for row in report['checks']}['reference-preparation'],'not-performed')
 
     def test_no_reference_preparation_publishes_no_reference_companion(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         run=workflow.prepare(self.root,'task.json')['run']
         directory=workflow.run_dir(self.root,run)
         self.assertFalse((directory/'package.references').exists())
         self.assertEqual(c.load(directory/'request-contract.json')['media'],[])
 
     def test_mutable_fields_declare_form_requirement_and_compiler_checks(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         fields=workflow.prepare(self.root,'task.json')['execution_plan']['mutable_fields']
         keys={'description','schema','required','nullable','value_form','document_type','checks','rebuild','protected_criteria'}
         self.assertEqual({name for name,field in fields.items() if set(field)!=keys},set())
@@ -1143,7 +1173,7 @@ class CompilerContractTests(unittest.TestCase):
         self.assertIn('source-validation',fields['state-lineage']['checks']);self.assertNotIn('retrieval',fields['state-lineage']['checks'])
 
     def test_mutable_controls_follow_authored_and_dispatch_ownership(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_variation as variation
         from render_contract_fixtures import control
         def owned_controls(records):
@@ -1175,7 +1205,7 @@ class CompilerContractTests(unittest.TestCase):
         self.assertNotIn('parameter:request_id',child['execution_plan']['mutable_fields'])
 
     def test_sheet_slot_conditions_are_checked_at_prepare(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         from production_diagnostics import CompilationError
         for name,recording,expected in (('panel.json',{'sheet_panel':False,'subject_map':{'robot':'robot'}},('RECORDING_CONTRACT_INVALID','$.recording.sheet_panel')),
                                         ('mapping.json',{'sheet_panel':True,'subject_map':{}},('SHEET_SUBJECT_MAPPING_MISSING','$.recording.subject_map'))):
@@ -1201,13 +1231,11 @@ class ExitCodeTests(unittest.TestCase):
         self.assertEqual(result_exit([], failure=4), 4)
 
 
-class CleanupTests(unittest.TestCase):
+class CleanupTests(ProductionCase):
     """Cleanup removes only an ended owner's unclaimed journal or unrecoverable publication."""
     def setUp(self):
-        import production_case_fixtures as fixtures
         import subprocess, sys
-        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        base=Path(self.temp.name);self.root=fixtures.create(base/'studio',base/'runtime')['root']
+        super().setUp()
         ended=subprocess.Popen([sys.executable,'-c','pass']);ended.wait();self.dead=ended.pid
 
     def test_unclaimed_journal_is_removed_only_for_its_owner(self):
@@ -1226,7 +1254,7 @@ class CleanupTests(unittest.TestCase):
 
     def test_only_an_unrecoverable_publication_is_removable(self):
         import production_compiler as compiler
-        import production_workflow as workflow
+        import production_operations as workflow
         with patch.object(store,'register_run',side_effect=OSError('Synthetic registration interruption')):
             with self.assertRaises(OSError):workflow.prepare(self.root,'task.json')
         directory=next((self.root/'production/runs').iterdir())
@@ -1242,7 +1270,7 @@ class CleanupTests(unittest.TestCase):
 
     def test_damaged_manifest_of_an_unregistered_publication_names_its_removal(self):
         import production_compiler as compiler
-        import production_workflow as workflow
+        import production_operations as workflow
         with patch.object(store,'register_run',side_effect=OSError('Synthetic registration interruption')):
             with self.assertRaises(OSError):workflow.prepare(self.root,'task.json')
         directory=next((self.root/'production/runs').iterdir())
@@ -1265,7 +1293,7 @@ class CleanupTests(unittest.TestCase):
         import sqlite3
         from contextlib import closing
         import production_compiler as compiler
-        import production_workflow as workflow
+        import production_operations as workflow
         run=workflow.prepare(self.root,'task.json')['run']
         directory=workflow.run_dir(self.root,run);manifest=c.load(directory/'manifest.json')
         for code,change in (('ARTIFACT_INCOMPLETE',{'complete':False}),('ARTIFACT_MANIFEST_CORRUPT',{'files':{}})):
@@ -1281,7 +1309,7 @@ class CleanupTests(unittest.TestCase):
                 self.assertEqual(compiler.staging_cleanup(self.root)['publications'],[])
 
     def test_predecessor_comes_from_formal_records(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import work_ledger
         with patch.object(work_ledger,'write_current',side_effect=OSError('Synthetic projection failure')):
             first=workflow.prepare(self.root,'task.json')
@@ -1294,7 +1322,7 @@ class ImplementationPinTests(unittest.TestCase):
     """A run pins the modules that compile and execute import, never tests or release metadata."""
     def test_an_index_written_for_other_sources_is_refused(self):
         import execution_contract as c
-        import production_workflow as workflow
+        import production_operations as workflow
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)
             for name in ('scripts','schemas','config'):(root/name).mkdir()
@@ -1317,7 +1345,7 @@ class ImplementationPinTests(unittest.TestCase):
     def test_rewritten_test_file_keeps_the_run_current_and_a_module_change_is_named(self):
         import shutil
         import production_case_fixtures as fixtures
-        import production_workflow as workflow
+        import production_operations as workflow
         files=workflow.implementation_files()
         # The committed index is the import closure of the current sources.
         self.assertEqual(files,workflow.implementation_closure())
@@ -1362,18 +1390,15 @@ class ImplementationPinTests(unittest.TestCase):
                 self.assertNotEqual(row['actual'],pin['sha256'])
 
 
-class RecordingDestinationTests(unittest.TestCase):
+class RecordingDestinationTests(ProductionCase):
     """Execute rechecks the recording slot; a lost destination never discards captured bytes."""
     def setUp(self):
-        import production_case_fixtures as fixtures
-        import production_workflow as workflow
-        import studio
-        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        base=Path(self.temp.name);self.fixtures=fixtures
-        self.root=fixtures.create(base/'studio',base/'runtime')['root']
+        import production_operations as workflow
+        import studio_workspace as studio
+        super().setUp()
         self.run=workflow.prepare(self.root,'task.json')['run']
-        self.decisions=fixtures.fill_decisions(self.root,self.run,'decisions.json')
-        self.home=studio.character_dir(self.root,'robot');self.away=base/'moved-character'
+        self.decisions=self.fixtures.fill_decisions(self.root,self.run,'decisions.json')
+        self.home=studio.character_dir(self.root,'robot');self.away=self.base/'moved-character'
 
     def test_execute_stops_before_execution_claim_when_the_slot_changed(self):
         import production_execution as execution
@@ -1400,7 +1425,7 @@ class RecordingDestinationTests(unittest.TestCase):
 
     def test_projection_failure_and_lost_destination_keep_the_captured_candidates(self):
         import production_execution as execution
-        import studio
+        import studio_workspace as studio
         with patch.object(studio,'iterate',side_effect=OSError('Synthetic Studio write failure')):
             result=execution.execute(self.root,self.run,decisions_file=self.decisions)
         item=result['runs'][0]
@@ -1449,6 +1474,37 @@ class StudioPathTests(unittest.TestCase):
         root=base/'studio';(root/'a/b/c').mkdir(parents=True)
         path=root/self.RELATIVE;path.write_bytes(b'{"a":1}');os.utime(path,ns=(1_000_000_000,1_000_000_000))
         return root
+
+    def test_path_spelling_and_private_aliases_are_checked_for_missing_outputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=self.new_studio(Path(temporary))
+            cases=[('', 'canonical studio-relative POSIX path required'),
+                   ('a\\b\\c\\data.json', 'canonical studio-relative POSIX path required'),
+                   ('a//b/c/data.json', 'path must remain within the studio'),
+                   ('./a/b/c/data.json', 'path must remain within the studio'),
+                   ('a/./b/c/data.json', 'path must remain within the studio'),
+                   ('a/b/../c/data.json', 'path must remain within the studio'),
+                   ('a/b/c/data.json/', 'path must remain within the studio'),
+                   ('a/CREDENTIALS.JSON. /data.json', 'Private Studio credentials'),
+                   ('a/credentials.json:stream', 'Private Studio credentials'),
+                   ('a/.PENDING-AUTH-test/data.json', 'Private Studio credentials')]
+            for relative,reason in cases:
+                with self.subTest(relative=relative),self.assertRaisesRegex(ValueError,reason):
+                    c.local(root,relative,exists=False)
+            self.assertEqual(c.local(root,'.',exists=False),root)
+            self.assertEqual(c.local(root,'a/b/c/credentials.jsonx',exists=False),root/'a/b/c/credentials.jsonx')
+
+    def test_relative_and_string_root_spellings_still_check_the_current_entry(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base=Path(temporary);root=self.new_studio(base)
+            with contextlib.chdir(base):
+                spellings=(root,str(root),Path('studio'))
+                for spelling in spellings:
+                    self.assertEqual(c._root(spelling),root.resolve())
+                moved=base/'saved';root.rename(moved);root.symlink_to(moved,target_is_directory=True)
+                for spelling in spellings:
+                    with self.subTest(root=spelling),self.assertRaisesRegex(ValueError,'symbolic link in root'):
+                        c._root(spelling)
 
     def test_a_symbolic_link_at_each_depth_is_refused_after_a_reused_reading(self):
         parts=self.RELATIVE.split('/')
@@ -1516,18 +1572,21 @@ class StudioPathTests(unittest.TestCase):
             c.recheck_roots()
             with self.assertRaisesRegex(ValueError,'symbolic link in root'):c.local(root,self.RELATIVE)
 
-    def test_the_step_before_an_external_effect_checks_root_ancestry_first(self):
-        import production_workflow as workflow
+    def test_the_step_before_an_external_effect_rechecks_roots_and_keeps_the_owned_runtime(self):
+        import production_operations as workflow
         import execution_lifecycle as lifecycle
         calls=[]
+        owned_runtime=object()
         class Stop(Exception):pass
         def assert_current(root,run,*,force=False,previous_runtime=None):
+            self.assertIs(previous_runtime,owned_runtime)
             calls.append(('assert_current',force));raise Stop
         with tempfile.TemporaryDirectory() as temporary,\
                 patch.object(c,'recheck_roots',side_effect=lambda:calls.append('recheck_roots')),\
                 patch.object(workflow,'assert_current',side_effect=assert_current),self.assertRaises(Stop):
-            lifecycle.begin_step(Path(temporary),'run','authorization',claim='claim',step='send',operation='send')
-        self.assertEqual(calls,['recheck_roots',('assert_current',True)])
+            lifecycle.begin_step(Path(temporary),'run','authorization',claim='claim',step='send',operation='send',
+                                 previous_runtime=owned_runtime)
+        self.assertEqual(calls,['recheck_roots',('assert_current',False)])
 
 
 class SchemaEqualityTests(unittest.TestCase):

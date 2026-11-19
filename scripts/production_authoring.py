@@ -49,28 +49,49 @@ class UnresolvedChoice(ValueError):
                                self.guidance)
 
 
-def seed(root: Path, *, route: str, artifact: str, execution: str,
-         task_id: str | None = None, features: list[str] | None = None) -> dict:
-    import production_authoring_state
+def seed(*, route: str, artifact: str, execution: str,
+         task_id: str, features: list[str] | None = None) -> dict:
+    """Create the Studio envelope after its adapter has selected the work task."""
     import execution_routes
     from pack_manager import generate_uuid7
-    task_id = task_id or production_authoring_state.active_task_id(root)
-    if task_id is None:
-        raise ValueError('start the work task or select --task-id before drafting production inputs')
+    c.text(task_id, 'authoring work task')
     features = features or []
     execution_routes.resolve(route, features, execution=execution)
     return {'task_id': task_id, 'production_id': generate_uuid7(), 'route': route,
         'features': features, 'artifact': artifact, 'execution': execution,
         'sources': [], 'delivery': {'path': 'delivery.txt', 'translation_notes': None},
         'criteria': [], 'world_views': [], 'direction': {'purpose': None,
-        'intended_effect': None, 'basis': [], 'decisions': [], 'action_slice': None,
+        'intended_effect': None, 'basis': [], 'decisions': [], 'source_allowances': [], 'action_slice': None,
         'limitations': []}, 'authority': None, 'route_reading': 'route-reading.json'}
+
+
+def blank(task: dict) -> dict:
+    """Create the editable payload for an already selected Studio envelope.
+
+    Selection of requirements, applications and prior content belongs to the
+    common authoring-work owner. This constructor contributes no depiction.
+    """
+    authored = {'task': {key: copy.deepcopy(value) for key, value in task.items()
+                         if key not in GENERATED_TASK_FIELDS},
+        'delivery': {'content': None, 'translation_notes': None},
+        'documents': {}, 'generation': {}, 'references': None, 'upscale': None,
+        'source_files': {}}
+    if execution_dispatcher(task):
+        if task['route'] == 'upscale':
+            authored['upscale'] = {'source': None, 'model': None, 'scale_factor': None,
+                'settings': {}, 'guidance_prompt': None,
+                'render_intent': {'artifact_type': 'render-intent', 'execution_mode': 'upscale'}}
+        else:
+            authored['documents'] = {'parameters': {}}
+            authored['generation'] = {'render_intent': None,
+                'count': 1, 'seed': None, 'continuity': {}}
+    return authored
 
 
 def source_bytes(root: Path, path: str, reader, saved: dict | None = None) -> bytes:
     """Use the captured run object for authored content, independent of live edits."""
     if saved is not None:
-        import production_workflow
+        import production_operations as production_workflow
         directory, prepared, _, _ = production_workflow.read_run(root, saved['run'])
         if prepared['input_sha256'] != saved['input_sha256']:
             raise ValueError('source run changed during authoring extraction')
@@ -141,25 +162,6 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
         else:
             references = production_reference_inputs.draft(prepared, package_root=package_root, root=root,
                                                            mirrored_input=mirrored)
-    sources = {}
-    owned_paths = {task['delivery']['path'], *(generation.get(key) for key in DOCUMENTS), generation.get('references'), generation.get('request_validation')}
-    if not initial:
-        for source in task.get('sources', []):
-            path = source['path']
-            if source.get('identity') or path in owned_paths or Path(path).suffix.lower() not in TEXT_SOURCE_SUFFIXES:
-                continue
-            raw = selected_bytes(path)
-            format = 'json' if Path(path).suffix.lower() == '.json' else 'text'
-            sources[source['id']] = {'format': format,
-                'content': c.decode(raw) if format == 'json' else raw.decode('utf-8')}
-    originals = {item['source']['id']: item for item in
-                 (task.get('authored_basis') or {}).get('sources', [])}
-    for source in authored_task.get('sources', []):
-        original = originals.get(source['id'])
-        if original is not None:
-            # The source selector owns the comparison basis; the editable
-            # body above retains the separately authored adaptation.
-            source['path'] = original['file']['path']
     source_files = {}
     for source in task.get('sources', []):
         if source.get('identity'):
@@ -167,7 +169,7 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
     for source in task.get('upload_sources', []):
         c.exact(source, {'file', 'url'}, 'upload source selection')
         source_files[source['file']] = c.digest(selected_bytes(source['file']))
-    result = {'task': authored_task, 'sources': sources,
+    result = {'task': authored_task,
         'delivery': {'content': content, 'translation_notes': task['delivery']['translation_notes']},
         'documents': documents,
         'generation': {key: copy.deepcopy(value) for key, value in generation.items()
@@ -219,11 +221,6 @@ def read_editable(authored: dict, reader) -> tuple[dict, dict, list[dict]]:
     for name,item in value['documents'].items():
         value['documents'][name]=selected(item,'authoring.documents.'+name,text=name in TEXT_DOCUMENTS,
                                           document=name)
-    for name,item in value['sources'].items():
-        if 'file' in item:
-            item['content']=selected({key:item[key] for key in ('file','field') if key in item},
-                                     'authoring.sources.'+name,text=item['format']=='text')
-            item.pop('file',None);item.pop('field',None)
     intent=value['generation'].get('render_intent')
     if isinstance(intent,dict) and intent.get('prompt_expression')=={'document':'delivery'}:
         intent['prompt_expression']=delivery.get('content') or ''
@@ -259,7 +256,7 @@ def locate_unresolved(items: list[dict], locations: dict) -> list[dict]:
         location = locations[selected]
         item['file'] = location['file']
         suffix = field[len(selected):].lstrip('.')
-        if selected == 'authoring.delivery' or selected.startswith('authoring.sources.'):
+        if selected == 'authoring.delivery':
             suffix = suffix.removeprefix('content.').removeprefix('content')
         pointer = list(location.get('pointer') or [])
         if suffix:
@@ -366,7 +363,7 @@ def select_upscale(root: Path, authored: dict, out_dir: str, *,
 def chosen_task(base: dict, authored: dict | None) -> dict:
     if authored is None:
         return copy.deepcopy(base)
-    c.exact(authored, {'task', 'sources', 'delivery', 'documents', 'generation', 'references', 'upscale', 'source_files'}, 'authoring choices')
+    c.exact(authored, {'task', 'delivery', 'documents', 'generation', 'references', 'upscale', 'source_files'}, 'authoring choices')
     if not isinstance(authored['task'], dict):
         raise ValueError('authoring.task must be an object')
     result = copy.deepcopy(base)
@@ -627,41 +624,14 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     result = copy.deepcopy(task)
     locations = locations or {}
     files = {}
-    for index, source in enumerate(result.get('sources', []), 1):
-        selected = authored['sources'].get(source['id'])
-        if source.get('identity'):
-            # An editable rendition is not the authority of an adopted source.
-            # Preserve the original source and the draft's exact byte witness.
-            raw = reader.read(reader.select(source['path']))
-            witness = authored['source_files'].get(source['path'])
-            if witness is not None and c.digest(raw) != witness:
-                raise UnresolvedChoice('authoring.task.sources',
-                    'Identity source changed since these choices were drafted: ' + source['path'] + '.',
-                    required_action='Read the current ' + source['path'] + ', then draft these choices again from '
-                        'their task or run with scripts/production_workflow.py draft-inputs into a new --out-dir and '
-                        'reassess its identity scope and criteria in authoring.task.sources and '
-                        'authoring.task.criteria; restoring the bytes this draft measured also resolves it.',
-                    guidance=IDENTITY_GUIDE)
-            if selected is not None:
-                same = (selected.get('content') == c.decode(raw) if selected.get('format') == 'json'
-                        else selected.get('content') == raw.decode('utf-8'))
-                if not same:
-                    field = 'authoring.sources.' + source['id']
-                    raise UnresolvedChoice(field,
-                        field + ' edits an identity source, and an editable production copy cannot redefine '
-                        'its owning source.',
-                        required_action='Remove ' + field + ' or restore it to the current content of ' +
-                            source['path'] + '; revise the identity itself in that owning source through its '
-                            'adoption workflow, then draft again.', guidance=IDENTITY_GUIDE)
-            continue
-        if selected is None:
-            continue
-        c.exact(selected, {'format', 'content'}, 'authored source ' + source['id'])
-        if selected['format'] not in {'text', 'json'}:
-            raise ValueError('authored source format must be text or json')
-        name = f"sources/source-{index:03d}." + ('json' if selected['format'] == 'json' else 'txt')
-        files[name] = c.encoded(selected['content']) if selected['format'] == 'json' else selected['content'].encode('utf-8')
-        source['path'] = (Path(out_dir) / name).as_posix()
+    for source in result.get('sources', []):
+        raw = reader.read(reader.select(source['path']))
+        witness = authored['source_files'].get(source['path'])
+        if witness is not None and c.digest(raw) != witness:
+            raise UnresolvedChoice('authoring.source_files',
+                'The projected source differs from its acquired bytes: ' + source['path'] + '.',
+                required_action='Select the actual source through scripts/authoring_work.py context --basis-only '
+                    'and rebuild this draft from its current applications.', guidance=IDENTITY_GUIDE)
     generation = result.setdefault('generation', {}) if execution_dispatcher(task) and task['route'] != 'upscale' else result.get('generation', {})
     old_generation = copy.deepcopy(generation)
     for key in list(generation):
@@ -702,13 +672,12 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
     delivery = authored['delivery']['content']
     if delivery is not None:
         delivery = delivery.encode('utf-8') if isinstance(delivery, str) else c.encoded(delivery)
-    if documents.get('retrieval_record') is not None and delivery is not None:
-        from prompt_retrieval import settle_retrieval_record
-        with _document_context('retrieval_record', locations):
-            documents['retrieval_record'] = settle_retrieval_record(documents['retrieval_record'],
-                prompt=delivery.decode('utf-8'), plot=documents.get('plot'))
     visual_choices = documents.pop('visual_continuity', None)
     for field in DOCUMENTS:
+        if field == 'retrieval_record':
+            # Its context belongs to the actual text after reference locations
+            # and selected scope have been resolved below.
+            continue
         if field not in documents or documents[field] is None:
             generation.pop(field, None)
             continue
@@ -751,10 +720,38 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
         # Image-input is the compiled projection of the selected references,
         # not a second editable selection that can survive their removal.
         result.pop('image_input', None)
+    if documents.get('retrieval_record') is not None:
+        from prompt_retrieval import settle_retrieval_record
+        if delivery is not None:
+            from reference_delivery import bindings
+            from model_rendition import resolve_reference_channels
+            rows = bindings(prepared['transport_mode'], prepared['selected_references'], prepared['single_board']) if prepared else []
+            negative_mode = generation.get('negative_transport', 'auto')
+            if negative_mode == 'auto' and documents.get('integrated_prompt'):
+                from generation_references import resolve_model_record
+                specification = documents.get('production_spec') or {}
+                model = specification.get('target_model') or generation.get('model')
+                if model is not None:
+                    negative_mode = resolve_model_record(model)[1].get('negative_transport_mode')
+            text = resolve_reference_channels({'prompt': delivery.decode('utf-8'),
+                'negative_prompt': documents.get('negative') or '',
+                'integrated_prompt': documents.get('integrated_prompt') or '',
+                'native_negative': documents.get('native_negative') or ''}, rows,
+                reference_mode='none', negative_transport=negative_mode)
+            # This projection binds existing authored retrieval choices to their
+            # actual input. The compiler owns required reference consumption,
+            # target grammar and dictionary verification against the same text.
+            with _document_context('retrieval_record', locations):
+                documents['retrieval_record'] = settle_retrieval_record(documents['retrieval_record'],
+                    prompt=text['channels'][text['selected_channel']]['text'], plot=documents.get('plot'))
+        materialize_file(result, files, out_dir, field='retrieval_record', filename='retrieval-record.json',
+                         raw=c.encoded(documents['retrieval_record']))
+    else:
+        generation.pop('retrieval_record', None)
     if visual_choices is not None:
         import visual_continuity
         if prepared is None:
-            from prepare_generation_references import empty_stateless_reference_set
+            from generation_references import empty_stateless_reference_set
             prepared = empty_stateless_reference_set()
         with _document_context('visual_continuity', locations):
             visual = visual_continuity.build_record(visual_choices,

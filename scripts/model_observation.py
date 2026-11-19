@@ -1,12 +1,12 @@
 """Attach an existing dispatch's byte evidence without uploading or sending work."""
 from __future__ import annotations
+import read_context
 import base64
 import copy
 from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
 import execution_contract as c
-import runtime_snapshot
 import request_contract as rc
 from input_evidence import InputEvidence
 
@@ -25,7 +25,7 @@ def _read_object(value:dict)->bytes:
 
 def _load_recorded(source: dict):
     """Validate the exported formal content, without fabricating a local database."""
-    import production_workflow as w
+    import production_operations as w
     c.exact(source, {'artifact_type', 'run', 'prepared', 'consumer', 'records', 'objects', 'journal'}, 'observation source')
     if source['artifact_type'] != 'model-observation-source':
         raise ValueError('expected a complete recorded dispatch source')
@@ -48,7 +48,7 @@ def _load_recorded(source: dict):
 
 
 def _derive(source:dict)->dict:
-    import production_workflow as w
+    import production_operations as w
     import execution_lifecycle as lifecycle
     prepared,consumer,rows,journal=_load_recorded(source)
     claims=[r for r in rows if r['event']=='dispatch-claim']
@@ -214,10 +214,10 @@ LIMITATIONS=[
 ]
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def capture(root:Path,run:str)->dict:
     """Read one existing run. The caller decides where local observation data is saved."""
-    import production_workflow as w
+    import production_operations as w
     directory,prepared,consumer,rows=w.read_run(root,run)
     claim=w.find(rows,'dispatch-claim');journal=_journal(directory,rows,claim)
     keys={d['sha256'] for d in prepared['dependencies'] if d['space']!='skill'}

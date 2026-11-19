@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 from execution_contract import atomic_write_json, sha256_file
-from state_protocol import parse_json, validate_against_schema
+from state_protocol import parse_json, read_schema, validate_against_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "schemas" / "character-sheet-data.schema.json"
@@ -125,13 +125,14 @@ def resolve_sheet_relative(stored: str, *, root: Path, field: str) -> Path:
     return resolved
 
 
-def validate_sidecar(
+def check_sidecar(
     value: Any,
     *,
     sheet_root: Path | None = None,
     verify_files: bool = False,
-) -> dict[str, Any]:
-    schema = parse_json(SCHEMA_PATH.read_text(encoding="utf-8"))
+) -> None:
+    """Check the supplied sheet data without exporting an editable copy."""
+    schema = read_schema(SCHEMA_PATH)
     errors = validate_against_schema(value, schema)
     if errors:
         raise ValueError("invalid character sheet sidecar: " + "; ".join(errors))
@@ -148,6 +149,7 @@ def validate_sidecar(
             raise ValueError(f"tables.{table_id} contains duplicate row_id values")
     from sheet_artifacts import verify_artifact, verify_acceptance, verify_withdrawal
     from execution_contract import content_id
+    verified_artifacts: dict = {}
     for slot_id, slot in value['slots'].items():
         candidate_ids = [item['artifact_id'] for item in slot['candidates']]
         if len(candidate_ids) != len(set(candidate_ids)):
@@ -168,12 +170,22 @@ def validate_sidecar(
             if sheet_root is None:
                 raise ValueError('verify_files requires sheet_root')
             for item in slot['candidates']:
-                verify_artifact(item, sheet_root)
+                verify_artifact(item, sheet_root, cache=verified_artifacts)
             for accepted in [*slot['history'], *([current] if current is not None else [])]:
-                verify_acceptance(accepted, sheet_root, slot_id)
+                verify_acceptance(accepted, sheet_root, slot_id, cache=verified_artifacts)
             for withdrawal in slot.get('withdrawals', []):
                 verify_withdrawal(withdrawal, sheet_root, slot_id,
-                                  historical[withdrawal['acceptance_sha256']])
+                                  historical[withdrawal['acceptance_sha256']], cache=verified_artifacts)
+
+
+def validate_sidecar(
+    value: Any,
+    *,
+    sheet_root: Path | None = None,
+    verify_files: bool = False,
+) -> dict[str, Any]:
+    """Check a sheet and export an independent document for editing."""
+    check_sidecar(value, sheet_root=sheet_root, verify_files=verify_files)
     return json.loads(json.dumps(value, ensure_ascii=False))
 
 

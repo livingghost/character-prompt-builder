@@ -12,7 +12,7 @@ from unittest.mock import patch
 from PIL import Image
 import execution_contract as c
 import image_edit as edit
-import production_workflow as w
+import production_operations as w
 import production_fixtures as fixture
 import work_ledger
 
@@ -30,7 +30,7 @@ class ImageEditTests(unittest.TestCase):
           'sources':[{'id':name,'path':name+'.png','role':'world','locator':'whole','disposition':'applied','reason':'Synthetic test source.'} for name in ('source','overlay')],
           'delivery':{'path':'delivery.txt','translation_notes':'Synthetic only.'},
           'criteria':[{'id':'pixels','strength':'hard','text':'Observed pixel structure.'}],'world_views':[]}
-        fixture.task(self.root,self.task,artifact='image',execution='external');self.task['criteria'][0]['evidence']='image'
+        fixture.task(self.root,self.task,artifact='image',execution='external',focus='supporting-setting');self.task['criteria'][0]['evidence']='image'
         fixture.external_image_input(self.root,self.task)
         self.put('task.json',self.task);self.run=w.prepare(self.root,'task.json')['run'];fixture.handoff(self.root,self.run,'pixel editor','manual')
         self.plan={'input_sha256':w.load_run(self.root,self.run)[1]['input_sha256'],
@@ -40,7 +40,9 @@ class ImageEditTests(unittest.TestCase):
     def put(self,path,value):
         p=self.root/path;p.parent.mkdir(parents=True,exist_ok=True)
         p.write_bytes(value if isinstance(value,bytes) else value.encode() if isinstance(value,str) else c.encoded(value));return p
-    def source(self,path):return {'path':path,'sha256':c.digest(c.read(self.root/path))}
+    def source(self,path):
+        path = next((item['path'] for item in self.task['sources'] if item['id'] == Path(path).stem), path)
+        return {'path':path,'sha256':c.digest(c.read(self.root/path))}
     def intent(self):self.put('edit.json',self.plan);return edit.edit_intent(self.root,self.run,'edit.json')
     def execute(self):
         authorization=fixture.grant(self.root,self.run,self.intent())
@@ -106,13 +108,13 @@ class ImageEditTests(unittest.TestCase):
         self.put('other.png',png());self.plan['source']=self.source('other.png')
         with self.assertRaises(ValueError):self.intent()
     def test_changed_source(self):
-        self.put('source.png',png(color=(0,0,0,255)))
+        self.put(self.plan['source']['path'],png(color=(0,0,0,255)))
         with self.assertRaises(ValueError):self.intent()
     def test_wrong_input(self):
         self.plan['input_sha256']='f'*64
         with self.assertRaises(ValueError):self.intent()
     def test_never_overwrite_input(self):
-        self.plan['output']='source.png'
+        self.plan['output']=self.plan['source']['path']
         with self.assertRaises(ValueError):self.intent()
     def test_never_overwrite_existing(self):
         self.put('art/result.png',b'keep')

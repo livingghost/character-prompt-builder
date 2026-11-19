@@ -122,9 +122,14 @@ class UploadSourceTests(unittest.TestCase):
         rc.validate_upload_source({'kind': 'url', 'url': 'http://127.0.0.1:8080/image.png'})
 
     def test_input_choices_keep_authority_and_derive_hashes_from_files(self):
-        task = {'task_id': 'synthetic-task', 'authority': 'authority.json', 'execution': 'dispatcher'}
+        import production_authoring
+        task = production_authoring.seed(route='generation', artifact='image', execution='dispatcher',
+                                         task_id='synthetic-task')
+        task['authority'] = 'authority.json'
         choices = {'target': None, 'reading': None, 'visual': None, 'validation': None,
-                   'task_changes': {'upload_sources': self.sources()}, 'external': None}
+                   'task_changes': {'upload_sources': self.sources()}, 'external': None,
+                   'authoring': production_authoring.blank(task)}
+        choices['authoring']['documents'] = {}
         production_inputs.read_choices(choices)
         changed = production_inputs._chosen_task(task, choices)
         self.assertEqual(changed['upload_sources'], self.sources())

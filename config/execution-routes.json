@@ -31,7 +31,7 @@
       ],
       "on_failure": "prepare",
       "resume": "status",
-      "owner": "scripts/production_workflow.py:prepare",
+      "owner": "scripts/production_operations.py:prepare",
       "command": "python scripts/production_workflow.py prepare --help"
     },
     {
@@ -51,7 +51,7 @@
       ],
       "on_failure": "execute",
       "resume": "status",
-      "owner": "scripts/production_workflow.py:execute",
+      "owner": "scripts/production_operations.py:execute",
       "command": "python scripts/production_workflow.py execute --help"
     },
     {
@@ -69,7 +69,7 @@
       ],
       "on_failure": "prepare",
       "resume": "status",
-      "owner": "scripts/production_workflow.py:handoff",
+      "owner": "scripts/production_operations.py:handoff",
       "command": "python scripts/production_workflow.py handoff --help"
     },
     {
@@ -86,7 +86,7 @@
       ],
       "on_failure": "capture",
       "resume": "status",
-      "owner": "scripts/production_workflow.py:capture",
+      "owner": "scripts/production_operations.py:capture",
       "command": "python scripts/production_workflow.py capture --help"
     },
     {
@@ -106,7 +106,7 @@
       ],
       "on_failure": "review",
       "resume": "status",
-      "owner": "scripts/production_workflow.py:review",
+      "owner": "scripts/production_operations.py:review",
       "command": "python scripts/production_workflow.py review --help"
     },
     {
@@ -124,7 +124,7 @@
       ],
       "on_failure": "review",
       "resume": "status",
-      "owner": "scripts/production_workflow.py:select",
+      "owner": "scripts/production_operations.py:select",
       "command": "python scripts/production_workflow.py select --help"
     },
     {
@@ -140,7 +140,7 @@
       ],
       "on_failure": "prepare",
       "resume": "status",
-      "owner": "scripts/production_workflow.py:complete",
+      "owner": "scripts/production_operations.py:complete",
       "command": "python scripts/production_workflow.py complete --help"
     },
     {
@@ -158,7 +158,7 @@
       ],
       "on_failure": "save",
       "resume": "status",
-      "owner": "scripts/production_workflow.py:save",
+      "owner": "scripts/production_operations.py:save",
       "command": "python scripts/production_workflow.py save --help"
     },
     {
@@ -174,7 +174,7 @@
       ],
       "on_failure": "save",
       "resume": "status",
-      "owner": "scripts/production_workflow.py:complete",
+      "owner": "scripts/production_operations.py:complete",
       "command": "python scripts/production_workflow.py complete --help"
     },
     {
@@ -827,22 +827,22 @@
   ],
   "operations": {
     "authorize": {
-      "owner": "scripts/production_workflow.py:authorize",
+      "owner": "scripts/production_operations.py:authorize",
       "command": "python scripts/production_workflow.py authorize --help",
       "effect": "record exact scoped authorization in the run"
     },
     "claim-external": {
-      "owner": "scripts/production_workflow.py:claim_external",
+      "owner": "scripts/production_operations.py:claim_external",
       "command": "python scripts/production_workflow.py claim-external --help",
       "effect": "claim external submission before the host calls it"
     },
     "revision-intent": {
-      "owner": "scripts/production_workflow.py:revision_intent",
+      "owner": "scripts/production_operations.py:revision_intent",
       "command": "python scripts/production_workflow.py revision-intent --help",
       "effect": "read-only full preparation comparison for a reviewed repair"
     },
     "revise": {
-      "owner": "scripts/production_workflow.py:revise",
+      "owner": "scripts/production_operations.py:revise",
       "command": "python scripts/production_workflow.py revise --help",
       "effect": "create a child run bound to the specific reviewed repair"
     },
@@ -857,7 +857,7 @@
       "effect": "apply one authored decision with derived exact authority, or recover the retained claim without repeating its local effect"
     },
     "impact": {
-      "owner": "scripts/production_workflow.py:impact",
+      "owner": "scripts/production_operations.py:impact",
       "command": "python scripts/production_workflow.py impact --help",
       "effect": "read-only changed-source and declared dependency report"
     },
@@ -1003,17 +1003,17 @@
       "effect": "import or replace the work task grant file, keeping its evidence and predecessor"
     },
     "draft-disposition": {
-      "owner": "scripts/production_workflow.py:draft_disposition",
+      "owner": "scripts/production_operations.py:draft_disposition",
       "command": "python scripts/production_workflow.py draft-disposition --help",
       "effect": "write the disposition form of one candidate"
     },
     "disposition": {
-      "owner": "scripts/production_workflow.py:disposition",
+      "owner": "scripts/production_operations.py:disposition",
       "command": "python scripts/production_workflow.py disposition --help",
       "effect": "record a candidate as not selected or pending; on the selected candidate it withdraws the selection, refused while the Studio holds that candidate as its accepted image"
     },
     "candidate-status": {
-      "owner": "scripts/production_workflow.py:candidate_state",
+      "owner": "scripts/production_operations.py:candidate_state",
       "command": "python scripts/production_workflow.py candidate-status --help",
       "effect": "read-only evaluation, disposition and selection state of one candidate"
     },
@@ -1046,6 +1046,7 @@
   "operation_contexts": {
     "author": {
       "reads": [
+        "references/runtime/authoring-work.md",
         "references/runtime/production-workflow.md",
         "references/runtime/production-direction.md",
         "references/runtime/production-authoring.md"
@@ -1067,6 +1068,7 @@
     },
     "save": {
       "reads": [
+        "references/runtime/authoring-work.md",
         "references/runtime/production-workflow.md",
         "references/runtime/production-direction.md",
         "references/runtime/production-authoring.md"
@@ -1088,6 +1090,7 @@
     },
     "prepare": {
       "reads": [
+        "references/runtime/authoring-work.md",
         "references/runtime/production-workflow.md",
         "references/runtime/production-direction.md",
         "references/runtime/production-authoring.md"
@@ -1137,6 +1140,7 @@
     },
     "review": {
       "reads": [
+        "references/runtime/authoring-work.md",
         "references/runtime/production-workflow.md",
         "references/runtime/production-direction.md"
       ],

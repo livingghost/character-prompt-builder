@@ -139,7 +139,7 @@
     },
     {
       "schema": "shared-state/reference-use-plan.schema.json",
-      "sha256": "6c1eb607a4c069385173895f2d8c91f1bedb4fb2d28458d27953590e9dc6a4b4"
+      "sha256": "78d93d01e27c26da3f444ede75fa22fc024d3c00684d39e96ff364c4a74c5a7e"
     },
     {
       "schema": "shared-state/relationship-projection.schema.json",
@@ -682,7 +682,7 @@
   },
   "validator": {
     "path": "scripts/protocol_contract.py",
-    "sha256": "2adc4ab9b07d2789c8946b2249bccf5df263f008ee6a88d0e06b4ad50c323e4f"
+    "sha256": "71feacab1a31e66e06be645dbd22a6c344178bbddb25df5a536abf9add8f2f02"
   },
-  "contract_set_sha256": "92fabf800ec8e08c211bb1083403452f30d3c6567b31dca6ac4d59c4560f9b24"
+  "contract_set_sha256": "67a55651c052396b411c81a498650329c9adeeec98e44a36bcc47750e55c8264"
 }

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Deliver complete operation knowledge and retain its exact source scope."""
 from __future__ import annotations
+import runtime_paths
 import operation_context as _operation_context
 
 import argparse
@@ -118,8 +119,7 @@ def ledger_candidates(*, studio: Path | None = None, package_root: Path | None =
         found = _studio(value)
         if found is not None:
             output.append(found / 'work/reads.jsonl')
-    import pack_manager
-    output.append(pack_manager.user_data_home() / 'reads.jsonl')
+    output.append(runtime_paths.user_data_home() / 'reads.jsonl')
     return list(dict.fromkeys(output))
 
 
@@ -538,6 +538,16 @@ def capture(route: str, features: list[str] | None = None, *, execution: str, ro
     return manifest, bodies
 
 
+def _ledger_lock(ledger: Path):
+    """Initialize the real issuance journal and own one read/replace cycle."""
+    if not ledger.exists():
+        try:
+            c.atomic(ledger, b'')
+        except FileExistsError:
+            pass
+    return c.file_lock(ledger)
+
+
 def _issue(manifest: dict, ledger: Path, *, bodies: list[dict], reused: list[dict] | None = None,
            known_readings: list[str] | None = None, snapshot: str | None = None,
            key: str | None = None, at: str | None = None, cwd: str | None = None) -> dict:
@@ -550,7 +560,7 @@ def _issue(manifest: dict, ledger: Path, *, bodies: list[dict], reused: list[dic
                                     'origin': {'key_sha256': row['key_sha256'], 'snapshot': snapshot},
                                     'reused_from': None} for metadata in bodies), *(reused or [])]}
     _validate_delivery(row)
-    with c.lock(ledger.parent):
+    with _ledger_lock(ledger):
         existing = ledger_rows(ledger)
         for old in existing:
             if old['key_sha256'] == row['key_sha256'] and any(old[k] != row[k] for k in MANIFEST_FIELDS | {'delivery'}):
@@ -726,7 +736,7 @@ def copy_issuance(record: dict, destination: Path, *, root: Path = ROOT, studio:
     """Copy issuance integrity; the consumer checks applicability to its own scope."""
     validate_record_content(record)
     row = _find_row(record, ledgers if ledgers is not None else ledger_candidates(studio=studio, package_root=package_root))
-    with c.lock(destination.parent):
+    with _ledger_lock(destination):
         rows = ledger_rows(destination)
         matching = [old for old in rows if old['key_sha256'] == row['key_sha256']]
         fields = MANIFEST_FIELDS | {'delivery'}
@@ -1192,7 +1202,7 @@ def write_draft(issued: dict, ledger: Path, *, studio: Path | None = None,
 def _selected_model(model: str) -> tuple[str, dict]:
     """Resolve the selected model or return an actionable catalog/family choice."""
     from catalog_retrieval.runtime import load_pack_catalog
-    from prepare_generation_references import resolve_model_record
+    from generation_references import resolve_model_record
     try:
         return resolve_model_record(model)
     except ValueError as exc:

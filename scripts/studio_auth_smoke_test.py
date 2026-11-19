@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise private Studio JSON, explicit sources and credential recovery locally."""
 from __future__ import annotations
+import studio as studio_cli
 
 import contextlib
 import hashlib
@@ -24,7 +25,7 @@ import operation_context as operations
 from production_diagnostics import ProductionError
 import service_auth as auth
 import private_state
-import studio
+import studio_workspace as studio
 import validate_studio
 
 
@@ -68,7 +69,7 @@ class StudioAuthenticationTests(unittest.TestCase):
         with mock.patch.object(sys, "argv", [str(ROOT / "scripts" / "studio.py"), *args]), \
                 mock.patch.object(sys, "stdin", input_stream), \
                 contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
-            code = operations.run_cli(lambda: studio.main(list(args)))
+            code = operations.run_cli(lambda: studio_cli.main(list(args)))
         return code, output.getvalue(), errors.getvalue()
 
     def run_action(self, action):
@@ -105,7 +106,7 @@ class StudioAuthenticationTests(unittest.TestCase):
             return original(*args, **kwargs)
         with mock.patch.object(auth.tempfile, 'mkstemp', side_effect=checked_temporary):
             self.set_value()
-        self.assertEqual(calls, [True])
+        self.assertTrue(calls)
         self.assertEqual(auth.resolve(self.root, self.service).value, self.value)
 
     def test_prepare_preserves_ignore_bytes_and_repeated_preparation_is_idempotent(self):
@@ -445,7 +446,7 @@ class StudioAuthenticationTests(unittest.TestCase):
 
     def test_atomic_publication_uses_a_temporary_file_with_platform_access_policy(self):
         self.set_value()
-        replace = auth.os.replace
+        replace = auth.contract.replace_file
         observed = []
         def publish(source, destination, *args, **kwargs):
             if Path(destination) == self.config():
@@ -458,7 +459,7 @@ class StudioAuthenticationTests(unittest.TestCase):
                 observed.append((temporary, stat.S_IMODE(temporary.stat().st_mode)))
             return replace(source, destination, *args, **kwargs)
         with contextlib.ExitStack() as contexts:
-            contexts.enter_context(mock.patch.object(auth.os, "replace", side_effect=publish))
+            contexts.enter_context(mock.patch.object(auth.contract, "replace_file", side_effect=publish))
             if os.name == "nt":
                 for name in ("geteuid", "fchmod"):
                     contexts.enter_context(mock.patch.object(auth.os, name, create=True,
@@ -472,12 +473,32 @@ class StudioAuthenticationTests(unittest.TestCase):
             self.assertEqual(mode, 0o600)
             self.assertEqual(stat.S_IMODE(self.config().stat().st_mode), 0o600)
 
+    @unittest.skipUnless(os.name == 'posix', 'POSIX read-only private source permissions')
+    def test_readable_private_source_rotates_without_write_access_to_the_source(self):
+        self.set_value()
+        path, target = self.config(), self.base / 'read-only-credentials.json'
+        before = path.read_bytes()
+        path.rename(target); target.chmod(0o400); path.symlink_to(target)
+        original = os.open
+        def enforce_source_permissions(file, flags, *args, **kwargs):
+            # The test also enforces these permissions when run by a privileged
+            # account whose OS otherwise permits an O_RDWR open of mode 0400.
+            if Path(file) == target and flags & (os.O_WRONLY | os.O_RDWR):
+                raise PermissionError(13, 'read-only private source')
+            return original(file, flags, *args, **kwargs)
+        with mock.patch.object(auth.os, 'open', side_effect=enforce_source_permissions):
+            self.assertTrue(auth.prepare(self.root, self.service)['available'])
+            self.set_value('synthetic-read-only-source-rotation')
+        self.assertEqual(target.read_bytes(), before)
+        self.assertFalse(path.is_symlink())
+        self.assertEqual(auth.resolve(self.root, self.service).value, 'synthetic-read-only-source-rotation')
+
     def test_failed_atomic_replace_preserves_existing_sources_and_values(self):
         self.set_value()
         self.set_value("synthetic-unrelated-key", service="other-service")
         before = self.config().read_bytes()
         files_before = set(self.root.iterdir())
-        with mock.patch.object(auth.os, "replace", side_effect=PermissionError("Synthetic publish failure")):
+        with mock.patch.object(auth.contract, "replace_file", side_effect=PermissionError("Synthetic publish failure")):
             with self.assertRaises(ProductionError):
                 self.set_value("synthetic-unpublished-value")
         self.assertEqual(self.config().read_bytes(), before)
@@ -1030,6 +1051,13 @@ class StudioAuthenticationTests(unittest.TestCase):
         self.assertEqual(results[0]["selection"], results[1]["selection"])
         self.assertEqual(self.document(), {self.service: {"api_key": ""}})
         self.assertEqual(sorted(report["operation"] for report in results), ["created", "retained"])
+
+    def test_concurrent_initialization_without_hard_links_publishes_complete_credentials(self):
+        import errno
+        with mock.patch.object(auth.os, 'link', side_effect=OSError(errno.EPERM, 'no hard links')):
+            results = self.run_concurrently(*(lambda: auth.prepare(self.root, self.service) for _ in range(2)))
+        self.assertEqual(self.document(), {self.service: {'api_key': ''}})
+        self.assertEqual(sorted(report['operation'] for report in results), ['created', 'retained'])
 
     def test_concurrent_prepare_and_set_preserve_other_services(self):
         self.set_value(service="existing-service")

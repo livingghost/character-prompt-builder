@@ -7,13 +7,13 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-import dispatch
+import dispatch_runtime as dispatch
 import execution_contract as c
 import execution_lifecycle as accounting
 import production_case_fixtures as fixtures
 import production_execution as execution
 import production_store as store
-import production_workflow as workflow
+import production_operations as workflow
 import transport_contract
 import transport_synthetic as transport
 from production_diagnostics import ProductionError
@@ -21,11 +21,19 @@ from test_production_execution import decisions
 
 
 class UploadedInputLifecycleTests(unittest.TestCase):
+    @staticmethod
+    def build(base):
+        return fixtures.create(base / 'studio', base / 'runtime', with_upscale=True), {}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = fixtures.CaseTemplate.for_class(cls, cls.build)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         base = Path(self.temp.name)
-        case = fixtures.create(base / 'studio', base / 'runtime', with_upscale=True)
+        case, _ = fixtures.CaseTemplate.for_test(self, base, self.build, self._case_template)
         self.root = case['root']
         self.task = fixtures.upscale_task(self.root)
         self.run = workflow.prepare(self.root, self.task)['run']
@@ -41,6 +49,7 @@ class UploadedInputLifecycleTests(unittest.TestCase):
         claim = workflow.find(self.rows(), 'dispatch-claim')
         return dispatch.RunJournal.open(c.local(self.root, claim['data']['journal']))
 
+    @fixtures.cold_case
     def test_new_generation_uploads_afresh_and_deletes_after_output_capture(self):
         actual_delete = transport.send_delete
         local_source = self.root / 'upscale/source.png'
@@ -183,7 +192,7 @@ class UploadedInputLifecycleTests(unittest.TestCase):
 
     def test_failed_cleanup_does_not_hide_or_prevent_output_registration_recovery(self):
         refusal = transport_contract.Refused('Synthetic deletion failure', {'errors': [{'code': 'fixture-refusal'}]})
-        with patch('studio.iterate', side_effect=OSError('Synthetic unavailable projection')), \
+        with patch('studio_workspace.iterate', side_effect=OSError('Synthetic unavailable projection')), \
                 patch.object(transport, 'send_delete', side_effect=refusal):
             initial = self.call()
         self.assertEqual(initial['runs'][0]['cleanup']['state'], 'failed')
@@ -246,12 +255,23 @@ class UploadedInputLifecycleTests(unittest.TestCase):
 
 
 class TwoInputCleanupTests(unittest.TestCase):
+    @staticmethod
+    def build(base):
+        return fixtures.create(base / 'studio', base / 'runtime'), {}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = fixtures.CaseTemplate.for_class(cls, cls.build)
+
     def setUp(self):
-        import prepare_generation_references as references
+        import generation_references as references
+        from smoke_fixtures import fixture_reference_prompt
+        from studio_reference_fixtures import reference_retrieval
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         base = Path(self.temp.name)
-        self.root = fixtures.create(base / 'studio', base / 'runtime')['root']
+        case, _ = fixtures.CaseTemplate.for_test(self, base, self.build, self._case_template)
+        self.root = case['root']
         selections = []
         for index, colour in enumerate((b'\x20\x50\x90', b'\xb0\x70\x30')):
             path = self.root / 'references' / f'palette-{index + 1}.png'
@@ -263,6 +283,10 @@ class TwoInputCleanupTests(unittest.TestCase):
         fixtures.write(self.root / 'references.json', prepared)
         task = c.load(self.root / 'task.json')
         task['generation']['references'] = 'references.json'
+        prompt = fixture_reference_prompt((self.root / task['delivery']['path']).read_text(encoding='utf-8'), prepared)
+        fixtures.write(self.root / task['delivery']['path'], prompt)
+        fixtures.write(self.root / task['generation']['retrieval_record'],
+                       reference_retrieval(self.root, task, prompt, prepared))
         fixtures.write(self.root / 'task.json', task)
         spec = c.load(self.root / 'spec.json')
         spec['render_intent']['execution_mode'] = 'reference-guided'
@@ -279,6 +303,7 @@ class TwoInputCleanupTests(unittest.TestCase):
     def journal(self):
         return dispatch.RunJournal.open(c.local(self.root, workflow.find(self.rows(), 'dispatch-claim')['data']['journal']))
 
+    @fixtures.cold_case
     def test_saved_upload_refusal_recovers_and_deletes_the_earlier_input_once(self):
         actual_upload = transport.upload_media
         uploads = []

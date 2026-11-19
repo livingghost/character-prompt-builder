@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Actual authoring work",
+  "description": "One acquired basis and one editable actual candidate. Cross-field checks resolve source selections and verify acquisition digests.",
+  "type": "object",
+  "properties": {
+    "basis": { "$ref": "#/$defs/basis" },
+    "content": {
+      "type": "object",
+      "description": "The actual current candidate. Its delivery owner validates the selected content contract."
+    }
+  },
+  "required": ["basis", "content"],
+  "additionalProperties": false,
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "name": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "source": {
+      "type": "object",
+      "properties": {
+        "format": { "enum": ["text", "json", "binary"] },
+        "encoding": { "enum": ["utf-8", "base64"] },
+        "data": { "type": "string" },
+        "sha256": { "$ref": "#/$defs/hash" },
+        "origin": { "type": "object", "description": "Acquired provenance such as the source path, role, locator and source authority." }
+      },
+      "required": ["format", "encoding", "data", "sha256", "origin"],
+      "additionalProperties": false
+    },
+    "application": {
+      "type": "object",
+      "properties": {
+        "source": { "$ref": "#/$defs/name" },
+        "pointer": { "type": "string", "description": "RFC 6901 pointer into acquired JSON. Text and binary sources use the empty root pointer." }
+      },
+      "required": ["source", "pointer"],
+      "additionalProperties": false
+    },
+    "basis": {
+      "type": "object",
+      "properties": {
+        "operation": { "enum": ["compose", "amend"] },
+        "focus": { "enum": ["character", "supporting-setting"] },
+        "request": { "type": ["string", "null"] },
+        "request_sha256": { "anyOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+        "sources": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/source" }
+        },
+        "applications": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/application" }
+        },
+        "subjects": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/name" }
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/name" }
+        },
+        "baseline": { "type": ["object", "null"] },
+        "baseline_sha256": { "anyOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] }
+      },
+      "required": ["operation", "focus", "request", "request_sha256", "sources", "applications", "subjects", "requirements", "baseline", "baseline_sha256"],
+      "additionalProperties": false
+    }
+  }
+}

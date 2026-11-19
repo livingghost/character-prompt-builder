@@ -133,7 +133,7 @@ def report_failure(error: BaseException, *, phase: str) -> int:
 def create(root: Path | None, run: str | None, prompt: str) -> dict[str,Any] | None:
     if root is None and run is None:return None
     if root is None or run is None:raise ValueError('production root and run are both required')
-    from production_workflow import assert_current
+    from production_operations import assert_current
     _,prepared,consumer,_=assert_current(c._root(root),run)
     return bind_consumer({'run':run,'input_sha256':prepared['input_sha256'],'consumer':consumer},prompt)
 
@@ -166,7 +166,7 @@ def validate(binding: Any, prompt: str) -> None:
         c.exact(state,{'state','requirements','completion_state'},'authored consumer state')
         if state['state'] not in {'draft','finished'}:
             raise ValueError('authored consumer state must name its saved draft or finished revision')
-        from production_workflow import schema_check
+        from production_operations import schema_check
         schema_check({'requirements':state['requirements'],
                       'completion_state':state['completion_state']},'authored-contract')
         fields.add('authored')
@@ -199,7 +199,7 @@ def validate_live(root: Path | None, run: str | None, package: dict[str,Any]) ->
         if root is not None or run is not None: raise ValueError('package is not bound to production')
         return
     if root is None or run is None: raise ValueError('a bound package needs its production root and run')
-    from production_workflow import assert_current
+    from production_operations import assert_current
     _validate_live_from(assert_current(c._root(root),run),package)
 
 
@@ -224,7 +224,7 @@ def normalize_upscale_factor(scale: float) -> int | float:
 
 def upscale_request(root: Path, source: Path, model: str, scale: float,
                     settings: dict, guidance: str | None, *, request_validation: dict, render_intent: dict,
-                    input_source=None) -> dict:
+                    input_source=None, render_presets=None) -> dict:
     """Describe exact local inputs before the submit authorization is issued."""
     scale = normalize_upscale_factor(scale)
     c.text(model, 'upscale model')
@@ -232,8 +232,10 @@ def upscale_request(root: Path, source: Path, model: str, scale: float,
         raise ValueError('upscale settings must be an object')
     if guidance is not None:
         c.text(guidance, 'upscale guidance')
-    from render_contract_lib import validate_intent
-    validate_intent(render_intent, for_generation=bool(guidance), prompt=guidance)
+    from render_contract_lib import RenderPresets, validate_intent
+    if render_presets is None:
+        render_presets = RenderPresets(source=getattr(getattr(input_source, 'catalog', None), 'builder_inputs', None))
+    validate_intent(render_intent, for_generation=bool(guidance), prompt=guidance, render_presets=render_presets)
     if render_intent['execution_mode'] != 'upscale':
         raise ValueError('upscale request needs an upscale rendering intent')
     root = root.absolute()
@@ -254,7 +256,7 @@ def upscale_request(root: Path, source: Path, model: str, scale: float,
     return value
 
 
-def validate_upscale_input(root: Path, request: dict, *, input_source=None) -> None:
+def validate_upscale_input(root: Path, request: dict, *, input_source=None, render_presets=None) -> None:
     """Verify one explicit upscale declaration and its actual source bytes."""
     c.exact(request, {'artifact_type', 'source', 'model', 'scale_factor', 'settings', 'guidance_prompt', 'render_intent',
                       'request_validation', 'request_validation_sha256', 'input_snapshots', 'input_snapshots_sha256'}, 'upscale request')
@@ -264,7 +266,7 @@ def validate_upscale_input(root: Path, request: dict, *, input_source=None) -> N
     expected = upscale_request(root, root / request['source']['path'], request['model'],
                                request['scale_factor'], request['settings'], request['guidance_prompt'],
                                request_validation=request['request_validation'], render_intent=request['render_intent'],
-                               input_source=input_source)
+                               input_source=input_source, render_presets=render_presets)
     if request != expected:
         raise ValueError('upscale source differs from the prepared request')
 
@@ -272,7 +274,7 @@ def validate_upscale_input(root: Path, request: dict, *, input_source=None) -> N
 def validate_upscale_live(root: Path, run: str, request: dict) -> None:
     """The prepared delivery and source snapshot authorize the exact input."""
     validate_upscale_input(root, request)
-    from production_workflow import assert_current
+    from production_operations import assert_current
     _validate_upscale_binding_from(assert_current(root,run),request)
 
 

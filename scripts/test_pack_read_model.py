@@ -1,5 +1,6 @@
 """Pack acquisition, pure construction, and persistence use one input owner."""
 from __future__ import annotations
+import runtime_paths
 
 from collections import Counter
 from contextlib import closing
@@ -16,7 +17,11 @@ from unittest.mock import patch
 from builder_inputs import BuilderInputs, FileInput
 import pack_cache as cache
 import pack_manager as packs
+import pack_release_gate as release_gate
 import runtime_snapshot
+import sparse_discovery_eval
+import validate_reference_corpus as reference_corpus
+from catalog_retrieval import runtime
 from state_protocol import schema_read_scope
 
 
@@ -29,7 +34,7 @@ class PackReadModelTests(unittest.TestCase):
         self.manifest = packs.initialize_pack(self.root, name='Synthetic acquired catalog', release='2026.11.07.1')
         self.manifest['content']['resource_globs'] = ['resources/**/*']
         self.manifest['content']['resource_bindings'] = {'synthetic-policy': 'resources/policy.json'}
-        self.settings = packs.PackSettings((self.root,), self.base / 'state.json', self.base / 'cache',
+        self.settings = runtime_paths.PackSettings((self.root,), self.base / 'state.json', self.base / 'cache',
                                           self.base / 'managed', self.base / 'quarantine')
         packs.save_state(self.settings.state_file, {'enabled_packs': [self.manifest['pack_id']]})
         self.variant('A')
@@ -126,6 +131,181 @@ class PackReadModelTests(unittest.TestCase):
         self.assertTrue(report['rebuilt'])
         self.assertEqual(self.label(catalog), 'Synthetic A')
         self.assertEqual(opened, Counter({name: 1 for name in expected}))
+
+    def test_release_gate_and_corpus_share_validation_within_one_fresh_read(self):
+        self.settings.managed_root.mkdir()
+        packs.save_state(self.settings.state_file, {
+            'pack_roots': [str(self.root)], 'enabled_packs': [self.manifest['pack_id']],
+        })
+        opened, validated = Counter(), Counter()
+        original_open, validate = Path.open, packs.validate_pack_input
+        refresh = cache.refresh_runtime_catalog
+        catalogs = []
+
+        def record_open(path, *args, **kwargs):
+            if self.root in path.parents:
+                opened[path.relative_to(self.root).as_posix()] += 1
+            return original_open(path, *args, **kwargs)
+
+        def record_validation(inputs, **kwargs):
+            validated[inputs.root] += 1
+            return validate(inputs, **kwargs)
+
+        def capture_catalog(*args, **kwargs):
+            report, catalog = refresh(*args, **kwargs)
+            catalogs.append(catalog)
+            return report, catalog
+
+        expected = set(self.files())
+        with patch.object(Path, 'open', record_open), \
+                patch.object(cache, 'validate_pack_input', side_effect=record_validation), \
+                patch.object(packs, 'validate_pack_input', side_effect=record_validation), \
+                patch.object(release_gate, 'refresh_runtime_catalog', side_effect=capture_catalog):
+            report = release_gate.run_release_gate(
+                self.root, state_file=self.settings.state_file,
+                cache_dir=self.settings.cache_dir, managed_root=self.settings.managed_root,
+            )
+            records, errors, count = reference_corpus._pack_record_closure(self.root, catalog=catalogs[0])
+        self.assertTrue(report['ok'], report['errors'])
+        self.assertEqual((errors, count), ([], 1))
+        self.assertEqual(records['synthetic-acquired-light'][2]['label'], 'Synthetic A')
+        self.assertEqual(opened, Counter({name: 1 for name in expected}))
+        self.assertEqual(validated, Counter({self.root: 1}))
+        result = catalogs[0].validations[self.manifest['pack_id']]
+        with self.assertRaises(AttributeError):
+            result.lock_present = False
+        with self.assertRaises(TypeError):
+            result.records[0].record['label'] = 'Mutated'
+
+        path = self.root / 'records/lighting.json'
+        info = path.stat()
+        raw = path.read_bytes()
+        changed = raw.replace(b'Synthetic A', b'Synthetic B')
+        self.assertEqual(len(raw), len(changed))
+        path.write_bytes(changed)
+        os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
+        following = release_gate.run_release_gate(
+            self.root, state_file=self.settings.state_file,
+            cache_dir=self.settings.cache_dir, managed_root=self.settings.managed_root,
+        )
+        self.assertFalse(following['ok'])
+        self.assertTrue(any('lock-file-mismatch' in error for error in following['errors']))
+
+    def test_real_sparse_gate_reuses_catalog_and_independent_evaluation_reads_new_sources(self):
+        sparse_name = 'sparse-discovery-evaluation'
+        record_id = 'synthetic-acquired-light'
+        self.manifest['content']['resource_bindings'].update({
+            sparse_name: 'resources/sparse.json',
+            'release-evaluation-contract': 'resources/release.json',
+        })
+        packs.atomic_write_json(self.root / 'resources/sparse.json', {
+            'purpose': 'Synthetic acquired-catalog evaluation.', 'case_count': 1,
+            'cases': [{'id': 'owned-search', 'mode': 'search', 'query': 'synthetic light A',
+                       'kinds': ['module'], 'categories': ['lighting'], 'limit': 1,
+                       'expected_top_ids': [record_id]}],
+        })
+        packs.atomic_write_json(self.root / 'resources/release.json', {
+            'sparse_discovery': {'resource': sparse_name, 'expected_case_count': 1},
+        })
+        self.variant('A')
+        self.settings.managed_root.mkdir()
+        packs.save_state(self.settings.state_file, {
+            'pack_roots': [str(self.root)], 'enabled_packs': [self.manifest['pack_id']],
+        })
+        acquired = Counter()
+        read, refresh = packs.AcquiredFile.read, cache.refresh_runtime_catalog
+        catalogs = []
+
+        def record_read(path, relative):
+            if self.root in path.parents:
+                acquired[relative] += 1
+            return read(path, relative)
+
+        def capture_catalog(*args, **kwargs):
+            report, catalog = refresh(*args, **kwargs)
+            catalogs.append(catalog)
+            return report, catalog
+
+        expected = Counter({name: 1 for name in self.files()})
+        with patch.object(packs.AcquiredFile, 'read', side_effect=record_read), \
+                patch.object(release_gate, 'refresh_runtime_catalog', side_effect=capture_catalog):
+            report = release_gate.run_release_gate(
+                self.root, state_file=self.settings.state_file,
+                cache_dir=self.settings.cache_dir, managed_root=self.settings.managed_root,
+            )
+        self.assertTrue(report['ok'], report['errors'])
+        self.assertEqual(report['executed_suite_count'], 1)
+        self.assertTrue(report['suites']['sparse_discovery']['coverage_complete'])
+        self.assertEqual(acquired, expected)
+
+        source = self.root / 'records/lighting.json'
+        raw = source.read_bytes()
+        changed = raw.replace(record_id.encode(), b'synthetic-replaced-light')
+        self.assertEqual(len(changed), len(raw))
+        source.write_bytes(changed)
+        packs.write_lock(self.root)
+        catalog = catalogs[0]
+        with runtime.using_pack_runtime(self.settings):
+            with patch.object(packs.AcquiredFile, 'read', side_effect=AssertionError('supplied catalog was reacquired')):
+                retained = sparse_discovery_eval.evaluate(catalog=catalog)
+            self.assertTrue(retained['ok'], retained['failures'])
+            self.assertEqual(retained['cases'][0]['observed']['result_ids'], [record_id])
+            acquired.clear()
+            with patch.object(packs.AcquiredFile, 'read', side_effect=record_read):
+                fresh = sparse_discovery_eval.evaluate()
+            self.assertFalse(fresh['ok'])
+            self.assertTrue(fresh['coverage_complete'])
+            self.assertEqual(fresh['missing_expected_ids'], {'owned-search': [record_id]})
+            self.assertEqual(fresh['cases'][0]['observed']['result_ids'], ['synthetic-replaced-light'])
+            self.assertEqual(acquired, expected)
+
+    def test_warm_corpus_validation_uses_captured_pack_and_schema_inputs(self):
+        source = cache.capture_builder_inputs(cache.ROOT)
+        relative = 'schemas/pack-record-file.schema.json'
+        changed = json.loads(source.read_bytes(relative))
+        changed['not'] = {}
+        strict = BuilderInputs(source.root, tuple(
+            FileInput(item.path, json.dumps(changed).encode('utf-8')) if item.path == relative else item
+            for item in source.files))
+        with patch.object(cache, 'capture_builder_inputs', return_value=strict):
+            cache.refresh_runtime_catalog(self.settings, quiet=True)
+            report, strict_catalog = cache.refresh_runtime_catalog(self.settings, quiet=True)
+        self.assertFalse(report['rebuilt'])
+        self.assertFalse(strict_catalog.validations)
+        with patch.object(Path, 'open', side_effect=AssertionError('captured validation reopened a file')):
+            strict_result = cache.validate_catalog_pack(strict_catalog, self.root)
+        self.assertFalse(strict_result.valid)
+
+        cache.refresh_runtime_catalog(self.settings, quiet=True)
+        report, catalog = cache.refresh_runtime_catalog(self.settings, quiet=True)
+        self.assertFalse(report['rebuilt'])
+        self.assertFalse(catalog.validations)
+        self.variant('B')
+        with patch.object(Path, 'open', side_effect=AssertionError('corpus closure reopened a file')):
+            records, errors, count = reference_corpus._pack_record_closure(self.root, catalog=catalog)
+        self.assertEqual((errors, count), ([], 1))
+        self.assertEqual(records['synthetic-acquired-light'][2]['label'], 'Synthetic A')
+        fresh, errors, _ = reference_corpus._pack_record_closure(self.root, pack_roots=catalog.pack_roots)
+        self.assertEqual(errors, [])
+        self.assertEqual(fresh['synthetic-acquired-light'][2]['label'], 'Synthetic B')
+
+    def test_corpus_closure_preserves_raw_dependency_record_ambiguity(self):
+        dependency = self.base / 'dependency'
+        dependency_manifest = packs.initialize_pack(dependency, name='Synthetic dependency', release='2026.11.07.1')
+        shutil.copyfile(self.root / 'records/lighting.json', dependency / 'records/lighting.json')
+        packs.write_lock(dependency)
+        self.manifest['dependencies'] = [{'pack_id': dependency_manifest['pack_id']}]
+        self.variant('A')
+        packs.save_state(self.settings.state_file, {
+            'pack_roots': [str(self.root), str(dependency)],
+            'enabled_packs': [self.manifest['pack_id'], dependency_manifest['pack_id']],
+        })
+        _, catalog = cache.refresh_runtime_catalog(self.settings, quiet=True)
+        self.assertEqual(len(catalog.entries), 1)
+        with patch.object(Path, 'open', side_effect=AssertionError('built corpus closure reopened a file')):
+            _, errors, count = reference_corpus._pack_record_closure(self.root, catalog=catalog)
+        self.assertEqual(count, 2)
+        self.assertTrue(any('ambiguous across packs' in error for error in errors), errors)
 
     def test_validation_and_derivation_need_no_live_pack_files(self):
         with schema_read_scope():

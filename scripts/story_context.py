@@ -22,7 +22,7 @@ import tempfile
 from typing import Any, Sequence
 
 import world_realization as wr
-from state_protocol import canonical_json, parse_json, resolve_world, sha256_json, validate_against_schema, validate_artifact
+from state_protocol import canonical_json, parse_json, read_schema, resolve_world, sha256_json, validate_against_schema, validate_artifact
 from authorial_intent_audit import parse_document as parse_intents
 from execution_contract import flush_published, fsync_dir, publish_directory
 
@@ -37,7 +37,7 @@ def encoded(value: Any) -> bytes:
 def load_query(root: Path, relative: str) -> tuple[dict[str, Any], str]:
     raw = wr.read_bytes(wr.local_path(root, relative))
     query = parse_json(raw.decode('utf-8'))
-    errors = validate_against_schema(query, parse_json(SCHEMA.read_text(encoding='utf-8')))
+    errors = validate_against_schema(query, read_schema(SCHEMA))
     if errors:
         raise ValueError('invalid story context query: '+'; '.join(errors))
     for field, key in [('indexes','index_id'),('requirements','requirement_id'),('author_bindings','binding_id'),('views','view_id')]:

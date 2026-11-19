@@ -5,6 +5,7 @@ Usage: python scripts/artifact_review.py --studio STUDIO --run ID --out reviews/
 The report is derived from existing receipts. It never submits, selects or adopts.
 """
 from __future__ import annotations
+import read_context
 import operation_context as _operation_context
 
 import argparse
@@ -17,8 +18,7 @@ import tempfile
 from typing import Any
 
 import execution_contract as c
-import runtime_snapshot
-import production_workflow as workflow
+import production_operations as workflow
 from owned_json import mutable
 from private_state import assert_public_path
 
@@ -258,7 +258,7 @@ def publish(root: Path, out: str, files: dict[str, bytes], *, prefix: str = 'rev
     return target
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def export(root: Path, run: str, out: str, *, preview_chars: int | None = None) -> dict:
     root = studio_root(root)
     report, files = build(root, run, preview_chars=preview_chars)

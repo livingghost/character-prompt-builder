@@ -27,8 +27,8 @@ completion. Discussion without a saved artifact needs no Production run.
 
 Editable model work selects its target once in `choices.target`. The input owner
 derives the model and offering declarations used by validation, specifications,
-references and the exact request. Reopening with `draft-inputs --task` or
-`--from-run` can select `--model` and `--service`; `retarget --choices` binds an
+references and the exact request. Reopening with `draft-inputs --operation amend`
+and `--task` or `--from-run` can select `--model` and `--service`; `retarget --choices` binds an
 edited target change to the parent run. Preserve valid authored content,
 choices and applicable evidence while resolving the changed dependencies.
 The authoring contract explains when existing reading still applies and how

@@ -13,7 +13,7 @@ from unittest.mock import patch
 import execution_contract as c
 import production_case_fixtures as base
 import production_execution as execution
-import production_workflow as workflow
+import production_operations as workflow
 import prompt_weighting_fixtures as fixture
 import request_contract as rc
 import transport_synthetic

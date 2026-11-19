@@ -1,6 +1,6 @@
-"""Identity coverage on synthetic original sources and actual request carriers.
+"""Retained identity context and explicit bindings on synthetic request carriers.
 
-These tests establish explicit coverage and provenance, not visual preservation.
+These tests establish source retention, binding checks and provenance, not visual preservation.
 They need no pack, service, approval or generated image.
 """
 from __future__ import annotations
@@ -93,7 +93,7 @@ class IdentityCoverageTests(unittest.TestCase):
         self.assertEqual(len(leaves['/identity/scale_relation/0']['coverage']), 2)
         self.assertFalse(report['unresolved'])
         self.assertTrue(report['structural_only'])
-        self.assertEqual(report['status'], 'structurally-covered')
+        self.assertEqual(report['status'], 'bindings-verified')
         self.assertNotIn('/author_notes', leaves)
 
     def test_new_arbitrary_field_changes_witness_and_is_not_lost_from_inventory(self):
@@ -106,14 +106,33 @@ class IdentityCoverageTests(unittest.TestCase):
         self.assertIn('/identity/new_condition/extra_free_detail',
                       {row['pointer'] for row in after['sources'][0]['terminals']})
 
-    def test_grouped_explicit_selections_leave_uncovered_values_and_subjects_visible(self):
+    def test_grouped_obligations_leave_other_source_values_as_comparison_context(self):
         self.obligation['selectors'] = ['/identity/unfamiliar', '/identity/scale_relation']
         self.obligation['subject_ids'] = ['A']
-        report = identity.inventory(self.task, self.files.__getitem__, context=self.context)
-        gaps = {row['pointer']: row['subject_ids'] for row in report['uncovered']}
-        self.assertEqual(gaps['/identity/scale_relation/0'], ['B'])
-        self.assertEqual(gaps['/identity/fine_detail'], ['A', 'B'])
-        self.assert_code('IDENTITY_COVERAGE_INCOMPLETE')
+        report = self.compile()
+        context = {row['pointer']: row['subject_ids'] for row in report['unbound_source_values']}
+        self.assertEqual(context['/identity/scale_relation/0'], ['B'])
+        self.assertEqual(context['/identity/fine_detail'], ['A', 'B'])
+        leaves = {row['pointer']: row for row in report['sources'][0]['terminals']}
+        self.assertEqual(leaves['/identity/fine_detail']['value'], self.original['identity']['fine_detail'])
+        self.assertEqual(leaves['/identity/fine_detail']['coverage'], [])
+        self.assertEqual(report['whole_reviews'], [{'criterion': 'continuity', 'subject_ids': ['A', 'B']}])
+
+    def test_complete_definition_needs_no_per_value_binding_or_invented_carrier(self):
+        self.task['criteria'][0].pop('identity_bindings')
+        self.context['text'] = {}
+        report = self.compile()
+        self.assertEqual(report['bindings'], [])
+        self.assertEqual(report['missing_carriers'], [])
+        self.assertEqual(report['missing_whole_reviews'], [])
+        self.assertEqual(report['sources'][0]['sha256'], c.digest(self.files['original.json']))
+        leaves = report['sources'][0]['terminals']
+        self.assertEqual(len(report['unbound_source_values']), len(leaves))
+        self.assertTrue(all(not row['coverage'] for row in leaves))
+        self.assertEqual({row['pointer']: row['value'] for row in leaves}['/identity/fine_detail'],
+                         self.original['identity']['fine_detail'])
+        self.assertTrue(report['structural_only'])
+        self.assertNotIn('verdict', report)
 
     def test_fine_treatment_overrides_group_without_deleting_original_definition(self):
         detail = binding(selectors=['/identity/fine_detail'], treatment='not-exposed')
@@ -296,7 +315,7 @@ class IdentityCoverageTests(unittest.TestCase):
         self.obligation.update(source='state:A:identity', selectors=[''])
         row = {'id': 'state:A:identity', 'path': 'original.json', 'source_pointer': '/identity',
                'subject_ids': ['A', 'B'], 'selectors': [''], 'format': 'json', 'value': copy.deepcopy(value),
-               'sha256': c.digest(self.files['original.json']), 'authority': {'adoption': 'existing-receipt'}}
+               'sha256': c.digest(self.files['original.json'])}
         self.context['identity_sources'] = [row]
         identity.validate_task(self.task)
         record = self.compile()['sources'][0]
@@ -309,28 +328,90 @@ class IdentityCoverageTests(unittest.TestCase):
         self.files['original.json'] += b'\n'
         self.assert_code('IDENTITY_SOURCE_CHANGED')
 
-    def test_missing_derived_source_and_unprocessed_added_source_fail(self):
+    def retained_reference(self):
+        self.files['original.png'] = b'\x89PNG\r\n\x1a\nSynthetic retained pixels.'
+        selected = source(ident='reference:saved-angle', path='original.png', selectors=[''])
+        selected['identity']['authority'] = {
+            'reference': 'saved-angle', 'use_for': ['identity', 'outer silhouette'],
+            'controls': ['outer silhouette'], 'intended_influence': ['identity'],
+            'do_not_transfer': ['surface-finish', 'lighting'],
+            'subject_uses': [{'subject_id': subject, 'use': 'identity', 'priority': 0} for subject in ['A', 'B']],
+            'source': {'kind': 'supplied-file', 'reference_id': 'saved-angle',
+                       'resolved_path': '/original/saved-angle.png', 'media_type': 'image/png',
+                       'sha256': c.digest(self.files['original.png'])}}
+        self.task['sources'] = [selected]
+        self.task['criteria'][0].pop('identity_bindings')
+        self.context.update(text={}, references=[])
+        return selected['identity']['authority']
+
+    def test_retained_reference_keeps_limited_authority_without_becoming_model_input(self):
+        authority = self.retained_reference()
+        report = self.compile()
+        self.assertEqual(report['sources'][0]['authority'], authority)
+        self.assertEqual(report['sources'][0]['sha256'], authority['source']['sha256'])
+        self.assertEqual(report['bindings'], [])
+        self.assertEqual(self.context['references'], [])
+        self.assertEqual(report['whole_reviews'], [{'criterion': 'continuity', 'subject_ids': ['A', 'B']}])
+        self.assertEqual(report['unbound_source_values'], [
+            {'source': 'reference:saved-angle', 'pointer': '', 'subject_ids': ['A', 'B']}])
+
+    def test_retained_reference_scope_must_match_source_bytes_and_subjects(self):
+        for change, code in [
+                (lambda value: value['source'].update(sha256='0' * 64), 'IDENTITY_SOURCE_CHANGED'),
+                (lambda value: value['subject_uses'][0].update(subject_id='C'), 'IDENTITY_CONTRACT_INVALID'),
+                (lambda value: value['do_not_transfer'].append('identity'), 'IDENTITY_CONTRACT_INVALID'),
+                (lambda value: value.update(reference='other-reference'), 'IDENTITY_CONTRACT_INVALID')]:
+            with self.subTest(code=code):
+                self.setUp()
+                change(self.retained_reference())
+                self.assert_code(code)
+
+    def test_retained_graph_authority_is_bound_to_the_original_owner(self):
+        self.files['graphs.json'] = c.encoded([{'identity_contract': {'character_id': 'A'},
+            'appearance_variant': {'canon_status': 'approved', 'detail': 'a pale interrupted seam'}}])
+        authority = {'owner': 'appearance_variant', 'character_id': 'A', 'canon_status': 'approved'}
+        selected = source(ident='state:A:appearance_variant', path='graphs.json', subjects=['A'],
+                          selectors=['/0/appearance_variant'])
+        selected['identity']['authority'] = authority
+        self.task['sources'] = [selected]
+        self.task['criteria'][0].pop('identity_bindings')
+        self.task['criteria'][0]['identity_review'] = ['A']
+        self.context.update(subject_ids=['A'], required_subject_ids=['A'], text={})
+        report = self.compile()
+        self.assertEqual(report['sources'][0]['authority'], authority)
+        self.assertEqual(report['sources'][0]['sha256'], c.digest(self.files['graphs.json']))
+        authority['canon_status'] = 'proposed'
+        self.assert_code('IDENTITY_SOURCE_CHANGED')
+        authority['canon_status'] = 'approved'
+        selected['identity']['selectors'] = ['/0/identity_contract']
+        self.assert_code('IDENTITY_CONTRACT_INVALID')
+
+    def test_explicit_binding_still_requires_its_original_derived_source(self):
         self.obligation['source'] = 'state:A:identity'
         self.assert_code('IDENTITY_SOURCE_MISSING')
-        self.setUp()
+
+    def test_added_source_remains_complete_context_without_an_additional_binding(self):
         self.context['identity_sources'] = [{'id': 'state:A:appearance', 'path': 'original.json',
             'subject_ids': ['A'], 'selectors': [''], 'format': 'json', 'value': self.original,
             'sha256': c.digest(self.files['original.json'])}]
-        report = identity.inventory(self.task, self.files.__getitem__, context=self.context)
-        self.assertTrue(any(row['source'] == 'state:A:appearance' for row in report['uncovered']))
-        self.assert_code('IDENTITY_COVERAGE_INCOMPLETE')
+        report = self.compile()
+        self.assertTrue(any(row['source'] == 'state:A:appearance' for row in report['unbound_source_values']))
+        source = next(row for row in report['sources'] if row['id'] == 'state:A:appearance')
+        self.assertEqual(source['sha256'], c.digest(self.files['original.json']))
+        self.assertEqual({row['pointer']: row['value'] for row in source['terminals']}['/author_notes'],
+                         self.original['author_notes'])
+        self.assertTrue(all(not row['coverage'] for row in source['terminals']))
 
     def variation(self):
         self.task['sources'].append({'id': 'approval', 'path': 'approval.txt', 'disposition': 'applied'})
-        self.task['direction']['decisions'] = [{'id': 'depiction', 'basis': ['adopted', 'approval'],
-            'criteria': ['continuity'], 'accepted_variations': [{
+        self.task['direction']['source_allowances'] = [{
                 'id': 'bounded-turn', 'source': 'approval', 'locator': 'current request',
                 'author': 'fixture author', 'scope': {'kind': 'source', 'source': 'adopted',
                                                     'sha256': c.digest(self.files['original.json'])},
                 'allowance': 'The thin overlap may bend with the stated turn.',
-                'limits': ['Keep the pale seam endpoint and the conditional relation.'], 'criteria': ['continuity']}]}]
+                'limits': ['Keep the pale seam endpoint and the conditional relation.'], 'criteria': ['continuity']}]
         self.obligation.update(treatment='authorized-variation', variation='bounded-turn')
-        return self.task['direction']['decisions'][0]['accepted_variations'][0]
+        return self.task['direction']['source_allowances'][0]
 
     def test_variation_uses_existing_authority_scope_criterion_and_original_bytes(self):
         variation = self.variation()
@@ -357,6 +438,14 @@ class IdentityCoverageTests(unittest.TestCase):
         self.assertEqual(validate_against_schema(self.obligation, binding_schema), [])
         self.obligation['carriers'][0]['claim'] = 'unvalidated text outside actual request'
         self.assertTrue(validate_against_schema(self.obligation, binding_schema))
+
+    def test_schema_accepts_retained_authority_without_a_success_claim(self):
+        schema = json.loads((Path(__file__).resolve().parent.parent / 'schemas/authoring/production-task.schema.json').read_text(encoding='utf-8'))
+        authority = self.retained_reference()
+        identity_schema = {'$defs': schema['$defs'], '$ref': '#/$defs/identitySource'}
+        self.assertEqual(validate_against_schema(self.task['sources'][0]['identity'], identity_schema), [])
+        authority['reviewed'] = True
+        self.assertTrue(validate_against_schema(self.task['sources'][0]['identity'], identity_schema))
 
 
 if __name__ == '__main__':

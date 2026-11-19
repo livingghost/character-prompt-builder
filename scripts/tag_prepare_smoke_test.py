@@ -10,7 +10,7 @@ from unittest.mock import patch
 import execution_contract as c
 import pack_manager as packs
 import production_case_fixtures as fixture
-import production_workflow as workflow
+import production_operations as workflow
 import prompt_retrieval
 from catalog_retrieval import runtime
 from model_prompt_input_fixtures import prompt_input
@@ -20,38 +20,45 @@ class TagPreparationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         base = Path(self.temp.name)
-        with patch.object(fixture, 'PROMPT', 'plain backdrop, collar'):
-            self.case = fixture.create(base / 'studio', base / 'runtime')
+        self.case = fixture.create(base / 'studio', base / 'runtime', prompt='plain backdrop, collar',
+                                   configure_pack=self.configure_pack)
         self.root, self.pack = self.case['root'], self.case['pack']
-        manifest = c.load(self.pack / 'pack.json')
+        self.bind_prompt_evidence()
+
+    @staticmethod
+    def configure_pack(pack):
+        manifest = c.load(pack / 'pack.json')
         manifest['content']['resource_bindings'].update({
             'prompt-vocabulary': 'resources/dictionary.json', 'prompt-dialects': 'resources/dialects.json'})
-        fixture.write(self.pack / 'pack.json', manifest)
-        fixture.write(self.pack / 'resources/dictionary.json', {
+        fixture.write(pack / 'pack.json', manifest)
+        fixture.write(pack / 'resources/dictionary.json', {
             'format': 'character-prompt-builder-prompt-vocabulary', 'name': 'Synthetic terms',
             'description': 'Fixture meanings, not provider vocabulary.',
             'categories': [{'id': 'synthetic', 'name': 'Fixture terms', 'description': 'Authored test meanings.',
                            'entries': [{'term': 'plain backdrop'}, {'term': 'collar',
                                 'description': 'A garment around a neck, not a biological surface.',
                                 'usage_notes': ['Inspect the intended garment meaning.']}]}]})
-        fixture.write(self.pack / 'resources/dialects.json', {
+        fixture.write(pack / 'resources/dialects.json', {
             'format': 'character-prompt-builder-prompt-dialects', 'name': 'Synthetic dialects',
             'description': 'A test-only tag grammar.', 'dialects': [{'id': 'synthetic-tags',
                 'name': 'Synthetic tags', 'description': 'No external checkpoint claims.',
                 'vocabularies': ['synthetic'],
                 'tag_separator': 'comma', 'block_order': ['subject', 'environment']}]})
-        models = c.load(self.pack / 'records/models.json')
+        models = c.load(pack / 'records/models.json')
         models['records'][0]['prompt_dialect'] = 'synthetic-tags'
         models['records'][0]['prompt_input'] = prompt_input('tag-based', vocabularies=('synthetic',))
-        fixture.write(self.pack / 'records/models.json', models)
-        self.refresh()
+        fixture.write(pack / 'records/models.json', models)
 
     def refresh(self, *, authored: dict[str, str] | None = None):
-        from prepare_generation_references import resolve_model_record
-        from prompt_vocabulary_selection import search_selection, resolve_authored
-        import prompt_weighting
         packs.write_lock(self.pack)
         runtime.configure_pack_runtime(self.case['settings'])
+        self.bind_prompt_evidence(authored=authored)
+
+    def bind_prompt_evidence(self, *, authored: dict[str, str] | None = None):
+        from generation_references import resolve_model_record
+        from prompt_vocabulary_selection import search_selection, resolve_authored
+        from generation_payload_builder import prepare_text_transports
+        import prompt_weighting
         record = c.load(self.root / 'retrieval.json')
         record['pack_state'] = runtime.load_pack_catalog().fingerprint
         prompt = (self.root / 'prompt.txt').read_text(encoding='utf-8')
@@ -63,6 +70,11 @@ class TagPreparationTests(unittest.TestCase):
         profile = model['offerings'][0]['execution_profile']
         syntax = prompt_weighting.selected(c.load(self.root / 'parameters.json'),
             profile['modes'][specification['render_intent']['execution_mode']]['prompt_syntax'])
+        negative = prepare_text_transports(model_id=fixture.MODEL_ID, model_record=model,
+            prompt=prompt, negative_prompt=negative,
+            negative_transport=task['generation'].get('negative_transport', 'auto'),
+            critical_avoidance_integrated=task['generation'].get('critical_avoidance_integrated', False),
+            weighting_syntax=syntax)['selected_negative']
         selection = search_selection(prompt=prompt, negative=negative, model_record=model, syntax=syntax,
                                      previous=record.get('vocabulary'))
         for term, reason in (authored or {}).items():
@@ -88,7 +100,7 @@ class TagPreparationTests(unittest.TestCase):
         self.assertEqual(meanings['collar']['usage_notes'], ['Inspect the intended garment meaning.'])
 
         import runtime_snapshot
-        from prepare_generation_references import resolve_model_record
+        from generation_references import resolve_model_record
         from prompt_vocabulary_selection import search_selection
         directory, prepared, _, _ = workflow.load_run(self.root, result['run'])
         descriptor = prepared['runtime_snapshot']

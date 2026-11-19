@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from catalog_cli import configure_pack_runtime, load_entries
+from catalog_api import configure_pack_runtime, load_entries
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 
 ROOT = Path(__file__).resolve().parents[1]

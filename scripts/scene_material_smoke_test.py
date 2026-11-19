@@ -384,7 +384,7 @@ class StudioSceneTests(unittest.TestCase):
     PERSONA = 'story/narrative/personas/c01.md'
 
     def setUp(self):
-        import studio
+        import studio_workspace as studio
         self.tmp = tempfile.TemporaryDirectory()
         self.root = studio.init(Path(self.tmp.name) / 'studio', 'scene-studio', 'Constructed scene studio')
         write_series(self.root / 'story')
@@ -411,7 +411,7 @@ class StudioSceneTests(unittest.TestCase):
 
     def test_status_names_the_materials_a_persona_change_reaches(self):
         import shlex
-        import studio
+        import studio_workspace as studio
         self.built()
         self.assertNotIn('persona changes', studio.status(self.root))
         path = self.root / self.PERSONA
@@ -441,9 +441,9 @@ class StudioSceneTests(unittest.TestCase):
         import production_case_fixtures as cases
         import production_execution as execution
         import production_fixtures as fixture
-        import production_workflow as workflow
+        import production_operations as workflow
         import shutil
-        import studio
+        import studio_workspace as studio
         from catalog_retrieval import runtime
         from reading_fixtures import task_reading
         from test_production_execution import decisions

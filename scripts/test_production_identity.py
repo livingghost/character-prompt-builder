@@ -4,6 +4,7 @@ All images, sources and decisions are synthetic. Reference builders use an
 isolated local model pack; no provider is contacted or visual verdict invented.
 """
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 
 import copy
 import ctypes
@@ -16,6 +17,7 @@ import tempfile
 import unittest
 
 import execution_contract as c
+import authoring_work as common_work
 import production_case_fixtures as cases
 import identity_coverage
 import production_identity
@@ -23,8 +25,8 @@ import production_inputs
 import production_inputs_smoke_test as input_fixtures
 import production_reference_inputs as reference_inputs
 import production_reference_inputs_smoke_test as reference_fixtures
-import prepare_generation_references as references
-from production_diagnostics import ProductionError
+import generation_references as references
+from production_diagnostics import CompilationError, ProductionError
 from reference_runtime_smoke_test import _fixture_png
 
 
@@ -103,9 +105,15 @@ class IdentityAdapterTests(unittest.TestCase):
         self.assertEqual(view['required_subject_ids'], ['A'])
         self.assertEqual({row['sha256'] for row in view['identity_sources']}, {c.digest(self.read('graph.json'))})
         report = identity_coverage.inventory(self.task, self.read, context=view)
-        self.assertEqual({row['source'] for row in report['uncovered']}, expected)
+        self.assertEqual({row['source'] for row in report['unbound_source_values']}, expected)
         with self.assertRaises(ProductionError):
             self.compile(view)
+        self.task['criteria'] = [{'id': 'whole-identity', 'strength': 'hard', 'evidence': 'image',
+            'text': 'Compare the depicted identity with every applicable retained source at this view.',
+            'identity_review': ['A']}]
+        retained = self.compile(view)
+        self.assertEqual({row['id'] for row in retained['sources']}, expected)
+        self.assertEqual(retained['bindings'], [])
 
     def test_partial_explicit_source_cannot_hide_unprocessed_graph_owner(self):
         graph = [{'identity_contract': {'character_id': 'A', 'stable': {'shape': 'open loop'},
@@ -120,7 +128,25 @@ class IdentityAdapterTests(unittest.TestCase):
         self.task['sources'][0]['identity']['selectors'] = ['/0/identity_contract']
         self.assertEqual(self.context()['identity_sources'], [])
 
-    def test_optional_visual_owners_require_authored_treatment_without_becoming_canon(self):
+    def test_retained_scoped_reference_does_not_replace_a_distinct_current_use(self):
+        view = self.context(inputs=self.external)
+        authority = copy.deepcopy(view['identity_sources'][0]['authority'])
+        authority['reference'] = 'prior-angle'
+        authority['controls'] = ['outer silhouette only']
+        self.task['sources'] = [{'id': 'retained-angle', 'path': 'original.png', 'role': 'identity',
+            'disposition': 'applied', 'locator': 'whole original', 'reason': 'Retained scoped source.',
+            'identity': {'subject_ids': ['A'], 'selectors': [''], 'authority': authority}}]
+        view = self.context(inputs=self.external)
+        self.assertEqual([row['id'] for row in view['identity_sources']], ['reference:accepted-angle'])
+        self.task['criteria'] = [{'id': 'whole', 'strength': 'hard', 'evidence': 'image',
+            'text': 'Compare the observed subject with the retained scoped originals.', 'identity_review': ['A']}]
+        report = self.compile(view)
+        sources = {row['id']: row for row in report['sources']}
+        self.assertEqual(sources['retained-angle']['authority'], authority)
+        self.assertEqual(sources['reference:accepted-angle']['authority'], view['identity_sources'][0]['authority'])
+        self.assertEqual(report['bindings'], [])
+
+    def test_optional_visual_owners_remain_context_without_forcing_scene_treatments(self):
         graph = [{'identity_contract': {'character_id': 'A', 'canon_status': 'adopted',
                                        'definition': 'An open loop with its adopted conditional split.'},
                   'visual_authority': {'mode': 'source-derived',
@@ -137,7 +163,7 @@ class IdentityAdapterTests(unittest.TestCase):
             'layout': {'primary_text': ['prompt'], 'negative_text': None, 'media': []}, 'media': []})
         report = identity_coverage.inventory(self.task, self.read, context=view)
         expected = {'state:A:visual_authority', 'state:A:visual_evidence_bundle'}
-        self.assertEqual({row['source'] for row in report['uncovered']}, expected)
+        self.assertEqual({row['source'] for row in report['unbound_source_values']}, expected)
         sources = {row['id']: row for row in report['sources']}
         for node in ('visual_authority', 'visual_evidence_bundle'):
             selected = sources['state:A:' + node]
@@ -148,8 +174,9 @@ class IdentityAdapterTests(unittest.TestCase):
         bundle_values = {row['pointer']: row['value'] for row in sources['state:A:visual_evidence_bundle']['terminals']}
         self.assertEqual(bundle_values['/disposition'], 'observed-not-adopted')
         self.assertEqual(bundle_values['/evidence_relation'], graph[0]['visual_evidence_bundle']['evidence_relation'])
-        with self.assertRaises(ProductionError):
-            self.compile(view)
+        retained = self.compile(view)
+        self.assertEqual({row['source'] for row in retained['unbound_source_values']}, expected)
+        self.assertEqual(len(retained['bindings']), 1)
         context_check = criterion(sorted(expected), ['A'])
         context_check.update(id='visual-source-scope', strength='advisory')
         context_check.pop('identity_review')
@@ -159,7 +186,7 @@ class IdentityAdapterTests(unittest.TestCase):
         self.task['criteria'].append(context_check)
         covered = self.compile(view)
         self.assertTrue(covered['structural_only'])
-        self.assertEqual(covered['uncovered'], [])
+        self.assertEqual(covered['unbound_source_values'], [])
         self.assertTrue(all(row['treatment'] == 'not-applicable' for row in covered['bindings'][1:]))
 
     def test_actual_filtered_prompt_never_inherits_omitted_authoring_details(self):
@@ -325,12 +352,15 @@ class AuthoringTargetScopeTests(unittest.TestCase):
 
 
 class IdentityAuthoringTests(unittest.TestCase):
-    setUp = input_fixtures.InputToolsTests.setUp
     save_choices = input_fixtures.InputToolsTests.save_choices
 
-    def draft_identity(self, *, graph=False, visual_context=False):
+    def setUp(self):
+        input_fixtures.InputToolsTests.setUp(self, draft=False)
+
+    def draft_identity(self, *, graph=False, visual_context=False, retained_authority=False):
         import work_ledger
         self.task['task_id'] = work_ledger.begin(self.root, 'Synthetic identity authoring.', ['Compose'])['task_id']
+        self.task['authority'] = None
         value = {'identity': {'outline': 'An open loop with one split only while under tension.'}}
         selector = ''
         if graph:
@@ -349,10 +379,18 @@ class IdentityAuthoringTests(unittest.TestCase):
         self.task['sources'] = [{'id': 'canon', 'path': 'canon.json', 'role': 'identity',
             'disposition': 'applied', 'locator': 'whole original', 'reason': 'Explicit fixture authority.',
             'identity': {'subject_ids': ['A'], 'selectors': [selector]}}]
+        if retained_authority:
+            self.task['sources'][0]['identity']['authority'] = {
+                'owner': 'identity_contract', 'character_id': 'A', 'canon_status': 'adopted'}
         self.task['criteria'] = [criterion(['canon'], ['A'], evidence='text')]
         self.task['criteria'][0]['identity_bindings'][0]['selectors'] = [selector]
+        self.task['direction']['basis'] = ['canon']
+        (self.root / self.task['delivery']['path']).write_text(
+            'Keep the adopted conditional details.\n', encoding='utf-8')
+        authoring_fixtures.bind_work_basis(self.root, self.task,
+            request='Depict the acquired synthetic identity while retaining its adopted conditions.')
         (self.root / 'task.json').write_bytes(c.encoded(self.task))
-        result = production_inputs.draft_inputs(self.root, 'task.json', 'identity-draft')
+        result = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'identity-draft')
         choices = c.load(self.root / result['choices_file'])
         choices['reading'] = copy.deepcopy(self.choices['reading'])
         return result, choices
@@ -363,7 +401,17 @@ class IdentityAuthoringTests(unittest.TestCase):
 
     def compile_identity(self, result, choices):
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
-        return production_inputs.compile_choices(self.root, result['choices_file']).report
+        compiled = production_inputs.compile_choices(self.root, result['choices_file'])
+        if compiled.directory is not None:
+            self.addCleanup(shutil.rmtree, compiled.directory, ignore_errors=True)
+        return compiled.report
+
+    def work_basis(self, result):
+        path = self.root / result['authoring_work']['basis']
+        return path, c.load(path)
+
+    def selected_source(self, task, ident='canon'):
+        return next(row for row in task['sources'] if row['id'] == ident)
 
     def recovery(self, diagnostic):
         action = diagnostic['next_action']
@@ -375,19 +423,44 @@ class IdentityAuthoringTests(unittest.TestCase):
 
     def test_common_draft_exposes_original_values_and_build_preserves_source_owner(self):
         result, choices = self.draft_identity()
-        self.assertNotIn('canon', choices['authoring']['sources'])
-        self.assertEqual(choices['authoring']['source_files']['canon.json'], c.digest(self.raw))
+        _, basis = self.work_basis(result)
+        self.assertEqual(common_work.source_bytes(basis['sources']['canon']), self.raw)
+        self.assertEqual(basis['applications']['canon'], {'source': 'canon', 'pointer': ''})
+        self.assertEqual(basis['subjects'], {'A': ['canon']})
         self.assertEqual(result['identity_coverage']['sources'][0]['sha256'], c.digest(self.raw))
         self.assertFalse(result['identity_coverage']['request_verified'])
         built = self.build_identity(result, choices)
         self.assertTrue(built['ok'], built.get('unresolved'))
         task = c.load(self.root / built['inputs']['production-task']['path'])
-        self.assertEqual(task['sources'][0]['path'], 'canon.json')
+        source = self.selected_source(task)
+        self.assertEqual((self.root / source['path']).read_bytes(), self.raw)
+        self.assertEqual(source['identity'], self.task['sources'][0]['identity'])
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
         self.assertEqual(task['criteria'], self.task['criteria'])
 
+    def test_preparation_keeps_definition_and_whole_review_without_per_value_bindings(self):
+        result, choices = self.draft_identity()
+        choices['authoring']['task']['criteria'][0].pop('identity_bindings')
+        choices['authoring']['task']['authority'] = None
+        built = self.build_identity(result, choices)
+        self.assertTrue(built['ok'], built.get('unresolved'))
+        import production_operations as production_workflow
+        try:
+            prepared = production_workflow.prepare(self.root, choices=result['choices_file'])
+        except CompilationError as error:
+            self.fail(error.report)
+        run = production_workflow.read_run(self.root, prepared['run']).prepared
+        context = run['identity_coverage']
+        self.assertEqual(context['status'], 'bindings-verified')
+        self.assertEqual(context['bindings'], [])
+        self.assertEqual(context['sources'][0]['sha256'], c.digest(self.raw))
+        self.assertEqual(context['unbound_source_values'], [{'source': 'canon',
+            'pointer': '/identity/outline', 'subject_ids': ['A']}])
+        self.assertEqual(run['task']['criteria'], choices['authoring']['task']['criteria'])
+        self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
+
     def test_reopened_run_keeps_identity_bytes_after_original_removal(self):
-        import production_workflow
+        import production_operations as production_workflow
         result, choices = self.draft_identity()
         choices['authoring']['task']['authority'] = None
         (self.root / choices['authoring']['delivery']['file']).write_text(
@@ -397,7 +470,7 @@ class IdentityAuthoringTests(unittest.TestCase):
         before = production_workflow.read_run(self.root, parent).prepared['input_sha256']
         (self.root / 'canon.json').unlink()
 
-        reopened = production_inputs.draft_inputs(self.root, None, 'reopened-identity', from_run=parent)
+        reopened = authoring_fixtures.authoring_inputs(self.root, None, 'reopened-identity', from_run=parent)
         selected = reopened['choices']['authoring']['task']['sources'][0]
         self.assertEqual(selected['id'], 'canon')
         self.assertNotEqual(selected['path'], 'canon.json')
@@ -425,23 +498,16 @@ class IdentityAuthoringTests(unittest.TestCase):
         path, _, anchor = diagnostic['guidance']['document_path'].partition('#')
         self.assertIn(anchor, markdown_anchor_slugs(production_inputs.ROOT / path))
 
-    def test_changed_original_requires_current_judgment_before_reusing_draft(self):
+    def test_changed_external_file_preserves_the_acquired_identity(self):
         result, choices = self.draft_identity()
         changed = c.encoded({'identity': {'new_condition': 'The split now closes at rest.'}})
         (self.root / 'canon.json').write_bytes(changed)
         report = self.compile_identity(result, choices)
-        self.assertFalse(report['ok'])
-        diagnostic = report['diagnostics'][0]
-        self.assertEqual(diagnostic['code'], 'IDENTITY_SOURCE_CHANGED')
-        self.assertEqual(diagnostic['file'], 'canon.json')
-        self.assertEqual(diagnostic['expected_sha256'], c.digest(self.raw))
-        self.assertEqual(diagnostic['actual_sha256'], c.digest(changed))
-        self.assertEqual(diagnostic['next_action']['command'], 'draft-inputs')
-        restored = self.recovery(diagnostic)
-        self.assertEqual(restored['identity_coverage']['sources'][0]['sha256'], c.digest(changed))
+        self.assertTrue(report['ok'], report)
+        _, basis = self.work_basis(result)
+        self.assertEqual(common_work.source_bytes(basis['sources']['canon']), self.raw)
         self.assertEqual(c.load(self.root / result['choices_file']), choices)
-        self.assertNotEqual(restored['choices_file'], result['choices_file'])
-        self.assertFalse((self.root / 'identity-built').exists())
+        self.assertEqual((self.root / 'canon.json').read_bytes(), changed)
 
     def test_unregistered_copy_identifies_registration_and_inspects_owned_work(self):
         result, choices = self.draft_identity()
@@ -473,42 +539,80 @@ class IdentityAuthoringTests(unittest.TestCase):
         self.assertTrue((self.root / restored['context_file']).is_file())
         self.assertEqual(c.load(self.root / result['choices_file']), choices)
 
-    def test_unavailable_identity_source_names_source_inspection(self):
+    def test_acquired_identity_remains_available_after_external_file_removal(self):
         result, choices = self.draft_identity()
         (self.root / 'canon.json').unlink()
         report = self.compile_identity(result, choices)
-        diagnostic = report['diagnostics'][0]
-        self.assertEqual(diagnostic['code'], 'IDENTITY_SOURCE_UNAVAILABLE')
-        self.assertEqual(diagnostic['file'], 'canon.json')
-        self.assertEqual(diagnostic['next_action']['command'], 'inspect-inputs')
-        inspected = self.recovery(diagnostic)
-        self.assertFalse(next(row for row in inspected['sources'] if row['id'] == 'canon')['present'])
+        self.assertTrue(report['ok'], report)
+        _, basis = self.work_basis(result)
+        self.assertEqual(common_work.source_bytes(basis['sources']['canon']), self.raw)
 
-    def test_editable_copy_cannot_redefine_original_identity(self):
+    def test_changed_acquired_bytes_require_a_matching_acquisition(self):
         result, choices = self.draft_identity()
-        choices['authoring']['sources']['canon'] = {'format': 'json', 'content': {'identity': 'a different design'}}
-        built = self.build_identity(result, choices)
-        self.assertFalse(built['ok'])
-        self.assertIn('owning source', built['unresolved'][0]['message'])
+        path, basis = self.work_basis(result)
+        basis['sources']['canon']['data'] = c.encoded({'identity': 'a different design'}).decode('utf-8')
+        path.write_bytes(c.encoded(basis))
+        report = self.compile_identity(result, choices)
+        self.assertFalse(report['ok'])
+        self.assertTrue(any('source bytes differ from the acquired SHA-256' in row['message']
+                            for row in report['diagnostics']), report)
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
 
-    def test_missing_editable_hash_cannot_erase_the_drafts_original_source_snapshot(self):
+    def test_source_witnesses_are_derived_from_the_acquired_identity(self):
         result, choices = self.draft_identity()
-        choices['authoring']['source_files'].pop('canon.json')
-        (self.root / 'canon.json').write_bytes(c.encoded({'identity': {'new_detail': 'A newly added fine break.'}}))
+        source = self.selected_source(choices['authoring']['task'])
+        choices['authoring']['source_files'].pop(source['path'])
         built = self.build_identity(result, choices)
-        self.assertFalse(built['ok'])
-        self.assertFalse((self.root / 'identity-built').exists())
+        self.assertTrue(built['ok'], built.get('unresolved'))
+        task = c.load(self.root / built['inputs']['production-task']['path'])
+        selected = self.selected_source(task)
+        self.assertEqual((self.root / selected['path']).read_bytes(), self.raw)
+        self.assertEqual(built['identity_coverage']['sources'][0]['sha256'], c.digest(self.raw))
 
-    def test_replacing_editable_hash_cannot_approve_changed_original_source(self):
+    def test_removing_an_unbound_original_source_still_loses_required_context(self):
         result, choices = self.draft_identity()
-        changed = c.encoded({'identity': {'new_detail': 'A fine break not examined in this draft.'}})
-        (self.root / 'canon.json').write_bytes(changed)
-        choices['authoring']['source_files']['canon.json'] = c.digest(changed)
-        built = self.build_identity(result, choices)
-        self.assertFalse(built['ok'])
-        self.assertEqual(built['unresolved'][0]['code'], 'IDENTITY_SOURCE_CHANGED')
-        self.assertFalse((self.root / 'identity-built').exists())
+        path, basis = self.work_basis(result)
+        applications = {key: value for key, value in basis['applications'].items() if value['source'] != 'canon'}
+        basis = common_work.revise_basis(basis, applications=applications, subjects={})
+        path.write_bytes(c.encoded(basis))
+        choices['authoring']['task'].update(criteria=[], features=[])
+        report = self.compile_identity(result, choices)
+        self.assertFalse(report['ok'])
+        self.assertEqual(report['diagnostics'][0]['code'], 'IDENTITY_SOURCE_CHANGED')
+        self.assertEqual(report['diagnostics'][0]['source'], 'canon')
+
+    def test_same_source_id_cannot_move_to_replacement_bytes(self):
+        result, choices = self.draft_identity()
+        replacement = c.encoded({'identity': {'outline': 'A closed ring with an invented projection.'}})
+        (self.root / 'replacement.json').write_bytes(replacement)
+        path, basis = self.work_basis(result)
+        sources = copy.deepcopy(basis['sources'])
+        sources['canon'] = common_work.acquire_source(replacement, format='json', origin=sources['canon']['origin'])
+        path.write_bytes(c.encoded(common_work.revise_basis(basis, sources=sources)))
+        report = self.compile_identity(result, choices)
+        self.assertFalse(report['ok'])
+        self.assertEqual(report['diagnostics'][0]['code'], 'IDENTITY_SOURCE_CHANGED')
+        self.assertEqual(report['diagnostics'][0]['expected_sha256'], c.digest(self.raw))
+        self.assertEqual(report['diagnostics'][0]['actual_sha256'], c.digest(replacement))
+
+    def test_retained_identity_scope_cannot_be_silently_changed_in_choices(self):
+        result, original = self.draft_identity(graph=True, retained_authority=True)
+        path, original_basis = self.work_basis(result)
+        for change in [lambda value: value['sources']['canon']['origin']['source']['identity'].pop('authority'),
+                       lambda value: value['sources']['canon']['origin']['source']['identity']['authority'].update(canon_status='proposed'),
+                       lambda value: value['applications']['canon'].update(pointer=''),
+                       lambda value: value['subjects'].update(B=['canon'])]:
+            with self.subTest(change=change):
+                choices = copy.deepcopy(original)
+                basis = copy.deepcopy(original_basis)
+                change(basis)
+                path.write_bytes(c.encoded(basis))
+                report = self.compile_identity(result, choices)
+                self.assertFalse(report['ok'])
+                diagnostic = report['diagnostics'][0]
+                self.assertEqual(diagnostic['code'], 'IDENTITY_SOURCE_CHANGED')
+                self.assertEqual(diagnostic['source'], 'canon')
+                self.assertEqual(diagnostic['next_action']['command'], 'draft-inputs')
 
     def test_removing_derived_context_evidence_cannot_bypass_registered_originals(self):
         result, choices = self.draft_identity()
@@ -516,7 +620,6 @@ class IdentityAuthoringTests(unittest.TestCase):
         context = c.load(context_path)
         context.pop('identity_coverage')
         context_path.write_bytes(c.encoded(context))
-        choices['authoring']['source_files'].pop('canon.json')
         report = self.compile_identity(result, choices)
         self.assertFalse(report['ok'])
         diagnostic = report['diagnostics'][0]
@@ -538,7 +641,6 @@ class IdentityAuthoringTests(unittest.TestCase):
         context = c.load(context_path)
         context.pop('identity_coverage')
         context_path.write_bytes(c.encoded(context))
-        choices['authoring']['source_files'].pop('canon.json')
         buffer = ctypes.create_unicode_buffer(1024)
         available = ctypes.windll.kernel32.GetShortPathNameW(str(self.root), buffer, len(buffer))
         if not available:
@@ -570,7 +672,8 @@ class IdentityAuthoringTests(unittest.TestCase):
         built = self.build_identity(result, choices)
         self.assertTrue(built['ok'], built.get('unresolved'))
         task = c.load(self.root / built['inputs']['production-task']['path'])
-        self.assertEqual(task['sources'][0]['path'], 'canon.json')
+        source = self.selected_source(task)
+        self.assertEqual((self.root / source['path']).read_bytes(), self.raw)
         self.assertNotEqual(task['generation']['state_graphs'], 'canon.json')
         materialized = c.load(self.root / task['generation']['state_graphs'])
         self.assertEqual(materialized[0]['state_snapshot']['scene_state'], 'Under the selected tension.')

@@ -7,14 +7,12 @@ import os
 import re
 import tomllib
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
+from package_identity import PACKAGE_NAME, calver_key, pep440_version_for_calver
+
 ROOT = Path(__file__).resolve().parents[1]
-CALVER_RE = re.compile(
-    r"^([0-9]{4})\.(0[1-9]|1[0-2])\.(0[1-9]|[12][0-9]|3[01])\.([1-9][0-9]*)$"
-)
 GENERATED_RELEASE_ARTIFACT_NAMES = frozenset(
     {
         "MANIFEST.json",
@@ -77,33 +75,6 @@ class PackageMetadata:
     @property
     def release_artifact_name(self) -> str:
         return PurePosixPath(self.release_output).name
-
-
-def calver_key(value: object, *, field: str = "CalVer") -> tuple[int, int, int, int]:
-    """Parse one canonical UTC Gregorian ``YYYY.MM.DD.N`` release value."""
-
-    if not isinstance(value, str):
-        raise ValueError(
-            f"{field} must use canonical UTC Gregorian CalVer YYYY.MM.DD.N: {value!r}"
-        )
-    match = CALVER_RE.fullmatch(value)
-    if not match:
-        raise ValueError(
-            f"{field} must use canonical UTC Gregorian CalVer YYYY.MM.DD.N "
-            f"with N starting at 1: {value!r}"
-        )
-    year, month, day, revision = (int(part) for part in match.groups())
-    try:
-        date(year, month, day)
-    except ValueError as exc:
-        raise ValueError(f"{field} contains an invalid Gregorian date: {value!r}") from exc
-    return year, month, day, revision
-
-
-def pep440_version_for_calver(value: object, *, field: str = "CalVer") -> str:
-    """Return the one normalized PEP 440 spelling of a core CalVer release."""
-
-    return ".".join(str(part) for part in calver_key(value, field=field))
 
 
 def _yaml_printable_code_point(code_point: int) -> bool:
@@ -526,7 +497,7 @@ def load_package_metadata(
     release_include = tuple(str(value) for value in release.get("include") or [])
     release_exclude_names = tuple(str(value) for value in release.get("exclude_names") or [])
 
-    if name != "character-prompt-builder":
+    if name != PACKAGE_NAME:
         raise ValueError(f"unexpected package name: {name!r}")
     calver_key(version, field="package version")
     if version_scheme != "YYYY.MM.DD.N":
@@ -636,7 +607,6 @@ def load_package_metadata(
 
 
 _METADATA = load_package_metadata(require_release_files=False)
-PACKAGE_NAME = _METADATA.name
 PACKAGE_VERSION = _METADATA.version
 VERSION_SCHEME = _METADATA.version_scheme
 RELEASE_TIMEZONE = _METADATA.release_timezone

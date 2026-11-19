@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Current-form tests for actual production evidence and execution edges."""
 from __future__ import annotations
+import production_workflow as production_workflow_cli
 import argparse
 import copy
 import contextlib
@@ -19,7 +20,7 @@ from unittest.mock import Mock, patch
 
 import execution_contract as c
 import execution_routes as routes
-import production_workflow as w
+import production_operations as w
 import production_binding as binding
 import work_ledger as ledger
 import production_fixtures as fixture
@@ -40,8 +41,8 @@ class ProductionTests(unittest.TestCase):
           'delivery':{'path':'delivery.txt','translation_notes':'Only public instructions.'},
           'criteria':[{'id':'lamp','strength':'hard','text':'Keep one lamp.'},{'id':'style','strength':'advisory','text':'Optional spare wording.'}],
           'world_views':[]}
-        fixture.task(self.root,self.spec,execution='external')
-        self.save_spec()
+        fixture.task(self.root,self.spec,execution='external',focus='supporting-setting')
+        self.write('task.json',self.spec)
 
     def write(self,name,value):
         p=self.root/name; p.parent.mkdir(parents=True,exist_ok=True)
@@ -138,10 +139,11 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaises(ValueError): w.capture(self.root,run,'empty','test')
     def test_changed_source(self):
         run=self.prepare(); saved=w.load_run(self.root,run)
-        self.write('brief.md','changed')
+        source = next(item['path'] for item in self.spec['sources'] if item['id'] == 'brief')
+        self.write(source,'changed')
         report=w.status(self.root,run)['runs'][0]
         self.assertEqual((report['readiness'],report['freshness_diagnostics']),('ready',[]))
-        self.assertIn(('SOURCE_CHANGED','warning','brief.md'),
+        self.assertIn(('SOURCE_CHANGED','warning',source),
                       [(item['code'],item['severity'],item['file']) for item in report['freshness_notices']])
         self.assertEqual(w.load_run(self.root,run),saved)
     def test_changed_delivery(self):
@@ -175,9 +177,13 @@ class ProductionTests(unittest.TestCase):
         self.spec['features']=['persona']; self.save_spec()
         with self.assertRaises(ValueError): self.prepare()
     def test_explicit_persona_source(self):
-        self.spec['features']=['persona']; self.spec['sources'][0]['role']='persona'; self.save_spec(); self.assertTrue(w.status(self.root,self.prepare())['ok'])
+        self.spec['features']=['persona']; self.spec['sources'][0]['role']='persona'
+        fixture.bind_work_basis(self.root, self.spec, focus='supporting-setting')
+        self.save_spec(); self.assertTrue(w.status(self.root,self.prepare())['ok'])
     def test_nonadopted_sources_not_forced(self):
-        self.spec['sources'][0]['disposition']='considered-not-used'; self.save_spec(); self.assertTrue(w.status(self.root,self.prepare())['ok'])
+        self.spec['sources'][0]['disposition']='considered-not-used'
+        fixture.bind_work_basis(self.root, self.spec, focus='supporting-setting')
+        self.save_spec(); self.assertTrue(w.status(self.root,self.prepare())['ok'])
     def test_no_world_view_for_required_route(self):
         self.spec['route']='world-realization'; self.save_spec()
         with self.assertRaises(ValueError): self.prepare()
@@ -275,33 +281,37 @@ class ProductionTests(unittest.TestCase):
         run,ca=self.candidate(); self.assertEqual(ca,w.capture(self.root,run,'output.txt','Synthetic fixture'))
     def test_publish_directory_retries_a_transient_refusal(self):
         staging=self.root/'.pending-x'; staging.mkdir(); target=self.root/'published'
-        original=c._rename_directory_exclusive; calls=[]
+        original=c._rename_exclusive; calls=[]
         def flaky(path,destination):
             calls.append(1)
             if len(calls)==1: raise PermissionError(13,'Permission denied')
             return original(path,destination)
-        with patch.object(c,'_rename_directory_exclusive',flaky): c.publish_directory(staging,target)
+        with patch.object(c,'_rename_exclusive',flaky): c.publish_directory(staging,target)
         self.assertTrue(target.is_dir()); self.assertFalse(staging.exists()); self.assertEqual(len(calls),2)
     def test_publish_directory_raises_a_persistent_refusal(self):
         staging=self.root/'.pending-y'; staging.mkdir(); target=self.root/'never'
         def refused(path,destination): raise PermissionError(13,'Permission denied')
-        with patch.object(c,'_rename_directory_exclusive',refused):
+        with patch.object(c,'_rename_exclusive',refused):
             with self.assertRaisesRegex(ValueError, 'ARTIFACT_PUBLISH_FAILED'): c.publish_directory(staging,target,patience=0.3)
         self.assertTrue(staging.is_dir()); self.assertFalse(target.exists())
-    def test_lock_waits_longer_than_ten_seconds(self):
-        import threading,time
-        held=threading.Event(); release=threading.Event()
+    def test_data_file_lock_waits_for_its_owner(self):
+        import threading
+        held=threading.Event(); release=threading.Event(); waiting=threading.Event(); acquired=threading.Event()
+        owner=ledger.work_dir(self.root)/ledger.LEDGER
         def holder():
-            with c.lock(self.root): held.set(); release.wait(30)
-        t=threading.Thread(target=holder); t.start()
+            with c.file_lock(owner): held.set(); release.wait(10)
+        def waiter():
+            waiting.set()
+            with c.file_lock(owner): acquired.set()
+        t=threading.Thread(target=holder,daemon=True); t.start()
+        contender=threading.Thread(target=waiter,daemon=True)
         try:
-            self.assertTrue(held.wait(10))
-            threading.Timer(11.0,release.set).start()
-            started=time.monotonic()
-            with c.lock(self.root): waited=time.monotonic()-started
-            self.assertGreater(waited,10.0)
+            self.assertTrue(held.wait(5)); contender.start(); self.assertTrue(waiting.wait(5))
+            self.assertFalse(acquired.wait(0.05))
+            release.set(); self.assertTrue(acquired.wait(5))
         finally:
-            release.set(); t.join(30)
+            release.set(); t.join(5)
+            if contender.ident is not None: contender.join(5)
     def test_concurrent_capture(self):
         run=self.prepare(); fixture.handoff(self.root,run,'test','manual'); self.write('output.txt','One lamp.')
         token=fixture.grant(self.root,run,w.external_intent(self.root,run,1))
@@ -390,14 +400,7 @@ class ProductionTests(unittest.TestCase):
         self.assertIs(raised.exception,failure); self.assertEqual(list(folder.iterdir()),[])
     def test_failed_publication_without_hard_links_leaves_no_file(self):
         folder=self.published()
-        if os.name=='nt': failing=patch.object(c.os,'rename',side_effect=OSError(errno.EIO,'Input/output error'))
-        else:
-            real=os.fsync; calls=[]
-            def second_fails(descriptor):
-                calls.append(descriptor)
-                if len(calls)==2: raise OSError(errno.EIO,'Input/output error')
-                return real(descriptor)
-            failing=patch.object(c.os,'fsync',side_effect=second_fails)
+        failing=patch.object(c,'_rename_exclusive',side_effect=OSError(errno.EIO,'Input/output error'))
         with self.no_hard_links(), failing, self.assertRaises(OSError): c.atomic(folder/'record.json',b'x\n')
         self.assertEqual(list(folder.iterdir()),[])
     def test_object_store_works_without_hard_links(self):
@@ -457,14 +460,14 @@ class ProductionTests(unittest.TestCase):
             raise OSError(errno.EIO,'synthetic device error')
         with patch.object(msvcrt,'locking',side_effect=failing):
             with self.assertRaises(OSError):
-                with c.lock(self.root): pass
+                with c.file_lock(self.root/'task.json'): pass
         real=msvcrt.locking; modes=[]
         def contended(descriptor,mode,size):
             modes.append(mode)
             if len(modes)==1: raise OSError(errno.EACCES,'synthetic contention')
             return real(descriptor,mode,size)
         with patch.object(msvcrt,'locking',side_effect=contended):
-            with c.lock(self.root): pass
+            with c.file_lock(self.root/'task.json'): pass
         self.assertEqual(modes,[msvcrt.LK_NBLCK,msvcrt.LK_NBLCK,msvcrt.LK_UNLCK])
     def test_cli_resolves_a_linked_root(self):
         run=self.prepare()
@@ -474,7 +477,7 @@ class ProductionTests(unittest.TestCase):
             except OSError: self.skipTest('symbolic links are unavailable')
             out=io.StringIO()
             with patch('sys.argv',['production_workflow.py','status','--root',str(link),'--run',run]),contextlib.redirect_stdout(out):
-                code=w.main()
+                code=production_workflow_cli.main()
         report=json.loads(out.getvalue())
         self.assertEqual(report['runs'][0]['integrity'],'intact',report); self.assertEqual(code,0)
     def test_finish_resumes_after_journal_publish(self):
@@ -566,7 +569,7 @@ class PackageIntegrationTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from catalog_cli import configure_pack_runtime
+        from catalog_api import configure_pack_runtime
         from test_production_execution import decisions
         temp=tempfile.TemporaryDirectory();cls.addClassCleanup(temp.cleanup)
         base=Path(temp.name);cls.enterClassContext(fixture.scratch_home(base/'home'))
@@ -578,7 +581,7 @@ class PackageIntegrationTests(unittest.TestCase):
         import production_case_fixtures as cases
         import production_execution as execution
         import transport_synthetic
-        from catalog_cli import configure_pack_runtime
+        from catalog_api import configure_pack_runtime
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.base=Path(self.temp.name);self.enterContext(fixture.scratch_home(self.base/'home'))
         self.addCleanup(configure_pack_runtime,None)
@@ -602,7 +605,7 @@ class PackageIntegrationTests(unittest.TestCase):
 
     def prepare_adopted_selection(self):
         import production_case_fixtures as cases
-        import studio
+        import studio_workspace as studio
         from visual_continuity import file_ref
         output=self.execute();candidate=output['runs'][0]['candidates'][0]
         row=studio.read_iterations(studio.character_dir(self.root,'robot'))[0]
@@ -664,7 +667,7 @@ class PackageIntegrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):w.select(self.root,self.run,'selection.json')
 
     def test_real_verifier_bound_input(self):
-        from verify_generation_payload import verify
+        from generation_payload_validation import verify
         import runtime_snapshot
         descriptor=self.data[1]['runtime_snapshot'];directory=self.data[0]
         with runtime_snapshot.using(runtime_snapshot.path(self.root,descriptor),descriptor):
@@ -719,7 +722,9 @@ class PackageIntegrationTests(unittest.TestCase):
         self.assertEqual(accounting.all_states(self.root),[])
 
     def test_partial_acquisition_preserves_candidates_and_resumes(self):
-        import dispatch,production_execution as execution,transport_synthetic
+        import dispatch_runtime as dispatch
+        import production_execution as execution
+        import transport_synthetic
         original=dispatch.inline_image;seen=[]
         def once(raw):
             seen.append(raw)
@@ -734,7 +739,11 @@ class PackageIntegrationTests(unittest.TestCase):
         self.assertEqual(len(result['runs'][0]['candidates']),2)
 
     def test_dispatch_then_recording_recovery_is_idempotent_without_resubmission(self):
-        import dispatch,studio,production_execution as execution,transport_synthetic,service_auth
+        import dispatch_runtime as dispatch
+        import studio_workspace as studio
+        import production_execution as execution
+        import transport_synthetic
+        import service_auth
         real=studio.iterate;calls=[]
         def fail_second(*a,**kw):
             calls.append(1)

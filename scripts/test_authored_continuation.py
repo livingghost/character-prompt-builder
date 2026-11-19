@@ -1,5 +1,7 @@
 """Saved authored work and edited sources expose the same next action at each entry."""
 from __future__ import annotations
+import production_workflow as production_workflow_cli
+import production_fixtures as authoring_fixtures
 
 import ctypes
 import json
@@ -14,9 +16,9 @@ import execution_contract as c
 import production_authoring_state as authoring
 import production_fixtures as fixtures
 import production_inputs as inputs
-import production_workflow as workflow
+import production_operations as workflow
 import session_entry_points
-import studio
+import studio_workspace as studio
 import work_ledger
 
 
@@ -38,7 +40,7 @@ class AuthoredContinuationTests(unittest.TestCase):
         fixtures.task(self.root, task)
         self.write('task.json', task)
         self.write('description.txt', 'A brass key rests on a wooden table.\n')
-        drafted = inputs.draft_inputs(self.root, 'task.json', 'edit')
+        drafted = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'edit')
         self.choices_path = drafted['choices_file']
         self.choices = c.load(self.root / self.choices_path)
         self.choices['reading']['reading_key'] = c.load(self.root / task['route_reading'])['reading_key']
@@ -131,7 +133,7 @@ class RegisteredRuntimeContinuationTests(unittest.TestCase):
         self.model = cases.ALTERNATE_MODEL_ID
 
     def draft(self, directory='edit', *, source_run=None):
-        result = inputs.draft_inputs(self.root, self.task_path if source_run is None else None,
+        result = authoring_fixtures.authoring_inputs(self.root, self.task_path if source_run is None else None,
             directory, from_run=source_run, runtime_arguments=self.runtime_arguments)
         self.assertEqual(result['unresolved'], [], result)
         return result['choices_file']
@@ -153,7 +155,7 @@ class RegisteredRuntimeContinuationTests(unittest.TestCase):
         choices_path = self.draft()
         saved = workflow.prepare(self.root, choices=choices_path)
         original = (self.root / choices_path).read_bytes()
-        command = [sys.executable, str(Path(workflow.__file__)), 'status', '--root', str(self.root),
+        command = [sys.executable, str(Path(production_workflow_cli.__file__)), 'status', '--root', str(self.root),
                    '--run', saved['run']]
         completed = subprocess.run(command, cwd=self.root, env=dict(os.environ),
             capture_output=True, text=True, encoding='utf-8', check=False, timeout=45)

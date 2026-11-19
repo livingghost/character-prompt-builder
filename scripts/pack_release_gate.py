@@ -25,17 +25,10 @@ from typing import Any, Callable
 
 sys.dont_write_bytecode = True
 
-from catalog_cli import configure_pack_runtime, load_pack_catalog
-from pack_cache import cache_status, refresh_cache
-from pack_manager import (
-    PackSettings,
-    canonical_json,
-    build_lock_data,
-    is_commons_pack,
-    load_state,
-    sha256_bytes,
-    validate_pack,
-)
+from catalog_retrieval.runtime import using_pack_catalog
+from pack_cache import refresh_runtime_catalog, validate_catalog_pack
+from pack_manager import canonical_json, is_commons_pack, sha256_bytes, validate_pack
+from runtime_paths import PackSettings
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -463,7 +456,7 @@ def _sparse_suite(
     errors: list[str] = []
     if len(cases) != expected:
         errors.append(f"expected {expected} cases, resource contains {len(cases)}")
-    report = sparse_discovery_eval.evaluate()
+    report = sparse_discovery_eval.evaluate(catalog=catalog)
     skip_count = _skip_count(report)
     actual = int(report.get("case_count") or 0)
     total = int(report.get("total_case_count") or 0)
@@ -1042,7 +1035,24 @@ def run_release_gate(
     if errors:
         return output
 
-    validation = validate_pack(pack_root, require_lock=True, verify_lock=True)
+    settings = PackSettings(
+        roots=(pack_root,),
+        state_file=state_file,
+        cache_dir=cache_dir,
+        managed_root=managed_root,
+        quarantine_root=(managed_root / ".quarantine").resolve(),
+        default_enabled_packs=(),
+    )
+    try:
+        refresh, catalog = refresh_runtime_catalog(settings, force=True)
+    except Exception as exc:
+        errors.append(f"exact runtime cache failed: {exc}")
+        return output
+    validation = validate_catalog_pack(catalog, pack_root)
+    if validation is None:
+        # Invalid or disabled manifests have no selected runtime input. Obtain
+        # their diagnosis at the standalone boundary; they cannot pass this gate.
+        validation = validate_pack(pack_root, require_lock=True, verify_lock=True)
     validation_data = validation.to_dict()
     output["checks"]["released_pack"] = validation_data
     output["pack"].update(
@@ -1055,6 +1065,12 @@ def run_release_gate(
         }
     )
     commons_owned = is_commons_pack(pack_root, validation.manifest)
+    if not validation.lock_present and not commons_owned and validation_data["ok"]:
+        validation_data["ok"] = False
+        validation_data["errors"].append({
+            "severity": "error", "code": "missing-lock", "path": "pack.lock.json",
+            "message": "Released and installed packs require pack.lock.json.",
+        })
     if not validation.valid or (not validation.lock_present and not commons_owned) or not validation.pack_id:
         errors.extend(
             f"released pack: {item['code']}: {item['message']}"
@@ -1066,8 +1082,19 @@ def run_release_gate(
             errors.append("released pack validation failed")
         return output
 
+    runtime_inputs = catalog.inputs
+    pack_input = runtime_inputs.packs.get(str(validation.pack_id)) if runtime_inputs is not None else None
+    if pack_input is None or pack_input.root != pack_root:
+        errors.append("explicit state enabled_packs must select the positional pack")
+        return output
     try:
-        lock = build_lock_data(pack_root) if commons_owned else _load_json_object(pack_root / "pack.lock.json", "pack.lock.json")
+        if commons_owned:
+            if not validation.records and not validation.resource_files:
+                raise ValueError("A released pack must contain at least one matched record or resource.")
+            rows = pack_input.inventory()
+            lock = {"files": rows, "content_sha256": sha256_bytes(canonical_json(rows).encode("utf-8"))}
+        else:
+            lock = pack_input.json("pack.lock.json")
         output["pack"]["integrity_policy"] = "core-managed-live-inventory" if commons_owned else "released-pack-lock"
     except ValueError as exc:
         errors.append(str(exc))
@@ -1084,11 +1111,7 @@ def run_release_gate(
     metrics = authored_metrics(validation)
     output["pack"]["authored_metrics"] = metrics
     pack_id = str(validation.pack_id)
-    try:
-        state = load_state(state_file)
-    except Exception as exc:  # PackError plus malformed external inputs
-        errors.append(f"explicit state is invalid: {exc}")
-        return output
+    state = runtime_inputs.state
     # The runtime holds the positional pack and its required dependencies, nothing else.
     # The state names the pack directory first and then one directory per dependency.
     roots = [Path(value) for value in state["pack_roots"]]
@@ -1096,16 +1119,14 @@ def run_release_gate(
     if not roots or os.path.normcase(str(roots[0].resolve())) != expected_root:
         errors.append("explicit state pack_roots must name the positional pack directory first")
     dependency_manifests: dict[str, Mapping[str, Any]] = {}
-    dependency_roots: list[Path] = []
+    manifests_by_root = {pack.root: pack.manifest for pack in runtime_inputs.discovered.values()}
     for extra in roots[1:]:
         extra = extra.resolve()
-        try:
-            extra_manifest = json.loads((extra / "pack.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        extra_manifest = manifests_by_root.get(extra)
+        if extra_manifest is None:
             errors.append(f"explicit state pack_roots names a directory that is not a pack: {extra}")
             continue
         dependency_manifests[str(extra_manifest.get("pack_id"))] = extra_manifest
-        dependency_roots.append(extra)
     closure = _dependency_closure(_required_dependencies(validation.manifest or {}), dependency_manifests)
     missing_dependencies = sorted(closure - set(dependency_manifests))
     unrelated = sorted(set(dependency_manifests) - closure)
@@ -1124,24 +1145,14 @@ def run_release_gate(
         return output
     output["pack"]["required_dependencies"] = sorted(closure)
 
-    settings = PackSettings(
-        roots=(pack_root, *dependency_roots),
-        state_file=state_file,
-        cache_dir=cache_dir,
-        managed_root=managed_root,
-        quarantine_root=(managed_root / ".quarantine").resolve(),
-        default_enabled_packs=(),
-    )
-    configure_pack_runtime(settings)
-    try:
-        try:
-            refresh = refresh_cache(settings, force=True)
-            status = cache_status(settings)
-            catalog = load_pack_catalog()
-        except Exception as exc:
-            errors.append(f"exact runtime cache failed: {exc}")
-            return output
-
+    with using_pack_catalog(settings, catalog):
+        status = {
+            "fresh": refresh["fresh"] and refresh["fingerprint"] == catalog.fingerprint,
+            "enabled_packs": runtime_inputs.state["enabled_packs"],
+            "available_enabled_packs": runtime_inputs.snapshot["available_enabled_packs"],
+            "discovery_issues": runtime_inputs.snapshot["discovery_issues"],
+            "cache_path": refresh["cache_path"],
+        }
         error_diagnostics = [
             item
             for item in catalog.diagnostics
@@ -1312,8 +1323,6 @@ def run_release_gate(
         )
         output["ok"] = not errors and output["skipped"] == 0
         return output
-    finally:
-        configure_pack_runtime(None)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

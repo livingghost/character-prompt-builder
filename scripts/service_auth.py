@@ -204,7 +204,8 @@ def _write(path: Path, document: dict, *, expected_raw: bytes | None) -> None:
             current = None
         if current != expected_raw:
             raise AuthConfigurationError("Authentication JSON changed during this update. Retain the editor's saved file, inspect the current selection, and repeat the intended change.")
-        os.replace(temporary, path)
+        contract.retain_replacement_lock(temporary, path)
+        contract.replace_file(temporary, path)
         contract.fsync_dir(path.parent)
     finally:
         temporary.unlink(missing_ok=True)
@@ -231,10 +232,41 @@ def _stored_value(root: Path, entry: dict, service: str) -> str:
                                      input_path=root / CONFIG_FILE, input_service=service) from None
 
 
+def _initialize_document(root: Path) -> None:
+    """Publish the first private document under the Studio's namespace owner."""
+    path = root / CONFIG_FILE
+    with contract.file_lock(root / 'studio.json'):
+        if path.exists():
+            return
+        ensure_private_ignored(root)
+        descriptor, name = tempfile.mkstemp(prefix=PRIVATE_TEMPORARY_PREFIX, dir=root)
+        temporary = Path(name)
+        try:
+            with os.fdopen(descriptor, 'wb') as stream:
+                stream.write(b'{}\n')
+                stream.flush()
+                os.fsync(stream.fileno())
+            try:
+                try:
+                    os.link(temporary, path)
+                except OSError as exc:
+                    if not contract._no_hard_links(exc):
+                        raise
+                    contract._patiently(lambda: contract._rename_exclusive(temporary, path))
+            except FileExistsError:
+                pass
+            contract.fsync_dir(root)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
 @contextlib.contextmanager
 def _locked(root: Path):
-    """Serialize authentication edits with other work in this Studio."""
-    with contract.lock(root):
+    """Own edits through the real private authentication document."""
+    path = root / CONFIG_FILE
+    if not path.exists():
+        _initialize_document(root)
+    with contract.file_lock(path, follow_symlinks=True, read_only=True):
         yield
 
 

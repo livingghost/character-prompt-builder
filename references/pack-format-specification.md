@@ -165,7 +165,7 @@ Pack root order never decides which pack supplies a name.
 `pack.lock.json` is generated and validated with [pack-lock.schema.json](../schemas/pack-lock.schema.json). It contains:
 
 - pack UUID and release
-- every file except the lock itself and the process lock file `.cpb.lock`, which coordinates concurrent commands and is never pack content
+- every file except `pack.lock.json` itself
 - relative path
 - byte size
 - SHA-256

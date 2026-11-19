@@ -28,22 +28,20 @@ GENERATED = EXAMPLE / "generated"
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
-import build_generation_payload as generation_builder  # noqa: E402
-import build_state_generation_package as state_generation_builder  # noqa: E402
-from build_state_generation_package import build_package, main as _build_state_generation_main
+import generation_payload_builder as generation_builder  # noqa: E402
+import state_generation_builder as state_generation_builder  # noqa: E402
+from build_state_generation_package import main as _build_state_generation_main
+from state_generation_builder import build_package
 from visual_fixtures import verify_package
-from build_generation_payload import (  # noqa: E402
-    main as _build_generation_main,
-    materialize_cli_reference_bundle,
-    remove_cli_package_staging,
-)
-import catalog_cli  # noqa: E402
+from build_generation_payload import main as _build_generation_main
+from generation_payload_builder import materialize_cli_reference_bundle, remove_cli_package_staging
+import catalog_api as catalog_cli  # noqa: E402
 from build_candidate_manifest import (  # noqa: E402
     build_manifest,
     validate_adoption_receipt,
     validate_candidate_manifest_lineage,
 )
-from catalog_cli import configure_pack_runtime  # noqa: E402
+from catalog_api import configure_pack_runtime  # noqa: E402
 from default_only_example_resolution_smoke_test import (  # noqa: E402
     evaluate as evaluate_default_only_examples,
 )
@@ -55,15 +53,9 @@ from pack_manager import (  # noqa: E402
     validate_pack,
     write_lock,
 )
-from prepare_generation_references import (  # noqa: E402
-    finalize_prepared_reference_set,
-    prepare_state_reference_selection,
-)
-from reference_runtime import (  # noqa: E402
-    build_reference_use_plan,
-    execute_reference_use_plan,
-)
-from reference_contract import state_authority_for  # noqa: E402
+from generation_references import finalize_prepared_reference_set, prepare_state_reference_selection
+from reference_plan_runtime import build_reference_use_plan, execute_reference_use_plan
+from reference_contract import state_authority_for, control_capabilities  # noqa: E402
 from select_state_references import main as select_references_main  # noqa: E402
 from prompt_plot import content_sha256  # noqa: E402
 from state_protocol import (  # noqa: E402
@@ -95,7 +87,8 @@ from state_protocol import (  # noqa: E402
 )
 
 
-from smoke_fixtures import fixture_retrieval, cli_with_fixture_retrieval
+from smoke_fixtures import (fixture_retrieval, cli_with_fixture_retrieval,
+                            fixture_reference_prompt, fixture_resolved_prompt)
 
 
 def build_generation_main(argv):
@@ -400,23 +393,25 @@ APPROVED_PLOT["approved"] = {
 }
 
 
-def _payload_inputs(graph: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _payload_inputs(graph: dict[str, dict[str, Any]], prepared: dict | None = None) -> dict[str, Any]:
     from request_validation_fixtures import fixture_validation
+    prompt = fixture_reference_prompt((GENERATED / 'prompt.txt').read_text(encoding='utf-8'), prepared)
+    integrated = fixture_reference_prompt((GENERATED / 'integrated-prompt.txt').read_text(encoding='utf-8'), prepared)
     return {
         "execution": "dispatcher",
         "model": "gpt-image-2.5-flare",
         "request_validation": fixture_validation(fixture_root(), "gpt-image-2.5-flare", reference_mode="authored-rendition"),
         "input_root": fixture_root(),
-        "prompt": (GENERATED / "prompt.txt").read_text(encoding="utf-8"),
+        "prompt": prompt,
         "negative_prompt": (GENERATED / "negative.txt").read_text(encoding="utf-8"),
-        "integrated_prompt": (GENERATED / "integrated-prompt.txt").read_text(encoding="utf-8"),
+        "integrated_prompt": integrated,
         "native_negative": "",
         "negative_provenance": load_json(GENERATED / "negative-provenance.json"),
         "brief": graph["production_spec"]["source_brief"],
         "creative_intent": load_json(GENERATED / "creative-intent.json"),
         "production_spec": graph["production_spec"],
         "plot": copy.deepcopy(APPROVED_PLOT),
-        "retrieval_record": fixture_retrieval((GENERATED / "prompt.txt").read_text(encoding="utf-8"), APPROVED_PLOT),
+        "retrieval_record": fixture_retrieval(fixture_resolved_prompt(integrated, prepared), APPROVED_PLOT),
         "state_graphs": [{key: copy.deepcopy(graph[key]) for key in (
             "lineage", "species_profile", "individual_morphology", "identity_contract",
             "state_snapshot", "scene_context", "visual_projection", "asset_render_spec")}],
@@ -2327,7 +2322,8 @@ def run() -> dict[str, Any]:
     )
 
     identity_plan = build_reference_use_plan(
-        [{"record_id": STATE_REFERENCE_RECORD_ID, "intended_influence": "identity"}],
+        [{"record_id": STATE_REFERENCE_RECORD_ID, "intended_influence": "identity",
+          "selected_controls": control_capabilities('identity', 'faithful-archival-vector')}],
         transport_mode="multi-image",
         target_model=STATE_REFERENCE_MODEL,
         source_lighting_mode="replace",
@@ -2381,7 +2377,8 @@ def run() -> dict[str, Any]:
         limit=0,
     )
     zero_plan = build_reference_use_plan(
-        [{"record_id": STATE_REFERENCE_RECORD_ID, "intended_influence": "identity"}],
+        [{"record_id": STATE_REFERENCE_RECORD_ID, "intended_influence": "identity",
+          "selected_controls": control_capabilities('identity', 'faithful-archival-vector')}],
         transport_mode="multi-image",
         target_model=STATE_REFERENCE_MODEL,
         source_lighting_mode="preserve",
@@ -2453,7 +2450,8 @@ def run() -> dict[str, Any]:
         limit=2,
     )
     multi_identity_plan = build_reference_use_plan(
-        [{"record_id": STATE_REFERENCE_RECORD_ID, "intended_influence": "identity"}],
+        [{"record_id": STATE_REFERENCE_RECORD_ID, "intended_influence": "identity",
+          "selected_controls": control_capabilities('identity', 'faithful-archival-vector')}],
         transport_mode="multi-image",
         target_model=STATE_REFERENCE_MODEL,
         source_lighting_mode="replace",
@@ -2499,6 +2497,7 @@ def run() -> dict[str, Any]:
             {
                 "record_id": STATE_REFERENCE_RECORD_ID,
                 "intended_influence": "identity",
+                "selected_controls": control_capabilities("identity", "faithful-archival-vector"),
             }
         ]
         and current_rows[0]["role"]
@@ -2635,7 +2634,7 @@ def run() -> dict[str, Any]:
                 staging_root=package_root,
                 companion_name=f"generation-package-{count}.references",
             )
-            inputs = _payload_inputs(graph)
+            inputs = _payload_inputs(graph, packaged_reference_set)
             if count:
                 inputs["production_spec"] = copy.deepcopy(graph["production_spec"])
                 inputs["production_spec"]["render_intent"]["execution_mode"] = "reference-guided"
@@ -2678,6 +2677,46 @@ def run() -> dict[str, Any]:
             round_trip_details,
         )
         current_payload, current_verification = verified_packages[1]
+        final_text = current_payload['generation_payload']['transports']['integrated']['text']
+        stale_inputs = _payload_inputs(graph, current_payload['prepared_reference_set'])
+        stale_inputs['production_spec'] = copy.deepcopy(graph['production_spec'])
+        stale_inputs['production_spec']['render_intent']['execution_mode'] = 'reference-guided'
+        stale_retrieval_reports = []
+        import prompt_retrieval
+        for name, stale_text in (
+            ('raw-primary', stale_inputs['prompt']),
+            ('raw-integrated-source', stale_inputs['integrated_prompt']),
+            ('previous-final-text', final_text + '\nEarlier scene wording.'),
+        ):
+            attempted = {**stale_inputs, 'retrieval_record': fixture_retrieval(stale_text, APPROVED_PLOT)}
+            message = ''
+            with mock.patch('prompt_retrieval.require_generation_retrieval',
+                            wraps=prompt_retrieval.require_generation_retrieval) as central_retrieval:
+                try:
+                    build_package(
+                        **attempted,
+                        visual_continuity=fixture_visual(graph['production_spec']),
+                        visual_root=fixture_root(),
+                        route_reading=fixture_reading(route='state-series', model=STATE_REFERENCE_MODEL,
+                                                      execution='dispatcher'),
+                        prepared_reference_set=current_payload['prepared_reference_set'],
+                        prepared_reference_root=temp / 'generation-package-1',
+                    )
+                except ValueError as exc:
+                    message = str(exc)
+                observed_prompt = central_retrieval.call_args.kwargs['prompt'] if central_retrieval.call_args else None
+            stale_retrieval_reports.append({
+                'case': name, 'stale_differs_from_final': stale_text != final_text,
+                'central_received_final': observed_prompt == final_text, 'error': message,
+            })
+        check(
+            'state retrieval is matched centrally against the selected expanded final text',
+            '{{reference:' not in final_text
+            and all(row['stale_differs_from_final'] and row['central_received_final']
+                    and 'retrieval record belongs to a different prompt or plot' in row['error']
+                    for row in stale_retrieval_reports),
+            stale_retrieval_reports,
+        )
         check(
             "state-aware package and verifier preserve unsupported state and assumptions end to end",
             current_payload["prepared_reference_set"]["selected_references"][0][
@@ -3006,7 +3045,7 @@ def run() -> dict[str, Any]:
                 "state-aware CLI takes the prompt from the prepared run and keeps an existing package",
                 state_built_exit == 0
                 and state_built.get("composition_prompt")
-                == (GENERATED / "prompt.txt").read_bytes().decode("utf-8")
+                == fixture_reference_prompt((GENERATED / "prompt.txt").read_bytes().decode("utf-8"), prepared_multi)
                 and state_again_exit == 2
                 and [row["code"] for row in state_again["diagnostics"]] == ["OUTPUT_ALREADY_EXISTS"]
                 and state_again["diagnostics"][0]["required_action"] == "Choose a new --out."

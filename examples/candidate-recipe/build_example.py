@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import execution_contract as c
 from io_budget import environment_seconds
-import studio
+import studio_workspace as studio
 
 
 def build() -> dict:

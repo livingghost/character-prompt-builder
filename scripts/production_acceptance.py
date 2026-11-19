@@ -6,6 +6,7 @@ the requested scope decides which existing owner records its verified result.
 No task, generation, candidate, review or iteration is created here.
 """
 from __future__ import annotations
+import read_context
 
 import copy
 from pathlib import Path
@@ -13,19 +14,18 @@ from pathlib import Path
 import execution_contract as c
 import production_permissions as permissions
 import production_store as store
-import runtime_snapshot
 from production_diagnostics import ProductionError, compare_exact
 
 
 def slot_state(root: Path, character: str, slot: str) -> dict | None:
     """The current recorded slot receipt used to guard an interrupted replacement."""
-    import studio
+    import studio_workspace as studio
     return studio.acceptance_state(root, character, slot)
 
 
 def _target(root: Path, run: str, candidate: str, *, loaded: tuple | None = None) -> tuple[dict, dict]:
-    import production_workflow as workflow
-    import studio
+    import production_operations as workflow
+    import studio_workspace as studio
     loaded = loaded or workflow.read_run(root, run)
     _, prepared, _, rows = loaded
     chosen = workflow.find(rows, 'candidate', candidate)
@@ -92,10 +92,10 @@ def _grant(authority: store.CurrentAuthority, grant: str | None) -> str:
     return requirements['requirements'][0]['selected_grant']
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def draft(root: Path, run: str, candidate: str, grant: str | None = None, *, scope: str = 'delivery-only') -> dict:
     """Pin the retained result and applicable authority without supplying a judgment."""
-    import production_workflow as workflow
+    import production_operations as workflow
     loaded = workflow.read_run(root, run)
     _, prepared, _, rows = loaded
     workflow.require_mutable(rows)
@@ -124,7 +124,7 @@ def _expand(root: Path, run: str, decisions: dict, loaded: tuple) -> tuple[dict,
     The selection replaces the run's latest selection in `loaded`, so its
     authorization states which selection it replaces.
     """
-    import production_workflow as workflow
+    import production_operations as workflow
     workflow.schema_check(decisions, 'acceptance')
     _, prepared, _, rows = loaded
     compare_exact({'run': run, 'input_sha256': prepared['input_sha256']},
@@ -180,7 +180,7 @@ def _expand(root: Path, run: str, decisions: dict, loaded: tuple) -> tuple[dict,
 
 
 def _receipt(root: Path, run: str, selection: dict, *, require_current: bool) -> dict:
-    import studio
+    import studio_workspace as studio
     chosen = selection['data']['selection']
     current_target, row = _target(root, run, chosen['candidate'])
     recorded_target = chosen['slot']
@@ -226,7 +226,7 @@ def _receipt(root: Path, run: str, selection: dict, *, require_current: bool) ->
 def verify_slot(root: Path, run: str, selection_receipt: dict, *, rows: list[dict] | None = None,
                 require_current: bool = False) -> dict:
     """Verify a committed receipt; later ordinary supersession preserves past completion."""
-    import production_workflow as workflow
+    import production_operations as workflow
     if rows is None:
         rows = workflow.read_run(root, run)[3]
     if selection_receipt['data']['selection']['scope'] != 'studio-slot':
@@ -242,7 +242,7 @@ def verify_slot(root: Path, run: str, selection_receipt: dict, *, rows: list[dic
     return results[0]
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
     """Apply or recover one exact reviewed decision and rebuild its views once."""
     import studio_activity as activity
@@ -270,7 +270,7 @@ def _resumed(rows: list[dict], digest: str) -> dict | None:
     is then applied as a new decision, as it is after a later selection replaced
     the one it recorded.
     """
-    import production_workflow as workflow
+    import production_operations as workflow
     selected = _selected(rows)
     if selected is None or not any(item['sha256'] == digest for item in selected['data']['files']):
         return None
@@ -289,8 +289,8 @@ def _accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
     decision, including one that recorded an earlier selection, is applied as
     a new selection that replaces the run's latest one.
     """
-    import production_workflow as workflow
-    import studio
+    import production_operations as workflow
+    import studio_workspace as studio
     import work_ledger
     loaded = workflow.read_run(root, run)
     directory, prepared, _, rows = loaded
@@ -314,7 +314,8 @@ def _accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
         raise ProductionError('SELECTION_REQUIRED', 'Accept needs an exact reviewed selection.',
             phase='acceptance', run=run,
             required_action='Draft the actual choices with draft-acceptance and supply the completed file.')
-    directory, prepared, _, rows = workflow.read_run(root, run)
+    loaded = workflow.read_run(root, run)
+    directory, prepared, _, rows = loaded
     current = _selected(rows)
     if current['sha256'] != selected['sha256']:
         action = ('Read the current selection with production_workflow.py status --run ' + run + '. Run accept --run '
@@ -341,9 +342,10 @@ def _accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
             target = chosen['slot']
             studio_result = studio.accept(root, target['character'], target['iteration_id'],
                                           production_selection=selected['sha256'])
-            data = _receipt(root, run, selected, require_current=True)
-            directory, prepared, _, rows = workflow.read_run(root, run)
-            result = workflow.append_record(directory, prepared, rows, 'slot-acceptance', data)
+            with store.transaction(root):
+                loaded = workflow.read_run(root, run)
+                data = _receipt(root, run, selected, require_current=True)
+                result = workflow.append_record(loaded, 'slot-acceptance', data)
         done = workflow.complete(root, run)
     work = work_ledger.finish_state(root, run)
     answer = {'ok': True, 'run': run, 'selection': selected['sha256'],

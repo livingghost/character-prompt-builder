@@ -1,0 +1,2214 @@
+#!/usr/bin/env python3
+"""Prepare ordered image references for one exact generation target.
+
+Catalog artifacts, caller-supplied files and accepted Studio artwork enter
+through distinct source variants. The prepared result commits both the selected source bytes and the
+actual model-facing transport bytes. SVG sources are safely rasterized from the
+same selected artifact; the preparer never substitutes another guide artifact
+and never falls back to text-only generation.
+"""
+from __future__ import annotations
+import read_context
+import operation_context as _operation_context
+
+import argparse
+import copy
+import hashlib
+import importlib.metadata
+import json
+import os
+import re
+import shutil
+import struct
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Mapping, Sequence, TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from studio_reference import ReferenceReads
+
+from catalog_api import active_pack_artifact_sources, configure_pack_runtime, load_pack_catalog
+from execution_contract import atomic_write_json, sha256_file
+from package_identity import calver_key
+from model_contract import model_reference_limit
+from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
+from reference_active_validation import validate_active_reference_use_plan
+from reference_contract import state_authority_for, validate_reference_use_plan_contract
+from reference_delivery import attachment_numbers, delivered_reference_count, prepared_origin_projection, validate_subject_uses
+from state_protocol import finalize_artifact, parse_json, validate_artifact
+from visual_evidence import inspect_svg, render_svg, svg_dimensions
+
+
+ROLE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,119}$")
+IDENTIFIER_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,179}$")
+BINDING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
+UUIDV7_RE = re.compile(
+    r"^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+)
+SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+MEDIA_TYPE_RE = re.compile(r"^[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*$")
+
+DIRECT_MEDIA_TYPES = frozenset({"image/png", "image/jpeg", "image/webp"})
+SVG_MEDIA_TYPE = "image/svg+xml"
+PNG_MEDIA_TYPE = "image/png"
+SVG_RENDERER = "resvg-py"
+
+PACK_SOURCE_FIELDS = frozenset(
+    {
+        "kind",
+        "pack_id",
+        "asset_id",
+        "artifact_id",
+        "resolved_path",
+        "media_type",
+        "sha256",
+    }
+)
+SUPPLIED_SELECTION_FIELDS = frozenset({"kind", "reference_id", "resolved_path"})
+SUPPLIED_SOURCE_FIELDS = frozenset(
+    {"kind", "reference_id", "resolved_path", "media_type", "sha256"}
+)
+TRANSPORT_FIELDS = frozenset({"resolved_path", "media_type", "sha256", "derivation"})
+DIRECT_DERIVATION_FIELDS = frozenset({"mode"})
+SVG_DERIVATION_FIELDS = frozenset(
+    {
+        "mode",
+        "renderer_id",
+        "renderer_release",
+        "source_sha256",
+        "output_dimensions",
+        "max_side",
+    }
+)
+PREPARED_REFERENCE_SET_FIELDS = frozenset(
+    {
+        "artifact_type",
+        "set_id",
+        "transport_mode",
+        "target_model",
+        "reference_selection",
+        "reference_selection_sha256",
+        "reference_use_plan",
+        "reference_use_plan_sha256",
+        "surface_lighting_plan_sha256",
+        "zero_reference_reason",
+        "prompt_artifacts",
+        "selected_references",
+        "single_board",
+        "prepared_reference_set_sha256",
+    }
+)
+GENERIC_PREPARED_REFERENCE_FIELDS = frozenset(
+    {"role", "source", "transport", "authority"}
+)
+STATE_SCOPE_FIELDS = (
+    "binding_id",
+    "covers",
+    "intended_influence",
+    "review_dimensions",
+    "unsupported_or_occluded_state",
+    "unsupported_assumptions",
+)
+STATE_PREPARED_REFERENCE_FIELDS = frozenset(
+    {"role", "source", "transport", "authority", "subject_id", *STATE_SCOPE_FIELDS}
+)
+AUTHORITY_FIELDS = frozenset({"controls", "must_not_control"})
+PROMPT_ARTIFACT_FIELDS = frozenset(
+    {"semantic_role", "source_sha256", "delivered_path", "media_type", "delivered_sha256"}
+)
+SINGLE_BOARD_FIELDS = frozenset({"resolved_path", "media_type", "sha256", "panels"})
+SINGLE_BOARD_PANEL_FIELDS = frozenset(
+    {"semantic_role", "source_sha256", "transport_sha256", "box"}
+)
+SINGLE_BOARD_BOX_FIELDS = frozenset({"x", "y", "width", "height"})
+REFERENCE_TRANSPORT_MODES = frozenset(
+    {"none", "prompt-artifacts", "multi-image", "single-board", "svg-bundle"}
+)
+ZERO_REFERENCE_CODES = frozenset(
+    {
+        "no-canonical-record-selected",
+        "no-suitable-active-asset",
+        "user-declined-visual-references",
+        "state-ineligible",
+    }
+)
+
+_MODEL_CACHE: tuple[str, dict[str, dict[str, Any]]] | None = None
+
+
+def canonical_json(value: Any) -> str:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+
+
+def _require_exact_fields(value: Mapping[str, Any], expected: frozenset[str], field: str) -> None:
+    actual = set(value)
+    if actual == set(expected):
+        return
+    missing = sorted(set(expected) - actual)
+    extra = sorted(actual - set(expected))
+    details: list[str] = []
+    if missing:
+        details.append("missing " + ", ".join(missing))
+    if extra:
+        details.append("unexpected " + ", ".join(extra))
+    raise ValueError(f"{field} has an invalid shape ({'; '.join(details)})")
+
+
+def _require_string(value: Any, field: str, pattern: re.Pattern[str] | None = None) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{field} must be a non-empty string")
+    if pattern is not None and not pattern.fullmatch(value):
+        raise ValueError(f"{field} has an invalid format")
+    return value
+
+
+def _require_sha256(value: Any, field: str) -> str:
+    digest = _require_string(value, field, SHA256_RE)
+    if digest == "0" * 64:
+        raise ValueError(f"{field} must be a nonzero SHA-256")
+    return digest
+
+
+def _canonical_existing_file(value: Any, field: str, *, require_canonical: bool) -> Path:
+    raw = _require_string(value, field)
+    supplied = Path(raw)
+    if not supplied.is_absolute():
+        raise ValueError(f"{field} must be an absolute path")
+    resolved = supplied.resolve(strict=True)
+    if require_canonical and str(resolved) != raw:
+        raise ValueError(f"{field} is not canonical")
+    if not resolved.is_file():
+        raise ValueError(f"{field} is not a file: {resolved}")
+    return resolved
+
+
+def _resolve_packaged_file(
+    value: Any,
+    field: str,
+    *,
+    package_root: Path | None,
+) -> tuple[str, Path]:
+    """Resolve an absolute path or a package-relative path without changing its commitment."""
+
+    raw = _require_string(value, field)
+    supplied = Path(raw)
+    if supplied.is_absolute():
+        resolved = supplied.resolve(strict=True)
+    else:
+        if package_root is None:
+            raise ValueError(f"{field} is relative and requires package_root")
+        base = Path(package_root).resolve(strict=True)
+        if not base.is_dir():
+            raise ValueError(f"package_root is not a directory: {base}")
+        resolved = (base / supplied).resolve(strict=True)
+        try:
+            resolved.relative_to(base)
+        except ValueError as exc:
+            raise ValueError(f"{field} escapes package_root") from exc
+    if not resolved.is_file():
+        raise ValueError(f"{field} is not a file: {resolved}")
+    return raw, resolved
+
+
+def detect_image_media_type(path: Path) -> str:
+    with Path(path).open("rb") as stream:
+        prefix = stream.read(4096)
+    if prefix.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if prefix.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if len(prefix) >= 12 and prefix[:4] == b"RIFF" and prefix[8:12] == b"WEBP":
+        return "image/webp"
+    lower = prefix.lower().lstrip(b"\xef\xbb\xbf\x00\t\r\n ")
+    if b"<svg" in lower or re.search(br"<[a-z0-9_.-]+:svg(?:[\s>])", lower):
+        return SVG_MEDIA_TYPE
+    raise ValueError(f"Unsupported or unrecognized image bytes: {path}")
+
+
+def _png_dimensions(path: Path) -> tuple[int, int]:
+    with Path(path).open("rb") as stream:
+        header = stream.read(24)
+    if len(header) != 24 or not header.startswith(b"\x89PNG\r\n\x1a\n") or header[12:16] != b"IHDR":
+        raise ValueError(f"Invalid PNG transport: {path}")
+    width, height = struct.unpack(">II", header[16:24])
+    if width < 1 or height < 1:
+        raise ValueError(f"PNG transport has invalid dimensions: {path}")
+    return width, height
+
+
+def _jpeg_dimensions(path: Path) -> tuple[int, int]:
+    sof_markers = {
+        0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+        0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF,
+    }
+    with Path(path).open("rb") as stream:
+        if stream.read(2) != b"\xff\xd8":
+            raise ValueError(f"Invalid JPEG transport: {path}")
+        while True:
+            byte = stream.read(1)
+            if not byte:
+                break
+            if byte != b"\xff":
+                continue
+            while byte == b"\xff":
+                byte = stream.read(1)
+            if not byte:
+                break
+            marker = byte[0]
+            if marker in {0x01, 0xD8, 0xD9} or 0xD0 <= marker <= 0xD7:
+                continue
+            raw_length = stream.read(2)
+            if len(raw_length) != 2:
+                break
+            length = struct.unpack(">H", raw_length)[0]
+            if length < 2:
+                break
+            if marker in sof_markers:
+                payload = stream.read(5)
+                if len(payload) != 5:
+                    break
+                height, width = struct.unpack(">HH", payload[1:5])
+                if width > 0 and height > 0:
+                    return width, height
+                break
+            stream.seek(length - 2, 1)
+    raise ValueError(f"JPEG dimensions are unavailable: {path}")
+
+
+def _webp_dimensions(path: Path) -> tuple[int, int]:
+    with Path(path).open("rb") as stream:
+        data = stream.read(32)
+    if len(data) < 30 or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        raise ValueError(f"Invalid WebP transport: {path}")
+    chunk = data[12:16]
+    if chunk == b"VP8X":
+        width = 1 + int.from_bytes(data[24:27], "little")
+        height = 1 + int.from_bytes(data[27:30], "little")
+        return width, height
+    if chunk == b"VP8L" and len(data) >= 25 and data[20] == 0x2F:
+        b0, b1, b2, b3 = data[21:25]
+        width = 1 + b0 + ((b1 & 0x3F) << 8)
+        height = 1 + (b1 >> 6) + (b2 << 2) + ((b3 & 0x0F) << 10)
+        return width, height
+    if chunk == b"VP8 " and len(data) >= 30 and data[23:26] == b"\x9d\x01\x2a":
+        width = int.from_bytes(data[26:28], "little") & 0x3FFF
+        height = int.from_bytes(data[28:30], "little") & 0x3FFF
+        if width and height:
+            return width, height
+    raise ValueError(f"WebP dimensions are unavailable: {path}")
+
+
+def image_dimensions(path: Path, media_type: str) -> tuple[int, int]:
+    if media_type == "image/png":
+        return _png_dimensions(path)
+    if media_type == "image/jpeg":
+        return _jpeg_dimensions(path)
+    if media_type == "image/webp":
+        return _webp_dimensions(path)
+    raise ValueError(f"Dimensions are not supported for media type {media_type!r}")
+
+
+def raster_dimensions_for_max_side(path: Path, max_side: int) -> tuple[int, int]:
+    width, height = svg_dimensions(path)
+    scale = min(1.0, max_side / max(width, height))
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
+def normalize_model_name(value: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).split())
+
+
+def _model_records() -> tuple[dict[str, dict[str, Any]], dict[str, Path]]:
+    """Every enabled model record by id, and the root of the pack each came from."""
+    global _MODEL_CACHE
+    catalog = load_pack_catalog()
+    if _MODEL_CACHE is None or _MODEL_CACHE[0] != catalog.fingerprint:
+        records: dict[str, dict[str, Any]] = {}
+        roots: dict[str, Path] = {}
+        for entry in catalog.entries:
+            if entry.kind == "model" and entry.record.get("id"):
+                records[str(entry.record["id"])] = dict(entry.record)
+                roots[str(entry.record["id"])] = Path(entry.source_root)
+        if not records:
+            raise ValueError("Enabled packs must provide at least one model record")
+        _MODEL_CACHE = (catalog.fingerprint, records, roots)
+    return _MODEL_CACHE[1], _MODEL_CACHE[2]
+
+
+def model_pack_root(model_id: str) -> Path | None:
+    """The root of the pack that holds a resolved model record, for files the record points at."""
+    _records, roots = _model_records()
+    return roots.get(model_id)
+
+
+def resolve_model_record(model: str) -> tuple[str, dict[str, Any]]:
+    records, _roots = _model_records()
+    raw = _require_string(model, "model").strip()
+    if raw in records:
+        return raw, records[raw]
+    wanted = normalize_model_name(raw)
+    matches: list[tuple[str, dict[str, Any]]] = []
+    for model_id, record in records.items():
+        names = [model_id, str(record.get("label") or "")]
+        aliases = record.get("aliases") or []
+        if not isinstance(aliases, list):
+            raise ValueError(f"model record {model_id!r} aliases must be an array")
+        names.extend(str(value) for value in aliases)
+        if wanted and wanted in {normalize_model_name(value) for value in names if value}:
+            matches.append((model_id, record))
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise ValueError(
+            f"ambiguous model name {model!r}; use one canonical model ID: "
+            + ", ".join(sorted(model_id for model_id, _record in matches))
+        )
+    raise ValueError(f"unknown model {model!r}; use a model record from an enabled pack")
+
+
+def model_reference_media_types(model: str, *, required: bool) -> frozenset[str]:
+    model_id, record = resolve_model_record(model)
+    raw = record.get("reference_input_media_types")
+    if raw is None:
+        if required:
+            raise ValueError(
+                f"model record {model_id!r} does not declare reference_input_media_types"
+            )
+        return frozenset()
+    if (
+        not isinstance(raw, list)
+        or not raw
+        or any(not isinstance(value, str) or not MEDIA_TYPE_RE.fullmatch(value) for value in raw)
+        or len(set(raw)) != len(raw)
+    ):
+        raise ValueError(
+            f"model record {model_id!r} has invalid reference_input_media_types"
+        )
+    return frozenset(raw)
+
+
+@dataclass(frozen=True)
+class _ReferenceContext:
+    active: bool = True
+    source_archive: Path | None = None
+    reads: ReferenceReads | None = None
+
+    @classmethod
+    def live(cls) -> _ReferenceContext:
+        from studio_reference import reference_reads
+        return cls(reads=reference_reads())
+
+    def path(self, source: Mapping[str, Any], field: str) -> Path:
+        declared = _require_string(source.get('resolved_path'), field + '.resolved_path')
+        digest = _require_sha256(source.get('sha256'), field + '.sha256')
+        if self.source_archive is not None:
+            import execution_contract as execution
+            archived = execution.local(self.source_archive, digest, exists=False)
+            if archived.is_file():
+                if sha256_file(archived) != digest:
+                    raise ValueError(field + ' archived source byte hash mismatch')
+                return archived
+        if self.active:
+            return _canonical_existing_file(declared, field + '.resolved_path', require_canonical=True)
+        # An unchanged original can also supply the recorded byte evidence.
+        # Active catalog membership and ownership are not consulted here.
+        path = _canonical_existing_file(declared, field + '.resolved_path', require_canonical=True)
+        if sha256_file(path) != digest:
+            raise ValueError(field + ' needs the original recorded source bytes')
+        return path
+
+
+def _validate_pack_source(source: Mapping[str, Any], field: str, *, context: _ReferenceContext | None = None) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
+    _require_exact_fields(source, PACK_SOURCE_FIELDS, field)
+    canonical: dict[str, Any] = {
+        "kind": "pack-artifact",
+        "pack_id": _require_string(source.get("pack_id"), f"{field}.pack_id", UUIDV7_RE),
+        "asset_id": _require_string(source.get("asset_id"), f"{field}.asset_id", IDENTIFIER_RE),
+        "artifact_id": _require_string(
+            source.get("artifact_id"), f"{field}.artifact_id", IDENTIFIER_RE
+        ),
+        "resolved_path": _require_string(source.get("resolved_path"), f"{field}.resolved_path"),
+        "media_type": _require_string(
+            source.get("media_type"), f"{field}.media_type", MEDIA_TYPE_RE
+        ),
+        "sha256": _require_sha256(source.get("sha256"), f"{field}.sha256"),
+    }
+    if source.get("kind") != "pack-artifact":
+        raise ValueError(f"{field}.kind must be pack-artifact")
+    path = context.path(canonical, field)
+    if context.active:
+        expected = active_pack_artifact_sources().get(
+            (canonical["pack_id"], canonical["asset_id"], canonical["artifact_id"])
+        )
+        if expected is None:
+            raise ValueError(f"{field} does not identify an active pack artifact")
+        if canonical != expected:
+            raise ValueError(f"{field} differs from its active pack artifact declaration")
+    actual_hash = sha256_file(path)
+    if actual_hash != canonical["sha256"]:
+        raise ValueError(f"{field} source byte hash mismatch")
+    actual_media = detect_image_media_type(path)
+    if actual_media != canonical["media_type"]:
+        raise ValueError(f"{field} source media type differs from its file bytes")
+    return canonical
+
+
+def _prepare_supplied_source(source: Mapping[str, Any], field: str) -> dict[str, Any]:
+    _require_exact_fields(source, SUPPLIED_SELECTION_FIELDS, field)
+    if source.get("kind") != "supplied-file":
+        raise ValueError(f"{field}.kind must be supplied-file")
+    reference_id = _require_string(
+        source.get("reference_id"), f"{field}.reference_id", IDENTIFIER_RE
+    )
+    path = _canonical_existing_file(
+        source.get("resolved_path"), f"{field}.resolved_path", require_canonical=False
+    )
+    media_type = detect_image_media_type(path)
+    return {
+        "kind": "supplied-file",
+        "reference_id": reference_id,
+        "resolved_path": str(path),
+        "media_type": media_type,
+        "sha256": sha256_file(path),
+    }
+
+
+def _validate_supplied_source(source: Mapping[str, Any], field: str, *, context: _ReferenceContext | None = None) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
+    _require_exact_fields(source, SUPPLIED_SOURCE_FIELDS, field)
+    if source.get("kind") != "supplied-file":
+        raise ValueError(f"{field}.kind must be supplied-file")
+    canonical = {
+        "kind": "supplied-file",
+        "reference_id": _require_string(
+            source.get("reference_id"), f"{field}.reference_id", IDENTIFIER_RE
+        ),
+        "resolved_path": _require_string(source.get("resolved_path"), f"{field}.resolved_path"),
+        "media_type": _require_string(
+            source.get("media_type"), f"{field}.media_type", MEDIA_TYPE_RE
+        ),
+        "sha256": _require_sha256(source.get("sha256"), f"{field}.sha256"),
+    }
+    path = context.path(canonical, field)
+    if sha256_file(path) != canonical["sha256"]:
+        raise ValueError(f"{field} source byte hash mismatch")
+    if detect_image_media_type(path) != canonical["media_type"]:
+        raise ValueError(f"{field} source media type differs from its file bytes")
+    return canonical
+
+
+def _validate_source(source: Any, field: str, *, context: _ReferenceContext | None = None) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
+    if not isinstance(source, Mapping):
+        raise ValueError(f"{field} must be an object")
+    kind = source.get("kind")
+    if kind == "pack-artifact":
+        return _validate_pack_source(source, field, context=context)
+    if kind == "supplied-file":
+        return _validate_supplied_source(source, field, context=context)
+    if kind in {'studio-artifact', 'studio-accepted-image'}:
+        from studio_reference import validate_source
+        validate_source(source, active=context.active, source_archive=context.source_archive, reads=context.reads)
+        path = context.path(source, field)
+        if sha256_file(path) != source['sha256'] or detect_image_media_type(path) != source['media_type']:
+            raise ValueError(field + ' Studio source image bytes differ')
+        return copy.deepcopy(dict(source))
+    raise ValueError(f"{field}.kind must name an explicit pack, supplied file, adopted Studio artwork or accepted Studio image")
+
+
+@read_context.operation
+def validate_committed_source(source: Any, field: str = "source") -> dict[str, Any]:
+    """Validate one fully committed source against its current authoritative bytes."""
+
+    return _validate_source(source, field)
+
+
+def _validate_transport(
+    transport: Any,
+    source: Mapping[str, Any],
+    field: str,
+    *,
+    package_root: Path | None,
+    context: _ReferenceContext | None = None,
+) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
+    if not isinstance(transport, Mapping):
+        raise ValueError(f"{field} must be an object")
+    _require_exact_fields(transport, TRANSPORT_FIELDS, field)
+    stored_path, path = _resolve_packaged_file(
+        transport.get("resolved_path"),
+        f"{field}.resolved_path",
+        package_root=package_root,
+    )
+    media_type = _require_string(
+        transport.get("media_type"), f"{field}.media_type", MEDIA_TYPE_RE
+    )
+    digest = _require_sha256(transport.get("sha256"), f"{field}.sha256")
+    if sha256_file(path) != digest:
+        raise ValueError(f"{field} byte hash mismatch")
+    if detect_image_media_type(path) != media_type:
+        raise ValueError(f"{field} media type differs from its file bytes")
+    derivation = transport.get("derivation")
+    if not isinstance(derivation, Mapping):
+        raise ValueError(f"{field}.derivation must be an object")
+    mode = derivation.get("mode")
+    if mode == "direct":
+        _require_exact_fields(derivation, DIRECT_DERIVATION_FIELDS, f"{field}.derivation")
+        if media_type not in DIRECT_MEDIA_TYPES:
+            raise ValueError(f"{field} direct media type is unsupported")
+        if (
+            media_type != source["media_type"]
+            or digest != source["sha256"]
+        ):
+            raise ValueError(f"{field} direct transport differs from its source bytes")
+        image_dimensions(path, media_type)
+        normalized_derivation: dict[str, Any] = {"mode": "direct"}
+    elif mode == "svg-rasterization":
+        _require_exact_fields(derivation, SVG_DERIVATION_FIELDS, f"{field}.derivation")
+        if source["media_type"] != SVG_MEDIA_TYPE:
+            raise ValueError(f"{field} svg-rasterization source is not SVG")
+        source_path = context.path(source, field + ".source")
+        source_digest, svg_errors = inspect_svg(source_path, require_path_element=False)
+        if svg_errors:
+            raise ValueError("SVG source is unsafe: " + "; ".join(svg_errors))
+        if source_digest != source["sha256"]:
+            raise ValueError(f"{field} SVG inspection hash differs from source hash")
+        if media_type != PNG_MEDIA_TYPE:
+            raise ValueError(f"{field} svg-rasterization transport must be image/png")
+        if _require_string(
+            derivation.get("renderer_id"), f"{field}.derivation.renderer_id", IDENTIFIER_RE
+        ) != SVG_RENDERER:
+            raise ValueError(f"{field}.derivation.renderer_id must be {SVG_RENDERER}")
+        renderer_release = _require_string(
+            derivation.get("renderer_release"), f"{field}.derivation.renderer_release"
+        )
+        if context.active:
+            try:
+                installed_renderer_release = importlib.metadata.version(SVG_RENDERER)
+            except importlib.metadata.PackageNotFoundError as exc:
+                from check_dependencies import install_command
+                command, note = install_command()
+                raise RuntimeError(
+                    f"{SVG_RENDERER} is required to verify SVG-derived references; "
+                    f"complete the skill environment: {command or note}"
+                ) from exc
+            if renderer_release != installed_renderer_release:
+                raise ValueError(
+                    f"{field}.derivation.renderer_release differs from the installed {SVG_RENDERER} release"
+                )
+        if _require_sha256(
+            derivation.get("source_sha256"), f"{field}.derivation.source_sha256"
+        ) != source["sha256"]:
+            raise ValueError(f"{field}.derivation.source_sha256 mismatch")
+        dimensions = derivation.get("output_dimensions")
+        if not isinstance(dimensions, Mapping):
+            raise ValueError(f"{field}.derivation.output_dimensions must be an object")
+        _require_exact_fields(
+            dimensions, frozenset({"width", "height"}), f"{field}.derivation.output_dimensions"
+        )
+        width = dimensions.get("width")
+        height = dimensions.get("height")
+        max_side = derivation.get("max_side")
+        if (
+            not isinstance(width, int) or isinstance(width, bool) or width < 1
+            or not isinstance(height, int) or isinstance(height, bool) or height < 1
+            or not isinstance(max_side, int) or isinstance(max_side, bool) or max_side < 1
+        ):
+            raise ValueError(f"{field} raster dimensions and max_side must be positive integers")
+        if max(width, height) > max_side:
+            raise ValueError(f"{field} raster dimensions exceed max_side")
+        expected_dimensions = raster_dimensions_for_max_side(
+            source_path, max_side
+        )
+        if (width, height) != expected_dimensions:
+            raise ValueError(
+                f"{field} raster dimensions differ from the deterministic max_side derivation"
+            )
+        if image_dimensions(path, media_type) != (width, height):
+            raise ValueError(f"{field} raster dimensions differ from PNG bytes")
+        if context.active:
+            with tempfile.TemporaryDirectory(prefix="cpb-verify-svg-raster-") as temporary:
+                recomputed_path = Path(temporary) / "recomputed.png"
+                render_svg(
+                    source_path,
+                    recomputed_path,
+                    width=width,
+                    height=height,
+                )
+                if recomputed_path.read_bytes() != path.read_bytes():
+                    raise ValueError(
+                        f"{field} PNG bytes do not match deterministic SVG rasterization"
+                    )
+        normalized_derivation = {
+            "mode": "svg-rasterization",
+            "renderer_id": SVG_RENDERER,
+            "renderer_release": renderer_release,
+            "source_sha256": source["sha256"],
+            "output_dimensions": {"width": width, "height": height},
+            "max_side": max_side,
+        }
+    else:
+        raise ValueError(f"{field}.derivation.mode must be direct or svg-rasterization")
+    return {
+        "resolved_path": stored_path,
+        "media_type": media_type,
+        "sha256": digest,
+        "derivation": normalized_derivation,
+    }
+
+
+def _validate_non_empty_string_set(
+    value: Any,
+    field: str,
+    *,
+    require_non_empty: bool = False,
+) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError(f"{field} must be a JSON array")
+    if any(not isinstance(item, str) or not item for item in value):
+        raise ValueError(f"{field} must contain non-empty strings")
+    if len(value) != len(set(value)):
+        raise ValueError(f"{field} must not contain duplicates")
+    if require_non_empty and not value:
+        raise ValueError(f"{field} must not be empty")
+    return list(value)
+
+
+def _validate_authority(value: Any, field: str, *, allow_empty_exclusions: bool = False) -> dict[str, list[str]]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{field} must be an object")
+    _require_exact_fields(value, AUTHORITY_FIELDS, field)
+    authority = {
+        "controls": _validate_non_empty_string_set(
+            value.get("controls"), f"{field}.controls", require_non_empty=True
+        ),
+        "must_not_control": _validate_non_empty_string_set(
+            value.get("must_not_control"),
+            f"{field}.must_not_control",
+            require_non_empty=not allow_empty_exclusions,
+        ),
+    }
+    from reference_delivery import validate_authority_scope
+    validate_authority_scope(authority)
+    return authority
+
+
+def conservative_authority(
+    role: str,
+    *,
+    intended_influence: Sequence[str] = (),
+    unsupported_or_occluded_state: Sequence[str] = (),
+    unsupported_assumptions: Sequence[str] = (),
+) -> dict[str, list[str]]:
+    """Return the narrow authority used when no Reference Use Plan is supplied."""
+
+    controls = [str(value) for value in intended_influence if str(value)]
+    if not controls:
+        controls = [f"only the evidence explicitly named by the {role} role"]
+    exclusions = [
+        *(str(value) for value in unsupported_or_occluded_state if str(value)),
+        *(str(value) for value in unsupported_assumptions if str(value)),
+        "any identity, state, pose, camera, environment, lighting, material, color, or style "
+        "attribute outside the declared role",
+    ]
+    return {
+        "controls": list(dict.fromkeys(controls)),
+        "must_not_control": list(dict.fromkeys(exclusions)),
+    }
+
+
+def direct_reference_authority(role: str, subject_uses: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Use authored influence scopes for direct files without widening them by role."""
+    uses = validate_subject_uses(subject_uses)
+    return state_authority_for(list(dict.fromkeys(row['use'] for row in uses))) if uses else conservative_authority(role)
+
+
+@read_context.operation
+def validate_studio_subject_uses(source: Mapping[str, Any], subject_uses: list[dict[str, Any]], *,
+                               context: _ReferenceContext | None = None) -> None:
+    """Keep identity assignments bound to the Studio's actual identity adoption."""
+    if source.get('kind') != 'studio-artifact':
+        return
+    context = context or _ReferenceContext.live()
+    from studio_reference import identity_source
+    for use in subject_uses:
+        if use['use'] == 'identity':
+            identity_source(source, root=Path(source['studio_root']), character_id=use['subject_id'],
+                            reads=context.reads)
+
+
+def _validated_reference_use_plan(value: Any, *, context: _ReferenceContext | None = None) -> dict[str, Any]:
+    context = context or _ReferenceContext.live()
+    if not isinstance(value, dict) or value.get("artifact_type") != "reference-use-plan":
+        raise ValueError("reference_use_plan must be a reference-use-plan artifact")
+    report = validate_artifact(value)
+    if not report.get("ok"):
+        raise ValueError("invalid reference-use-plan artifact: " + "; ".join(report["errors"]))
+    nested = value.get("surface_lighting_plan")
+    if not isinstance(nested, dict) or nested.get("artifact_type") != "surface-lighting-plan":
+        raise ValueError("reference_use_plan has no surface-lighting-plan artifact")
+    nested_report = validate_artifact(nested)
+    if not nested_report.get("ok"):
+        raise ValueError(
+            "invalid embedded surface-lighting-plan artifact: "
+            + "; ".join(nested_report["errors"])
+        )
+    if value.get("surface_lighting_plan_sha256") != nested.get(
+        "surface_lighting_plan_sha256"
+    ):
+        raise ValueError(
+            "reference_use_plan.surface_lighting_plan_sha256 does not match the embedded plan"
+        )
+    contract_report = validate_reference_use_plan_contract(value)
+    if not contract_report.get("ok"):
+        raise ValueError(
+            "invalid reference-use-plan contract: "
+            + "; ".join(contract_report.get("errors", []))
+        )
+    if context.active:
+        active_report = validate_active_reference_use_plan(value)
+        if not active_report.get("ok"):
+            raise ValueError(
+                "invalid active reference-use-plan: "
+                + "; ".join(active_report.get("errors", []))
+            )
+    for index, item in enumerate(value.get("reference_items", [])):
+        source = _validate_source(item.get("source"), f"reference_items[{index}].source", context=context)
+        if source != item.get("source"):
+            raise ValueError(f"reference_items[{index}].source is not canonical")
+    return copy.deepcopy(value)
+
+
+def _validate_zero_reference_reason(value: Any, field: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{field} must be an object")
+    _require_exact_fields(value, frozenset({"code", "record_ids", "detail"}), field)
+    code = _require_string(value.get("code"), f"{field}.code")
+    if code not in ZERO_REFERENCE_CODES:
+        raise ValueError(f"{field}.code is unsupported")
+    record_ids = _validate_non_empty_string_set(value.get("record_ids"), f"{field}.record_ids")
+    if code == "no-canonical-record-selected" and record_ids:
+        raise ValueError(f"{field}.record_ids must be empty when no canonical record was selected")
+    if code != "no-canonical-record-selected" and not record_ids:
+        raise ValueError(f"{field}.record_ids must identify the affected canonical records")
+    detail = _require_string(value.get("detail"), f"{field}.detail")
+    return {"code": code, "record_ids": record_ids, "detail": detail}
+
+
+def _validated_reference_selection(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or value.get("artifact_type") != "reference-selection":
+        raise ValueError("reference_selection must be a reference-selection artifact")
+    from state_protocol import validate_artifact
+
+    report = validate_artifact(value)
+    if not report.get("ok"):
+        raise ValueError("invalid reference-selection artifact: " + "; ".join(report["errors"]))
+    unresolved = value.get("unresolved_requirements")
+    if unresolved:
+        raise ValueError(
+            "reference-selection has unresolved requirements and cannot be prepared: "
+            + ", ".join(f"{item['subject_id']}: {item['feature']}" for item in unresolved)
+        )
+    return copy.deepcopy(value)
+
+
+def _plan_subject_uses(item: Mapping[str, Any], selected: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Intersect character assignments with the plan's one authorized influence."""
+    uses = item.get('subject_uses')
+    if uses is None:
+        uses = [row for row in selected.get('subject_uses', []) if row['use'] == item['intended_influence']]
+    return validate_subject_uses(uses, subject_ids={selected['subject_id']},
+                                 allowed_uses=[item['intended_influence']])
+
+
+def reference_plan_state_rows(plan_items: Sequence[Mapping[str, Any]],
+                              selection: Mapping[str, Any] | None,
+                              ) -> tuple[list[dict[str, Any] | None], list[dict[str, Any]]]:
+    """Apply state eligibility to the plan's managed subjects and retain direct state rows."""
+    if selection is None:
+        return [None for _ in plan_items], []
+    managed = {row['subject_id'] for row in selection['subjects']}
+    selected_rows = list(selection['selected_references'])
+    available = list(selected_rows)
+    matched: list[dict[str, Any] | None] = []
+    for index, item in enumerate(plan_items):
+        uses = validate_subject_uses(item.get('subject_uses', []), allowed_uses=[item['intended_influence']])
+        subjects = {row['subject_id'] for row in uses}
+        if subjects and subjects.isdisjoint(managed):
+            matched.append(None)
+            continue
+        known_source = any(row['source'] == item['source'] for row in selected_rows)
+        needs_state = bool(subjects & managed) or known_source
+        if not needs_state:
+            matched.append(None)
+            continue
+        candidates = [(position, row) for position, row in enumerate(available)
+            if row['source'] == item['source'] and item['intended_influence'] in row['intended_influence']
+            and (not subjects or subjects == {row['subject_id']})
+            and (not row.get('subject_uses') or all(use in row['subject_uses'] for use in uses))]
+        if not candidates:
+            raise ValueError(f'reference_items[{index}] source, subject and intended influence are not eligible in reference_selection')
+        if not subjects and len({row['subject_id'] for _, row in candidates}) > 1:
+            raise ValueError(f'reference_items[{index}] requires subject_uses to distinguish its state subjects')
+        position, row = candidates[0]
+        _plan_subject_uses(item, row)
+        matched.append(copy.deepcopy(row))
+        available.pop(position)
+    if any(row['source']['kind'] == 'pack-artifact' for row in available):
+        raise ValueError('reference_selection contains a pack reference absent from the Reference Use Plan')
+    return matched, copy.deepcopy(available)
+
+
+def _validate_generic_state_boundary(reference: Mapping[str, Any],
+                                     selection: Mapping[str, Any] | None) -> None:
+    if selection is None:
+        return
+    managed = {row['subject_id'] for row in selection['subjects']}
+    uses = reference.get('subject_uses', [])
+    if any(row['subject_id'] in managed for row in uses):
+        raise ValueError('a reference assigned to a state-managed subject requires its exact state scope')
+    source = reference['source']
+    if not uses and (any(row['source'] == source for row in selection['selected_references'])
+                    or (source.get('kind') == 'studio-artifact' and source.get('character') in managed)):
+        raise ValueError('a state-managed source cannot be downgraded to an unassigned generic reference')
+
+
+@read_context.operation
+def validate_prepared_references(value: Any, *, model: str,
+                                 reference_selection: dict[str, Any] | None = None,
+                                 reference_use_plan: dict[str, Any] | None = None,
+                                 image_input_binding: dict[str, Any] | None = None,
+                                 package_root: Path | None = None) -> list[dict[str, Any]]:
+    return _validate_prepared_references(value, model=model,
+        reference_selection=reference_selection, reference_use_plan=reference_use_plan,
+        image_input_binding=image_input_binding,
+        package_root=package_root)
+
+
+def _validate_prepared_references(
+    value: Any,
+    *,
+    model: str,
+    reference_selection: dict[str, Any] | None = None,
+    reference_use_plan: dict[str, Any] | None = None,
+    image_input_binding: dict[str, Any] | None = None,
+    package_root: Path | None = None,
+    context: _ReferenceContext | None = None,
+) -> list[dict[str, Any]]:
+    """Validate every prepared byte, authority, and optional state/plan scope."""
+    context = context or _ReferenceContext.live()
+    if not isinstance(value, list):
+        raise ValueError("selected_references must be a JSON array")
+    edit_rows = None
+    if image_input_binding is not None:
+        _validate_image_input_binding(image_input_binding, model=model, active=context.active)
+        edit_rows = image_input_binding['references']
+        if len(value) != len(edit_rows):
+            raise ValueError('selected_references must exactly match image input reference count and order')
+        origin = image_input_binding.get('prepared_reference_set')
+        if origin is not None:
+            report = validate_artifact(origin)
+            if not report['ok'] or origin.get('artifact_type') != 'prepared-reference-set':
+                raise ValueError('invalid prepared image input origin: ' + '; '.join(report['errors']))
+            original_rows = copy.deepcopy(origin['selected_references'])
+            for original, actual in zip(original_rows, value, strict=True):
+                original['transport']['resolved_path'] = actual['transport']['resolved_path']
+            _validate_prepared_references(original_rows, model=model,
+                reference_selection=origin['reference_selection'], reference_use_plan=origin['reference_use_plan'],
+                image_input_binding=origin.get('image_input_binding'), package_root=package_root, context=context)
+    selection = (_validated_reference_selection(reference_selection)
+                 if reference_selection is not None else None)
+    plan = (_validated_reference_use_plan(reference_use_plan, context=context)
+            if reference_use_plan is not None else None)
+    plan_items = plan['reference_items'] if plan is not None else []
+    pack_positions = [index for index, row in enumerate(value)
+                      if isinstance(row, Mapping) and isinstance(row.get('source'), Mapping)
+                      and row['source'].get('kind') == 'pack-artifact']
+    if len(pack_positions) != len(plan_items):
+        raise ValueError('pack references must exactly match reference_use_plan count and order')
+    plan_by_position = dict(zip(pack_positions, plan_items, strict=True))
+    plan_states, direct_states = reference_plan_state_rows(plan_items, selection)
+    plan_state_by_position = dict(zip(pack_positions, plan_states, strict=True))
+    expected_state_rows = ([row for row in plan_states if row is not None] + direct_states
+                           if plan is not None else (selection['selected_references'] if selection else []))
+    state_positions = [index for index, row in enumerate(value)
+                       if isinstance(row, Mapping) and ('subject_id' in row or any(key in row for key in STATE_SCOPE_FIELDS))]
+    if len(state_positions) != len(expected_state_rows):
+        raise ValueError('state-scoped selected_references must exactly match reference_selection count and order')
+    state_by_position = dict(zip(state_positions, expected_state_rows, strict=True))
+    allowed_media = (
+        model_reference_media_types(model, required=True) if value and context.active else frozenset()
+    )
+    validated: list[dict[str, Any]] = []
+    for index, raw in enumerate(value):
+        field = f"selected_references[{index}]"
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"{field} must be an object")
+        expected = state_by_position.get(index)
+        plan_item = plan_by_position.get(index)
+        if plan_item is not None and expected != plan_state_by_position[index]:
+            raise ValueError(f'{field} differs from its plan/state scope')
+        expected_fields = STATE_PREPARED_REFERENCE_FIELDS if expected is not None else GENERIC_PREPARED_REFERENCE_FIELDS
+        if 'subject_uses' in raw:
+            expected_fields = expected_fields | {'subject_uses'}
+        if 'reference_id' in raw:
+            expected_fields = expected_fields | {'reference_id'}
+        _require_exact_fields(raw, expected_fields, field)
+        role = _require_string(raw.get("role"), f"{field}.role", ROLE_RE)
+        source = _validate_source(raw.get("source"), f"{field}.source", context=context)
+        transport = _validate_transport(
+            raw.get("transport"),
+            source,
+            f"{field}.transport",
+            package_root=package_root, context=context,
+        )
+        authority = _validate_authority(raw.get("authority"), f"{field}.authority",
+                                        allow_empty_exclusions=edit_rows is not None)
+        if context.active and transport["media_type"] not in allowed_media:
+            raise ValueError(
+                f"{field} transport media type {transport['media_type']!r} is not declared "
+                f"by model {model!r}"
+            )
+        normalized: dict[str, Any] = {
+            "role": role,
+            "source": source,
+            "transport": transport,
+            "authority": authority,
+        }
+        if 'subject_uses' in raw:
+            normalized['subject_uses'] = validate_subject_uses(raw['subject_uses'])
+        if 'reference_id' in raw:
+            normalized['reference_id'] = _require_string(raw['reference_id'], f'{field}.reference_id', IDENTIFIER_RE)
+        if expected is not None:
+            normalized['subject_id'] = _require_string(raw.get('subject_id'), f'{field}.subject_id')
+            normalized["binding_id"] = _require_string(
+                raw.get("binding_id"), f"{field}.binding_id", BINDING_ID_RE
+            )
+            for scope_field in STATE_SCOPE_FIELDS[1:]:
+                normalized[scope_field] = _validate_non_empty_string_set(
+                    raw.get(scope_field),
+                    f"{field}.{scope_field}",
+                    require_non_empty=(scope_field == "intended_influence"),
+                )
+            projected = {
+                "subject_id": expected.get("subject_id"),
+                "binding_id": expected.get("binding_id"),
+                "role": expected.get("role"),
+                "source": expected.get("source"),
+                "covers": expected.get("covers"),
+                "intended_influence": expected.get("intended_influence"),
+                "review_dimensions": expected.get("review_dimensions"),
+                "unsupported_or_occluded_state": expected.get(
+                    "unsupported_or_occluded_state"
+                ),
+                "unsupported_assumptions": expected.get("unsupported_assumptions"),
+            }
+            expected_uses = (_plan_subject_uses(plan_item, expected)
+                             if plan_item is not None else expected.get('subject_uses', []))
+            if 'subject_uses' in expected or (plan_item is not None and 'subject_uses' in plan_item):
+                projected['subject_uses'] = expected_uses
+            if normalized.get('subject_uses', []) != expected_uses:
+                raise ValueError(f'{field}.subject_uses differs from reference_selection')
+            validate_subject_uses(normalized.get('subject_uses', []), subject_ids={normalized['subject_id']},
+                                  allowed_uses=normalized['intended_influence'])
+            actual_projection = {
+                key: normalized.get(key)
+                for key in projected
+            }
+            if actual_projection != projected:
+                raise ValueError(
+                    f"{field} is not the exact ordered scope projection of "
+                    "reference_selection"
+                )
+        else:
+            _validate_generic_state_boundary(normalized, selection)
+        if plan_item is not None:
+            expected_role = str(expected['role'] if expected is not None else plan_item['semantic_role'])
+            if role != expected_role:
+                raise ValueError(f"{field}.role differs from its plan/state authority role")
+            if expected is None and normalized.get('subject_uses', []) != plan_item.get('subject_uses', []):
+                raise ValueError(f'{field}.subject_uses differs from reference_use_plan')
+            validate_subject_uses(normalized.get('subject_uses', []), allowed_uses=[plan_item['intended_influence']])
+            if plan_item.get('subject_uses') and any(use not in normalized.get('subject_uses', []) for use in plan_item['subject_uses']):
+                raise ValueError(f'{field}.subject_uses exceeds its state or plan assignment')
+            if source != plan_item.get("source"):
+                raise ValueError(f"{field}.source differs from reference_use_plan")
+            if authority != plan_item.get("authority"):
+                raise ValueError(f"{field}.authority differs from reference_use_plan")
+            if expected is not None:
+                intended_influence = plan_item.get("intended_influence")
+                if intended_influence not in expected["intended_influence"]:
+                    raise ValueError(
+                        f"{field} uses a plan influence that is not eligible in "
+                        "reference_selection"
+                    )
+        elif edit_rows is None or expected is not None:
+            if source.get("kind") == "pack-artifact":
+                raise ValueError(f"{field} uses a pack-artifact without an explicit Reference Use Plan")
+            expected_authority = (
+                state_authority_for(normalized["intended_influence"])
+                if expected is not None
+                else direct_reference_authority(role, normalized.get('subject_uses', []))
+            )
+            if authority != expected_authority:
+                raise ValueError(f"{field}.authority is not the canonical conservative authority")
+        if edit_rows is not None:
+            expected = edit_rows[index]
+            if source['sha256'] != expected['sha256'] or role != expected['role']:
+                raise ValueError(f'{field} differs from the image input bytes, role or order')
+            if reference_selection is None and reference_use_plan is None:
+                origin = image_input_binding.get('prepared_reference_set')
+                if origin is not None:
+                    if source != origin['selected_references'][index]['source']:
+                        raise ValueError(f'{field}.source differs from the existing prepared source')
+                elif source.get('kind') != 'supplied-file' or source['reference_id'] != expected['id']:
+                    raise ValueError(f'{field} requires the supplied source or its existing state/plan authority')
+            if authority != {'controls': expected['use_for'], 'must_not_control': expected['do_not_transfer']}:
+                raise ValueError(f'{field}.authority differs from the image input binding')
+            if normalized.get('subject_uses', []) != expected.get('subject_uses', []):
+                raise ValueError(f'{field}.subject_uses differs from the image input binding')
+        if context.active:
+            validate_studio_subject_uses(source, normalized.get('subject_uses', []), context=context)
+        validated.append(normalized)
+    if validated != value:
+        raise ValueError("selected references are not in canonical prepared form")
+    return validated
+
+
+def _validate_image_input_binding(binding: Any, *, model: str, active: bool) -> None:
+    """Keep the common input model and exact supplied scopes bound to this set."""
+    from image_input import validate_binding
+    validate_binding(binding)
+    if binding['external_request'] is not None:
+        raise ValueError('dispatcher reference preparation requires external_request null')
+    declared = binding['model']
+    if declared['catalog_status'] != 'defined' or declared['catalog_model'] != model:
+        raise ValueError('image input references require their exact defined catalog model')
+    if active:
+        from model_contract import select_offering
+        import service_profile
+        import transport_contract
+        model_id, record = resolve_model_record(model)
+        if model_id != model:
+            raise ValueError('image input catalog_model must be the canonical model ID')
+        target = declared['target']
+        offering = select_offering(record, target['service'])
+        if offering is None or offering['model_identifier'] != target['model_identifier']:
+            raise ValueError('image input target differs from the active model offering')
+        resource = load_pack_catalog().resources.get('service-profiles')
+        if resource is None:
+            raise ValueError('image input target requires its active service profile')
+        service = service_profile.load_service(target['service'], resource.path)
+        transport = transport_contract.load(service['transport'])
+        expected_operation = transport.OPERATIONS['generation']
+        if target['operation'] != expected_operation:
+            raise ValueError('image input operation differs from the selected generation transport: '
+                             f'expected {expected_operation!r}, received {target["operation"]!r}')
+
+
+def _default_zero_reference_reason(
+    code: str,
+    *,
+    record_ids: Sequence[str] = (),
+    detail: str | None = None,
+) -> dict[str, Any]:
+    details = {
+        "no-canonical-record-selected": "No canonical record was selected for visual-reference activation.",
+        "no-suitable-active-asset": "The selected canonical records have no suitable active visual-reference asset.",
+        "user-declined-visual-references": "The user explicitly declined visual-reference transport.",
+        "state-ineligible": "No selected visual reference is eligible for the requested story state.",
+    }
+    reason = {
+        "code": code,
+        "record_ids": list(dict.fromkeys(str(value) for value in record_ids)),
+        "detail": detail or details.get(code, ""),
+    }
+    return _validate_zero_reference_reason(reason, "zero_reference_reason")
+
+
+def _prepared_set_id(value: Mapping[str, Any]) -> str:
+    projection = {
+        "transport_mode": value.get("transport_mode"),
+        "target_model": value.get("target_model"),
+        "reference_selection_sha256": value.get("reference_selection_sha256"),
+        "reference_use_plan_sha256": value.get("reference_use_plan_sha256"),
+        "zero_reference_reason": value.get("zero_reference_reason"),
+        "prompt_artifacts": value.get("prompt_artifacts"),
+        "selected_references": value.get("selected_references"),
+        "single_board": value.get("single_board"),
+    }
+    if 'image_input_binding' in value:
+        projection['image_input_binding_sha256'] = value['image_input_binding']['binding_sha256']
+    digest = hashlib.sha256(canonical_json(projection).encode("utf-8")).hexdigest()[:20]
+    return f"PRS-{digest}"
+
+
+def _validate_prompt_artifacts(
+    value: Any,
+    *,
+    package_root: Path | None,
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        raise ValueError("prompt_artifacts must be a JSON array")
+    rows: list[dict[str, Any]] = []
+    for index, raw in enumerate(value):
+        field = f"prompt_artifacts[{index}]"
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"{field} must be an object")
+        _require_exact_fields(raw, PROMPT_ARTIFACT_FIELDS, field)
+        stored_path, path = _resolve_packaged_file(
+            raw.get("delivered_path"),
+            f"{field}.delivered_path",
+            package_root=package_root,
+        )
+        delivered_hash = _require_sha256(
+            raw.get("delivered_sha256"), f"{field}.delivered_sha256"
+        )
+        if sha256_file(path) != delivered_hash:
+            raise ValueError(f"{field} delivered byte hash mismatch")
+        media_type = _require_string(
+            raw.get("media_type"), f"{field}.media_type", MEDIA_TYPE_RE
+        )
+        if detect_image_media_type(path) != media_type:
+            raise ValueError(f"{field} media type differs from its file bytes")
+        rows.append(
+            {
+                "semantic_role": _require_string(
+                    raw.get("semantic_role"), f"{field}.semantic_role", ROLE_RE
+                ),
+                "source_sha256": _require_sha256(
+                    raw.get("source_sha256"), f"{field}.source_sha256"
+                ),
+                "delivered_path": stored_path,
+                "media_type": media_type,
+                "delivered_sha256": delivered_hash,
+            }
+        )
+    return rows
+
+
+def _validate_single_board(
+    value: Any,
+    *,
+    references: Sequence[Mapping[str, Any]],
+    package_root: Path | None,
+) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError("single_board must be an object or null")
+    _require_exact_fields(value, SINGLE_BOARD_FIELDS, "single_board")
+    stored_path, path = _resolve_packaged_file(
+        value.get("resolved_path"),
+        "single_board.resolved_path",
+        package_root=package_root,
+    )
+    media_type = _require_string(value.get("media_type"), "single_board.media_type")
+    if media_type != PNG_MEDIA_TYPE or detect_image_media_type(path) != PNG_MEDIA_TYPE:
+        raise ValueError("single_board must contain PNG bytes")
+    digest = _require_sha256(value.get("sha256"), "single_board.sha256")
+    if sha256_file(path) != digest:
+        raise ValueError("single_board byte hash mismatch")
+    board_width, board_height = image_dimensions(path, PNG_MEDIA_TYPE)
+    panels = value.get("panels")
+    if not isinstance(panels, list) or not panels:
+        raise ValueError("single_board.panels must be a non-empty JSON array")
+    if len(panels) != len(references):
+        raise ValueError("single_board.panels must exactly match selected_references order")
+    normalized_panels: list[dict[str, Any]] = []
+    for index, (raw, reference) in enumerate(zip(panels, references, strict=True)):
+        field = f"single_board.panels[{index}]"
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"{field} must be an object")
+        _require_exact_fields(raw, SINGLE_BOARD_PANEL_FIELDS, field)
+        box = raw.get("box")
+        if not isinstance(box, Mapping):
+            raise ValueError(f"{field}.box must be an object")
+        _require_exact_fields(box, SINGLE_BOARD_BOX_FIELDS, f"{field}.box")
+        normalized_box: dict[str, int] = {}
+        for coordinate in ("x", "y", "width", "height"):
+            number = box.get(coordinate)
+            minimum = 0 if coordinate in {"x", "y"} else 1
+            if not isinstance(number, int) or isinstance(number, bool) or number < minimum:
+                raise ValueError(f"{field}.box.{coordinate} is invalid")
+            normalized_box[coordinate] = number
+        if (
+            normalized_box["x"] + normalized_box["width"] > board_width
+            or normalized_box["y"] + normalized_box["height"] > board_height
+        ):
+            raise ValueError(f"{field}.box exceeds the board dimensions")
+        source_hash = _require_sha256(raw.get("source_sha256"), f"{field}.source_sha256")
+        transport_hash = _require_sha256(
+            raw.get("transport_sha256"), f"{field}.transport_sha256"
+        )
+        if source_hash != reference["source"]["sha256"]:
+            raise ValueError(f"{field}.source_sha256 differs from the original source")
+        if transport_hash != reference["transport"]["sha256"]:
+            raise ValueError(f"{field}.transport_sha256 differs from the prepared transport")
+        semantic_role = _require_string(
+            raw.get("semantic_role"), f"{field}.semantic_role", ROLE_RE
+        )
+        if semantic_role != reference["role"]:
+            raise ValueError(f"{field}.semantic_role differs from selected_references")
+        normalized_panels.append(
+            {
+                "semantic_role": semantic_role,
+                "source_sha256": source_hash,
+                "transport_sha256": transport_hash,
+                "box": normalized_box,
+            }
+        )
+    return {
+        "resolved_path": stored_path,
+        "media_type": PNG_MEDIA_TYPE,
+        "sha256": digest,
+        "panels": normalized_panels,
+    }
+
+
+@read_context.operation
+def validate_prepared_reference_set(value: Any, *, model: str | None = None,
+                                    package_root: Path | None = None,
+                                    source_archive: Path | None = None) -> dict[str, Any]:
+    """Validate source activity, target constraints and every delivered byte."""
+    context = _ReferenceContext(True, source_archive, _ReferenceContext.live().reads)
+    return _validate_prepared_reference_set(value, model=model, package_root=package_root, context=context)
+
+
+@read_context.operation
+def validate_prepared_reference_content(value: Any, *, model: str | None = None,
+                                        package_root: Path | None = None) -> dict[str, Any]:
+    """Verify recorded bytes and relations without approving a new delivery."""
+    from generation_payload_builder import validate_generation_package_carrier_paths
+    companion = validate_generation_package_carrier_paths(value, package_root=package_root)
+    archive = (package_root / companion / 'sources') if package_root is not None and companion else None
+    return _validate_prepared_reference_set(value, model=model, package_root=package_root,
+                                            context=_ReferenceContext(False, archive))
+
+
+def _validate_prepared_reference_set(
+    value: Any,
+    *,
+    model: str | None = None,
+    package_root: Path | None = None,
+    context: _ReferenceContext | None = None,
+) -> dict[str, Any]:
+    """Validate the sole canonical reference-set artifact and every referenced byte."""
+    context = context or _ReferenceContext.live()
+    if not isinstance(value, dict):
+        raise ValueError("prepared reference input must be a JSON object")
+    expected_fields = PREPARED_REFERENCE_SET_FIELDS
+    if 'image_input_binding' in value:
+        expected_fields = expected_fields | {'image_input_binding'}
+    _require_exact_fields(value, expected_fields, "prepared reference set")
+    if value.get("artifact_type") != "prepared-reference-set":
+        raise ValueError("prepared reference input must be a prepared-reference-set artifact")
+    artifact_report = validate_artifact(value)
+    if not artifact_report.get("ok"):
+        raise ValueError("invalid prepared-reference-set artifact: " + "; ".join(artifact_report["errors"]))
+
+    set_id = _require_string(value.get("set_id"), "set_id")
+    if not set_id.startswith("PRS-"):
+        raise ValueError("set_id must begin with PRS-")
+    mode = _require_string(value.get("transport_mode"), "transport_mode")
+    if mode not in REFERENCE_TRANSPORT_MODES:
+        raise ValueError("transport_mode is unsupported")
+    target_model = value.get("target_model")
+    if target_model is not None:
+        target_model = _require_string(target_model, "target_model")
+    if mode == "none" and target_model is not None:
+        raise ValueError("none transport must have target_model=null")
+    if mode in {"prompt-artifacts", "svg-bundle"} and target_model is not None:
+        raise ValueError(f"{mode} transport must have target_model=null")
+    if mode in {"multi-image", "single-board"}:
+        if target_model is None:
+            raise ValueError(f"{mode} transport requires target_model")
+        if model is not None and target_model != model:
+            try:
+                same_model = resolve_model_record(target_model)[0] == resolve_model_record(model)[0]
+            except ValueError:
+                same_model = False
+            if not same_model:
+                raise ValueError("prepared reference target_model differs from generation model")
+    edit_binding = value.get('image_input_binding')
+    if 'image_input_binding' in value:
+        if edit_binding is None or mode not in {'multi-image', 'single-board'}:
+            raise ValueError('image_input_binding requires a model-facing reference set')
+        origin = edit_binding.get('prepared_reference_set')
+        if origin is not None and prepared_origin_projection(value) != prepared_origin_projection(origin):
+            raise ValueError('image input set differs from its existing prepared source authority')
+
+    selection_value = value.get("reference_selection")
+    selection_hash_value = value.get("reference_selection_sha256")
+    if selection_value is None:
+        if selection_hash_value is not None:
+            raise ValueError("reference_selection_sha256 must be null when reference_selection is null")
+        selection = None
+        selection_hash = None
+    else:
+        selection = _validated_reference_selection(selection_value)
+        selection_hash = _require_sha256(
+            selection_hash_value, "reference_selection_sha256"
+        )
+        if selection_hash != selection.get("selection_sha256"):
+            raise ValueError(
+                "reference_selection_sha256 does not match reference_selection.selection_sha256"
+            )
+
+    plan_value = value.get("reference_use_plan")
+    plan_hash_value = value.get("reference_use_plan_sha256")
+    surface_hash_value = value.get("surface_lighting_plan_sha256")
+    if plan_value is None:
+        if plan_hash_value is not None or surface_hash_value is not None:
+            raise ValueError("plan and surface hashes must be null when reference_use_plan is null")
+        plan = None
+        plan_hash = None
+        surface_hash = None
+    else:
+        plan = _validated_reference_use_plan(plan_value, context=context)
+        plan_hash = _require_sha256(plan_hash_value, "reference_use_plan_sha256")
+        surface_hash = _require_sha256(
+            surface_hash_value, "surface_lighting_plan_sha256"
+        )
+        if plan_hash != plan.get("reference_use_plan_sha256"):
+            raise ValueError("reference_use_plan_sha256 does not match reference_use_plan")
+        if surface_hash != plan["surface_lighting_plan"].get("surface_lighting_plan_sha256"):
+            raise ValueError("surface_lighting_plan_sha256 does not match reference_use_plan")
+        if mode == "none":
+            if plan.get("reference_items"):
+                raise ValueError("none transport may embed only a zero-item reference-use plan")
+        else:
+            if plan.get("transport_mode") != mode:
+                raise ValueError("transport_mode differs from reference_use_plan")
+            if plan.get("target_model") != target_model:
+                raise ValueError("target_model differs from reference_use_plan")
+        if (
+            mode in {"multi-image", "single-board"}
+            and plan["surface_lighting_plan"].get("unresolved_decisions")
+        ):
+            raise ValueError("surface-lighting plan has unresolved decisions")
+
+    zero_reason_value = value.get("zero_reference_reason")
+    zero_reason = (
+        None
+        if zero_reason_value is None
+        else _validate_zero_reference_reason(zero_reason_value, "zero_reference_reason")
+    )
+    if plan is not None and zero_reason != plan.get("zero_reference_reason"):
+        raise ValueError("zero_reference_reason differs from reference_use_plan")
+
+    prompt_artifacts = _validate_prompt_artifacts(
+        value.get("prompt_artifacts"), package_root=package_root
+    )
+    if mode in {"prompt-artifacts", "svg-bundle"} and plan is None:
+        raise ValueError(f"{mode} transport requires a reference-use plan")
+    if plan is None and prompt_artifacts:
+        raise ValueError("plan-null prepared references must not contain prompt_artifacts")
+    effective_model = target_model or model or ""
+    references = _validate_prepared_references(
+        value.get("selected_references"),
+        model=effective_model,
+        reference_selection=selection, context=context,
+        reference_use_plan=(plan if mode in {"multi-image", "single-board"} else None),
+        image_input_binding=edit_binding,
+        package_root=package_root,
+    )
+    if context.active and mode in {"multi-image", "single-board"}:
+        model_id, model_record = resolve_model_record(str(target_model))
+        if model_record.get("operation_kind") == "upscale":
+            raise ValueError(
+                f"target model {model_id!r} is an upscaler and cannot accept generation references"
+            )
+        reference_limit = model_reference_limit(model_record)
+        delivered_count = delivered_reference_count({"transport_mode": mode, "selected_references": references})
+        if reference_limit is not None and delivered_count > reference_limit:
+            raise ValueError(
+                f"prepared references exceed model {model_id!r} max_reference_images="
+                f"{reference_limit}"
+            )
+    board = _validate_single_board(
+        value.get("single_board"),
+        references=references,
+        package_root=package_root,
+    )
+
+    plan_items = plan.get("reference_items", []) if plan is not None else []
+    if plan is not None:
+        if len(prompt_artifacts) != len(plan_items):
+            raise ValueError("prompt_artifacts must exactly match reference_use_plan order")
+        for index, (artifact, item) in enumerate(zip(prompt_artifacts, plan_items, strict=True)):
+            source = item.get("source") or {}
+            if (
+                artifact["semantic_role"] != item.get("semantic_role")
+                or artifact["source_sha256"] != source.get("sha256")
+            ):
+                raise ValueError(
+                    f"prompt_artifacts[{index}] differs from reference_use_plan"
+                )
+            if artifact["delivered_sha256"] != source.get("sha256"):
+                raise ValueError(
+                    f"prompt_artifacts[{index}] is not an exact copy of its committed source"
+                )
+            if artifact["media_type"] != source.get("media_type"):
+                raise ValueError(
+                    f"prompt_artifacts[{index}] media type differs from its committed source"
+                )
+
+    has_visual_reference = bool(prompt_artifacts or references or board)
+    if has_visual_reference and zero_reason is not None:
+        raise ValueError("zero_reference_reason must be null when references are prepared")
+    if not has_visual_reference and zero_reason is None:
+        raise ValueError("zero_reference_reason is required when no reference is prepared")
+    if mode == "none":
+        if has_visual_reference or board is not None:
+            raise ValueError("none transport must contain no reference payload")
+    if mode == "prompt-artifacts" and (not prompt_artifacts or references or board is not None):
+        raise ValueError("prompt-artifacts transport has an invalid payload projection")
+    if mode == "svg-bundle":
+        if (
+            not prompt_artifacts
+            or references
+            or board is not None
+            or any(row["media_type"] != SVG_MEDIA_TYPE for row in prompt_artifacts)
+        ):
+            raise ValueError("svg-bundle transport has an invalid payload projection")
+    if mode == "multi-image" and (not references or board is not None):
+        raise ValueError("multi-image transport requires selected references and no board")
+    if mode == "single-board":
+        if not references or board is None:
+            raise ValueError("single-board transport requires selected references and a board")
+        if context.active:
+            allowed_media = model_reference_media_types(str(target_model), required=True)
+            if PNG_MEDIA_TYPE not in allowed_media:
+                raise ValueError("target model does not accept the single-board PNG transport")
+
+    concrete_hash = _require_sha256(
+        value.get("prepared_reference_set_sha256"), "prepared_reference_set_sha256"
+    )
+    normalized = {
+        "artifact_type": "prepared-reference-set",
+        "set_id": set_id,
+        "transport_mode": mode,
+        "target_model": target_model,
+        "reference_selection": selection,
+        "reference_selection_sha256": selection_hash,
+        "reference_use_plan": plan,
+        "reference_use_plan_sha256": plan_hash,
+        "surface_lighting_plan_sha256": surface_hash,
+        "zero_reference_reason": zero_reason,
+        "prompt_artifacts": prompt_artifacts,
+        "selected_references": references,
+        "single_board": board,
+        "prepared_reference_set_sha256": concrete_hash,
+    }
+    if edit_binding is not None:
+        normalized['image_input_binding'] = copy.deepcopy(edit_binding)
+    if normalized != value:
+        raise ValueError("prepared reference set is not in canonical form")
+    return normalized
+
+
+@read_context.operation
+def finalize_prepared_reference_set(
+    value: Mapping[str, Any],
+    *,
+    model: str | None = None,
+    package_root: Path | None = None,
+    source_archive: Path | None = None,
+) -> dict[str, Any]:
+    """Seal and validate one canonical prepared-reference-set artifact."""
+
+    raw = copy.deepcopy(dict(value))
+    raw["artifact_type"] = "prepared-reference-set"
+    raw.setdefault("set_id", _prepared_set_id(raw))
+    raw["prepared_reference_set_sha256"] = "0" * 64
+    sealed = finalize_artifact(raw)
+    return validate_prepared_reference_set(
+        sealed,
+        model=model,
+        package_root=package_root,
+        source_archive=source_archive,
+    )
+
+
+@read_context.operation
+def resolve_prepared_reference_paths(value: Mapping[str, Any], *, package_root: Path,
+                                    model: str | None = None) -> dict[str, Any]:
+    """Bind portable carriers to their owning file before embedding the set.
+
+    The raw input file retains its own byte commitment. An embedded input has
+    no independent file location, so its carriers use exact absolute paths.
+    Source provenance, source bytes and authored scope are unchanged.
+    """
+    original = validate_prepared_reference_set(value, model=model, package_root=package_root)
+
+    def resolved(current: dict) -> dict:
+        result = copy.deepcopy(current)
+        for index, row in enumerate(result['selected_references']):
+            _, path = _resolve_packaged_file(row['transport']['resolved_path'],
+                f'selected_references[{index}].transport.resolved_path', package_root=package_root)
+            row['transport']['resolved_path'] = str(path)
+        for index, row in enumerate(result['prompt_artifacts']):
+            _, path = _resolve_packaged_file(row['delivered_path'],
+                f'prompt_artifacts[{index}].delivered_path', package_root=package_root)
+            row['delivered_path'] = str(path)
+        if result['single_board'] is not None:
+            _, path = _resolve_packaged_file(result['single_board']['resolved_path'],
+                'single_board.resolved_path', package_root=package_root)
+            result['single_board']['resolved_path'] = str(path)
+        binding = result.get('image_input_binding')
+        if binding is not None and binding.get('prepared_reference_set') is not None:
+            origin = copy.deepcopy(binding['prepared_reference_set'])
+            for old, row in zip(origin['selected_references'], result['selected_references'], strict=True):
+                old['transport']['resolved_path'] = row['transport']['resolved_path']
+            for old, row in zip(origin['prompt_artifacts'], result['prompt_artifacts'], strict=True):
+                old['delivered_path'] = row['delivered_path']
+            if origin['single_board'] is not None:
+                origin['single_board']['resolved_path'] = result['single_board']['resolved_path']
+            binding['prepared_reference_set'] = resolved(origin)
+            from execution_contract import content_id
+            binding['binding_sha256'] = content_id({key: item for key, item in binding.items()
+                                                   if key != 'binding_sha256'})
+        result.pop('set_id', None)
+        return finalize_prepared_reference_set(result, model=model, package_root=package_root)
+
+    return resolved(original)
+
+
+@read_context.operation
+def build_prepared_reference_set(
+    *,
+    transport_mode: str,
+    target_model: str | None,
+    selected_references: Sequence[Mapping[str, Any]] = (),
+    reference_selection: Mapping[str, Any] | None = None,
+    reference_use_plan: Mapping[str, Any] | None = None,
+    image_input_binding: Mapping[str, Any] | None = None,
+    zero_reference_reason: Mapping[str, Any] | None = None,
+    prompt_artifacts: Sequence[Mapping[str, Any]] = (),
+    single_board: Mapping[str, Any] | None = None,
+    set_id: str | None = None,
+    package_root: Path | None = None,
+    source_archive: Path | None = None,
+) -> dict[str, Any]:
+    """Build the sole canonical prepared-reference-set shape."""
+
+    selection = copy.deepcopy(dict(reference_selection)) if reference_selection is not None else None
+    plan = copy.deepcopy(dict(reference_use_plan)) if reference_use_plan is not None else None
+    prepared_rows = [copy.deepcopy(dict(row)) for row in selected_references]
+    raw: dict[str, Any] = {
+        "artifact_type": "prepared-reference-set",
+        "set_id": set_id or "",
+        "transport_mode": transport_mode,
+        "target_model": target_model,
+        "reference_selection": selection,
+        "reference_selection_sha256": (
+            selection.get("selection_sha256") if selection is not None else None
+        ),
+        "reference_use_plan": plan,
+        "reference_use_plan_sha256": (
+            plan.get("reference_use_plan_sha256") if plan is not None else None
+        ),
+        "surface_lighting_plan_sha256": (
+            (plan.get("surface_lighting_plan") or {}).get("surface_lighting_plan_sha256")
+            if plan is not None
+            else None
+        ),
+        "zero_reference_reason": (
+            copy.deepcopy(dict(zero_reference_reason))
+            if zero_reference_reason is not None
+            else None
+        ),
+        "prompt_artifacts": [copy.deepcopy(dict(row)) for row in prompt_artifacts],
+        "selected_references": prepared_rows,
+        "single_board": copy.deepcopy(dict(single_board)) if single_board is not None else None,
+        "prepared_reference_set_sha256": "0" * 64,
+    }
+    if image_input_binding is not None:
+        raw['image_input_binding'] = copy.deepcopy(dict(image_input_binding))
+    if not raw["set_id"]:
+        raw["set_id"] = _prepared_set_id(raw)
+    return finalize_prepared_reference_set(
+        raw,
+        model=target_model,
+        package_root=package_root,
+        source_archive=source_archive,
+    )
+
+
+def empty_stateless_reference_set(
+    *,
+    zero_reference_reason: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    reason = (
+        dict(zero_reference_reason)
+        if zero_reference_reason is not None
+        else _default_zero_reference_reason("no-canonical-record-selected")
+    )
+    return build_prepared_reference_set(
+        transport_mode="none",
+        target_model=None,
+        zero_reference_reason=reason,
+    )
+
+
+def host_reference_transports(
+    reference_set: Mapping[str, Any],
+    *,
+    package_root: Path | None = None,
+) -> list[dict[str, str]]:
+    mode = str(reference_set.get("transport_mode") or "")
+    if mode == "none":
+        return []
+    if mode == "single-board":
+        board = reference_set.get("single_board")
+        if not isinstance(board, Mapping):
+            raise ValueError("single-board reference set has no board")
+        _stored, path = _resolve_packaged_file(
+            board.get("resolved_path"),
+            "single_board.resolved_path",
+            package_root=package_root,
+        )
+        return [
+            {
+                "role": "composite-reference-board",
+                "resolved_path": str(path),
+                "media_type": str(board["media_type"]),
+                "sha256": str(board["sha256"]),
+            }
+        ]
+    if mode != "multi-image":
+        raise ValueError(f"{mode} transport is not valid for model generation")
+    rows: list[dict[str, str]] = []
+    references = reference_set.get("selected_references") or []
+    seen = set()
+    for index, (reference, number) in enumerate(zip(references, attachment_numbers(references), strict=True)):
+        if number in seen:
+            continue
+        seen.add(number)
+        transport = reference["transport"]
+        _stored, path = _resolve_packaged_file(
+            transport.get("resolved_path"),
+            f"selected_references[{index}].transport.resolved_path",
+            package_root=package_root,
+        )
+        rows.append(
+            {
+                "role": str(reference["role"]),
+                "resolved_path": str(path),
+                "media_type": str(transport["media_type"]),
+                "sha256": str(transport["sha256"]),
+            }
+        )
+    return rows
+
+
+def _preflight_selection_item(raw: Any, index: int) -> tuple[str, dict[str, Any]]:
+    field = f"selections[{index}]"
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{field} must be an object")
+    _require_exact_fields(raw, frozenset({"role", "source"} | ({"subject_uses"} if "subject_uses" in raw else set())), field)
+    validate_subject_uses(raw.get('subject_uses', []))
+    role = _require_string(raw.get("role"), f"{field}.role", ROLE_RE)
+    source = raw.get("source")
+    if not isinstance(source, Mapping):
+        raise ValueError(f"{field}.source must be an object")
+    if source.get("kind") == "pack-artifact":
+        normalized = _validate_pack_source(source, f"{field}.source")
+    elif source.get("kind") == "supplied-file":
+        normalized = _prepare_supplied_source(source, f"{field}.source")
+    elif source.get("kind") in {'studio-artifact', 'studio-accepted-image'}:
+        normalized = _validate_source(source, f"{field}.source")
+    else:
+        raise ValueError(f"{field}.source.kind must name a supported reference source")
+    _validate_source_prepareability(normalized, field)
+    return role, normalized
+
+
+def _validate_source_prepareability(source: Mapping[str, Any], field: str) -> None:
+    if source["media_type"] == SVG_MEDIA_TYPE:
+        digest, errors = inspect_svg(
+            Path(source["resolved_path"]), require_path_element=False
+        )
+        if errors:
+            raise ValueError("SVG source is unsafe: " + "; ".join(errors))
+        if digest != source["sha256"]:
+            raise ValueError(f"{field}.source SVG inspection hash mismatch")
+        svg_dimensions(Path(source["resolved_path"]))
+    elif source["media_type"] in DIRECT_MEDIA_TYPES:
+        image_dimensions(Path(source["resolved_path"]), source["media_type"])
+    else:
+        raise ValueError(
+            f"{field}.source media type {source['media_type']!r} cannot be prepared"
+        )
+
+
+def _preflight_committed_item(raw: Any, index: int) -> tuple[str, dict[str, Any]]:
+    field = f"selections[{index}]"
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{field} must be an object")
+    _require_exact_fields(raw, frozenset({"role", "source"} | ({"subject_uses"} if "subject_uses" in raw else set())), field)
+    validate_subject_uses(raw.get('subject_uses', []))
+    role = _require_string(raw.get("role"), f"{field}.role", ROLE_RE)
+    source = _validate_source(raw.get("source"), f"{field}.source")
+    _validate_source_prepareability(source, field)
+    return role, source
+
+
+def _validate_output_target(output_dir: Path) -> tuple[Path, bool]:
+    output_dir = Path(output_dir).resolve()
+    output_dir_preexisted = output_dir.exists()
+    if output_dir.exists():
+        if not output_dir.is_dir():
+            raise ValueError(f"output directory path is not a directory: {output_dir}")
+        if any(output_dir.iterdir()):
+            raise ValueError(f"output directory must be empty: {output_dir}")
+    if not output_dir.parent.is_dir():
+        raise ValueError(f"output directory parent does not exist: {output_dir.parent}")
+    return output_dir, output_dir_preexisted
+
+
+def _materialize_preflight(
+    preflight: list[tuple[str, dict[str, Any]]],
+    *,
+    model: str,
+    output_dir: Path,
+    max_side: int,
+) -> list[dict[str, Any]]:
+    if not isinstance(max_side, int) or isinstance(max_side, bool) or max_side < 1:
+        raise ValueError("max_side must be a positive integer")
+    output_dir, output_dir_preexisted = _validate_output_target(output_dir)
+
+    allowed_media = (
+        model_reference_media_types(model, required=True) if preflight else frozenset()
+    )
+    for index, (_role, source) in enumerate(preflight):
+        target_media = PNG_MEDIA_TYPE if source["media_type"] == SVG_MEDIA_TYPE else source["media_type"]
+        if target_media not in allowed_media:
+            raise ValueError(
+                f"selections[{index}] cannot produce a reference media type declared by model {model!r}"
+            )
+
+    needs_raster = any(source["media_type"] == SVG_MEDIA_TYPE for _role, source in preflight)
+    renderer_release = ""
+    if needs_raster:
+        try:
+            renderer_release = importlib.metadata.version(SVG_RENDERER)
+        except importlib.metadata.PackageNotFoundError as exc:
+            from check_dependencies import install_command
+            command, note = install_command()
+            raise RuntimeError(
+                f"{SVG_RENDERER} is required to prepare SVG references; "
+                f"complete the skill environment: {command or note}"
+            ) from exc
+
+    staging: Path | None = None
+    committed_output = False
+    try:
+        if needs_raster:
+            staging = Path(
+                tempfile.mkdtemp(prefix=f".{output_dir.name}-prepare-", dir=str(output_dir.parent))
+            ).resolve()
+        prepared: list[dict[str, Any]] = []
+        for index, (role, source) in enumerate(preflight):
+            source_path = Path(source["resolved_path"])
+            if source["media_type"] in DIRECT_MEDIA_TYPES:
+                transport = {
+                    "resolved_path": str(source_path),
+                    "media_type": source["media_type"],
+                    "sha256": source["sha256"],
+                    "derivation": {"mode": "direct"},
+                }
+            else:
+                assert staging is not None
+                width, height = raster_dimensions_for_max_side(source_path, max_side)
+                filename = f"{index:03d}-{role}-{source['sha256'][:16]}.png"
+                staged_path = staging / filename
+                final_path = output_dir / filename
+                render_svg(source_path, staged_path, width=width, height=height)
+                if detect_image_media_type(staged_path) != PNG_MEDIA_TYPE:
+                    raise ValueError(f"SVG renderer did not produce PNG bytes: {source_path}")
+                if image_dimensions(staged_path, PNG_MEDIA_TYPE) != (width, height):
+                    raise ValueError(f"SVG renderer produced unexpected dimensions: {source_path}")
+                transport = {
+                    "resolved_path": str(final_path),
+                    "media_type": PNG_MEDIA_TYPE,
+                    "sha256": sha256_file(staged_path),
+                    "derivation": {
+                        "mode": "svg-rasterization",
+                        "renderer_id": SVG_RENDERER,
+                        "renderer_release": renderer_release,
+                        "source_sha256": source["sha256"],
+                        "output_dimensions": {"width": width, "height": height},
+                        "max_side": max_side,
+                    },
+                }
+            prepared.append(
+                {
+                    "role": role,
+                    "source": source,
+                    "transport": transport,
+                    "authority": conservative_authority(role),
+                }
+            )
+
+        if needs_raster:
+            assert staging is not None
+            if output_dir.exists():
+                output_dir.rmdir()
+            os.replace(staging, output_dir)
+            staging = None
+            committed_output = True
+        # These are deliberately intermediate rows. The callers attach
+        # either conservative supplied-file authority or the complete plan/
+        # state or semantic edit scope before invoking the canonical validator. Treating
+        # this midpoint as a plan-null artifact would incorrectly reject valid
+        # pack artifacts whose explicit plan is attached by the caller.
+        return prepared
+    except Exception:
+        if committed_output and output_dir.is_dir():
+            shutil.rmtree(output_dir)
+            if output_dir_preexisted:
+                output_dir.mkdir()
+        raise
+    finally:
+        if staging is not None and staging.exists():
+            shutil.rmtree(staging)
+
+
+def _direct_reference_preflight(selections: Any) -> list[tuple[str, dict[str, Any]]]:
+    if not isinstance(selections, list):
+        raise ValueError('selection input must be a JSON array')
+    for index, raw in enumerate(selections):
+        source = raw.get('source') if isinstance(raw, Mapping) else None
+        if not isinstance(source, Mapping) or source.get('kind') not in {'supplied-file', 'studio-artifact', 'studio-accepted-image'}:
+            raise ValueError(f'selection[{index}] must be a supplied-file or committed Studio source; '
+                             'active pack artifacts require an explicit Reference Use Plan executed by reference_runtime.py')
+    return [_preflight_selection_item(raw, index) for index, raw in enumerate(selections)]
+
+
+def _apply_direct_reference_scope(reference: dict[str, Any], authored: Mapping[str, Any]) -> None:
+    if 'subject_uses' in authored:
+        reference['subject_uses'] = validate_subject_uses(authored['subject_uses'])
+        validate_studio_subject_uses(reference['source'], reference['subject_uses'])
+        reference['authority'] = direct_reference_authority(reference['role'], reference['subject_uses'])
+
+
+def _apply_state_reference_scope(reference: dict[str, Any], selected: Mapping[str, Any],
+                                  plan_item: Mapping[str, Any] | None = None) -> None:
+    reference['subject_id'] = selected['subject_id']
+    for key in STATE_SCOPE_FIELDS:
+        reference[key] = copy.deepcopy(selected[key])
+    reference['authority'] = (copy.deepcopy(plan_item['authority']) if plan_item is not None
+                              else state_authority_for(selected['intended_influence']))
+    if 'subject_uses' in selected or (plan_item is not None and 'subject_uses' in plan_item):
+        reference['subject_uses'] = (_plan_subject_uses(plan_item, selected) if plan_item is not None
+                                     else copy.deepcopy(selected['subject_uses']))
+
+
+@read_context.operation
+def resolve_studio_reference_choices(studio: Path, choices: Any) -> list[dict[str, Any]]:
+    """Resolve authored Studio slots without replacing their current adoption evidence."""
+    import execution_contract as execution
+    from studio_reference import current_source
+    if not isinstance(choices, list):
+        raise ValueError('Studio reference choices must be an ordered array')
+    selected = []
+    for item in choices:
+        execution.exact(item, {'character', 'slot', 'role'} | ({'subject_uses'} if 'subject_uses' in item else set()),
+                        'Studio reference choice')
+        selected.append({'role': item['role'], 'source': current_source(studio, item['character'], item['slot']),
+            **({'subject_uses': validate_subject_uses(item['subject_uses'])} if 'subject_uses' in item else {})})
+    return selected
+
+
+@read_context.operation
+def prepare_references(
+    selections: Any,
+    *,
+    model: str,
+    output_dir: Path,
+    max_side: int = 1536,
+    transport_mode: str = 'multi-image',
+    reference_selection: Any | None = None,
+) -> dict[str, Any]:
+    if reference_selection is not None:
+        return prepare_state_reference_selection(reference_selection, model=model, output_dir=output_dir,
+            max_side=max_side, transport_mode=transport_mode, additional_references=selections)
+    if transport_mode not in {'multi-image', 'single-board'}:
+        raise ValueError('reference transport must be multi-image or single-board')
+    preflight = _direct_reference_preflight(selections)
+    references = _materialize_preflight(
+        preflight,
+        model=model,
+        output_dir=output_dir,
+        max_side=max_side,
+    )
+    for authored, reference in zip(selections, references, strict=True):
+        _apply_direct_reference_scope(reference, authored)
+    if not references:
+        return empty_stateless_reference_set()
+    board = None
+    if transport_mode == 'single-board':
+        from reference_plan_runtime import _build_board
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / 'reference-board.png'
+        if path.exists() or path.is_symlink():
+            raise ValueError('reference board output already exists')
+        board = _build_board(references, path, max_side=max_side)
+        board['resolved_path'] = str(path.resolve())
+    return build_prepared_reference_set(
+        transport_mode=transport_mode,
+        target_model=model,
+        selected_references=references,
+        single_board=board,
+    )
+
+
+@read_context.operation
+def prepare_image_input_references(
+    plan: Any,
+    *,
+    studio: Path,
+    output_dir: Path,
+    model: str | None = None,
+    max_side: int = 1536,
+    transport_mode: str = 'multi-image',
+) -> dict[str, Any]:
+    """Prepare selected images with their authored scopes and existing provenance.
+
+    The plan supplies the reference order, source files, roles and exclusions.
+    Its immutable binding remains inside the set through portable packaging.
+    """
+    import execution_contract as execution
+    import image_input
+    if transport_mode not in {'multi-image', 'single-board'}:
+        raise ValueError('reference transport must be multi-image or single-board')
+    binding = image_input.validate(plan, studio)
+    selected_model = binding['model']['catalog_model']
+    if model is not None and resolve_model_record(model)[0] != selected_model:
+        raise ValueError('--model differs from the image input plan catalog model')
+    _validate_image_input_binding(binding, model=selected_model, active=True)
+    origin = binding.get('prepared_reference_set')
+    if origin is not None:
+        if origin['transport_mode'] != transport_mode:
+            raise ValueError('image input transport mode differs from its prepared references')
+        origin = validate_prepared_reference_set(origin, model=selected_model)
+        return build_prepared_reference_set(transport_mode=origin['transport_mode'],
+            target_model=origin['target_model'], selected_references=origin['selected_references'],
+            reference_selection=origin['reference_selection'], reference_use_plan=origin['reference_use_plan'],
+            image_input_binding=binding, single_board=origin['single_board'])
+    selections = [{'role': row['role'], 'source': {'kind': 'supplied-file',
+        'reference_id': row['id'], 'resolved_path': str(execution.local(studio, row['file']))}}
+        for row in binding['references']]
+    preflight = [_preflight_selection_item(raw, index) for index, raw in enumerate(selections)]
+    for expected, (_role, source) in zip(binding['references'], preflight, strict=True):
+        if source['sha256'] != expected['sha256']:
+            raise ValueError('image input file changed during reference preparation: ' + expected['file'])
+    references = _materialize_preflight(preflight, model=selected_model,
+        output_dir=output_dir, max_side=max_side)
+    for expected, actual in zip(binding['references'], references, strict=True):
+        if 'subject_uses' in expected:
+            actual['subject_uses'] = validate_subject_uses(expected['subject_uses'])
+        actual['authority'] = {'controls': copy.deepcopy(expected['use_for']),
+                               'must_not_control': copy.deepcopy(expected['do_not_transfer'])}
+    board = None
+    if transport_mode == 'single-board':
+        from reference_plan_runtime import _build_board
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / 'reference-board.png'
+        if path.exists() or path.is_symlink():
+            raise ValueError('reference board output already exists')
+        board = _build_board(references, path, max_side=max_side)
+        board['resolved_path'] = str(path.resolve())
+    return build_prepared_reference_set(transport_mode=transport_mode,
+        target_model=selected_model, selected_references=references,
+        image_input_binding=binding, single_board=board)
+
+
+@read_context.operation
+def prepare_reference_use_plan_rows(
+    reference_use_plan: Any,
+    *,
+    model: str,
+    output_dir: Path,
+    reference_selection: Any | None = None,
+    additional_references: Any | None = None,
+    max_side: int = 1536,
+) -> list[dict[str, Any]]:
+    """Materialize plan-ordered model rows, optionally intersected with state eligibility."""
+
+    plan = _validated_reference_use_plan(reference_use_plan)
+    if plan.get("transport_mode") not in {"multi-image", "single-board"}:
+        raise ValueError("reference-use plan is not model-facing")
+    if plan.get("target_model") != model:
+        raise ValueError("reference-use plan target_model differs from model")
+    selection = (
+        _validated_reference_selection(reference_selection)
+        if reference_selection is not None
+        else None
+    )
+    matched_state_rows, direct_state_rows = reference_plan_state_rows(plan['reference_items'], selection)
+    additional = [] if additional_references is None else additional_references
+    direct_preflight = _direct_reference_preflight(additional)
+    committed = []
+    for index, item in enumerate(plan["reference_items"]):
+        role = (
+            matched_state_rows[index]["role"]
+            if matched_state_rows[index] is not None
+            else item["semantic_role"]
+        )
+        committed.append({"role": role, "source": item["source"]})
+    committed.extend({'role': row['role'], 'source': row['source']} for row in direct_state_rows)
+    preflight = [
+        _preflight_committed_item(raw, index)
+        for index, raw in enumerate(committed)
+    ] + direct_preflight
+    materialized = _materialize_preflight(
+        preflight,
+        model=model,
+        output_dir=output_dir,
+        max_side=max_side,
+    )
+    references: list[dict[str, Any]] = []
+    plan_count = len(plan['reference_items'])
+    state_count = len(direct_state_rows)
+    for index, row in enumerate(materialized):
+        if index < plan_count:
+            item = plan['reference_items'][index]
+            from reference_contract import canonical_use_id
+            row['reference_id'] = canonical_use_id(item)
+            row['authority'] = copy.deepcopy(item['authority'])
+            if 'subject_uses' in item:
+                row['subject_uses'] = copy.deepcopy(item['subject_uses'])
+            if matched_state_rows[index] is not None:
+                _apply_state_reference_scope(row, matched_state_rows[index], item)
+        elif index < plan_count + state_count:
+            _apply_state_reference_scope(row, direct_state_rows[index - plan_count])
+        else:
+            _apply_direct_reference_scope(row, additional[index - plan_count - state_count])
+        references.append(row)
+    return validate_prepared_references(
+        references,
+        model=model,
+        reference_selection=selection,
+        reference_use_plan=plan,
+    )
+
+
+@read_context.operation
+def prepare_state_reference_selection(
+    selection: Any,
+    *,
+    model: str,
+    output_dir: Path,
+    max_side: int = 1536,
+    zero_reference_reason: Mapping[str, Any] | None = None,
+    transport_mode: str = 'multi-image',
+    additional_references: Any | None = None,
+) -> dict[str, Any]:
+    """Validate a state selection and prepare its ordered committed sources."""
+    if transport_mode not in {'multi-image', 'single-board'}:
+        raise ValueError('state reference transport must be multi-image or single-board')
+
+    selection = _validated_reference_selection(selection)
+    pack_backed = [
+        index
+        for index, item in enumerate(selection["selected_references"])
+        if (item.get("source") or {}).get("kind") == "pack-artifact"
+    ]
+    if pack_backed:
+        raise ValueError(
+            "state selection contains pack-artifact references at indexes "
+            + ", ".join(str(index) for index in pack_backed)
+            + "; active pack artifacts require an explicit Reference Use Plan executed "
+            "by reference_runtime.py"
+        )
+    committed = [
+        {"role": item["role"], "source": item["source"]}
+        for item in selection["selected_references"]
+    ]
+    additional = [] if additional_references is None else additional_references
+    direct_preflight = _direct_reference_preflight(additional)
+    preflight = [
+        _preflight_committed_item(raw, index)
+        for index, raw in enumerate(committed)
+    ] + direct_preflight
+    materialized = _materialize_preflight(
+        preflight,
+        model=model,
+        output_dir=output_dir,
+        max_side=max_side,
+    )
+    references: list[dict[str, Any]] = []
+    state_count = len(selection['selected_references'])
+    for index, prepared in enumerate(materialized):
+        if index < state_count:
+            _apply_state_reference_scope(prepared, selection['selected_references'][index])
+        else:
+            _apply_direct_reference_scope(prepared, additional[index - state_count])
+        references.append(prepared)
+    if not references:
+        return build_prepared_reference_set(
+            transport_mode="none",
+            target_model=None,
+            reference_selection=selection,
+            zero_reference_reason=(
+                dict(zero_reference_reason)
+                if zero_reference_reason is not None
+                else _default_zero_reference_reason(
+                    "no-canonical-record-selected",
+                    detail=(
+                        "The finalized state-aware selection contains no visual-reference "
+                        "binding and no canonical record-scoped plan was supplied."
+                    ),
+                )
+            ),
+        )
+    board = None
+    if transport_mode == 'single-board':
+        from reference_plan_runtime import _build_board
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / 'reference-board.png'
+        if path.exists() or path.is_symlink():
+            raise ValueError('reference board output already exists')
+        board = _build_board(references, path, max_side=max_side)
+        board['resolved_path'] = str(path.resolve())
+    return build_prepared_reference_set(
+        transport_mode=transport_mode,
+        target_model=model,
+        reference_selection=selection,
+        selected_references=references,
+        single_board=board,
+    )
+
+
+def read_json_array(path: Path) -> list[Any]:
+    data = parse_json(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError("selection input must be a JSON array")
+    return data
+
+
+def read_json_object(path: Path) -> dict[str, Any]:
+    data = parse_json(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("state selection input must be a JSON object")
+    return data
+
+
+def write_json_atomic(path: Path, value: Any) -> None:
+    """Write an output JSON file whole into a folder that already exists."""
+    path = Path(path)
+    if not path.parent.is_dir():
+        raise ValueError(f"output JSON parent does not exist: {path.parent}")
+    atomic_write_json(path, value)

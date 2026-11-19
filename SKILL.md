@@ -1,11 +1,11 @@
 ---
 name: character-prompt-builder
-description: Develop character definitions, image prompts and scoped references for human, animal, creature and machine characters. Use for generation, illustration, image edits; prompt assessment, revision, translation, expansion or variation; OCs, fursonas, mascots, VTubers, supporting worlds, themes, personalities, casts, relationships and narratives; recurring identity; SVG or verified model-facing references; state-aware series with emotion, relationships, environment, wardrobe, inventory, time, injury, transformation or off-screen events. Handle sparse or detailed briefs in any language, even without the word prompt, with any image model or service.
+description: Develop character definitions, image prompts and scoped references for human, animal, creature and machine characters. Use for generation, illustration, image edits; prompt review, revision, translation or variation; OCs, fursonas, mascots, VTubers, supporting worlds, themes, personalities, casts, relationships and narratives; recurring identity; SVG or verified model-facing references; state-aware series with emotion, relationships, environment, wardrobe, inventory, time, injury, transformation or off-screen events. Handle sparse or detailed briefs in any language, even without the word prompt, with any image model or service.
 ---
 
 # Character Prompt Builder
 
-Develop characters and their depictions. Honor setting-only requests.
+Develop characters and depictions; honor setting-only requests.
 
 Use English prompts/retrieval and the user's language. Preserve meaning, modifier scope, relationships, negation and ambiguity without language word lists.
 
@@ -23,9 +23,9 @@ Run documented `python scripts/<name>.py ...` as `uv run --project <skill-root> 
 
 ## Core contract
 
-Saved work reads [Production direction](references/runtime/production-direction.md) and applicable guidance through the [route reader](#artifact-bearing-production-gate). Convey actions, states, relationships and designs as meaningful wholes. Preserve exact requirements and purposeful detail. Judge even faithfully rendered choices against the commission: drafts command renderers, not reviewers; plans and criteria grant no authority. Complete the intended depiction. Omissions grant neither permission nor exclusion.
+Use [Authoring work](references/runtime/authoring-work.md) to compose or amend actual candidates across delivery, saving and generation. Read [Production direction](references/runtime/production-direction.md). Convey actions, states, relationships and designs as meaningful wholes. Preserve exact requirements and purposeful detail. Judge chosen means against the commission; drafts command renderers, not reviewers.
 
-Develop [the character for this use](references/runtime/production-direction.md#establish-the-character-for-this-use) as needed: read existing definitions or propose concrete details, keeping other choices open. Ask only consequential questions. A task-local definition needs no registration or full Persona. Honor scoped supporting work and edits. Use the [conception study](references/runtime/production-direction.md#form-a-prompt-from-an-idea) and craft knowledge for open choices. Compare alternatives; use selected-target evidence for model-dependent means. Portable wording proves no model effect.
+Develop [the character for this use](references/runtime/production-direction.md#establish-the-character-for-this-use) as needed: read existing definitions or propose concrete details, keeping other choices open. Ask only consequential questions. A task-local definition needs no registration or full Persona. Honor scoped supporting work and edits. Develop open choices through [conception](references/runtime/production-direction.md#form-a-prompt-from-an-idea) and craft knowledge. The author constructs, compares and revises the actual input. Use selected-target evidence for model-dependent means.
 
 Preserve anchors and adopted definitions. Resolve an individual's concrete expression and permitted range before prompting; review against that definition, not an emotion label. Record changes and reasons at their owners within delegated scope. Keep creator intent distinct from fact and psychology.
 
@@ -39,7 +39,7 @@ Keep judgment and automation separate. The agent owns meaning, ambiguity, direct
 
 Prompts establish the depiction, necessary premises and reference use. The model receives actual input; carry necessary meaning from authoring-only sources in text. Keep out-of-scope authoring decisions, internal keys, paths, provenance and assessment in their records; depicted names and codes remain content.
 
-Use the optional [competing-realization test](references/runtime/prompt-composition.md#competing-realization-test) when it can resolve a consequential uncertainty. [Observe the artifact first](references/runtime/production-review.md#observe-before-interpreting), then assess its criteria; disclose review limits and keep inconclusive evidence indeterminate.
+Use the optional [competing-realization test](references/runtime/prompt-composition.md#competing-realization-test) for a consequential input uncertainty. [Observe the artifact first](references/runtime/production-review.md#observe-before-interpreting), then assess its criteria; disclose review limits and keep inconclusive evidence indeterminate.
 
 ## Rendering and model controls
 
@@ -51,7 +51,7 @@ An authored rendering declaration binds its prompt span in `render_intent`. Use 
 A Generation Package uses `generation-package` (automatic for dispatcher), with its exact interface profile and mode-valid controls. Record unlisted targets under [Image Generation](references/runtime/image-generation.md#choose-execution). `image_input` binds references and exact external requests; edits add [Semantic instruction editing](references/runtime/semantic-instruction-edit.md). [Model evidence](references/runtime/model-evidence.md) owns schemas, trials, profiles, suitability and failure diagnosis.
 Put execution values in declared controls, not prompt prose. Image shape and framing remain depiction choices. Resolve required scalar recommendations with provenance; choose within ranges. Display unavailable controls without sending them.
 Display the rendering choice and complete verified request before submission. Use its named provider; never substitute engines.
-For model, prompt, reference or post-completion changes, follow [Variation](references/runtime/production-variation.md) from the source run. Preserve independent branches and earlier results.
+Use [Variation](references/runtime/production-variation.md) for saved revisions. Select `compose` or `amend` from what the request retains and reopens.
 
 ## Knowledge use and retrieval records
 
@@ -73,13 +73,13 @@ Before definition vocabulary research, prompt, reference, sheet, generation or v
 
 ## Artifact-bearing production gate
 
-Saved work reads through its draft action or `python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO` with applicable features and `--model MODEL [--service SERVICE]`, `--model-file FILE` or `--dialect ID`. Read [operation contracts](references/runtime/production-execution.md) and specialists. Inspect the index; read `body` through `actions.all` or sections, following `actions.continue` and `actions.next` until `reading.record` exists. Null continuation is not completion. `--known-reading` reuses complete current context; fresh contexts reread. Delivery is not comprehension.
+For saving or execution, read through the draft action or `python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO` with applicable features and `--model MODEL [--service SERVICE]`, `--model-file FILE` or `--dialect ID`. Read [operation contracts](references/runtime/production-execution.md) and specialists. Inspect the index; read `body` through `actions.all` or sections, following `actions.continue` and `actions.next` until `reading.record` exists. Null continuation is not completion. `--known-reading` reuses complete current context; fresh contexts reread.
 
-`draft-inputs` supplies editable files and `authoring_guide`; `explain-inputs --root STUDIO --choices FILE` locates contracts and filled examples. Edit the owning files. Use `save --choices FILE` for text (`--draft` if unfinished), or `prepare --choices FILE` for images. `status` locates sources and actions; `build-inputs` exports when needed.
+`draft-inputs --operation compose|amend --request-file FILE` supplies editable files and `authoring_guide`; `explain-inputs --root STUDIO --choices FILE` locates field contracts. Continue the actual candidate. Use `save --choices FILE` for text (`--draft` if unfinished), or `prepare --choices FILE` for images. `status` locates sources and actions; `build-inputs` exports when needed.
 
 ## Choose a runtime path
 
-Conversation-only prompts read no route: read [Prompt-Only Core](references/runtime/prompt-only-core.md) and applicable links directly. Select routes and features as needed:
+Prompt work uses [Prompt-Only Core](references/runtime/prompt-only-core.md) with the common authoring work. Read applicable knowledge directly for conversational work or through the saved work's route reader. Select routes and features for the actual task:
 
 - worlds, themes, agents or narratives: route `development`, [Creative Development](references/runtime/narrative-development.md) and [Project Design](templates/narrative/design/design-template.md); for Persona dossiers, feature `persona` and the complete [Persona Template](templates/narrative/personas/persona-template.md);
 - cast admission, a recurring unnamed participant, or how much of a person a scene needs: route `development`;
@@ -117,7 +117,7 @@ Select specialists for consequential construction questions: `geometry` for exac
 
 ## Mandatory studio gate
 
-Saved work uses [Studio Runtime](references/runtime/studio.md); conversation-only answers need no Studio. If `python scripts/session_entry_points.py` reports none, run `studio.py init` before authoring.
+Use [Studio Runtime](references/runtime/studio.md) for saving or execution. If `python scripts/session_entry_points.py` reports none, run `studio.py init`. Deliver conversational candidates directly.
 
 For dispatcher API keys, follow [Studio authentication](references/runtime/studio-authentication.md): source choice, preparation, owner input, readiness and recovery. Key availability and submission authority are separate.
 
@@ -127,7 +127,7 @@ After story revisions, update Studio sources and run `studio.py sync` for the au
 
 ## Common runtime sequence
 
-Follow [Common runtime sequence](references/runtime/production-workflow.md) for images. Start with `draft-inputs` and its read action, then `next_action` and phase context. Edit choices; scripts derive paths, repeated values and receipts. Views supply no judgment.
+Begin through `authoring_work.py` with the request, sources and `compose` or `amend`. Edit, inspect, compare and export actual candidates. [Production workflow](references/runtime/production-workflow.md) saves or executes the same authoring work, deriving paths, bindings and receipts.
 
 ## Identity and scene-state authority
 

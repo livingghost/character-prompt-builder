@@ -8,7 +8,13 @@ adoption remain distinct facts.
 
 ## Open the current work
 
-For saved work, initialize or reopen its Studio and work task. Use
+Use [Authoring work](authoring-work.md) to compose or amend the actual candidate.
+Retain the current request as supplied text and select the source applications
+needed for this work. The agent develops the character and open construction
+choices to the depth the current artifact needs. A conversational delivery uses
+that candidate directly.
+
+For saving or execution, initialize or reopen its Studio and work task. Use
 `production_workflow.py status --root STUDIO`, `studio.py status --studio STUDIO`
 or session entry to locate existing editing sources and an active execution.
 These entrances share the current authoring view. Continue its actual files;
@@ -52,8 +58,13 @@ delivered knowledge, not an earlier successful source or permission check.
 
 ## Edit and produce the requested artifact
 
-`draft-inputs` creates the editing source for new work or restores it from a
-saved task or run. Edit the directly accessible text files and selected
+`draft-inputs --operation compose|amend` creates the editing source from the
+current request and, when selected, a saved task or run. Supply the actual new
+request with `--request-file FILE`. Continuing the same request can use the
+saved authoring work. `compose` builds a candidate from the current sources and
+retained requirements; `amend` applies scoped changes to the actual baseline.
+The registered work goal locates the task, while the supplied request establishes
+what the user commissioned. Edit the directly accessible text files and selected
 structured documents. Keep one meaningful choice at one owner. Preserve
 independent criteria and applicable source authority. A detailed specification,
 adopted plot or other specialist source remains available when the work uses
@@ -65,6 +76,10 @@ choices. Completed target-specific text applies the target's input contract,
 grammar and required real dictionary search even when no image is generated.
 `check --choices FILE` is the same compiler without publication when a separate
 diagnostic is useful. `build-inputs` is an optional export of derived inputs.
+Direct ProductionTask inputs select their acquired common basis with `work_basis`.
+Their completed checks use the same request, character and actual-source
+relationships as saved choices; [Authoring work](authoring-work.md#save-or-execute-the-same-work)
+owns acquisition and current applications.
 
 Failures point to the editable file and field. Resolve independent reported
 problems there, preserving unsupported or unresolved meaning as such. The

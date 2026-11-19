@@ -65,20 +65,16 @@ def run(out: Path) -> dict:
             'delivery': {'path': 'delivery.txt',  'translation_notes': 'Only selected expression instructions.'},
             'criteria': [{'id': 'region', 'strength': 'hard', 'text': 'Actual central and peripheral pixels differ.'}],
             'world_views': []}
-    fixture.task(out, task, artifact='image', execution='external')
+    fixture.task(out, task, artifact='image', execution='external', focus='supporting-setting')
     fixture.external_image_input(out, task)
     task['criteria'][0]['evidence'] = 'image'
     task['direction'].update(purpose='Demonstrate a scoped correction from an actual failed image observation.',
         intended_effect='A distinct central region, measured only as a synthetic pixel condition.', basis=['brief'])
-    def option(key, expression, instruction):
-        return {'id': key, 'expression': expression,
-                'realization': {'method': 'authored raster composition', 'instructions': instruction,
-                                'capability_source': None, 'limitations': ['No temporal behavior or audience effect tested.']},
-                'tradeoffs': ['This option changes the intended central/peripheral contrast.']}
-    task['direction']['decisions'] = [{'id': 'expression', 'question': 'How is the region separated?', 'importance': 'material',
-        'basis': ['brief'], 'options': [option('uniform', 'An uninterrupted field.', 'Fill the whole image uniformly.'),
-                                      option('local', 'A differentiated central area.', 'Change only the central region.')],
-        'selected': 'uniform', 'reason': 'A deliberately failing initial diagnostic fixture.', 'criteria': ['region'],
+    task['direction']['decisions'] = [{'id': 'expression', 'basis': ['brief'],
+        'expression': 'An uninterrupted field.',
+        'realization': {'method': 'authored raster composition', 'instructions': 'Fill the whole image uniformly.',
+                        'capability_source': None, 'limitations': ['No temporal behavior or audience effect tested.']},
+        'note': 'A deliberately failing initial diagnostic fixture.', 'criteria': ['region'],
         'depends_on': [], 'deviations': []}]
     write('task.json', task)
     first_input = command('production_workflow.py', 'prepare', '--root', out, '--task', 'task.json')
@@ -130,7 +126,9 @@ def run(out: Path) -> dict:
         return candidate
     initial = capture_and_review(first, 'initial.png', False)
     revised = copy.deepcopy(task)
-    revised['direction']['decisions'][0].update(selected='local', reason='The actual initial artifact failed the declared contrast check.')
+    revised['direction']['decisions'][0].update(expression='A differentiated central area.',
+        note='The actual initial artifact failed the declared contrast check.')
+    revised['direction']['decisions'][0]['realization']['instructions'] = 'Change only the central region.'
     revised['delivery']['path'] = 'revised-delivery.txt'
     text('revised-delivery.txt', 'Change only the central image region.\n')
     fixture.external_image_input(out, revised)

@@ -17,8 +17,8 @@ import production_case_fixtures as f
 import production_execution as execution
 import production_fixtures as fixture
 import production_store as store
-import production_workflow as workflow
-import studio
+import production_operations as workflow
+import studio_workspace as studio
 import studio_reference
 import test_production_adoption as baseline
 import transport_synthetic
@@ -203,10 +203,10 @@ class AuthoredAdoptionTests(unittest.TestCase):
         self.save(value)
         append = workflow.append_record
 
-        def stop_before_result(directory, prepared, rows, event, data):
+        def stop_before_result(loaded, event, data):
             if event == 'adoption-result':
                 raise OSError('Synthetic interruption after Studio applied the decision')
-            return append(directory, prepared, rows, event, data)
+            return append(loaded, event, data)
 
         with patch.object(workflow, 'append_record', side_effect=stop_before_result), self.assertRaises(OSError):
             self.apply()

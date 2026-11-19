@@ -26,14 +26,14 @@ BRIEF = ('Prepare one image of a blue service robot lifting a yellow toolbox ont
          'Keep text overlays out of this illustration. Stop at the inspectable request.')
 PROMPT = ('A blue service robot lifts a small yellow toolbox onto a workbench. '
           'The robot and the toolbox are the subjects of the illustration. '
-          'Use the supplied image for the blue color of the robot only; '
+          'Image {{reference:color-source:attachment_number}} supplies {{reference:color-source:controls}}; '
           'retain the described blue robot and yellow toolbox. No text is displayed.')
 ACTOR = production_fixtures.ACTOR
 
 
 def initialize(destination: Path) -> dict:
     """A new Studio and local model fixture; no task, choices or run history."""
-    import studio
+    import studio_workspace as studio
     from catalog_retrieval import runtime
     from transport_synthetic import _png
     if destination.exists():
@@ -60,7 +60,7 @@ def build(destination: Path) -> dict:
     import production_input_guide
     import production_spec
     import production_store
-    import production_workflow as workflow
+    import production_operations as workflow
     from reading_fixtures import fixture_reading
     from request_validation_fixtures import fixture_validation
 
@@ -72,14 +72,22 @@ def build(destination: Path) -> dict:
         raise ValueError('The first-input example must start without a prepared run.')
     draft = production_inputs.draft_inputs(root, None, 'work/input', route='generation',
         artifact='image', execution='dispatcher', features=['reference-delivery', 'production-spec'],
-        model=case['model'], service='synthetic')
+        model=case['model'], service='synthetic', operation='compose', request_file='owner-direction.txt')
     choices = draft['choices']
     authored = choices['authoring']
     task = authored['task']
-    task['sources'] = [{'id': 'owner-direction', 'path': 'owner-direction.txt', 'role': 'design',
-        'disposition': 'applied', 'locator': 'whole', 'reason': 'The actual synthetic commission.'}]
+    import authoring_work
+    basis_path = root / draft['authoring_work']['basis']
+    basis = c.load(basis_path)
+    source = {'id': 'owner-direction', 'path': 'owner-direction.txt', 'role': 'design',
+        'disposition': 'applied', 'locator': 'whole', 'reason': 'The actual synthetic commission.'}
+    basis = authoring_work.revise_basis(basis,
+        sources={**basis['sources'], 'owner-direction': authoring_work.acquire_source(
+            (root / 'owner-direction.txt').read_bytes(), origin={'kind': 'studio-source', 'source': source})},
+        applications={**basis['applications'], 'owner-direction': {'source': 'owner-direction', 'pointer': ''}})
+    fixtures.write(basis_path, basis)
     task['direction'] = {'purpose': BRIEF, 'intended_effect': 'Make the robot action legible in the requested scene.',
-        'basis': ['owner-direction'], 'decisions': [], 'action_slice': None,
+        'basis': ['owner-direction'], 'decisions': [], 'source_allowances': [], 'action_slice': None,
         'limitations': ['Synthetic protocol exercise; no live model or artistic result is asserted.']}
     task['criteria'] = [{'id': 'commission', 'strength': 'hard', 'evidence': 'image',
         'text': 'Show the blue service robot lifting the yellow toolbox onto the workbench.'},

@@ -11,24 +11,41 @@ from pathlib import Path
 
 import execution_contract as c
 import production_case_fixtures as fixture
-import production_workflow as workflow
+import production_operations as workflow
 import production_execution as execution
 import production_fixtures
-import studio
+import studio_workspace as studio
 import studio_reference
 from test_production_execution import decisions
 
 
-def adopted_case(test, *, work_id: str = 'C01'):
-    import test_production_adoption as tests
-    # This factory owns its template lifetime independently of unittest's class
-    # runner (and of other fixture instances in the same process).
-    fixture_type = type('ReferenceAdoptionFixture', (tests.AdoptionTests,), {})
-    case = fixture_type('test_separate_authorized_adoption_and_completion')
-    case.addCleanup(fixture_type.doClassCleanups)
-    test.addCleanup(case.doCleanups)
-    fixture_type.setUpClass()
-    case.setUp()
+class AdoptionTemplate:
+    """A class-owned reviewed fixture; each use copies its Studio before adoption."""
+
+    def __init__(self, owner, *, class_scope: bool = False):
+        import test_production_adoption as tests
+        self.case_type = type('ReferenceAdoptionFixture', (tests.AdoptionTests,), {})
+        cleanup = owner.addClassCleanup if class_scope else owner.addCleanup
+        cleanup(self.case_type.doClassCleanups)
+        self.case_type.setUpClass()
+
+    @classmethod
+    def for_class(cls, owner):
+        return cls(owner, class_scope=True)
+
+    def copy(self, owner):
+        case = self.case_type('test_separate_authorized_adoption_and_completion')
+        owner.addCleanup(case.doCleanups)
+        case.setUp()
+        return case
+
+
+def adopted_case(test, *, work_id: str = 'C01', template: AdoptionTemplate | None = None):
+    """Select and adopt on private files; independent callers build their own base."""
+    method = getattr(test, test._testMethodName)
+    if template is None or getattr(method, 'cold_case', False):
+        template = AdoptionTemplate(test)
+    case = template.copy(test)
     case.approval['continuity_decision']['character_id'] = work_id
     fixture.write(case.root / 'approval.json', case.approval)
     case.select(); case.adopt(case.authorize_adoption())
@@ -84,9 +101,20 @@ def scope(binding_id: str = 'BIND-STUDIO') -> dict:
             'review_dimensions':['identity']}
 
 
+def reference_retrieval(root: Path, task: dict, prompt: str, references: dict) -> dict:
+    """Record this synthetic author's reassessment of the exact scoped input text."""
+    from model_rendition import resolve_reference_text
+    from prompt_retrieval import settle_retrieval_record
+    from reference_delivery import bindings
+    scopes = bindings(references['transport_mode'], references['selected_references'], references.get('single_board'))
+    actual = resolve_reference_text(prompt, scopes)['text']
+    record = c.load(root / task['generation']['retrieval_record'])
+    return settle_retrieval_record(record, prompt=actual, plot=c.load(root / task['generation']['plot']))
+
+
 def reference_task(case) -> tuple[str, dict]:
     """Author one ordinary Production task using the exact newly supported source."""
-    from prepare_generation_references import prepare_references
+    from generation_references import prepare_references
     from production_identity import reference_id
     from request_validation_fixtures import fixture_validation
     root = case.root
@@ -98,6 +126,15 @@ def reference_task(case) -> tuple[str, dict]:
     fixture.write(root/'studio-references.json', refs)
     task = copy.deepcopy(case.task)
     reference = reference_id(refs['selected_references'][0])
+    address = 'Image {{reference:' + reference + ':attachment_number}}'
+    if refs['transport_mode'] == 'single-board':
+        address += ' at rectangle (left, top, width, height) {{reference:' + reference + ':region}}'
+    prompt = (root / task['delivery']['path']).read_text(encoding='utf-8')
+    prompt += ' Use ' + address + ' for {{reference:' + reference + ':controls}}.'
+    task['delivery']['path'] = 'reference-prompt.txt'
+    fixture.write(root / task['delivery']['path'], prompt)
+    fixture.write(root / 'reference-retrieval.json', reference_retrieval(root, task, prompt, refs))
+    task['generation']['retrieval_record'] = 'reference-retrieval.json'
     task['criteria'].append({'id':'adopted-identity','strength':'hard','evidence':'image',
         'text':'Compare the whole recurring subject with the complete adopted identity image, '
                'including its visible definitions and relations within the scene evidence limits.',
@@ -116,5 +153,6 @@ def reference_task(case) -> tuple[str, dict]:
         'The synthetic recurring subject retains the complete adopted identity from its assigned source image.']
     fixture.write(root/'reference-spec.json', spec)
     fixture.write(root/'reference-validation.json', fixture_validation(root,fixture.MODEL_ID,reference_mode='authored-rendition',service='synthetic'))
+    production_fixtures.bind_work_basis(root, task, focus='character')
     fixture.write(root/'reference-task.json', task)
     return 'reference-task.json', source

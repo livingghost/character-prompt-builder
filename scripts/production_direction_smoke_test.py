@@ -19,24 +19,23 @@ import production_evidence as media
 import production_fixtures as fixture
 import production_permissions as permissions
 import production_plan as plan
-import production_workflow as w
+import production_operations as w
 import work_ledger as ledger
 
 
 def decision(ident='expression', basis=None):
-    return {'id': ident, 'question': 'How should attention be held?', 'importance': 'material',
-            'basis': basis or [],
-            'options': [
-                {'id': 'hold', 'expression': 'Preserve stillness rather than impose a reaction.',
-                 'realization': {'method': 'authored image', 'instructions': 'Keep the sparse field and quiet interval.',
-                                 'capability_source': None, 'limitations': ['Appearance must be observed in the result.']},
-                 'tradeoffs': ['A quiet presentation may be less immediately conspicuous.']},
-                {'id': 'shift', 'expression': 'Shift attention through placement, not a required gesture.',
-                 'realization': {'method': 'local composition edit', 'instructions': 'Use the intended spacing.',
-                                 'capability_source': None, 'limitations': ['No temporal behavior is proven by an image.']},
-                 'tradeoffs': ['A placement change alters the emphasis.']}],
-            'selected': 'hold', 'reason': 'The declared purpose favors persistence.',
+    return {'id': ident, 'basis': basis or [],
+            'expression': 'Hold attention through stillness.',
+            'realization': {'method': 'authored image', 'instructions': 'Keep the sparse field and quiet interval.',
+                            'capability_source': None, 'limitations': ['Appearance must be observed in the result.']},
+            'note': 'The declared purpose favors persistence.',
             'criteria': ['read'], 'depends_on': [], 'deviations': []}
+
+
+def shift_expression(value):
+    value['expression'] = 'Shift attention through the spacing of the elements.'
+    value['realization'] = {'method': 'local composition edit', 'instructions': 'Use the intended spacing.',
+                            'capability_source': None, 'limitations': ['The image records one visible state.']}
 
 
 def png(value=64):
@@ -52,7 +51,8 @@ class PlanTests(unittest.TestCase):
         self.criteria = [{'id': 'read'}]
         self.direction = {'purpose': 'A diagram, abstract field or situated portrayal.',
                           'intended_effect': 'Hold attention without assuming a cast or dramatic turn.',
-                          'basis': [], 'decisions': [decision()], 'action_slice': None, 'limitations': []}
+                          'basis': [], 'decisions': [decision()], 'source_allowances': [],
+                          'action_slice': None, 'limitations': []}
     def validate(self):
         return plan.validate(self.direction, self.sources, self.criteria)
     def test_free_subject_and_no_action(self):
@@ -60,17 +60,13 @@ class PlanTests(unittest.TestCase):
     def test_no_decisions_when_no_choice_was_made(self):
         self.direction['decisions'] = []
         self.validate()
-    def test_material_comparison_is_required(self):
-        self.direction['decisions'][0]['options'].pop()
-        with self.assertRaises(ValueError): self.validate()
-    def test_fixed_instruction_needs_no_dummy_alternative(self):
-        d = self.direction['decisions'][0]; d['importance'] = 'fixed'; d['options'].pop(); d['options'][0]['tradeoffs'] = []
+    def test_selected_content_is_complete_without_commentary(self):
+        self.direction['decisions'][0].pop('note')
         self.validate()
-    def test_routine_choice_needs_no_dummy_alternative(self):
-        d = self.direction['decisions'][0]; d['importance'] = 'routine'; d['options'].pop()
-        self.validate()
-    def test_unknown_selected_option(self):
-        self.direction['decisions'][0]['selected'] = 'invented'
+        self.assertEqual(plan.consumer(self.direction)['directives'][0]['instructions'],
+                         self.direction['decisions'][0]['realization']['instructions'])
+    def test_selected_content_requires_actual_instructions(self):
+        self.direction['decisions'][0]['realization']['instructions'] = ''
         with self.assertRaises(ValueError): self.validate()
     def test_unknown_source(self):
         self.direction['decisions'][0]['basis'] = ['invented']
@@ -90,8 +86,7 @@ class PlanTests(unittest.TestCase):
         self.direction['decisions'].append(b)
         with self.assertRaises(ValueError): self.validate()
     def test_selected_instructions_only_cross_boundary(self):
-        self.direction['decisions'][0]['options'][1]['expression'] = 'PRIVATE REJECTED OPTION'
-        self.direction['decisions'][0]['reason'] = 'PRIVATE AUTHOR REASON'
+        self.direction['decisions'][0]['note'] = 'PRIVATE AUTHOR REASON'
         text = json.dumps(plan.consumer(self.direction))
         self.assertIn('Keep the sparse field', text); self.assertNotIn('PRIVATE', text)
     def test_detailed_source_is_referenced_not_reduced_to_label(self):
@@ -133,10 +128,10 @@ class AcceptedVariationTests(unittest.TestCase):
                           'allowance': 'Fabric folds may follow the declared arm pose.',
                           'limits': ['Keep the blue fabric and single clasp.'], 'criteria': ['read']}
         self.choice = decision(basis=['approval', 'outfit'])
-        self.choice['accepted_variations'] = [self.allowance]
         self.direction = {'purpose': 'A new pose with the adopted outfit.',
                           'intended_effect': 'An identifiable outfit in natural motion.',
                           'basis': ['approval', 'outfit'], 'decisions': [self.choice],
+                          'source_allowances': [self.allowance],
                           'action_slice': None, 'limitations': []}
         self.task = {'task_id': 'outfit-study', 'direction': self.direction,
                      'sources': self.sources, 'criteria': self.criteria}
@@ -169,9 +164,14 @@ class AcceptedVariationTests(unittest.TestCase):
 
     def test_allowance_cannot_relax_an_unrelated_criterion(self):
         self.allowance['criteria'] = ['identity']
-        self.criteria.append({'id': 'identity'})
-        with self.assertRaisesRegex(ValueError, 'criteria of its decision'):
+        with self.assertRaisesRegex(ValueError, 'known task criteria'):
             self.validate()
+
+    def test_allowance_remains_scoped_when_depiction_is_open(self):
+        self.direction['decisions'] = []
+        self.validate()
+        self.assertEqual(plan.consumer(self.direction), {'directives': []})
+        self.assertEqual(plan.affected(self.task, {'outfit'})['criteria'], ['read'])
 
     def test_bare_global_scope_is_rejected(self):
         self.allowance['scope'] = {'kind': 'all-future-images'}
@@ -274,7 +274,7 @@ class LifecycleTests(unittest.TestCase):
             'sources':[{'id':'brief','path':'brief.md','role':'design','disposition':'applied','locator':'whole','reason':'Declared fixture purpose.'}],
             'delivery':{'path':'delivery.txt','translation_notes':'Use the selected expression.'},
             'criteria':[{'id':'read','strength':'hard','text':'The intended field is observable.'}],'world_views':[]}
-        fixture.task(self.root, self.task, artifact='image', execution='external')
+        fixture.task(self.root, self.task, artifact='image', execution='external', focus='supporting-setting')
         fixture.external_image_input(self.root, self.task)
         self.task['criteria'][0]['evidence'] = 'image'
         self.task['direction']['decisions'] = [decision(basis=['brief'])]
@@ -311,11 +311,69 @@ class LifecycleTests(unittest.TestCase):
         return data
     def authority(self):
         return c.load(self.root/'fixture-authority.json')
+    def test_selected_source_and_complete_origin_keep_their_distinct_roles(self):
+        original = c.encoded({'requirement': 'Keep the sparse field.',
+                              'comparison': 'An earlier dense depiction with a different arrangement.'})
+        self.write('complete-brief.json', original)
+        source = self.task['sources'][0]
+        source['path'] = 'selected-brief.json'
+        self.write(source['path'], c.encoded('Keep the sparse field.'))
+        source['applications'] = [{'id': 'brief-requirement', 'pointer': '/requirement',
+                                   'subjects': [], 'requirement': True}]
+        source['origin'] = {'path': 'complete-brief.json', 'sha256': c.digest(original)}
+        self.task['direction']['source_allowances'] = [{
+            'id': 'spacing', 'source': source['id'], 'locator': '/requirement', 'author': fixture.ACTOR,
+            'scope': {'kind': 'source', 'source': source['id'], 'sha256': c.digest(original)},
+            'allowance': 'Choose spacing within the sparse field.', 'limits': ['Retain the sparse field.'],
+            'criteria': ['read']}]
+        fixture.bind_work_basis(self.root, self.task, focus='supporting-setting')
+        source = next(item for item in self.task['sources'] if item['id'] == 'brief')
+        original_path = source['origin']['path']
+        self.write('task.json', self.task)
+        run = self.prepare()
+        prepared = w.load_run(self.root, run)[1]
+        dependencies = {item['path']: item for item in prepared['dependencies']}
+        self.assertEqual(dependencies[original_path]['sha256'], c.digest(original))
+        basis = w.review_basis(self.root, run)
+        evidence = {item['id']: item for item in basis['evidence']}
+        selected = evidence['task-source:' + source['id']]
+        retained = evidence['source-origin:' + source['id']]
+        self.assertTrue(selected['path'].endswith(dependencies[source['path']]['sha256']))
+        self.assertTrue(retained['path'].endswith(c.digest(original)))
+        self.assertIn('Applied source selection', selected['relation'])
+        self.assertEqual(basis['criteria'][0]['source_allowances'], self.task['direction']['source_allowances'])
+        self.write(original_path, b'A changed original.\n')
+        from production_compiler import check_task
+        checked = check_task(self.root, 'task.json')
+        self.assertFalse(checked['ok'])
+        self.assertTrue(any('different original bytes' in item['message'] for item in checked['diagnostics']))
+
+    def test_projected_source_uses_the_actual_ordered_selected_values(self):
+        original = c.encoded({'first': {'density': 1}, 'second': {'density': True},
+                              'context': 'Additional source context.'})
+        self.write('complete-brief.json', original)
+        source = self.task['sources'][0]
+        source.update(path='selected-brief.json',
+                      origin={'path': 'complete-brief.json', 'sha256': c.digest(original)},
+                      applications=[{'id': 'second-use', 'pointer': '/second', 'subjects': [], 'requirement': True},
+                                    {'id': 'first-use', 'pointer': '/first', 'subjects': [], 'requirement': False}])
+        self.write(source['path'], c.encoded([{'density': True}, {'density': 1}]))
+        fixture.bind_work_basis(self.root, self.task, focus='supporting-setting')
+        source = next(item for item in self.task['sources'] if item['id'] == 'brief')
+        self.write('task.json', self.task)
+        from production_compiler import check_task
+        self.assertTrue(check_task(self.root, 'task.json')['ok'])
+        self.assertEqual((self.root / source['path']).read_bytes(),
+                         c.encoded([{'density': 1}, {'density': True}]))
+        self.write(source['path'], c.encoded([{'density': True}, {'density': 1}]))
+        checked = check_task(self.root, 'task.json')
+        self.assertFalse(checked['ok'])
+        self.assertTrue(any('selected acquired values' in item['message'] for item in checked['diagnostics']))
     def test_changed_variation_source_blocks_check_and_prepare(self):
         from production_compiler import check_task, prepare_task
         from production_diagnostics import CompilationError
         import production_store as store
-        self.task['direction']['decisions'][0]['accepted_variations'] = [{
+        self.task['direction']['source_allowances'] = [{
             'id': 'spacing', 'source': 'brief', 'locator': 'whole', 'author': fixture.ACTOR,
             'scope': {'kind': 'source', 'source': 'brief',
                       'sha256': c.digest((self.root/'brief.md').read_bytes())},
@@ -328,7 +386,10 @@ class LifecycleTests(unittest.TestCase):
         self.assertFalse(valid['formal_run_created'])
         self.assertEqual(store.runs(self.root), [])
 
-        self.write('brief.md', b'A dense field with uneven spacing.\n')
+        source = next(item for item in self.task['sources'] if item['id'] == 'brief')
+        self.write(source['path'], b'A dense field with uneven spacing.\n')
+        fixture.bind_work_basis(self.root, self.task, focus='supporting-setting')
+        self.write('task.json', self.task)
         checked = check_task(self.root, 'task.json')
         self.assertEqual(store.runs(self.root), [])
         with self.assertRaises(CompilationError) as caught:
@@ -341,7 +402,7 @@ class LifecycleTests(unittest.TestCase):
                 errors = [(row['code'], row['phase'], row['file'], row['message'])
                           for row in report['diagnostics'] if row['code'] != 'CHECK_NOT_PERFORMED']
                 self.assertEqual(errors, [('INPUT_CONSISTENCY_ERROR', 'source-validation', 'task.json',
-                    'accepted variation source changed; reassess its scope before reuse')])
+                    'source allowance source changed; reassess its scope before use')])
         self.assertEqual(store.runs(self.root), [])
         self.assertEqual(list((self.root/'production/runs').glob('*/prepared.json')), [])
     def test_complete_image_lifecycle_and_ledger(self):
@@ -474,10 +535,14 @@ class LifecycleTests(unittest.TestCase):
             self.write(path, valid)
         request['prompt'] = (self.root / self.task['delivery']['path']).read_bytes().decode('utf-8')
         self.write(request_path, request)
+        fixture.bind_work_basis(self.root, self.task, focus='supporting-setting')
+        self.write('task.json', self.task)
         with patch.object(production_spec, 'require', wraps=production_spec.require) as require:
             corrected = check_task(self.root, 'task.json')
         self.assertTrue(corrected['publishable'], corrected['diagnostics'])
-        self.assertEqual(require.call_count, len(broken))
+        # Identical corrected sources share one acquired file and one validation.
+        selected_paths = {row['path'] for row in self.task['sources'] if row['role'] == 'production-spec'}
+        self.assertEqual(require.call_count, len(selected_paths))
         self.assertFalse(corrected['formal_run_created'])
 
     def test_prompt_newline_diagnostic_names_both_files_and_keeps_exact_comparison(self):
@@ -824,7 +889,9 @@ class LifecycleTests(unittest.TestCase):
         with self.assertRaises(ValueError):w.complete(self.root,run)
         self.assertEqual(w.status(self.root,run)['runs'][0]['next_action']['command'],'draft-acceptance')
     def test_changed_source_reports_declared_impact(self):
-        run=self.prepare();(self.root/'brief.md').write_text('Changed purpose.', encoding='utf-8')
+        run=self.prepare()
+        source = next(item for item in self.task['sources'] if item['id'] == 'brief')
+        (self.root/source['path']).write_text('Changed purpose.', encoding='utf-8')
         result=w.impact(self.root,run)
         self.assertFalse(result['ok']);self.assertEqual(result['affected']['decisions'],['expression']);self.assertIn('read',result['affected']['criteria'])
     def test_impact_does_not_rewrite_state(self):
@@ -845,7 +912,7 @@ class LifecycleTests(unittest.TestCase):
         d['repairs']=[{'id':'spacing','decisions':['expression'],'observation_indices':[0],
                        'operation':'Adjust only the local composition.', 'targets':['delivery','decision:expression'], 'reason':'The fixture requires a different spacing.'}]
         self.write('review.json',d);w.review(self.root,run,'review.json')
-        revised=copy.deepcopy(self.task);revised['direction']['decisions'][0]['selected']='shift'
+        revised=copy.deepcopy(self.task);shift_expression(revised['direction']['decisions'][0])
         revised['delivery']['path']='revised-delivery.txt';(self.root/'revised-delivery.txt').write_text('Use the intended spacing.', encoding='utf-8')
         fixture.external_image_input(self.root, revised)
         self.write('revised-task.json',revised)
@@ -875,7 +942,7 @@ class LifecycleTests(unittest.TestCase):
                             'targets': targets or ['delivery', 'decision:expression'], 'reason': 'Actual fixture review.'}]
         self.write('repair-review.json', data); w.review(self.root, run, 'repair-review.json')
         revised = copy.deepcopy(self.task)
-        revised['direction']['decisions'][0]['selected'] = 'shift'
+        shift_expression(revised['direction']['decisions'][0])
         revised['delivery']['path'] = 'new-delivery.txt'
         (self.root / 'new-delivery.txt').write_text('Use the intended spacing.', encoding='utf-8')
         fixture.external_image_input(self.root, revised)
@@ -886,8 +953,11 @@ class LifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'reviewed scope'):
             w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
     def test_repair_cannot_hide_a_changed_source(self):
-        run, ca = self.candidate(); self.revised_input(run, ca)
-        (self.root / 'brief.md').write_text('An unrelated replacement purpose.', encoding='utf-8')
+        run, ca = self.candidate(); revised = self.revised_input(run, ca)
+        source = next(item for item in revised['sources'] if item['id'] == 'brief')
+        (self.root / source['path']).write_text('An unrelated replacement purpose.', encoding='utf-8')
+        fixture.bind_work_basis(self.root, revised, focus='supporting-setting')
+        self.write('new-task.json', revised)
         with self.assertRaisesRegex(ValueError, 'reviewed scope'):
             w.revision_intent(self.root, run, 'new-task.json', ca['sha256'], 'repair')
     def test_in_place_delivery_revision_is_authorizable(self):

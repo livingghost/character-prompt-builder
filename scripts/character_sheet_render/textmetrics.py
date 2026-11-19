@@ -1,10 +1,11 @@
-"""Text measurement, CJK raster text collection, and SVG text emission."""
+"""Text measurement and SVG content with its own CJK drawing instructions."""
 from __future__ import annotations
 
 import base64
 import functools
 import html
 import io
+import math
 import os
 import shutil
 import subprocess
@@ -29,23 +30,14 @@ FONT_FAMILY = (
     "'BIZ UDPGothic', 'Yu Gothic UI', 'Yu Gothic', Meiryo, 'Malgun Gothic', "
     "'Microsoft YaHei', 'Apple SD Gothic Neo', 'PingFang SC', 'DejaVu Sans', sans-serif"
 )
-_RASTER_TEXT_OVERLAYS: list[dict[str, Any]] | None = None
 
 
-def begin_raster_text_collection() -> None:
-    """Start collecting CJK raster text overlays for one render pass."""
+class SvgDrawing(list[str]):
+    """Vector fragments and explicit-font text owned by one sheet plan."""
 
-    global _RASTER_TEXT_OVERLAYS
-    _RASTER_TEXT_OVERLAYS = []
-
-
-def take_raster_text_overlays() -> list[dict[str, Any]]:
-    """Return every collected CJK raster overlay and reset the collector."""
-
-    global _RASTER_TEXT_OVERLAYS
-    overlays = _RASTER_TEXT_OVERLAYS if _RASTER_TEXT_OVERLAYS is not None else []
-    _RASTER_TEXT_OVERLAYS = None
-    return overlays
+    def __init__(self, fragments: Sequence[str] = ()) -> None:
+        super().__init__(fragments)
+        self.text_overlays: list[dict[str, Any]] = []
 
 
 def contains_cjk(value: str) -> bool:
@@ -277,16 +269,20 @@ def resolve_cjk_fonts(overlays: Sequence[Mapping[str, Any]]) -> dict[str, Path]:
 
 def build_raster_text_layer(
     *, width: int, height: int, overlays: Sequence[Mapping[str, Any]]
-) -> tuple[str, dict[str, Any]]:
-    """Render CJK text with an explicit font file and return an SVG image layer."""
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Rasterize explicit-font text in bounded regions at its board coordinates.
+
+    Overlapping text shares one region and its original drawing order. Regions
+    are clipped to the board, and separate regions have disjoint bounds.
+    """
 
     from PIL import Image, ImageDraw, ImageFont
 
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
     fonts: dict[str, Path] = {}
     loaded_fonts: dict[tuple[Path, int], Any] = {}
     printed: list[dict[str, Any]] = []
+    strokes: list[list[tuple[Any, str, float, float, str]]] = []
+    regions: list[tuple[tuple[int, int, int, int], list[int]]] = []
     for overlay in overlays:
         role = str(overlay["font_role"])
         size = int(overlay["size"])
@@ -304,19 +300,60 @@ def build_raster_text_layer(
             x -= sum(advances) / 2
         elif anchor == "end":
             x -= sum(advances)
+        y = float(overlay["y"])
+        current_strokes = []
+        bounds = []
         for (path, segment), advance in zip(runs, advances):
-            draw.text(
-                (x, float(overlay["y"])),
-                segment,
-                font=loaded_fonts[(path, size)],
-                fill=str(overlay["fill"]),
-                anchor="ls",
-            )
+            font = loaded_fonts[(path, size)]
+            left, top, right, bottom = font.getbbox(segment, anchor="ls")
+            bounds.append((x + left, y + top, x + right, y + bottom))
+            current_strokes.append((font, segment, x, y, str(overlay["fill"])))
             x += advance
         printed.append({**overlay, "fonts": [path.stem for path, _ in runs]})
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+        index = len(strokes)
+        strokes.append(current_strokes)
+        if not bounds:
+            continue
+        # One extra pixel covers fractional baseline/advance rounding while
+        # retaining exactly the board's own clipping boundary.
+        rectangle = (
+            max(0, math.floor(min(box[0] for box in bounds)) - 1),
+            max(0, math.floor(min(box[1] for box in bounds)) - 1),
+            min(width, math.ceil(max(box[2] for box in bounds)) + 1),
+            min(height, math.ceil(max(box[3] for box in bounds)) + 1),
+        )
+        if rectangle[2] <= rectangle[0] or rectangle[3] <= rectangle[1]:
+            continue
+        indices = [index]
+        while True:
+            retained = []
+            joined = False
+            for previous, members in regions:
+                if (rectangle[0] < previous[2] and previous[0] < rectangle[2]
+                        and rectangle[1] < previous[3] and previous[1] < rectangle[3]):
+                    rectangle = (min(rectangle[0], previous[0]), min(rectangle[1], previous[1]),
+                                 max(rectangle[2], previous[2]), max(rectangle[3], previous[3]))
+                    indices.extend(members)
+                    joined = True
+                else:
+                    retained.append((previous, members))
+            regions = retained
+            if not joined:
+                break
+        regions.append((rectangle, indices))
+
+    images = []
+    for (left, top, right, bottom), indices in sorted(regions, key=lambda item: min(item[1])):
+        image = Image.new("RGBA", (right - left, bottom - top), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        for index in sorted(indices):
+            for font, segment, x, y, fill in strokes[index]:
+                draw.text((x - left, y - top), segment, font=font, fill=fill, anchor="ls")
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+        images.append({"x": left, "y": top, "width": right - left, "height": bottom - top,
+                       "uri": f"data:image/png;base64,{encoded}"})
     manifest = {
         "engine": "Pillow explicit-font raster layer embedded in SVG",
         "fonts": {
@@ -329,7 +366,7 @@ def build_raster_text_layer(
         },
         "overlays": printed,
     }
-    return f"data:image/png;base64,{encoded}", manifest
+    return images, manifest
 
 
 LATIN_TEXT_UNIT = 0.62
@@ -432,7 +469,7 @@ def fit_title_size(value: str, width_px: int, base_size: int, minimum_size: int 
 
 
 def make_svg_text(
-    svg: list[str],
+    svg: SvgDrawing,
     x: float,
     y: float,
     value: Any,
@@ -444,9 +481,7 @@ def make_svg_text(
 ) -> None:
     text = str(value)
     if contains_cjk(text):
-        if _RASTER_TEXT_OVERLAYS is None:
-            raise RuntimeError("CJK raster text collection was not initialized")
-        _RASTER_TEXT_OVERLAYS.append(
+        svg.text_overlays.append(
             {
                 "x": x,
                 "y": y,
@@ -467,7 +502,7 @@ def make_svg_text(
 
 
 def make_wrapped_svg_text(
-    svg: list[str],
+    svg: SvgDrawing,
     x: float,
     y: float,
     value: str,

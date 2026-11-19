@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import execution_contract as c
-import production_workflow as w
+import production_operations as w
 import production_fixtures as fixture
 import work_ledger
 from pack_manager import generate_uuid7
@@ -19,7 +19,7 @@ class SeriesTests(unittest.TestCase):
         self.task={'task_id':task['task_id'],'route':'development','features':[],'sources':[], 'execution':'external',
                    'delivery':{'path':'delivery.txt','translation_notes':'Synthetic exact text.'},
                    'criteria':[{'id':'identity','strength':'hard','text':'First synthetic criterion.'}],'world_views':[]}
-        fixture.task(self.root,self.task,execution='external')
+        fixture.task(self.root,self.task,execution='external',focus='supporting-setting')
         a=c.load(self.root/'fixture-authority.json');a['grants'][0]['protected_criteria']=['identity']
         (self.root/'fixture-authority.json').write_bytes(c.encoded(a))
     def prepare(self,name='task.json'):

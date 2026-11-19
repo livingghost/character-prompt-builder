@@ -22,6 +22,34 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from package_metadata import load_package_metadata, verify_release_includes_present  # noqa: E402
 
 
+RUNTIME_IMPORT_PROBE = """
+import importlib, json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / 'scripts'))
+declarations = {'package-manifest.toml', 'pyproject.toml', 'uv.lock', '.python-version',
+                'SKILL.md', 'config/default-pack-state.json', 'packs/commons/pack.json'}
+opened = []
+def observe(event, args):
+    if event == 'open' and isinstance(args[0], str):
+        path = Path(args[0])
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        try:
+            relative = path.relative_to(root).as_posix()
+        except ValueError:
+            return
+        if relative in declarations:
+            opened.append(relative)
+sys.addaudithook(observe)
+for name in ('state_protocol', 'pack_manager', 'generation_references'):
+    importlib.import_module(name)
+from package_identity import PACKAGE_NAME, calver_key
+print(json.dumps({'name': PACKAGE_NAME, 'release': calver_key('2026.02.28.1'),
+                  'release_declaration_reads': opened}))
+"""
+
+
 def export_ignored(root: Path) -> set[str]:
     attributes = root / ".gitattributes"
     found: set[str] = set()
@@ -54,6 +82,24 @@ def main() -> int:
     if not help_ok:
         errors.append(f"catalog_cli.py --help failed: {proc.returncode} {proc.stderr[:200]}")
 
+    # Runtime identity and version syntax have no release-input acquisition.
+    # A fresh process observes actual imports, independently of this release check.
+    imported = subprocess.run(
+        [sys.executable, "-c", RUNTIME_IMPORT_PROBE, str(ROOT)],
+        cwd=ROOT, text=True, encoding="utf-8", capture_output=True, check=False,
+    )
+    runtime_import = None
+    if imported.returncode:
+        errors.append(f"runtime identity probe failed: {imported.stderr[:200]}")
+    else:
+        try:
+            runtime_import = json.loads(imported.stdout)
+        except (ValueError, TypeError) as exc:
+            errors.append(f"runtime identity probe returned unreadable evidence: {exc}")
+        if runtime_import != {"name": "character-prompt-builder", "release": [2026, 2, 28, 1],
+                              "release_declaration_reads": []}:
+            errors.append(f"runtime identity imports acquired release declarations: {runtime_import!r}")
+
     # The release check itself still refuses an absent file.
     gate_refuses = False
     try:
@@ -71,6 +117,7 @@ def main() -> int:
             "export_ignored_paths": sorted(ignored),
             "help_starts": help_ok,
             "release_check_still_refuses": gate_refuses,
+            "runtime_import": runtime_import,
         },
     }
     print(json.dumps(report, ensure_ascii=False, indent=2))

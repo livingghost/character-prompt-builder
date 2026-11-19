@@ -2,9 +2,10 @@
 
 Create, assess or revise prompt text without calling a generation service.
 The requested result may be an assessment, plain text, text with negatives,
-a reusable prompt package or a generation-ready package. A conversation-only
-answer needs no Studio or production form. Saved work uses the applicable
-production route and the artifact commands below.
+a reusable prompt package or a generation-ready package. Use
+[Authoring work](authoring-work.md) to compose or amend the actual candidate
+for all of these outputs. Studio handles requested saving and subsequent
+execution; a conversational delivery uses the same candidate directly.
 
 ## Author or assess the depiction
 
@@ -40,8 +41,8 @@ from an image; choose a concrete visual proposal when working from a brief.
 Use meaningful concepts and the distinctions the intended result needs.
 
 For consequential authoring choices in an open brief, carry out the
-[conception study](production-direction.md#form-a-prompt-from-an-idea) before
-selecting the final proposal. Use [discovery](sparse-discovery.md#conceive-the-open-picture)
+[conception work](production-direction.md#form-a-prompt-from-an-idea) while
+developing the actual proposal. Use [discovery](sparse-discovery.md#conceive-the-open-picture)
 while relevant design choices remain open. Retain what the request asks to
 develop, its subject roles and any stated use. Understanding a topic does not
 settle those choices; adding a scene or theme is not required. Read
@@ -50,11 +51,11 @@ settle those choices; adding a scene or theme is not required. Read
 design, before selecting a technique or querying an already preferred look.
 Use the relationships relevant to the request; the user need not supply craft
 terminology. Consult an exact
-selected model's evidence while choosing model-dependent means. Keep the actual
-candidate descriptions and separate assessment in bounded working notes; this
-conversation-only work needs no Studio or production artifact registration.
-Present only the requested deliverable. Already directed pictures and bounded
-edits retain their scope and do not start a new study.
+selected model's evidence while choosing model-dependent means. The author
+constructs, compares with the original request and revises the actual input.
+Retain the request, source roles, candidate and useful comparisons through
+Authoring work. Present only the requested deliverable. Already directed
+pictures and bounded edits proceed at their requested scope.
 An input that leaves appropriate rendition choices to the model can be
 complete. Omit unselected medium or finish clauses; do not manufacture them or
 relabel the subject prompt as a rendering instruction to complete bookkeeping.
@@ -127,9 +128,10 @@ or generation-ready package. Do not create empty reference artifacts.
 
 ## Rendition and delivery
 
-Develop the commissioned depiction using Production direction. This is the master prompt
-for authoring: a complete description that may also serve as a portable descriptive
-prompt. Apply the [Prompt Writing Guide](prompt-writing-guide.md) to produce the
+Develop the commissioned depiction using Production direction and compose its
+actual candidate through Authoring work. The complete description may also
+serve as a portable descriptive prompt. Apply the
+[Prompt Writing Guide](prompt-writing-guide.md) to produce the
 requested form under a named target's evidence. A tag rendition is not a
 sentence-by-sentence conversion; a supported mixed rendition retains necessary
 phrases when tags would lose the meaning. Do not restart design from the guide's examples
@@ -175,128 +177,154 @@ not whether they are the right depiction. The author owns that judgment.
 
 ## Saved prompt artifacts
 
-For ordinary editable text, use `production_workflow.py draft-inputs` and write
-the body in its directly editable delivery file. Save it with `save --choices
-FILE`; `--draft` retains unfinished text and unresolved choices. A finished
+For saved editable text, use `production_workflow.py draft-inputs` with the
+current authoring operation and request. Continue the candidate in its directly
+editable files. Save it with `save --choices FILE`; `--draft` retains unfinished
+text and unresolved choices. A finished
 model-targeted prompt still requires its real vocabulary search and grammar
 contract. [Authored storage](production-authored-storage.md) owns exact revision,
 delivery and requested-review completion.
 
 ### Specialized prompt artifact export
 
-Use `python scripts/build_prompt_artifacts.py --help` to materialize the conditional prompt artifact set. The builder accepts an optional structured semantic plan and refuses violations of its explicit counts, connections, action assignments and numeric camera bounds before publication. `python scripts/validate_prompt_semantics.py plan.json` checks the plan alone; its `--template` prints a plan to start from, and its `--help` names every field.
+The prompt package exporter reads the actual candidate from
+[Authoring work](authoring-work.md):
 
-Select a catalog target with `--model MODEL_ID`, or an acquired external input
-record with `--model-file MODEL_JSON`. These selectors are mutually exclusive.
-The external record supplies `id` and any acquired input declaration; the
-resolver supplies an unresolved declaration when no form metadata is present.
-An evidenced tag workflow also names its `prompt_dialect`.
-The record does not register an executable offering or override a
-catalog execution contract. Pass the actual negative file with `--negative`
-when used, and select its text grammar with `--weighting literal`, `sdEmbeds`
-or `compel`. For an explicit pack runtime, supply `--state-file`, `--cache-dir`
-and `--managed-root` together; repeat `--pack-root` for additional roots.
+```bash
+python scripts/build_prompt_artifacts.py --work work.json --out-dir prompt-artifacts
+```
+
+The candidate's `content` owns `prompt` and, when used, `negative`, `model` or
+`model_record`, `weighting`, `documents` and `retrieval_unavailable`. Select a
+catalog model in `model`, or an acquired external input declaration in
+`model_record`. These are mutually exclusive. The acquired declaration supplies
+its actual identity and known input contract. An evidenced tag workflow also
+names its `prompt_dialect`. That declaration supplies target knowledge; execution
+requires the target's actual offering and transport contract.
+
+Keep the applicable text parser in `weighting`: `literal`, `sdEmbeds` or `compel`.
+A portable candidate can leave its target unselected. Its package reports
+`target: null` and `input_validation.state: unverified-draft`; an actual selected
+target applies its own input requirements. Unknown form classification remains
+reported while evidenced interface constraints are checked.
+
+Place selected actual JSON documents under `content.documents`:
+
+- `retrieval_record` for settled construction or vocabulary investigation;
+- `plot` for a selected prompt plot;
+- `semantic_plan` for explicit counts, connections, action assignments or numeric camera bounds;
+- `reference_use_plan` for selected reference uses;
+- `surface_lighting_plan` when transfer needs its explicit contract;
+- `prepared_reference_set` for prepared model-facing references.
+
+The exporter retains `authoring-work.json`, derives `authoring-report.json`
+from that work and publishes its exact prompt and selected negative. It derives
+the selected document files and checks them against the same candidate.
+A selected semantic plan is checked before publication. Use
+`python scripts/validate_prompt_semantics.py plan.json` to inspect that plan on
+its own; `--template` and `--help` describe its structure. Add
+`--require-semantic-plan` to the exporter when this particular output requires
+that artifact. Ordinary complete actions can be expressed directly in the
+prompt, with structural detail added when the work needs it.
+
+Use the actual pack runtime through `--state-file`, `--cache-dir` and
+`--managed-root` together, with repeatable `--pack-root` for additional roots.
+The exporter and its referenced preparation use the same locked environment
+as the authoring work. A requested replacement output uses `--overwrite`.
+
+### Target readiness and a selected plot
 
 Both model-bound prompt-only publication and generation-ready packaging apply
 the selected input contract. A tag-based target requires the
 [actual dictionary search and resolved wording choices](prompt-vocabulary.md#select-wording-for-a-tag-based-model),
-bound to the exact positive and negative text, grammar and current resources.
-An empty construction record or `--retrieval-unavailable` cannot bypass that
-search. The script derives these requirements from the selected target. Missing
-form classification alone does not block target-specific text; the report
-retains that uncertainty while actual interface constraints remain enforced.
+bound to the exact positive and negative text, parser and current resources.
+The exporter derives those requirements from the selected target. A required
+investigation must be resolved before preparation.
 
-A prompt-only draft may omit `--plot`, or include a valid unapproved plot for
-review. Portable drafting may omit both target selectors; its manifest records
-`target: null` and `input_validation.state: unverified-draft`. This preserves
-authored text without certifying any model's input requirements.
-`--prepare-for-generation` requires an explicit target. A supplied `--plot` must
-be approved; do not invent a plot from an "autonomous" request. A plot separates story beats (`visible` or `context`) from
-selected frame statements (`shows`, `placement`, `composition`, `must_preserve`,
-`free`). Use the statement kinds needed to express the selected frame; each
-visible beat retains a link to its realization. A context beat may supply the
-semantic basis for a frame statement while remaining context. Its link records
-why a depiction was selected, not that the context itself is directly visible
-or has become a new enduring fact. Beat linkage records the source of a
-decision, not proof that every inference needs an instruction. `free` identifies
-open choices for planning; it is not a permission block to paste into a prompt.
+A prompt-only draft can leave `content.documents.plot` unselected, or contain
+a valid unapproved plot for review. Generation-ready packaging requires an
+explicit target and approval of any selected plot. A plot separates story beats
+(`visible` or `context`) from frame statements (`shows`, `placement`,
+`composition`, `must_preserve`, `free`). Use the statement kinds needed to express
+the chosen frame; each visible beat retains its realization link. A context beat
+can support a frame statement while remaining context. Its link records the
+basis for a choice rather than turning background knowledge into a depicted
+claim. `free` records open choices in the authoring context.
 
-Validate it with `python scripts/prompt_plot.py plot.json`. An actual approval
-records `by`, an RFC3339 UTC `at`, and `content_sha256` of the plot without its
-approval; print that hash using `--content-sha256`. A changed plot requires
-renewed approval. Optional upstream `source` remains part of the approved
-content. Target limitations that change approved meaning require renewed approval.
+Validate a selected plot with `python scripts/prompt_plot.py plot.json`. Actual
+approval records `by`, an RFC3339 UTC `at`, and `content_sha256` of the plot
+without its approval; `--content-sha256` prints that hash. Changed approved
+meaning requires its owner's renewed decision. Optional upstream `source`
+remains part of the approved content. Apply target limitations within that
+same authority.
 
-Saved text uses the `prompt-only` production route; a prompt with selected
-references uses `reference-artifacts`. Draft delivery grants no generation or
-canonical-update authority. A conversation-only answer needs no Studio.
+Saved text uses route `prompt-only`; a prompt with selected references uses
+`reference-artifacts`. Conversational delivery can use the actual candidate
+directly. Generation and canonical adoption retain their own authority.
 
-The builder takes selected retrieval work with `--retrieval-record lookups.json`.
-It records questions actually investigated. Source-sufficient construction may
-omit that record when the script reports no required vocabulary work. When an
-investigation or required vocabulary work needs a record, initialize it with
-`python scripts/prompt_retrieval.py lookups.json --init`. Do not invent a search
-or an empty record solely to populate an unused input. Catalog or vocabulary operations with
-`--record lookups.json --element NAME` record actual evidence; vocabulary
-`--queries` names each question separately. Inspecting a known record directly
-needs no fabricated search query.
+### Record actual investigations
+
+Keep the actual selected investigation in
+`content.documents.retrieval_record`. Source-sufficient construction can leave
+it unselected when no vocabulary work is required. Initialize a needed record
+with `python scripts/prompt_retrieval.py lookups.json --init`. Catalog or
+vocabulary operations with `--record lookups.json --element NAME` record their
+actual evidence; vocabulary `--queries` names each question separately.
+Inspecting a known record directly uses that real inspection.
 
 Resolve each investigated question with
 `python scripts/prompt_retrieval.py lookups.json --element NAME --adopted ID`
 (repeat `--adopted` for each inspected record used),
 `--composed TEXT --reason TEXT` for an authored resolution, or
 `--unused REASON` when the investigation contributes no selected instruction.
-Composed wording can use inspected knowledge; it is not limited to empty search
-results. These are construction decisions; `--composed` is not a substitute for
-a tag rendition's searched vocabulary selection. Another lookup reopens that question, so conclude its outcome after
-its investigations. A failed necessary investigation stays unresolved. Where needed
-retrieval cannot run, pass `--retrieval-unavailable` with its reason; this is not
-the same as having no question to investigate.
+Composed wording can use inspected knowledge. A tag rendition still requires
+its searched vocabulary selection. Another lookup reopens that question, so
+conclude its outcome after its investigations. A failed necessary investigation
+stays unresolved. When needed retrieval cannot run, record the specific reason
+in `content.retrieval_unavailable`; required unresolved work blocks preparation.
 
 Use the same model-bound vocabulary command for every target. It performs the
-required search and returns its candidates, or reports that no vocabulary work
-is required. Complete any returned wording selections in that same record.
-Bind the completed record to the exact rendition,
-selected model and approved plot:
+required search and returns candidates, or reports that no vocabulary work is
+required. Complete returned wording selections in that record. Extract the
+current prompt and any selected negative or plot from the work for settlement;
+those files carry the candidate's actual bytes. Bind the completed record to
+that text, selected model and approved plot:
 
 ```bash
+python scripts/authoring_work.py extract work.json --pointer /prompt --out prompt.txt
 python scripts/prompt_retrieval.py lookups.json --settle --model MODEL_ID \
-  --prompt-file prompt.txt --negative-file negative.txt --weighting literal \
-  --plot-file plot.json --out retrieval-settled.json
+  --prompt-file prompt.txt --weighting literal --out retrieval-settled.json
 ```
 
-Omit an unused negative file and use the actual parser. An unlisted target uses
-`--model-file MODEL_JSON` with its identity and any acquired input declaration.
-The selected model's required vocabulary work needs its actual searched candidates
-and resolved choices. A missing record cannot bypass that requirement. Supplied
-records must be finished, settled and matched to the current text and plot;
-an investigation declared unavailable still blocks preparation. No record is
-required for unused construction or vocabulary work.
-An unresolved form remains reported without preventing settlement. Settlement records the
-author's concluded knowledge use rather than certifying meaning or quality.
+Use the actual parser. Supply an extracted negative with `--negative-file FILE`
+and a selected extracted plot with `--plot-file FILE`. An acquired external
+target uses `--model-file MODEL_JSON` containing the work's actual `model_record`.
+Use the same `extract` command with `/negative`, `/documents/plot` or
+`/model_record` for those selected intermediate inputs.
+Store the settled result under `content.documents.retrieval_record` at its
+existing owner. Settlement binds the concluded investigation to its exact text
+and target; the author assesses the meaning and contribution.
 
-Portable saved text can settle its construction record without a model selector.
-That preserves the prompt and plot for later specialization. Selecting an actual
-target applies its input contract before target-specific finalization or
-generation; portable settlement does not establish that target's readiness.
+Portable work can settle its actual construction record without a model
+selector. Selecting a target later applies its own vocabulary and grammar
+requirements before target-specific publication or generation. A change to the
+candidate's text needs a current selection bound to those changed bytes.
 
-Publish the selected rendition with the same target and parser:
+Publish the generation-ready package from that same work:
 
 ```bash
-python scripts/build_prompt_artifacts.py --model MODEL_ID \
-  --prompt prompt.txt --negative negative.txt --weighting literal \
-  --retrieval-record retrieval-settled.json --plot plot.json \
+python scripts/build_prompt_artifacts.py --work work.json \
   --prepare-for-generation --out-dir prompt-artifacts
 ```
 
-Use `--model-file MODEL_JSON` instead for the acquired external record. Omit an
-unused negative file and use the actual parser. For model-bound prompt-only
-delivery, omit `--prepare-for-generation`; tag lookup remains required. The
-manifest retains the input contract, grammar, source and vocabulary-check
-status. An external model record is copied as `model-input.json`. Preparation
-does not grant submission or canonical-update authority.
+For model-bound prompt-only delivery, leave `--prepare-for-generation` unselected;
+tag lookup remains required. The manifest records the input contract, grammar,
+source and vocabulary-check status. An acquired model declaration is published
+as `model-input.json`. Submission and canonical adoption follow their own
+operations.
 
-Regression checks: `python scripts/prompt_artifact_smoke_test.py` and `python scripts/prompt_plot_smoke_test.py`.
+Regression checks: `python scripts/prompt_artifact_smoke_test.py` and
+`python scripts/prompt_plot_smoke_test.py`.
 
 ## Retrieved wording checks
 

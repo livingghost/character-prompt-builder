@@ -1,6 +1,6 @@
 # Production review
 
-Observe the actual artifact before comparing it with the commission and applicable sources. Record independent evaluation and any actual repair or selection decision against that artifact.
+Observe the actual artifact before comparing it with the commission and applicable sources. Record the evaluation and any actual repair or selection decision against that artifact. The author can perform this review; independent evaluation has a separately established input boundary.
 
 ## Review, disposition and selection
 
@@ -14,6 +14,16 @@ python scripts/production_workflow.py draft-disposition --root STUDIO --run RUN 
 python scripts/production_workflow.py disposition --root STUDIO --run RUN --file disposition.json
 python scripts/production_workflow.py candidate-status --root STUDIO --run RUN --candidate CANDIDATE
 ```
+
+`candidate-status`, Studio candidate displays and sheet inventory report the
+formal evaluation and disposition from the run's registered input records
+and current event history. They check the evidence that supports those
+decisions. `production_workflow.py status --run RUN` also audits every
+published input and compiled request and reports execution readiness.
+Mutations acquire their own complete current run before applying a decision.
+Operations that require authorization also check current authority at their
+effect boundary; a displayed selection grants no permission to perform those
+actions.
 
 A review names the actual reviewer, observations, the criteria assessed so far, optional supplemental `evidence`, repairs, unresolved matters and a conclusion.
 Each observation names its `evidence` (`candidate` or a supplemental evidence ID), a locator, the observed fact, its interpretation and limitations.
@@ -39,8 +49,8 @@ prevent a technical review from being completed.
 ### Observe before interpreting
 
 First inspect the actual candidate and record what it visibly or measurably
-establishes, with locators and limits. When a separate reviewer context is
-available, give it the candidate and only the technical information needed to
+establishes, with locators and limits. When a separate independent review is
+part of the task, give that reviewer the candidate and technical information needed to
 access the relevant file, page, region or stream. Withhold the brief, prompt,
 expected portrayal, earlier failures and production history until that first
 observation is recorded. `workspace --phase observe --candidate CANDIDATE` supplies only the saved candidate bytes, their access paths and measured media information. Give that view alone to the first observer. The later `workspace --phase review --candidate CANDIDATE` supplies the assessment basis. Even the compact editing draft contains criterion identifiers, so keep it out of the first observer's input.
@@ -120,6 +130,25 @@ the actual commission delegates.
 
 ### Apply the prepared review basis
 
+Applied task sources are available at their captured bytes as
+`task-source:SOURCE_ID`, including the actual current request retained by
+[Authoring work](authoring-work.md). Read that request and the applied source
+roles beside the chosen purpose, direction and criteria. Work goals locate the
+task; previous requests and candidates retain their comparison roles.
+An agent's earlier direction is a proposed means; the authored review basis
+names it `source_task_direction` and its checks `source_task_criteria`. It
+remains available for comparison without becoming the user's commission.
+
+For a materialized JSON source selection, `task-source:SOURCE_ID` supplies the
+currently applied content and `source-origin:SOURCE_ID` supplies the complete
+acquired original. Read the selected scope and compare it with that original;
+other original values remain context. The compiler derives the task source's
+`origin` path and hash from its acquisition. Its derived `applications` retains
+each selected `pointer`, assigned `subjects` and `requirement` under its own
+application `id`. Read those individual relationships when several characters
+use different parts of one original. Canonical identity authority keeps its
+own metadata.
+
 For image inputs, the review workspace includes the original source images and each prepared delivery carrier available in the run. Carrier evidence retains
 the source assignment, transformation, attachment position and board region;
 external inputs also retain the exact request field. Several logical
@@ -130,7 +159,9 @@ the preparation preserved. Missing or changed saved bytes fail integrity
 validation. The submission evidence separately establishes whether those
 prepared inputs were sent.
 
-The review workspace presents the prepared purpose and intended effect once, followed by each criterion's evidence kind, applicable selected realization, craft questions and accepted variations. The editing draft contains unanswered observations and verdicts, with empty reasons. Write the actual judgment there. Its `evidence` list is for additional authored sources; the runtime resolves prepared source and carrier evidence automatically, using the stable IDs shown in the workspace. The formal review retains all effective evidence and its saved bytes. Source records establish what was commissioned; observations
+The review workspace presents the prepared purpose and intended effect once,
+followed by each criterion's evidence kind, current expression and realization,
+and applicable entries from `direction.source_allowances`. The editing draft contains unanswered observations and verdicts, with empty reasons. Write the actual judgment there. Its `evidence` list is for additional authored sources; the runtime resolves prepared source and carrier evidence automatically, using the stable IDs shown in the workspace. The formal review retains all effective evidence and its saved bytes. Source records establish what was commissioned; observations
 establish what the candidate supplies. Assess the chosen realization and the
 returned result against the commission and applicable source requirements.
 Accept a suitable alternative that meets those requirements; assess the actual
@@ -145,8 +176,9 @@ requests it. Changes to a live task leave this prepared review basis unchanged.
 
 For adopted identity sources, the `decision` and `review` workspaces include
 the frozen `identity_coverage` report in their assessment basis. It preserves original
-values, grouped selections, subject scope, effective scene treatments and the
-exact text or media carriers bound to each criterion. Original source bytes
+values, grouped selections, subject scope and original authority, explicit
+scene treatments and their exact text or media carriers. Unbound source values
+remain comparison context rather than a list of parts to expose or exclude. Original source bytes
 remain available as `identity-source:SOURCE_ID` evidence, including sources
 derived from selected state or reference owners. The report is comparison
 context, not a verdict; the editing draft still begins unassessed. Neither the

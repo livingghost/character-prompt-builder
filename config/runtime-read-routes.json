@@ -63,5 +63,17 @@
     ],
     "execution": "authored",
     "operation": "author"
+  },
+  "prompt-review": {
+    "route": "prompt-only",
+    "features": [],
+    "execution": "authored",
+    "operation": "review"
+  },
+  "prompt-save": {
+    "route": "prompt-only",
+    "features": [],
+    "execution": "authored",
+    "operation": "save"
   }
 }

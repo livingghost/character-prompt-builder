@@ -186,8 +186,8 @@ constructions and their meaningful variants.
 ## Compare complete constructions
 
 Use [idea conception](runtime/production-direction.md#form-a-prompt-from-an-idea)
-for consequential open choices. It owns the inquiry, actual preselection
-candidates, separate assessment and selection. Retain the commissioned content,
+for consequential open choices. It owns the inquiry, actual constructions,
+comparison and selection within one author's work. Retain the commissioned content,
 subject roles, stated use, fixed source contributions and exact target evidence
 through that work. A bounded edit or an already directed picture retains its
 actual scope; no artificial contest is required.
@@ -215,14 +215,14 @@ field can make the same act feel exposed and persistent. Either needs the plant
 and machine to retain their commissioned roles. A more spectacular storm that
 reduces them to incidental decoration changes what is being developed.
 
-A separate assessment receives the original brief, applicable sources and
-actual candidates without the writer's preference. It identifies what each
-construction develops, compares its concrete gains and losses, and returns any
-consequential shared assumption that remains unsupported. Use the procedure for
-an independent context in Production direction. A medium label, attractive rationale
-or a less-developed counterproposal made to lose supplies no meaningful
-comparison. Keep the smallest set of credible alternatives that tests the real
-choice, then carry the selected relationships into the prompt.
+Compare the actual construction with the original brief and scoped sources.
+Where a consequential choice is unresolved, develop alternatives far enough to
+compare what each makes the viewer encounter. Retain the requested character
+and roles through those changes. A material, a camera and a presentation can
+organize the same content differently; their names alone supply no comparison.
+Use the smallest useful exploration, then carry the selected relationships into
+the prompt. A sufficient direction can proceed directly. An independent
+assessment is a separate review task when its evidence is needed.
 
 Rendition choices may remain with the model when the commission leaves them
 open. A complete proposal needs no universal inventory of medium, camera,

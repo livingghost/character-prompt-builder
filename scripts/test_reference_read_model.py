@@ -1,5 +1,6 @@
 """Reference builders retain one read boundary and recheck the next one."""
 from __future__ import annotations
+import read_context
 
 import copy
 import os
@@ -10,9 +11,8 @@ from unittest.mock import patch
 import adoption_workflow as adoption
 import execution_contract as c
 import feature_workflow_smoke_test as imported_fixture
-import prepare_generation_references as references
-import runtime_snapshot
-import studio
+import generation_references as references
+import studio_workspace as studio
 import studio_reference
 import visual_continuity as visual
 
@@ -52,9 +52,9 @@ class ReferenceReadTests(unittest.TestCase):
         for color, slot in [('red', 'canon.front'), ('green', 'canon.side'), ('blue', 'canon.rear')]:
             self.accept(color, slot)
         prepared = self.prepared()
-        from verify_generation_payload import verify_content
+        from generation_payload_validation import verify_content
         with (patch.object(adoption, '_reference_index', wraps=adoption._reference_index) as index,
-              patch('verify_generation_payload.verify_content', wraps=verify_content) as verify,
+              patch('generation_payload_validation.verify_content', wraps=verify_content) as verify,
               patch.object(studio, 'read_iteration_records', wraps=studio.read_iteration_records) as rows):
             result = self.build(prepared)
         self.assertEqual(index.call_count, 1)
@@ -143,12 +143,12 @@ class ReferenceReadTests(unittest.TestCase):
         choices = [{'character': 'C01', 'slot': row['slot'], 'role': 'identity',
                     'subject_uses': [{'subject_id': 'C01', 'use': 'identity', 'priority': 0}]}
                    for row in self.rows]
-        from verify_generation_payload import verify_content
-        with (runtime_snapshot.public_call(),
+        from generation_payload_validation import verify_content
+        with (read_context.public_call(),
               patch.object(studio, 'read_iteration_records', wraps=studio.read_iteration_records) as rows,
               patch.object(studio, 'manifest', wraps=studio.manifest) as manifest,
               patch.object(studio_reference, '_load_current', wraps=studio_reference._load_current) as proof,
-              patch('verify_generation_payload.verify_content', wraps=verify_content) as verify,
+              patch('generation_payload_validation.verify_content', wraps=verify_content) as verify,
               patch.object(adoption, '_reference_index', wraps=adoption._reference_index) as index):
             selected = references.resolve_studio_reference_choices(self.root, choices)
             prepared = references.prepare_references(selected, model=imported_fixture.MODEL_ID,
@@ -168,7 +168,7 @@ class ReferenceReadTests(unittest.TestCase):
     def test_resolver_reacquires_after_owned_mutation_in_the_same_public_call(self):
         row = self.accept()
         reads = studio_reference.ReferenceReads()
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             before = reads.studio(self.root)
             self.assertIs(reads.studio(self.root / 'characters/C01'), before)
             source = studio_reference.current_source(self.root, 'C01', row['slot'], read=before)
@@ -180,19 +180,19 @@ class ReferenceReadTests(unittest.TestCase):
             current = studio_reference.current_source(self.root, 'C01', row['slot'], read=after)
             self.assertNotEqual(current['artifact_id'], source['artifact_id'])
 
-    def test_reference_resolver_observes_new_transaction_and_fresh_publication(self):
+    def test_reference_resolver_reuses_unchanged_transactions_and_refreshes_explicitly(self):
         import production_store as store
         self.accept()
         reads = studio_reference.ReferenceReads()
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             outer = reads.studio(self.root)
             with store.transaction(self.root):
                 transaction = reads.studio(self.root)
-                self.assertIsNot(transaction, outer)
+                self.assertIs(transaction, outer)
                 self.assertIs(reads.studio(self.root), transaction)
             after_transaction = reads.studio(self.root)
-            self.assertIsNot(after_transaction, transaction)
-            with runtime_snapshot.public_call(fresh=True):
+            self.assertIs(after_transaction, transaction)
+            with read_context.public_call(fresh=True):
                 fresh = reads.studio(self.root)
                 self.assertIsNot(fresh, after_transaction)
                 self.assertIs(reads.studio(self.root), fresh)
@@ -214,7 +214,7 @@ class ReferenceReadTests(unittest.TestCase):
             c.atomic_write_json(path, state)
             raise OSError('Synthetic interrupted owner after committing its sidecar')
 
-        with runtime_snapshot.public_call():
+        with read_context.public_call():
             read = reads.studio(self.root)
             source = studio_reference.current_source(self.root, 'C01', row['slot'], read=read)
             with self.assertRaisesRegex(OSError, 'Synthetic interrupted owner'):
@@ -248,6 +248,46 @@ class ReferenceReadTests(unittest.TestCase):
 
 
 class ProductionReferenceReadTests(unittest.TestCase):
+    def test_reference_publication_keeps_owned_run_and_the_next_operation_rechecks_it(self):
+        import studio_activity
+        import studio_gallery
+        import studio_reference_fixtures as production_fixture
+        from production_diagnostics import ProductionError
+        case = production_fixture.adopted_case(self)
+        root = case.root
+        output = studio.character_home(root, 'robot') / 'sheet/active-references.json'
+        owner = studio_gallery.asset_dir(root / 'gallery.html') / 'owner.json'
+        with read_context.public_call():
+            read = studio.StudioRead(root)
+            held = read.run(case.run)
+            expected = read.reference_index('robot')
+            self.assertTrue(expected['ok'])
+            output.unlink()
+            owner.write_bytes(b'Synthetic invalid gallery ownership document')
+            consumer = held.directory / 'consumer.json'
+            consumer.write_bytes(consumer.read_bytes() + b' ')
+            self.assertIs(read.run(case.run), held)
+            report = studio_activity.refresh(root, read=read, views={'gallery', 'active-references'})
+            self.assertFalse(report['ok'])
+            self.assertEqual({item['projection'] for item in report['diagnostics']}, {'gallery'})
+            index = c.load(output)
+            self.assertTrue(index['ok'])
+            self.assertEqual(index['bindings'], expected['bindings'])
+            self.assertIs(read.run(case.run), held)
+        # The same supplied model belongs to the earlier operation. A new
+        # publication must acquire its run again and expose stored corruption.
+        with read_context.public_call():
+            report = studio_activity.refresh(root, read=read, views={'gallery', 'active-references'})
+            self.assertFalse(report['ok'])
+            index = c.load(output)
+            self.assertFalse(index['ok'])
+            self.assertEqual(index['bindings'][0]['next_action'], 'repair-reference')
+            diagnostics = index['bindings'][0]['adoption']['diagnostics']
+            self.assertIn('ARTIFACT_CORRUPT', {item['code'] for item in diagnostics})
+            with self.assertRaises(ProductionError) as caught:
+                read.run(case.run)
+            self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_CORRUPT')
+
     def test_live_studio_root_is_resolved_before_identity_check(self):
         import studio_reference_fixtures as production_fixture
         case = production_fixture.adopted_case(self)
@@ -269,7 +309,7 @@ class ProductionReferenceReadTests(unittest.TestCase):
         self.assertEqual(proof['identity']['character_id'], work_id)
 
     def test_reference_index_checks_adopted_run_without_loading_unrelated_history(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import studio_reference_fixtures as production_fixture
         case = production_fixture.adopted_case(self)
         root = case.root

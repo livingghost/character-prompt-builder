@@ -13,7 +13,7 @@ import execution_contract as c
 import execution_lifecycle as life
 import production_fixtures as fixture
 import production_store as store
-import production_workflow as w
+import production_operations as w
 import work_ledger
 
 
@@ -23,7 +23,7 @@ def setup(root: Path):
     spec = {'task_id': task['task_id'], 'route': 'development', 'features': [], 'sources': [], 'execution': 'external',
             'delivery': {'path': 'delivery.txt',  'translation_notes': 'Synthetic rendition.'},
             'criteria': [{'id': 'output', 'strength': 'hard', 'text': 'Inspect actual bytes.'}], 'world_views': []}
-    fixture.task(root, spec, execution='external')
+    fixture.task(root, spec, execution='external', focus='supporting-setting')
     (root / 'task.json').write_bytes(c.encoded(spec))
     run = w.prepare(root, 'task.json')['run']
     token = fixture.grant(root, run, {'operation': 'submit', 'targets': ['delivery'], 'payload': {'count': 1, 'test': 'synthetic'}})
@@ -47,9 +47,10 @@ class ExecutionLifecycleTests(unittest.TestCase):
 
     def claim(self):
         state = life.claim_execution(self.root, self.run, self.token)
-        directory, prepared, _, rows = w.load_run(self.root, self.run)
-        row = w.append_record(directory, prepared, rows, 'external-claim',
-            {'authorizations': [self.token], 'execution_id': state['execution_id']})
+        with store.transaction(self.root):
+            loaded = w.read_run(self.root, self.run)
+            row = w.append_record(loaded, 'external-claim',
+                {'authorizations': [self.token], 'execution_id': state['execution_id']})
         return row['sha256']
 
     def start(self, *, step='send', operation='send'):

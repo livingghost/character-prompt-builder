@@ -1,5 +1,6 @@
 """Model selection preserves scope, provenance and the cause of generation failures."""
 from __future__ import annotations
+import runtime_paths
 
 import copy
 import contextlib
@@ -76,7 +77,7 @@ def fixture_pack(root, value, *, dependencies=(), include_model=False):
 
 
 def fixture_runtime(root, packs=(), *, enabled=(), disabled=(), order=(), state=True):
-    settings = pm.PackSettings(roots=tuple(packs), state_file=root / 'state.json',
+    settings = runtime_paths.PackSettings(roots=tuple(packs), state_file=root / 'state.json',
         cache_dir=root / 'cache', managed_root=root / 'managed', quarantine_root=root / 'quarantine')
     if state:
         pm.save_state(settings.state_file, {'pack_roots': [str(path) for path in packs],
@@ -334,7 +335,7 @@ class SuitabilityTests(unittest.TestCase):
         for alternative in alternatives:
             args.extend(['--alternative-model', alternative])
         output = io.StringIO()
-        with patch('prepare_generation_references.resolve_model_record', return_value=(record['id'], record)):
+        with patch('generation_references.resolve_model_record', return_value=(record['id'], record)):
             with contextlib.redirect_stdout(output):
                 code = render_contract.main(args)
         self.assertEqual(code, 0, output.getvalue())

@@ -53,7 +53,7 @@ def one_line(exc: BaseException) -> str:
 def authoring_lines(cwd: Path) -> list[str]:
     """The studio or work trail the working directory belongs to, and where its work stands."""
 
-    from studio import init_command, status, studio_root
+    from studio_workspace import init_command, status, studio_root
     from work_ledger import read_ledger, show
     import production_authoring_state
 

@@ -4,6 +4,7 @@ Synthetic targets are test fixtures. No service is contacted and no image
 quality or semantic judgment is inferred from these mechanical checks.
 """
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 
 import copy
 from pathlib import Path
@@ -16,7 +17,7 @@ import production_case_fixtures as fixtures
 import production_compiler as compiler
 import production_fixtures
 import production_inputs as inputs
-import production_workflow as workflow
+import production_operations as workflow
 
 
 class EditableGenerationTests(unittest.TestCase):
@@ -36,10 +37,18 @@ class EditableGenerationTests(unittest.TestCase):
             'service':'synthetic','seed':None,'count':1,'continuity':{},
             'request_validation':'validation.json'}
         self.task.pop('recording',None)
+        fixtures.write(self.root/'independent-definition.json',specification['subjects'][0])
+        self.task['sources']=[row for row in self.task['sources'] if not row.get('definition_owner')]
+        self.task['sources'].append({'id':'robot-definition','path':'independent-definition.json',
+            'role':'definition','disposition':'applied','locator':'identity',
+            'reason':'The fixture explicitly keeps this character definition while choosing ordinary prompt inputs.',
+            'applications':[{'id':'robot-definition','pointer':'/identity','subjects':['robot'],'requirement':False}]})
+        production_fixtures.bind_work_basis(self.root,self.task,
+            request='Depict the synthetic robot defined in the selected source.',focus='character')
         fixtures.write(self.root/'task.json',self.task)
 
     def editable(self):
-        result=inputs.draft_inputs(self.root,'task.json','editor')
+        result=authoring_fixtures.authoring_inputs(self.root,'task.json','editor')
         self.choice_path=result['choices_file']
         self.choices=c.load(self.root/self.choice_path)
         reading=c.load(self.root/self.task['route_reading'])
@@ -56,17 +65,14 @@ class EditableGenerationTests(unittest.TestCase):
             self.assertIsNone(compiled.package[name])
         self.assertIsNone(compiled.execution_plan['recording'])
         self.assertEqual(compiled.rendered['request']['prompt'],fixtures.PROMPT)
-        from verify_generation_payload import verify
+        from generation_payload_validation import verify
         verified=verify(compiled.package,package_root=compiled.directory,studio=self.root,
                         reading_ledgers=[compiled.directory/'reads.jsonl'])
         self.assertTrue(verified['verified'])
 
-    def test_complete_choices_without_authoring_retain_declared_target(self):
-        choices=inputs.draft_choices(self.task)
-        self.assertNotIn('authoring',choices)
-        choices['reading']['reading_key']=c.load(self.root/self.task['route_reading'])['reading_key']
-        fixtures.write(self.root/'complete-choices.json',choices)
-        built=inputs.build_inputs(self.root,'task.json','complete-choices.json','complete-built')
+    def test_complete_current_choices_export_the_declared_target_and_actual_input(self):
+        self.editable()
+        built=inputs.build_inputs(self.root,'task.json',self.choice_path,'complete-built')
         self.assertTrue(built['ok'],built)
         task_path=built['inputs']['production-task']['path']
         task=c.load(self.root/task_path)
@@ -80,7 +86,7 @@ class EditableGenerationTests(unittest.TestCase):
         prompt=self.editable()
         first=workflow.prepare(self.root,choices=self.choice_path)
         before=workflow.read_run(self.root,first['run'])
-        changed='A flat graphic view of a small clock on an empty shelf.'
+        changed='A flat graphic view of the simple synthetic robot beside an empty shelf.'
         prompt.write_text(changed,encoding='utf-8')
         second=workflow.prepare(self.root,choices=self.choice_path)
         after=workflow.read_run(self.root,second['run'])
@@ -123,8 +129,8 @@ class EditableGenerationTests(unittest.TestCase):
         operation=render_contract_lib.operation_intent('text-to-image')
         self.choices['authoring']['generation']['render_intent']=operation
         fixtures.write(self.root/self.choice_path,self.choices)
-        proposed=['An anthropomorphic fox postal worker.',
-                  'An anthropomorphic fox postal worker carrying a torn delivery bag.']
+        proposed=['The simple synthetic robot stands beside a delivery bag.',
+                  'The simple synthetic robot carries the torn delivery bag.']
         prepared=[]
         for content in proposed:
             prompt.write_text(content,encoding='utf-8')

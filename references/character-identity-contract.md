@@ -34,14 +34,15 @@ Keep source authority, current scene state and rendering choices distinct. A
 proposal, an unaccepted candidate or a detail merely visible in a reference does
 not acquire canonical status through this selection.
 
-For each meaningful group of source definitions, decide what the current scene
-requires. Group definitions that share the same treatment and split exceptions
-where their conditions differ. Visibility is a projection question: an occluded
-part still exists, and it may affect silhouette, draping, contact, shadow or
-motion. An approved transformation changes only its stated scope. A relative
-size definition compares the characters under its authored conditions; image
-height alone cannot establish it across different depth, pose or perspective.
-Do not manufacture a comparison for every pair of subjects.
+Develop the scene's required relationships and visible detail from its intended
+effect and the adopted definition. The complete definition remains the source
+for the character; its inventory does not prescribe what this view must expose.
+Visibility is a projection question: an occluded part still exists, and it may
+affect silhouette, draping, contact, shadow or motion. An approved transformation
+changes only its stated scope. A relative size definition compares the characters
+under its authored conditions; image height alone cannot establish it across
+different depth, pose or perspective. Do not manufacture a comparison for every
+pair of subjects.
 
 ## Corresponding wording in the definition
 
@@ -219,13 +220,25 @@ selector. Choose the actual source authority and its applicable scope, keeping
 the row's original path, locator and reason. Source selection does not adopt a
 proposal or authorize changing canon.
 
+When an existing scoped reference or graph owner becomes a retained source,
+`identity.authority` preserves its original authority object. For a reference,
+this includes the stable reference use, permitted controls, excluded transfers,
+subject uses and original source descriptor when available. For a graph owner,
+it preserves the owner, character and canon status. The compiler checks these
+against the selected original bytes and subject scope and keeps them in
+`identity_coverage.sources[].authority` for review. Retaining this context does
+not apply the old reference or composition to the next model request. An image
+that supplied only silhouette evidence remains limited to that evidence.
+
 The inventory preserves the original bytes by hash, selected values and every
 terminal below each selected subtree, including empty collections and null.
-It does not filter by familiar feature names. A selected free-text value stays
-complete; its internal clauses are not claimed to have been semantically
-decomposed. Review such values at the detail their meaning requires. Selecting
-the entire document or a large group is a commitment to examine that scope,
-not evidence that the examination happened.
+These values are retained comparison context. They do not each require a scene
+treatment, an input carrier or visible proof. The inventory does not filter by
+familiar feature names. A selected free-text value stays complete; its internal
+clauses are not claimed to have been semantically decomposed. Review such values
+at the detail their meaning requires. Selecting the entire document or a large
+group preserves that scope for examination; it does not establish that the
+examination happened.
 
 Existing state graphs contribute their independently owned Identity, species,
 individual morphology, Era, Form and Appearance nodes. References assigned
@@ -235,7 +248,7 @@ when the `recurring-identity` reading feature was omitted. Their displayed IDs
 are `state:SUBJECT:NODE` and `reference:REFERENCE_ID`. Use the IDs in the
 inventory; do not redeclare those images or graph nodes merely to copy their
 hashes. An explicitly selected source covering the same original owner is
-reused. Recurring subjects require source coverage and independent review.
+reused. Recurring subjects require original source context and review against it.
 Identity mentioned only in unrestricted prose still requires the author's
 explicit subject and source selection; the runtime does not infer it by words.
 
@@ -249,18 +262,28 @@ When a state graph supplies a Visual Authority or Visual Evidence Bundle,
 include its complete scope, priority notes, evidence relation and disposition
 in the same inventory. These documents remain authority or evidence context
 according to their original status. Their presence does not adopt an observed
-feature as canon. Classify their application through the same grouped criterion
-bindings used for the other sources.
+feature as canon. Bind a particular scene obligation to this context when its
+source relation needs an explicit input check.
 
-For each applicable group, add `identity_bindings` to its existing independent
-criterion. A binding names the source ID, subject IDs, selectors, scene
-treatment, reason, actual-input carriers and any accepted variation ID. Its
-criterion's `text` owns the question the result must answer. Write that
-expectation from the commission and source, independently of the prompt.
-Several selectors may share a criterion. A more specific selector can define
-an exception to a broader group; equally specific conflicting treatments are
-rejected. Cross-subject definitions name every affected subject in the same
-binding and retain the source's comparison conditions.
+Use `identity_bindings` on an existing independent criterion for a specific
+scene obligation whose source-to-input relationship needs verification. This
+can protect a required visible detail, a relationship, an indirect effect or
+an explicitly scoped variation or uncertainty. A binding names the source ID,
+subject IDs, selectors, scene treatment, reason, actual-input carriers and any
+accepted variation ID. Its criterion's `text` owns the question the result must
+answer. Write that expectation from the commission and source, independently
+of the prompt. Group definitions that share a useful treatment; a more specific
+selector can define an exception to a broader group. Equally specific conflicting
+treatments are rejected. Cross-subject obligations name every affected subject
+in the same binding and retain the source's comparison conditions.
+
+A task can retain the complete definition and use its whole-subject review
+without adding individual bindings. Preserve the source's required details in
+the actual depiction at their applicable scope either way. A value without a
+binding remains available to that review; it is not declared unseen, optional,
+correctly rendered or exempt from the adopted definition. Use an explicit
+`not-exposed` or `indirect` treatment when that distinction matters to a criterion,
+rather than classifying every unseen source value to finish preparation.
 
 | Treatment | Meaning in this image |
 | --- | --- |
@@ -275,16 +298,19 @@ Active obligations require hard criteria, with image evidence for an image
 task. `not-exposed` and `not-applicable` groups can use advisory criteria for
 their limits; they do not become demonstrations of invisible identity. Every
 identity subject also needs a hard criterion with `identity_review` naming its
-subject ID. That criterion compares the character against the complete
-applicable source scope, beyond the traits initially extracted into individual
-bindings. Several subjects may share this comparison when its question covers
-them together. Report additional mismatches or uncertainty through the existing
+subject ID. That criterion compares the depicted character against the complete
+applicable source scope, including definitions with no individual binding.
+The chosen view determines what can be observed; a whole-subject review does
+not require exposing the whole figure or demonstrating an unseen property.
+The author can perform this review using the original source independently
+of the current prompt's interpretation. Several subjects may share the
+comparison when its question covers them together. Report additional mismatches or uncertainty through the existing
 review's repairs and unresolved issues.
 
 The following is a synthetic excerpt, not a complete production task. Assume
 the adopted source `design.json` contains a `seam` object and the actual primary
 request includes the quoted sentence. The source selection and criterion stay
-in the ordinary task; its independent whole-subject criterion is also required.
+in the ordinary task; its whole-subject source-comparison criterion is also required.
 
 ```json
 {
@@ -354,24 +380,35 @@ influence and exclusions still apply.
 Inspect the actual prepared carrier and the complete combined model input.
 An original image's existence does not show that its relevant region survives
 a crop, resize or board assembly. A valid text occurrence establishes delivery
-of that wording, not that it conveys every source condition. The independent
-rendition assessment judges sufficiency and leakage from incidental source
-state. Widen a reference's scope only when its actual authority supports it;
+of that wording, not that it conveys every source condition. The author's
+rendition assessment compares sufficiency with the original scoped source and
+checks incidental source state that the input might transfer. Widen a reference's scope only when its actual authority supports it;
 do not universally narrow references and then attempt to repair every missing
 property with text.
 
-The input builder returns uncovered source values, missing subject sources,
-unbound active groups and missing whole-subject reviews at their editable
-locations. It can publish useful prepared files with those choices unresolved,
-but it does not publish an executable production task. `check` and `prepare`
-also enforce the contract, including exact request carriers, so bypassing the
-input builder does not bypass coverage. The sealed run retains the coverage
-view for decision and review, separately from model-facing instructions. A
-prompt-only authored artifact binds its delivery text and explicitly lacks
-verification of a model request.
+The input builder's `identity_coverage` inventory retains every selected source
+value and shows the explicit bindings separately. `unbound_source_values` lists
+values and subjects with no individual binding as informational context, not as
+preparation gaps or claims about visibility. Missing subject sources, missing
+carriers for active obligations and missing whole-subject reviews are reported
+at their editable locations. It can publish useful draft files with those
+choices unresolved, but it does not publish an executable production task.
+`check` and `prepare` enforce the same source and exact-carrier contract.
 
-Retained identity sources remain at their original owning paths. Drafting
-records their bytes; a changed source invalidates that draft's retained witness.
+The report starts with `status: inventory`; compilation returns
+`status: bindings-verified` after checking the explicit bindings and required
+review structure. `structural_only: true` remains in both reports: neither status
+certifies interpretation, image quality or the correctness of an unobserved
+property. The sealed run retains this complete context for decision and review,
+separately from model-facing instructions. A prompt-only authored artifact binds
+its delivery text and explicitly lacks verification of a model request.
+
+Retained identity sources keep their original bytes and authority. A saved-run
+draft can restore those bytes to retained files after a live original is gone.
+Drafting records the bytes, subjects, selected scope and authority; removing or
+changing this retained context invalidates that draft's witness, even when no
+individual scene binding uses it. Replacing the path under the same source ID
+does not authorize replacing its bytes or widening its authority.
 Edit or adopt a new definition in its owning workflow, read it, then draft the
 current application and criteria. Editing a generated source copy cannot
 redefine its identity authority. Existing runs retain their historical source
@@ -379,11 +416,11 @@ bytes and review basis; freshness checks prevent using stale live inputs for a
 new operation. A later source edit never rewrites an earlier review as if it
 had assessed the new definition.
 
-Coverage establishes explicit source selection, structural correspondence and
-delivery bindings. It does not prove complete semantic interpretation or
-successful depiction. Observe the candidate first without expected criteria,
-then compare it with the preserved source and actual input. Keep unsupported,
-unseen and indeterminate findings explicit. An owner's allowance for a
+Coverage retains the complete selected source and establishes structural
+correspondence and delivery for explicit bindings. It does not prove complete
+semantic interpretation or successful depiction. Observe the candidate first
+without expected criteria, then compare it with the preserved source and actual
+input. Keep unsupported, unseen and indeterminate findings explicit. An owner's allowance for a
 particular nonpassing result preserves that finding and does not alter canon.
 
 ## Identity versus era, form, and appearance

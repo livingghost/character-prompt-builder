@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Saved Studio reference media, current placement notices and recorded recovery."""
 from __future__ import annotations
+import read_context
 import copy
 from pathlib import Path
 import shutil
@@ -11,18 +12,22 @@ import execution_contract as c
 import studio_reference as sr
 import studio_reference_fixtures as fixture
 import production_execution as execution
-import production_workflow as workflow
+import production_operations as workflow
 import production_store as store
 import transport_synthetic as transport
 from test_production_execution import decisions
 from sheet_artifacts_smoke_test import make_artifact, decision
 import sheet_artifacts as fills
-import runtime_snapshot
+from production_case_fixtures import cold_case
 
 
 class StudioExecutionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._adoption_template = fixture.AdoptionTemplate.for_class(cls)
+
     def setUp(self):
-        self.case = fixture.adopted_case(self)
+        self.case = fixture.adopted_case(self, template=self._adoption_template)
         self.root = self.case.root
         self.sheet = self.root / 'characters/robot/sheet/sheet-data.json'
         self.task, self.source = fixture.reference_task(self.case)
@@ -33,11 +38,12 @@ class StudioExecutionTests(unittest.TestCase):
         decision = withdrawal_decision(self.sheet, self.case.row['slot'])
         fills.withdraw(self.sheet, decision, evidence_root=self.sheet.parent)
 
+    @cold_case
     def test_preparation_pins_the_exact_acceptance_and_portable_proof(self):
         directory, prepared, _, _ = workflow.load_run(self.root, self.run)
         self.assertEqual(prepared['studio_reference_sources'], [self.source])
         self.assertTrue(list(directory.glob('package.*.references/studio/*/proof.json')))
-        from verify_generation_payload import verify_content
+        from generation_payload_validation import verify_content
         self.assertTrue(verify_content(c.load(directory/'package.json'),package_root=directory)['content_verified'])
 
     def test_candidate_addition_and_unrelated_adoption_keep_preparation_current(self):
@@ -68,7 +74,7 @@ class StudioExecutionTests(unittest.TestCase):
         fills.register_candidates(self.sheet, [(self.case.row['slot'], extra)])
         # A new navigation observation sees the replacement within this same
         # call; the selected run still owns its original reference media.
-        with runtime_snapshot.public_call(), store.transaction(self.root):
+        with read_context.public_call(), store.transaction(self.root):
             saved=workflow.assert_current(self.root,self.run)
             self.assertEqual(workflow.freshness(self.root,self.run),([],[]))
             fills.adopt(self.sheet, decision(self.sheet, self.case.row['slot'], extra),

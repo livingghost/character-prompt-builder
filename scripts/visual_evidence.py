@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
 
-from check_dependencies import install_command
 from execution_contract import sha256_file
 
 _FORBIDDEN_ACTIVE_TAGS = (
@@ -646,6 +645,7 @@ def render_svg(svg: Path, output: Path, width: int | None = None, height: int | 
     try:
         import resvg_py
     except ImportError as exc:
+        from check_dependencies import install_command
         command, note = install_command()
         raise RuntimeError(
             "resvg-py is required for SVG rasterization; "

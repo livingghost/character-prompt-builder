@@ -31,7 +31,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import studio  # noqa: E402
+import studio_workspace as studio  # noqa: E402
 import work_ledger  # noqa: E402
 
 MANIFEST_FIELDS = {
@@ -93,7 +93,7 @@ def check_history(root: Path, rows: list[dict[str, Any]], character: str, errors
     event may still be pending, and a later selection does not erase history.
     """
     import execution_contract as contract
-    import production_workflow as workflow
+    import production_operations as workflow
     by_id = {str(row.get("iteration_id")): row for row in rows}
     def accepted_in(iteration, slot):
         other = by_id.get(str(iteration))
@@ -189,7 +189,7 @@ def unshown_candidates(root: Path, characters: set[str], shown: set[tuple[str, s
     """Production candidates a dispatcher run recorded for a character here that no iteration row shows."""
     import sqlite3
     import production_store
-    import production_workflow
+    import production_operations as production_workflow
     try:
         runs = [item["run_id"] for item in production_store.runs(root)]
     except (ValueError, OSError, sqlite3.Error) as exc:

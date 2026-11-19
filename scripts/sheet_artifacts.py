@@ -141,7 +141,7 @@ def _safe_directory(root: Path, relative: str) -> Path:
 @contextmanager
 def sheet_lock(sidecar: Path) -> Iterator[None]:
     """Protect the sheet sidecar's compare-and-swap, not the whole Studio."""
-    with c.lock(sidecar.parent):
+    with c.file_lock(sidecar):
         yield
 
 
@@ -180,7 +180,7 @@ def _descriptor(image: dict, provenance_sha256: str, kind: str) -> dict:
 
 def _package_files(package: Path, *, model_record: Mapping[str, Any] | None = None) -> dict[str, bytes]:
     from character_sheet import _validate_ready_package
-    from build_generation_payload import validate_generation_package_carrier_paths
+    from generation_payload_builder import validate_generation_package_carrier_paths
     raw = c.read(package)
     value = c.decode(raw)
     _validate_ready_package(value, field='sheet artwork package')
@@ -546,7 +546,7 @@ def _withdrawable(sidecar: Path, slot_id: str, accepted: dict) -> None:
     provenance = verify_artifact(accepted['artifact'], sidecar.parent)
     if (provenance.get('origin') or {}).get('iteration_id') is not None:
         import adoption_workflow as adoption
-        import studio
+        import studio_workspace as studio
         import studio_reference
         root = studio.require_studio(sidecar.parent)
         origin = provenance['origin']
@@ -686,8 +686,8 @@ def _production_decision(provenance: dict, decision: dict, sidecar: Path, *, loa
     origin = provenance.get('origin') or {}
     if origin.get('kind') != 'production':
         return
-    import production_workflow as w
-    import studio
+    import production_operations as w
+    import studio_workspace as studio
     root = studio.require_studio(sidecar.parent)
     basis = decision.get('basis')
     if not isinstance(basis, dict) or set(basis) != {'kind', 'claim', 'approval'} or basis['kind'] != 'production':
@@ -783,7 +783,7 @@ def verify_acceptance(accepted: Any, sheet_root: Path, slot_id: str, *, cache: d
 @mutation(receipt=False)
 def from_iteration(root: Path, character: str, row: dict, *, read=None, run_view=None) -> dict:
     """The Studio iteration remains the Production candidate's owner."""
-    import studio
+    import studio_workspace as studio
     sheet = studio.character_home(root, character) / 'sheet'
     if not row.get('package') or not row.get('result'):
         raise ValueError('sheet candidate requires recorded image and package provenance')
@@ -815,7 +815,7 @@ def from_iteration(root: Path, character: str, row: dict, *, read=None, run_view
         attachments[evidence_name] = c.read(evidence)
         recipe['package_attachment'] = {'record': 'package-attachment.json', 'evidence': evidence_name}
     if kind == 'upscale' and row.get('production'):
-        import production_workflow as workflow
+        import production_operations as workflow
         run = row['production']['run']
         loaded = run_view if run_view is not None else (read.run(run) if read else workflow.read_run(root, run))
         run_dir, prepared, _, _ = loaded

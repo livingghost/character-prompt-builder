@@ -1,5 +1,7 @@
 """Authored results retain exact revisions, independently recorded uses and drafts."""
 from __future__ import annotations
+import production_workflow as production_workflow_cli
+import production_fixtures as authoring_fixtures
 
 import copy
 import json
@@ -12,10 +14,11 @@ import unittest
 from unittest.mock import patch
 
 import execution_contract as c
+import authoring_work
 import production_authored as authored
 import production_fixtures as fixtures
 import production_inputs as inputs
-import production_workflow as workflow
+import production_operations as workflow
 import production_workspace as workspace
 import work_ledger
 
@@ -33,7 +36,7 @@ class AuthoredRevisionTests(unittest.TestCase):
             'delivery': {'path': 'delivery.txt', 'translation_notes': 'Keep the authored text.'},
             'criteria': [{'id': 'meaning', 'strength': 'hard', 'text': 'The text describes an empty market.'}],
             'world_views': []}
-        fixtures.task(self.root, self.task)
+        fixtures.task(self.root, self.task, focus='supporting-setting')
         self.write('task.json', self.task)
         self.write('delivery.txt', 'An empty market after the rain.\n')
         self.counter = 0
@@ -48,9 +51,10 @@ class AuthoredRevisionTests(unittest.TestCase):
             self.task['authored'] = {'requirements': requirements}
         if completion_state is not None:
             self.task.setdefault('authored', {})['completion_state'] = completion_state
+        fixtures.bind_work_basis(self.root, self.task, focus='supporting-setting')
         self.write('task.json', self.task)
         self.counter += 1
-        result = inputs.draft_inputs(self.root, 'task.json', 'edit-' + str(self.counter))
+        result = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'edit-' + str(self.counter))
         selected = c.load(self.root / result['choices_file'])
         selected['reading']['reading_key'] = c.load(self.root / self.task['route_reading'])['reading_key']
         self.write(result['choices_file'], selected)
@@ -87,7 +91,7 @@ class AuthoredRevisionTests(unittest.TestCase):
         path, _ = self.choices(requirements=['save', 'review'])
         run = workflow.save(self.root, path)['run']
         custom = 'work/authored-review.json'
-        result = subprocess.run([sys.executable, str(Path(workflow.__file__)), 'draft-review',
+        result = subprocess.run([sys.executable, str(Path(production_workflow_cli.__file__)), 'draft-review',
             '--root', str(self.root), '--run', run, '--out', custom],
             capture_output=True, text=True, encoding='utf-8', env=dict(os.environ), check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -124,13 +128,13 @@ class AuthoredRevisionTests(unittest.TestCase):
         model = {'id': 'synthetic-authored-model', 'prompt_input': prompt_input('descriptive')}
         self.write('model.json', model)
         self.task['authored'] = {'target': {'model_file': 'model.json'}}
-        fixtures.task(self.root, self.task)
+        fixtures.task(self.root, self.task, focus='supporting-setting')
         self.write('task.json', self.task)
         parent = workflow.prepare(self.root, 'task.json')
         original = workflow.read_run(self.root, parent['run'])
         (self.root / 'model.json').unlink()
 
-        draft = inputs.draft_inputs(self.root, None, 'reopened-target', from_run=parent['run'])
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'reopened-target', from_run=parent['run'])
         selected = draft['choices']['target']['model_file']
         self.assertNotEqual(selected, 'model.json')
         self.assertEqual((self.root / selected).read_bytes(), c.encoded(model))
@@ -140,6 +144,62 @@ class AuthoredRevisionTests(unittest.TestCase):
         self.assertEqual(continued.consumer['instructions'], original.consumer['instructions'])
         self.assertEqual(continued.prepared['parent']['run'], parent['run'])
         self.assertEqual(workflow.read_run(self.root, parent['run']).prepared, original.prepared)
+
+    def test_public_task_preserves_each_subject_and_requirement_application(self):
+        original = {
+            'a': {'identity': {'body': 'A folded reed creature with two fins.'}},
+            'b': {'identity': {'body': 'A ringing shell creature.'}},
+            'commission': {'event': 'The two creatures meet before departure.'},
+            'prior_depiction': {'treatment': 'photograph', 'framing': 'entire figures'},
+        }
+        self.write('cast.json', original)
+        self.task['sources'] = [{'id': 'cast', 'path': 'cast.json', 'role': 'definition',
+            'disposition': 'applied', 'locator': 'whole original',
+            'reason': 'The acquired character definitions and commission.'}]
+        self.task['criteria'][0]['text'] = 'The text describes the two defined creatures meeting.'
+        self.write('delivery.txt', 'The reed creature folds its fins as the shell creature rings.\n')
+        choices_path, _ = self.choices()
+        basis_path = Path(choices_path).parent / 'work-basis.json'
+        basis = c.load(self.root / basis_path)
+        applications = {
+            'reed-definition': {'source': 'cast', 'pointer': '/a/identity'},
+            'shell-definition': {'source': 'cast', 'pointer': '/b/identity'},
+            'meeting': {'source': 'cast', 'pointer': '/commission'},
+        }
+        subjects = {'A': ['reed-definition'], 'B': ['shell-definition']}
+        basis = authoring_work.revise_basis(basis, applications=applications,
+            subjects=subjects, requirements=['meeting'], focus='character')
+        self.write(basis_path, basis)
+
+        built = inputs.build_inputs(self.root, None, choices_path, 'published')
+        self.assertTrue(built['ok'], built)
+        task_path = built['inputs']['production-task']['path']
+        published = c.load(self.root / task_path)
+        source = next(row for row in published['sources'] if row['id'] == 'cast')
+        self.assertEqual({row['id']: row for row in source['applications']}, {
+            'reed-definition': {'id': 'reed-definition', 'pointer': '/a/identity', 'subjects': ['A'], 'requirement': False},
+            'shell-definition': {'id': 'shell-definition', 'pointer': '/b/identity', 'subjects': ['B'], 'requirement': False},
+            'meeting': {'id': 'meeting', 'pointer': '/commission', 'subjects': [], 'requirement': True},
+        })
+        chosen = {'reed-definition': original['a']['identity'],
+                  'shell-definition': original['b']['identity'], 'meeting': original['commission']}
+        selected = [chosen[row['id']] for row in source['applications']]
+        self.assertEqual(c.load(self.root / source['path']), selected)
+        self.assertEqual(c.load(self.root / source['origin']['path']), original)
+
+        reopened = authoring_fixtures.authoring_inputs(self.root, task_path, 'reopened-public',
+                                                       focus='character')
+        acquired = c.load(self.root / reopened['authoring_work']['basis'])
+        self.assertEqual(acquired['applications'], applications)
+        self.assertEqual(acquired['subjects'], subjects)
+        self.assertEqual(acquired['requirements'], ['meeting'])
+        self.assertEqual(authoring_work.source_value(acquired['sources']['cast']), original)
+        child = workflow.save(self.root, reopened['choices_file'])['run']
+        retained = workflow.read_run(self.root, child).prepared
+        saved_source = next(row for row in retained['task']['sources'] if row['id'] == 'cast')
+        self.assertEqual(saved_source['applications'], source['applications'])
+        self.assertEqual(workflow.read_run(self.root, child).consumer['instructions'],
+                         'The reed creature folds its fins as the shell creature rings.\n')
 
     def test_requested_delivery_and_review_are_actual_separate_results(self):
         path, _ = self.choices(requirements=['save', 'delivery', 'review'])
@@ -189,7 +249,7 @@ class AuthoredRevisionTests(unittest.TestCase):
         workflow.verify_completion(self.root, run, self.task['task_id'])
 
     def test_unfinished_source_saves_and_restores_without_finished_input_claim(self):
-        draft = inputs.draft_inputs(self.root, None, 'unfinished', route='development')
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'unfinished', route='development')
         choices = c.load(self.root / draft['choices_file'])
         self.write(choices['authoring']['delivery']['file'], 'An unfinished opening.\n')
         saved = workflow.save(self.root, draft['choices_file'], draft=True)
@@ -206,7 +266,7 @@ class AuthoredRevisionTests(unittest.TestCase):
         self.assertEqual(status['authored']['missing'], ['finished-revision'])
         with self.assertRaisesRegex(ValueError, 'finished-revision'):
             self.finish(saved['run'])
-        restored = inputs.draft_inputs(self.root, None, 'restored', from_run=saved['run'])
+        restored = authoring_fixtures.authoring_inputs(self.root, None, 'restored', from_run=saved['run'])
         edited = c.load(self.root / restored['choices_file'])
         self.assertEqual((self.root / edited['authoring']['delivery']['file']).read_bytes(), b'An unfinished opening.\n')
         self.assertEqual(edited['reading']['reading_key'], choices['reading']['reading_key'])
@@ -304,44 +364,45 @@ class AuthoredRevisionTests(unittest.TestCase):
         evidence = loaded.rows[-1]['data']['evidence'][0]
         self.assertEqual(loaded.evidence.read(evidence['sha256']), b'An empty market is the requested setting.\n')
 
-    def test_review_basis_preserves_original_sources_beside_adaptations(self):
-        original = 'The market is empty and the stalls are closed.\n'
-        adaptation = 'The market is crowded and the stalls are open.\n'
-        self.write('commission.txt', original)
-        self.task['sources'] = [{'id': 'commission', 'path': 'commission.txt', 'role': 'design',
-            'disposition': 'applied', 'locator': 'whole document', 'reason': 'Synthetic source of required setting.'}]
+    def test_review_preserves_complete_source_beside_applied_selection(self):
+        original = {'commission': 'The market is empty and the stalls are closed.\n',
+                    'proposal': 'The market is crowded and the stalls are open.\n'}
+        self.write('commission.json', original)
+        self.task['sources'] = [{'id': 'commission', 'path': 'commission.json', 'role': 'design',
+            'disposition': 'applied', 'locator': 'whole document', 'reason': 'Synthetic setting and authored proposal.'}]
         path, selected = self.choices(requirements=['save', 'review'])
-        source = selected['authoring']['sources']['commission']
-        if 'file' in source:
-            self.write(source['file'], adaptation)
-        else:
-            source['content'] = adaptation
-            self.write(path, selected)
+        basis_path = Path(path).parent / 'work-basis.json'
+        current = c.load(self.root / basis_path)
+        applications = {**current['applications'], 'commission': {'source': 'commission', 'pointer': '/proposal'}}
+        self.write(basis_path, authoring_work.revise_basis(current, applications=applications))
+
+        def retained_selection(run):
+            basis = workflow.review_basis(self.root, run)
+            evidence = {item['id']: item for item in basis['evidence']}
+            self.assertEqual(c.load(self.root / evidence['source:commission']['path']), original['proposal'])
+            self.assertEqual(c.load(self.root / evidence['source-origin:commission']['path']), original)
+            return basis
+
         run = workflow.save(self.root, path)['run']
         exported = inputs.build_inputs(self.root, None, path, 'exported-inputs')
-        self.write('commission.txt', 'A later changed source.\n')
-        basis = workflow.review_basis(self.root, run)
-        evidence = {item['id']: item for item in basis['evidence']}
-        self.assertEqual((self.root / evidence['source:commission']['path']).read_text(encoding='utf-8'), original)
-        self.assertEqual((self.root / evidence['adaptation:commission']['path']).read_text(encoding='utf-8'), adaptation)
-        self.assertEqual(basis['commission'], self.task['direction'])
+        self.write('commission.json', {'commission': 'A later changed source.'})
+        basis = retained_selection(run)
+        expected_direction = copy.deepcopy(self.task['direction'])
+        request_id = 'request:' + c.digest(current['request'].encode('utf-8'))
+        if request_id not in expected_direction['basis']:
+            expected_direction['basis'].append(request_id)
+        self.assertEqual(basis['source_task_direction'], expected_direction)
         exported_run = workflow.prepare(self.root, exported['inputs']['production-task']['path'])['run']
-        exported_evidence = {item['id']: item for item in workflow.review_basis(self.root, exported_run)['evidence']}
-        self.assertEqual((self.root / exported_evidence['source:commission']['path']).read_text(encoding='utf-8'), original)
-        self.assertEqual((self.root / exported_evidence['adaptation:commission']['path']).read_text(encoding='utf-8'), adaptation)
-        exported_draft = inputs.draft_inputs(self.root, exported['inputs']['production-task']['path'], 'exported-draft')
+        retained_selection(exported_run)
+        exported_draft = authoring_fixtures.authoring_inputs(self.root, exported['inputs']['production-task']['path'], 'exported-draft')
         exported_revision = workflow.save(self.root, exported_draft['choices_file'])['run']
-        exported_basis = {item['id']: item for item in workflow.review_basis(self.root, exported_revision)['evidence']}
-        self.assertEqual((self.root / exported_basis['source:commission']['path']).read_text(encoding='utf-8'), original)
-        self.assertEqual((self.root / exported_basis['adaptation:commission']['path']).read_text(encoding='utf-8'), adaptation)
+        retained_selection(exported_revision)
         self.review(run, finding='fail')
         self.assertEqual(workflow.read_run(self.root, run).rows[-1]['data']['review']['checks'][0]['verdict'], 'fail')
-        (self.root / 'commission.txt').unlink()
-        restored = inputs.draft_inputs(self.root, None, 'restored-sources', from_run=run)
+        (self.root / 'commission.json').unlink()
+        restored = authoring_fixtures.authoring_inputs(self.root, None, 'restored-sources', from_run=run)
         revised = workflow.save(self.root, restored['choices_file'])['run']
-        retained = {item['id']: item for item in workflow.review_basis(self.root, revised)['evidence']}
-        self.assertEqual((self.root / retained['source:commission']['path']).read_text(encoding='utf-8'), original)
-        self.assertEqual((self.root / retained['adaptation:commission']['path']).read_text(encoding='utf-8'), adaptation)
+        retained_selection(revised)
 
     def test_explicit_current_source_reselection_becomes_the_review_basis(self):
         original = 'The original selected source.\n'
@@ -353,17 +414,20 @@ class AuthoredRevisionTests(unittest.TestCase):
         parent = workflow.save(self.root, path)['run']
         before = workflow.read_run(self.root, parent).prepared
         self.write('source.bin', replacement)
-        draft = inputs.draft_inputs(self.root, None, 'reselected-source', from_run=parent)
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'reselected-source', from_run=parent)
         choices = draft['choices']
-        retained_path = choices['authoring']['task']['sources'][0]['path']
+        retained_path = next(row['path'] for row in choices['authoring']['task']['sources'] if row['id'] == 'commission')
         self.assertEqual((self.root / retained_path).read_text(encoding='utf-8'), original)
-        choices['authoring']['task']['sources'][0]['path'] = 'source.bin'
-        self.write(draft['choices_file'], choices)
+        current = authoring_fixtures.acquire_application(self.root, draft['choices_file'], 'current-commission',
+            (self.root / 'source.bin').read_text(encoding='utf-8'), application='commission')
+        self.assertEqual(authoring_work.source_bytes(current['sources']['commission']).decode('utf-8'), original)
 
         child = workflow.save(self.root, draft['choices_file'])['run']
         evidence = {item['id']: item for item in workflow.review_basis(self.root, child)['evidence']}
-        self.assertEqual((self.root / evidence['source:commission']['path']).read_text(encoding='utf-8'), replacement)
-        self.assertNotIn('adaptation:commission', evidence)
+        self.assertEqual((self.root / evidence['source:current-commission']['path']).read_text(encoding='utf-8'), replacement)
+        retained_basis = c.load(self.root / evidence['authoring-work']['path'])
+        self.assertEqual(authoring_work.source_bytes(retained_basis['sources']['commission']).decode('utf-8'), original)
+        self.assertEqual(retained_basis['applications']['commission']['source'], 'current-commission')
         self.assertEqual((self.root / retained_path).read_text(encoding='utf-8'), original)
         self.assertEqual(workflow.read_run(self.root, parent).prepared, before)
 

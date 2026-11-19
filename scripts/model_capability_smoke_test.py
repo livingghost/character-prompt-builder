@@ -14,11 +14,11 @@ from unittest.mock import patch
 from PIL import Image
 
 import model_contract as mc
-import prepare_generation_references as refs
+import generation_references as refs
 import render_contract_lib as rendering
 import transport_contract
 from catalog_retrieval.runtime import using_pack_runtime
-from pack_manager import PackSettings
+from runtime_paths import PackSettings
 from reference_delivery import bindings
 
 

@@ -25,7 +25,7 @@ def command(root, name, *args, expected=0):
 
 def build():
     with tempfile.TemporaryDirectory(prefix='synthetic-input-example-') as directory:
-        import studio
+        import studio_workspace as studio
         import work_ledger
         root = studio.init(Path(directory), 'synthetic-input-example', 'Synthetic input assembly')
         work = work_ledger.begin(root, 'Assemble the authored synthetic text.', ['Author the input.'])
@@ -37,17 +37,19 @@ def build():
                               'strength': 'hard', 'evidence': 'text'}]}
         task.update(artifact='text', execution='authored', production_id='01900000-0000-7000-8000-000000000010',
                     authority='authority.json', world_views=[], direction={'purpose': 'Synthetic local input assembly.',
-                        'intended_effect': 'Inspect local files.', 'basis': [], 'decisions': [], 'action_slice': None,
+                        'intended_effect': 'Inspect local files.', 'basis': [], 'decisions': [], 'source_allowances': [], 'action_slice': None,
                         'limitations': ['Synthetic exercise, not approval or service evidence.']})
         (root / 'task.json').write_bytes(c.encoded(task))
         (root / 'delivery.txt').write_text('Synthetic input assembly exercise.\n', encoding='utf-8')
+        (root / 'request.txt').write_text('Assemble and inspect this synthetic local text.', encoding='utf-8')
         original = (root / 'task.json').read_bytes()
         # The fixture delivers actual source bytes without an operator judgment.
         # A real operator reads and applies the complete current contract.
         reading = reading_fixtures.fixture_reading(route='development', studio=root,
                                                    ledger=root / 'work/reads.jsonl', execution=task['execution'])
         inspection = command(root, 'inspect-inputs')
-        draft = command(root, 'draft-inputs', '--out-dir', 'draft')
+        draft = command(root, 'draft-inputs', '--operation', 'amend', '--request-file', 'request.txt',
+                        '--focus', 'supporting-setting', '--out-dir', 'draft')
         missing = command(root, 'build-inputs', '--choices', draft['choices_file'],
                           '--out-dir', 'missing', expected=2)
         if (root / 'missing').exists():

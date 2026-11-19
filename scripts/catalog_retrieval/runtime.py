@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from pack_cache import RuntimePackCatalog, RuntimePackEntry, load_runtime_catalog
-from pack_manager import PackSettings
+from runtime_paths import PackSettings
 from search_discovery import (
     SearchIndex,
     infer_discovery_group,
@@ -42,9 +42,9 @@ _PACK_SETTINGS: PackSettings | None = None
 def clear_corpus_cache() -> None:
     """Release query-subset corpus objects while retaining per-record indexing.
 
-    Long regression suites call many different category/domain combinations.
-    Keeping every subset corpus is unnecessary once one case is complete and
-    can retain large document-frequency and token-routing dictionaries.
+    Regression suites release these document-frequency and token-routing
+    indexes between bounded case ranges. Within a range, the corpus LRU reuses
+    complete content-derived subsets; each query keeps its scoring state local.
     """
     _CORPUS_CACHE.clear()
 
@@ -82,6 +82,20 @@ def using_pack_runtime(settings: PackSettings | None):
         yield
     finally:
         configure_pack_runtime(previous)
+
+
+@contextmanager
+def using_pack_catalog(settings: PackSettings, catalog: RuntimePackCatalog):
+    """Bind an already acquired catalog for one operation and its helpers."""
+    global _PACK_CATALOG_CACHE
+    previous_settings, previous_catalog = _PACK_SETTINGS, _PACK_CATALOG_CACHE
+    configure_pack_runtime(settings)
+    _PACK_CATALOG_CACHE = catalog
+    try:
+        yield catalog
+    finally:
+        configure_pack_runtime(previous_settings)
+        _PACK_CATALOG_CACHE = previous_catalog
 
 
 def selected_pack_settings() -> PackSettings:

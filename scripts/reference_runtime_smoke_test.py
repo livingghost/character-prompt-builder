@@ -15,21 +15,14 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from catalog_cli import configure_pack_runtime
+from catalog_api import configure_pack_runtime
 from check_dependencies import check_environment, install_command
 from cli_invocation import shown
-from pack_manager import PackSettings, write_lock
-from prepare_generation_references import (
-    host_reference_transports,
-    validate_prepared_reference_set,
-)
-from reference_contract import canonical_json, finalize_reference_use_plan
-from reference_runtime import (
-    DependencyPreflightError,
-    build_reference_use_plan,
-    execute_reference_use_plan,
-    validate_reference_use_plan,
-)
+from pack_manager import write_lock
+from runtime_paths import PackSettings
+from generation_references import host_reference_transports, validate_prepared_reference_set
+from reference_contract import canonical_json, finalize_reference_use_plan, WholeInfluenceUse
+from reference_plan_runtime import DependencyPreflightError, build_reference_use_plan, execute_reference_use_plan, validate_reference_use_plan
 from state_protocol import finalize_artifact
 
 
@@ -566,10 +559,10 @@ def run() -> dict[str, Any]:
 
             def use(influence: str) -> list[dict[str, str]]:
                 return [
-                    {
+                    WholeInfluenceUse({
                         "record_id": FIXTURE_RECORD_ID,
                         "intended_influence": influence,
-                    }
+                    })
                 ]
 
             lights = [
@@ -711,10 +704,40 @@ def run() -> dict[str, Any]:
                 pose_controls,
             )
 
+            scoped_plans = []
+            for control in ('target pose and body gesture', 'target camera framing and crop'):
+                selected = [{"record_id": FIXTURE_RECORD_ID, "intended_influence": "pose-camera",
+                             "selected_controls": [control]}]
+                scoped = build_reference_use_plan(selected, transport_mode='prompt-artifacts',
+                                                  source_lighting_mode='replace')
+                scoped_plans.append(scoped)
+                _record(checks, 'canonical-subset-' + control,
+                    validate_reference_use_plan(scoped)['ok']
+                    and len(scoped['reference_items']) == 1
+                    and scoped['reference_items'][0]['authority']['controls'] == [control]
+                    and scoped['reference_items'][0]['selected_controls'] == [control], canonical_json(scoped))
+            from reference_contract import canonical_use_id
+            _record(checks, 'reference-use-identity-survives-scope-and-position-changes',
+                canonical_use_id(scoped_plans[0]['reference_items'][0])
+                == canonical_use_id(scoped_plans[1]['reference_items'][0]),
+                'The source use stays stable while its selected contribution changes.')
+            forged_scope = copy.deepcopy(scoped_plans[0])
+            forged_scope['reference_items'][0]['selected_controls'] = ['target camera framing and crop']
+            from reference_contract import authority_for, rule_for
+            item = forged_scope['reference_items'][0]
+            item['authority'] = authority_for(item['technical_role'], item['intended_influence'],
+                selected_controls=item['selected_controls'])
+            item['preamble'] = rule_for(item['technical_role'], item['intended_influence'],
+                selected_controls=item['selected_controls'])['preamble']
+            forged_scope = finalize_artifact(forged_scope)
+            report = validate_reference_use_plan(forged_scope)
+            _record(checks, 'canonical-artifact-cannot-widen-selected-record-contribution',
+                    not report['ok'], canonical_json(report))
+
             combined_plan = build_reference_use_plan(
                 [
-                    {"record_id": FIXTURE_RECORD_ID, "intended_influence": "identity"},
-                    {"record_id": FIXTURE_RECORD_ID, "intended_influence": "outfit"},
+                    WholeInfluenceUse({"record_id": FIXTURE_RECORD_ID, "intended_influence": "identity"}),
+                    WholeInfluenceUse({"record_id": FIXTURE_RECORD_ID, "intended_influence": "outfit"}),
                 ],
                 transport_mode="prompt-artifacts",
                 source_lighting_mode="preserve",
@@ -722,14 +745,14 @@ def run() -> dict[str, Any]:
             try:
                 build_reference_use_plan(
                     [
-                        {
+                        WholeInfluenceUse({
                             "record_id": FIXTURE_RECORD_ID,
                             "intended_influence": "identity",
-                        },
-                        {
+                        }),
+                        WholeInfluenceUse({
                             "record_id": FIXTURE_RECORD_ID,
                             "intended_influence": "identity",
-                        },
+                        }),
                     ],
                     transport_mode="prompt-artifacts",
                     source_lighting_mode="preserve",
@@ -742,7 +765,8 @@ def run() -> dict[str, Any]:
             _record(
                 checks,
                 "combined-identity-and-outfit-retain-distinct-record-authority",
-                combined_plan["selected_records"]
+                [{key: value for key, value in row.items() if key != 'selected_controls'}
+                 for row in combined_plan["selected_records"]]
                 == [
                     {"record_id": FIXTURE_RECORD_ID, "intended_influence": "identity"},
                     {"record_id": FIXTURE_RECORD_ID, "intended_influence": "outfit"},
@@ -945,6 +969,7 @@ def run() -> dict[str, Any]:
                     {
                         "record_id": DIRECT_RASTER_RECORD_ID,
                         "intended_influence": "pose-camera",
+                        "selected_controls": ["target silhouette", "subject-background separation"],
                     }
                 ],
                 transport_mode="multi-image",
@@ -956,7 +981,7 @@ def run() -> dict[str, Any]:
             )
             direct_dir = temp / "direct-raster-multi-image"
             with patch(
-                "reference_runtime.check_environment",
+                'reference_plan_runtime.check_environment',
                 side_effect=AssertionError(
                     "direct-raster multi-image needs no rasterization preflight"
                 ),
@@ -1005,12 +1030,12 @@ def run() -> dict[str, Any]:
 
                 try:
                     with patch(
-                        "reference_runtime.check_environment",
+                        'reference_plan_runtime.check_environment',
                         side_effect=AssertionError(
                             "direct-raster multi-image needs no rasterization preflight"
                         ),
                     ), patch(
-                        "reference_runtime.validate_prepared_reference_set",
+                        'reference_plan_runtime.validate_prepared_reference_set',
                         side_effect=fail_before_commit,
                     ):
                         execute_reference_use_plan(
@@ -1058,12 +1083,12 @@ def run() -> dict[str, Any]:
 
                 try:
                     with patch(
-                        "reference_runtime.check_environment",
+                        'reference_plan_runtime.check_environment',
                         side_effect=AssertionError(
                             "direct-raster multi-image needs no rasterization preflight"
                         ),
                     ), patch(
-                        "reference_runtime.validate_prepared_reference_set",
+                        'reference_plan_runtime.validate_prepared_reference_set',
                         side_effect=fail_after_commit,
                     ):
                         execute_reference_use_plan(
@@ -1349,10 +1374,10 @@ def run() -> dict[str, Any]:
             try:
                 build_reference_use_plan(
                     [
-                        {
+                        WholeInfluenceUse({
                             "record_id": UNSUPPORTED_RECORD_ID,
                             "intended_influence": "identity",
-                        }
+                        })
                     ],
                     transport_mode="prompt-artifacts",
                     source_lighting_mode="preserve",
@@ -1422,8 +1447,8 @@ def run() -> dict[str, Any]:
 
             legitimate_multi_scope = build_reference_use_plan(
                 [
-                    {"record_id": FIXTURE_RECORD_ID, "intended_influence": "identity"},
-                    {"record_id": FIXTURE_RECORD_ID, "intended_influence": "outfit"},
+                    WholeInfluenceUse({"record_id": FIXTURE_RECORD_ID, "intended_influence": "identity"}),
+                    WholeInfluenceUse({"record_id": FIXTURE_RECORD_ID, "intended_influence": "outfit"}),
                 ],
                 transport_mode="prompt-artifacts",
                 source_lighting_mode="preserve",

@@ -159,16 +159,11 @@ def compose_panel_fills(
     results_dir = results_dir.resolve(strict=True)
     if not results_dir.is_dir():
         raise ValueError(f"results_dir must be a directory: {results_dir}")
-    with Image.open(scaffold_path) as scaffold_source:
-        scaffold = scaffold_source.convert("RGB")
-    if scaffold.size != (canvas_width, canvas_height):
-        raise ValueError("scaffold dimensions differ from sheet-layout.json")
-    composed = scaffold.copy()
-    result_records: list[dict[str, Any]] = []
-    # A staged fill accepts the identity anchor before the other panels exist;
-    # a panel without a result then stays as the scaffold drew it.
+    # Resolve the complete request and registration scope before decoding
+    # large images. A refused selection has no composition work to perform.
     missing_results: list[str] = []
     present: list[Mapping[str, Any]] = []
+    resolved_results: list[tuple[Mapping[str, Any], Path, tuple[int, int, int, int]]] = []
     for request in requests:
         request_id = str(request["request_id"])
         result_file = str(request["result_file"])
@@ -177,34 +172,15 @@ def compose_panel_fills(
             result_path.relative_to(results_dir)
         except ValueError as exc:
             raise ValueError(f"panel result escapes results_dir: {result_file}") from exc
+        geometry = validate_request_target(request, editable_boxes[request_id])
         if not result_path.is_file():
             if allow_missing:
                 missing_results.append(request_id)
                 continue
             raise ValueError(f"panel result is missing for {request_id}: {result_file}")
         present.append(request)
-        x, y, width, height = validate_request_target(request, editable_boxes[request_id])
-        with Image.open(result_path) as result_source:
-            result = result_source.convert("RGB")
-        fitted = ImageOps.contain(result, (width, height), method=Image.Resampling.LANCZOS)
-        panel = Image.new("RGB", (width, height), (255, 255, 255))
-        offset_x = (width - fitted.width) // 2
-        offset_y = (height - fitted.height) // 2
-        panel.paste(fitted, (offset_x, offset_y))
-        composed.paste(panel, (x, y))
-        result_records.append(
-            {
-                "request_id": request_id,
-                "file": result_file,
-                "sha256": sha256_file(result_path),
-                "source_size": {"w": result.width, "h": result.height},
-                "fitted_size": {"w": fitted.width, "h": fitted.height},
-                "offset": {"x": offset_x, "y": offset_y},
-                "target": {"x": x, "y": y, "w": width, "h": height},
-            }
-        )
+        resolved_results.append((request, result_path, geometry))
 
-    sidecar_report = None
     if register_sidecar_path is not None:
         register_sidecar_path = register_sidecar_path.resolve()
         if not register_sidecar_path.is_file():
@@ -230,15 +206,42 @@ def compose_panel_fills(
                 if str(request["slot_id"]) in wanted
                 or str(request.get("resolved_slot_id", request["slot_id"])) in wanted
             ]
+
+    with Image.open(scaffold_path) as scaffold_source:
+        composed = scaffold_source.convert("RGB")
+    if composed.size != (canvas_width, canvas_height):
+        raise ValueError("scaffold dimensions differ from sheet-layout.json")
+    result_records: list[dict[str, Any]] = []
+    for request, result_path, (x, y, width, height) in resolved_results:
+        with Image.open(result_path) as result_source:
+            result = result_source.convert("RGB")
+        fitted = result if result.size == (width, height) else ImageOps.contain(
+            result, (width, height), method=Image.Resampling.LANCZOS)
+        offset_x = (width - fitted.width) // 2
+        offset_y = (height - fitted.height) // 2
+        if fitted.size == (width, height):
+            composed.paste(fitted, (x, y))
+        else:
+            panel = Image.new("RGB", (width, height), (255, 255, 255))
+            panel.paste(fitted, (offset_x, offset_y))
+            composed.paste(panel, (x, y))
+        result_records.append({
+            "request_id": str(request["request_id"]),
+            "file": str(request["result_file"]),
+            "sha256": sha256_file(result_path),
+            "source_size": {"w": result.width, "h": result.height},
+            "fitted_size": {"w": fitted.width, "h": fitted.height},
+            "offset": {"x": offset_x, "y": offset_y},
+            "target": {"x": x, "y": y, "w": width, "h": height},
+        })
+
+    sidecar_report = None
+    if register_sidecar_path is not None:
         sidecar_report = register_panel_results(
             register_sidecar_path,
-            images=[
-                (
-                    editable_boxes[str(request["request_id"])],
-                    (results_dir / str(request["result_file"])).resolve(),
-                )
-                for request in accepted
-            ],
+            images=[(editable_boxes[str(request["request_id"])],
+                     (results_dir / str(request["result_file"])).resolve())
+                    for request in accepted],
         )
 
     out_path = out_path.resolve()

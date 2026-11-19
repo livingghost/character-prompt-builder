@@ -32,7 +32,7 @@ def fixture_visual(production_spec: dict, *, root: Path | None = None,
 
 def verify(value: dict, *, package_root: Path | None = None, studio: Path | None = None, **kwargs) -> dict:
     """Supply the explicit source root belonging to this synthetic fixture."""
-    from verify_generation_payload import verify as verify_input
+    from generation_payload_validation import verify as verify_input
     return verify_input(value, package_root=package_root, studio=studio or fixture_root(), **kwargs)
 
 
@@ -41,5 +41,5 @@ def verify_package(value: dict, *, package_root: Path | None = None, studio: Pat
 
 
 def emit_paste_for_target(value: dict, target: str, *, package_root: Path | None = None) -> dict:
-    from verify_generation_payload import emit_paste_for_target as export
+    from generation_payload_validation import emit_paste_for_target as export
     return export(value, target, package_root=package_root, studio=fixture_root())

@@ -106,7 +106,7 @@ class CompilationInputsTests(unittest.TestCase):
         return writes
 
     def test_prepare_publishes_one_canonical_copy_of_each_document(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_case_fixtures as fixtures
         import request_contract
 
@@ -146,7 +146,7 @@ class CompilationInputsTests(unittest.TestCase):
         self.assertEqual(store.runs(self.root), [])
 
     def test_builder_receives_immutable_checked_inputs_and_preview_stays_editable(self):
-        import build_generation_payload as builder
+        import generation_payload_builder as builder
 
         build = builder.acquire_generation
         supplied = {}
@@ -170,8 +170,8 @@ class CompilationInputsTests(unittest.TestCase):
         self.assertEqual(c.load(self.root / self.case['task']['generation']['production_spec']), supplied['original'])
 
     def test_direct_compilation_exports_an_independently_verifiable_package(self):
-        import build_generation_payload as builder
-        import verify_generation_payload as verifier
+        import generation_payload_builder as builder
+        import generation_payload_validation as verifier
 
         with patch.object(verifier,'verify',side_effect=AssertionError('internal compilation must consume its domain result')):
             compiled=compiler.compile_task(self.root,'task.json')
@@ -206,7 +206,7 @@ class CompilationInputsTests(unittest.TestCase):
         self.assertTrue(retried['publishable'],retried['diagnostics'])
 
     def test_public_package_builder_uses_the_same_schema_bytes_as_its_evidence(self):
-        import build_generation_payload as builder
+        import generation_payload_builder as builder
         import pack_manager
         import production_case_fixtures as fixtures
         import request_validation

@@ -13,19 +13,108 @@ from model_prompt_input_fixtures import prompt_input
 ACTOR = 'SYNTHETIC FIXTURE OPERATOR - NOT USER CONSENT'
 
 
-def task(root: Path, spec: dict, *, artifact: str = 'text', execution: str = 'authored') -> dict:
-    from reading_fixtures import task_reading
+def current_request(root: Path, text: str | None = None) -> str:
+    """Write an explicit synthetic instruction for input-boundary tests."""
+    path = root / 'fixture-current-request.txt'
+    if text is not None or not path.exists():
+        path.write_text(text or 'Exercise the explicitly specified synthetic production artifact.', encoding='utf-8')
+    return path.relative_to(root).as_posix()
+
+
+def authoring_inputs(root: Path, task_path: str | None, out_dir: str, **choices) -> dict:
+    """Select concrete protocol-fixture input, keeping runtime defaults out of tests."""
+    import production_inputs
+    choices.setdefault('operation', 'amend' if task_path is not None or choices.get('from_run') else 'compose')
+    choices.setdefault('request_file', current_request(root))
+    route = choices.get('route')
+    if route is None and task_path is not None:
+        route = c.load(root / task_path)['route']
+    if route is None and choices.get('from_run'):
+        import production_operations as production_workflow
+        route = production_workflow.read_run(root, choices['from_run']).prepared['task']['route']
+    if route in {'development', 'world-realization', 'story-context'}:
+        choices.setdefault('focus', 'supporting-setting')
+    return production_inputs.draft_inputs(root, task_path, out_dir, **choices)
+
+
+def authoring_arguments(arguments: list[str]) -> list[str]:
+    """Give CLI protocol fixtures the same explicit request and operation."""
+    result = list(arguments)
+    if 'draft-inputs' not in result:
+        return result
+    root = Path(result[result.index('--root') + 1])
+    if '--operation' not in result:
+        result += ['--operation', 'amend' if '--task' in result or '--from-run' in result else 'compose']
+    if '--request-file' not in result:
+        result += ['--request-file', current_request(root)]
+    if '--focus' not in result:
+        route = result[result.index('--route') + 1] if '--route' in result else None
+        if route is None and '--task' in result:
+            route = c.load(root / result[result.index('--task') + 1])['route']
+        if route in {'development', 'world-realization', 'story-context'}:
+            result += ['--focus', 'supporting-setting']
+    return result
+
+
+def acquire_application(root: Path, choices_path: str, source_id: str, content, *,
+                        application: str | None = None, role: str = 'design') -> dict:
+    """Acquire a separately authored fixture source and select its actual value."""
+    import authoring_work
+    basis_path = root / Path(choices_path).parent / 'work-basis.json'
+    basis = c.load(basis_path)
+    raw = content.encode('utf-8') if isinstance(content, str) else c.encoded(content)
+    path = root / ('fixture-source-' + source_id + ('.txt' if isinstance(content, str) else '.json'))
+    path.write_bytes(raw)
+    source = {'id': source_id, 'path': path.relative_to(root).as_posix(), 'role': role,
+              'disposition': 'applied', 'locator': 'whole source', 'reason': 'Explicit current fixture source.'}
+    sources = {**basis['sources'], source_id: authoring_work.acquire_source(raw,
+        format='text' if isinstance(content, str) else 'json', origin={'kind': 'studio-source', 'source': source})}
+    applications = {**basis['applications'], application or source_id: {'source': source_id, 'pointer': ''}}
+    revised = authoring_work.revise_basis(basis, sources=sources, applications=applications)
+    basis_path.write_bytes(c.encoded(revised))
+    return revised
+
+
+def bind_work_basis(root: Path, spec: dict, *, request: str | None = None,
+                    focus: str = 'character') -> dict:
+    """Acquire the fixture's actual source values and publish their task projection."""
+    import production_authoring
+    import production_authoring_work
+    request = (root / current_request(root)).read_text(encoding='utf-8') if request is None else request
+    authored = production_authoring.blank(spec)
+    specification = (spec.get('generation') or {}).get('production_spec')
+    if specification is None:
+        specification = next((row['path'] for row in spec['sources']
+            if row['role'] == 'production-spec' and row['disposition'] == 'applied'), None)
+    if specification is not None:
+        authored['documents']['production_spec'] = c.load(root / specification)
+    choices = {'authoring': authored}
+    previous = c.load(root / spec['work_basis']) if spec.get('work_basis') else None
+    choices, basis, _ = production_authoring_work.begin(choices, task=spec, operation='compose',
+        request=request, read_source=lambda path: c.read(root / path), prior_basis=previous,
+        initial=True, focus=focus)
+    directory = 'fixture-authoring/' + c.content_id(basis)
+    projected, files, _ = production_authoring_work.project(basis, choices, directory)
+    files['work-basis.json'] = c.encoded(basis)
+    production_authoring_work.publish_sources(root, directory, files)
+    spec.update(projected['authoring']['task'])
+    return basis
+
+
+def task_definition(root: Path, spec: dict, *, artifact: str = 'text',
+                    execution: str = 'authored') -> dict:
+    """Declare synthetic task content and authority before binding its completed inputs."""
     spec.setdefault('production_id', generate_uuid7())
     spec['artifact'] = artifact
     spec['execution'] = execution
-    task_reading(root, spec)
     spec['direction'] = {'purpose': 'Exercise an explicitly declared synthetic deliverable.',
                          'intended_effect': 'Make no claim of generated artwork or user approval.',
-                         'basis': [], 'decisions': [], 'action_slice': None,
+                         'basis': [], 'decisions': [], 'source_allowances': [], 'action_slice': None,
                          'limitations': ['Synthetic fixture only.']}
     for criterion in spec['criteria']:
         criterion['evidence'] = 'artifact'
     spec['authority'] = 'fixture-authority.json'
+    current_request(root)
     authority = {'task_id': spec['task_id'], 'issuer': 'SYNTHETIC TEST FIXTURE',
                  'evidence': {'path': 'fixture-authority-basis.txt', 'locator': 'whole'},
                  'grants': [{'id': 'fixture-grant', 'actor': ACTOR, 'mode': 'direct',
@@ -38,14 +127,24 @@ def task(root: Path, spec: dict, *, artifact: str = 'text', execution: str = 'au
     return spec
 
 
+def task(root: Path, spec: dict, *, artifact: str = 'text', execution: str = 'authored',
+         focus: str = 'character') -> dict:
+    """Declare a synthetic task, then read and bind its completed inputs once."""
+    from reading_fixtures import task_reading
+    task_definition(root, spec, artifact=artifact, execution=execution)
+    task_reading(root, spec)
+    bind_work_basis(root, spec, focus=focus)
+    return spec
+
+
 def grant(root: Path, run: str, intent: dict, *, reason: str = 'Synthetic test operation only.') -> str:
-    import production_workflow as w
+    import production_operations as w
     request = w.draft_authorization(root, run, 'fixture-grant', intent)
     request['reason'] = reason
     if intent['operation'] == 'submit' and 'request_decision' in request:
-        if w.load_run(root, run)[1]['task']['execution'] == 'dispatcher':
+        prepared = w.load_run(root, run)[1]
+        if prepared['task']['execution'] == 'dispatcher':
             from production_request import assessment_source
-            prepared = w.load_run(root, run)[1]
             evidence = prepared['authority']['evidence']
             request['request_decision']['principal_approval'] = assessment_source(root, intent['payload'],
                 principal=prepared['authority']['issuer'], path=evidence['path'], locator=evidence['locator'])
@@ -96,7 +195,7 @@ def external_image_input(root: Path, spec: dict, *, count: int = 1) -> str:
 
 
 def handoff(root: Path, run: str, recipient: str, method: str) -> dict:
-    import production_workflow as w
+    import production_operations as w
     intent = w.handoff_intent(root, run, recipient, method)
     rows = w.load_run(root, run)[3]
     matching = [r for r in rows if r['event'] == 'handoff' and
@@ -137,7 +236,7 @@ def observation(value: dict) -> dict:
 
 
 def selection(root: Path, run: str, value: dict) -> dict:
-    import production_workflow as w
+    import production_operations as w
     value['selector'] = ACTOR
     value['authorization'] = grant(root, run, w.selection_intent(value))
     return value
@@ -168,7 +267,7 @@ def rendered_request(package: dict, *, seed: int | None, count: int) -> dict:
 
 
 def claim(root: Path, run: str, package: dict, journal: Path, count: int = 2) -> dict:
-    import production_workflow as w
+    import production_operations as w
     rendered = rendered_request(package, seed=None, count=count)
     target = rendered['sealed']['target']
     intent = w.submission_intent(package, rendered=rendered, seed=None, count=count,
@@ -182,7 +281,7 @@ def prepare_external_delivery(root: Path, prompt: str, *, route: str = 'generati
                      artifact: str = 'image', sources: list | None = None, model: str | None = None) -> str:
     """Explicit local test setup; never imported by an operational entrypoint."""
     import work_ledger
-    import production_workflow as w
+    import production_operations as w
     started = work_ledger.begin(root, 'Synthetic external package construction', ['prepare', 'inspect'])
     (root / 'fixture-delivery.txt').write_text(prompt, encoding='utf-8')
     spec = {'task_id': started['task_id'], 'route': route, 'features': ['generation-package'],
@@ -207,16 +306,16 @@ def prepare_external_delivery(root: Path, prompt: str, *, route: str = 'generati
 def bind_package(root: Path, run: str, package: dict) -> dict:
     import copy
     import production_binding
-    from build_generation_payload import generation_input_sha256
+    from generation_payload_builder import generation_input_sha256
     value = copy.deepcopy(package)
     from visual_fixtures import fixture_visual
-    from build_generation_payload import sha256_json
+    from generation_payload_builder import sha256_json
     value['visual_continuity'] = fixture_visual(value['production_spec'], root=root)
     value['visual_continuity_sha256'] = sha256_json(value['visual_continuity'])
     value['generation_contract']['visual_continuity_sha256'] = value['visual_continuity_sha256']
     from reading_fixtures import fixture_reading
-    from build_generation_payload import sha256_json
-    from production_workflow import assert_current
+    from generation_payload_builder import sha256_json
+    from production_operations import assert_current
     owner = assert_current(root, run)
     reading = fixture_reading(route=value['route_reading']['route'], features=value['route_reading']['features'],
                               model=value['model'], service=value['service'], execution=owner.prepared['task']['execution'])

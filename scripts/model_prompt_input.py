@@ -7,7 +7,6 @@ form is unsupported. Actual no-text, grammar and interface limits still apply.
 from __future__ import annotations
 
 import copy
-import json
 from datetime import date
 from pathlib import Path
 from typing import Any, Mapping
@@ -33,7 +32,8 @@ def _check_dates(value: Mapping[str, Any]) -> None:
 
 def validate_prompt_input(value: Any) -> None:
     """Validate a declared input workflow and its evidence; infer no defaults."""
-    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    from state_protocol import read_schema
+    schema = read_schema(SCHEMA_PATH)
     _check(value, schema, "prompt_input")
     _check_dates(value)
 

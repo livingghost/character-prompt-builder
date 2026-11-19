@@ -198,38 +198,98 @@ fact. Keep these boundaries visible in the API:
 | Data | Read owner | Consumers |
 | --- | --- | --- |
 | Pack state, discovery and selected file contents | `pack_manager.RuntimeInputs` and `PackInput` | Validation, record/resource resolution, catalog persistence and Production snapshot capture use the same acquired input |
-| Installed builder sources and schema documents | `builder_inputs.BuilderInputs`, `state_protocol.SchemaDocuments` and `protocol_contract.ContractSet` | One pure evaluator consumes immutable documents and lazy reference resolution bound to their exact contents |
+| Installed builder sources and schema documents | `builder_inputs.BuilderInputs`, `state_protocol.SchemaDocuments` and `protocol_contract.ContractSet` | Each immutable schema owns its keyword dispatch plan; one pure evaluator checks current instances and resolves reference documents lazily |
 | Registered run and immutable publication | `production_read_model.RunReader` | A shared `RunView` owns prepared inputs, consumer data, manifest-verified bytes, the compiled documents its consumers use and event history |
+| Candidate evaluation and disposition displays | `production_read_model.DecisionReader` | `DecisionRead` exposes immutable candidate projections after checking registered input records, the current event chain and its required evidence; Studio, sheet inventory and candidate-status share this purpose-specific acquisition |
 | Selected saved input revision | `production_saved_inputs.CapturedInputs` and `RetainedSelection` | Variants, reopened choices and registered exports acquire unchanged sources from the selected run; explicit replacements acquire current files. `InputEvidence` retains `@run` source identities and nested evidence bytes in each resulting package, without walking ancestor history. |
 | Acquired compilation inputs and fixed runtime files | `runtime_snapshot.CompileRuntime` and `FixedRuntimeRead` | Compilation consumes owned catalog and file values; publication preserves the runtime inputs the compilation bound or read; a route receipt reads its named resources without reconstructing the catalog |
 | Current route documents and original source files | `live_source_read.LiveSourceRead` | A navigation or impact observation acquires the declared files and passes the same bytes to route receipts and dependency comparisons |
-| Lifecycle transitions and event lookups | `execution_lifecycle.ReplayState` and `EventHistory` | One ordered replay publishes read-only indexes and applies the same rules to a proposed append |
+| Lifecycle transitions, selection meaning and event lookups | `execution_lifecycle.ReplayState` and `EventHistory` | One ordered replay publishes read-only indexes and checked selection assessments, and applies the same rules to a proposed append |
+| Captured event evidence and sheet documents | `production_read_model.EvidenceReader` | Replay, adoption verification and selection readers consume the exact acquired bytes, typed documents and checked sidecar meaning from one read phase |
 | Current authority | `production_store.CurrentAuthority` | Permission checks consume the checked grant document, owning event and evidence bytes without changing prepared input |
-| Studio manifest, iterations, sidecars and run states | `studio.StudioRead` and `studio_reference.ReferenceReads` | Source, identity, continuity, gallery, readiness and status share a read model per canonical Studio root and read phase |
+| Studio manifest, iterations, sidecars and run states | `studio_workspace.StudioRead` and `studio_reference.ReferenceReads` | Source, identity, continuity, gallery, readiness and status share a read model per canonical Studio root and read phase |
 | Rebuildable Studio displays | `studio_activity.operation` | One refresh of the affected views after the owning mutation |
 
-A public read checks the observed content. An outer production transaction starts a
-new read boundary and rechecks stored content before deciding a write. Nested
-reads share decoded data within that boundary. An own write or rollback
-invalidates the retained event history and dependent Studio reads. Existing
-read values remain observations of their original inputs. Internal consumers
+A public operation acquires its inputs once and owns them through its decisions,
+persistence and display updates. A transaction is a persistence boundary inside
+that operation. It branches the current immutable `RunView`, validates the next
+canonical event against the acquired history and lifecycle, and publishes its
+successor to the operation after commit. Saving does not require reading the
+saved result back. Rollback restores the predecessor state without replaying its
+history. Writer capabilities belong to their actual transaction and end on
+commit or rollback even though the acquired values continue to be usable.
+
+Keep one SQLite connection per Studio for the operation, with no transaction or
+write lock held between stages. Compare SQLite `data_version` only on that same
+connection at a new transaction or display admission. An external commit ends
+reuse of event and authority observations; an owned commit does not. Reacquire
+changed records under the new SQLite snapshot, including edits to older event
+rows whose count and tail did not change. A replaced database also ends reuse.
+This is an observation of other writers, not a content digest or approval.
+Current authority state and durable predecessor/claim constraints remain checked
+by SQLite at their effect boundary. Their unchanged acquired event documents
+and evidence need no repeated parsing or file reads.
+
+Existing read values remain observations of their original inputs. Internal consumers
 share deeply read-only values; an editing boundary explicitly exports an
 independent graph with `load_run`, `RunView.snapshot` or `owned_json.mutable`.
+JSON acquisition can finish read-only containers during parsing. A read-only
+sidecar check uses that acquired document; editing callers request their own
+copy. Selection views receive the assessment of their exact immutable event
+and review from the lifecycle owner. A copied or different event receives the
+ordinary content checks. File-based decisions acquire their run within the
+owning mutation, and derived display scope comes from that decision's prepared
+input. Display admission observes external changes and consumes the operation's
+current owned values. It retains unchanged Studio inputs and receives newly
+written iteration and activity values directly from their writers.
 Pass an existing owned value to later consumers before adding another cache.
-Each new transaction or forced acquisition reads and verifies every declared
-publication file and decodes the documents its domain consumers need. Decoded
-documents and event evidence belong to that read phase. They are not carried
-over from an earlier transaction after comparing hashes. A nested fresh read
+Publication checks the producer's complete staged files and compares each owned
+JSON document with the exact bytes it wrote. After the successful directory
+publication and run registration, those checked values and their evidence owner
+pass to the first run read. This handoff does not decode the producer's JSON or
+acquire the complete publication again. A failed registration discards that
+admission with the transaction; an independently opened run checks stored bytes.
+Each new complete-run operation or forced acquisition reads and verifies every declared
+publication file and decodes the documents its domain consumers need. The
+publication I/O owner passes the exact object bytes already checked by its
+manifest scan to the bounded `EvidenceReader`; later semantic interpretation
+uses those bytes. The retained byte budget covers the whole acquisition,
+and large media continues to stream without growing it. Decoded
+documents and event evidence belong to that operation, including successful
+transactions and derived display publication. A nested explicit fresh read
 discards the enclosing scope's retained values before starting and before
 returning, including when acquisition fails. Persistent
 caches require their own consistency contract and maintenance cost; a new
 representation alone is not a reason to add one.
 A forced check rereads both publication and event evidence.
-The external-effect boundary checks the saved publication and runtime together
+The external-effect boundary uses the acquired publication and fixed runtime
 with current authority before committing its one durable start. It does not
 reacquire mutable authoring files or current Studio placement.
 
-`production_workflow.read_current` acquires the stored run and its fixed runtime.
+Candidate navigation owns a separate read contract. It checks the registered
+manifest, `prepared.json` and `consumer.json`, their sealed input bindings, and
+the complete current event chain with its evidence and selection meaning.
+Only files actually acquired and checked become verified object entries.
+Unrelated source snapshots and compiled request documents belong to the
+complete run audit, rather than this display acquisition. `DecisionRead`
+contains candidate projections only: it has no run tuple, event history,
+publication integrity result or mutation capability. Existing complete
+`RunView` values can supply a display in the same read phase. A decision
+display never supplies a complete run observation in the reverse direction.
+New operations and forced full acquisition discard retained decision observations.
+An owned write replaces affected decisions with the successor state; rollback
+restores the predecessor. An external commit reacquires current event meaning.
+
+Studio adoption, current reference proof and source attribution continue to
+acquire complete runs through `StudioRead.run`. Explicit Production status
+and execution result status retain their full integrity and readiness
+guarantees. Managed batch reports also retain complete acquisition because
+they identify verified generation packages and execution plans alongside
+their candidate decisions. The decision reader retains the complete event
+chain: a selection depends on later review, replacement, closure and adoption
+events, so a stored latest-decision field cannot replace that evidence.
+
+`production_operations.read_current` acquires the stored run and its fixed runtime.
 Authorization, handoff and claim helpers receive these values and the
 transaction's current authority explicitly. Source comparisons belong to
 `freshness` for navigation and impact; their warnings neither select another
@@ -239,16 +299,21 @@ Result capture and sheet publication use the recorded execution target. A
 later model-definition edit affects readiness for new work, not recovery of
 an image already returned under the prepared target.
 
-One execution may pass its immutable fixed-runtime metadata as an explicit
-prior value. Acquisition still reads `snapshot.json` and every declared member,
-checks exact membership, and acquires current authority separately.
-It shares the decoded metadata only after the actual JSON bytes match exactly.
-The newly acquired owner contains newly read member bytes. No run publication,
-event state, authority or successful check crosses a transaction through this
-value. An independent command starts without a prior runtime observation.
+One execution shares its complete immutable `FixedRuntimeRead` through uploads,
+submission, result capture and reporting. The first acquisition reads
+`snapshot.json` and every declared member and checks exact membership. Later
+stages consume those exact bytes. A new operation or explicit forced audit
+acquires current stored content; a prior value passed across that boundary may
+share decoded metadata only after the newly read bytes match exactly.
+
+The execution journal retains its written JSON values and exact serialized
+bytes for downstream consumers. Persistence is a checkpoint for recovery, not
+the input to the next stage of an uninterrupted execution. New recovery calls
+acquire stored journal content once. Returned provider observations and new
+external files are acquired at their actual arrival boundary.
 
 Content hashes identify acquired bytes. A read-phase token only ends reuse
-inside the current operation or transaction; it is not persisted or numbered.
+inside the current operation; it is not persisted or numbered.
 Do not introduce a version counter or a generated identifier to stand in for
 content equality. Keep current grant state distinct from published creative
 input, and use the existing event digest to identify a committed predecessor.
@@ -301,8 +366,15 @@ contents or writing final documents that would be immediately discarded.
 
 Retain owner-scoped exclusion where several existing mutable files form one
 read-modify-write operation, such as a character's acceptance journal or the
-open work task. State which files the owner protects, and keep unrelated
-characters, read-only inspection and immutable publication outside that scope.
+open work task. The domain initializes its meaningful data and locks that real
+file with `execution_contract.file_lock`. The replacement is locked before
+publication, and waiters verify that their acquired file identity still belongs
+to the path. POSIX carries the lock through its replacing rename. Windows opens
+the replacement with delete access and renames its open handle with
+`FileRenameInfoEx`, retaining the new file's byte-range lock. Nested updates use
+the same owner. Custom private writers retain the replacement lock before their
+rename. State which files the owner protects, and keep unrelated characters,
+read-only inspection and immutable publication outside that scope.
 A display refresh owns derived files, not permission or the authoritative
 record. Nested mutations mark affected views; the outer operation publishes
 them once, retains concurrent dirty receipts and reports a repair warning if

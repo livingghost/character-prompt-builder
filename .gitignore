@@ -9,7 +9,6 @@
 /dist/
 /.validation-*
 /.tmp-*
-.cpb.lock
 __pycache__/
 *.py[cod]
 .pytest_cache/

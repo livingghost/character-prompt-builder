@@ -8,7 +8,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 import hashlib
 import json
 import os
@@ -25,7 +25,7 @@ from operation_context import current, stage
 from pack_manager import generate_uuid7
 from publication_artifacts import ArtifactSet, StagedArtifacts
 from cli_invocation import python_argv, shown
-from owned_json import freeze
+from owned_json import freeze, json_value
 
 ROOT=Path(__file__).resolve().parents[1]
 GENERATION_FILES=('parameters','production_spec','plot','retrieval_record','creative_intent','negative',
@@ -43,7 +43,9 @@ REGISTERED_MANIFEST_DAMAGED=('The registration of this run records these exact m
                              'this run, and other runs are unaffected. Prepare a new run of the task with prepare.')
 REPORT_SCHEMA='schemas/authoring/production-compilation-report.schema.json'
 PLAN_SCHEMA='schemas/authoring/production-execution-plan.schema.json'
-PUBLICATION_CONTROLS=('manifest.json','owner.json','failure.json',c.LOCK_FILE)
+PUBLICATION_CONTROLS=('manifest.json','owner.json','failure.json')
+RUN_DOCUMENTS=frozenset({'prepared.json', 'consumer.json', 'package.json', 'request-contract.json',
+                         'execution-plan.json', 'execution-target.json'})
 
 
 def run_inputs(run: str) -> str:
@@ -128,6 +130,7 @@ def _file_inputs(task: dict) -> list[tuple[str,str]]:
     if isinstance(task.get('route_reading'),str):items.append(('$.route_reading',task['route_reading']))
     if isinstance(task.get('image_input'),str):items.append(('$.image_input',task['image_input']))
     if isinstance(task.get('semantic_edit'),str):items.append(('$.semantic_edit',task['semantic_edit']))
+    if isinstance(task.get('work_basis'),str):items.append(('$.work_basis',task['work_basis']))
     basis = task.get('authored_basis')
     if isinstance(basis, dict):
         for index, source in enumerate(basis.get('sources', []) if isinstance(basis.get('sources'), list) else []):
@@ -136,6 +139,9 @@ def _file_inputs(task: dict) -> list[tuple[str,str]]:
                 items.append((f'$.authored_basis.sources[{index}].file.path', item['path']))
     for index,source in enumerate(task.get('sources',[]) if isinstance(task.get('sources'),list) else []):
         if isinstance(source,dict) and isinstance(source.get('path'),str):items.append((f'$.sources[{index}].path',source['path']))
+        origin = source.get('origin') if isinstance(source, dict) else None
+        if isinstance(origin, dict) and isinstance(origin.get('path'), str):
+            items.append((f'$.sources[{index}].origin.path', origin['path']))
     for index,source in enumerate(task.get('upload_sources',[]) if isinstance(task.get('upload_sources'),list) else []):
         if isinstance(source,dict) and isinstance(source.get('file'),str):items.append((f'$.upload_sources[{index}].file',source['file']))
     generation=task.get('generation')
@@ -145,7 +151,7 @@ def _file_inputs(task: dict) -> list[tuple[str,str]]:
     return items
 
 
-NO_TASK_CHECKS=['task-schema','task-contract','sources','runtime-resolution','source-validation','package-compilation',
+NO_TASK_CHECKS=['task-schema','task-contract','authoring-work','sources','runtime-resolution','source-validation','package-compilation',
                 'request-compilation','recording-validation','execution-plan','publication']
 
 
@@ -335,13 +341,16 @@ class InputChecks:
 
 def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[str, bytes],
                          checks: InputChecks, *, runtime_ready: bool, directory: Path, artifacts: ArtifactSet,
-                         runtime_source=None,evidence=None,retained_inputs=None) -> None:
+                         runtime_source=None,evidence=None,retained_inputs=None,render_presets=None) -> None:
     """Use existing domain validators before package assembly, without short-circuiting peers.
 
     A task schema error blocks only the checks that need the whole task. Every
     check of a document the task names still runs on the captured bytes.
     """
-    import production_workflow as workflow
+    import production_operations as workflow
+    from render_contract_lib import RenderPresets
+    render_presets = render_presets if render_presets is not None else RenderPresets(
+        source=runtime_source.catalog.builder_inputs if runtime_source is not None else None)
     whole = ['task-schema']
     def present(value: Any) -> bool:
         return isinstance(value, str) and bool(value)
@@ -383,6 +392,15 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
     prompt_key = dependency('$.delivery.path')
     checks.check('delivery-content', lambda: c.text(captured[delivery_path].decode('utf-8'), 'delivery'),
                  requires=[prompt_key], file=delivery_path, pointer='$.delivery.path')
+    work_inputs = [key for pointer, key in source_keys.items()
+                   if pointer == '$.work_basis' or pointer.startswith('$.sources[')
+                   or pointer.startswith('$.generation.') or pointer == '$.image_input']
+    checks.check('authoring-work', lambda: workflow.check_authoring_work(task, read=cached),
+                 requires=['task-contract', 'delivery-content', *work_inputs],
+                 file=task.get('work_basis') or task_path, pointer='$.work_basis',
+                 guidance={'document_path': 'references/runtime/authoring-work.md'},
+                 required_action='Acquire the current request and selected character definitions in the common authoring work, '
+                     'then export its basis with the actual task and run check or prepare again.')
     if dispatcher:
         checks.check('recording-validation', lambda: validate_recording(root, task, {}), requires=whole,
                      file=task_path, pointer='$.recording')
@@ -447,14 +465,14 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                       'schema': 'schemas/render-intent.schema.json'})
             def document(path=path, role=role):
                 value = c.decode(cached(path))
-                image_input.validate_external_document(value, role)
+                image_input.validate_external_document(value, role, render_presets=render_presets)
                 return value
             value = checks.check(name, document, requires=[dependency(source_pointer)],
                                  file=path, guidance=owner)
             intent_name = 'external-render-intent:' + str(index)
             def intent(value=value, role=role):
                 return validate_intent(value['render_intent'] if role == 'production-spec' else value,
-                                       prompt=text('prompt'))
+                                       prompt=text('prompt'), render_presets=render_presets)
             checks.check(intent_name, intent, requires=[name, 'delivery-content'], file=path,
                          pointer='$.render_intent' if role == 'production-spec' else '$',
                          guidance={'document_path': 'references/runtime/render-contract.md#external-image-work'})
@@ -462,7 +480,8 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
             documents.append({**source, 'value': value})
         checks.check('external-image-contract', lambda: bounded(lambda base, value, add:
             image_input.external_documents(base, value, add,
-                inputs=checks.values.get('image-input', (None, {}))[0], documents=documents), 'image_input'),
+                inputs=checks.values.get('image-input', (None, {}))[0], documents=documents,
+                render_presets=render_presets), 'image_input'),
             requires=['task-contract', 'delivery-content', *document_checks] + (['image-input'] if task.get('image_input') else []),
             file=task_path)
     if task.get('authority'):
@@ -489,7 +508,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
             raise ValueError('The scene-mask-planning feature requires generation.mask_binding.')
         checks.check('scene-mask-binding', require_mask_binding, requires=['task-contract'], file=task_path)
     if not dispatcher: return
-    import build_generation_payload as builder
+    import generation_payload_builder as builder
     import render_contract_lib as render
     def target(model_name, service):
         result=builder.resolve_target(model_name,service,source=runtime_source)
@@ -502,13 +521,15 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         if task.get('route') != 'upscale' and upscale is None:
             return
         # The upscale source and settings are independent of the output slot.
-        import production_binding, dispatch
+        import production_binding
+        import dispatch_runtime as dispatch
         request=checks.check('upscale-document',lambda:c.decode(captured[delivery_path]),
                              requires=[prompt_key],file=delivery_path,pointer='$.delivery.path')
         if request is not None:
             def upscale_source():
                 with retained_inputs.scope('delivery') if retained_inputs is not None else nullcontext():
-                    return production_binding.validate_upscale_input(root, request,input_source=runtime_source)
+                    return production_binding.validate_upscale_input(root, request,input_source=runtime_source,
+                                                                      render_presets=render_presets)
             checks.check('upscale-source', upscale_source,
                          requires=['upscale-document'],file=delivery_path)
             resolved=checks.check('target-contract',lambda:target(request['model'],upscale['service']),
@@ -528,7 +549,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                     settings=dispatch.mapped_settings(model,offering,request['settings'])
                     try:
                         contract=render.compile_contract(model,offering,request['render_intent'],{**settings,scale:request['scale_factor']},
-                            prompt=request['guidance_prompt'] or '',reference_count=1)
+                            prompt=request['guidance_prompt'] or '',reference_count=1,render_presets=render_presets)
                     except render.ParameterErrors as exc:
                         raise render.ParameterErrors([_upscale_scale_problem(item,scale=scale,model_id=resolved.model_id,
                             offering=offering,mode=request['render_intent']['execution_mode'],factor=request['scale_factor'])
@@ -561,7 +582,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
             raise ProductionError('MODEL_PROFILE_MISSING','The declared target has no selected offering or service.',phase='runtime-resolution')
         return result
     def preflight():
-        from reference_runtime import preflight_dependencies, DependencyPreflightError
+        from reference_plan_runtime import preflight_dependencies, DependencyPreflightError
         prepared=documents['references']
         plan=prepared.get('reference_use_plan') if isinstance(prepared.get('reference_use_plan'),dict) else {}
         try:return preflight_dependencies({'transport_mode':prepared.get('transport_mode'),
@@ -595,18 +616,22 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         'target-contract':['specification','runtime-resolution']+gate(selected.get('service')),
         'dependency-preflight':[dependency('$.generation.references')],
         'reference-preparation':['target-contract','dependency-preflight',dependency('$.generation.references')],
-        'render-intent':['specification','delivery-content'],
+        'reference-input':['target-contract','delivery-content','request-validation-evidence']
+            + (['reference-preparation'] if selected.get('references') else [])
+            + [dependency('$.generation.'+field)
+               for field in ('negative','integrated_prompt','native_negative') if selected.get(field)],
+        'render-intent':['specification','delivery-content','reference-input'],
         'execution-profile':['target-contract'],
         'execution-controls':['execution-profile']+([dependency('$.generation.parameters')] if selected.get('parameters') else []),
         'execution-quantity':['execution-profile','render-intent']+whole,
         'request-validation-evidence':([dependency('$.generation.request_validation'),'runtime-resolution']
             if selected.get('request_validation') else ['target-contract']),
         'negative-provenance':[dependency('$.generation.negative_provenance')] if selected.get('negative_provenance') else [],
-        'negative-transport':['delivery-content','execution-controls']+[dependency('$.generation.'+field)
+        'negative-transport':['delivery-content','execution-controls','reference-input','render-intent']+[dependency('$.generation.'+field)
             for field in ('negative','integrated_prompt','native_negative') if selected.get(field)],
-        'retrieval':['plot','delivery-content','target-contract']+([dependency('$.generation.retrieval_record')] if selected.get('retrieval_record') else [])}
+        'retrieval':['plot','delivery-content','target-contract','reference-input']+([dependency('$.generation.retrieval_record')] if selected.get('retrieval_record') else [])}
     field_for={'specification':'production_spec','plot':'plot','creative-intent':'creative_intent',
-        'target-contract':'production_spec','dependency-preflight':'references','reference-preparation':'references',
+        'target-contract':'production_spec','dependency-preflight':'references','reference-preparation':'references','reference-input':'references',
         'render-intent':'production_spec','execution-profile':'production_spec','execution-controls':'parameters',
         'request-validation-evidence':'request_validation','negative-provenance':'negative_provenance',
         'negative-transport':'negative','retrieval':'retrieval_record'}
@@ -616,7 +641,7 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         if name=='retrieval' and 'target-contract' in checks.values:
             from model_prompt_input import resolve_prompt_input
             if resolve_prompt_input(checks.values['target-contract'].model)['mode']=='tag-based':
-                options['requires']=[*options['requires'],'execution-controls',
+                options['requires']=[*options['requires'],'execution-controls','negative-transport',
                     *([dependency('$.generation.negative')] if selected.get('negative') else [])]
         if name=='specification':options['guidance']=specification_guidance(root,specpath)
         if name=='execution-profile':options['code']='MODEL_PROFILE_MISSING'
@@ -631,12 +656,13 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
                     return original()
         return checks.check(name,action,**options)
     resolved=GenerationInputs.acquire(values,resolve_target=selected_target,prepare_references=references,
-        preflight_references=preflight,evidence=evidence,check=report,validation_factory=validation)
+        preflight_references=preflight,evidence=evidence,check=report,validation_factory=validation,
+        render_presets=render_presets)
     if resolved is not None:checks.values['generation-inputs']=resolved
 
 
 def validate_recording(root: Path, task: dict, specification: dict, visual: dict | None = None) -> None:
-    import studio
+    import studio_workspace as studio
     recording=task.get('recording')
     if recording is None:
         return
@@ -670,7 +696,7 @@ def _runtime_binding(root:Path,prepared:dict,*,runtime_inputs,directory:Path,per
 def _generation(root: Path, task: dict, prepared: dict, consumer: dict, directory: Path, identity: str, blobs: dict, *,
                 inspected: InputChecks, captured: dict[str, bytes], artifacts: ArtifactSet,
                 runtime_inputs,evidence,persist:bool,retained_inputs=None) -> tuple:
-    import build_generation_payload as builder
+    import generation_payload_builder as builder
     import request_renderer
     from route_reading import copy_issuance, ledger_candidates
     selected=task['generation']
@@ -754,7 +780,7 @@ def _external_reference_evidence(prepared: dict, consumer: dict, directory: Path
     from sheet_artifacts import dependency
     known = {(row['space'], row['path']): row for row in prepared['dependencies']}
     if canonical:
-        from prepare_generation_references import host_reference_transports
+        from generation_references import host_reference_transports
         carriers = [*host_reference_transports(canonical),
                     *(row['transport'] for row in canonical['selected_references'])]
         for carrier in {row['sha256']: row for row in carriers}.values():
@@ -802,7 +828,7 @@ def _prompt_check(package:dict,rendered:dict,model_record:dict)->dict:
 
 def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict,directory:Path,identity:str,
                     target,*,seed:int|None,count:int,fields:dict,artifacts:ArtifactSet,prompt_check:dict)->tuple:
-    import production_workflow as workflow
+    import production_operations as workflow
     from model_rendition import review_requirements
     model_id,model_record,offering,service,transport=(target.model_id,target.model,target.offering,target.service,target.transport)
     effects = _external_effects(rendered, count, transport)
@@ -867,8 +893,10 @@ def _upscale_scale_problem(item: dict, *, scale: str, model_id: str, offering: d
 
 def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,identity:str,blobs:dict,*,
              captured:dict[str,bytes],artifacts:ArtifactSet,inspected:InputChecks,runtime_inputs,persist:bool,
-             retained_inputs=None)->tuple:
-    import dispatch, request_renderer, runtime_evidence
+             retained_inputs=None,render_presets=None)->tuple:
+    import dispatch_runtime as dispatch
+    import request_renderer
+    import runtime_evidence
     from input_evidence import InputEvidence
     from route_reading import copy_issuance,ledger_candidates
     package=copy.deepcopy(inspected.values['upscale-document'])
@@ -916,7 +944,7 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     with stage('request-compilation'), (retained_inputs.scope('delivery') if retained_inputs is not None else nullcontext()):
         rendered=request_renderer.upscale(package,model,offering,service,transport,carrier,settings,
             root=root,upload_sources=task.get('upload_sources', []),upload_source_read=lambda path:captured[path],
-            input_source=runtime_inputs.runtime)
+            input_source=runtime_inputs.runtime,render_presets=render_presets)
         from model_contract import validate_request_schema
         import request_contract
         instance=copy.deepcopy(rendered['request'])
@@ -1070,7 +1098,7 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
     runtime_source=None
     evidence=None
     try:
-        import production_workflow as workflow
+        import production_operations as workflow
         with ExitStack() as context:
             if derived is not None:
                 directory=_staging(root,persist)
@@ -1108,9 +1136,12 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                     runtime_ready=False
                     diagnostics.append(from_exception(exc,phase='runtime-resolution',file=task_path))
             active_phase='input-checks'
+            from render_contract_lib import RenderPresets
+            render_presets = RenderPresets(
+                source=runtime_source.catalog.builder_inputs if runtime_source is not None else None)
             inspect_dependencies(root,task,task_path,captured,checks,runtime_ready=runtime_ready,directory=directory,
                                  artifacts=artifacts,runtime_source=runtime_source,evidence=evidence,
-                                 retained_inputs=retained_inputs)
+                                 retained_inputs=retained_inputs,render_presets=render_presets)
             if any(d.get('severity','error')=='error' for d in diagnostics):
                 raise CompilationError(report)
             active_phase='source-validation'
@@ -1137,7 +1168,7 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                 if task['route']=='upscale':
                     package,rendered,execution_plan,runtime_read,warnings=_upscale(root,task,prepared,consumer,directory,identity,blobs,
                         captured=captured,artifacts=artifacts,inspected=checks,runtime_inputs=runtime_inputs,persist=persist,
-                        retained_inputs=retained_inputs)
+                        retained_inputs=retained_inputs,render_presets=render_presets)
                 else:
                     package,rendered,execution_plan,runtime_read,warnings=_generation(root,task,prepared,consumer,directory,identity,blobs,
                         inspected=checks,captured=captured,artifacts=artifacts,runtime_inputs=runtime_inputs,
@@ -1167,7 +1198,7 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                                           handoff=handoff, operations=operations,
                                           external_effects=[{'operation': 'send', 'count': 1, 'outputs': external['count']}],
                                           readiness=execution_readiness(prepared, operations=operations),
-                                          prepared_request_sha256=external['sha256'],
+                                          prepared_request_sha256=external['request_sha256'],
                                           model_identity=external.get('model_identity'),
                                           validation=external['schema_validation'],
                                           review_requirements=review_requirements(),
@@ -1191,7 +1222,7 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                 return raw
             reference_sources = {}
             if package is not None and package.get('prepared_reference_set') is not None:
-                from build_generation_payload import validate_generation_package_carrier_paths
+                from generation_payload_builder import validate_generation_package_carrier_paths
                 reference_set = package['prepared_reference_set']
                 companion = validate_generation_package_carrier_paths(reference_set, package_root=directory)
                 if companion:
@@ -1372,58 +1403,171 @@ def _read_publication_manifest(directory: Path, *, expected: str | None = None,
 
 @dataclass(frozen=True)
 class PublicationRead:
-    """The verified manifest and decoded documents from one read boundary."""
+    """Every declared publication file checked within one read boundary."""
 
     manifest: dict
     documents: Mapping[str, Any]
     directory: Path
     manifest_sha256: str
+    evidence: Any
+    verified_objects: dict[str, int]
+    _files: Any = field(repr=False, compare=False)
+
+    def published_at(self, directory: Path) -> PublicationRead:
+        """Transfer this acquisition after its owner publishes the same directory.
+
+        Retained evidence and decoded documents keep their exact checked values.
+        Evidence beyond the byte budget is subsequently read at the published
+        location, under the same manifest checks.
+        """
+        self._files.directory = Path(directory).absolute()
+        return replace(self, directory=self._files.directory)
 
 
-def acquire_publication(directory: Path, *, expected: str | None = None, registered: bool = False,
-                        documents=()) -> PublicationRead:
-    """Acquire a publication and decode its requested JSON at the I/O boundary.
+@dataclass(frozen=True)
+class DecisionRecords:
+    """The registered input records needed to interpret candidate decisions.
 
-    Every boundary reads its own current bytes. Large media is streamed;
-    requested documents are decoded from the bytes that were checked. The
-    returned values have no lazy readers or cross-boundary success state.
-    `registered` says that `expected` is the manifest digest a run's
-    registration records; otherwise the publication has no registration yet.
+    This value makes no claim about unacquired publication members. Its
+    evidence owner checks a member when event interpretation requires it.
     """
-    manifest, manifest_sha256 = _read_publication_manifest(directory, expected=expected, registered=registered)
-    requested = frozenset(documents)
-    acquired = {}
-    for item in manifest['files']:
-        path=c.local(directory,item['path'],exists=False)
+
+    prepared: dict
+    consumer: dict
+    evidence: Any
+    verified_objects: dict[str, int]
+
+
+class _PublicationFiles:
+    """Acquire current publication members and own their checked bytes.
+
+    Manifest membership alone never establishes a member's integrity. Only a
+    completed byte check enters verified_objects. Full audit and decision
+    record acquisition share this I/O owner, with separate result types.
+    """
+
+    def __init__(self, directory: Path, *, expected: str | None, registered: bool):
+        from production_read_model import EvidenceReader
+        self.directory = Path(directory).absolute()
+        manifest, self.manifest_sha256 = _read_publication_manifest(
+            self.directory, expected=expected, registered=registered)
+        self.manifest = freeze(manifest)
+        self.members = {item['path']: item for item in self.manifest['files']}
+        self.documents = {}
+        self.verified_objects = {}
+        self.evidence = EvidenceReader(self.object_bytes)
+
+    def _path(self, item: dict) -> Path:
+        path=c.local(self.directory,item['path'],exists=False)
         snapshot=item['path'].startswith('objects/')
         if not path.is_file():
             if snapshot:
                 raise store.evidence_error('EVIDENCE_SNAPSHOT_MISSING','A saved source snapshot of the run is missing.',file=str(path),
-                                           expected=item['sha256'],run=directory.name,artifact=item['path'])
-            raise ProductionError('ARTIFACT_MISSING','A published artifact is missing.',phase='integrity',file=str(path),expected=item['sha256'],run=directory.name,
+                                           expected=item['sha256'],run=self.directory.name,artifact=item['path'])
+            raise ProductionError('ARTIFACT_MISSING','A published artifact is missing.',phase='integrity',file=str(path),expected=item['sha256'],run=self.directory.name,
                                   required_action=store.RESTORE_EVIDENCE)
-        raw = None
-        if item['path'] in requested:
-            raw = c.read(path)
-            actual, size = c.digest(raw), len(raw)
-        else:
-            digest = hashlib.sha256()
-            size = 0
-            with path.open('rb') as stream:
-                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
-                    size += len(chunk)
-                    digest.update(chunk)
-            actual = digest.hexdigest()
+        return path
+
+    def _check(self, item: dict, path: Path, actual: str, size: int) -> None:
         if actual!=item['sha256'] or size!=item['size']:
-            if snapshot:
+            if item['path'].startswith('objects/'):
                 raise store.evidence_error('EVIDENCE_SNAPSHOT_CORRUPT','A saved source snapshot of the run differs from its committed contents.',
-                                           file=str(path),expected=item['sha256'],actual=actual,run=directory.name,artifact=item['path'])
-            raise ProductionError('ARTIFACT_CORRUPT','A published artifact differs from its committed contents.',phase='integrity',file=str(path),expected=item['sha256'],actual=actual,run=directory.name,
+                                           file=str(path),expected=item['sha256'],actual=actual,run=self.directory.name,artifact=item['path'])
+            raise ProductionError('ARTIFACT_CORRUPT','A published artifact differs from its committed contents.',phase='integrity',file=str(path),expected=item['sha256'],actual=actual,run=self.directory.name,
                                   required_action=store.RESTORE_EVIDENCE)
-        if raw is not None:
-            acquired[item['path']] = c.decode(raw)
-    return PublicationRead(freeze(manifest), freeze(acquired),
-                           Path(directory).absolute(), manifest_sha256)
+
+    def _remember(self, item: dict, raw: bytes | None) -> None:
+        if item['path'] == 'objects/' + item['sha256']:
+            self.verified_objects[item['sha256']] = item['size']
+            if raw is not None:
+                self.evidence.retain_verified(item['sha256'], raw)
+
+    def _bytes(self, item: dict) -> bytes:
+        path = self._path(item)
+        raw = c.read(path)
+        self._check(item, path, c.digest(raw), len(raw))
+        self._remember(item, raw)
+        return raw
+
+    def document(self, name: str, *, owned_documents: Mapping[str, Any] | None = None) -> Any:
+        if name not in self.documents:
+            raw = self._bytes(self.members[name])
+            if owned_documents is not None and name in owned_documents:
+                value = json_value(owned_documents[name])
+                expected = c.encoded(value)
+                if raw != expected:
+                    raise ProductionError('ARTIFACT_CORRUPT',
+                        'Published JSON differs from the document its producer supplied.',
+                        phase='integrity', file=str(self.directory / name),
+                        expected=c.digest(expected), actual=c.digest(raw),
+                        required_action=store.RESTORE_EVIDENCE)
+                self.documents[name] = value
+            else:
+                self.documents[name] = c.decode(raw, owned=True)
+        return self.documents[name]
+
+    def object_bytes(self, key: str) -> bytes:
+        name = 'objects/' + c.sha(key)
+        if name in self.members:
+            return self._bytes(self.members[name])
+        # Event evidence captured after publication is owned by its content
+        # address and the event's checked size, not the original manifest.
+        return c.object_read(self.directory, key)
+
+    def verify(self, item: dict) -> None:
+        path = self._path(item)
+        digest = hashlib.sha256()
+        size = 0
+        budget = self.evidence.remaining
+        chunks = ([] if item['path'] == 'objects/' + item['sha256'] and item['size'] <= budget else None)
+        with path.open('rb') as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                size += len(chunk)
+                digest.update(chunk)
+                if chunks is not None:
+                    if size <= budget:
+                        chunks.append(chunk)
+                    else:
+                        # A false declared size cannot enlarge the retained
+                        # byte budget. Large media continues to stream.
+                        chunks = None
+        self._check(item, path, digest.hexdigest(), size)
+        raw = b''.join(chunks) if chunks is not None else None
+        self._remember(item, raw)
+
+
+def acquire_publication(directory: Path, *, expected: str | None = None, registered: bool = False,
+                        documents=(), owned_documents: Mapping[str, Any] | None = None) -> PublicationRead:
+    """Check all current publication bytes and decode requested JSON once.
+
+    Small object bytes already acquired during the manifest scan remain with
+    the same bounded evidence owner for later semantic checks. Large media
+    is streamed. A producer may supply its current documents: their exact
+    canonical bytes must match the checked files before those values are used.
+    Nothing from a prior read boundary is accepted as proof.
+    """
+    owner = _PublicationFiles(directory, expected=expected, registered=registered)
+    requested = frozenset(documents)
+    for item in owner.manifest['files']:
+        if item['path'] in requested:
+            owner.document(item['path'], owned_documents=owned_documents)
+        else:
+            owner.verify(item)
+    return PublicationRead(owner.manifest, freeze(owner.documents), owner.directory,
+                           owner.manifest_sha256, owner.evidence, owner.verified_objects, owner)
+
+
+def acquire_decision_records(directory: Path, *, expected: str) -> DecisionRecords:
+    """Acquire the sealed records that identify a candidate's formal criteria.
+
+    Navigation interprets the registered input and current event evidence.
+    Execution, adoption, exports and explicit status use acquire_publication
+    to audit the complete publication independently.
+    """
+    owner = _PublicationFiles(directory, expected=expected, registered=True)
+    prepared = owner.document('prepared.json')
+    consumer = owner.document('consumer.json')
+    return DecisionRecords(prepared, consumer, owner.evidence, owner.verified_objects)
 
 
 def verify_publication(directory: Path, *, expected: str | None=None) -> dict:
@@ -1497,7 +1641,7 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
                                     'given as actual; expected is the one that was open when this preparation started.')
             prepared['parent']=parent
             prepared['predecessor']=store.latest_run(root,prepared['task']['task_id'])
-            import production_workflow as workflow
+            import production_operations as workflow
             prepared['criteria_predecessor']=workflow.criteria_predecessor(root,prepared['predecessor'],prepared['task'])
             for dependency in prepared['dependencies']:
                 if dependency['space'] in {'evidence','task-source'}:continue
@@ -1525,7 +1669,9 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
             compiled.artifacts.write('consumer.json',c.encoded(compiled.consumer))
             manifest=write_manifest(directory,compiled.artifacts)
             manifest_sha256=c.content_id(manifest)
-            verify_publication(directory,expected=manifest_sha256)
+            acquired = acquire_publication(directory, expected=manifest_sha256, documents=RUN_DOCUMENTS,
+                owned_documents={'prepared.json': prepared, 'consumer.json': compiled.consumer,
+                                 **compiled_documents(compiled)})
             target.parent.mkdir(parents=True,exist_ok=True)
             if target.exists():
                 raise ProductionError('OUTPUT_ALREADY_EXISTS','A run already occupies the publication destination.',phase='publication',file=str(target),
@@ -1543,6 +1689,9 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
             read_manifest(target,expected=manifest_sha256)
             ArtifactSet(target,manifest['files']).require_membership(controls=PUBLICATION_CONTROLS)
             store.register_run(root,run,prepared,target)
+            workflow.RunReader(root, workflow._validate_publication_content,
+                workflow._validate_run_history, workflow._validate_run_append).retain_publication(
+                    run, acquired.published_at(target))
         warnings=[]
         try:
             recorded = work_ledger.record_prepared(root, prepared['task']['task_id'], run)
@@ -1573,7 +1722,7 @@ def _preparation_result(run:str,directory:Path,input_sha256:str,*,package:bool,r
 
 def published_preparation(root: Path, run: str) -> dict:
     """The preparation result of a registered run, read from its verified publication; it creates no run."""
-    import production_workflow as workflow
+    import production_operations as workflow
     from owned_json import mutable
     root=c._root(root)
     loaded=workflow.read_run(root,run)
@@ -1789,7 +1938,7 @@ def prepare_task(root: Path, task_path: str, *, parent: dict | None=None, identi
 
 def inspect_publication(root: Path, run: str) -> tuple[Path, dict, dict]:
     """Verify an unregistered completion without changing authority or live sources."""
-    import production_workflow as workflow
+    import production_operations as workflow
     run = workflow.run_identifier(run)
     directory = c.local(root, 'production/runs/' + run)
     acquired = acquire_publication(directory, documents={'prepared.json', 'consumer.json'})
@@ -1831,7 +1980,7 @@ def unregistered_publications(root: Path, registered: list[dict] | None = None) 
 
 def recover_publication(root: Path, run: str) -> dict:
     """Register verified saved contents, never resurrect an old grant or send."""
-    import production_workflow as workflow
+    import production_operations as workflow
     run = workflow.run_identifier(run)
     with store.transaction(root):
         existing = [row for row in store.runs(root) if row['run_id'] == run]

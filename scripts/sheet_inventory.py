@@ -68,9 +68,9 @@ def entries(sidecar: Path, *, state: dict | None = None) -> list[dict]:
 
 
 def _dispositions(sidecar: Path, rows: list[dict]) -> None:
-    """Read each formal run only once; do not copy its decisions into the sidecar."""
-    import studio
-    import production_workflow as workflow
+    """Acquire formal decision displays once, without changing sheet ownership."""
+    import studio_workspace as studio
+    import production_operations as workflow
     root = studio.studio_root(sidecar.parent)
     cache: dict[str, Any] = {}
     for row in rows:
@@ -88,12 +88,12 @@ def _dispositions(sidecar: Path, rows: list[dict]) -> None:
             run = origin['run']
             if run not in cache:
                 try:
-                    cache[run] = workflow.read_run(root, run)
+                    cache[run] = workflow.read_decisions(root, run)
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     cache[run] = exc
             if isinstance(cache[run], Exception):
                 raise cache[run]
-            value = workflow.candidate_state(root, run, origin['candidate'], loaded=cache[run])
+            value = cache[run].candidate(origin['candidate'])
             row.update(disposition=value['disposition'], evaluation=value['evaluation'],
                        review=value['review'], selection_diagnostics=value['selection_diagnostics'])
         except (ValueError, OSError, KeyError, TypeError) as exc:

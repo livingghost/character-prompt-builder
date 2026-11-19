@@ -12,7 +12,7 @@ from unittest.mock import patch
 from PIL import Image
 import execution_contract as c
 import production_store as store
-import studio
+import studio_workspace as studio
 import studio_placement as placement
 import validate_studio
 from production_diagnostics import ProductionError

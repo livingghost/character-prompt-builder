@@ -5,6 +5,7 @@ production code never imports this module to invent a reading, approval or
 artistic decision on behalf of the user.
 """
 from __future__ import annotations
+from collections.abc import Callable
 import copy
 import io
 import json
@@ -14,6 +15,7 @@ from contextlib import contextmanager
 
 import execution_contract as c
 import pack_manager as packs
+import production_fixtures
 from render_contract_fixtures import profile,intent
 from production_fixtures import ACTOR
 from model_prompt_input_fixtures import prompt_input
@@ -25,7 +27,10 @@ ALTERNATE_MODEL_ID='cpb-synthetic-alternate'
 UPSCALE_MODEL_ID='cpb-synthetic-upscale'
 ALTERNATE_UPSCALE_MODEL_ID='cpb-synthetic-upscale-alternate'
 PROMPT='A flat graphic portrait of a simple synthetic robot standing against a plain background.'
-REFERENCE_RETRY_PROMPT='A blue robot carrying a small yellow toolbox.'
+REFERENCE_RETRY_SUBJECT='A blue robot carrying a small yellow toolbox.'
+REFERENCE_RETRY_DIRECTION=(' Image {{reference:character-source:attachment_number}} supplies '
+                           '{{reference:character-source:controls}}.')
+REFERENCE_RETRY_PROMPT=REFERENCE_RETRY_SUBJECT + REFERENCE_RETRY_DIRECTION
 
 
 def write(path:Path,value)->None:
@@ -80,7 +85,9 @@ def synthetic_profile()->dict:
     return declared
 
 
-def create_pack(path:Path, *, with_alternate:bool=False,with_upscale:bool=False,with_alternate_upscale:bool=False)->Path:
+def create_pack(path:Path, *, with_alternate:bool=False,with_upscale:bool=False,with_alternate_upscale:bool=False,
+                configure:Callable[[Path],None]|None=None)->Path:
+    """Author the complete synthetic interface before its first validation."""
     write(path/'pack.json',{'pack_id':PACK_ID,'name':'CPB Synthetic Example','description':'Local synthetic protocol example; no provider capabilities are claimed.',
          'release':'2026.09.24.1','content':{'record_globs':['records/**/*.json'],'resource_globs':['resources/**/*'],
            'resource_bindings':{'service-profiles':'resources/services.json'}},
@@ -133,18 +140,26 @@ def create_pack(path:Path, *, with_alternate:bool=False,with_upscale:bool=False,
         'operations':{'generate':{},'upscale':{}},'auth':{'scheme':'bearer','header':'Authorization'},
         'delivery':{'image':{'mode':'synchronous; an unfinished output is pending','poll':'lookup by request_id',
                              'terminal':'every output final','poll_interval_seconds':10}}}}})
+    if configure is not None:
+        configure(path)
     packs.write_lock(path)
     return path
 
 
-def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate:bool=False,with_upscale:bool=False,with_alternate_upscale:bool=False)->dict:
-    import studio,work_ledger,production_spec,prompt_plot,prompt_retrieval,production_fixtures
+def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate:bool=False,with_upscale:bool=False,with_alternate_upscale:bool=False,
+           prompt:str=PROMPT,configure_pack:Callable[[Path],None]|None=None)->dict:
+    import studio_workspace as studio
+    import work_ledger
+    import production_spec
+    import prompt_plot
+    import prompt_retrieval
+    import production_fixtures
     from catalog_retrieval import runtime
     from request_validation_fixtures import fixture_validation
-    from reading_fixtures import task_reading
     root=studio.init(root,'synthetic-example','Synthetic production-contract example')
     studio.add_character(root,'robot','general')
-    pack=create_pack(runtime_root/'packs/example',with_alternate=with_alternate,with_upscale=with_upscale,with_alternate_upscale=with_alternate_upscale)
+    pack=create_pack(runtime_root/'packs/example',with_alternate=with_alternate,with_upscale=with_upscale,
+                     with_alternate_upscale=with_alternate_upscale,configure=configure_pack)
     settings=packs.default_settings(extra_roots=[pack],state_file=runtime_root/'state.json',cache_dir=runtime_root/'cache',managed_root=runtime_root/'managed')
     initial=packs.load_state(packs.DEFAULT_PACK_STATE_PATH)
     # The synthetic pack's service profile outranks the commons one it does not require.
@@ -155,7 +170,7 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
     if not any(e.record.get('id')==MODEL_ID for e in catalog.entries):raise ValueError('Synthetic example pack did not validate.')
     begun=work_ledger.begin(root,'Synthetic no-network generation',['prepare','execute','inspect'])
     specification=production_spec.draft(model=MODEL_ID,brief='A synthetic robot demonstrates the input and execution contracts.',
-                                       subject='robot',kind='robot',render_intent=intent(PROMPT))
+                                       subject='robot',kind='robot',render_intent=intent(prompt))
     specification['subjects'][0]['identity']=['A deliberately unspecified synthetic test robot, not a real recurring character.']
     plot={'artifact_type':'prompt-plot','story':[{'id':'s1','beat':'The synthetic robot stands for a protocol demonstration.','visibility':'visible'}],
           'derived':[{'kind':'shows','statement':'one synthetic robot','from':['s1']},
@@ -170,10 +185,10 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
     write(root/'synthetic-search-results.json',found)
     record={'artifact_type':'prompt-retrieval-record','pack_state':catalog.fingerprint,
         'elements':[{'element':'synthetic robot fixture','queries':['synthetic robot fixture'],'inspected_records':[],
-            'outcome':'composed','composed_wording':PROMPT,
+            'outcome':'composed','composed_wording':prompt,
             'reason':'Authored fixture wording after the recorded lookup; returned model records were not adopted as subject design.'}]}
-    retrieval=prompt_retrieval.settle_retrieval_record(record,prompt=PROMPT,plot=plot)
-    write(root/'prompt.txt',PROMPT);write(root/'spec.json',specification);write(root/'plot.json',plot);write(root/'retrieval.json',retrieval)
+    retrieval=prompt_retrieval.settle_retrieval_record(record,prompt=prompt,plot=plot)
+    write(root/'prompt.txt',prompt);write(root/'spec.json',specification);write(root/'plot.json',plot);write(root/'retrieval.json',retrieval)
     write(root/'parameters.json',{'width':32,'height':32,'steps':20})
     write(root/'creative-intent.json',{'image_promise':'An explicitly synthetic protocol demonstration, not provider-quality evidence.'})
     validation=fixture_validation(root,MODEL_ID,reference_mode='authored-rendition',service='synthetic')
@@ -185,17 +200,11 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
                       'reason':'The synthetic brief states what the fixture image has to show.'}],
           'delivery':{'path':'prompt.txt','translation_notes':'One canonical authored synthetic prompt.'},
           'criteria':[{'id':'output','strength':'hard','text':'The received fixture is an identifiable PNG with the declared dimensions.'}], 'world_views':[]}
-    production_fixtures.task(root,task,artifact='image',execution='dispatcher')
-    task['direction']['decisions']=[{'id':'expression','question':'How should this synthetic protocol fixture be presented?',
-        'importance':'material','basis':['brief'],
-        'options':[{'id':'flat','expression':'flat graphic portrait','realization':{'method':'authored prompt','instructions':PROMPT,
-                        'capability_source':None,'limitations':['No artistic result is inferred from the mock response.']},
-                    'tradeoffs':['Reads as a plain protocol figure rather than an illustration.']},
-                   {'id':'outline','expression':'thin line drawing of the robot',
-                    'realization':{'method':'authored prompt','instructions':'A thin line drawing of a simple synthetic robot on a plain background.',
-                        'capability_source':None,'limitations':['Not prepared; the comparison is recorded, not generated.']},
-                    'tradeoffs':['Thin lines can disappear at 32 by 32 pixels.']}],
-        'selected':'flat','reason':'Explicit example-author choice for a legible small fixture; not a model inference.',
+    production_fixtures.task_definition(root,task,artifact='image',execution='dispatcher')
+    task['direction']['decisions']=[{'id':'expression','basis':['brief'],
+        'expression':'flat graphic portrait','realization':{'method':'authored prompt','instructions':prompt,
+            'capability_source':None,'limitations':['No artistic result is inferred from the mock response.']},
+        'note':'Explicit example-author choice for a legible small fixture.',
         'criteria':['output'],'depends_on':[],'deviations':[]}]
     task['generation']={'parameters':'parameters.json','production_spec':'spec.json','plot':'plot.json','retrieval_record':'retrieval.json',
         'creative_intent':'creative-intent.json','request_validation':'validation.json','service':'synthetic','count':1,'seed':None,
@@ -205,7 +214,9 @@ def create(root:Path,runtime_root:Path,*,with_authority:bool=True,with_alternate
     # Stable issuer ledger belongs to this studio so another CLI can verify it.
     from reading_fixtures import fixture_reading
     reading=fixture_reading(route='generation',studio=root,ledger=root/'work/reads.jsonl',model=MODEL_ID,service='synthetic', execution='dispatcher')
-    write(root/'reading.json',reading);task['route_reading']='reading.json';write(root/'task.json',task)
+    write(root/'reading.json',reading);task['route_reading']='reading.json'
+    production_fixtures.bind_work_basis(root, task, focus='character')
+    write(root/'task.json',task)
     return {'root':root,'task':task,'settings':settings,'pack':pack,'model':MODEL_ID}
 
 
@@ -218,8 +229,8 @@ def adopted_case(root:Path,runtime_root:Path)->dict:
     """
     import production_execution as execution
     import production_fixtures
-    import production_workflow as workflow
-    import studio
+    import production_operations as workflow
+    import studio_workspace as studio
     import studio_reference
     from visual_continuity import file_ref
     case=create(root,runtime_root)
@@ -266,7 +277,7 @@ def reference_retarget_case(case: dict) -> dict:
     These are explicit fixture-author selections, not inferred provider advice.
     """
     import production_inputs
-    import production_workflow
+    import production_operations as production_workflow
     from catalog_retrieval import runtime
     from reading_fixtures import fixture_reading
     from request_validation_fixtures import fixture_validation
@@ -318,7 +329,7 @@ def reference_retarget_case(case: dict) -> dict:
         model=MODEL_ID, service='synthetic', execution='dispatcher'))
     write(root / 'task.json', task)
     c.atomic(root / 'reference.png', _png(32, 32, b'\x20\x50\x90'))
-    authored = production_inputs.draft_inputs(root, 'task.json', 'reference-parent')
+    authored = production_fixtures.authoring_inputs(root, 'task.json', 'reference-parent')
     choices = authored['choices']
     choices['validation'] = {'mode': 'target-schema', 'contract': None, 'evidence': None,
         'execution_policy': policies[MODEL_ID]}
@@ -334,7 +345,7 @@ def reference_retarget_case(case: dict) -> dict:
     write(root / authored['choices_file'], choices)
     parent = production_workflow.prepare(root, choices=authored['choices_file'])
 
-    draft = production_inputs.draft_inputs(root, None, 'reference-retarget', from_run=parent['run'],
+    draft = production_fixtures.authoring_inputs(root, None, 'reference-retarget', from_run=parent['run'],
         model=ALTERNATE_MODEL_ID, service='synthetic')
     choices = draft['choices']
     inherited = copy.deepcopy(choices)
@@ -358,22 +369,83 @@ def copy_studio(origin:Path,target:Path)->Path:
     would hold a plain folder in its place. Build that studio from an empty
     folder instead.
 
-    Every studio record names its files relative to the studio, so the copy
-    is a separate studio. It shares the pack runtime `create` configured, and
-    stays current only while that runtime is unchanged.
+    Copy fixture states whose Studio contents can move together. Prepare inputs
+    with absolute media bindings after copying, using the new Studio's paths.
+    The copy shares the pack runtime `create` configured and stays current only
+    while that runtime is unchanged.
     """
     import shutil,stat
-    folders=[os.fspath(origin)]
-    while folders:
-        with os.scandir(folders.pop()) as entries:
-            for entry in entries:
-                info=entry.stat(follow_symlinks=False)
-                if os.name=='nt' and info.st_reparse_tag==stat.IO_REPARSE_TAG_MOUNT_POINT:
-                    raise ValueError(f'{entry.path} is a directory junction; build this studio from an empty folder, '
-                                     'because a copy holds a plain folder in its place.')
-                if stat.S_ISDIR(info.st_mode):folders.append(entry.path)
+    if os.name=='nt':
+        folders=[os.fspath(origin)]
+        while folders:
+            with os.scandir(folders.pop()) as entries:
+                for entry in entries:
+                    info=entry.stat(follow_symlinks=False)
+                    if info.st_reparse_tag==stat.IO_REPARSE_TAG_MOUNT_POINT:
+                        raise ValueError(f'{entry.path} is a directory junction; build this studio from an empty folder, '
+                                         'because a copy holds a plain folder in its place.')
+                    if stat.S_ISDIR(info.st_mode):folders.append(entry.path)
     shutil.copytree(origin,target,symlinks=True)
     return target.resolve()
+
+
+def cold_case(test):
+    """Build this test's pack, cache and Studio from an empty folder."""
+    test.cold_case = True
+    return test
+
+
+def _case_scope(owner, base: Path, *, class_scope: bool = False) -> None:
+    """Keep fixture globals, operation logs and synthetic responses in their owner."""
+    from unittest.mock import patch
+    from catalog_retrieval import runtime
+    import transport_synthetic
+    enter = owner.enterClassContext if class_scope else owner.enterContext
+    cleanup = owner.addClassCleanup if class_scope else owner.addCleanup
+    enter(production_fixtures.scratch_home(base / 'home'))
+    enter(patch.dict(os.environ, {'CPB_READS_LEDGER': str(base / 'home/reads.jsonl')}))
+    enter(patch.dict(transport_synthetic._ANSWERED, clear=True))
+    enter(patch.dict(transport_synthetic._DELETIONS, clear=True))
+    cleanup(runtime.configure_pack_runtime, None)
+
+
+class CaseTemplate:
+    """One real fixture build, followed by private Studio copies for a test class.
+
+    ``build`` returns the case and explicit metadata needed by its tests. Pack
+    sources stay at their original paths, so the captured runtime remains
+    current. Tests that edit those sources use ``cold_case``. Mutable Studio
+    files and metadata are copied; the pack runtime is never copied or rebased.
+    """
+
+    def __init__(self, base: Path, case: dict, metadata: dict):
+        self.case = case
+        self.metadata = metadata
+        self.studio = case['root'].relative_to(base.resolve())
+
+    @classmethod
+    def for_class(cls, owner, build):
+        import tempfile
+        temporary = tempfile.TemporaryDirectory()
+        owner.addClassCleanup(temporary.cleanup)
+        base = Path(temporary.name)
+        _case_scope(owner, base, class_scope=True)
+        case, metadata = build(base)
+        return cls(base, case, metadata)
+
+    @staticmethod
+    def for_test(owner, base: Path, build, template=None):
+        """Return a private case; direct setUp reuse without class setup is cold."""
+        from catalog_retrieval import runtime
+        _case_scope(owner, base)
+        method = getattr(owner, owner._testMethodName)
+        if template is None or getattr(method, 'cold_case', False):
+            return build(base)
+        runtime.configure_pack_runtime(template.case['settings'])
+        case = copy.deepcopy(template.case)
+        case['root'] = copy_studio(template.case['root'], base / template.studio)
+        os.environ['CPB_READS_LEDGER'] = str(case['root'] / 'work/reads.jsonl')
+        return case, copy.deepcopy(template.metadata)
 
 
 def alternate_task(root: Path, *, steps: int = 22) -> str:
@@ -456,7 +528,7 @@ def fill_decisions(root:Path,run:str,path:str)->str:
     """Write the execution decisions of a run as the labeled synthetic fixture operator; never user consent."""
     import production_execution as execution
     import production_store as store
-    import production_workflow as workflow
+    import production_operations as workflow
     value=execution.draft_execution(root,run,'fixture-grant')['choices']
     authority=store.authority(root,workflow.load_run(root,run)[1]['task']['task_id'])
     for request in value['decisions']:

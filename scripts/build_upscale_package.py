@@ -11,9 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import Sequence
 
-from catalog_cli import configure_pack_runtime
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
-from upscale_package import build_upscale_package, verify_upscale_package
 
 
 def _copy_regular(source: Path, destination: Path) -> None:
@@ -44,6 +42,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True)
     add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
+    from catalog_api import configure_pack_runtime
+    from upscale_package import build_upscale_package, verify_upscale_package
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     from execution_contract import read_json_object
@@ -64,7 +64,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         staged_output = staged_companion / ("output" + output_suffix)
         _copy_regular(args.source_image, staged_source)
         _copy_regular(args.output_image, staged_output)
-        from prepare_generation_references import resolve_model_record
+        from generation_references import resolve_model_record
         _model_id, record = resolve_model_record(args.model)
         required = record.get("upscaler_class") in {"generative", "creative"}
         audit_status = args.audit_status

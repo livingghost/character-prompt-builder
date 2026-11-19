@@ -17,7 +17,7 @@ choice and user interaction.
 
 ## Activation
 
-Typical sparse anchors include subject domain; species or body plan; build or proportion; coat, skin, casing, or primary body color; permanent head-hair presence, section map, texture, color, and silhouette; permanent mane, ruff, facial-hair, crest, or other regional-covering boundaries; age appearance; gender presentation; and one identity accessory or occupation. Scene, role, wardrobe, pose, performance, gaze, camera, crop, composition, lighting, environment, mood, style family, and render profile may remain open only when the brief does not state them.
+Typical sparse anchors include subject domain; species or body plan; build or proportion; coat, skin, casing, or primary body color; permanent head-hair presence, section map, texture, color, and silhouette; permanent mane, ruff, facial-hair, crest, or other regional-covering boundaries; age appearance; gender presentation; and one identity accessory or occupation. A current requirement or adopted source can also fix scene, role, wardrobe, pose, performance, gaze, camera, crop, composition, lighting, environment, mood, style family, or render profile. A quoted earlier proposal presents authored means for reconsideration; its presence in the message does not make each means a current requirement.
 
 Representative sparse briefs may specify only a subject type plus two or three identity anchors, such as age with occupation, chassis shape with one optic, or species with build and coat color.
 
@@ -65,8 +65,8 @@ not a prerequisite for consulting this knowledge. Consider which relationships
 could carry the request before looking up a preferred scene or finish. Select
 deeper specialist material for a consequential question those sources expose.
 
-After the entry runtime check, use the existing discovery operations without
-creating a Studio or planning files. When authoring a visual treatment is part
+After the entry runtime check, use the discovery operations while developing
+the candidate through [Authoring work](authoring-work.md). When authoring a visual treatment is part
 of the question, read the rendering envelopes and discover applicable knowledge
 in the active catalog. Other open rendition choices can remain with the model;
 they need no invented technique or lookup to make the prompt complete.
@@ -78,6 +78,13 @@ python scripts/catalog_cli.py recommend "<canonical user anchors and open questi
 
 Replace the query placeholder with the actual brief or scoped design question.
 Keep invented use, atmosphere, scene and medium out of its fixed anchors.
+For a revision of the overall effect, query the requested experience and the
+retained subject requirements first. Use the earlier realization as comparison
+material when evaluating what the discovered knowledge could change. Selecting
+its medium or framing as an anchor before discovery would make the inquiry
+answer that earlier choice. Compose the candidate from the request and retained
+requirements through Authoring work; its previous candidate supplies comparison
+material. Use the same source roles for conversational delivery and saved work.
 Read the returned scope, inventory and candidate functions, not just the first
 matching label. For a focused question, layered consultation is available:
 
@@ -113,7 +120,7 @@ direction is selected, retrieve its remaining construction or wording needs.
 
 ## Anchor extraction
 
-Normalize only explicit meaning and retain evidence for each interpretation. Identity facts are not the only anchors: a stated role, garment, accessory, pose, gesture, performance, gaze, camera, crop, composition, light, environment, mood, or style remains fixed too. Do not infer an unstated optional scene or style choice as an anchor.
+Normalize explicit meaning at its source's authority and retain evidence for each interpretation. Identity facts are not the only anchors: a required or adopted role, garment, accessory, pose, gesture, performance, gaze, camera, crop, composition, light, environment, mood, or style remains fixed too. Establish that authority from the current request and applicable sources before querying. Earlier proposed means remain comparison context until retained for the present work.
 
 Each `anchor_evidence` row always contains `facet`, `value`, `source`, `reason`, and `confidence`. Include `source_span` and `governed_noun` when query-local lexical evidence exists; structured or domain evidence may omit them.
 

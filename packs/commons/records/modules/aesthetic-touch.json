@@ -3,73 +3,21 @@
   "category": "aesthetic-touch",
   "records": [
     {
-      "id": "aesthetic-touch-blind-box-presentation",
-      "label": "Blind-box figure presentation",
-      "category": "aesthetic-touch",
-      "curation_status": "curated",
-      "record_role": "atomic-visual-instruction",
-      "visual_function": "Present the character as a collectible blind-box figure: compact proportions, smooth toy surfacing, a clean solid backdrop, and soft even product lighting.",
-      "prompt": "Present the character as a collectible blind-box figure: smooth vinyl-like surfacing with soft rounded transitions, a full-body standing or gently posed display, one solid clean backdrop color, soft even studio light with a subtle ground shadow, and crisp silhouette readability.",
-      "invariants": [
-        "the whole figure stays inside the frame",
-        "one solid backdrop color with a soft ground shadow",
-        "surfacing reads as smooth molded toy material across skin, hair, and clothing"
-      ],
-      "misreadings_to_avoid": [
-        "environmental clutter behind the figure",
-        "photoreal skin texture breaking the toy read",
-        "harsh single-direction shadows"
-      ],
-      "misreading_policy": {
-        "role": "diagnostic-only",
-        "automatic_prompt_injection": false
-      },
-      "applies_to": "presentation finish",
-      "tags": [
-        "blind box",
-        "designer toy",
-        "figure presentation"
-      ],
-      "domains": [
-        "shared"
-      ],
-      "search_terms": [
-        {
-          "phrase": "blind box figure presentation",
-          "facet": "aesthetic-touch",
-          "weight": 1.25,
-          "source": "author"
-        },
-        {
-          "phrase": "collectible toy display",
-          "facet": "aesthetic-touch",
-          "weight": 1.05,
-          "source": "author"
-        },
-        {
-          "phrase": "designer toy finish",
-          "facet": "aesthetic-touch",
-          "weight": 1.0,
-          "source": "author"
-        }
-      ]
-    },
-    {
       "id": "aesthetic-touch-kawaii-finish",
       "label": "Kawaii cuteness finish",
       "category": "aesthetic-touch",
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
-      "visual_function": "Push the whole frame toward bright cheerful cuteness: rounded shapes, sweet palette, and friendly readability.",
-      "prompt": "Finish the image with a kawaii treatment: rounded softened shapes, a bright cheerful sweet palette, large friendly eyes, simple clean detailing, and an overall warm approachable mood.",
+      "visual_function": "Give the selected design a bright kawaii rendering treatment through softened shape transitions, a sweet palette and simple clean detailing, while retaining its actual anatomy and selected expression.",
+      "prompt": "Render the selected design with softened shape transitions, a bright sweet palette, clear color groups, and simple clean detailing at the chosen scale. Keep its identity-bearing shapes and its selected expression through this treatment.",
       "invariants": [
-        "shapes round off at every corner and tip",
+        "softened transitions preserve the identifying shapes and their connections",
         "the palette stays bright and sweet",
-        "every face reads friendly at a glance"
+        "the selected expression and actual expressive structures remain the subject's own"
       ],
       "misreadings_to_avoid": [
         "dark gritty mood contradicting the cuteness",
-        "sharp aggressive shapes breaking the soft read",
+        "softening that replaces an identity-bearing shape or changes the selected expression",
         "muddy desaturated color flattening the cheer"
       ],
       "misreading_policy": {

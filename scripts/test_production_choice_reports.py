@@ -7,6 +7,7 @@ entry before preparation, except for the choices that only materializing the
 inputs can detect. No provider is contacted.
 """
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 
 import copy
 import json
@@ -22,7 +23,7 @@ import production_case_fixtures as cases
 import production_diagnostics
 import production_inputs
 import production_inputs_smoke_test as input_fixtures
-import production_workflow as workflow
+import production_operations as workflow
 from production_diagnostics import CompilationError, guidance
 from validate import markdown_anchor_slugs
 
@@ -97,10 +98,12 @@ class ChoiceReports:
 class AuthoredChoiceReportTests(ChoiceReports, unittest.TestCase):
     """A text task and an external task drafted from nothing, then edited one choice at a time."""
 
-    setUp = input_fixtures.InputToolsTests.setUp
     save_choices = input_fixtures.InputToolsTests.save_choices
     prepared_source = input_fixtures.InputToolsTests.prepared_source
     external_choice = input_fixtures.InputToolsTests.external_choice
+
+    def setUp(self):
+        input_fixtures.InputToolsTests.setUp(self, draft=False)
 
     def begin(self) -> None:
         import work_ledger
@@ -108,7 +111,7 @@ class AuthoredChoiceReportTests(ChoiceReports, unittest.TestCase):
 
     def initial(self, directory: str, **options) -> tuple[dict, dict]:
         self.begin()
-        result = production_inputs.draft_inputs(self.root, None, directory, route='development', **options)
+        result = authoring_fixtures.authoring_inputs(self.root, None, directory, route='development', **options)
         return result, c.load(self.root / result['choices_file'])
 
     def write(self, result: dict, choices: dict) -> str:
@@ -207,7 +210,7 @@ class DispatcherChoiceReportTests(ChoiceReports, unittest.TestCase):
         self.addCleanup(runtime.configure_pack_runtime, None)
 
     def draft(self, task: str = 'task.json', directory: str = 'draft') -> tuple[dict, dict]:
-        result = production_inputs.draft_inputs(self.root, task, directory)
+        result = authoring_fixtures.authoring_inputs(self.root, task, directory)
         self.assertEqual(result['unresolved'], [])
         return result, c.load(self.root / result['choices_file'])
 
@@ -241,7 +244,7 @@ class DispatcherChoiceReportTests(ChoiceReports, unittest.TestCase):
             inspect=False)
 
     def test_initial_image_draft_names_its_model_and_rendering_operation(self):
-        result = production_inputs.draft_inputs(self.root, None, 'initial', route='generation',
+        result = authoring_fixtures.authoring_inputs(self.root, None, 'initial', route='generation',
                                                 artifact='image', execution='dispatcher')
         self.assert_reported(result['choices_file'], [
             ('target-selection-required', 'target.model', {'mentions': ('render_contract.py models',)}),

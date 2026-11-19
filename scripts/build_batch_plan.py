@@ -11,6 +11,7 @@ own verified Generation Package through the selected adapter exactly as
 the Image Generation Runtime requires.
 """
 from __future__ import annotations
+import read_context
 import operation_context as _operation_context
 
 import argparse
@@ -22,12 +23,11 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from execution_contract import sha256_file
-import runtime_snapshot
 
 RESULT_STATUSES = ("accepted", "rejected", "pending", "failed")
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def project_managed_batch(root: Path, runs: Sequence[str], *, label: str | None = None) -> dict[str, Any]:
     """Project selected child runs from their verified owners without another result ledger.
 
@@ -38,8 +38,8 @@ def project_managed_batch(root: Path, runs: Sequence[str], *, label: str | None 
     import execution_contract as contract
     import execution_lifecycle as lifecycle
     import production_execution as execution
-    import production_workflow as workflow
-    import studio
+    import production_operations as workflow
+    import studio_workspace as studio
 
     root = studio.require_studio(root).resolve()
     if not isinstance(runs, (list, tuple)) or not runs:

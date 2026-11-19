@@ -1,8 +1,9 @@
-"""Expose existing identity owners and actual request carriers to coverage checks.
+"""Expose retained identity owners and actual request carriers to binding checks.
 
 This adapter reads declared source ownership and reference influence. It does
 not classify prose, adopt a source, infer hidden anatomy or assess image pixels.
-The coverage engine receives the same bytes that production preparation saves.
+Whole owners remain comparison context independently of which scene obligations
+are explicitly bound. The engine receives the bytes production preparation saves.
 """
 from __future__ import annotations
 
@@ -36,6 +37,10 @@ def _declared(task: dict, read, source: dict) -> bool:
     for item in task.get('sources', []):
         identity = item.get('identity')
         if not identity or not wanted <= set(identity['subject_ids']):
+            continue
+        if 'authority' in identity and identity['authority'] != source.get('authority'):
+            # Identical pixels or graph bytes do not make two scoped uses the
+            # same source owner. Keep the current scope independently visible.
             continue
         raw = read(item['path'])
         selectors = identity['selectors']
@@ -76,10 +81,8 @@ def reference_id(row: dict) -> str:
     """Use the owning reference identity, independent of its transport position."""
     # references/runtime/reference-delivery.md#reference-identities-and-coverage
     # distinguishes this use ID from the reference: identity-source prefix.
-    selected=row.get('reference_id') or row['source'].get('reference_id')
-    if selected is None:
-        selected=row.get('binding_id') or row['source'].get('artifact_id')
-    return c.text(selected,'selected reference use id')
+    from reference_delivery import reference_id as selected_reference_id
+    return selected_reference_id(row)
 
 
 def _reference_subjects(row: dict, subjects: list[str]) -> tuple[list[str], list[str]]:
@@ -103,12 +106,14 @@ def context(task: dict, read, *, package: dict | None = None,
             rendered: dict | None = None, inputs: dict | None = None,
             reference_set: dict | None = None, visual: dict | None = None,
             source_reader=None, production_spec: dict | None = None) -> dict:
-    """Resolve source inventories and carriers from the owners already selected.
+    """Resolve retained source context and carriers from the selected owners.
 
     With no rendered request the result is an authoring view. Text and media
     are not certified as model input until the compiler supplies the exact
     rendered request or the validated external input binding. A draft that has
     not written its Production Specification yet supplies it as production_spec.
+    Retaining a complete owner does not require exposing or binding each value
+    in the current image; criteria own explicit scene obligations.
     """
     source_reader = source_reader or read
     specification = production_spec if production_spec is not None else _specification(task, read, package)
@@ -279,7 +284,7 @@ def context(task: dict, read, *, package: dict | None = None,
 
 
 def inspect(task: dict, read, **kwargs) -> dict:
-    """Show source coverage during authoring without claiming request delivery."""
+    """Show retained identity and declared bindings without claiming delivery."""
     import identity_coverage
     view = context(task, read, **kwargs)
     result = identity_coverage.inventory(task, read, context=view)

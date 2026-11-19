@@ -122,7 +122,8 @@ def unique(rows: list[dict[str, Any]], key: str, context: str) -> dict[str, dict
 def load_plan(root: Path, relative: str) -> tuple[dict[str, Any], str]:
     raw = read_bytes(local_path(root, relative))
     value = parse_json(raw.decode('utf-8'))
-    errors = validate_against_schema(value, parse_json(SCHEMA.read_text(encoding='utf-8')))
+    from state_protocol import read_schema
+    errors = validate_against_schema(value, read_schema(SCHEMA))
     if errors:
         raise ValueError('invalid realization plan: ' + '; '.join(errors))
     return value, hashlib.sha256(raw).hexdigest()

@@ -173,6 +173,12 @@
         },
         "subject_uses": {
           "$ref": "prepared-generation-reference.schema.json#/$defs/subject-uses"
+        },
+        "selected_controls": {
+          "$ref": "#/$defs/selected-controls"
+        },
+        "control_expressions": {
+          "$ref": "#/$defs/control-expressions"
         }
       },
       "additionalProperties": false
@@ -269,6 +275,12 @@
         },
         "subject_uses": {
           "$ref": "prepared-generation-reference.schema.json#/$defs/subject-uses"
+        },
+        "selected_controls": {
+          "$ref": "#/$defs/selected-controls"
+        },
+        "control_expressions": {
+          "$ref": "#/$defs/control-expressions"
         }
       },
       "additionalProperties": false
@@ -302,6 +314,24 @@
         }
       },
       "additionalProperties": false
+    },
+    "selected-controls": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Actual selected capability names from reference_runtime.py capabilities. New JSON source choices require an explicit list. A materialized plan also retains its actual authority; reopening derives its selection from those recorded contributions."
+    },
+    "control-expressions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Actual renderer wording keyed by selected capability. Keys must be supported selected controls; text is consumed by reference input markers or native control mappings."
     }
   }
 }

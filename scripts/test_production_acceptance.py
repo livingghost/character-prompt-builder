@@ -1,5 +1,6 @@
 """Existing-image acceptance and task closure use only synthetic local evidence."""
 from __future__ import annotations
+import production_workflow as production_workflow_cli
 
 from pathlib import Path
 from unittest.mock import patch
@@ -19,8 +20,8 @@ import production_case_fixtures as fixtures
 import production_fixtures as fixture
 import production_execution as execution
 import production_store as store
-import production_workflow as workflow
-import studio
+import production_operations as workflow
+import studio_workspace as studio
 import studio_activity
 import studio_placement as placement
 import validate_studio
@@ -31,6 +32,8 @@ from production_diagnostics import ProductionError
 
 
 class AcceptanceTests(review_cases.ReviewCase):
+    share_prepared_case = True
+
     def move(self, destination):
         value = placement.draft(self.root, 'robot', self.iteration, destination)
         value.update(by='Synthetic curator', at='2026-11-11T00:00:00Z',
@@ -251,10 +254,10 @@ class AcceptanceTests(review_cases.ReviewCase):
     def test_saved_studio_receipt_recovers_missing_production_result(self):
         self.author_choice()
         original = workflow.append_record
-        def interrupted(directory, prepared, rows, event, data):
+        def interrupted(loaded, event, data):
             if event == 'slot-acceptance':
                 raise OSError('Synthetic interruption after the Studio receipt')
-            return original(directory, prepared, rows, event, data)
+            return original(loaded, event, data)
         with patch.object(workflow, 'append_record', side_effect=interrupted):
             with self.assertRaises(OSError):
                 self.accept()
@@ -391,6 +394,7 @@ class AcceptanceTests(review_cases.ReviewCase):
 
 class DeliveryAcceptanceTests(review_cases.ReviewCase):
     """The common decision owner completes delivery without requiring Studio adoption."""
+    share_prepared_case = True
 
     def choice(self):
         self.record_review([('output', 'pass'), ('palette', 'pass')])
@@ -631,7 +635,7 @@ class DeliveryAcceptanceTests(review_cases.ReviewCase):
 
     def test_public_delivery_commands_need_no_transcribed_intent_or_authorization(self):
         self.record_review([('output', 'pass'), ('palette', 'pass')])
-        script = str(Path(workflow.__file__))
+        script = str(Path(production_workflow_cli.__file__))
         def call(*args):
             completed = subprocess.run([sys.executable, script, *args, '--root', str(self.root), '--run', self.run],
                 cwd=self.root.parent, capture_output=True, text=True, encoding='utf-8', timeout=120,
@@ -717,7 +721,7 @@ class TextAcceptanceTests(unittest.TestCase):
                 'delivery': {'path': 'instructions.txt', 'translation_notes': 'Synthetic literal text.'},
                 'criteria': [{'id': 'content', 'strength': 'hard', 'text': 'The text describes one lamp.'}],
                 'world_views': []}
-        fixture.task(self.root, spec, artifact='text', execution='external')
+        fixture.task(self.root, spec, artifact='text', execution='external', focus='supporting-setting')
         fixtures.write(self.root / 'instructions.txt', 'Describe one lamp.')
         fixtures.write(self.root / 'task.json', spec)
         self.run = workflow.prepare(self.root, 'task.json')['run']

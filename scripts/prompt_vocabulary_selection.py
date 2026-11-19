@@ -113,9 +113,9 @@ from lexical ranking.
                'prompt_sha256': _text_sha(prompt), 'negative_sha256': _text_sha(negative),
                'syntax': syntax}
     if previous is not None:
-        from state_protocol import validate_against_schema
-        schema = json.loads((Path(__file__).resolve().parents[1] /
-                             'schemas/prompt-vocabulary-selection.schema.json').read_text(encoding='utf-8'))
+        from state_protocol import read_schema, validate_against_schema
+        schema = read_schema(Path(__file__).resolve().parents[1] /
+                             'schemas/prompt-vocabulary-selection.schema.json')
         errors = validate_against_schema(previous, schema)
         if errors:
             raise ValueError('invalid vocabulary selection: ' + '; '.join(errors))

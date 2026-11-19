@@ -13,6 +13,7 @@ records the claim this module checks. A failure prints
 production_diagnostics.
 """
 from __future__ import annotations
+import read_context
 import operation_context as _operation_context
 
 import argparse
@@ -25,8 +26,7 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
 
-import studio
-import runtime_snapshot
+import studio_workspace as studio
 from studio_activity import mutation
 from character_sheet import resolve_sheet_relative, validate_sidecar, _validate_ready_package
 from sheet_artifacts import current_artifact
@@ -329,7 +329,7 @@ def validate_registration_record(record: Any) -> dict[str, Any]:
     return record
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def draft_approval(root: Path, character: str, iteration: str, *, scope: str, influence: str,
                    registration_record: dict[str, Any] | None = None) -> dict[str, Any]:
     """Bind the requested adoption subject without asserting a decision or approver."""
@@ -386,7 +386,7 @@ def _registration(root: Path, row: dict[str, Any], journal: dict[str, Any], reco
     written again without the ID it generated before the pack was created.
     """
     from pack_manager import initial_pack_release
-    from prepare_generation_references import detect_image_media_type, image_dimensions
+    from generation_references import detect_image_media_type, image_dimensions
     target = target.absolute()
     if target.is_symlink() or any(parent.is_symlink() for parent in target.parents):
         raise ValueError("registration target must not traverse symbolic links")
@@ -466,7 +466,7 @@ def require_production_claim(root: Path, character: str, row: dict[str, Any], ap
     if claim is None:
         raise ValueError(f"{row['iteration_id']} is a Production candidate; adopt it with production_workflow.py adopt "
                          f"under its own adopt authorization")
-    import production_workflow as workflow
+    import production_operations as workflow
     _, prepared, _, rows = read.run(origin['run']) if read else workflow.read_run(root, origin['run'])
     found = [event for event in rows if event["event"] == "adoption-claim" and event["sha256"] == claim]
     payload = found[0]["data"]["intent"]["payload"] if found else None
@@ -512,7 +512,7 @@ def require_adoption_source(root: Path, character: str, row: dict[str, Any], *,
     studio.validate_recording_target(root, character, studio.placement_slot(row), read=read)
     origin = row.get('production')
     if origin is not None:
-        import production_workflow as workflow
+        import production_operations as workflow
         _, prepared, _, rows = read.run(origin['run']) if read else workflow.read_run(root, origin['run'])
         workflow.require_selected(prepared, rows, origin['candidate'], run=origin['run'])
     safe_file(root, row['result']['path'], row['result']['sha256'])
@@ -557,7 +557,7 @@ def adoption_readiness(root: Path, character: str, row: dict[str, Any], *,
     return result
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def preflight(root: Path, character: str, iteration: str, approval: Any, *,
               expected_production: dict[str, str] | None = None, expected_image: str | None = None,
               registration_record: dict[str, Any] | None = None, pack_dir: Path | None = None,
@@ -656,7 +656,7 @@ def adopt(root: Path, character: str, iteration: str, approval: Any, *,
     root = studio.require_studio(root).resolve()
     home = studio.character_dir(root, character)
     import execution_contract as contract
-    with studio.recording_lock(root, character=character), contract.lock(home / 'sheet'):
+    with studio.recording_lock(root, character=character), contract.file_lock(home / 'sheet' / 'sheet-data.json'):
         raw = studio._find(studio.read_iteration_records(home), iteration)
         origin = raw.get('production')
         from contextlib import nullcontext
@@ -667,7 +667,7 @@ def adopt(root: Path, character: str, iteration: str, approval: Any, *,
         with store.transaction(root) if origin is not None else nullcontext():
             if origin is not None:
                 import execution_lifecycle as lifecycle
-                import production_workflow as workflow
+                import production_operations as workflow
                 require_production_claim(root, character, raw, approval, production_claim)
                 _, _, _, records = workflow.read_run(root, origin['run'])
                 claim = workflow.find(records, 'adoption-claim', production_claim)
@@ -756,7 +756,7 @@ def restore_journal(root: Path, character: str, iteration: str, *, production_cl
     Returns the Studio-relative path of a journal written again, otherwise None.
     """
     import production_store as store
-    import production_workflow as workflow
+    import production_operations as workflow
     root = studio.require_studio(root).resolve()
     with studio.recording_lock(root, character=character):
         home = studio.character_dir(root, character)
@@ -787,7 +787,7 @@ def restore_journal(root: Path, character: str, iteration: str, *, production_cl
         return path.relative_to(root).as_posix()
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def reference_index(root: Path, character: str, *, read: studio.StudioRead | None = None) -> dict[str, Any]:
     """Export the current character index from its owning Studio read phase."""
     from owned_json import mutable
@@ -950,7 +950,7 @@ def supplied_selection(root: Path, character: str) -> list[dict[str, Any]]:
             for item in index["bindings"] if item["image_path"]]
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def validate_for_generation(root: Path, character: str, package: dict[str, Any]) -> None:
     from studio_reference import reference_reads
     read = reference_reads().studio(root)

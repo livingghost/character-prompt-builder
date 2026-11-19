@@ -1,6 +1,7 @@
 """Bind authored image instructions and explicit interface controls to their sources."""
 from __future__ import annotations
 import copy
+import re
 from typing import Any
 import execution_contract as c
 import request_contract as rc
@@ -71,9 +72,11 @@ def validate_bindings(rows:Any)->list[dict]:
     identifiers=set()
     for row in rows:
         c.exact(row,{'reference_number','attachment_number','region_pixels','role','controls','must_not_control'}
+                | ({'reference_id'} if 'reference_id' in row else set())
                 | ({'subject_uses'} if 'subject_uses' in row else set())
                 | ({'subject_id'} if 'subject_id' in row else set()),'reference binding')
         if 'subject_id' in row:c.text(row['subject_id'],'state reference subject')
+        if 'reference_id' in row:c.text(row['reference_id'],'selected reference use id')
         validate_subject_uses(row.get('subject_uses', []),
                               subject_ids={row['subject_id']} if 'subject_id' in row else None)
         for key in ('reference_number','attachment_number'):
@@ -90,6 +93,131 @@ def validate_bindings(rows:Any)->list[dict]:
                 if type(value) is not int or value<(1 if key in {'width','height'} else 0):raise ValueError('invalid reference region')
     if identifiers!=set(range(1,len(rows)+1)):raise ValueError('reference numbers must cover the selected order')
     return rows
+
+
+_REFERENCE_MARKER = re.compile(r'\{\{reference:([^{}]+)\}\}')
+_REFERENCE_FIELDS = frozenset({'attachment_number', 'controls', 'must_not_control',
+                              'region', 'x', 'y', 'width', 'height'})
+
+
+def reference_text_slots(bindings: list[dict]) -> list[dict]:
+    """Expose editable source markers and their current model-facing values.
+
+    The author writes the surrounding sentence or native tag grammar. The
+    runtime substitutes selected contributions and actual delivery locations.
+    It supplies no depiction, exclusion paragraph or assessment conclusion.
+    """
+    slots = []
+    for row in bindings:
+        identifier = c.text(row.get('reference_id'), 'selected reference use id')
+        values = {'attachment_number': str(row['attachment_number']),
+                  'controls': ', '.join(row['controls']),
+                  'must_not_control': ', '.join(row['must_not_control'])}
+        if row.get('region_pixels') is not None:
+            region = row['region_pixels']
+            values['region'] = ', '.join(str(region[key]) for key in ('x', 'y', 'width', 'height'))
+            values.update({key: str(region[key]) for key in ('x', 'y', 'width', 'height')})
+        slots.append({'reference_id': identifier,
+                      'values': values,
+                      'markers': {key: '{{reference:' + identifier + ':' + key + '}}' for key in values},
+                      'required': ['attachment_number', 'controls'] + (['region'] if row.get('region_pixels') is not None else [])})
+    return slots
+
+
+def resolve_reference_text(text: str, bindings: list[dict], *, require_scopes: bool = True) -> dict:
+    """Consume actual reference directions from one authored text source.
+
+    This is exact token substitution, not semantic validation. A selected
+    scope changes the delivered bytes. Marker traces retain their use IDs and
+    source/final ranges, so reordering or board assembly needs no manual index
+    rewrite. Required scope consumption establishes delivery, not correctness.
+    """
+    if not isinstance(text, str):
+        raise ValueError('reference input must be authored text')
+    slots = reference_text_slots(bindings)
+    by_id = {row['reference_id']: row for row in slots}
+    if len(by_id) != len(slots):
+        raise ValueError('reference text requires distinct stable use ids')
+    parts = []
+    trace = []
+    consumed: dict[str, set[str]] = {}
+    source_end = target_end = 0
+    for match in _REFERENCE_MARKER.finditer(text):
+        identifier, separator, field = match.group(1).rpartition(':')
+        if not separator or field not in _REFERENCE_FIELDS:
+            raise ValueError('reference marker requires a stable use id and supported field: ' + match.group(0))
+        if identifier not in by_id:
+            raise ValueError('reference marker names an unselected use: ' + identifier)
+        if field not in by_id[identifier]['values']:
+            raise ValueError('reference marker requests an unavailable delivery location: ' + match.group(0))
+        unchanged = text[source_end:match.start()]
+        parts.append(unchanged)
+        target_end += len(unchanged)
+        replacement = by_id[identifier]['values'][field]
+        parts.append(replacement)
+        trace.append({'reference_id': identifier, 'field': field,
+                      'source_range': {'start': match.start(), 'end': match.end()},
+                      'target_range': {'start': target_end, 'end': target_end + len(replacement)},
+                      'text': replacement})
+        consumed.setdefault(identifier, set()).add(field)
+        source_end = match.end()
+        target_end += len(replacement)
+    parts.append(text[source_end:])
+    result = ''.join(parts)
+    if '{{reference:' in result:
+        raise ValueError('reference input contains an incomplete or unresolved marker')
+    if require_scopes:
+        missing = []
+        for row in slots:
+            used = consumed.get(row['reference_id'], set())
+            needed = {'attachment_number', 'controls'} - used
+            if 'region' in row['required'] and 'region' not in used and not {'x', 'y', 'width', 'height'} <= used:
+                needed.add('region')
+            if needed:
+                missing.append(row['reference_id'] + ': ' + ', '.join(sorted(needed)))
+        if missing:
+            from production_diagnostics import ProductionError
+            raise ProductionError('REFERENCE_TEXT_UNRESOLVED',
+                'Selected reference contributions have no consumed input direction: ' + '; '.join(missing),
+                phase='reference-input', required_action='Write the current reference-use direction in the editable prompt using '
+                'the reference attachment_number and controls markers; include its region marker for a shared board. '
+                'Inspect reference_text_slots for actual fields and values. Native reference controls use their declared mapping instead.',
+                reference_text_slots=slots)
+    return {'text': result, 'source_text': text, 'source_sha256': c.digest(text.encode('utf-8')),
+            'sha256': c.digest(result.encode('utf-8')), 'trace': trace}
+
+
+def resolve_reference_channels(values: dict, bindings: list[dict], *,
+                               reference_mode: str, negative_transport: str) -> dict:
+    """Resolve authored sources before parser, vocabulary, budget and hash checks."""
+    if reference_mode not in {'none', 'authored-rendition', 'native-fields'}:
+        raise ValueError('reference input requires a supported delivery mode')
+    selected = ('integrated_prompt' if negative_transport in {'integrated-critical', 'retained-only'}
+                and values.get('integrated_prompt', '').strip() else 'prompt')
+    channels = {}
+    for name in ('prompt', 'negative_prompt', 'integrated_prompt', 'native_negative'):
+        channels[name] = resolve_reference_text(values.get(name, ''), bindings,
+            require_scopes=bool(bindings) and reference_mode == 'authored-rendition' and name == selected)
+    return {'mode': reference_mode, 'selected_channel': selected, 'channels': channels}
+
+
+def validate_reference_channels(record: dict, bindings: list[dict], *,
+                                reference_mode: str, negative_transport: str) -> dict:
+    """Recompute the captured transformation from its retained authored sources."""
+    c.exact(record, {'mode', 'selected_channel', 'channels'}, 'reference input transformation')
+    channels = record['channels']
+    names = {'prompt', 'negative_prompt', 'integrated_prompt', 'native_negative'}
+    c.exact(channels, names, 'reference input channels')
+    sources = {}
+    for name, channel in channels.items():
+        if not isinstance(channel, dict) or not isinstance(channel.get('source_text'), str):
+            raise ValueError('reference input channel requires its authored source: ' + name)
+        sources[name] = channel['source_text']
+    expected = resolve_reference_channels(sources, bindings, reference_mode=reference_mode,
+                                         negative_transport=negative_transport)
+    if record != expected:
+        raise ValueError('reference input transformation differs from its retained source and actual scope')
+    return expected
 
 
 REFERENCE_CONTRACT_FIELDS = frozenset({'artifact_type', 'target', 'dialects', 'mode', 'fields', 'basis'})

@@ -14,8 +14,6 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from integration_contract import finalize, find_interface, installed_contract_set_sha256, load_capabilities, validate_envelope, canonical_json, sha256_json
-from io_budget import read_stream
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -30,9 +28,11 @@ def main() -> int:
     parser.add_argument("--optional-feature", action="append", default=[])
     parser.add_argument("--out", required=True, help="New bundle directory")
     a = parser.parse_args()
+    from integration_contract import finalize, find_interface, installed_contract_set_sha256, load_capabilities, validate_envelope, canonical_json, sha256_json
+    from io_budget import read_stream
+    from execution_contract import publish_directory, flush_published, fsync_dir
+    from production_diagnostics import ProductionError
     temporary = None
-    lock = None
-    acquired = False
     try:
         payload = Path(a.payload)
         if payload.is_symlink() or not payload.is_file():
@@ -45,12 +45,6 @@ def main() -> int:
         if output.resolve().is_relative_to(ROOT.resolve()):
             raise ValueError("bundle output must not be inside the installed skill")
         output.parent.mkdir(parents=True, exist_ok=True)
-        lock = output.parent / ("." + output.name + ".publish.lock")
-        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        os.close(fd)
-        acquired = True
-        if output.exists():
-            raise ValueError("output already exists")
         caps = load_capabilities(ROOT)
         profile = find_interface(caps, "produces", a.profile)
         if profile is None:
@@ -81,15 +75,16 @@ def main() -> int:
         for path in temporary.iterdir():
             # Windows flushes a file only through a handle that may write to it.
             with path.open("r+b") as handle: os.fsync(handle.fileno())
-        temporary.rename(output)
+        fsync_dir(temporary)
+        publish_directory(temporary, output)
         temporary = None
+        flush_published(output)
         print(json.dumps({"ok":True, "out":str(output), "envelope_sha256":value["envelope_sha256"], "canonical_adoption":False}, indent=2))
         return 0
-    except (ValueError, OSError, TypeError, KeyError, UnicodeError) as exc:
+    except (ValueError, OSError, TypeError, KeyError, UnicodeError, ProductionError) as exc:
         print(json.dumps({"ok":False, "errors":[str(exc)]}));return 1
     finally:
         if temporary is not None: shutil.rmtree(temporary)
-        if acquired and lock is not None: lock.unlink(missing_ok=True)
 
 if __name__ == "__main__":
     import stdio_utf8

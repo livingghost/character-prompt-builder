@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from catalog_cli import configure_pack_runtime, load_entries, load_pack_catalog, load_search_index, named_resource_path
+from catalog_api import configure_pack_runtime, load_entries, load_pack_catalog, load_search_index, named_resource_path
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 from pack_manager import species_scaffold_issues
 from resource_policy import (

@@ -259,6 +259,8 @@ def merge_panel_hint(base: Any, detail: Any, label: str) -> str:
         return qualified
     if detail_text.casefold() in base_text.casefold():
         return base_text
+    if base_text in KIND_DRAW_GUIDE.values():
+        return f"{qualified}; {base_text}"
     return f"{base_text}; {qualified}"
 
 
@@ -318,7 +320,7 @@ def apply_sheet_context(profile: Mapping[str, Any], sheet: Mapping[str, Any]) ->
                     )
                 )
                 if details:
-                    box["hint"] = details
+                    box["hint"] = merge_panel_hint(box.get("hint", ""), details, "declared")
             elif kind == "mark_detail" and bound_entry:
                 row = bound_entry["values"]
                 mark_id = meaningful(row.get("mark_id", ""))
@@ -598,18 +600,18 @@ def build_panel_plan(
 
 # Image models read attached text only marginally, so the fill prompt text,
 # not the wording printed inside the scaffold image, is the authoritative
-# instruction channel. Each panel kind carries a fixed drawing rule that
-# states what occupies the panel and how it is drawn, so even a terse
-# profile hint still yields a self-sufficient panel instruction.
+# instruction channel. The authored hint selects the view and its construction.
+# Kind guidance preserves the purpose of that study without adding a different
+# framing, configuration or performance to the selected depiction.
 KIND_DRAW_GUIDE = {
     "canonical_view": (
-        "Draw one complete unobstructed base-form view of this same individual or collective configuration only, with removable clothing, equipment, coverings, and carried items absent; use a plain white panel background, no props, and no scene; do not assume a humanoid body plan or exposed biological anatomy unless declared."
+        "Use the declared base configuration for this view, with its connected structure and proportions preserved."
     ),
     "outfit_turnaround": (
-        "Draw one complete dressed, covered, shelled, or equipped view of this same identity in the exact orientation requested; preserve the base form underneath and show the declared outfit or assembly consistently across every declared comparison view."
+        "Apply the declared clothing, covering, shell, or equipment to the same underlying form in the requested view. Preserve its placement and construction across the declared comparison views."
     ),
     "outfit_detail": (
-        "Draw the declared clothing, covering, shell, or equipment as separated readable components, including front/back construction, fastenings, openings, layers, and identity-bearing motifs; no extra outfit design."
+        "Show the declared clothing, covering, shell, or equipment through the selected component views and their construction relationships, preserving the specified fastenings, openings, layers, and identity-bearing motifs."
     ),
     "icon": (
         "Draw one tight recognition crop of the declared identity focal feature: face, sensor, emblem, core, or other recognition landmark as applicable; do not invent a face."
@@ -618,16 +620,16 @@ KIND_DRAW_GUIDE = {
         "Draw a matched side-by-side close-up of this declared marking at its exact landmark and the corresponding opposite-side or paired landmark at the same scale and orientation; prove both presence and declared absence or difference; do not mirror the feature unless bilateral symmetry is explicitly declared."
     ),
     "part_detail": (
-        "Draw only this declared part, component, or structural feature at close-up scale. When it has a paired or opposite-side counterpart, show both at matched scale and orientation and preserve the declared symmetry, absence, or difference."
+        "Study the declared part, component, or structural feature at close-up scale, retaining the connections and surrounding landmarks specified for the view. When it has a paired or opposite-side counterpart, show both at matched scale and orientation and preserve the declared symmetry, absence, or difference."
     ),
     "pose_state": (
-        "Draw this same individual in the declared pose state, full figure from the highest to the lowest extent, on a plain white background. Scale the complete figure down to fit the frame. Do not bend, crouch, compress, crop, or alter the declared posture merely to fit the panel; identity and proportions remain unchanged."
+        "Keep the declared posture, support, orientation, and component relationships at the selected view and scale. Preserve the same identity and proportions."
     ),
     "signature_pose": (
         "Draw this same individual in the declared habitual stance or gesture; identity and anatomy unchanged."
     ),
     "outfit": (
-        "Draw this same individual wearing the declared outfit, full body, with anatomy and proportions still readable."
+        "Apply the declared outfit to this same individual in the selected view, preserving the underlying construction and proportions."
     ),
     "outfit_variant": (
         "Draw this same individual wearing the declared outfit variant; identity and anatomy unchanged."
@@ -648,7 +650,7 @@ KIND_DRAW_GUIDE = {
         "Draw the declared primary recognition structure from the requested angle; it may be a head, sensor cluster, core, prow, emblem, or other focal structure."
     ),
     "tail_detail": (
-        "Draw only the declared tail feature at close-up scale on a plain white background."
+        "Study the declared tail feature at close-up scale, preserving its continuous construction and the connections specified for this view."
     ),
     "size_reference": (
         "Draw the complete extent of this same individual or collective beside a plain scale indicator, "
@@ -656,16 +658,16 @@ KIND_DRAW_GUIDE = {
         "height, length, span, diameter, or other measure."
     ),
     "part_state": (
-        "Draw only the declared part of this same individual in the declared state, at close-up scale on a plain white background; keep the described construction, length, markings, and colors and change only the declared configuration."
+        "Show the declared part of this same individual in the selected state at close-up scale; retain its connected construction, length, markings, and colors through the declared configuration."
     ),
     "range_of_motion": (
-        "Draw the declared body region of this same individual at both extremes of its declared range, side by side at matched scale and orientation on a plain white background; show the reach the body actually has and nothing past its declared limit; identity, proportions, and joint construction unchanged."
+        "Draw the declared body region of this same individual at both extremes of its declared range, side by side at matched scale and orientation; show the reach the body actually has and nothing past its declared limit; identity, proportions, and joint construction unchanged."
     ),
     "action_pose": (
-        "Draw this same individual mid-action in the declared phase, full figure from the highest to the lowest extent on a plain white background, with weight, balance, spine, limbs, and the declared kind channels committed to the motion; scale the complete figure down to fit the frame; identity, proportions, and outfit unchanged."
+        "Realize the declared action phase through the subject's actual structures, support, load, and contacts. Preserve the connected action, identity, proportions, and outfit in the selected view."
     ),
     "idle_gesture": (
-        "Draw this same individual in the declared everyday gesture or habit, full figure on a plain white background, with any declared prop at its declared scale; the posture is relaxed and particular to this character; identity, proportions, and outfit unchanged."
+        "Realize this individual's declared everyday gesture or habit, including the selected posture, contacts, and any declared prop at its stated scale. Preserve identity, proportions, and outfit in this view."
     ),
 }
 
@@ -673,7 +675,7 @@ KIND_DRAW_GUIDE = {
 # in the selected model request prompt and sheet-layout.json; it must never be
 # squeezed into tiny raster text or shortened with an ellipsis.
 KIND_PANEL_CAPTION = {
-    "canonical_view": "Uncovered base form; match this exact direction and neutral stance.",
+    "canonical_view": "Declared base configuration, orientation, and framing.",
     "outfit_turnaround": "Same base form and direction; apply the bound outfit or equipment state.",
     "profile": "Renderer-owned identity facts; keep unchanged.",
     "palette": "Renderer-owned color and material key; keep unchanged.",
@@ -681,21 +683,21 @@ KIND_PANEL_CAPTION = {
     "head_study": "Large identity study; preserve structure, proportions, and fixed cues.",
     "icon": "Tight recognition crop showing the strongest fixed identity cues.",
     "part_detail": "Matched close-up of the named part and any paired counterpart.",
-    "tail_detail": "Entire tail from base to tip; preserve length, flow, and markings.",
+    "tail_detail": "Declared tail region and view; preserve its connected flow and markings.",
     "mark_detail": "Compare feature side and opposite side; preserve presence and absence.",
-    "expression_variant": "Same head and markings; change only the declared expression channels.",
+    "expression_variant": "Same identity; use the declared expression channels and degree.",
     "expressions": "Same identity across the declared communicated-state range.",
     "outfit_detail": "Separate construction details of the primary outfit or equipment.",
-    "outfit": "Complete primary outfit over the unchanged base form.",
-    "outfit_variant": "Complete declared outfit variant over the unchanged base form.",
+    "outfit": "Declared outfit and view over the unchanged base form.",
+    "outfit_variant": "Declared outfit variant and view over the unchanged base form.",
     "items": "One declared item or assembly; preserve its construction and attachment cues.",
     "evidence_view": "Additional declared evidence view; prove the requested surface or state.",
-    "pose_state": "Complete figure in the declared pose or state; identity unchanged.",
-    "signature_pose": "Complete figure in the habitual pose; identity unchanged.",
+    "pose_state": "Declared pose or state in its selected view; identity unchanged.",
+    "signature_pose": "Habitual pose in the declared view; identity unchanged.",
     "part_state": "Same part as its identity panel; only the declared state changes.",
     "range_of_motion": "Declared region at both extremes of its range; nothing past its limit.",
-    "action_pose": "Complete figure mid-action in the declared phase; identity unchanged.",
-    "idle_gesture": "Complete figure in the declared everyday gesture; identity unchanged.",
+    "action_pose": "Declared action phase and connected construction in this view.",
+    "idle_gesture": "Declared everyday gesture and its contacts in this view.",
 }
 
 
@@ -997,19 +999,22 @@ def resolve_state_panels(
         def view_details(entry: Mapping[str, Any]) -> str:
             return meaningful(entry["values"].get("specification", ""))
 
+        def view_template(templates: Sequence[Mapping[str, Any]], entry: Mapping[str, Any]) -> dict[str, Any]:
+            selected = next((box for box in templates
+                             if box.get("source_view_row_id") == entry["row_id"]), templates[0])
+            return copy.deepcopy(selected)
+
         canonical_boxes: list[dict[str, Any]] = []
         for index, entry in enumerate(view_entries, start=1):
             values = entry["values"]
-            clone = copy.deepcopy(canonical_templates[0])
+            clone = view_template(canonical_templates, entry)
             clone.pop("aliases", None)
             clone["slot_id"] = f"view.base.{entry['row_id']}"
             clone["output_name"] = f"view-base-{entry['row_id'].replace('.', '-')}.png"
             clone["panel_code"] = next_view_code("A", index)
             clone["source_view_row_id"] = entry["row_id"]
             clone["label"] = meaningful(values["label"]).upper()
-            clone["hint"] = merge_panel_hint(
-                KIND_DRAW_GUIDE["canonical_view"], view_details(entry), "declared view"
-            )
+            clone["hint"] = view_details(entry)
             clone["caption"] = "Base configuration in this declared comparison view."
             clone["review"] = review_text("views", values) or None
             canonical_boxes.append(clone)
@@ -1031,7 +1036,7 @@ def resolve_state_panels(
             group: list[dict[str, Any]] = []
             for view_entry in view_entries:
                 view_values = view_entry["values"]
-                clone = copy.deepcopy(outfit_templates[0])
+                clone = view_template(outfit_templates, view_entry)
                 clone.pop("aliases", None)
                 clone["slot_id"] = (
                     f"view.outfit.{outfit_entry['row_id']}.{view_entry['row_id']}"
@@ -1049,11 +1054,7 @@ def resolve_state_panels(
                 clone["source_index"] = outfit_entry["index"]
                 clone["source_view_row_id"] = view_entry["row_id"]
                 clone["label"] = f"{outfit_name.upper()} / {meaningful(view_values['label']).upper()}"
-                clone["hint"] = merge_panel_hint(
-                    KIND_DRAW_GUIDE["outfit_turnaround"],
-                    view_details(view_entry),
-                    "declared view",
-                )
+                clone["hint"] = view_details(view_entry)
                 clone["caption"] = "Same declared view with this covering or equipment state."
                 clone["review"] = compact_join(
                     (review_text("views", view_values), review_text("outfits", outfit_entry["values"]))

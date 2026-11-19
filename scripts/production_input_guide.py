@@ -32,7 +32,7 @@ OWNERS = {
     'external': ('Own the native external request, reference transports and their actual evidence.',
                  'references/runtime/production-external-inputs.md'),
     'authoring': ('Keep editable task decisions, delivery and selected document files together.', DOCUMENT),
-    'authoring.task': ('Own direction, independent criteria, sources and applicable task choices.',
+    'authoring.task': ('Own direction, independent criteria and task choices; sources are projected from work-basis.json.',
                        'references/runtime/production-direction.md'),
     'authoring.delivery': ('Edit the exact prompt or authored deliverable at its selected source.', DOCUMENT),
     'authoring.documents': ('Select each specialist document at its single editable file.', DOCUMENT),
@@ -42,7 +42,6 @@ OWNERS = {
                              'references/runtime/reference-delivery.md'),
     'authoring.upscale': ('Select the source image and actual enlargement choices when applicable.',
                           'references/runtime/production-authoring.md'),
-    'authoring.sources': ('Own selected source text without rewriting the original source file.', DOCUMENT),
     'authoring.source_files': ('Retain source provenance; the builder captures actual file bytes.', DOCUMENT),
 }
 
@@ -67,9 +66,21 @@ def summary(root: Path, choices_path: str, choices: dict) -> dict:
         owner = contracts.guidance(name)
         selected[name] = {'source': copy.deepcopy(selector), **owner,
             'explain_action': action(root, choices_path, field='authoring.documents.' + name)}
+    from production_reference_inputs import text_guide
+    basis_path = (Path(choices_path).parent / 'work-basis.json').as_posix()
+    context_argv = python_argv(ROOT / 'scripts/authoring_work.py', 'context', str(root / basis_path), '--basis-only')
     return {'document_path': DOCUMENT, 'schema': SCHEMA, 'example': EXAMPLE,
             'explain_action': action(root, choices_path),
             'documents': selected,
+            'reference_text': text_guide(choices),
+            'authoring_work': {'basis': basis_path, 'actual_content': choices_path,
+                'context_argv': context_argv,
+                'context_command': shown(context_argv),
+                'inputs': '--request FILE; --source ID=FILE; --application APP=SOURCE#POINTER; '
+                          '--subject SUBJECT=APP[,APP...]; --requirement APP; --focus character|supporting-setting',
+                'ownership': 'The basis owns acquired originals and current applications. Task sources are a derived '
+                             'view. A Production Specification subject supplies its actual identity owner when no '
+                             'independent adopted definition is selected.'},
             'meaning': 'Structure and source navigation only. Complete the actual author decisions; '
                        'check or prepare validates the selected content and its context.'}
 
@@ -171,6 +182,9 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
             row['available_documents'] = sorted(contracts.DOCUMENT_KEYS)
             row['selected_documents'] = copy.deepcopy(value) if isinstance(value, dict) else {}
             row['document_help'] = 'Select --field authoring.documents.NAME for its complete contract and current file.'
+        if name in {'authoring.references', 'external', 'authoring.delivery'}:
+            from production_reference_inputs import text_guide
+            row['reference_text'] = text_guide(choices)
         fields.append(row)
     result['fields'] = fields
     return result

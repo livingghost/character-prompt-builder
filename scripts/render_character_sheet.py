@@ -36,6 +36,8 @@ from typing import Sequence
 
 from character_sheet_render.board import (
     RENDERER_ID,
+    SheetPlan,
+    build_sheet_plan,
     create_edit_mask,
     draw_guide,
     draw_header,
@@ -44,6 +46,7 @@ from character_sheet_render.board import (
     render_palette,
     render_profile_summary,
     render_sheet,
+    publish_sheet,
     write_panel_fill_requests,
 )
 from character_sheet_render.coverage import coverage_exception_records, sheet_coverage

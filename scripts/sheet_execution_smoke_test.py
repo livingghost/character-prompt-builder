@@ -7,7 +7,8 @@ import unittest
 from unittest.mock import patch
 import execution_contract as c
 import production_case_fixtures as fixture
-import production_workflow as workflow
+import production_fixtures
+import production_operations as workflow
 import production_execution as execution
 import sheet_artifacts as fills
 from sheet_artifacts_smoke_test import accepted, make_artifact, decision
@@ -23,7 +24,12 @@ class SheetExecutionTests(unittest.TestCase):
     def test_candidate_changes_do_not_stale_the_accepted_source(self):
         accepted(self.sheet)
         task = c.load(self.root / 'task.json')
-        task['sources'][0]['path'] = self.sheet.relative_to(self.root).as_posix()
+        source_path = self.sheet.relative_to(self.root).as_posix()
+        task['sources'][0]['path'] = source_path
+        production_fixtures.bind_work_basis(self.root, task)
+        # This fixture selects the live sheet owner as its exact acquired
+        # carrier so freshness can observe the accepted-artifact selection.
+        task['sources'][0]['path'] = source_path
         fixture.write(self.root / 'task.json', task)
         run = workflow.prepare(self.root, 'task.json')['run']
         saved = workflow.read_run(self.root, run)
@@ -46,6 +52,9 @@ class SheetExecutionTests(unittest.TestCase):
         self.assertEqual(diagnostics, [])
         self.assertIn(('SOURCE_CHANGED', 'warning', dependency['path']),
                       [(item['code'], item['severity'], item['file']) for item in notices])
+        production_fixtures.bind_work_basis(self.root, task)
+        task['sources'][0]['path'] = source_path
+        fixture.write(self.root / 'task.json', task)
         current = workflow.prepare(self.root, 'task.json')['run']
         current_dependency = next(row for row in workflow.read_run(self.root, current).prepared['dependencies']
                                   if row['path'] == dependency['path'])

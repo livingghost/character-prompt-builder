@@ -68,7 +68,7 @@ def select(root: Path, character: str, slot: str) -> dict:
     a weaker source after canonical evidence fails validation.
     """
     import sheet_artifacts as fills
-    import studio
+    import studio_workspace as studio
     import studio_reference
     try:
         read = studio_reference.reference_reads().studio(root)

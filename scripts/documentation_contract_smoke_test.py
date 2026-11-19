@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict
+from collections.abc import Callable
 import concurrent.futures
-import functools
 import html
 import json
 import os
@@ -14,6 +14,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -142,13 +143,6 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             any("front matter must contain exactly name and description" in error for error in self._errors())
         )
 
-    def test_preparation_and_material_reuse_have_distinct_reads(self) -> None:
-        from execution_routes import resolve
-        preparing = {x['path'] for x in resolve('performance', execution='authored')['reads']}
-        reusing = {x['path'] for x in resolve('performance', ['scene-persona'], execution='authored')['reads']}
-        self.assertIn('templates/narrative/personas/persona-template.md', preparing)
-        self.assertIn('references/runtime/scene-persona.md', reusing)
-        self.assertNotIn('templates/narrative/personas/persona-template.md', reusing)
 
     def test_line_limit_is_enforced(self) -> None:
         path = self.root / "SKILL.md"
@@ -202,7 +196,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self._write("SKILL.md", text + "\nAdd feature `specialist` for a specialist subject.")
         self.assertEqual([], self._errors())
 
-    def test_conversational_prompt_document_needs_its_own_link(self) -> None:
+    def test_core_authoring_document_is_directly_reachable(self) -> None:
         relative = SKILL_DIRECT_LINKS[-1]
         manifest = {"operation_contexts": {}, "routes": {},
                     "features": {"prompt-help": {"reads": [relative], "source_roles": []}}}
@@ -212,7 +206,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self._write("SKILL.md", text + "\nAdd feature `prompt-help` for prompt help.")
         self.assertTrue(
             any(
-                error == f"SKILL.md does not link the conversational prompt document: {relative}"
+                error == f"SKILL.md does not link the core authoring document: {relative}"
                 for error in self._errors()
             )
         )
@@ -290,6 +284,136 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             any("prompt-composition runtime must not embed" in error for error in self._errors())
         )
 
+
+    def test_routed_detail_has_no_fixed_aggregate_limit(self) -> None:
+        relative = "references/runtime/prompt-composition.md"
+        path = self.root / relative
+        text = path.read_text(encoding="utf-8") + ("preserved detail " * 5000)
+        self._write(relative, text)
+        self.assertEqual([], self._errors())
+
+
+    def test_prompt_work_routes_to_the_actual_candidate_owner(self) -> None:
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        owner = "references/runtime/authoring-work.md"
+        self.assertIn(f"]({owner})", skill.partition("## Core contract")[2].partition("\n## ")[0])
+        paths = skill.partition("## Choose a runtime path")[2].partition("\n- ")[0]
+        core = "references/runtime/prompt-only-core.md"
+        self.assertIn(f"]({core})", paths)
+        routes = json.loads((ROOT / "config/execution-routes.json").read_text(encoding="utf-8"))
+        self.assertIn(core, routes["routes"]["prompt-only"]["reads"])
+        for operation in ("author", "save", "prepare", "review"):
+            self.assertIn(owner, routes["operation_contexts"][operation]["reads"])
+
+        authoring = (ROOT / owner).read_text(encoding="utf-8")
+        self.assertIn("../../schemas/authoring/authoring-work.schema.json", authoring)
+        for command in ("begin", "context", "edit", "replace-text", "inspect", "check", "extract", "export"):
+            self.assertIn(f"scripts/authoring_work.py {command}", authoring)
+        run = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/authoring_work.py"), "--help"],
+            cwd=self.root, env=UNPAINTED, capture_output=True, text=True, encoding="utf-8",
+        )
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        for command in ("begin", "context", "edit", "replace-text", "inspect", "check", "extract", "export"):
+            self.assertIn(command, run.stdout)
+
+        gate = skill.partition("## Artifact-bearing production gate")[2].partition("\n## ")[0]
+        route_command = "`python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO`"
+        self.assertIn(route_command, gate)
+        self.assertEqual(1, skill.count(route_command))
+        for marker in ("--operation", "actions.continue", "reading.record", "--model-file", "--request-file"):
+            self.assertIn(marker, gate)
+
+        sequence = skill.partition("## Common runtime sequence")[2].partition("\n## ")[0]
+        workflow_path = "references/runtime/production-workflow.md"
+        self.assertIn(f"]({workflow_path})", sequence)
+        self.assertIn("authoring_work.py", sequence)
+        workflow = (ROOT / workflow_path).read_text(encoding="utf-8")
+        self.assertIn("](authoring-work.md)", workflow)
+        self.assertIn("complete contract for the current operation", workflow)
+
+    def test_indexed_reading_guidance_matches_the_delivery_cli(self) -> None:
+        document = (ROOT / "references/runtime/production-authoring.md").read_text(encoding="utf-8")
+        reading = document.partition("### Select and read the current knowledge")[2].partition("\n## ")[0]
+        for marker in ("actions.continue", "`argv`", "`command`", "`reason`", "`body`", "`null`",
+                       "--reading-ledger", "CPB_READS_LEDGER", "reading.record", "--known-reading",
+                       "actions.next", "actions.all", "--snapshot", "--section", "--all", "non-null"):
+            self.assertIn(marker, reading)
+        run = subprocess.run([sys.executable, str(ROOT / "scripts/execution_routes.py"), "read", "--help"],
+                             cwd=self.root, env=UNPAINTED, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        for option in ("--page-bytes", "--continue", "--replay", "--reading-ledger", "--known-reading",
+                       "--snapshot", "--section", "--all"):
+            self.assertIn(option, run.stdout)
+        from route_reading import INDEX_SOURCE_STATES
+        for state in INDEX_SOURCE_STATES:
+            self.assertIn('`' + state + '`', reading)
+            self.assertIn(state + ':', run.stdout)
+
+    def test_pack_quickstart_registration_example_runs_in_its_selected_runtime(self) -> None:
+        from shutil import copytree
+        from pack_manager import write_lock
+
+        document = (ROOT / "references/runtime/pack-state-quickstart.md").read_text(encoding="utf-8")
+        blocks = re.findall(r"```bash\n(.*?)\n```", document, flags=re.S)
+        commands = [block for block in blocks if "root-add PACK_OR_CONTAINER" in block]
+        self.assertEqual(len(commands), 1)
+        argv = shlex.split(commands[0].replace("\\\n", " "))
+        self.assertEqual(argv[:2], ["python", "scripts/pack_cli.py"])
+        container = self.root / "documented pack container"
+        pack = container / "example pack"
+        copytree(ROOT / "examples/pack-authoring/minimal-pack", pack)
+        write_lock(pack)
+        selected = self.root / "documented runtime"
+        caller = self.root / "different caller"
+        caller.mkdir()
+        substitutions = {
+            "python": sys.executable,
+            "scripts/pack_cli.py": str(ROOT / "scripts/pack_cli.py"),
+            "TASK_PACK_STATE_JSON": str(selected / "state.json"),
+            "TASK_CATALOG_CACHE": str(selected / "cache"),
+            "TASK_MANAGED_PACKS": str(selected / "managed"),
+            "PACK_OR_CONTAINER": str(container),
+        }
+        argv = [substitutions.get(word, word) for word in argv]
+        environment = {**UNPAINTED, "CPB_HOME": str(self.root / "unselected home"), "PATH": ""}
+        run = subprocess.run(argv, cwd=caller, env=environment, capture_output=True,
+                             text=True, encoding="utf-8")
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertEqual(json.loads(run.stdout)["operation"], "root-add")
+        state = json.loads((selected / "state.json").read_text(encoding="utf-8"))
+        self.assertIn(str(container.resolve()), state["pack_roots"])
+        self.assertFalse((self.root / "unselected home/pack-state.json").exists())
+
+
+    def test_unrouted_adapter_document_is_rejected(self) -> None:
+        self._write(
+            "references/adapters/stray-surface.md",
+            "# Stray Surface Adapter",
+        )
+        self.assertTrue(
+            any(
+                "does not route the adapter document" in error
+                for error in self._errors()
+            )
+        )
+        self.assertIn(
+            "references/adapters/stray-surface.md",
+            _adapter_documents(self.root),
+        )
+
+
+class RepositoryDocumentationTests(unittest.TestCase):
+    """Check installed source documents and CLI help without a synthetic tree."""
+
+    def test_preparation_and_material_reuse_have_distinct_reads(self) -> None:
+        from execution_routes import resolve
+        preparing = {x['path'] for x in resolve('performance', execution='authored')['reads']}
+        reusing = {x['path'] for x in resolve('performance', ['scene-persona'], execution='authored')['reads']}
+        self.assertIn('templates/narrative/personas/persona-template.md', preparing)
+        self.assertIn('references/runtime/scene-persona.md', reusing)
+        self.assertNotIn('templates/narrative/personas/persona-template.md', reusing)
+
     def test_live_repository_contract(self) -> None:
         errors: list[str] = []
         check_skill_documentation_contract(ROOT, errors)
@@ -341,13 +465,6 @@ class DocumentationContractSmokeTest(unittest.TestCase):
                     entry["words"],
                     entry["path"],
                 )
-
-    def test_routed_detail_has_no_fixed_aggregate_limit(self) -> None:
-        relative = "references/runtime/prompt-composition.md"
-        path = self.root / relative
-        text = path.read_text(encoding="utf-8") + ("preserved detail " * 5000)
-        self._write(relative, text)
-        self.assertEqual([], self._errors())
 
     def test_catalog_batch_is_routed_and_self_describing(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -466,85 +583,6 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             generation,
         )
 
-    def test_a_prompt_answered_in_conversation_reads_no_route(self) -> None:
-        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
-        paths = skill.partition("## Choose a runtime path")[2].partition("\n- ")[0]
-        self.assertIn("Conversation-only prompts read no route", paths)
-        core = "references/runtime/prompt-only-core.md"
-        self.assertIn(f"]({core})", paths)
-        routes = json.loads((ROOT / "config/execution-routes.json").read_text(encoding="utf-8"))
-        self.assertIn(core, routes["routes"]["prompt-only"]["reads"])
-
-        gate = skill.partition("## Artifact-bearing production gate")[2].partition("\n## ")[0]
-        route_command = "`python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO`"
-        self.assertIn("Saved work reads", gate)
-        self.assertIn(route_command, gate)
-        self.assertEqual(1, skill.count(route_command))
-        for marker in ("--operation", "actions.continue", "reading.record", "--model-file"):
-            self.assertIn(marker, gate)
-
-        sequence = skill.partition("## Common runtime sequence")[2].partition("\n## ")[0]
-        owner = "references/runtime/production-workflow.md"
-        self.assertIn(f"]({owner})", sequence)
-        self.assertIn("for images", sequence)
-        workflow = (ROOT / owner).read_text(encoding="utf-8")
-        self.assertIn("For saved work, initialize or reopen its Studio and work task.", workflow)
-        self.assertIn("## Open the current work", workflow)
-        self.assertIn("complete contract for the current operation", workflow)
-
-    def test_indexed_reading_guidance_matches_the_delivery_cli(self) -> None:
-        document = (ROOT / "references/runtime/production-authoring.md").read_text(encoding="utf-8")
-        reading = document.partition("### Select and read the current knowledge")[2].partition("\n## ")[0]
-        for marker in ("actions.continue", "`argv`", "`command`", "`reason`", "`body`", "`null`",
-                       "--reading-ledger", "CPB_READS_LEDGER", "reading.record", "--known-reading",
-                       "actions.next", "actions.all", "--snapshot", "--section", "--all", "non-null"):
-            self.assertIn(marker, reading)
-        run = subprocess.run([sys.executable, str(ROOT / "scripts/execution_routes.py"), "read", "--help"],
-                             cwd=self.root, env=UNPAINTED, capture_output=True, text=True, encoding="utf-8")
-        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        for option in ("--page-bytes", "--continue", "--replay", "--reading-ledger", "--known-reading",
-                       "--snapshot", "--section", "--all"):
-            self.assertIn(option, run.stdout)
-        from route_reading import INDEX_SOURCE_STATES
-        for state in INDEX_SOURCE_STATES:
-            self.assertIn('`' + state + '`', reading)
-            self.assertIn(state + ':', run.stdout)
-
-    def test_pack_quickstart_registration_example_runs_in_its_selected_runtime(self) -> None:
-        from shutil import copytree
-        from pack_manager import write_lock
-
-        document = (ROOT / "references/runtime/pack-state-quickstart.md").read_text(encoding="utf-8")
-        blocks = re.findall(r"```bash\n(.*?)\n```", document, flags=re.S)
-        commands = [block for block in blocks if "root-add PACK_OR_CONTAINER" in block]
-        self.assertEqual(len(commands), 1)
-        argv = shlex.split(commands[0].replace("\\\n", " "))
-        self.assertEqual(argv[:2], ["python", "scripts/pack_cli.py"])
-        container = self.root / "documented pack container"
-        pack = container / "example pack"
-        copytree(ROOT / "examples/pack-authoring/minimal-pack", pack)
-        write_lock(pack)
-        selected = self.root / "documented runtime"
-        caller = self.root / "different caller"
-        caller.mkdir()
-        substitutions = {
-            "python": sys.executable,
-            "scripts/pack_cli.py": str(ROOT / "scripts/pack_cli.py"),
-            "TASK_PACK_STATE_JSON": str(selected / "state.json"),
-            "TASK_CATALOG_CACHE": str(selected / "cache"),
-            "TASK_MANAGED_PACKS": str(selected / "managed"),
-            "PACK_OR_CONTAINER": str(container),
-        }
-        argv = [substitutions.get(word, word) for word in argv]
-        environment = {**UNPAINTED, "CPB_HOME": str(self.root / "unselected home"), "PATH": ""}
-        run = subprocess.run(argv, cwd=caller, env=environment, capture_output=True,
-                             text=True, encoding="utf-8")
-        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        self.assertEqual(json.loads(run.stdout)["operation"], "root-add")
-        state = json.loads((selected / "state.json").read_text(encoding="utf-8"))
-        self.assertIn(str(container.resolve()), state["pack_roots"])
-        self.assertFalse((self.root / "unselected home/pack-state.json").exists())
-
     def test_prompt_writing_guide_is_an_executed_rendition_stage(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         runtime = (ROOT / "references/runtime/prompt-writing-guide.md").read_text(encoding="utf-8")
@@ -559,7 +597,9 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         self.assertIn("## Prompt rendition gate", generation)
         self.assertIn("resolve and read the complete guide before final rendition", generation)
         self.assertIn("Generation builders commit the supplied final rendition", generation)
-        self.assertIn("This is the master prompt", prompt_only)
+        rendition = prompt_only.partition("## Rendition and delivery")[2].partition("\n## ")[0]
+        self.assertIn("Authoring work", rendition)
+        self.assertIn("](prompt-writing-guide.md)", rendition)
         self.assertIn("Use [Prompt Writing Guide](prompt-writing-guide.md) for the final interface", composition)
         self.assertIn("already rendered for the named target", output_template)
         self.assertIn("The Skill-using agent decides which rules are relevant.", runtime)
@@ -602,25 +642,9 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         for example in examples:
             self.assertEqual([], validate_against_schema(example, schema))
 
-    def test_unrouted_adapter_document_is_rejected(self) -> None:
-        self._write(
-            "references/adapters/stray-surface.md",
-            "# Stray Surface Adapter",
-        )
-        self.assertTrue(
-            any(
-                "does not route the adapter document" in error
-                for error in self._errors()
-            )
-        )
-        self.assertIn(
-            "references/adapters/stray-surface.md",
-            _adapter_documents(self.root),
-        )
-
     def test_changelog_current_release_matches_product_calver(self) -> None:
         from release_contract import validate_changelog
-        from package_metadata import pep440_version_for_calver
+        from package_identity import pep440_version_for_calver
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         metadata = load_package_metadata(ROOT)
         self.assertEqual(metadata.version, newest_changelog_release(text))
@@ -860,7 +884,6 @@ def parses_arguments(script: Path) -> bool:
     return False
 
 
-@functools.lru_cache(maxsize=None)
 def script_help(words: tuple[str, ...]) -> str:
     """The --help of a script, or of one of its subcommands; empty when --help fails."""
 
@@ -870,6 +893,29 @@ def script_help(words: tuple[str, ...]) -> str:
         env={**UNPAINTED, "COLUMNS": "200", "PYTHONDONTWRITEBYTECODE": "1"},
     )
     return result.stdout if result.returncode == 0 else ""
+
+
+class HelpResults:
+    """Own each help outcome once while one batch checks its commands."""
+
+    def __init__(self, fetch: Callable[[tuple[str, ...]], str]):
+        self.fetch = fetch
+        self._lock = threading.Lock()
+        self._results: dict[tuple[str, ...], concurrent.futures.Future[str]] = {}
+
+    def read(self, words: tuple[str, ...]) -> str:
+        with self._lock:
+            future = self._results.get(words)
+            owner = future is None
+            if owner:
+                future = concurrent.futures.Future()
+                self._results[words] = future
+        if owner:
+            try:
+                future.set_result(self.fetch(words))
+            except BaseException as exc:
+                future.set_exception(exc)
+        return future.result()
 
 
 def subcommand_choices(help_text: str) -> set[str]:
@@ -887,7 +933,7 @@ def option_arity(help_text: str, option: str) -> str:
     return "many" if match.group(2) else "one"
 
 
-def command_problems(command: str) -> list[str]:
+def command_problems(command: str, *, read_help: Callable[[tuple[str, ...]], str]) -> list[str]:
     """Check one documented command against the --help of its script and of each subcommand it names."""
 
     try:
@@ -908,7 +954,7 @@ def command_problems(command: str) -> list[str]:
     if not parses_arguments(script):
         return [f"{name}.py reads no options"] if any(word.startswith("-") for word in arguments) else []
     level: tuple[str, ...] = (name,)
-    text = script_help(level)
+    text = read_help(level)
     if not text:
         return [f"{name}.py --help failed"]
     problems: list[str] = []
@@ -937,7 +983,7 @@ def command_problems(command: str) -> list[str]:
         if word not in choices:
             problems.append(f"{' '.join(level)} --help names no subcommand {word}")
             break
-        child = script_help((*level, word))
+        child = read_help((*level, word))
         if re.search(r"^usage: \S+ " + re.escape(" ".join((*level[1:], word))) + r"\b", child, re.M):
             level, text = (*level, word), child
         else:
@@ -946,19 +992,104 @@ def command_problems(command: str) -> list[str]:
     return problems
 
 
+def help_workers() -> int:
+    """Use the runner's child budget or its normal standalone worker policy."""
+    budget = os.environ.get("CPB_CHECK_CHILD_WORKERS")
+    if budget is None:
+        from run_checks import execution_context
+        return execution_context(None)["jobs"]
+    count = int(budget)
+    if count < 1:
+        raise ValueError("CPB_CHECK_CHILD_WORKERS must be a positive integer")
+    return count
+
+
+def documented_command_problems(commands: list[str]) -> dict[str, list[str]]:
+    """Check every command, sharing each help key's completion within this batch."""
+    commands = sorted(set(commands))
+    help_results = HelpResults(script_help)
+
+    def check(command: str) -> list[str]:
+        return command_problems(command, read_help=help_results.read)
+
+    with concurrent.futures.ThreadPoolExecutor(help_workers()) as pool:
+        return dict(zip(commands, pool.map(check, commands)))
+
+
 class DocumentedCommandTests(unittest.TestCase):
     maxDiff = None
 
     def test_documented_commands_match_each_script_help(self) -> None:
         commands = documented_commands()
         self.assertTrue(commands, "no documented command was found")
-        unique = sorted({command for _, command in commands})
-        with concurrent.futures.ThreadPoolExecutor(8) as pool:
-            problems = dict(zip(unique, pool.map(command_problems, unique)))
+        problems = documented_command_problems([command for _, command in commands])
         self.assertEqual(
             [],
             [f"{document}: {command}: {problem}" for document, command in commands for problem in problems[command]],
         )
+
+    def test_distinct_subcommands_run_together_and_each_batch_reads_each_key_once(self) -> None:
+        from collections import Counter
+        from unittest import mock
+
+        calls = Counter()
+        subcommands_started = threading.Barrier(2)
+        def help_result(argv, **kwargs):
+            key = tuple(argv[1:-1])
+            calls[key] += 1
+            name = Path(argv[1]).stem
+            if len(key) == 1:
+                text = f"usage: {name}.py\npositional arguments:\n  {{inspect,show}}\noptions:\n  --version\n"
+            else:
+                subcommands_started.wait(timeout=5)
+                text = f"usage: {name}.py {argv[2]}\noptions:\n  --value VALUE\n"
+            return subprocess.CompletedProcess(argv, 0, stdout=text)
+
+        with tempfile.TemporaryDirectory(prefix="cpb-help-keys-") as temporary:
+            root = Path(temporary)
+            (root / "scripts").mkdir()
+            (root / "scripts/fixture.py").write_text("import argparse\n", encoding="utf-8")
+            commands = ["python scripts/fixture.py inspect --value first",
+                        "python scripts/fixture.py show --value first",
+                        "python scripts/fixture.py show --value second",
+                        "python scripts/fixture.py show --absent"]
+            with mock.patch.dict(os.environ, {"CPB_CHECK_CHILD_WORKERS": "2"}), \
+                    mock.patch.object(sys.modules[__name__], "ROOT", root), \
+                    mock.patch.object(subprocess, "run", side_effect=help_result):
+                for batch in (1, 2):
+                    problems = documented_command_problems(commands)
+                    self.assertEqual(set(problems), set(commands))
+                    self.assertEqual(len(calls), 3)
+                    self.assertEqual(set(calls.values()), {batch})
+                    for command, found in problems.items():
+                        self.assertEqual(bool(found), command.endswith("--absent"))
+
+    def test_same_key_shares_empty_help_and_propagates_fetch_failure(self) -> None:
+        key = ("fixture", "show")
+        for failure in (None, RuntimeError("synthetic help failure")):
+            with self.subTest(failure=failure):
+                entered, release = threading.Event(), threading.Event()
+                calls = []
+                def fetch(words):
+                    calls.append(words)
+                    entered.set()
+                    if not release.wait(timeout=5):
+                        raise TimeoutError("test did not release the help fetch")
+                    if failure is not None:
+                        raise failure
+                    return ""
+                owner = HelpResults(fetch)
+                with concurrent.futures.ThreadPoolExecutor(2) as pool:
+                    first = pool.submit(owner.read, key)
+                    self.assertTrue(entered.wait(timeout=5))
+                    second = pool.submit(owner.read, key)
+                    release.set()
+                    for result in (first, second):
+                        if failure is None:
+                            self.assertEqual(result.result(timeout=5), "")
+                        else:
+                            self.assertIs(result.exception(timeout=5), failure)
+                self.assertEqual(calls, [key])
 
 
 DIAGNOSTICS_DOCUMENT = ROOT / "references/runtime/production-diagnostics.md"
@@ -994,6 +1125,8 @@ class DiagnosticCodeFlow:
         self.imports = {name: self._imports(tree) for name, tree in self.modules.items()}
         self.sites = {name: list(self._sites(tree)) for name, tree in self.modules.items()}
         self._values: dict[tuple[str, ast.AST | None], dict[str, list[ast.expr]]] = {}
+        self._definitions: dict[ast.AST, dict[str, ast.AST]] = {}
+        self._resolutions: dict[ast.expr, ast.AST | None] = {}
         diagnostic = self._defined(self.modules["production_diagnostics"], "Diagnostic")
         self.forwards: dict[ast.AST, dict[str, str]] = {diagnostic: {"code": "raise"}}
         self.codes: dict[str, set[tuple[str, str]]] = {}
@@ -1024,12 +1157,22 @@ class DiagnosticCodeFlow:
             inner = scopes + (node,) if isinstance(node, SCOPES) else scopes
             stack.extend((child, inner) for child in ast.iter_child_nodes(node))
 
-    @staticmethod
-    def _defined(owner: ast.AST, name: str) -> ast.AST | None:
-        return next((child for child in ast.iter_child_nodes(owner)
-                     if isinstance(child, SCOPES) and child.name == name), None)
+    def _defined(self, owner: ast.AST, name: str) -> ast.AST | None:
+        if owner not in self._definitions:
+            definitions: dict[str, ast.AST] = {}
+            for child in ast.iter_child_nodes(owner):
+                if isinstance(child, SCOPES):
+                    definitions.setdefault(child.name, child)
+            self._definitions[owner] = definitions
+        return self._definitions[owner].get(name)
 
     def _resolve(self, module: str, scopes: tuple[ast.AST, ...], function: ast.expr) -> ast.AST | None:
+        """Bind each call once; propagation changes forwarded parameters, not its AST scope."""
+        if function not in self._resolutions:
+            self._resolutions[function] = self._resolve_binding(module, scopes, function)
+        return self._resolutions[function]
+
+    def _resolve_binding(self, module: str, scopes: tuple[ast.AST, ...], function: ast.expr) -> ast.AST | None:
         if isinstance(function, ast.Name):
             for scope in reversed(scopes):
                 found = None if isinstance(scope, ast.ClassDef) else self._defined(scope, function.id)
@@ -1167,6 +1310,60 @@ class DiagnosticCodeFlow:
         return changed
 
 
+class DiagnosticCodeFlowBindingTests(unittest.TestCase):
+    def test_bindings_keep_imports_cycles_constructors_and_local_scopes_distinct(self) -> None:
+        from unittest import mock
+
+        sources = {
+            "production_diagnostics.py": (
+                "class Diagnostic:\n"
+                "    def __init__(self, code):\n"
+                "        self.code = code\n"
+            ),
+            "forwarding.py": (
+                "from production_diagnostics import Diagnostic\n"
+                "def first(code):\n"
+                "    return second(code)\n"
+                "def second(code):\n"
+                "    first(code)\n"
+                "    return Diagnostic(code)\n"
+                "class Wrapper:\n"
+                "    def __init__(self, code):\n"
+                "        second(code)\n"
+                "def local_scope():\n"
+                "    def first(code):\n"
+                "        return {'code': code}\n"
+                "    return first('LOCAL_RECORD')\n"
+            ),
+            "consumer.py": (
+                "from forwarding import first as renamed, Wrapper\n"
+                "import forwarding as forwarding_module\n"
+                "renamed('ALIAS_CHAIN')\n"
+                "forwarding_module.second('MODULE_CYCLE')\n"
+                "Wrapper('WRAPPED_CODE')\n"
+                "def defaulted(code='DEFAULT_CODE'):\n"
+                "    renamed(code)\n"
+            ),
+        }
+        with tempfile.TemporaryDirectory(prefix="cpb-diagnostic-bindings-") as temporary:
+            root = Path(temporary)
+            (root / "scripts").mkdir()
+            paths = []
+            for name, text in sources.items():
+                path = root / "scripts" / name
+                path.write_text(text, encoding="utf-8")
+                paths.append(path)
+            with mock.patch.object(sys.modules[__name__], "ROOT", root):
+                flow = DiagnosticCodeFlow(paths)
+            self.assertEqual(dict(flow.codes), {
+                "ALIAS_CHAIN": {("consumer", "raise")},
+                "MODULE_CYCLE": {("consumer", "raise")},
+                "WRAPPED_CODE": {("consumer", "raise")},
+                "DEFAULT_CODE": {("consumer", "raise")},
+                "LOCAL_RECORD": {("forwarding", "record")},
+            })
+
+
 class DiagnosticDocumentationTests(unittest.TestCase):
     """Each diagnostic leads to an existing section, and the code table matches the codes the scripts raise.
 
@@ -1182,7 +1379,7 @@ class DiagnosticDocumentationTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        import production_workflow
+        import production_operations as production_workflow
         scripts = sorted(path for path in (ROOT / "scripts").rglob("*.py")
                          if not path.name.startswith("test_") and not path.name.endswith("_test.py"))
         cls.flow = DiagnosticCodeFlow(scripts)

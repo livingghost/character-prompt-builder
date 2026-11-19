@@ -45,7 +45,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from catalog_retrieval.runtime import configure_pack_runtime  # noqa: E402
 from model_contract import offering_schema, request_instance, select_offering, size_fields  # noqa: E402
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  # noqa: E402
-from prepare_generation_references import model_pack_root, resolve_model_record  # noqa: E402
+from generation_references import model_pack_root, resolve_model_record  # noqa: E402
 
 SIZE = re.compile(r"([1-9]\d*)\s*[x×]\s*([1-9]\d*)")
 RATIO = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*[:x/]\s*(\d+(?:\.\d+)?)\s*$")

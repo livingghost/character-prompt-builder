@@ -1,5 +1,6 @@
 """Review/Studio ownership tests. All decisions describe synthetic fixture PNGs."""
 from __future__ import annotations
+import read_context
 from contextlib import closing
 import copy
 import json
@@ -13,10 +14,10 @@ import execution_contract as c
 import production_case_fixtures as fixtures
 import production_execution as execution
 import production_fixtures as fixture
-import production_workflow as workflow
+import production_operations as workflow
 import production_workspace as workspace
 import production_store as store
-import studio
+import studio_workspace as studio
 import studio_gallery
 import validate_studio
 from production_diagnostics import ProductionError
@@ -26,22 +27,56 @@ from test_production_execution import decisions
 class ReviewCase(unittest.TestCase):
     """One prepared and executed synthetic run whose candidates the Studio shows."""
     count = 1
+    _case_template = None
+
+    @staticmethod
+    def prepare_case(case, count, configure_task=None):
+        root = case['root']
+        task = c.load(root / 'task.json')
+        task['criteria'].append({'id': 'palette', 'strength': 'hard', 'text': 'The fixture palette is inspectable.', 'evidence': 'image'})
+        task['generation']['count'] = count
+        if configure_task is not None:
+            configure_task(task)
+        fixture.bind_work_basis(root, task, focus='character')
+        fixtures.write(root / 'task.json', task)
+        run = workflow.prepare(root, 'task.json')['run']
+        result = execution.execute(root, run, decisions_file=decisions(root, run))
+        return {'run': run, 'execution_completed': result['execution_completed'],
+                'warnings': result.get('warnings'), 'candidates': result['runs'][0]['candidates']}
+
+    @classmethod
+    def build_template(cls, base):
+        case = fixtures.create(base / 'studio', base / 'runtime')
+        metadata = cls.prepare_case(case, cls.count) if cls.__dict__.get('share_prepared_case', False) else {}
+        return case, metadata
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Input construction is shared. Source/media overrides still prepare
+        # and execute inside the private test's Studio.
+        if cls.__dict__.get('share_prepared_case', False):
+            if cls.configure_task is not ReviewCase.configure_task:
+                raise TypeError('A shared review case requires the default task configuration.')
+        cls._case_template = fixtures.CaseTemplate.for_class(cls, cls.build_template)
+
+    def build_case(self, base):
+        self.case = fixtures.create(base / 'studio', base / 'runtime')
+        self.root = self.case['root']
+        return self.case, self.prepare_case(self.case, self.count, self.configure_task)
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         base = Path(self.temp.name)
-        self.case = fixtures.create(base / 'studio', base / 'runtime')
+        self.case, metadata = fixtures.CaseTemplate.for_test(
+            self, base, self.build_case, self._case_template)
         self.root = self.case['root']
-        task = c.load(self.root / 'task.json')
-        task['criteria'].append({'id': 'palette', 'strength': 'hard', 'text': 'The fixture palette is inspectable.', 'evidence': 'image'})
-        task['generation']['count'] = self.count
-        self.configure_task(task)
-        fixtures.write(self.root / 'task.json', task)
-        self.run = workflow.prepare(self.root, 'task.json')['run']
-        result = execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
-        self.assertTrue(result['execution_completed'], result.get('warnings'))
-        self.candidates = result['runs'][0]['candidates']
+        if not metadata:
+            metadata = self.prepare_case(self.case, self.count, self.configure_task)
+        self.run = metadata['run']
+        self.assertTrue(metadata['execution_completed'], metadata['warnings'])
+        self.candidates = metadata['candidates']
         self.candidate = self.candidates[0]
         self.home = studio.character_home(self.root, 'robot')
         self.iteration = self.row(self.candidate)['iteration_id']
@@ -94,11 +129,45 @@ class ReviewCase(unittest.TestCase):
 
 
 class ReviewTests(ReviewCase):
+    share_prepared_case = True
+
+    def test_executed_case_copies_isolate_candidate_events_media_and_metadata(self):
+        template = self._case_template
+        run = template.metadata['run']
+        candidate = template.metadata['candidates'][0]
+        original_rows = store.event_rows(template.case['root'], run)
+        captured = workflow.find(original_rows, 'candidate', candidate)
+        relative = Path('production/runs') / run / 'objects' / captured['data']['files'][0]['sha256']
+        original_media = (template.case['root'] / relative).read_bytes()
+        for index in range(2):
+            owner = unittest.FunctionTestCase(lambda: None)
+            with tempfile.TemporaryDirectory() as temporary:
+                try:
+                    case, metadata = fixtures.CaseTemplate.for_test(
+                        owner, Path(temporary), self.build_template, template)
+                    root = case['root']
+                    self.assertEqual(metadata['candidates'], [candidate])
+                    self.assertEqual(workflow.read_run(root, run).rows, original_rows)
+                    self.assertEqual((root / relative).read_bytes(), original_media)
+                    if index == 0:
+                        value = workflow.draft_disposition(root, run, candidate)
+                        value.update(actor='Synthetic fixture selector', reason='Private copy decision.')
+                        fixtures.write(root / 'disposition.json', value)
+                        workflow.disposition(root, run, 'disposition.json')
+                        self.assertNotEqual(store.event_rows(root, run), original_rows)
+                        (root / relative).write_bytes(b'Private copy corruption.')
+                        metadata['candidates'].append('private-candidate')
+                finally:
+                    owner.doCleanups()
+        self.assertEqual(store.event_rows(template.case['root'], run), original_rows)
+        self.assertEqual((template.case['root'] / relative).read_bytes(), original_media)
+        self.assertEqual(template.metadata['candidates'], [candidate])
+
     def test_current_status_rechecks_changed_run_without_a_dirty_receipt(self):
         import production_compiler
         path = workflow.run_dir(self.root, self.run)/'consumer.json'
         path.write_bytes(path.read_bytes() + b' ')
-        with patch.object(production_compiler, 'acquire_publication', wraps=production_compiler.acquire_publication) as acquire:
+        with patch.object(production_compiler, 'acquire_decision_records', wraps=production_compiler.acquire_decision_records) as acquire:
             text = studio.status(self.root)
         self.assertEqual(acquire.call_count, 1)
         self.assertIn('artwork problem robot/' + self.iteration, text)
@@ -126,7 +195,7 @@ class ReviewTests(ReviewCase):
         self.assertIn('retained historical displays', text)
         history = next(row for row in c.load(self.root/'gallery.json')['entries'] if row['iteration_id'] == self.iteration)
         self.assertEqual(history['availability'], 'present')
-        with patch.object(workflow, 'read_run', wraps=workflow.read_run) as read_run:
+        with patch.object(workflow, 'read_decisions', wraps=workflow.read_decisions) as read_run:
             self.assertTrue(studio_activity.refresh(self.root)['ok'])
         self.assertEqual([call.args[1] for call in read_run.call_args_list], [self.run])
         history = next(row for row in c.load(self.root/'gallery.json')['entries'] if row['iteration_id'] == self.iteration)
@@ -139,7 +208,6 @@ class ReviewTests(ReviewCase):
         checks = {row['criterion']: row for row in draft['checks']}
         criteria = {row['id']: row for row in basis['criteria']}
         decision = task['direction']['decisions'][0]
-        selected = next(option for option in decision['options'] if option['id'] == decision['selected'])
         self.assertEqual(basis['purpose'], task['direction']['purpose'])
         self.assertEqual(basis['intended_effect'], task['direction']['intended_effect'])
         for criterion in task['criteria']:
@@ -148,17 +216,15 @@ class ReviewTests(ReviewCase):
             self.assertEqual(checks[criterion['id']]['reason'], '')
             self.assertEqual(checks[criterion['id']]['verdict'], 'not-assessed')
             self.assertEqual(checks[criterion['id']]['observation_indices'], [])
-        self.assertEqual(criteria['output']['realizations'][0]['expression'], selected['expression'])
-        self.assertEqual(criteria['output']['realizations'][0]['instructions'], selected['realization']['instructions'])
+        self.assertEqual(criteria['output']['realizations'][0]['expression'], decision['expression'])
+        self.assertEqual(criteria['output']['realizations'][0]['instructions'], decision['realization']['instructions'])
         self.assertEqual(criteria['palette']['realizations'], [])
-        for option in decision['options']:
-            if option['id'] != decision['selected']:
-                self.assertNotIn(option['realization']['instructions'], json.dumps(criteria['output']))
+        self.assertNotIn(decision['note'], json.dumps(criteria['output']['realizations']))
         self.assertEqual((draft['observations'], draft['evidence'], draft['conclusion']), ([], [], ''))
         task['direction']['purpose'] = 'A later live task serves another artifact.'
         task['direction']['intended_effect'] = 'A later intended effect is outside this prepared run.'
         task['criteria'][0]['text'] = 'A later live task has a different criterion.'
-        task['direction']['decisions'][0]['options'][0]['expression'] = 'Changed after preparation.'
+        task['direction']['decisions'][0]['expression'] = 'Changed after preparation.'
         fixtures.write(self.root / 'task.json', task)
         self.assertEqual(workflow.draft_review(self.root, self.run, self.candidate), draft)
         self.assertEqual(workflow.review_basis(self.root, self.run, self.candidate), basis)
@@ -180,7 +246,9 @@ class ReviewTests(ReviewCase):
     def test_input_workspace_preserves_prepared_carriers_and_every_request_mapping(self):
         import shutil
         import production_variation as variation
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
+        from production_identity import reference_id
+        from studio_reference_fixtures import reference_retrieval
         svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16" viewBox="0 0 32 16">'
                '<rect width="32" height="16" fill="#5078a0"/></svg>').encode('utf-8')
         for mode in ('multi-image', 'single-board'):
@@ -196,9 +264,19 @@ class ReviewTests(ReviewCase):
                 references = prepare_references(selections, model=fixtures.MODEL_ID,
                     output_dir=folder / 'prepared', max_side=64, transport_mode=mode)
                 fixtures.write(folder / 'references.json', references)
+                prompt = (self.root / self.case['task']['delivery']['path']).read_text(encoding='utf-8')
+                for selected in references['selected_references']:
+                    reference = reference_id(selected)
+                    address = 'Image {{reference:' + reference + ':attachment_number}}'
+                    if mode == 'single-board':
+                        address += ' at rectangle (left, top, width, height) {{reference:' + reference + ':region}}'
+                    prompt += ' Use ' + address + ' for {{reference:' + reference + ':controls}}.'
+                fixtures.write(folder / 'retrieval.json',
+                               reference_retrieval(self.root, self.case['task'], prompt, references))
                 fixtures.write(self.root / 'workspace-changes.json', {
                     'changes': {'references': {'path': (folder / 'references.json').relative_to(self.root).as_posix()},
-                                'execution-mode': 'reference-guided'},
+                                'execution-mode': 'reference-guided', 'prompt': prompt,
+                                'retrieval-record': {'path': (folder / 'retrieval.json').relative_to(self.root).as_posix()}},
                     'reason': 'Inspect the exact prepared synthetic media in the input workspace.'})
                 run = variation.derive(self.root, self.run, changes_file='workspace-changes.json', prepare=True)['run']
                 directory, _, _, _ = workflow.load_run(self.root, run)
@@ -223,6 +301,7 @@ class ReviewTests(ReviewCase):
                                      (pinned['dimensions']['width'], pinned['dimensions']['height']))
                 self.assertEqual(store.event_rows(self.root, run), before)
 
+    @fixtures.cold_case
     def test_observation_workspace_has_only_saved_candidate_and_technical_context(self):
         before = store.event_rows(self.root, self.run)
         view = workspace.workspace(self.root, self.run, phase='observe', candidate=self.candidate)
@@ -609,6 +688,41 @@ class IdentityReviewTests(IdentityReviewCase):
             workflow.review(self.root, self.run, 'review.json')
 
 
+class RetainedIdentityContextReviewTests(IdentityReviewCase):
+    def configure_task(self, task):
+        super().configure_task(task)
+        task['criteria'] = [row for row in task['criteria'] if row['id'] != 'identity-scene']
+
+    def all_checks(self, **changes):
+        return [(key, changes.get(key, 'pass')) for key in ('output', 'palette', 'identity-whole')]
+
+    def test_retained_context_requires_actual_review_without_individual_bindings(self):
+        view = workspace.workspace(self.root, self.run, phase='review', candidate=self.candidate)
+        context = view['identity_coverage']
+        self.assertEqual(context['bindings'], [])
+        self.assertEqual({row['pointer'] for row in context['unbound_source_values']},
+                         {'/identity/unfamiliar/axis~0rim~1edge', '/identity/relation/0', '/identity/hidden'})
+        source = next(row for row in view['sources'] if row['id'] == 'adopted')
+        self.assertEqual(c.decode(Path(source['saved_path']).read_bytes()), self.original_identity)
+        self.assertTrue(all(not row['coverage'] for row in context['sources'][0]['terminals']))
+
+        self.record_review(self.all_checks(**{'identity-whole': 'not-assessed'}))
+        self.assertCode('REVIEW_INCOMPLETE', self.select)
+
+        value = self.review_data(self.all_checks())
+        value['evidence'] = [{'id': 'reference-only', 'path': self.row(self.candidate)['result']['path'],
+            'kind': 'image', 'relation': 'Supplementary fixture evidence, not a candidate observation.',
+            'limitations': []}]
+        value['observations'][0]['evidence'] = 'reference-only'
+        fixtures.write(self.root / 'review.json', value)
+        with self.assertRaisesRegex(ValueError, 'actual candidate'):
+            workflow.review(self.root, self.run, 'review.json')
+
+        self.record_review(self.all_checks())
+        self.select()
+        self.assertEqual(self.state()['disposition'], 'selected')
+
+
 class SharedIdentitySourceReviewTests(IdentityReviewCase):
     def configure_task(self, task):
         super().configure_task(task)
@@ -684,8 +798,9 @@ class IdentityMediaReviewCase(ReviewCase):
     declare_source = False
 
     def configure_task(self, task):
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
         from production_identity import reference_id
+        from studio_reference_fixtures import reference_retrieval
         extension = self.image_format.lower()
         self.original = self.root.parent / ('original-identity.' + extension)
         if self.image_format == 'SVG':
@@ -707,6 +822,14 @@ class IdentityMediaReviewCase(ReviewCase):
         specification['render_intent']['execution_mode'] = 'reference-guided'
         fixtures.write(self.root / 'spec.json', specification)
         reference = reference_id(references['selected_references'][0])
+        prompt = (self.root / task['delivery']['path']).read_text(encoding='utf-8')
+        prompt += (' Use Image {{reference:' + reference + ':attachment_number}}'
+                   ' at rectangle (left, top, width, height) {{reference:' + reference + ':region}}'
+                   ' for {{reference:' + reference + ':controls}}.')
+        fixtures.write(self.root / task['delivery']['path'], prompt)
+        fixtures.write(self.root / 'identity-media-retrieval.json',
+                       reference_retrieval(self.root, task, prompt, references))
+        task['generation']['retrieval_record'] = 'identity-media-retrieval.json'
         self.source_id = 'reference:' + reference
         if self.declare_source:
             self.source_id = 'adopted-pixels'
@@ -775,27 +898,34 @@ class IdentityDeclaredPngReviewTests(IdentityDeclaredSvgReviewTests):
 
 
 class StoredContentTests(ReviewCase):
-    """Reused verification still catches a changed stored object in the next check scope."""
+    """Owned bytes survive persistence; a new acquisition checks their stored copy."""
+    share_prepared_case = True
 
     def corrupt(self, key):
         path = workflow.run_dir(self.root, self.run) / 'objects' / key
         path.write_bytes(path.read_bytes() + b'corrupt')
 
-    def assertRefused(self, key, code):
+    def assertRefused(self, key, code, *, force=False):
         with self.assertRaises(ProductionError) as caught:
-            workflow.load_run(self.root, self.run)
+            workflow.load_run(self.root, self.run, force=force)
         refused = caught.exception.diagnostic.as_dict()
         self.assertEqual((refused['code'], refused['artifact']), (code, 'objects/' + key))
 
-    def test_corrupt_manifest_object_is_caught_after_reuse(self):
-        import runtime_snapshot
+    def test_manifest_object_keeps_owned_bytes_until_a_new_acquisition(self):
         prepared = workflow.load_run(self.root, self.run)[1]
         key = next(item for item in prepared['dependencies'] if item['space'] == 'studio')['sha256']
-        with runtime_snapshot.public_call():
-            workflow.load_run(self.root, self.run)
+        with read_context.public_call():
+            held = workflow.read_run(self.root, self.run)
+            original = held.evidence.read(key)
+            self.assertEqual(c.digest(original), key)
             self.corrupt(key)
             with store.transaction(self.root):
-                self.assertRefused(key, 'EVIDENCE_SNAPSHOT_CORRUPT')
+                current = workflow.read_run(self.root, self.run)
+                self.assertIs(current.prepared, held.prepared)
+                self.assertIs(current.evidence, held.evidence)
+                self.assertEqual(current.evidence.read(key), original)
+            self.assertRefused(key, 'EVIDENCE_SNAPSHOT_CORRUPT', force=True)
+            self.assertRefused(key, 'EVIDENCE_SNAPSHOT_CORRUPT')
         self.assertRefused(key, 'EVIDENCE_SNAPSHOT_CORRUPT')
 
     def test_a_recorded_selection_that_breaks_the_selection_schema_names_its_event(self):
@@ -813,20 +943,28 @@ class StoredContentTests(ReviewCase):
         self.assertIn(f"The recorded selection event at sequence {recorded['sequence']} is not valid", found['message'])
         self.assertIn("missing required property 'slot'", found['message'])
 
-    def test_corrupt_evidence_object_is_caught_after_reuse(self):
-        import runtime_snapshot
+    def test_event_evidence_keeps_owned_bytes_until_a_new_acquisition(self):
         key = workflow.find(store.event_rows(self.root, self.run), 'candidate', self.candidate)['data']['files'][0]['sha256']
-        with runtime_snapshot.public_call():
-            workflow.load_run(self.root, self.run)
+        with read_context.public_call():
+            held = workflow.read_run(self.root, self.run)
+            original = held.evidence.read(key)
+            self.assertEqual(c.digest(original), key)
             self.corrupt(key)
-            # The object reader refuses bytes that differ from the object's name.
             with store.transaction(self.root):
-                self.assertRefused(key, 'EVIDENCE_SNAPSHOT_MISSING')
+                current = workflow.read_run(self.root, self.run)
+                self.assertIs(current.lifecycle, held.lifecycle)
+                self.assertIs(current.evidence, held.evidence)
+                self.assertEqual(current.evidence.read(key), original)
+            # A new object acquisition refuses bytes that differ from the
+            # object's name, and its failure cannot restore the earlier proof.
+            self.assertRefused(key, 'EVIDENCE_SNAPSHOT_MISSING', force=True)
+            self.assertRefused(key, 'EVIDENCE_SNAPSHOT_MISSING')
         self.assertRefused(key, 'EVIDENCE_SNAPSHOT_MISSING')
 
 
 class CompletedDispositionTests(ReviewCase):
     """Retained candidates can be retired without reopening completed production."""
+    share_prepared_case = True
     count = 2
 
     def completed(self, *, accept=False):
@@ -927,6 +1065,7 @@ class CompletedDispositionTests(ReviewCase):
 
 class GalleryIsolationTests(ReviewCase):
     """Two runs with two candidates each, projected into one Studio slot."""
+    share_prepared_case = True
     count = 2
 
     def setUp(self):
@@ -945,12 +1084,12 @@ class GalleryIsolationTests(ReviewCase):
         candidate = workflow.find(store.event_rows(self.root, self.run), 'candidate', self.candidate)
         path = workflow.run_dir(self.root, self.run) / 'objects' / candidate['data']['files'][0]['sha256']
         path.write_bytes(b'not the captured PNG')
-        original = workflow.read_run
+        original = workflow.read_decisions
         loads = []
         def counted(root, run):
             loads.append(run)
             return original(root, run)
-        with patch.object(workflow, 'read_run', side_effect=counted):
+        with patch.object(workflow, 'read_decisions', side_effect=counted):
             rows = studio.read_iterations(self.home)
         self.assertEqual(sorted(loads), sorted([self.run, self.second]))
         by_run = {}
@@ -967,6 +1106,7 @@ class GalleryIsolationTests(ReviewCase):
 
 class SelectionTests(ReviewCase):
     """Two candidates of one run: one holds the run's selection at a time."""
+    share_prepared_case = True
     count = 2
 
     def setUp(self):

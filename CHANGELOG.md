@@ -1,5 +1,178 @@
 # Changelog
 
+## 2026.11.19.5
+
+- Stop schema alternative and condition checks at their first decisive
+  mismatch. A rejected record kind no longer walks every record in its branch.
+  Ordinary validation keeps complete ordered diagnostics, and oneOf still
+  checks every alternative to report the exact number of matches.
+- Pass the producer's checked publication documents and evidence to the newly
+  registered run. Successful publication no longer decodes its own documents
+  or acquires the same complete publication again for its first read.
+- Retain acquired decision documents through review, selection and adoption.
+  Normalize authored JSON in memory instead of serializing and parsing it to
+  create the next owned value.
+- Share verification of repeated artwork within one complete sheet check.
+  A later check, independent run operation or forced audit acquires current
+  stored content and still detects changed or missing evidence.
+- Build decoded immutable JSON objects without an intermediate dictionary.
+  Editable copies avoid generic copying of exact immutable scalar values while
+  preserving explicit copy memo entries and scalar subclass behavior.
+- Reuse parsed relative paths and existing root Path values without omitting
+  current filesystem, private-path or symbolic-link checks.
+
+## 2026.11.19.4
+
+- Keep acquired run inputs, event state and fixed runtime in memory throughout
+  an operation. Successful saves pass their updated state to the next stage
+  and display without reopening the saved JSON or replaying the event history.
+- Keep database connections for the operation without holding a transaction
+  between stages. Observe other writers before a new transaction or display,
+  restore predecessor state after rollback, and retire each completed writer.
+  Current grants and unique execution claims still govern external effects.
+- Pass execution journal documents, evidence, Studio iterations and activity
+  records directly from their writers to downstream consumers. A new recovery
+  operation reads persisted progress and resumes the existing execution.
+- Acquire current stored contents for a new operation or an explicit forced
+  audit. Completed or copied execution contexts cannot prolong an old owner.
+
+## 2026.11.19.3
+
+- Read candidate evaluation and disposition through their registered input
+  records and current event evidence. Studio candidate displays and sheet
+  inventories share this decision reader. Explicit run status, execution,
+  adoption and source proof retain complete publication verification.
+- Keep small evidence objects acquired by the publication scan with that
+  read's semantic checks. Bound retained object bytes, stream large media,
+  and acquire current contents again at independent read and effect boundaries.
+- Load the selected production command's application dependencies when it
+  dispatches. Pack validation loads its model, resource and schema validators
+  when those checks run, reducing unrelated work in ordinary CLI operations.
+
+## 2026.11.19.2
+
+- Parse command arguments before acquiring the selected operation's runtime.
+  Command entrypoints own their actual help and dispatch; imported application
+  APIs live with their domain operations.
+- Decode acquired evidence directly into read-only documents. Keep parsed
+  JSON, JSONL and checked sheet meaning with their exact input bytes, and carry
+  checked selection meaning with the immutable history that established it.
+  New transactions and forced reads acquire current evidence.
+- Acquire selection and disposition inputs inside their writer's observation,
+  and pass the affected character scope into the resulting display update.
+- Prepare schema keyword dispatch with the immutable schema document. Validate
+  each supplied instance against those constraints while retaining lazy
+  references and complete, ordered diagnostics.
+- Plan sheet geometry, coverage, prompts and drawing instructions before
+  publishing image files. Rasterize fallback text within its actual bounds and
+  retain the same placement on the sheet.
+- Resolve panel inputs and registration scope before image composition. Reuse
+  images already at the target dimensions and compute mask guards through
+  separate horizontal and vertical maximum passes.
+- Finish synthetic pack inputs before constructing their catalogs. Share
+  immutable test inputs with private editable workspaces, retaining independent
+  construction for live-pack and runtime-state changes. Exercise sheet planning
+  directly and retain actual image, mask, composition and harvesting checks.
+
+## 2026.11.19.1
+
+- Acquire installed schemas through their current definition owner and carry
+  rendering presets explicitly from input validation into compilation and
+  request verification. New operations acquire current definition bytes.
+- Advance a writer's verified event history and lifecycle indexes after each
+  checked append, preserving earlier observations and transactional rollback.
+  Independent transactions and effect boundaries acquire their current inputs.
+- Coordinate mutable updates through OS locks on their actual data files.
+  Transfer ownership across atomic file replacement and recheck waiting
+  handles against the published file. Publish complete Studio and interchange
+  directories exclusively and keep browser catalogs by content generation.
+- Load runtime package identity and release-value syntax without acquiring
+  release declarations or dependency metadata. Release checks retain their
+  complete validation of those files.
+- Build read-only JSON containers with direct scalar members while preserving
+  shared aliases, nested immutability and independent editable exports.
+- Evaluate schema alternatives and object members when their constraints
+  require them, retaining complete failure diagnostics and lazy references.
+- Share reviewed synthetic reference fixtures within each test class, with
+  private Studio copies and independent cold construction coverage. Issue a
+  task's initial reading once before saving that test input.
+- Create synthetic documentation trees only for checks that use those trees.
+  Keep command-help checks on the actual command output.
+- Exercise actual file contention, process termination and replacement races
+  through controlled events instead of a fixed eleven-second test delay.
+
+## 2026.11.18.3
+
+- Run pack release suites against one acquired and validated catalog, including
+  raw dependency records and the schemas that checked them. Independent gate
+  calls acquire current inputs, including content changed without a size or
+  modification-time change.
+- Reuse content-derived search indexes within bounded regression chunks while
+  keeping each query's scoring state independent.
+- Build shared synthetic test preparations once per class and give every test
+  private Studio files, editable metadata and service state. Keep empty-folder
+  execution and live-pack mutation cases independently constructed. Construct
+  each fixture's final task before issuing its selected-model reading and
+  binding its authored inputs.
+- Check isolated release copies with focused public-operation probes. Give
+  each CLI-help key one result owner while distinct keys run concurrently.
+- Limit automatic test concurrency to four available processors. Preserve an
+  explicit worker selection and report its Python, platform, CPU context and
+  temporary directory.
+  Share available CPU capacity across nested CLI-help batches, with up to four
+  helpers for each outer command.
+  Record elapsed time through source cleanup with separate setup, copying,
+  command and cleanup durations.
+
+## 2026.11.18.2
+
+- Own the current request, acquired originals, selected source applications,
+  character definitions and actual candidate in one authoring work. Compose
+  starts a rendition with explicit selections; amend starts from an independent
+  copy of the actual baseline. Derive change reports from the editable content.
+- Apply exact text and JSON Pointer edits to that content, preserve acquired
+  comparison inputs, and deliver the selected candidate's actual bytes. Complete
+  prompt exports apply the selected model's grammar and dictionary requirements.
+- Use the same authoring owner for conversational work and Studio production.
+  Develop definitions progressively, bind actual task-local character identity,
+  and retain explicitly commissioned supporting-setting work.
+- Project only selected source content into the current task. Preserve complete
+  originals, exact source authority and the current request independently, and
+  expose those roles to saved review and resumption.
+- Keep source allowances independent of selected expression and realization.
+  Record actual chosen means directly; compare actual candidates when the
+  commission or unresolved choice calls for alternatives.
+- Derive candidate comparisons from their actual content, request, applied
+  definitions and other selected material. Expose shared values and differences
+  so the author can reassess common choices while developing the alternatives.
+- Carry bounded variant and craft applications through the same acquired basis,
+  preserving earlier originals while projecting the current source selections.
+
+## 2026.11.18.1
+
+- Reopen a saved realization from its original sources with `--reuse sources`.
+  Keep earlier input as comparison, retain scoped identity and current protected
+  requirements, and carry the registered current work request into production
+  and review. Retain previous work goals as historical context.
+- Keep source coverage as complete comparison context while requiring exact
+  carriers for explicit scene obligations and a whole-subject identity review.
+  Remove compulsory per-value visibility accounting. Retain the original
+  authority of reference and state sources when reopening their depiction.
+- Select actual reference contributions from canonical capabilities and consume
+  them in the actual model input. Resolve source markers and current attachment
+  locations before grammar, vocabulary, rendering-span and final-byte checks;
+  native reference controls keep their declared mappings. Preserve one editable
+  source and expose its current values through ordinary input guidance.
+- Let sheet panel descriptions select connected drawing regions, preserve
+  authored view and action hints, and derive requests from optional drawing
+  aspect ratios. Retain explicitly commissioned complete figure studies.
+- Separate surface material knowledge from complete presentation recipes, and
+  anatomy from optional individualized performance cues in the commons pack.
+- Use one author's conception, construction and source comparison as the normal
+  workflow. Develop presentation and medium where the desired effect calls for
+  them, express framing through visible forms, and keep independent evaluators
+  and requester-role dialogues in separately scoped review or maintenance work.
+
 ## 2026.11.17.2
 
 - Develop a concrete character from an open brief while keeping unused choices

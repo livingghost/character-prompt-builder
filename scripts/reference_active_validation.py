@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from catalog_cli import asset_lookup, load_entries
+from catalog_api import asset_lookup, load_entries
 from reference_contract import (
     normalize_selected_records,
     require_record_semantic_support,

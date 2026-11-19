@@ -67,7 +67,8 @@ def _ignore_identity(info: os.stat_result) -> tuple[int, int, int, int]:
 def ensure_private_ignored(root: Path) -> None:
     """Append the private-file rules while preserving every authored ignore byte.
 
-    The authentication owner holds the Studio lock. The final block takes
+    The authentication owner holds its data file, or the Studio manifest
+    while initializing the first private document. The final block takes
     precedence over earlier negations, and an existing final block is retained.
     A separate editor can still replace files outside that advisory lock.
     """

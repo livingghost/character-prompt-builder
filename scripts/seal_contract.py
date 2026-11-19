@@ -27,7 +27,6 @@ import hashlib
 import re
 from pathlib import Path
 
-import protocol_contract as contract
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = "references/narrative-protocol.md"
@@ -67,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = _operation_context.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--check", action="store_true", help="Report what sealing would move; write nothing")
     args = parser.parse_args(argv)
+    import protocol_contract as contract
     contract_path, carrier_path = ROOT / CONTRACT, ROOT / CARRIER
     contract_text = contract_path.read_text(encoding="utf-8").replace("\r\n", "\n")
     carrier = carrier_path.read_text(encoding="utf-8").replace("\r\n", "\n")

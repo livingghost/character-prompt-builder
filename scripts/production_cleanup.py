@@ -20,7 +20,7 @@ def supported(transport: Any) -> bool:
                for name in ('prepare_delete', 'send_delete', 'lookup_delete'))
 
 
-def _owned(directory: Path, rendered: dict, state: dict | None) -> list[dict]:
+def _owned(directory: Path, rendered: dict, state: dict | None, *, read_document=None) -> list[dict]:
     """Only actual upload responses already recorded by this execution name targets."""
     if state is None:
         return []
@@ -34,7 +34,8 @@ def _owned(directory: Path, rendered: dict, state: dict | None) -> list[dict]:
             raise ProductionError('CLEANUP_OWNERSHIP_REQUIRED', 'An uploaded input needs its exact response receipt.',
                                   phase='input-cleanup')
         witness = result['evidence'][0]
-        receipt = c.decode(c.object_read(directory, witness['sha256']))
+        receipt = (read_document(witness['sha256']) if read_document is not None else
+                   c.decode(c.object_read(directory, witness['sha256'])))
         c.exact(receipt, {'index', 'source', 'source_sha256', 'provider_id', 'response', 'usage'}, 'owned upload receipt')
         if (receipt['index'] != index or receipt['source'] != item['path']
                 or receipt['source_sha256'] != item['sha256']):
@@ -58,10 +59,10 @@ def _owned(directory: Path, rendered: dict, state: dict | None) -> list[dict]:
     return output
 
 
-def inspect(directory: Path, rendered: dict, state: dict | None, transport: Any) -> dict:
+def inspect(directory: Path, rendered: dict, state: dict | None, transport: Any, *, read_document=None) -> dict:
     """Read cleanup separately from output capture and artistic review."""
     items = []
-    owned = _owned(directory, rendered, state)
+    owned = _owned(directory, rendered, state, read_document=read_document)
     eligible = bool(state and accounting.cleanup_ready(state))
     available = supported(transport)
     for upload in owned:
@@ -111,11 +112,11 @@ def _observation(root: Path, run: str, journal, claim: dict, step: str, kind: st
         'evidence': execution._evidence(root, run, journal, [name])})
 
 
-def _read_request(directory: Path, journal, boundary: dict) -> dict:
+def _read_request(directory: Path, journal, boundary: dict, *, read_document) -> dict:
     witness = boundary['evidence'][0]
-    request = c.decode(c.object_read(directory, witness['sha256']))
+    request = read_document(witness['sha256'])
     path = journal.path / (_name(boundary['upload_index']) + '-request.json')
-    if c.sha256_file(path) != boundary['delete_request_sha256']:
+    if c.digest(journal.bytes(path.name)) != boundary['delete_request_sha256']:
         raise ProductionError('ARTIFACT_CORRUPT', 'The saved deletion request differs from its committed boundary.',
                               phase='input-cleanup', file=str(path),
                               required_action='Copy ' + str(directory / 'objects' / boundary['delete_request_sha256'])
@@ -148,13 +149,14 @@ def _refusal(root: Path, run: str, journal, claim: dict, authorization: str,
 def perform(root: Path, run: str, journal, claim: dict, target: dict, transport: Any) -> dict:
     """Run only pending cleanup, leaving source files and captured image results intact."""
     import production_execution as execution
-    import production_workflow as workflow
+    import production_operations as workflow
     import transport_contract
-    directory, prepared, _, rows = workflow.read_run(root, run)
+    loaded = workflow.read_run(root, run)
+    directory, prepared, _, rows = loaded
     authorization = claim['data']['authorizations'][0]
     state = accounting.require_active(rows, prepared, run, authorization)
-    rendered = c.load(journal.path / 'request-contract.json')
-    before = inspect(directory, rendered, state, transport)
+    rendered = journal.read('request-contract.json')
+    before = inspect(directory, rendered, state, transport, read_document=loaded.evidence.document)
     result = {'cleanup': before, 'external_effect': False, 'warnings': _warnings(before)}
     if before['state'] in {'not-needed', 'complete', 'failed', 'waiting'}:
         return result
@@ -174,21 +176,22 @@ def perform(root: Path, run: str, journal, claim: dict, target: dict, transport:
     for upload in before['items']:
         if upload['state'] in {'deleted', 'failed'}:
             continue
-        directory, prepared, _, rows = workflow.read_run(root, run)
+        loaded = workflow.read_run(root, run)
+        directory, prepared, _, rows = loaded
         state = accounting.require_active(rows, prepared, run, authorization)
         boundary = next((item for item in state['steps']
                          if item['operation'] == 'delete' and item['upload_index'] == upload['upload_index']), None)
         outcome = state['effect_results'].get(boundary['step']) if boundary else None
         if boundary is not None and outcome is None:
             base = _name(upload['upload_index'])
-            request = _read_request(directory, journal, boundary)
+            request = _read_request(directory, journal, boundary, read_document=loaded.evidence.document)
             receipt_name, refused_name = base + '-result.json', base + '-refused.json'
             # A crash after durable response capture needs no network call.
             if (journal.path / receipt_name).is_file():
-                _receipt(root, run, journal, claim, authorization, boundary, receipt_name, c.load(journal.path / receipt_name))
+                _receipt(root, run, journal, claim, authorization, boundary, receipt_name, journal.read(receipt_name))
                 continue
             if (journal.path / refused_name).is_file():
-                _refusal(root, run, journal, claim, authorization, boundary, refused_name, c.load(journal.path / refused_name))
+                _refusal(root, run, journal, claim, authorization, boundary, refused_name, journal.read(refused_name))
                 continue
             try:
                 with stage('input-cleanup-lookup'):
@@ -211,7 +214,7 @@ def perform(root: Path, run: str, journal, claim: dict, target: dict, transport:
         # Reuse a prepared but not yet transmitted delete request after a local
         # interruption, without assigning it a second provider identity.
         if (journal.path / request_name).is_file():
-            request = c.load(journal.path / request_name)
+            request = journal.read(request_name)
         else:
             request = transport.prepare_delete(upload['provider_id'], target['service'])
             if not isinstance(request, dict):
@@ -230,7 +233,9 @@ def perform(root: Path, run: str, journal, claim: dict, target: dict, transport:
         except (ValueError, OSError) as exc:
             detail = exc.evidence() if hasattr(exc, 'evidence') else {'reason': str(exc)}
             _observation(root, run, journal, claim, boundary['step'], 'outcome-unknown', detail)
-    directory, prepared, _, rows = workflow.read_run(root, run)
-    result['cleanup'] = inspect(directory, rendered, accounting.require_active(rows, prepared, run, authorization), transport)
+    loaded = workflow.read_run(root, run)
+    directory, prepared, _, rows = loaded
+    result['cleanup'] = inspect(directory, rendered, accounting.require_active(rows, prepared, run, authorization), transport,
+                                read_document=loaded.evidence.document)
     result['warnings'] = _warnings(result['cleanup'])
     return result

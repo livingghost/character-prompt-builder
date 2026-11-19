@@ -102,9 +102,9 @@ An eyebrow marking, a horn, a wing membrane, a sensor housing, a digit, a scar, 
 
 ## Building the sheet
 
-The sheet's inventory follows a domain-neutral reference-sheet standard. A "complete view" means the whole declared individual or collective configuration, which may be something other than a body:
+The sheet's inventory follows a domain-neutral reference-sheet standard. The views together establish the declared individual or collective configuration. A selected "complete view" shows its whole extent; a partial view shows the continuous construction at its specified framing:
 
-- **Views.** At least two complete canonical views that expose the declared topology, and as many more as the kind requires. A humanoid starter may use front, both lateral surfaces, and back; a serpent may need coiled, extended, dorsal, and ventral configurations; a swarm uses unit and formation views; a ship can require port, starboard, dorsal, ventral, internal, or deployed views. The layout profile owns the names and count. Four horizontal directions cover some kinds only, and a kind may need more. One exception: when the sheet's `views` table declares rows, those rows become the base view grid and replace the layout profile's authored canonical view set one-for-one, so a declared views table needs at least two rows of its own.
+- **Views.** At least two canonical views that together expose the declared topology, and as many more as the kind requires. Each view selects its orientation, configuration and framing. Complete figures, upper-body views and connected part studies can contribute different evidence. A humanoid starter may use front, both lateral surfaces, and back; a serpent may need coiled, extended, dorsal, and ventral configurations; a swarm uses unit and formation views; a ship can require port, starboard, dorsal, ventral, internal, or deployed views. The layout profile owns the names and count. Four horizontal directions cover some kinds only, and a kind may need more. When the sheet's `views` table declares rows, those rows become the base view grid and replace the layout profile's authored canonical view set one-for-one, so a declared views table needs at least two rows of its own.
 - **Close-ups.** One recognition-focal detail (face, sensor, emblem, core, pattern junction, or another declared landmark), one detail per signature mark, and one panel per declared identity-bearing part or component. A face, head, eye, hand, foot, or biological structure appears only when declared.
 - **Part and component details.** Specialized layout profiles may offer anatomy-specific frames, but a frame is generated only when a matching `parts` row exists. The domain-neutral one creates one detail frame per substantive `parts` row. Undeclared optional frames are omitted from the model-facing board rather than shown as invitations to invent anatomy.
 - **Visual identity axes.** Axes are author-declared rows rather than a fixed list of humanoid concerns. A character may need silhouette or topology, surface or material language, habitual configuration, locomotion or formation language, signaling, worn assemblies, or entirely different axes. The blank editor starts with an empty axis list. Interpret the applicable rows and their binding scopes into the authored visual design brief.
@@ -206,7 +206,7 @@ The sheet's inventory follows a domain-neutral reference-sheet standard. A "comp
 - **Performance series.** Declare how the character moves in four tables, each row one panel:
   - `partstates` for one part in one configuration (the tail carried high, low, curled, or bristled);
   - `motion` for a body region at both ends of its reach with the limit it stays within;
-  - `actions` for the complete figure mid-action in a named phase;
+  - `actions` for the connected action in a named phase and selected view;
   - `gestures` for everyday habits with their props.
 
   A video model that receives only standing views guesses the motion; these panels are what it is given instead.
@@ -228,11 +228,22 @@ The scaffold is drawn from a **layout profile**: a JSON file declaring the canva
 
 `humanoid` and `anthro` are opt-in specializations that a species name alone leaves unselected.
 
+Each panel can set an optional numeric `aspect_ratio`, its drawing surface's
+width divided by height. For example, `2` gives a wide panel and `0.5` a tall
+one. An absent value uses the kind's layout starting size. Neither value
+requires a complete figure, a crop or a posture change; the panel's authored
+depiction selects those relationships. For a declared `views` row, a profile
+box with the matching `source_view_row_id` supplies that view's geometry;
+otherwise the first box of the same kind supplies the starting geometry.
+The base and outfit views each use their own matching box. Target-specific
+generation sizes are selected from this surface as described in the fill
+transport below.
+
 **A still carries a state, not a motion.** A row that names a movement (a tail's slow sway, an ear rotating toward a sound, a body rising onto one elbow) leaves the depicted instant open. A raised tail alone does not establish a slow sway, nor does a body already raised establish the transition onto its support. Declare movements in the shot's motion text, and select on the sheet the states and relationships a still can prove. For a depicted motion or developing response, select the instant before writing the panel, with its compatible support, orientation, contact and visible channels. Existing accepted panels can supply evidence for a range endpoint or for several conditions when they show the same required construction. Add the panels needed to cover the adopted range, including future uses; shared pixels leave each condition's definition and applicability intact.
 
 **Declared state rows complete the panel set at render time.** Each substantive `parts`, `marks`, `expressions`, `bodylang`, `partstates`, `motion`, `actions`, and `gestures` row receives a same-kind frame, and resolved panels of one kind form one labeled section of the board. Every substantive `outfits` row receives a complete clone of the selected layout profile's authored `outfit_turnaround` view group; one that lacks such a group applies its declared fallback outfit panel grammar. Table-bound panels bind through persistent `source_row_id`; `source_index` is only a positional authoring convenience. Deleting or reordering one row therefore leaves every other row's accepted image labeled as before. Resolved panels take dedicated rows and preserve kind-appropriate shapes. The canvas grows to contain the complete declared inventory; the coordinate manifest is the harvester contract, rather than a fixed aspect or fixed panel total.
 
-**Every fill-state panel must carry a complete instruction.** Image models are given the whole frame's contents rather than trusted to improvise them. A panel hint is therefore a full drawable sentence (view, scale, subject, the anatomy facts to show, and the presentation), and sheet context merges the declared data on top. Each panel `kind` is a generic grammar the layout author composes, with a fixed data source in `sheet-data.json`:
+**Every fill-state panel must carry a complete instruction.** Its `hint` describes the selected view, scale, configuration, action and relationships needed for that study. Sheet context retains those instructions and adds the applicable declared content. The model request presents this depiction before the shared identity descriptions. Kind guidance supports the study's purpose; it adds no complete-figure demand to a partial view. A complete-figure study states that scope in its hint or view specification, as the bundled turnaround and standing-pose studies do. The complete character definition remains the source for constructing the same subject through overlaps and frame edges. Each panel `kind` has an owning data source in `sheet-data.json`:
 
 | Panel kind | Fills from | Use for |
 | --- | --- | --- |
@@ -245,10 +256,10 @@ The scaffold is drawn from a **layout profile**: a JSON file declaring the canva
 | `pose_state` | one `bodylang` row at persistent `source_row_id` | declared poses and body-language states, one panel per row |
 | `part_state` | one `partstates` row | one part in one declared configuration (a tail carried high, ears pinned), drawn from its identity panel |
 | `range_of_motion` | one `motion` row | one body region at both extremes of its declared range, side by side, with its limit |
-| `action_pose` | one `actions` row | the complete figure mid-action in the declared phase |
-| `idle_gesture` | one `gestures` row | the complete figure in a declared everyday habit, with its prop when declared |
+| `action_pose` | one `actions` row | the declared action phase, support and contacts in the selected view |
+| `idle_gesture` | one `gestures` row | a declared everyday habit and its relationships, with its prop when declared |
 | `outfit` | the dressed/equipped description and declared `outfits` rows | the canonical covering, shell, carried assembly, or equipment state over the readable base configuration |
-| `outfit_turnaround` | one `outfits` row at persistent `source_row_id` | the declared complete view group, repeated for every outfit/equipment state |
+| `outfit_turnaround` | one `outfits` row at persistent `source_row_id` | the declared view group at its selected framing, repeated for every outfit/equipment state |
 | `outfit_variant` | one `outfits` row at persistent `source_row_id` | fallback for a layout profile that intentionally declares a single-view outfit grammar |
 | `signature_pose` | the signature-poses field | the habitual stance or gesture |
 | `head_study` / `icon` | the panel hint | the face study and the recognition crop |

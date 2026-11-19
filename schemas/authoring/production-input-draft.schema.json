@@ -9,7 +9,8 @@
     "visual",
     "validation",
     "task_changes",
-    "external"
+    "external",
+    "authoring"
   ],
   "properties": {
     "target": {
@@ -328,7 +329,6 @@
         "generation",
         "references",
         "upscale",
-        "sources",
         "source_files"
       ],
       "properties": {
@@ -636,51 +636,6 @@
           "additionalProperties": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
-          }
-        },
-        "sources": {
-          "type": "object",
-          "description": "Editable text or JSON sources keyed by the declared source ID. Source identity and role remain on authoring.task.sources.",
-          "additionalProperties": {
-            "type": "object",
-            "required": [
-              "format"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "format": {
-                "enum": [
-                  "text",
-                  "json"
-                ]
-              },
-              "content": {},
-              "file": {
-                "type": "string",
-                "minLength": 1
-              },
-              "field": {
-                "type": "array",
-                "items": {
-                  "type": [
-                    "string",
-                    "integer"
-                  ]
-                }
-              }
-            },
-            "oneOf": [
-              {
-                "required": [
-                  "content"
-                ]
-              },
-              {
-                "required": [
-                  "file"
-                ]
-              }
-            ]
           }
         }
       }

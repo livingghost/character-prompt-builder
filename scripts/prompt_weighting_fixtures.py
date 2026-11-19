@@ -1,7 +1,7 @@
 """Synthetic weighting interfaces for contract tests; never provider capability evidence."""
 from __future__ import annotations
+from functools import partial
 from pathlib import Path
-from unittest.mock import patch
 
 import execution_contract as c
 import pack_manager as packs
@@ -17,15 +17,20 @@ NATIVE_VALUES = {'compel': 'clauses', 'sdEmbeds': 'emphasis'}
 
 def refresh(case: dict) -> None:
     """Rebuild only authored synthetic evidence after changing this fixture's interface."""
+    packs.write_lock(case['pack'])
+    runtime.configure_pack_runtime(case['settings'])
+    bind_prompt_evidence(case)
+
+
+def bind_prompt_evidence(case: dict) -> None:
+    """Bind the current authored text to the already selected synthetic interface."""
     from prompt_retrieval import settle_retrieval_record
-    from prepare_generation_references import resolve_model_record
+    from generation_references import resolve_model_record
     from request_validation_fixtures import fixture_validation
     from reading_fixtures import fixture_reading
     from prompt_vocabulary_selection import search_selection
     import prompt_weighting
     root = case['root']
-    packs.write_lock(case['pack'])
-    runtime.configure_pack_runtime(case['settings'])
     retrieval = c.load(root / 'retrieval.json')
     retrieval['pack_state'] = runtime.load_pack_catalog().fingerprint
     text = (root / 'prompt.txt').read_text(encoding='utf-8')
@@ -48,14 +53,10 @@ def refresh(case: dict) -> None:
                ledger=root / 'work/reads.jsonl', model=MODEL, service='synthetic', execution='dispatcher'))
 
 
-def create(root: Path, runtime_root: Path, *, prompt: str = PROMPT, negative: str = NEGATIVE,
-           syntax: str | None = 'compel', supported: tuple[str, ...] = ('compel', 'sdEmbeds'),
-           family: bool = True, recommended_negative: str | None = None,
-           default: str | None = None) -> dict:
+def configure_pack(pack: Path, *, supported: tuple[str, ...], family: bool,
+                   recommended_negative: str | None, default: str | None) -> None:
+    """Write this fixture's complete grammar and vocabulary before catalog creation."""
     from render_contract_fixtures import control
-    with patch.object(base, 'PROMPT', prompt):
-        case = base.create(root, runtime_root)
-    pack = case['pack']
     models = c.load(pack / 'records/models.json')
     record = models['records'][0]
     if default is not None:
@@ -89,6 +90,14 @@ def create(root: Path, runtime_root: Path, *, prompt: str = PROMPT, negative: st
         'dialects': [{'id': 'synthetic-tags', 'name': 'Fixture family', 'description': 'No real model claim.',
                       'vocabularies': ['synthetic'],
                       'tag_separator': 'comma', 'block_order': ['subject', 'environment']}]})
+
+
+def create(root: Path, runtime_root: Path, *, prompt: str = PROMPT, negative: str = NEGATIVE,
+           syntax: str | None = 'compel', supported: tuple[str, ...] = ('compel', 'sdEmbeds'),
+           family: bool = True, recommended_negative: str | None = None,
+           default: str | None = None) -> dict:
+    case = base.create(root, runtime_root, prompt=prompt, configure_pack=partial(configure_pack,
+        supported=supported, family=family, recommended_negative=recommended_negative, default=default))
     task = c.load(root / 'task.json')
     if negative:
         base.write(root / 'negative.txt', negative)
@@ -99,5 +108,5 @@ def create(root: Path, runtime_root: Path, *, prompt: str = PROMPT, negative: st
     if syntax is not None:
         parameters['controls'] = {'parser': NATIVE_VALUES[syntax]}
     base.write(root / 'parameters.json', parameters)
-    refresh(case)
+    bind_prompt_evidence(case)
     return case

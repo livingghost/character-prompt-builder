@@ -23,9 +23,10 @@ view. Decide which required features those materials actually show. A clear
 portrait may establish a face while leaving a garment's back unobserved.
 
 Record the coverage decision in `task.direction.decisions`: applied sources,
-missing information, selected method, limitations and relevant criteria.
-Use a fixed or routine decision when the available sources settle the choice.
-Use a material decision for a real comparison of methods and tradeoffs.
+current expression, selected method, limitations and relevant criteria. Keep
+unresolved coverage in its limitations. When a consequential choice needs
+comparison, compose actual candidates through [Authoring work](authoring-work.md)
+and use the construction that serves the current request.
 
 Inspect the features the requested scene will expose: the particular facial
 construction, markings, proportions, outfit details and any other recognition
@@ -227,7 +228,7 @@ scene and the relevant face, garment, hand, foot and contact regions.
 | Finish | Required medium, proportions, linework and rendering quality |
 | Integrity | Unwanted transparency, missing or extra structures and broken edges |
 
-Apply the author's scoped `accepted_variations` from
+Apply the author's scoped `direction.source_allowances` from
 [Production direction](production-direction.md#preserve-accepted-variation-at-its-declared-scope).
 Evaluate acting and composition against the selected requirements, not the
 agent's imagined exact picture. Distinguish requirement failures, unobservable

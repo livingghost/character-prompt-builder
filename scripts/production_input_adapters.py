@@ -12,7 +12,7 @@ from production_diagnostics import choice_required
 
 
 def inventory(root: Path, task: dict) -> dict:
-    import studio
+    import studio_workspace as studio
     import adoption_workflow
     characters = []
     folder = root / 'characters'
@@ -73,7 +73,7 @@ def build_visual(choices: dict | None, task: dict, reader, root: Path) -> tuple[
     prepared_ref = reader.select(choices['prepared_reference_set'])
     spec = reader.json(spec_ref)
     prepared = reader.json(prepared_ref)
-    from prepare_generation_references import validate_prepared_reference_set
+    from generation_references import validate_prepared_reference_set
     validate_prepared_reference_set(prepared, package_root=reader.resolve(prepared_ref['path']).parent)
     authored = {key: copy.deepcopy(choices[key]) for key in ('purpose', 'basis', 'subjects')}
     result = visual_continuity.build_record(authored, production_spec=spec, prepared=prepared, root=root)

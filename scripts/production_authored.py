@@ -196,6 +196,7 @@ def _draft_compilation(root: Path, choices_path: str):
               'external_effect': False, 'formal_run_created': False, 'request_preview': None,
               'execution_plan': execution, 'authoring': {'choices': choices_path,
               'choices_ref': copy.deepcopy(view['choices_ref']),
+              'work_basis': view['work_basis'],
               'source_run': (view.get('source_run') or {}).get('run'),
               'unresolved': copy.deepcopy(unresolved)}}
     prepared['authoring'] = copy.deepcopy(report['authoring'])
@@ -208,11 +209,11 @@ def _draft_compilation(root: Path, choices_path: str):
 
 def record_save(root: Path, run: str) -> dict:
     """Record the committed authored publication, including recovery after a stop."""
-    import production_workflow as workflow
+    import production_operations as workflow
     with store.transaction(root):
         loaded = workflow.read_run(root, run)
         data = _save_data(loaded.prepared)
-        receipt = workflow.append_record(loaded.directory, loaded.prepared, loaded.rows, 'authored-save', data)
+        receipt = workflow.append_record(loaded, 'authored-save', data)
     return {'ok': True, 'run': run, 'saved': True, 'state': data['state'],
             'artifact': str(loaded.directory / data['artifact']['path']),
             'save': receipt['sha256'], 'external_effect': False,
@@ -238,7 +239,7 @@ def save(root: Path, choices_path: str, *, draft: bool = False) -> dict:
 
 def draft_source(root: Path, run: str) -> dict | None:
     """Return the exact incomplete editor source for the authoring owner to restore."""
-    import production_workflow as workflow
+    import production_operations as workflow
     loaded = workflow.read_run(root, run)
     descriptor = loaded.prepared.get('authored_revision')
     if not descriptor or descriptor['state'] != 'draft' or descriptor['choices'] is None:
@@ -271,7 +272,7 @@ def _saved(prepared: dict, rows):
 
 
 def _delivery(prepared: dict, receipt: dict, read) -> dict:
-    import production_workflow as workflow
+    import production_operations as workflow
     workflow.schema_check(receipt, 'authored-delivery')
     evidence = receipt['evidence']
     evidence_raw = read(evidence['path'])
@@ -298,7 +299,7 @@ def deliver(root: Path, run: str, receipt_file: str | None = None, *, destinatio
     Exclusive file publication precedes its event. An interruption between them
     leaves the complete file; retry verifies those bytes and records that fact.
     """
-    import production_workflow as workflow
+    import production_operations as workflow
     if (receipt_file is None) == (destination is None):
         raise ValueError('delivery selects exactly one local destination or external evidence file')
     root = c._root(root)
@@ -322,7 +323,7 @@ def deliver(root: Path, run: str, receipt_file: str | None = None, *, destinatio
             observed = {'kind': 'local-file', 'path': destination, 'sha256': artifact['sha256'],
                         'size': artifact['size'], 'state': revision['state']}
             files = [{'path': destination, 'sha256': artifact['sha256'], 'size': artifact['size']}]
-            return workflow.append_record(loaded.directory, loaded.prepared, loaded.rows, 'authored-delivery',
+            return workflow.append_record(loaded, 'authored-delivery',
                 {'revision': run, 'artifact_sha256': artifact['sha256'], 'receipt': None,
                  'delivery': observed, 'files': files})
         captured = {}
@@ -334,7 +335,7 @@ def deliver(root: Path, run: str, receipt_file: str | None = None, *, destinatio
         observed = _delivery(loaded.prepared, receipt, read)
         files = [{'path': path, 'sha256': c.object_store(loaded.directory, raw), 'size': len(raw)}
                  for path, raw in captured.items()]
-        return workflow.append_record(loaded.directory, loaded.prepared, loaded.rows, 'authored-delivery',
+        return workflow.append_record(loaded, 'authored-delivery',
             {'revision': run, 'artifact_sha256': revision['artifact']['sha256'],
              'receipt': receipt_file, 'delivery': observed, 'files': files})
 
@@ -354,6 +355,12 @@ def _review_context(prepared: dict, read_object) -> tuple[dict, bytes, dict, lis
                 {'kind': 'text', 'bytes': 0, 'lines': 0})
     candidate = {'sha256': artifact['sha256'], 'data': {'media': measured}}
     material, evidence = {}, []
+    from production_operations import _review_authoring_basis
+    context = _review_authoring_basis(prepared, read_object)
+    if context is not None:
+        item, contents = context
+        evidence.append(item)
+        material[item['id']] = (contents, media.inspect(contents, 'json'))
     dependencies = {item['path']: item for item in prepared['dependencies'] if item['space'] != 'skill'}
     originals = {item['source']['id']: item for item in (prepared['task'].get('authored_basis') or {}).get('sources', [])}
     prefix = 'production/runs/' + prepared['run'] + '/objects/'
@@ -373,7 +380,16 @@ def _review_context(prepared: dict, read_object) -> tuple[dict, bytes, dict, lis
                          'relation': relation, 'limitations': []})
 
     for source in prepared['task'].get('sources', []):
+        if source['disposition'] != 'applied':
+            continue
         current = dependencies.get(source['path'])
+        if source.get('origin') is not None and current is not None:
+            add('source:' + source['id'], source, current,
+                'Applied source selection for this authored work: ' + str(source.get('locator', source['id'])))
+            add('source-origin:' + source['id'], source, dependencies[source['origin']['path']],
+                'Complete retained original for source:' + source['id'] +
+                '. The applied scope is the selected content; the rest supplies context.')
+            continue
         original = originals.get(source['id'])
         if original is not None:
             add('source:' + source['id'], original['source'], original['file'],
@@ -407,22 +423,23 @@ def review_basis(loaded) -> dict:
     return {'revision': prepared['run'], 'input_sha256': prepared['input_sha256'],
             'purpose': task.get('direction', {}).get('purpose'),
             'intended_effect': task.get('direction', {}).get('intended_effect'),
-            'commission': copy.deepcopy(origin.get('direction', {})),
-            'original_criteria': copy.deepcopy(origin.get('criteria', [])),
+            'source_task_direction': copy.deepcopy(origin.get('direction', {})),
+            'source_task_criteria': copy.deepcopy(origin.get('criteria', [])),
             'direction': copy.deepcopy(task.get('direction', {})),
             'criteria': copy.deepcopy(task.get('criteria', [])),
             'evidence': evidence, 'sources': copy.deepcopy((task.get('authored_basis') or {}).get('sources', [])),
             'artifact': {**artifact, 'path': str(loaded.directory / artifact['path'])},
             'unresolved': copy.deepcopy(prepared['authored_revision']['unresolved']),
             'draft': draft_review(prepared),
-            'instruction': 'Read the exact saved artifact before assessing it against the original commission '
-                'and source documents. source:ID names the original; adaptation:ID names a separate authored '
-                'rendition. Current criteria and automatic target checks do not redefine source meaning. '
+            'instruction': 'Read the exact saved artifact before assessing it against the current commission '
+                'and applicable source documents. source:ID names the applied source; source-origin:ID retains '
+                'a complete original for a scoped selection. adaptation:ID names a separate authored '
+                'rendition when present. Current criteria and automatic target checks preserve source scope. '
                 'A prompt review assesses the text and what it instructs, without claiming a generated image.'}
 
 
 def _review(prepared: dict, value: dict, read_object, read_evidence) -> dict:
-    import production_workflow as workflow
+    import production_operations as workflow
     import production_evidence as media
     workflow.schema_check(value, 'review')
     candidate, raw, material, evidence = _review_context(prepared, read_object)
@@ -439,7 +456,7 @@ def _review(prepared: dict, value: dict, read_object, read_evidence) -> dict:
 
 def review(root: Path, run: str, review_file: str) -> dict:
     """Record a common evidence-backed review of the exact saved artifact."""
-    import production_workflow as workflow
+    import production_operations as workflow
     with store.transaction(root):
         loaded = workflow.read_run(root, run)
         _saved(loaded.prepared, loaded.rows)
@@ -458,12 +475,12 @@ def review(root: Path, run: str, review_file: str) -> dict:
         previous = _latest(loaded.rows, 'authored-review')
         if previous is not None and {key: item for key, item in previous['data'].items() if key != 'previous_review'} == recorded:
             return previous
-        return workflow.append_record(loaded.directory, loaded.prepared, loaded.rows, 'authored-review',
+        return workflow.append_record(loaded, 'authored-review',
             {**recorded, 'previous_review': previous['sha256'] if previous else None})
 
 
 def _review_evaluation(prepared: dict, rows) -> tuple[str, list[str]]:
-    import production_workflow as workflow
+    import production_operations as workflow
     reviewed = _latest(rows, 'authored-review')
     return workflow.review_evaluation(prepared['task'].get('criteria', []),
                                       reviewed['data']['review'] if reviewed else None)
@@ -552,7 +569,7 @@ def status(root: Path, loaded, *, logs: list | None = None) -> dict:
     """Project saved, delivered and reviewed facts for this exact authored revision."""
     root = c._root(root)
     from cli_invocation import python_argv
-    import production_workflow as workflow
+    import production_operations as workflow
     prepared, rows = loaded.prepared, loaded.rows
     run = prepared['run']
     revision = prepared['authored_revision']

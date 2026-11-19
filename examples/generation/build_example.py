@@ -35,7 +35,7 @@ def command(*arguments: str) -> list[str]:
 
 
 def prepared(root: Path, task: str = 'task.json') -> str:
-    import production_workflow as workflow
+    import production_operations as workflow
     return workflow.prepare(root, task)['run']
 
 
@@ -47,7 +47,7 @@ def executed(root: Path, run: str, decisions: str) -> dict:
 def scenario(name: str, root: Path, runtime: list[str], *, case: dict) -> dict:
     """Prepare one scenario; return its run and the commands that show it."""
     import production_store as store
-    import production_workflow as workflow
+    import production_operations as workflow
     R = str(root)
     if name == 'reference-retarget':
         retry = fixtures.reference_retarget_case(case)
@@ -68,14 +68,26 @@ def scenario(name: str, root: Path, runtime: list[str], *, case: dict) -> dict:
             'reason': 'Reword the prompt; the retrieval record is reassessed for the new wording.'})
         return {'run': run, 'next': [command('variant', '--root', R, '--from', run, '--changes-file', 'variants/prompt.json', '--prepare')]}
     if name == 'reference':
-        from prepare_generation_references import prepare_references
+        from generation_references import prepare_references
+        from reference_delivery import bindings
+        from model_rendition import resolve_reference_text
+        from prompt_retrieval import settle_retrieval_record
         from transport_synthetic import _png
         run = prepared(root)
         c.atomic(root / 'variants/palette.png', _png(32, 32, b'\x50\x78\xa0'))
         references = prepare_references([{'role': 'palette', 'source': {'kind': 'supplied-file', 'reference_id': 'synthetic-palette',
             'resolved_path': str(root / 'variants/palette.png')}}], model=fixtures.MODEL_ID, output_dir=root / 'variants/reference-preparation')
         fixtures.write(root / 'variants/references.json', references)
+        prompt = (fixtures.PROMPT + ' Image {{reference:synthetic-palette:attachment_number}} supplies '
+                  '{{reference:synthetic-palette:controls}}.')
+        delivered = resolve_reference_text(prompt, bindings(references['transport_mode'],
+            references['selected_references'], references['single_board']))['text']
+        record = c.load(root / 'retrieval.json')
+        record['elements'][0]['composed_wording'] = delivered
+        fixtures.write(root / 'variants/reference-retrieval.json', settle_retrieval_record(
+            record, prompt=delivered, plot=c.load(root / 'plot.json')))
         fixtures.write(root / 'variants/reference.json', {'changes': {'references': {'path': 'variants/references.json'},
+            'prompt': prompt, 'retrieval-record': {'path': 'variants/reference-retrieval.json'},
             'execution-mode': 'reference-guided'}, 'reason': 'Guide the palette with one prepared synthetic reference image.'})
         return {'run': run, 'next': [command('variant', '--root', R, '--from', run, '--changes-file', 'variants/reference.json', '--prepare')]}
     if name == 'sheet':

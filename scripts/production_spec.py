@@ -21,15 +21,13 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from state_protocol import find_non_finite_numbers, parse_json, validate_against_schema
+from state_protocol import find_non_finite_numbers, parse_json, read_schema, validate_against_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "templates" / "production-spec-template.json"
 UNSPECIFIED = "unspecified"
-PRODUCTION_SPEC_SCHEMA = json.loads((ROOT / "protocols" / "shared-state" / "schemas" / "production-spec.schema.json").read_text(encoding="utf-8"))
-DOMAINS = tuple(PRODUCTION_SPEC_SCHEMA["properties"]["subjects"]["items"]["properties"]["domain"]["enum"])
+SCHEMA_PATH = ROOT / "protocols" / "shared-state" / "schemas" / "production-spec.schema.json"
 CONTINUITIES = ("one-off", "undecided", "recurring")
-ART_FIELDS = tuple(PRODUCTION_SPEC_SCHEMA["properties"]["art_direction"]["required"])
 STATE_AWARE_ONLY = ("$.state_context.state_lineage_sha256", "$.state_context.scene_context_ref")
 # Items that other parts of the specification address by ID.
 KEYED_ARRAYS = (
@@ -46,6 +44,11 @@ class SpecificationError(ValueError):
     def __init__(self, errors: Sequence[str]):
         self.errors = [f"production specification: {item}" for item in errors]
         super().__init__("; ".join(self.errors))
+
+
+def schema() -> Mapping[str, Any]:
+    """The checked specification contract owned by this read phase."""
+    return read_schema(SCHEMA_PATH)
 
 
 def canonical(value: Any) -> str:
@@ -137,7 +140,8 @@ def require_layout(layout: Any, *, subject_ids: set[str] | None = None) -> None:
         raise SpecificationError(errors)
 
 
-def _validate(data: dict[str, Any], schema: Mapping[str, Any], *, require_content: bool) -> dict[str, Any]:
+def _validate(data: dict[str, Any], schema: Mapping[str, Any], *, require_content: bool,
+              render_presets=None) -> dict[str, Any]:
     non_finite = find_non_finite_numbers(data)
     errors = [f"{path}: number must be finite" for path in non_finite]
     for error in validate_against_schema(data, schema):
@@ -161,7 +165,8 @@ def _validate(data: dict[str, Any], schema: Mapping[str, Any], *, require_conten
     if isinstance(data, dict) and isinstance(data.get("render_intent"), dict):
         from render_contract_lib import validate_intent
         try:
-            validate_intent(data["render_intent"], for_generation=require_content)
+            validate_intent(data["render_intent"], for_generation=require_content,
+                            render_presets=render_presets)
         except ValueError as exc:
             errors.append(str(exc))
     if require_content and isinstance(data, dict):
@@ -170,7 +175,8 @@ def _validate(data: dict[str, Any], schema: Mapping[str, Any], *, require_conten
         texts = [(f"$.{field}", data.get(field)) for field in ("source_brief", "image_promise")]
         art = data.get("art_direction")
         if isinstance(art, dict):
-            texts += [(f"$.art_direction.{field}", art.get(field)) for field in ART_FIELDS]
+            fields = schema["properties"]["art_direction"]["required"]
+            texts += [(f"$.art_direction.{field}", art.get(field)) for field in fields]
         errors.extend(f"{path} is empty; state it or write {UNSPECIFIED!r}"
                       for path, value in texts if isinstance(value, str) and not value.strip())
     state_context = data.get("state_context") if isinstance(data, dict) else None
@@ -184,32 +190,32 @@ def _validate(data: dict[str, Any], schema: Mapping[str, Any], *, require_conten
     }
 
 
-def validate(data: dict[str, Any], *, require_content: bool = False) -> dict[str, Any]:
+def validate(data: dict[str, Any], *, require_content: bool = False, render_presets=None) -> dict[str, Any]:
     """Validate the complete published specification, including its selected target."""
-    return _validate(data, PRODUCTION_SPEC_SCHEMA, require_content=require_content)
+    return _validate(data, schema(), require_content=require_content, render_presets=render_presets)
 
 
-def authored_schema(schema: Mapping[str, Any] | None = None) -> dict[str, Any]:
+def authored_schema(source_schema: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Project the published schema onto the editable specification's owned fields.
 
     choices.target owns the selected model. Every other rule remains the same,
     and an explicitly supplied target_model still has its declared constraints.
     """
-    result = dict(PRODUCTION_SPEC_SCHEMA if schema is None else schema)
+    result = dict(schema() if source_schema is None else source_schema)
     result['required'] = [key for key in result.get('required', []) if key != 'target_model']
     return result
 
 
-def validate_authored(data: dict[str, Any], *, require_content: bool = True) -> dict[str, Any]:
+def validate_authored(data: dict[str, Any], *, require_content: bool = True, render_presets=None) -> dict[str, Any]:
     """Check editable depiction content while compilation owns its target binding."""
-    return _validate(data, authored_schema(), require_content=require_content)
+    return _validate(data, authored_schema(), require_content=require_content, render_presets=render_presets)
 
 
-def require(data: Any, *, require_content: bool = True) -> dict[str, Any]:
+def require(data: Any, *, require_content: bool = True, render_presets=None) -> dict[str, Any]:
     """Return the validation report, or raise every error of the specification once."""
     if not isinstance(data, dict) or not data:
         raise SpecificationError(["$: expected a JSON object"])
-    report = validate(data, require_content=require_content)
+    report = validate(data, require_content=require_content, render_presets=render_presets)
     if not report["ok"]:
         raise SpecificationError(report["errors"])
     return report
@@ -229,8 +235,8 @@ def require_lineage(spec: dict[str, Any], lineage: dict[str, Any]) -> None:
 
 
 def draft(*, model: str, brief: str, subject: str, kind: str, render_intent: dict,
-          layout: dict[str, Any] | None = None) -> dict[str, Any]:
-    """The smallest specification the builder accepts for one subject.
+          layout: dict[str, Any] | None = None, render_presets=None) -> dict[str, Any]:
+    """Begin a subject specification with its character definition still open.
 
     Optional contracts are supplied or added when selected. The author chooses
     the visible instructions; the draft preserves an explicit layout verbatim.
@@ -243,7 +249,7 @@ def draft(*, model: str, brief: str, subject: str, kind: str, render_intent: dic
     spec["subjects"] = [{
         "id": subject,
         "domain": kind,
-        "identity": UNSPECIFIED,
+        "identity": None,
         "current_state": {},
         "proportions_and_form": UNSPECIFIED,
         "surfaces_and_markings": UNSPECIFIED,
@@ -254,7 +260,7 @@ def draft(*, model: str, brief: str, subject: str, kind: str, render_intent: dic
     }]
     if layout is not None:
         spec["layout"] = copy.deepcopy(layout)
-    require(spec, require_content=False)
+    require(spec, require_content=False, render_presets=render_presets)
     return spec
 
 
@@ -281,7 +287,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     make.add_argument("--model", required=True, help="The model record the image is made with")
     make.add_argument("--brief", required=True, help="The request in one sentence")
     make.add_argument("--subject", default="C01", help="Subject ID the builder's --continuity names (default C01)")
-    make.add_argument("--kind", required=True, choices=DOMAINS)
+    make.add_argument("--kind", required=True,
+                      choices=tuple(schema()["properties"]["subjects"]["items"]["properties"]["domain"]["enum"]))
     make.add_argument("--continuity", required=True, choices=CONTINUITIES,
                       help="one-off, or undecided for the first images of a character that may recur; "
                            "recurring once the author has accepted an identity image")

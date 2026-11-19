@@ -15,7 +15,7 @@ import request_validation as rv
 def fixture_validation(root: Path, model: str, *, reference_mode: str,
                        service: str | None = None) -> dict:
     """Read the selected execution records and label the interface evidence synthetic."""
-    from prepare_generation_references import resolve_model_record
+    from generation_references import resolve_model_record
     from model_contract import select_offering
     import service_profile
     model_id, record = resolve_model_record(model)

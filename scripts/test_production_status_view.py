@@ -1,5 +1,7 @@
 """Public navigation retains rework paths without repeating full decision material."""
 from __future__ import annotations
+import production_workflow as production_workflow_cli
+import production_fixtures as authoring_fixtures
 
 import copy
 import json
@@ -18,25 +20,32 @@ import production_execution as execution
 import production_fixtures
 import production_inputs
 import production_status_view
-import production_workflow as workflow
+import production_operations as workflow
 import transport_synthetic
 from test_production_execution import decisions
 
 
 class StatusViewTests(unittest.TestCase):
+    @staticmethod
+    def build_case(base):
+        return fixtures.create(base / 'studio', base / 'runtime'), {}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.template = fixtures.CaseTemplate.for_class(cls, cls.build_case)
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         base = Path(temporary.name)
-        self.enterContext(production_fixtures.scratch_home(base / 'home'))
-        from catalog_retrieval import runtime
-        self.addCleanup(runtime.configure_pack_runtime, None)
         self.base = base
-        self.case = fixtures.create(base / 'studio', base / 'runtime')
+        self.case, _ = fixtures.CaseTemplate.for_test(
+            self, base, self.build_case, getattr(type(self), 'template', None))
         self.root = self.case['root']
 
     def cli(self, *arguments):
-        result = subprocess.run([sys.executable, str(Path(workflow.__file__)), *arguments],
+        result = subprocess.run([sys.executable, str(Path(production_workflow_cli.__file__)), *arguments],
             capture_output=True, text=True, encoding='utf-8', env=dict(os.environ), check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return json.loads(result.stdout)
@@ -60,6 +69,7 @@ class StatusViewTests(unittest.TestCase):
         fixtures.write(self.root / 'review.json', value)
         return workflow.review(self.root, run, 'review.json')
 
+    @fixtures.cold_case
     def test_custom_review_survives_partial_edit_and_log_cleanup_with_explicit_alternatives(self):
         run, candidate = self.captured()
         custom = 'work/review-in-progress.json'
@@ -126,15 +136,15 @@ class StatusViewTests(unittest.TestCase):
         self.cli('draft-review', '--root', str(self.root), '--run', run,
                  '--candidate', second, '--out', reused)
         raced = 'work/competing-review.json'
-        write = workflow._write_new
+        write = production_workflow_cli._write_new
         def competing_writer(root, out, value):
             if value['candidate'] == first:
-                workflow._write_decision_draft(root, run, 'review', out,
+                production_workflow_cli._write_decision_draft(root, run, 'review', out,
                     workflow.draft_review(root, run, second), candidate=second)
             write(root, out, value)
-        with patch.object(workflow, '_write_new', side_effect=competing_writer):
+        with patch.object(production_workflow_cli, '_write_new', side_effect=competing_writer):
             with self.assertRaises(ValueError):
-                workflow._write_decision_draft(self.root, run, 'review', raced,
+                production_workflow_cli._write_decision_draft(self.root, run, 'review', raced,
                     workflow.draft_review(self.root, run, first), candidate=first)
         report = self.cli('status', '--root', str(self.root), '--run', run)
         action = report['runs'][0]['next_action']
@@ -227,7 +237,8 @@ class StatusViewTests(unittest.TestCase):
     def test_open_work_reports_draft_edits_and_keeps_each_saved_run_continuation(self):
         waiting = workflow.prepare(self.root, 'task.json')['run']
         sent, _ = self.captured()
-        brief = self.root / 'brief.md'
+        task = c.load(self.root / 'task.json')
+        brief = self.root / next(source['path'] for source in task['sources'] if source['id'] == 'brief')
         brief.write_bytes(brief.read_bytes() + b'\nA later synthetic edit.\n')
         report = execution.status(self.root)
         workflow.schema_check(report, 'status')
@@ -260,7 +271,7 @@ class StatusViewTests(unittest.TestCase):
         self.assertEqual(kept['next_action']['command'], 'draft-review')
 
     def test_saved_run_and_new_preparation_keep_their_respective_inputs_after_draft_edits(self):
-        draft = production_inputs.draft_inputs(self.root, 'task.json', 'authored')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'authored')
         run = workflow.prepare(self.root, choices=draft['choices_file'])['run']
         prepared = workflow.read_run(self.root, run).prepared
         source = self.root / prepared['authoring']['source_map']['authoring.delivery']['file']
@@ -285,8 +296,8 @@ class StatusViewTests(unittest.TestCase):
     def test_removed_published_draft_is_no_longer_a_branch_of_the_work(self):
         import shutil
         import production_authoring_state
-        production_inputs.draft_inputs(self.root, 'task.json', 'work/first')
-        production_inputs.draft_inputs(self.root, 'task.json', 'work/second')
+        authoring_fixtures.authoring_inputs(self.root, 'task.json', 'work/first')
+        authoring_fixtures.authoring_inputs(self.root, 'task.json', 'work/second')
         report = production_authoring_state.inspect(self.root)
         self.assertTrue(report['selection_required'])
         self.assertEqual({row['directory'] for row in report['inputs']}, {'work/first', 'work/second'})
@@ -375,7 +386,7 @@ class StatusViewTests(unittest.TestCase):
             'The work task has no registered authority: import it first'))
 
     def test_summary_keeps_state_and_executable_full_evidence_without_mutation(self):
-        draft = production_inputs.draft_inputs(self.root, 'task.json', 'authored')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'authored')
         run = workflow.prepare(self.root, choices=draft['choices_file'])['run']
         full = execution.status(self.root, run)
         before = copy.deepcopy(full)

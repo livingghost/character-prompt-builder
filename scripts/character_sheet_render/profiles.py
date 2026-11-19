@@ -27,22 +27,18 @@ SECTION_HEADER_HEIGHT = 42
 # The sheet composes as a landscape board: once the resolved rows would make
 # it taller than wide, the canvas widens until the width covers the height.
 ASPECT_LIMIT = 1.0
-# Every panel is a drawing surface holding exactly one drawing, so its shape
-# must fit what that kind draws: full-body views and poses draw well portrait,
-# head and close-up studies draw well square, a tail or an item row draws well
-# wide. Each kind declares that shape as a width-to-height aspect, and the
-# renderer sizes every panel to aspect x row height. Widening the canvas adds
-# columns or centers rows; it never stretches a panel past its kind's shape.
+# A panel's authored aspect_ratio selects its drawing surface. Kind values are
+# layout starting sizes when no aspect is declared; they specify no body plan,
+# posture or coverage. Widening the board adds columns or centers rows while
+# retaining each panel's selected width-to-height ratio.
 KIND_PANEL_ASPECT = {
     "canonical_view": 0.7,
     "outfit_turnaround": 0.7,
     "outfit": 0.7,
     "outfit_detail": 1.6,
     "signature_pose": 0.7,
-    # A pose panel must have enough vertical drawing area for an unchanged
-    # standing figure. A wider frame caused image models to bend or crouch the
-    # subject merely to fit the box. Horizontal bodies still fit by scaling the
-    # complete figure down; the renderer must not imply a posture change.
+    # The bundled standing-pose studies use this portrait starting size.
+    # A different construction can declare its own aspect_ratio.
     "pose_state": 0.5,
     "outfit_variant": 0.7,
     "head_study": 0.95,
@@ -268,10 +264,15 @@ def row_panel_height(row: Mapping[str, Any]) -> int:
 
 
 def desired_panel_width(box: Mapping[str, Any], row_height: int) -> int:
-    """Width a panel of this kind draws well at for the given row height."""
+    """Use the authored panel aspect, or its kind's layout starting size."""
 
     if box.get("kind") == "palette":
         return 0  # the palette is a full-width key strip, not a drawing frame
+    if "aspect_ratio" in box:
+        content_height = row_height - HEADER_HEIGHT - int(box.get("footer_height", DEFAULT_FOOTER_HEIGHT)) - BORDER * 2
+        if content_height <= 0:
+            raise ValueError(f"panel {box.get('slot_id')} has no drawable content area")
+        return max(BORDER * 2 + 1, round(box["aspect_ratio"] * content_height) + BORDER * 2)
     aspect = KIND_PANEL_ASPECT.get(str(box.get("kind", "drawing")), 1.0)
     return max(MIN_PANEL_WIDTH, round(aspect * row_height))
 
@@ -329,7 +330,7 @@ def panel_generation_size(
 def fill_rows_to_width(rows: list[dict[str, Any]], width: int) -> None:
     """Scale each drawing row's height so its panels span the canvas width.
 
-    Panels keep their kind aspect, so widening a row means making it taller.
+    Panels keep their selected aspect, so widening a row means making it taller.
     Renderer-owned strips already span the width and are left alone, and a
     row that is wider than the canvas is not shrunk here.
     """
@@ -350,12 +351,28 @@ def fill_rows_to_width(rows: list[dict[str, Any]], width: int) -> None:
         natural += PANEL_GAP * max(0, len(boxes) - 1)
         if natural <= 0:
             continue
+        if any("aspect_ratio" in box for box in boxes):
+            # An authored ratio describes the drawing interior, so fixed
+            # headers and footers do not scale with it. Fit the actual widths
+            # instead of treating the whole panel as a proportional rectangle.
+            low = authored_height
+            high = max(low, int(round(authored_height * MAX_ROW_FILL_SCALE)))
+            while low < high:
+                candidate = (low + high + 1) // 2
+                candidate_width = sum(desired_panel_width(box, candidate) for box in boxes)
+                candidate_width += PANEL_GAP * max(0, len(boxes) - 1)
+                if candidate_width <= available:
+                    low = candidate
+                else:
+                    high = candidate - 1
+            row["height"] = int(row["_chrome_height"]) + low
+            continue
         scale = max(1.0, min(MAX_ROW_FILL_SCALE, available / natural))
         row["height"] = int(row["_chrome_height"]) + int(round(authored_height * scale))
 
 
 def row_natural_width(row: Mapping[str, Any]) -> int:
-    """Total width a row's panels occupy at their kind-appropriate shapes."""
+    """Total width a row's panels occupy at their selected shapes."""
 
     boxes = row["boxes"]
     panel_height = row_panel_height(row)

@@ -52,12 +52,6 @@ def _specifications(authored: dict) -> list[dict]:
     value = authored.get('documents', {}).get('production_spec')
     if isinstance(value, dict) and not set(value) <= {'file', 'field'}:
         result.append(value)
-    for source in authored.get('task', {}).get('sources', []):
-        if source.get('role') != 'production-spec' or source.get('identity'):
-            continue
-        item = authored.get('sources', {}).get(source['id'])
-        if isinstance(item, dict) and item.get('format') == 'json' and isinstance(item.get('content'), dict):
-            result.append(item['content'])
     return result
 
 
@@ -294,7 +288,7 @@ def _resolve(selection: dict, task: dict, root: Path, reader, source):
     from model_prompt_input import resolve_prompt_input
     kind = selection['kind']
     if kind == 'catalog':
-        import build_generation_payload as builder
+        import generation_payload_builder as builder
         source = _runtime(source)
         if task['execution'] == 'dispatcher':
             resolved = builder.resolve_target(selection['model'], selection['service'], source=source)

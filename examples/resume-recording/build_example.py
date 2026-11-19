@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import execution_contract as c
 from io_budget import environment_seconds
-import production_workflow as w
+import production_operations as w
 import work_ledger
 
 
@@ -87,7 +87,7 @@ def main():
 def prepare_fixture(root, task):
     import production_fixtures as fixture
     task['world_views'] = []
-    fixture.task(root, task, execution='external')
+    fixture.task(root, task, execution='external', focus='supporting-setting')
     (root / 'task.json').write_bytes(c.encoded(task))
     run = w.prepare(root, 'task.json')['run']
     fixture.grant(root, run, {'operation': 'submit', 'targets': ['delivery'], 'payload': {'count': 1, 'synthetic': True}})

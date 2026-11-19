@@ -113,7 +113,10 @@ class PublicCLITests(unittest.TestCase):
         self.assertEqual(len(output['reference'][0]['request_preview']['inputs']['references']), 1)
         retried = output['reference-retarget'][1]
         self.assertEqual(retried['request_preview']['model'], 'synthetic:alternate')
-        self.assertEqual(retried['request_preview']['prompt'], 'A blue robot carrying a small yellow toolbox.')
+        self.assertEqual(retried['request_preview']['prompt'],
+            'A blue robot carrying a small yellow toolbox. Image 1 supplies permanent character identity, '
+            'species and stable anatomy, permanent marking layout, stable hair, mane, fur-tuft, '
+            'body-fur distribution, and grooming topology.')
         self.assertEqual(len(retried['request_preview']['inputs']['references']), 1)
         sheet = output['sheet'][0]['runs'][0]
         self.assertEqual((sheet['registration'], output['sheet'][0]['execution_completed']), ('registered', True))

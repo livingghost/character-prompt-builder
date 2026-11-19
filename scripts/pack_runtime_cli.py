@@ -6,7 +6,7 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
-from pack_manager import PackSettings, default_settings, pack_runtime_arguments
+from runtime_paths import PackSettings
 
 
 PACK_RUNTIME_SELECTION_HELP = (
@@ -26,6 +26,7 @@ class PackRuntimeContext:
 
     def command_arguments(self) -> list[str]:
         """Return a complete runtime argument vector for a child process."""
+        from pack_manager import pack_runtime_arguments
         return pack_runtime_arguments(self.settings, pack_roots=self.pack_roots)
 
 
@@ -72,6 +73,7 @@ def resolve_pack_runtime(
     if pack_roots and not all(value is not None for value in runtime_paths):
         parser.error("--pack-root requires explicit --state-file, --cache-dir, and --managed-root")
 
+    from pack_manager import default_settings
     settings = default_settings(
         extra_roots=pack_roots,
         state_file=runtime_paths[0],

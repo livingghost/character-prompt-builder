@@ -101,6 +101,24 @@ class AuthoredPromptTests(unittest.TestCase):
         self.assertEqual(bound['prompt_sha256'], c.digest(self.files['body.txt']))
         authored_prompt.validate_bound(task, bound, self.files.__getitem__)
 
+    def test_reference_markers_cannot_be_saved_as_finished_model_text(self):
+        for mode in ('descriptive', 'tag-based'):
+            for channel in ('prompt', 'negative'):
+                with self.subTest(mode=mode, channel=channel):
+                    task = self.task(mode=mode, **{channel: '{{reference:source-a:controls}}'})
+                    with patch.object(vocabulary.VocabularyIndex, 'search',
+                                      side_effect=AssertionError('unresolved input reached vocabulary search')):
+                        with self.assertRaisesRegex(ValueError, 'REFERENCE_TEXT_UNRESOLVED'):
+                            authored_prompt.check(task, self.files.__getitem__)
+
+    def test_portable_prompt_rejects_markers_but_authoring_document_can_explain_them(self):
+        task = {'route': 'prompt-artifacts', 'delivery': {'path': 'body.txt'}}
+        self.files['body.txt'] = b'Use image {{reference:source-a:attachment_number}}.'
+        with self.assertRaisesRegex(ValueError, 'REFERENCE_TEXT_UNRESOLVED'):
+            authored_prompt.check(task, self.files.__getitem__)
+        task['route'] = 'development'
+        self.assertIsNone(authored_prompt.check(task, self.files.__getitem__))
+
     def test_saved_prompt_validation_does_not_depend_on_later_authoring_guidance(self):
         task = self.task(prompt='A quiet market after the rain.')
         bound = authored_prompt.check(task, self.files.__getitem__)
@@ -306,9 +324,9 @@ class AuthoredPromptTests(unittest.TestCase):
         model = c.decode(self.files['model.json'])
         task['authored']['target'].pop('model_file')
         task['authored']['target']['model'] = model['id']
-        with patch('prepare_generation_references.resolve_model_record', return_value=(model['id'], model)):
+        with patch('generation_references.resolve_model_record', return_value=(model['id'], model)):
             bound = authored_prompt.check(task, self.files.__getitem__)
-        with patch('prepare_generation_references.resolve_model_record', side_effect=AssertionError('unexpected live model lookup')):
+        with patch('generation_references.resolve_model_record', side_effect=AssertionError('unexpected live model lookup')):
             authored_prompt.validate_bound(task, bound, self.files.__getitem__)
         bound['model']['execution_profile']['modes']['text-to-image']['prompt_syntax']['default'] = 'literal'
         with self.assertRaisesRegex(ValueError, 'PROMPT_SYNTAX_MISMATCH'):

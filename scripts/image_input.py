@@ -78,17 +78,34 @@ def _structure(plan: Any) -> None:
         media.append(row)
 
 
+def _attachment_positions(fields: list[dict]) -> dict[tuple, int]:
+    """Order actual array media positions, retaining declared order between native slots."""
+    groups: dict[tuple, set[tuple]] = {}
+    for field in fields:
+        path = tuple(field['field'])
+        shape = tuple(None if type(part) is int else part for part in path)
+        groups.setdefault(shape, set()).add(path)
+    ordered = []
+    for paths in groups.values():
+        ordered.extend(sorted(paths, key=lambda path: tuple(part for part in path if type(part) is int)))
+    return {path: index for index, path in enumerate(ordered, 1)}
+
+
 def _reference_bindings(plan: dict, external: dict, *, prepared: dict | None = None) -> list[dict]:
+    positions = _attachment_positions(external['reference_fields'])
     prepared = prepared if prepared is not None else plan.get('prepared_reference_set')
     if prepared is not None:
         from reference_delivery import bindings
         rows = bindings(prepared['transport_mode'], prepared['selected_references'], prepared['single_board'])
-        for row, field in zip(rows, external['reference_fields'], strict=True):
+        for row, field, reference in zip(rows, external['reference_fields'], plan['references'], strict=True):
+            row['reference_id'] = reference['id']
             row['request_field'] = list(field['field'])
+            row['attachment_number'] = positions[tuple(field['field'])]
             row.setdefault('subject_uses', [])
         return rows
     rows = [
-        {'reference_number': index, 'request_field': list(field['field']),
+        {'reference_number': index, 'reference_id': reference['id'],
+         'attachment_number': positions[tuple(field['field'])], 'request_field': list(field['field']),
          'region_pixels': None, 'role': reference['role'],
          'controls': list(reference['use_for']),
          'must_not_control': list(reference['do_not_transfer']),
@@ -96,6 +113,49 @@ def _reference_bindings(plan: dict, external: dict, *, prepared: dict | None = N
         for index, (reference, field) in enumerate(zip(plan['references'], external['reference_fields']), 1)
     ]
     return rows
+
+
+def resolve_request_text(plan: dict, external: dict, request: Any, *, prompt: str | None = None,
+                         prepared: dict | None = None) -> tuple[Any, dict]:
+    """Resolve one editable request before inspecting its actual model text.
+
+    A source request owns its literal prompt. A materialized plan retains the
+    compiler's exact source/expansion record beside the final request file.
+    Either form is recomputed from current reference uses, never a success flag.
+    """
+    from model_rendition import resolve_reference_channels, validate_reference_channels
+    rows = _reference_bindings(plan, external, prepared=prepared)
+    mode = 'authored-rendition' if rows else 'none'
+    recorded = external.get('reference_text')
+    if recorded is None:
+        sources = {'prompt': rc.get(request, external['prompt_field']) if prompt is None else prompt,
+                   'negative_prompt': rc.get(request, external['negative_field'])
+                       if external.get('negative_field') is not None else ''}
+        c.text(sources['prompt'], 'external instruction prompt')
+        if not isinstance(sources['negative_prompt'], str):
+            raise ValueError('external negative prompt must be text')
+        record = resolve_reference_channels(sources, rows,
+            reference_mode=mode, negative_transport='separate-field')
+        actual = copy.deepcopy(request)
+        rc.put(actual, external['prompt_field'], record['channels']['prompt']['text'])
+        if external.get('negative_field') is not None:
+            rc.put(actual, external['negative_field'], record['channels']['negative_prompt']['text'])
+        return actual, record
+    record = validate_reference_channels(recorded, rows,
+        reference_mode=mode, negative_transport='separate-field')
+    if prompt is not None and record['channels']['prompt']['source_text'] != prompt:
+        raise ValueError('external reference input source differs from the production delivery')
+    for name, field in (('prompt', 'prompt_field'), ('negative_prompt', 'negative_field')):
+        path = external.get(field)
+        expected = record['channels'][name]['text']
+        if path is None:
+            if expected:
+                raise ValueError('external reference text declares an absent text field')
+        elif rc.get(request, path) != expected:
+            raise ValueError('external request text differs from its consumed reference source: ' + field)
+    if any(record['channels'][name]['source_text'] for name in ('integrated_prompt', 'native_negative')):
+        raise ValueError('external reference text uses an undeclared text channel')
+    return copy.deepcopy(request), record
 
 
 def reference_bindings(plan: dict, *, base: Path | None = None) -> list[dict]:
@@ -108,7 +168,7 @@ def reference_bindings(plan: dict, *, base: Path | None = None) -> list[dict]:
         if base is None:
             raise ValueError('prepared reference instructions require the Studio base directory')
         import production_store
-        from prepare_generation_references import validate_prepared_reference_set
+        from generation_references import validate_prepared_reference_set
         base = Path(base)
         prepared_path = c.local(base, plan['prepared_references'])
         prepared = validate_prepared_reference_set(
@@ -149,7 +209,12 @@ def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = N
             raise ValueError('external negative prompt must be text')
     if 'prompt_syntax' in external:
         prompt_weighting.selected(request, external['prompt_syntax'])
-    if prompt is not None and actual_prompt != prompt:
+    # The editable delivery owns literal source text. Its expansion has already
+    # been checked against the actual request by resolve_request_text. Compare
+    # the two source owners exactly before interpreting a differing delivery.
+    compared_prompt = (external['reference_text']['channels']['prompt']['source_text']
+                       if external.get('reference_text') is not None else actual_prompt)
+    if prompt is not None and compared_prompt != prompt:
         from production_diagnostics import ProductionError
         def newlines(value):
             pairs = value.count('\r\n')
@@ -161,8 +226,8 @@ def _request(plan: dict, external: dict, request: Any, *, prompt: str | None = N
             file=external['file'],
             pointer='$' + ''.join('[' + json.dumps(part, ensure_ascii=False) + ']' for part in external['prompt_field']),
             delivery_file=delivery_file, comparison='exact-utf8-text',
-            request_newlines=newlines(actual_prompt), delivery_newlines=newlines(prompt),
-            newline_only_difference=lf(actual_prompt) == lf(prompt),
+            request_newlines=newlines(compared_prompt), delivery_newlines=newlines(prompt),
+            newline_only_difference=lf(compared_prompt) == lf(prompt),
             guidance={'document_path': 'references/runtime/production-external-inputs.md#exact-target-and-provider-schema',
                       'schema': 'schemas/authoring/image-input-plan.schema.json'},
             required_action='Use build-inputs to derive the request from the single delivery source. '
@@ -193,7 +258,7 @@ def _model_contract(model: dict) -> tuple[dict, dict | None]:
     """
     from catalog_retrieval.runtime import load_pack_catalog
     from model_contract import select_offering
-    from prepare_generation_references import resolve_model_record
+    from generation_references import resolve_model_record
 
     declared = resolve_prompt_input(model) if 'prompt_input' in model else None
     target = model['target']
@@ -372,7 +437,7 @@ def _request_image_metadata(binding: dict, source_metadata: dict) -> dict:
     prepared = binding.get('prepared_reference_set')
     if prepared is None:
         return source_metadata
-    from prepare_generation_references import host_reference_transports
+    from generation_references import host_reference_transports
     from production_evidence import inspect
     from production_store import stable_bytes
     measured = {}
@@ -452,7 +517,7 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
     # plans that supply hashes before the files have been read.
     _structure(result)
     if result.get('prepared_references') is not None:
-        from prepare_generation_references import resolve_prepared_reference_paths
+        from generation_references import resolve_prepared_reference_paths
         raw = file(result['prepared_references'])
         prepared_path = c.local(base, result['prepared_references'], exists=read is None)
         prepared = resolve_prepared_reference_paths(c.decode(raw), package_root=prepared_path.parent)
@@ -463,6 +528,8 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
     if external is not None:
         raw = file(external['file'], external.get('sha256'))
         request = c.decode(raw)
+        request, reference_text = resolve_request_text(result, external, request)
+        external['reference_text'] = reference_text
         _request(result, external, request)
         _offering_text_fields(external, request, offering)
         if external.get('model_identity') is not None:
@@ -503,7 +570,7 @@ def validate(plan: dict, base: Path, *, read=None) -> dict:
             validation = {'mode': 'target-schema',
                           'unmeasured': unsupported_schema_keywords(schema, value=request, media=metadata)}
         prompt_check = _prompt_check(external, request, model_record, file)
-        external.update(sha256=c.digest(raw), request=request, schema_validation=validation,
+        external.update(sha256=c.digest(raw), request=request, request_sha256=c.content_id(request), schema_validation=validation,
                         prompt_check=prompt_check)
     result.update(artifact_type='image-input-binding', plan_sha256=c.content_id(plan), status='prepared-not-generated')
     result['binding_sha256'] = c.content_id(result)
@@ -525,6 +592,7 @@ def validate_binding(binding: Any) -> None:
     plan['artifact_type'] = 'image-input-plan'
     external = plan.get('external_request')
     request = external.pop('request', None) if external is not None else None
+    request_sha256 = external.pop('request_sha256', None) if external is not None else None
     validation = external.pop('schema_validation', None) if external is not None else None
     prompt_check = external.pop('prompt_check', None) if external is not None else None
     _structure(plan)
@@ -537,6 +605,11 @@ def validate_binding(binding: Any) -> None:
         raise ValueError('prepared source evidence requires its declared input file')
     if external is not None:
         c.sha(external.get('sha256'))
+        if request_sha256 != c.content_id(request):
+            raise ValueError('external request hash differs from the actual resolved request')
+        if external.get('reference_text') is None:
+            raise ValueError('external input binding requires its consumed reference text')
+        resolve_request_text(binding, external, request)
         _request(binding, external, request)
         _bound_prompt_check(binding, external, request, prompt_check)
         c.exact(validation, {'mode', 'unmeasured'}, 'external schema validation')
@@ -597,6 +670,7 @@ def revision_scopes(before: Any, after: Any) -> dict | None:
         external = value['external_request']
         paths.add(external.pop('file'))
         external.pop('sha256')
+        external.pop('request_sha256')
         evidence(external.get('schema'))
         identity = external.get('model_identity')
         if identity is not None:
@@ -608,6 +682,7 @@ def revision_scopes(before: Any, after: Any) -> dict | None:
         if vocabulary is not None:
             paths.add(vocabulary['path'])
         check = external.pop('prompt_check')
+        external.pop('reference_text')
         external['prompt_constraints'] = check['model_constraints']
         # A validated vocabulary selection and grammar report describe these
         # exact words. Changing words necessarily changes their derived record.
@@ -644,20 +719,20 @@ def external_document_sources(task: dict) -> list[dict]:
     return [{'path': path, 'role': role} for path, role in selected.items()]
 
 
-def validate_external_document(value: Any, role: str) -> None:
+def validate_external_document(value: Any, role: str, *, render_presets=None) -> None:
     """Validate one complete source without depending on the other sources or request."""
     if role == 'production-spec':
         from production_spec import require
-        require(value)
+        require(value, render_presets=render_presets)
     elif role == 'render-intent':
         from render_contract_lib import validate_intent
-        validate_intent(value)
+        validate_intent(value, render_presets=render_presets)
     else:
         raise ValueError('external document role must be production-spec or render-intent')
 
 
 def external_documents(root: Path, task: dict, add, *, inputs: dict | None = None,
-                       documents: list[dict] | None = None) -> dict:
+                       documents: list[dict] | None = None, render_presets=None) -> dict:
     """Apply the same authored specification and render intent checks externally.
 
     Source roles select contracts explicitly. An external image request uses its
@@ -665,7 +740,8 @@ def external_documents(root: Path, task: dict, add, *, inputs: dict | None = Non
     """
     if task['execution'] != 'external' or task['artifact'] != 'image':
         return {}
-    from render_contract_lib import validate_intent
+    from render_contract_lib import RenderPresets, validate_intent
+    render_presets = render_presets if render_presets is not None else RenderPresets()
     from reference_delivery import validate_reference_subjects, validate_reference_selection_subjects
     prompt = add(root, task['delivery']['path']).decode('utf-8')
     selected = external_document_sources(task)
@@ -673,9 +749,9 @@ def external_documents(root: Path, task: dict, add, *, inputs: dict | None = Non
         documents = []
         for source in selected:
             value = c.decode(add(root, source['path']))
-            validate_external_document(value, source['role'])
+            validate_external_document(value, source['role'], render_presets=render_presets)
             validate_intent(value['render_intent'] if source['role'] == 'production-spec' else value,
-                            prompt=prompt)
+                            prompt=prompt, render_presets=render_presets)
             documents.append({**source, 'value': value})
     elif [{'path': row['path'], 'role': row['role']} for row in documents] != selected:
         raise ValueError('validated external documents differ from the selected source owners')
@@ -854,7 +930,8 @@ def submission_evidence(binding: dict | None, selector: dict | None, read, *, ex
     raw = read(selector['path'])
     if c.digest(raw) != selector['sha256']:
         raise ValueError('external submission evidence checksum mismatch')
-    if selector['path'] == binding['external_request']['file'] or selector['sha256'] == binding['external_request']['sha256']:
+    if selector['path'] == binding['external_request']['file'] or selector['sha256'] in {
+            binding['external_request']['sha256'], binding['external_request']['request_sha256']}:
         raise ValueError('the prepared request is not evidence of an actual host call')
     document = c.decode(raw)
     if isinstance(document, dict) and document.get('artifact_type') == 'external-execution-instruction':
@@ -872,5 +949,5 @@ def submission_evidence(binding: dict | None, selector: dict | None, read, *, ex
     elif pointer is not None:
         raise ValueError('request-field model identity does not declare an endpoint or tool selector')
     return {'status': 'matched-recorded-call', 'submission_sha256': selector['sha256'],
-            'image_input_sha256': binding['binding_sha256'], 'request_sha256': external['sha256'],
+            'image_input_sha256': binding['binding_sha256'], 'request_sha256': external['request_sha256'],
             'submitted_request_sha256': c.content_id(expected)}

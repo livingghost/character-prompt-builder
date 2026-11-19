@@ -1,5 +1,6 @@
 """The browser projection consumes the catalog's acquired pack inputs."""
 from __future__ import annotations
+import runtime_paths
 
 from collections import Counter
 from contextlib import redirect_stderr
@@ -15,7 +16,7 @@ import browser_catalog
 import catalog_html as html
 from catalog_html_smoke_test import PACK_ID, REPLACEMENT_PACK_ID, fixture, replacement_fixture
 import pack_cache
-import pack_cli
+import pack_commands as pack_cli
 import pack_manager as packs
 
 
@@ -30,7 +31,7 @@ class CatalogReadModelTests(unittest.TestCase):
         manifest['content']['resource_bindings']['catalog-thumbnails'] = 'resources/catalog-thumbnails.json'
         packs.atomic_write_json(self.root / 'pack.json', manifest)
         self.thumbnail('resources/thumbnail.png')
-        self.settings = packs.PackSettings((self.root,), self.base / 'state.json', self.base / 'cache',
+        self.settings = runtime_paths.PackSettings((self.root,), self.base / 'state.json', self.base / 'cache',
                                           self.base / 'managed', self.base / 'quarantine')
         packs.save_state(self.settings.state_file, {'enabled_packs': [PACK_ID]})
 
@@ -65,7 +66,7 @@ class CatalogReadModelTests(unittest.TestCase):
         self.assertEqual({name: opened[name] for name in texts}, {name: 1 for name in texts})
         # One input acquisition and one live media check for the output phase.
         self.assertEqual(opened['resources/thumbnail.png'], 2)
-        output = browser_catalog.output_directory(self.settings)
+        output = Path(next(line[len('catalog: '):] for line in lines if line.startswith('catalog: '))).parent
         self.assertIn('Fixture canonical scene', (output / 'data/catalog-index.js').read_text(encoding='utf-8'))
 
     def test_warm_browser_view_uses_owned_records_warnings_and_thumbnail_metadata(self):

@@ -5,6 +5,11 @@
       "type": "string",
       "minLength": 1
     },
+    "work_basis": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Acquired authoring basis for the current request, source applications and character definitions. Completed authoring and preparation resolve the actual task content against this basis."
+    },
     "route": {
       "type": "string",
       "minLength": 1
@@ -50,6 +55,79 @@
           },
           "identity": {
             "$ref": "#/$defs/identitySource"
+          },
+          "definition_owner": {
+            "type": "object",
+            "description": "Editable document that owns this derived task-local character definition. Independent acquired definitions retain their own source ownership.",
+            "properties": {
+              "document": {
+                "const": "production_spec"
+              },
+              "subject_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "document",
+              "subject_id"
+            ],
+            "additionalProperties": false
+          },
+          "applications": {
+            "type": "array",
+            "description": "Current source applications derived from the authoring work. Each entry retains its exact selection, subject assignments and requirement role when the task is reopened.",
+            "minItems": 0,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pointer": {
+                  "type": "string",
+                  "pattern": "^(?:/(?:[^~]|~[01])*)?$"
+                },
+                "subjects": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "requirement": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "pointer",
+                "subjects",
+                "requirement"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "origin": {
+            "type": "object",
+            "description": "Complete acquired original of a selected source projection. Applications are derived in application-ID order and select values from these bytes; source.path contains the single selected value or the array of values in that canonical order.",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -72,7 +150,10 @@
           "minLength": 1
         },
         "translation_notes": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "minLength": 1
         }
       },
@@ -111,10 +192,14 @@
             ]
           },
           "identity_bindings": {
+            "description": "Explicit scene obligations and their source-to-input bindings. Source values without a binding remain retained identity context for whole-subject review; they do not require a visibility declaration.",
             "type": "array",
-            "items": {"$ref": "#/$defs/identityBinding"}
+            "items": {
+              "$ref": "#/$defs/identityBinding"
+            }
           },
           "identity_review": {
+            "description": "Subjects compared with their complete applicable retained identity sources. The image establishes only what its view and evidence support; this does not require a whole-figure composition.",
             "$ref": "#/$defs/identitySubjects"
           }
         },
@@ -188,387 +273,7 @@
       "minItems": 0
     },
     "direction": {
-      "type": "object",
-      "properties": {
-        "purpose": {
-          "type": "string",
-          "minLength": 1
-        },
-        "intended_effect": {
-          "type": "string",
-          "minLength": 1
-        },
-        "basis": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "minItems": 0
-        },
-        "decisions": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "question": {
-                "type": "string",
-                "minLength": 1
-              },
-              "importance": {
-                "enum": [
-                  "fixed",
-                  "routine",
-                  "material"
-                ]
-              },
-              "basis": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "minItems": 0
-              },
-              "options": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "expression": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "realization": {
-                      "type": "object",
-                      "properties": {
-                        "method": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "instructions": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "capability_source": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "minLength": 1
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "limitations": {
-                          "type": "array",
-                          "items": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "minItems": 0
-                        }
-                      },
-                      "required": [
-                        "method",
-                        "instructions",
-                        "capability_source",
-                        "limitations"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "tradeoffs": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "minItems": 0
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "expression",
-                    "realization",
-                    "tradeoffs"
-                  ],
-                  "additionalProperties": false
-                },
-                "minItems": 1
-              },
-              "selected": {
-                "type": "string",
-                "minLength": 1
-              },
-              "reason": {
-                "type": "string",
-                "minLength": 1
-              },
-              "criteria": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "minItems": 1
-              },
-              "depends_on": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "minItems": 0
-              },
-              "deviations": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "source": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "locator": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "scope": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "reason": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "source",
-                    "locator",
-                    "scope",
-                    "reason"
-                  ],
-                  "additionalProperties": false
-                },
-                "minItems": 0
-              },
-              "accepted_variations": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "source": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "locator": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "author": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "scope": {
-                      "oneOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "kind": {
-                              "const": "task"
-                            },
-                            "task_id": {
-                              "type": "string",
-                              "minLength": 1
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "task_id"
-                          ],
-                          "additionalProperties": false
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "kind": {
-                              "const": "source"
-                            },
-                            "source": {
-                              "type": "string",
-                              "minLength": 1
-                            },
-                            "sha256": {
-                              "type": "string",
-                              "pattern": "^[0-9a-f]{64}$"
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "source",
-                            "sha256"
-                          ],
-                          "additionalProperties": false
-                        }
-                      ]
-                    },
-                    "allowance": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "limits": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "minItems": 0
-                    },
-                    "criteria": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "minItems": 1,
-                      "uniqueItems": true
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "source",
-                    "locator",
-                    "author",
-                    "scope",
-                    "allowance",
-                    "limits",
-                    "criteria"
-                  ],
-                  "additionalProperties": false
-                },
-                "minItems": 0,
-                "description": "Author-approved variation with explicit evidence, task or content-bound source scope, and review criteria."
-              }
-            },
-            "required": [
-              "id",
-              "question",
-              "importance",
-              "basis",
-              "options",
-              "selected",
-              "reason",
-              "criteria",
-              "depends_on",
-              "deviations"
-            ],
-            "additionalProperties": false
-          },
-          "minItems": 0
-        },
-        "action_slice": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "phase": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "before": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "after": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "relations": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "subject": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "relation": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "object": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "note": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "subject",
-                      "relation",
-                      "object",
-                      "note"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "minItems": 0
-                },
-                "not_verified": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "minItems": 1
-                }
-              },
-              "required": [
-                "phase",
-                "before",
-                "after",
-                "relations",
-                "not_verified"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "limitations": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "minItems": 0
-        }
-      },
-      "required": [
-        "purpose",
-        "intended_effect",
-        "basis",
-        "decisions",
-        "action_slice",
-        "limitations"
-      ],
-      "additionalProperties": false
+      "$ref": "authoring/production-direction.schema.json"
     },
     "authority": {
       "anyOf": [
@@ -668,8 +373,13 @@
     "generation": {
       "type": "object",
       "properties": {
-        "model": {"type": "string", "minLength": 1},
-        "render_intent": {"$ref": "render-intent.schema.json"},
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "render_intent": {
+          "$ref": "render-intent.schema.json"
+        },
         "parameters": {
           "type": "string",
           "minLength": 1
@@ -779,7 +489,10 @@
       "additionalProperties": false
     },
     "recording": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "properties": {
         "character": {
           "type": "string",
@@ -865,10 +578,19 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["file", "url"],
+        "required": [
+          "file",
+          "url"
+        ],
         "properties": {
-          "file": {"type": "string", "minLength": 1},
-          "url": {"type": "string", "minLength": 1}
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     }
@@ -878,76 +600,308 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": {"type": "string", "minLength": 1}
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "identitySelectors": {
-      "description": "JSON Pointers relative to the original source or derived source node. An empty string selects the whole value. Subtrees include all terminal values, including empty collections.",
+      "description": "JSON Pointers relative to the original source or derived source node. An empty string selects the whole value. Subtrees retain all terminal values, including empty collections; selecting source context does not make every value a depiction instruction.",
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": {"type": "string", "pattern": "^(?:/(?:[^~]|~[01])*)?$"}
+      "items": {
+        "type": "string",
+        "pattern": "^(?:/(?:[^~]|~[01])*)?$"
+      }
     },
     "identitySource": {
       "type": "object",
       "properties": {
-        "subject_ids": {"$ref": "#/$defs/identitySubjects"},
-        "selectors": {"$ref": "#/$defs/identitySelectors"}
+        "subject_ids": {
+          "$ref": "#/$defs/identitySubjects"
+        },
+        "selectors": {
+          "$ref": "#/$defs/identitySelectors"
+        },
+        "authority": {
+          "$ref": "#/$defs/identitySourceAuthority"
+        }
       },
-      "required": ["subject_ids", "selectors"],
+      "required": [
+        "subject_ids",
+        "selectors"
+      ],
       "additionalProperties": false
+    },
+    "identityAuthorityTerms": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "identitySourceAuthority": {
+      "description": "The original reference or graph owner's retained review scope, copied unchanged when reopening its source. This does not select a reference for current model input, widen its authority, or assert visual correctness.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "reference": {
+              "type": "string",
+              "minLength": 1
+            },
+            "use_for": {
+              "$ref": "#/$defs/identityAuthorityTerms",
+              "minItems": 1
+            },
+            "controls": {
+              "$ref": "#/$defs/identityAuthorityTerms",
+              "minItems": 1
+            },
+            "intended_influence": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "reference-use-plan.schema.json#/$defs/intended-influence"
+              }
+            },
+            "do_not_transfer": {
+              "$ref": "#/$defs/identityAuthorityTerms"
+            },
+            "subject_uses": {
+              "$ref": "prepared-generation-reference.schema.json#/$defs/subject-uses"
+            },
+            "source": {
+              "oneOf": [
+                {
+                  "$ref": "prepared-generation-reference.schema.json#/$defs/pack-artifact-source"
+                },
+                {
+                  "$ref": "prepared-generation-reference.schema.json#/$defs/supplied-file-source"
+                },
+                {
+                  "$ref": "prepared-generation-reference.schema.json#/$defs/studio-artifact-source"
+                },
+                {
+                  "$ref": "prepared-generation-reference.schema.json#/$defs/studio-accepted-image-source"
+                }
+              ]
+            }
+          },
+          "required": [
+            "reference",
+            "use_for",
+            "controls",
+            "intended_influence",
+            "do_not_transfer",
+            "subject_uses"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "owner": {
+              "type": "string",
+              "minLength": 1
+            },
+            "character_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "canon_status": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            }
+          },
+          "required": [
+            "owner",
+            "character_id",
+            "canon_status"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "identityCarrier": {
       "oneOf": [
         {
           "type": "object",
           "properties": {
-            "kind": {"const": "text"},
-            "surface": {"enum": ["primary", "negative"]},
-            "quote": {"type": "string", "minLength": 1},
-            "selection": {"oneOf": [
-              {"type": "object", "properties": {"whole": {"const": true}}, "required": ["whole"], "additionalProperties": false},
-              {"type": "object", "properties": {"text": {"type": "string", "minLength": 1}, "occurrence": {"type": "integer", "minimum": 1}}, "required": ["text"], "additionalProperties": false}
-            ]}
+            "kind": {
+              "const": "text"
+            },
+            "surface": {
+              "enum": [
+                "primary",
+                "negative"
+              ]
+            },
+            "quote": {
+              "type": "string",
+              "minLength": 1
+            },
+            "selection": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "whole": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "whole"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "occurrence": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "text"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
           },
-          "required": ["kind", "surface"],
-          "oneOf": [{"required": ["quote"]}, {"required": ["selection"]}],
+          "required": [
+            "kind",
+            "surface"
+          ],
+          "oneOf": [
+            {
+              "required": [
+                "quote"
+              ]
+            },
+            {
+              "required": [
+                "selection"
+              ]
+            }
+          ],
           "additionalProperties": false
         },
         {
           "type": "object",
           "properties": {
-            "kind": {"const": "reference"},
-            "reference": {"type": "string", "minLength": 1},
-            "use": {"type": "string", "minLength": 1}
+            "kind": {
+              "const": "reference"
+            },
+            "reference": {
+              "type": "string",
+              "minLength": 1
+            },
+            "use": {
+              "type": "string",
+              "minLength": 1
+            }
           },
-          "required": ["kind", "reference", "use"],
+          "required": [
+            "kind",
+            "reference",
+            "use"
+          ],
           "additionalProperties": false
         }
       ]
     },
     "identityBinding": {
-      "description": "An independently authored criterion relates selected original identity material to its scene treatment and actual input carriers. This declares coverage; it does not certify semantic preservation.",
+      "description": "An independently authored criterion relates an explicit scene obligation to selected original identity material, its scene treatment and actual input carriers. Other source values remain whole-subject comparison context. This binding does not certify semantic preservation.",
       "type": "object",
       "properties": {
-        "source": {"type": "string", "minLength": 1},
-        "subject_ids": {"$ref": "#/$defs/identitySubjects"},
-        "selectors": {"$ref": "#/$defs/identitySelectors"},
-        "treatment": {"enum": ["preserve", "indirect", "not-exposed", "not-applicable", "authorized-variation", "unresolved"]},
-        "reason": {"type": "string", "minLength": 1},
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_ids": {
+          "$ref": "#/$defs/identitySubjects"
+        },
+        "selectors": {
+          "$ref": "#/$defs/identitySelectors"
+        },
+        "treatment": {
+          "enum": [
+            "preserve",
+            "indirect",
+            "not-exposed",
+            "not-applicable",
+            "authorized-variation",
+            "unresolved"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
         "carriers": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"$ref": "#/$defs/identityCarrier"}
+          "items": {
+            "$ref": "#/$defs/identityCarrier"
+          }
         },
-        "variation": {"type": ["string", "null"], "minLength": 1}
+        "variation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
       },
-      "required": ["source", "subject_ids", "selectors", "treatment", "reason", "carriers", "variation"],
+      "required": [
+        "source",
+        "subject_ids",
+        "selectors",
+        "treatment",
+        "reason",
+        "carriers",
+        "variation"
+      ],
       "additionalProperties": false,
       "allOf": [
         {
-          "if": {"properties": {"treatment": {"const": "authorized-variation"}}, "required": ["treatment"]},
-          "then": {"properties": {"variation": {"type": "string", "minLength": 1}}},
-          "else": {"properties": {"variation": {"type": "null"}}}
+          "if": {
+            "properties": {
+              "treatment": {
+                "const": "authorized-variation"
+              }
+            },
+            "required": [
+              "treatment"
+            ]
+          },
+          "then": {
+            "properties": {
+              "variation": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "variation": {
+                "type": "null"
+              }
+            }
+          }
         }
       ]
     }
@@ -970,9 +924,17 @@
   "additionalProperties": false,
   "allOf": [
     {
-      "if": {"required": ["upload_sources"]},
+      "if": {
+        "required": [
+          "upload_sources"
+        ]
+      },
       "then": {
-        "properties": {"execution": {"const": "dispatcher"}}
+        "properties": {
+          "execution": {
+            "const": "dispatcher"
+          }
+        }
       }
     },
     {
@@ -1040,8 +1002,17 @@
               "continuity"
             ],
             "anyOf": [
-              {"required": ["production_spec"]},
-              {"required": ["model", "render_intent"]}
+              {
+                "required": [
+                  "production_spec"
+                ]
+              },
+              {
+                "required": [
+                  "model",
+                  "render_intent"
+                ]
+              }
             ]
           }
         }

@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 import model_suitability as suitability
 import render_contract_lib as r
-from pack_manager import PackError
 
 
 def load(path: str):
@@ -148,10 +147,12 @@ def main(argv=None) -> int:
             p.add_argument('--prompt-file', required=True);p.add_argument('--reference-count', required=True, type=int)
             p.add_argument('--out');p.add_argument('--text', action='store_true')
     args = parser.parse_args(argv)
+    from pack_manager import PackError
+    render_presets = r.RenderPresets()
     configured = False
     try:
         if args.command == 'presets':
-            result = {'presets':list(r.presets().values()),
+            result = {'presets':list(r.presets(render_presets=render_presets).values()),
                       'custom':'Set preset=null and record only selected axes; an empty axes object adds no constraints.'}
         elif args.command == 'intent':
             if args.preset is None:
@@ -161,14 +162,14 @@ def main(argv=None) -> int:
             else:
                 result = r.make_intent(args.preset, mode=args.mode, chosen_by=args.chosen_by,
                                       reason=args.reason, presentation=args.presentation,
-                                      prompt_expression=args.prompt_expression or '')
+                                      prompt_expression=args.prompt_expression or '',render_presets=render_presets)
         elif args.command == 'validate-intent':
-            r.validate_intent(load(args.file), for_generation=not args.draft);result={'ok':True}
+            r.validate_intent(load(args.file), for_generation=not args.draft,render_presets=render_presets);result={'ok':True}
         elif args.command == 'validate-profile':
             r.validate_profile(load(args.file));result={'ok':True}
         elif args.command == 'preferences':
             from pack_runtime_cli import resolve_pack_runtime
-            from catalog_cli import configure_pack_runtime
+            from catalog_api import configure_pack_runtime
             runtime = resolve_pack_runtime(parser, args)
             configure_pack_runtime(runtime.settings);configured=True
             if args.file:
@@ -178,27 +179,27 @@ def main(argv=None) -> int:
                 result = {'preferences': value, 'source': witness, 'path': str(suitability.preferences_path())}
         elif args.command == 'models':
             from pack_runtime_cli import resolve_pack_runtime
-            from catalog_cli import configure_pack_runtime
+            from catalog_api import configure_pack_runtime
             runtime = resolve_pack_runtime(parser, args)
             configure_pack_runtime(runtime.settings);configured=True
             result = available_models(args.operation, args.service, runtime)
         elif args.command == 'diagnose':
             from input_evidence import InputEvidence
             from pack_runtime_cli import resolve_pack_runtime
-            from catalog_cli import configure_pack_runtime
+            from catalog_api import configure_pack_runtime
             runtime = resolve_pack_runtime(parser, args)
             configure_pack_runtime(runtime.settings);configured=True
             root = Path(args.root).resolve()
             reader = InputEvidence(root)
             record = None
             if args.model:
-                from prepare_generation_references import resolve_model_record
+                from generation_references import resolve_model_record
                 _, record = resolve_model_record(args.model)
             result = suitability.diagnose(reader.json(reader.select(args.failure)), root, record=record)
         else:
             from pack_runtime_cli import resolve_pack_runtime
-            from catalog_cli import configure_pack_runtime
-            from prepare_generation_references import resolve_model_record
+            from catalog_api import configure_pack_runtime
+            from generation_references import resolve_model_record
             from model_contract import select_offering
             external = args.command == 'assess' and args.model_identifier is not None
             runtime = resolve_pack_runtime(parser, args)
@@ -239,8 +240,11 @@ def main(argv=None) -> int:
             else:
                 if args.reference_count < 0:
                     raise ValueError('reference count must be nonnegative')
+                from catalog_retrieval.runtime import load_pack_catalog
+                render_presets = r.RenderPresets(source=load_pack_catalog().builder_inputs)
                 result = r.compile_contract(record, offering, load(args.intent), load(args.parameters),
-                    prompt=Path(args.prompt_file).read_text(encoding='utf-8'),reference_count=args.reference_count)
+                    prompt=Path(args.prompt_file).read_text(encoding='utf-8'),reference_count=args.reference_count,
+                    render_presets=render_presets)
         raw = json.dumps(result,indent=2,ensure_ascii=False,allow_nan=False)+'\n'
         if getattr(args,'out',None):
             path=Path(args.out)
@@ -254,7 +258,7 @@ def main(argv=None) -> int:
         print(json.dumps(result,ensure_ascii=False));return 1
     finally:
         if configured:
-            from catalog_cli import configure_pack_runtime
+            from catalog_api import configure_pack_runtime
             configure_pack_runtime(None)
 
 if __name__ == '__main__':

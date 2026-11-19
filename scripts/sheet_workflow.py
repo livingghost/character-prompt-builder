@@ -6,8 +6,6 @@ import argparse
 import json
 from pathlib import Path
 
-import execution_contract as c
-import sheet_artifacts as fills
 
 
 def parser() -> argparse.ArgumentParser:
@@ -88,9 +86,12 @@ def spec_path(path: str, spec: Path) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    import execution_contract as c
+    import sheet_artifacts as fills
     try:
         if args.command.startswith('batch-'):
-            import studio, sheet_batch
+            import studio_workspace as studio
+            import sheet_batch
             root = studio.require_studio(args.root)
             if args.command == 'batch-list':
                 result = sheet_batch.list_batches(root, limit=args.limit, offset=args.offset)

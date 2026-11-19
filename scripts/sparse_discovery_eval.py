@@ -12,15 +12,9 @@ from typing import Any, Mapping, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from catalog_cli import (  # noqa: E402
-    clear_runtime_caches,
-    configure_pack_runtime,
-    load_entries,
-    load_search_index,
-    named_resource_path,
-    recommend,
-    search_entries,
-)
+from catalog_api import clear_runtime_caches, configure_pack_runtime, load_entries, load_search_index, named_resource_path, recommend, search_entries
+from catalog_retrieval.runtime import selected_pack_settings, using_pack_catalog  # noqa: E402
+from pack_cache import RuntimePackCatalog  # noqa: E402
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  # noqa: E402
 from search_discovery import CatalogQueryInput, analyze_query, catalog_query_from_mapping  # noqa: E402
 
@@ -80,10 +74,21 @@ def _missing_expected_ids(
     return sorted(missing)
 
 
-def evaluate() -> dict[str, Any]:
-    # Do not inherit another suite's indexed-entry graph when several checks
-    # execute in one Python process.
+def evaluate(*, catalog: RuntimePackCatalog | None = None) -> dict[str, Any]:
+    """Evaluate one captured catalog, or begin a fresh independent runtime read.
+
+    Binding a supplied catalog resets derived search indexes while retaining
+    its acquired pack inputs. The caller's runtime is restored afterwards.
+    """
+    if catalog is not None:
+        with using_pack_catalog(selected_pack_settings(), catalog):
+            return _evaluate()
     clear_runtime_caches()
+    return _evaluate()
+
+
+def _evaluate() -> dict[str, Any]:
+    """Consume the runtime selected by the evaluation boundary."""
     cases_path = named_resource_path(CASES_RESOURCE)
     assert cases_path is not None
     data = load_json(cases_path)

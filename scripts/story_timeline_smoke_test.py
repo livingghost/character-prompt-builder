@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 import execution_contract as c
 import story_timeline as story
-import studio
+import studio_workspace as studio
 import studio_activity as activity
 from story_timeline_fixtures import setup, event, process, view, write_events
 from story_flow_fixtures import setup as setup_story
@@ -174,7 +174,7 @@ class ProjectionTests(unittest.TestCase):
     def test_unchanged_refresh_reads_without_a_publication_lock(self):
         self.assertTrue(story.refresh(self.root)['ok'])
         before=self.output.read_bytes()
-        with patch.object(c,'lock',side_effect=AssertionError('unchanged projection acquired a writer lock')):
+        with patch.object(c,'file_lock',side_effect=AssertionError('unchanged projection acquired a writer lock')):
             current=story.refresh(self.root)
         self.assertTrue(current['ok']);self.assertFalse(current['written'])
         self.assertEqual(self.output.read_bytes(),before)
@@ -304,14 +304,14 @@ class ProjectionTests(unittest.TestCase):
     def test_publication_rechecks_a_competing_completed_projection(self):
         self.assertTrue(story.refresh(self.root)['ok'])
         conf=self.config();conf['views'][0]['label']='Changed projection';self.save_config(conf)
-        original=c.lock;completed=[]
+        original=c.file_lock;completed=[]
         @contextmanager
         def competing(owner):
-            with patch.object(c,'lock',original):
+            with patch.object(c,'file_lock',original):
                 completed.append(story.refresh(self.root))
             with original(owner):
                 yield
-        with patch.object(c,'lock',side_effect=competing):
+        with patch.object(c,'file_lock',side_effect=competing):
             current=story.refresh(self.root)
         self.assertEqual(len(completed),1)
         self.assertTrue(completed[0]['written'])
@@ -325,6 +325,30 @@ class ProjectionTests(unittest.TestCase):
         self.assertEqual(self.output.read_bytes(),before)
         self.assertTrue(activity.refresh(self.root)['ok']);after=data_from_html(self.output)
         self.assertEqual(after['views'][0]['snapshot']['entities']['characters']['C01']['appearance']['coat'],'blue')
+
+    def test_failed_reader_preserves_a_verified_success_published_while_it_waited(self):
+        self.assertTrue(story.refresh(self.root)['ok'])
+        conf = self.config(); conf['views'][0]['label'] = 'Current competing publication'; self.save_config(conf)
+        original_build, original_lock = story.build_model, c.file_lock
+        builds, completed = [], []
+        def fail_first(*args, **kwargs):
+            builds.append(True)
+            if len(builds) == 1:
+                raise OSError('Synthetic failed source observation')
+            return original_build(*args, **kwargs)
+        @contextmanager
+        def competing(owner):
+            with patch.object(c, 'file_lock', original_lock):
+                completed.append(story.refresh(self.root))
+            with original_lock(owner):
+                yield
+        with patch.object(story, 'build_model', side_effect=fail_first), \
+                patch.object(c, 'file_lock', side_effect=competing):
+            current = story.refresh(self.root)
+        self.assertEqual(len(completed), 1)
+        self.assertTrue(completed[0]['ok'])
+        self.assertEqual(current, {**completed[0], 'written': False})
+        self.assertEqual(c.sha256_file(self.output), completed[0]['html_sha256'])
 
     def test_recorded_time_edits_do_not_reorder_the_story(self):
         rows=self.fixture['events'];rows[0]['recorded_at']='2040-01-01T00:00:00Z';rows[1]['recorded_at']='2000-01-01T00:00:00Z'

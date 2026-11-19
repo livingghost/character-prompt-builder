@@ -22,16 +22,17 @@ import unittest
 from unittest.mock import patch
 
 import execution_contract as c
-import dispatch
+import dispatch_runtime as dispatch
 import production_case_fixtures as cases
+import production_compiler as compiler
 import production_execution as execution
 import production_fixtures
-import production_workflow as workflow
+import production_operations as workflow
 import production_store as store
 import production_variation as variation
 import service_auth
 import execution_lifecycle as accounting
-import studio
+import studio_workspace as studio
 import transport_synthetic
 from test_production_execution import decisions
 
@@ -389,27 +390,23 @@ class DispatchRecoveryTests(unittest.TestCase):
         # The synthetic service record declares 10 seconds for image output.
         self.assertEqual((clock.waits,len(seen)),([10.0,10.0],3))
 
-    def test_lookups_that_find_nothing_new_never_read_the_run(self):
+    def test_lookups_that_find_nothing_new_keep_the_owned_run(self):
         self.send.side_effect=self.unfinished
         self.call()
         lookup,seen=self.finishing(1)
         with patch.object(transport_synthetic,'lookup',side_effect=lookup):
             execution.resume(self.root,self.run)
-        reads=[]
-        actual=workflow.read_run
-        def counted(*args,**kwargs):
-            reads.append(1);return actual(*args,**kwargs)
         counts=[]
         for limit in (25,65):
-            reads.clear()
-            with patch.object(workflow,'read_run',side_effect=counted):
+            with patch.object(compiler,'acquire_publication',wraps=compiler.acquire_publication) as publication, \
+                    patch.object(accounting,'completion_tail',wraps=accounting.completion_tail) as replay:
                 result=self.watch(lookup,WatchClock(),interval=10,limit=limit)
             self.assertEqual(result['runs'][0]['submission'],'pending')
-            counts.append(len(reads))
-        # Three lookups and seven lookups read the run the same number of times:
-        # only the first pass, the lookup setup and the final report read it.
+            counts.append((publication.call_count,replay.call_count))
+        # Polls and the final report retain one fully acquired run. Asking the
+        # owner for its view does not read the publication or replay history.
         self.assertEqual(len(seen),1+3+7)
-        self.assertEqual(counts[0],counts[1])
+        self.assertEqual(counts,[(1,1),(1,1)])
         self.assertEqual(len(list(self.journal().path.glob('lookup-*-answer.json'))),1)
 
     def test_a_record_without_poll_interval_leaves_the_interval_to_the_caller(self):

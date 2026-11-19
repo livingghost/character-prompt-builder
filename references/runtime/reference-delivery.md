@@ -16,6 +16,24 @@ when needed for legibility rather than enforcing a fixed reference count.
 
 Identity, current expression, wardrobe, lighting, pose and camera are different scopes; a transient state propagates only when requested, whatever identity the source shows. Express each source's `controls` and `must_not_control` authority scopes explicitly. Identical positive and excluded scopes are contradictory and rejected. The script leaves synonyms and semantic conflicts to the agent, who resolves them against the actual source and current intent.
 
+A canonical influence names its available capabilities. Select the contribution
+this request actually uses with `selected_controls` on the record-use decision.
+New JSON declarations require that choice; an omitted list remains unresolved.
+Each value must be one of the supported capability strings returned by
+`reference_runtime.py capabilities --influence INFLUENCE`; the preparer intersects
+that choice with the actual artifact's technical capabilities. For example,
+`pose-camera` can contribute pose, camera framing or silhouette relationships
+independently. Choosing pose alone leaves camera and crop with the depiction's
+owner. The short `RECORD_ID=INFLUENCE` form selects the whole influence.
+
+`control_expressions` optionally maps a selected capability to the target's
+actual wording. The selected capability remains the authority boundary; its
+expression supplies the description, tags or mixed syntax to deliver. An
+authored image-input plan instead owns these words directly at `use_for`.
+Choose the supported source and contribution for this task before choosing
+their expression. The validator checks the declared subset and exact delivery;
+source inspection and the complete-input review assess meaning and suitability.
+
 ### Resolve the attributes needed by this image
 
 Inspect the source regions that carry the requested features. Establish the
@@ -95,7 +113,7 @@ its selected-record decision, for example:
 
 ```sh
 python scripts/reference_runtime.py plan \
-  --record-use '{"record_id":"wardrobe-record","intended_influence":"outfit","subject_uses":[{"subject_id":"A","use":"outfit","priority":1}]}' \
+  --record-use '{"record_id":"wardrobe-record","intended_influence":"outfit","selected_controls":["garment and wearable construction"],"subject_uses":[{"subject_id":"A","use":"outfit","priority":1}]}' \
   --transport-mode prompt-artifacts --source-lighting-mode replace --out reference-use-plan.json
 ```
 
@@ -127,10 +145,12 @@ keeps the use ID and derives the new attachment positions.
 The compiled prepared reference row records that use as `reference_id`, and
 the image-input row records the same value as `id`. A supplied file's
 `source.reference_id` identifies its original source; several uses of one
-source can have different use IDs. Existing native prepared rows without an
-explicit use ID retain their declared source reference, state binding ID or
-pack artifact ID. Inspect the selected rows or the input guide when continuing
-such work; file names and attachment numbers do not assign those identities.
+source can have different use IDs. Standalone canonical preparation derives a
+stable use ID from the canonical record, source artifact, influence and subject
+assignment. Other native prepared rows retain their declared source reference
+or state binding ID. Inspect the selected rows or the input guide when
+continuing such work; file names and attachment numbers do not assign those
+identities.
 
 Identity coverage adds the prefix `reference:` to the use ID when it exposes
 the source inventory. That prefix belongs to the coverage source, and is not
@@ -150,6 +170,66 @@ that source with `{"kind": "reference", "reference": "keeper-face", "use": "iden
 the [identity coverage contract](../character-identity-contract.md#source-to-input-and-review-coverage)
 defines the rest of that binding. Prompt wording identifies delivered images
 by their actual positions and relevant visual content.
+
+## Author the consumed reference direction
+
+Write the reference direction in the editable delivery prompt, where its
+meaning belongs in the whole depiction. Use the stable reference use ID to
+bind actual locations and contributions. The inspector below returns
+`reference_text_slots`, including each usable marker and its current value.
+For a descriptive target, a source fragment can read:
+
+```text
+Use Image {{reference:keeper-face:attachment_number}} for {{reference:keeper-face:controls}}. Place this character beside the doorway, watching the other subject.
+```
+
+The compiler substitutes the current image number and the selected `controls`
+words. Surrounding text is preserved exactly. A sentence can relate several
+references, describe a whole sheet, or use the target's tag grammar. For
+example, an authored `control_expressions` value can be a tag phrase inside an
+existing weighted expression. Write the grammar that the selected target
+supports; the substitution adds no sentence, weighting or exclusion of its own.
+
+| Marker field | Delivered value |
+| --- | --- |
+| `attachment_number` | Actual image position after ordering and deduplication |
+| `controls` | The selected contribution expressions, joined by comma and space |
+| `region` | Board panel `x, y, width, height` in pixels |
+| `x`, `y`, `width`, `height` | Individual board coordinates for authored location wording |
+| `must_not_control` | Declared exceptions, only where the author places this optional marker |
+
+A shared board needs its panel location: place `region`, or all four coordinate
+fields, in the reference instruction with wording that identifies their meaning.
+Every authored reference direction consumes its `attachment_number` and
+`controls`; a number by itself does not deliver the selected contribution.
+The requirement applies to the actual primary text selected for transport.
+An unused working text need not repeat that direction. A target with verified
+`native-fields` reference transport receives the selected scope through its
+declared native mappings and needs no textual reference direction.
+
+Preview the resolved text before dictionary or model grammar work:
+
+```sh
+python scripts/reference_delivery.py --prepared-set WORK/prepared.json \
+  --prompt-file WORK/prompt.txt --out WORK/resolved-prompt.txt
+```
+
+Use `--image-input-plan PLAN --studio STUDIO` in place of `--prepared-set` for
+an external input. The command returns the complete resolved text and its
+source-to-final ranges. `--out` writes the same final UTF-8 bytes for vocabulary
+search. Edit the original prompt and contribution owners; the resolved file is
+an inspection surface. Normal preparation performs the same expansion before
+checking grammar, vocabulary, limits and final input hashes.
+
+The package retains authored literals and a derived `reference_text` record.
+Its verifier recomputes the substitution from the bound references and compares
+the actual transported text. For an external source request, markers belong in
+the request's ordinary prompt field. The image-input builder expands that source
+before schema and prompt checks; a materialized external plan retains the
+derived record beside its final request. This record is produced by the compiler
+from the work and carries no assessment or approval. The agent still reviews
+the complete final text and actual media for meaning, source fit and intended
+effect; successful substitution establishes delivery alone.
 
 ## Bind the actual transport
 
@@ -192,7 +272,7 @@ For an external request, inspect the same mapping from its declared image field 
 python scripts/reference_delivery.py --image-input-plan image-input.json --studio STUDIO
 ```
 
-This reads an existing prepared origin when the plan names one. Each binding records its exact request field, such as `["images",0,"uri"]`, for transport verification. A prepared origin also supplies the actual attachment number and board region for each logical reference. Different sources may share one external field when they use the same verified carrier and uploaded value; their individual roles and scopes remain recorded. Author the reference instructions using the image positions and controls the target actually receives. Preparation verifies the exact request, image mapping and source bytes; the agent reviews whether the received prompt and media convey the assigned uses.
+This reads an existing prepared origin when the plan names one. Each binding records its exact request field, such as `["images",0,"uri"]`, for transport verification. External image numbers follow the actual array positions within each native media field shape; independent named media slots retain their declared field order. A prepared origin supplies the board region for each logical reference. Different sources may share one external field when they use the same verified carrier and uploaded value; their individual roles and scopes remain recorded. Author the reference instructions using the image positions and controls the target actually receives. Preparation verifies the exact request, image mapping and source bytes; the agent reviews whether the received prompt and media convey the assigned uses.
 
 ### Upload the selected media for one generation
 

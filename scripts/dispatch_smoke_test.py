@@ -26,10 +26,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 
-import dispatch  # noqa: E402
+import dispatch_runtime as dispatch  # noqa: E402
 import execution_contract  # noqa: E402
 import service_profile  # noqa: E402
-import studio  # noqa: E402
+import studio_workspace as studio  # noqa: E402
 import transport_contract  # noqa: E402
 import transport_runware  # noqa: E402
 from request_contract import MANAGEMENT_VALUE

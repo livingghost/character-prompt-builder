@@ -10,11 +10,12 @@ Publication and current-source boundaries acquire the actual declared files;
 domain consumers receive those exact bytes explicitly.
 """
 from __future__ import annotations
+
 import contextlib
-import contextvars
+
 import copy
 import dataclasses
-import functools
+
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -22,6 +23,7 @@ from typing import Any, Iterator
 
 import execution_contract as c
 import production_store as store
+import read_context
 from owned_json import FrozenDict, freeze, mutable
 from production_diagnostics import Diagnostic, ProductionError
 
@@ -38,7 +40,7 @@ def settings_dict(settings) -> dict:
 
 
 def settings_from(value: dict):
-    from pack_manager import PackSettings
+    from runtime_paths import PackSettings
     fields=copy.deepcopy(value)
     for name in ('state_file','cache_dir','managed_root','quarantine_root'):fields[name]=Path(fields[name])
     fields['roots']=tuple(Path(p) for p in fields['roots'])
@@ -398,143 +400,6 @@ def path(root:Path, descriptor:dict) -> Path:
     return c.local(root,'runtime/snapshots/'+c.sha(descriptor['sha256']),exists=False)
 
 
-# What a public call without an operation has verified, while `public_call()` is open.
-_PUBLIC_CALL: contextvars.ContextVar[dict|None] = contextvars.ContextVar('cpb_public_call', default=None)
-# What each open production transaction has verified, by connection.
-_TRANSACTIONS: contextvars.ContextVar[dict[int,tuple[object,dict]]] = contextvars.ContextVar(
-    'cpb_transaction_reads', default={})
-
-
-@contextlib.contextmanager
-def public_call(*, fresh: bool = False) -> Iterator[None]:
-    """Share verified content among the stages of one public call.
-
-    Nested blocks share their caller unless ``fresh`` starts a new publication
-    read boundary. A new boundary ends reuse in its enclosing call as well;
-    leaving it must not restore an older successful read after a newer failure.
-    Active transaction readers also discard their earlier observations. A
-    projection owner starts publication after committing its transaction.
-    """
-    if not fresh and _PUBLIC_CALL.get() is not None:
-        yield
-        return
-    enclosing = ([call_scope(), *(_transaction_scope(connection)
-                  for connection in store._CONNECTIONS.get().values())] if fresh else [])
-    for scope in enclosing:
-        if scope is not None:
-            scope.clear()
-    token=_PUBLIC_CALL.set({})
-    try:
-        import protocol_contract
-        with protocol_contract.read_scope(fresh=fresh):
-            yield
-    finally:
-        for scope in enclosing:
-            if scope is not None:
-                scope.clear()
-        _PUBLIC_CALL.reset(token)
-
-
-def _transaction_scope(connection) -> dict:
-    scopes = _TRANSACTIONS.get()
-    held = scopes.get(id(connection))
-    if held is None or held[0] is not connection:
-        open_now = {id(item) for item in store._CONNECTIONS.get().values()}
-        scopes = {key: item for key, item in scopes.items() if key in open_now}
-        held = (connection, {})
-        scopes[id(connection)] = held
-        _TRANSACTIONS.set(scopes)
-    return held[1]
-
-
-def release_transaction(connection) -> None:
-    """Dispose the completed connection's read state in its execution context."""
-    scopes = _TRANSACTIONS.get()
-    if id(connection) in scopes:
-        _TRANSACTIONS.set({key: value for key, value in scopes.items() if key != id(connection)})
-
-
-def operation(function):
-    """Give a public Python operation the same read boundary as a CLI call."""
-    @functools.wraps(function)
-    def call(*args, **kwargs):
-        with public_call():
-            return function(*args, **kwargs)
-    return call
-
-
-def invalidate_runs(root: Path, *, source_boundary: bool = False) -> None:
-    """Discard decoded run state after a write or a rolled-back write.
-
-    Event state belongs to the transaction or public read boundary that
-    observed it, never to a pathname. A transaction boundary also discards
-    verified publication proof. Current-source and authority checks acquire
-    their own inputs independently of these decoded values.
-    """
-    identity = str(Path(root).resolve())
-    invalidate_studio(root)
-    scopes = [call_scope()]
-    connection = store._CONNECTIONS.get().get(identity)
-    if connection is not None:
-        scopes.append(_transaction_scope(connection))
-    for scope in scopes:
-        if scope is not None:
-            for key in tuple(scope):
-                if isinstance(key, tuple) and key[:2] == ('verified-run', identity):
-                    del scope[key]
-                elif source_boundary and isinstance(key, tuple) and key[:2] == ('verified-publication',identity):
-                    del scope[key]
-
-
-def invalidate_studio(root: Path) -> None:
-    """End the current Studio read phase after an owned write or rollback.
-
-    Reference readers retain the phase identity with their decoded values. A
-    new marker makes even a resolver passed through nested calls reacquire its
-    Studio inputs before using them again. Nothing survives the public call or
-    the transaction whose scope holds this marker.
-
-    """
-    identity = str(Path(root).resolve())
-    # A run can reference another Studio, including while its own transaction
-    # remains open. Every active reference reader must observe an owned source
-    # write, not only readers in the changed Studio's transaction.
-    scopes = [call_scope(), *(_transaction_scope(connection)
-                             for connection in store._CONNECTIONS.get().values())]
-    for scope in scopes:
-        if scope is not None:
-            scope[('studio-read-phase', identity)] = object()
-
-
-def call_scope() -> dict|None:
-    """What the current public call has verified, or None outside any call.
-
-    The call is the open `public_call()` block, else the current operation, else
-    the outermost open production transaction. Fixed-runtime input acquisition
-    uses explicit owners rather than entries in this run/Studio read scope.
-    """
-    scope=_PUBLIC_CALL.get()
-    if scope is not None:return scope
-    from operation_context import current
-    operation=current()
-    if operation is not None:
-        scope=getattr(operation,'_verified_content',None)
-        if scope is None:scope=operation._verified_content={}
-        return scope
-    connections=store._CONNECTIONS.get()
-    return _transaction_scope(next(iter(connections.values()))) if connections else None
-
-
-def check_scope(root:Path) -> dict|None:
-    """The scope one run check may reuse: the outermost open transaction of `root`, else the public call.
-
-    A new transaction starts empty. `begin_step` checks the run and its live
-    sources again even inside a caller's transaction.
-    """
-    connection=store._CONNECTIONS.get().get(str(Path(root).resolve()))
-    return _transaction_scope(connection) if connection is not None else call_scope()
-
-
 def _retarget_action(root, run) -> dict:
     studio=str(root) if root else 'STUDIO'
     if ' ' in studio:studio=f'"{studio}"'
@@ -583,17 +448,23 @@ def _verify_fixed_file(directory: Path, pack: str, item: dict) -> bytes:
 
 def acquire_runtime(directory:Path, descriptor:dict, *, force_verify:bool=False,
                     previous:FixedRuntimeRead|None=None) -> FixedRuntimeRead:
-    """Acquire actual metadata, every declared file, and complete membership.
+    """Own one immutable runtime for the operation that consumes its bytes.
 
-    An explicitly passed owner may supply identical immutable metadata after
-    its actual bytes match. It never skips current file verification. There is
-    no ambient successful-read entry to restore after a failed acquisition.
-    ``force_verify`` marks callers' irreversible boundaries; every acquisition
-    already performs the same complete input check.
+    The first acquisition checks metadata, every declared file and membership.
+    Later stages consume that exact owner without rereading its saved copy.
+    A new operation or ``force_verify`` acquires storage again; a failed forced
+    acquisition removes the previous owner before attempting any reads.
     """
     directory=c._root(Path(directory))
     if previous is not None:
         previous=_owned_runtime(directory,descriptor,previous)
+    scope=read_context.call_scope()
+    key=('fixed-runtime',str(directory),descriptor['sha256'])
+    if scope is not None:
+        if force_verify:
+            scope.pop(key,None)
+        elif key in scope:
+            return scope[key]
     try:
         raw=c.read(c.local(directory,'snapshot.json'))
         if previous is not None and raw==previous.raw:
@@ -620,7 +491,10 @@ def acquire_runtime(directory:Path, descriptor:dict, *, force_verify:bool=False,
         for item in pack['files']:
             retained[(ident,item['path'])]=_verify_fixed_file(directory,ident,item)
     _require_membership(directory,payload,raw)
-    return FixedRuntimeRead(directory,descriptor['sha256'],raw,payload,freeze(retained))
+    owned=FixedRuntimeRead(directory,descriptor['sha256'],raw,payload,freeze(retained))
+    if scope is not None:
+        scope[key]=owned
+    return owned
 
 
 def read(directory:Path, descriptor:dict, *, force_verify:bool=False) -> dict:
@@ -696,11 +570,17 @@ def publish(root:Path, staged:Path, descriptor:dict, *, read:FixedRuntimeRead|No
     import shutil
     from operation_context import current
     target=path(root,descriptor)
+    def retain_published(owned):
+        scope=read_context.call_scope()
+        if scope is not None:
+            scope.pop(('fixed-runtime',str(staged.resolve()),descriptor['sha256']),None)
+            scope[('fixed-runtime',str(target.resolve()),descriptor['sha256'])]=owned
     if target.exists():
         acquire_runtime(staged,descriptor,force_verify=True,previous=read)
-        acquire_runtime(target,descriptor,force_verify=True)
+        published=acquire_runtime(target,descriptor,force_verify=True)
         c.flush_published(target,continuation=REUSED_AFTER_FLUSH)
         shutil.rmtree(staged)
+        retain_published(published)
         counts={'snapshot_reused':True}
     else:
         owned=acquire_runtime(staged,descriptor,previous=read)
@@ -729,12 +609,14 @@ def publish(root:Path, staged:Path, descriptor:dict, *, read:FixedRuntimeRead|No
             # A competing publisher may have installed the same content. Only
             # its complete, independently checked tree can replace our stage.
             acquire_runtime(staged,descriptor,force_verify=True,previous=owned)
-            acquire_runtime(target,descriptor,force_verify=True)
+            published=acquire_runtime(target,descriptor,force_verify=True)
             c.flush_published(target,continuation=REUSED_AFTER_FLUSH)
             shutil.rmtree(staged)
+            retain_published(published)
             counts['snapshot_reused']=True
         else:
             counts['snapshot_reused']=False
+            retain_published(dataclasses.replace(owned,directory=target.resolve()))
             c.flush_published(target,continuation=REUSED_AFTER_FLUSH)
         _require_membership(target,payload,owned.raw)
     if current() is not None:

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Bind declared subjects to author decisions, accepted images and delivered bytes."""
 from __future__ import annotations
+import read_context
 import copy
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 import execution_contract as c
-import runtime_snapshot
 
 if TYPE_CHECKING:
-    from studio import StudioRead
+    from studio_workspace import StudioRead
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTINUITIES = {'recurring', 'one-off', 'undecided'}
@@ -175,7 +175,7 @@ def declared_sheet_slots(root: Path, character: str, *, read: StudioRead | None 
     adopting those images does not turn their storage keys into single-subject
     panels. Resolved state panels and their explicit aliases remain declarations.
     """
-    import studio
+    import studio_workspace as studio
     from character_sheet_render.profiles import select_profile_path, load_profile
     from character_sheet_render.resolution import resolve_state_panels
     home = studio.character_dir(root, character)
@@ -201,7 +201,7 @@ def _decision(root: Path, value: Any, *, character_id: str | None = None) -> dic
     return value
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def adoption_subject(root: Path, character: str, row: dict, approval: dict, *,
                      read: StudioRead | None = None) -> dict:
     """Read the original single-subject candidate and an explicit later decision."""
@@ -235,10 +235,10 @@ def adoption_subject(root: Path, character: str, row: dict, approval: dict, *,
     return {**subject, 'decision_basis': copy.deepcopy(visual['basis'])}
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def accepted_identity(root: Path, character: str, selector: dict, *, character_id: str | None,
                       read: StudioRead | None = None) -> dict:
-    import studio
+    import studio_workspace as studio
     import adoption_workflow as adoption
     read = _studio_read(root, read)
     index = read.reference_index(character)
@@ -328,7 +328,7 @@ def studio_identity_binding(ref: dict, source: dict, *, root: Path | None,
 
 def verify_studio_bindings(value: dict, prepared: dict, *, package_root: Path) -> None:
     """Recorded proof verification for audit and recovery, independent of current choices."""
-    from build_generation_payload import validate_generation_package_carrier_paths
+    from generation_payload_builder import validate_generation_package_carrier_paths
     companion = validate_generation_package_carrier_paths(prepared, package_root=package_root)
     archive = package_root / companion / 'sources' if companion else None
     for ident, subject in value['subjects'].items():
@@ -340,7 +340,7 @@ def verify_studio_bindings(value: dict, prepared: dict, *, package_root: Path) -
                                     character_id=subject['character_id'], source_archive=archive, live=False)
 
 
-@runtime_snapshot.operation
+@read_context.operation
 @_owned
 def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | None,
             recording_character: str | None = None, recording_slot: str | None = None, basis_reader=None,
@@ -380,7 +380,7 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
                               'Map the subject to its Studio character in ' + SUBJECT_MAP + ', or decide it one-off '
                               'in ' + DECISIONS + '. Then run check, build-inputs or prepare again.')
         if character is not None:
-            import studio
+            import studio_workspace as studio
             studio.validate_recording_target(root, character, recording_slot or 'candidate', writable=False, read=read)
             index = ({'ok': True, 'bindings': []} if any(ref.get('kind') == 'studio-artifact' for ref in subject['identity_refs'])
                      else read.reference_index(character))
@@ -415,7 +415,7 @@ def require(value: Any, *, production_spec: dict, prepared: dict, root: Path | N
     return {'subjects': len(subjects), 'identity_bindings': evidence}
 
 
-@runtime_snapshot.operation
+@read_context.operation
 @_owned
 def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: Path,
                  read: StudioRead | None = None) -> dict:
@@ -456,7 +456,7 @@ def build_record(choices: dict, *, production_spec: dict, prepared: dict, root: 
     return result
 
 
-@runtime_snapshot.operation
+@read_context.operation
 @_owned
 def from_decisions(decisions: dict[str, str], *, production_spec: dict, prepared: dict, root: Path,
                    characters: dict[str, str] | None = None, work_ids: dict[str, str] | None = None,

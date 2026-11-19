@@ -43,6 +43,10 @@ def _forwarding(package:dict,verified:dict,*,model:dict|None,offering:dict|None,
     segments=audit['segments'] if audit is not None else None
     from reference_delivery import bindings
     prepared=package['prepared_reference_set'];rows=bindings(prepared['transport_mode'],prepared['selected_references'],prepared['single_board'])
+    reference_contract = model_rendition.reference_contract(policy.get('reference_instruction_transport'), local,
+        expected, policy.get('text_dialect') or dialect, rows)
+    reference_text = model_rendition.validate_reference_channels(package['generation_payload']['reference_text'], rows,
+        reference_mode=reference_contract['mode'] if reference_contract else 'none', negative_transport=mode)
     result=model_rendition.compose(original,segments=segments,
         authored_source={'kind':'generation-rendition','sha256':c.digest(original.encode('utf-8'))},bindings=rows,
         reference_policy=policy.get('reference_instruction_transport'),
@@ -54,6 +58,7 @@ def _forwarding(package:dict,verified:dict,*,model:dict|None,offering:dict|None,
         if type(limit) is int and len(field)>limit:raise ValueError('final prompt exceeds the selected model character limit')
     forwarding=copy.deepcopy(verified['host_forwarding']);forwarding.update(effective_prompt=result['text'],
         effective_prompt_sha256=c.digest(result['text'].encode('utf-8')),prompt_trace=result['trace'],
+        reference_text=reference_text,
         native_reference_controls=result['native_reference_controls'],
         execution_mode=package['render_contract']['intent']['execution_mode'],
         reference_media_role=package['render_contract']['model_card']['execution_profile']['modes'][package['render_contract']['intent']['execution_mode']]['media'])
@@ -62,12 +67,14 @@ def _forwarding(package:dict,verified:dict,*,model:dict|None,offering:dict|None,
 
 
 def generation(package:dict,verified:dict,model:dict,offering:dict,service:dict,transport,*,seed:int|None,count:int,
-               upload_sources:list|None=None,upload_source_read=None)->dict:
+               upload_sources:list|None=None,upload_source_read=None,render_presets=None)->dict:
     if not hasattr(transport,'compile_request'):raise ValueError('transport must compile the complete request with a declared field layout')
     import render_contract_lib as rendering
     contract = package['render_contract']
+    text = package['generation_payload']['reference_text']
     rendering.verify_contract(contract, intent=contract['intent'], parameters=contract['parameters'],
-        prompt=package['composition_prompt'], record=model, offering=offering, reference_count=contract['reference_count'])
+        prompt=text['channels'][text['selected_channel']]['text'], record=model, offering=offering,
+        reference_count=contract['reference_count'],render_presets=render_presets)
     rendering.dispatch_values(package['render_contract'], seed=seed, count=count)
     execution=rc.execution_hashes(service,offering,Path(transport.__file__),model=model,policy=verified['execution_policy'])
     return _generation_request(package,verified,model,offering,service,transport,
@@ -83,7 +90,7 @@ def generation_from_inputs(content,consumer:dict,*,seed:int|None,count:int,resou
     This path owns the model-specific execution checks that were formerly run
     after exporting and importing the compiler's own package.
     """
-    from build_generation_payload import GenerationContent
+    from generation_payload_builder import GenerationContent
     if not isinstance(content,GenerationContent):raise TypeError('request compilation requires acquired generation content')
     target=content.target
     if target.offering is None or target.service is None or target.transport is None:
@@ -169,10 +176,13 @@ def _generation_request(package:dict,verified:dict,model:dict,offering:dict,serv
 
 
 def upscale(declaration:dict,model:dict,offering:dict,service:dict,transport,source:Path,settings:dict,*,root:Path,
-            upload_sources:list|None=None,upload_source_read=None,input_source=None)->dict:
+            upload_sources:list|None=None,upload_source_read=None,input_source=None,render_presets=None)->dict:
     reader=runtime_evidence.reader(root,snapshots=copy.deepcopy(declaration['input_snapshots']),source=input_source)
     policy,_=load_policy(declaration['request_validation'],reader,declaration['request_validation']['target'])
     import render_contract_lib as rendering
+    if render_presets is None:
+        render_presets = rendering.RenderPresets(
+            source=getattr(getattr(input_source, 'catalog', None), 'builder_inputs', None))
     intent = declaration['render_intent']
     if intent['execution_mode'] != 'upscale':
         raise ValueError('upscale dispatch requires an upscale rendering intent')
@@ -184,7 +194,7 @@ def upscale(declaration:dict,model:dict,offering:dict,service:dict,transport,sou
         raise ValueError('scale is supplied once, through the explicit scale option')
     rendering._put(authored, scale_path, declaration['scale_factor'])
     plan = rendering.compile_contract(model, offering, intent, authored,
-        prompt=declaration['guidance_prompt'] or '', reference_count=1)
+        prompt=declaration['guidance_prompt'] or '', reference_count=1,render_presets=render_presets)
     rendering.dispatch_values(plan, seed=None, count=1)
     effective = copy.deepcopy(plan['parameters'])
     rc.remove(effective, rc.path_parts(scale_path))

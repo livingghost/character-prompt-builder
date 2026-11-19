@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Build real local input contracts with an explicitly synthetic model interface."""
+import production_fixtures as authoring_fixtures
 import copy
 from pathlib import Path
 import unittest
@@ -28,7 +29,7 @@ class ModelInputTests(unittest.TestCase):
         visual = copy.deepcopy(self.package['visual_continuity'])
         visual['basis'].pop('sha256')
         visual.update(production_spec='production-spec.json', prepared_reference_set='prepared-references.json')
-        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        drafted = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'editor')
         self.choice_path = drafted['choices_file']
         self.choices = drafted['choices']
         self.choices.update(reading={'reading_key': reading['reading_key']}, visual=visual,
@@ -179,7 +180,7 @@ class ModelInputTests(unittest.TestCase):
         self.assertEqual(action['requires'], ['Complete the declared delivery, source and authority files.'])
 
     def test_side_effect_entrypoints_are_not_called(self):
-        import production_workflow
+        import production_operations as production_workflow
         with (patch.object(production_workflow, 'prepare', side_effect=AssertionError('prepare')),
               patch.object(production_workflow, 'authorize', side_effect=AssertionError('authorize'))):
             self.assertTrue(self.build()['ok'])
@@ -225,7 +226,7 @@ class ObservedPackInputTests(unittest.TestCase):
                                   model=cases.MODEL_ID, service='synthetic', execution='dispatcher')
         cases.write(self.root / self.case['task']['route_reading'], reading)
         policy = c.load(self.root / 'validation.json')['execution_policy']['path']
-        drafted = inputs.draft_inputs(self.root, 'task.json', 'editor')
+        drafted = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'editor')
         self.choice_path = drafted['choices_file']
         self.choices = drafted['choices']
         self.choices.update(reading={'reading_key': reading['reading_key']}, visual=None,

@@ -164,14 +164,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.dictionary.is_file():
         raise SystemExit(f"{args.dictionary} is not a file")
-    from catalog_cli import configure_pack_runtime
+    from catalog_api import configure_pack_runtime
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     try:
         record = None
         dialect_id = args.dialect
         if args.model:
-            from prepare_generation_references import resolve_model_record
+            from generation_references import resolve_model_record
 
             model_id, record = resolve_model_record(args.model)
             named = record.get("prompt_dialect")

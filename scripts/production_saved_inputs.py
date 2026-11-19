@@ -17,7 +17,7 @@ from production_diagnostics import ProductionError
 
 def read_named(root: Path, path: str) -> bytes:
     """Acquire one explicit captured source revision in its owning Studio."""
-    import production_workflow
+    import production_operations as production_workflow
     prefix, run, relative = path.split('/', 2)
     if prefix != '@run' or not relative:
         raise ValueError('captured source must name @run/RUN/STUDIO_PATH')
@@ -144,7 +144,7 @@ class CapturedInputs:
             prepared = (self.loaded.consumer.get('image_input') or {}).get('prepared_reference_set')
         if prepared is None:
             return None
-        from build_generation_payload import validate_generation_package_carrier_paths
+        from generation_payload_builder import validate_generation_package_carrier_paths
         prepared = copy.deepcopy(prepared)
         root = self.loaded.directory
         files, carrier_paths = {}, {}

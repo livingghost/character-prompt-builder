@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -33,10 +34,12 @@ sys.exit(0 if len(list(folder.iterdir())) >= 3 else 1)
 
 # Prints what the runner gave the command: its configuration directory, the pack state there and its folder.
 ENVIRONMENT = """
-import json, os, pathlib
+import json, os, pathlib, tempfile
 home = pathlib.Path(os.environ["CPB_HOME"])
 print(json.dumps({"home": str(home), "cwd": os.getcwd(),
                   "bytecode": os.environ.get("PYTHONDONTWRITEBYTECODE"),
+                  "child_workers": os.environ.get("CPB_CHECK_CHILD_WORKERS"),
+                  "temporary_directory": tempfile.gettempdir(),
                   "state": json.loads((home / "pack-state.json").read_text(encoding="utf-8"))}))
 """
 
@@ -95,20 +98,89 @@ class Runner(unittest.TestCase):
     def test_every_command_reads_one_scratch_home_holding_the_default_pack_state(self):
         program = self.program("environment", ENVIRONMENT)
         selected = [("first", [sys.executable, program]), ("second", [sys.executable, program])]
-        code, printed = self.run_quietly(selected, jobs=2)
+        with mock.patch.dict(os.environ, {"CPB_CHECK_CHILD_WORKERS": "99"}), \
+                mock.patch.object(run_checks, "cpu_context", return_value={
+                    "available_cpus": 4, "logical_cpus": 64, "cpu_source": "synthetic process allowance"}):
+            code, printed = self.run_quietly(selected, jobs=2)
         self.assertEqual(0, code, printed)
         default = json.loads((ROOT / "config/default-pack-state.json").read_text(encoding="utf-8"))
         roots = set()
+        temporary_directories = set()
         for index in (1, 2):
             observed = json.loads((self.out / f"{index:03d}.log").read_text(encoding="utf-8"))
             self.assertEqual(self.out / "home", Path(observed["home"]))
             self.assertEqual(default, observed["state"])
             self.assertEqual("1", observed["bytecode"])
+            self.assertEqual("2", observed["child_workers"])
+            temporary_directories.add(observed["temporary_directory"])
             roots.add(Path(observed["cwd"]).resolve())
         self.assertEqual(len(roots), 1)
         copied_root = roots.pop()
         self.assertNotEqual(ROOT, copied_root)
         self.assertTrue(copied_root.is_relative_to(self.out.resolve()))
+        self.assertFalse(copied_root.exists())
+        summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
+        context = summary["context"]
+        self.assertEqual((summary["jobs"], context["jobs"], context["jobs_source"]), (2, 2, "explicit"))
+        self.assertEqual(context["child_command_workers"], 2)
+        self.assertEqual(temporary_directories, {context["temporary_directory"]})
+        self.assertIn("CLI-help workers per suite: 2", printed)
+        self.assertIn(f"temporary files: {context['temporary_directory']}", printed)
+        self.assertIn(f"workers: 2 (explicit); available CPUs: {context['available_cpus']} ({context['cpu_source']})", printed)
+        self.assertIn(f"runtime: {context['python_implementation']} {context['python']}; {context['platform']}", printed)
+        self.assertIn(f"python: {context['python_executable']}", printed)
+        self.assertLess(printed.index("workers:"), printed.index("[  1/"))
+
+    def test_elapsed_time_includes_source_copy_and_cleanup(self):
+        program = self.program("timed-environment", ENVIRONMENT)
+        selected = [("environment", [sys.executable, program])]
+        clock = [0.0]
+        context = run_checks.execution_context(1)
+        original_home, original_copy = run_checks.scratch_home, run_checks.copy_check_tree
+        original_run = run_checks.subprocess.run
+        original_directory = tempfile.TemporaryDirectory
+        summary_seen_during_cleanup = []
+
+        def home(out):
+            result = original_home(out)
+            clock[0] += 1
+            return result
+
+        def copy(source, destination):
+            result = original_copy(source, destination)
+            clock[0] += 2
+            return result
+
+        def execute(*args, **kwargs):
+            result = original_run(*args, **kwargs)
+            clock[0] += 3
+            return result
+
+        out = self.out
+
+        class TimedDirectory(original_directory):
+            def cleanup(self):
+                summary_seen_during_cleanup.append((out / "summary.json").exists())
+                super().cleanup()
+                clock[0] += 4
+
+        with mock.patch.object(run_checks, "time", SimpleNamespace(monotonic=lambda: clock[0])), \
+                mock.patch.object(run_checks, "execution_context", return_value=context), \
+                mock.patch.object(run_checks, "scratch_home", side_effect=home), \
+                mock.patch.object(run_checks, "copy_check_tree", side_effect=copy), \
+                mock.patch.object(run_checks.subprocess, "run", side_effect=execute), \
+                mock.patch.object(run_checks.tempfile, "TemporaryDirectory", TimedDirectory):
+            code, printed = self.run_quietly(selected, jobs=1)
+        self.assertEqual(code, 0, printed)
+        summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["seconds"], 10)
+        self.assertEqual(summary["timings_seconds"], {"setup": 1, "copy": 2, "commands": 3, "cleanup": 4})
+        self.assertEqual(summary["commands"][0]["seconds"], 3)
+        self.assertEqual(summary_seen_during_cleanup, [False])
+        observed = json.loads((self.out / "001.log").read_text(encoding="utf-8"))
+        self.assertFalse(Path(observed["cwd"]).exists())
+        self.assertIn("in 10.0s with 1 workers", printed)
+        self.assertIn("elapsed phases: setup 1.000s; copy 2.000s; commands 3.000s; cleanup 4.000s", printed)
 
     def test_nonrelease_pack_inputs_and_owner_home_do_not_reach_commands(self):
         source, pack = self.source_with_nonrelease_pack()
@@ -140,7 +212,7 @@ class Runner(unittest.TestCase):
 
     def test_core_content_checks_keep_the_selected_release_runtime(self):
         from catalog_retrieval.runtime import using_pack_runtime
-        from pack_manager import PackSettings
+        from runtime_paths import PackSettings
         import structure_neutrality_smoke_test as structures
         from validate import run_preset_quality_audit
 
@@ -162,7 +234,8 @@ class Runner(unittest.TestCase):
 
     def test_core_audit_reports_a_missing_required_resource_without_exiting(self):
         from catalog_retrieval.runtime import using_pack_runtime
-        from pack_manager import PackSettings, initialize_pack
+        from pack_manager import initialize_pack
+        from runtime_paths import PackSettings
         from validate import run_preset_quality_audit
 
         pack = self.work / "missing-policy-fixture"
@@ -204,6 +277,50 @@ class Runner(unittest.TestCase):
         self.assertEqual({"preparation": 2, "reader": None, "independent": 0},
                          {item["label"]: item["exit"] for item in summary["commands"]})
         self.assertIn("not run", printed)
+        self.assertEqual((summary["passed"], summary["failed"]), (1, 2))
+
+
+class WorkerPolicy(unittest.TestCase):
+    def test_automatic_workers_follow_process_availability_up_to_four(self):
+        with mock.patch.object(run_checks.os, "cpu_count", return_value=64), \
+                mock.patch.object(run_checks.os, "sched_getaffinity", return_value=set(range(32)), create=True):
+            for available, expected, children in ((1, 1, 1), (2, 2, 1), (4, 4, 1),
+                                                  (9, 4, 2), (12, 4, 3), (64, 4, 4)):
+                with self.subTest(available=available), \
+                        mock.patch.object(run_checks.os, "process_cpu_count", return_value=available, create=True):
+                    context = run_checks.execution_context(None)
+                    self.assertEqual((context["jobs"], context["jobs_source"]), (expected, "automatic"))
+                    self.assertEqual((context["available_cpus"], context["logical_cpus"]), (available, 64))
+                    self.assertEqual(context["cpu_source"], "os.process_cpu_count")
+                    self.assertEqual(context["child_command_workers"], children)
+
+    def test_cpu_discovery_uses_affinity_then_reported_cpu_count(self):
+        cases = (
+            ({1, 3}, 32, 2, "os.sched_getaffinity"),
+            (OSError("affinity unavailable"), 2, 2, "os.cpu_count"),
+            (NotImplementedError(), None, 1, "fallback"),
+        )
+        for affinity, logical, expected, source in cases:
+            with self.subTest(source=source), \
+                    mock.patch.object(run_checks.os, "process_cpu_count", None, create=True), \
+                    mock.patch.object(run_checks.os, "sched_getaffinity", create=True) as probe, \
+                    mock.patch.object(run_checks.os, "cpu_count", return_value=logical):
+                if isinstance(affinity, Exception):
+                    probe.side_effect = affinity
+                else:
+                    probe.return_value = affinity
+                context = run_checks.execution_context(None)
+                self.assertEqual((context["available_cpus"], context["jobs"], context["cpu_source"]),
+                                 (expected, expected, source))
+
+    def test_explicit_workers_override_the_automatic_limit_and_cpu_count(self):
+        with mock.patch.object(run_checks.os, "process_cpu_count", return_value=1, create=True):
+            context = run_checks.execution_context(12)
+        self.assertEqual((context["jobs"], context["jobs_source"], context["available_cpus"]), (12, "explicit", 1))
+        self.assertEqual(context["child_command_workers"], 1)
+        with mock.patch.object(run_checks.os, "process_cpu_count", return_value=9, create=True):
+            self.assertEqual(run_checks.execution_context(1)["child_command_workers"], 4)
+            self.assertEqual(run_checks.execution_context(3)["child_command_workers"], 3)
 
 
 class Inventory(unittest.TestCase):
@@ -250,6 +367,16 @@ class Inventory(unittest.TestCase):
         self.assertTrue(lines[1].startswith("python scripts/default_release_smoke_test.py ."))
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             run_checks.main(["--list", "--only", "no command has this text"])
+
+    def test_jobs_option_preserves_explicit_values_and_automatic_selection(self):
+        for options, expected in (([], None), (["--jobs", "12"], 12)):
+            with self.subTest(options=options), mock.patch.object(run_checks, "run", return_value=0) as execute:
+                self.assertEqual(run_checks.main(["--only", "pack_selector", "--out", "runner-fixture", *options]), 0)
+                self.assertEqual(execute.call_args.kwargs["jobs"], expected)
+                self.assertEqual(execute.call_args.args[0],
+                                 [item for item in self.commands if item[0] == "scripts/pack_selector_smoke_test.py"])
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            run_checks.main(["--jobs", "0", "--list"])
 
 
 if __name__ == "__main__":

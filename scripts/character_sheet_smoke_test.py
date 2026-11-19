@@ -25,6 +25,8 @@ from compose_sheet_panel_fills import compose_panel_fills
 from harvest_sheet_render import harvest_sheet
 from render_character_sheet import (
     ANTHRO_PROFILE_PATH,
+    SheetPlan,
+    build_sheet_plan,
     DEFAULT_PROFILE_PATH,
     GENERAL_PROFILE_PATH,
     KIND_DRAW_GUIDE,
@@ -69,6 +71,10 @@ def expect_error(fn: Callable[[], Any], text: str) -> bool:
 
 def first_panel_prompt(render_result: Mapping[str, Any]) -> str:
     return panel_prompts(render_result)[0][1]
+
+
+def planned_panel_prompts(plan: SheetPlan) -> list[tuple[dict[str, Any], str]]:
+    return [(request, request["prompt"]) for request in plan.panel_requests["requests"]]
 
 
 def panel_prompts(render_result: Mapping[str, Any]) -> list[tuple[dict[str, Any], str]]:
@@ -719,17 +725,14 @@ def main() -> int:
                 },
             }
         ]
-        declared_view_render = render_sheet(
+        declared_view_plan = build_sheet_plan(
             profile,
             declared_views,
             sheet_dir=render_root,
             mode="scaffold",
-            out_dir=render_root / "declared-view-grid",
             profile_path=DEFAULT_PROFILE_PATH,
         )
-        declared_view_layout = json.loads(
-            declared_view_render["layout"].read_text(encoding="utf-8")
-        )
+        declared_view_layout = declared_view_plan.layout
         base_view_boxes = [
             box for box in declared_view_layout["boxes"] if box["kind"] == "canonical_view"
         ]
@@ -749,7 +752,7 @@ def main() -> int:
                 f"view.outfit.outfits.01.views.{index:02d}"
                 for index in range(1, 6)
             }
-            and not declared_view_render["coverage"]["gaps"],
+            and not declared_view_plan.coverage["gaps"],
         )
         check(
             "declared view layout boxes record their source view row",
@@ -793,26 +796,23 @@ def main() -> int:
             and panel_generation_size({}, {}, (300, 170), target_geometries) == (2912, 1456)
             and panel_generation_size({}, {}, (700, 900)) == (1593, 2048),
         )
-        geometry_scaffold = render_sheet(
+        geometry_plan = build_sheet_plan(
             profile,
             sidecar_value,
             sheet_dir=render_root,
             mode="scaffold",
-            out_dir=render_root / "scaffold-geometries",
             profile_path=DEFAULT_PROFILE_PATH,
             sidecar_path=sidecar_path,
             panel_geometries=target_geometries,
         )
-        geometry_requests = json.loads(
-            geometry_scaffold["panel_requests"].read_text(encoding="utf-8")
-        )
-        geometry_package = json.loads(geometry_scaffold["package"].read_text(encoding="utf-8"))
+        geometry_requests = geometry_plan.panel_requests
+        geometry_package = geometry_plan.package_metadata
         check(
             "every request under a geometry set asks for one of its sizes and says so in its prompt",
             all(
                 (request["target"]["generation_w"], request["target"]["generation_h"]) in target_geometries
                 and f"Produce a {request['target']['generation_w']} by {request['target']['generation_h']} pixel image"
-                in (render_root / "scaffold-geometries" / request["prompt"]["path"]).read_text(encoding="utf-8")
+                in request["prompt"]
                 for request in geometry_requests["requests"]
             )
             and geometry_requests["transport"]["panel_geometries"]
@@ -1088,17 +1088,14 @@ def main() -> int:
             }
             for index in range(1, 14)
         ]
-        many_colors_render = render_sheet(
+        many_colors_plan = build_sheet_plan(
             profile,
             many_colors,
             sheet_dir=render_root,
             mode="scaffold",
-            out_dir=render_root / "many-color-targets",
             profile_path=DEFAULT_PROFILE_PATH,
         )
-        many_colors_layout = json.loads(
-            many_colors_render["layout"].read_text(encoding="utf-8")
-        )
+        many_colors_layout = many_colors_plan.layout
         many_colors_palette = next(
             box
             for box in many_colors_layout["boxes"]
@@ -1107,7 +1104,7 @@ def main() -> int:
         check(
             "color targets are arbitrary declared rows rather than a ten-zone category cap",
             many_colors_palette["content_h"] >= 228
-            and "declared target 13" in many_colors_render["svg"].read_text(encoding="utf-8"),
+            and "declared target 13" in "\n".join(many_colors_plan.drawing),
             )
 
         cjk_value = copy.deepcopy(sidecar_value)
@@ -1983,18 +1980,15 @@ def main() -> int:
             encoding="utf-8",
             newline="\n",
         )
-        spine_render = render_sheet(
+        spine_plan = build_sheet_plan(
             general_profile,
             spine_sheet,
             sheet_dir=spine_dir,
             mode="scaffold",
-            out_dir=spine_dir / "rendered",
             profile_path=GENERAL_PROFILE_PATH,
             sidecar_path=spine_path,
         )
-        form_lineage = json.loads(
-            spine_render["package"].read_text(encoding="utf-8")
-        )["form_lineage"]
+        form_lineage = spine_plan.package_metadata["form_lineage"]
         check(
             "form registry hash-binds separate complete form sheets and their own profiles",
             [form["form_id"] for form in form_lineage["forms"]]
@@ -2088,16 +2082,15 @@ def main() -> int:
             "slots": {},
         }
         general_profile = load_profile(GENERAL_PROFILE_PATH)
-        nonhuman_render = render_sheet(
+        nonhuman_plan = build_sheet_plan(
             general_profile,
             nonhuman_sheet,
             sheet_dir=profile_root,
             mode="scaffold",
-            out_dir=profile_root / "nonhuman-out",
             profile_path=GENERAL_PROFILE_PATH,
         )
-        nonhuman_layout = json.loads(nonhuman_render["layout"].read_text(encoding="utf-8"))
-        nonhuman_prompt = first_panel_prompt(nonhuman_render)
+        nonhuman_layout = nonhuman_plan.layout
+        nonhuman_prompt = planned_panel_prompts(nonhuman_plan)[0][1]
         check(
             "domain-neutral fallback emits no undeclared humanoid anatomy panels",
             not {
@@ -2194,16 +2187,15 @@ def main() -> int:
             "canon.primary": accepted_slot(profile_root, 'variable-front.png'),
             "slot.mark.01": accepted_slot(profile_root, 'variable-mark.png', slot_id='slot.mark.01'),
         }
-        variable_reference = render_sheet(
+        variable_plan = build_sheet_plan(
             general_profile,
             variable_sheet,
             sheet_dir=profile_root,
             mode="reference",
             reference_scope="identity",
-            out_dir=profile_root / "variable-reference",
             profile_path=GENERAL_PROFILE_PATH,
         )
-        variable_package = json.loads(variable_reference["package"].read_text(encoding="utf-8"))
+        variable_package = variable_plan.package_metadata
         check(
             "variable evidence is excluded from the identity-only reference board",
             [item["slot_id"] for item in variable_package["inputs"]] == ["canon.primary"],
@@ -2310,20 +2302,15 @@ def main() -> int:
             },
             "slots": {},
         }
-        resolved_content_render = render_sheet(
+        resolved_content_plan = build_sheet_plan(
             authored_loaded,
             gap_sheet,
             sheet_dir=profile_root,
             mode="scaffold",
-            out_dir=profile_root / "resolved-content-out",
             profile_path=authored_path,
         )
-        resolved_content_package = json.loads(
-            resolved_content_render["package"].read_text(encoding="utf-8")
-        )
-        resolved_content_layout = json.loads(
-            resolved_content_render["layout"].read_text(encoding="utf-8")
-        )
+        resolved_content_package = resolved_content_plan.package_metadata
+        resolved_content_layout = resolved_content_plan.layout
         check(
             "declared visual rows receive resolved evidence panels instead of becoming coverage gaps",
             not resolved_content_package["coverage_gaps"]
@@ -2352,15 +2339,14 @@ def main() -> int:
         exception_sheet = copy.deepcopy(gap_sheet)
         exception_text = "The complete primary view is the intentional recognition panel."
         exception_sheet["fields"]["field.sheet_coverage_exceptions"] = exception_text
-        exception_render = render_sheet(
+        exception_plan = build_sheet_plan(
             headless_profile,
             exception_sheet,
             sheet_dir=profile_root,
             mode="scaffold",
-            out_dir=profile_root / "exception-out",
             profile_path=authored_path,
         )
-        exception_package = json.loads(exception_render["package"].read_text(encoding="utf-8"))
+        exception_package = exception_plan.package_metadata
         check(
             "declared coverage exceptions allow the render and are recorded",
             bool(exception_package["coverage_gaps"])
@@ -2613,17 +2599,14 @@ def main() -> int:
             },
             "slots": {},
         }
-        isolated_asymmetry_render = render_sheet(
+        isolated_asymmetry_plan = build_sheet_plan(
             isolated_asymmetry_profile,
             isolated_asymmetry_sheet,
             sheet_dir=profile_root,
             mode="scaffold",
-            out_dir=profile_root / "isolated-asymmetry",
             profile_path=authored_path,
         )
-        isolated_asymmetry_layout = json.loads(
-            isolated_asymmetry_render["layout"].read_text(encoding="utf-8")
-        )
+        isolated_asymmetry_layout = isolated_asymmetry_plan.layout
         check(
             "asymmetry resolves a feature-versus-counterpart frame instead of relying on an isolated crop",
             any(
@@ -2705,18 +2688,17 @@ def main() -> int:
             "slots": {},
         }
         humanoid_loaded = load_profile(DEFAULT_PROFILE_PATH)
-        state_render = render_sheet(
+        state_plan = build_sheet_plan(
             humanoid_loaded,
             state_sheet,
             sheet_dir=profile_root,
             mode="scaffold",
-            out_dir=profile_root / "state-out",
             profile_path=DEFAULT_PROFILE_PATH,
         )
-        state_package = json.loads(state_render["package"].read_text(encoding="utf-8"))
+        state_package = state_plan.package_metadata
         expanded_boxes = [
             box
-            for profile_row in state_render["profile"]["rows"]
+            for profile_row in state_plan.profile["rows"]
             for box in profile_row["boxes"]
         ]
         check(
@@ -2927,21 +2909,20 @@ def main() -> int:
         # Every rendered panel must show its complete header and its complete
         # model-facing instruction; a clipped word in one footer is a word the
         # image model never receives.
-        rendered_layout = json.loads(state_render["layout"].read_text(encoding="utf-8"))
-        pose_layouts = {"humanoid": (rendered_layout, state_render)}
+        rendered_layout = state_plan.layout
+        pose_layouts = {"humanoid": (rendered_layout, state_plan)}
         for pose_profile_path in (ANTHRO_PROFILE_PATH, GENERAL_PROFILE_PATH):
             pose_profile = load_profile(pose_profile_path)
-            pose_render = render_sheet(
+            pose_plan = build_sheet_plan(
                 pose_profile,
                 state_sheet,
                 sheet_dir=profile_root,
                 mode="scaffold",
-                out_dir=profile_root / f"pose-geometry-{pose_profile['id']}",
                 profile_path=pose_profile_path,
             )
             pose_layouts[pose_profile["id"]] = (
-                json.loads(pose_render["layout"].read_text(encoding="utf-8")),
-                pose_render,
+                pose_plan.layout,
+                pose_plan,
             )
         pose_geometry_details = [
             {
@@ -2955,7 +2936,7 @@ def main() -> int:
             if box["kind"] == "pose_state"
         ]
         check(
-            "every bundled profile gives authored and resolved pose panels a full-figure portrait area and prompt guard",
+            "bundled pose panels retain their authored portrait geometry and selected depiction",
             bool(pose_geometry_details)
             and all(
                 row["content_h"] / row["content_w"] >= 1.45
@@ -2963,11 +2944,15 @@ def main() -> int:
             )
             and all(
                 all(
-                    "Do not bend, crouch, compress, crop" in prompt_text
-                    for request, prompt_text in panel_prompts(render)
+                    "Keep the declared posture, support, orientation, and component relationships" in prompt_text
+                    and next(
+                        box["hint"] for box in layout["boxes"]
+                        if box["resolved_slot_id"] == request["slot_id"]
+                    ) in prompt_text
+                    for request, prompt_text in planned_panel_prompts(plan)
                     if request["kind"] == "pose_state"
                 )
-                for _layout, render in pose_layouts.values()
+                for layout, plan in pose_layouts.values()
             ),
             pose_geometry_details,
         )

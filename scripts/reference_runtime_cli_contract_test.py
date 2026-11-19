@@ -17,11 +17,7 @@ from reference_plan_cli_contract import (
     surface_lighting_argument_contract,
     surface_lighting_schema,
 )
-from reference_runtime import (
-    DependencyPreflightError,
-    preflight_dependencies,
-    reference_processing_requirement,
-)
+from reference_plan_runtime import DependencyPreflightError, preflight_dependencies, reference_processing_requirement
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -184,7 +180,7 @@ def run() -> dict[str, Any]:
         "missing_packages": ["resvg-py"],
         "incompatible_packages": [],
     }
-    with patch("reference_runtime.check_environment", return_value=failed_dependency_report):
+    with patch('reference_plan_runtime.check_environment', return_value=failed_dependency_report):
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 preflight_dependencies(

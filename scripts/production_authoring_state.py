@@ -85,7 +85,8 @@ def _remember(root: Path, task_id: str | None, kind: str, identity: str, details
 def remember_inputs(root: Path, task: dict, kind: str, out_dir: str, *,
                     task_path: str | None, from_run: str | None, choices_path: str | None = None,
                     runtime_arguments: dict | None = None, context_sha256: str | None = None,
-                    input_arguments: dict | None = None, publication: dict | None = None) -> None:
+                    input_arguments: dict | None = None, publication: dict | None = None,
+                    request: str | None = None) -> None:
     if active_task_id(root) != task['task_id']:
         return
     if kind not in {'draft-inputs', 'build-inputs'}:
@@ -97,10 +98,19 @@ def remember_inputs(root: Path, task: dict, kind: str, out_dir: str, *,
         details['context_sha256'] = c.sha(context_sha256)
     if publication is not None:
         details['publication'] = publication
+    if input_arguments:
+        details['input_arguments'] = dict(input_arguments)
+    if kind == 'draft-inputs' and request is not None:
+        raw = request.encode('utf-8')
+        retained = _directory(root, task['task_id']) / ('request-' + c.digest(raw) + '.txt')
+        if retained.exists():
+            if c.read(retained) != raw:
+                raise ValueError('registered current request differs from its captured bytes')
+        else:
+            c.atomic(retained, raw)
+        details.setdefault('input_arguments', {})['request-file'] = retained.relative_to(root).as_posix()
     if kind == 'draft-inputs' and task_path is None and from_run is None:
         details['initial_task'] = task
-        if input_arguments:
-            details['input_arguments'] = input_arguments
     _remember(root, task['task_id'], kind, out_dir, details)
 
 
@@ -387,9 +397,9 @@ def _scope(task: dict, *, root: Path, choices: dict | None = None) -> dict:
 
 def _source_arguments(details: dict, *, initial_task: dict | None = None) -> list[str]:
     if details['source_task']:
-        return ['--task', details['source_task']]
+        return ['--task', details['source_task'], *_arguments(details.get('input_arguments') or {})]
     if details['source_run']:
-        return ['--from-run', details['source_run']]
+        return ['--from-run', details['source_run'], *_arguments(details.get('input_arguments') or {})]
     if initial_task is None:
         return []
     return ['--route', initial_task['route'], '--artifact', initial_task['artifact'],
@@ -403,7 +413,7 @@ def _problem(path: str, exc: BaseException) -> dict:
 
 
 def _run(root: Path, identifier: str, cache: dict | None) -> tuple:
-    import production_workflow
+    import production_operations as production_workflow
     if cache is None:
         return production_workflow.read_run(root, identifier)
     if identifier not in cache:

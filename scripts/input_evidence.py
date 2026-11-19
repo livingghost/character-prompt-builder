@@ -12,10 +12,12 @@ from private_state import assert_public_path
 class InputEvidence:
     """Read current or explicitly named captured evidence, retaining its exact bytes."""
     def __init__(self,root:Path|None,*,snapshots:dict|None=None,live:bool=True,named_roots:dict[str,Path]|None=None,space:str="",
-                 read_source:Callable[[str],bytes]|None=None,retained_snapshots:dict|None=None):
+                 read_source:Callable[[str],bytes]|None=None,retained_snapshots:dict|None=None,
+                 derived_inputs:dict[str,bytes]|None=None):
         self.named_roots=named_roots or {};self.space=space
         self.read_source=read_source
         self.root=root;self.live=live;self.snapshots={} if snapshots is None else snapshots
+        self.derived_inputs={} if derived_inputs is None else derived_inputs
         self.retained_snapshots=({path:item for path,item in self.snapshots.items() if path.startswith('@run/')}
                                  if retained_snapshots is None else retained_snapshots)
         self.read_paths=set();self.locators={}
@@ -45,12 +47,15 @@ class InputEvidence:
             space='/'.join(parts[:2])
         elif path.startswith('@skill/'):space='@skill'
         result=InputEvidence(self.root,snapshots=self.snapshots,live=self.live,named_roots=self.named_roots,space=space,
-                             read_source=self.read_source,retained_snapshots=self.retained_snapshots)
+                             read_source=self.read_source,retained_snapshots=self.retained_snapshots,
+                             derived_inputs=self.derived_inputs)
         result.read_paths=self.read_paths;result.locators=self.locators
         return result
     def _live(self,path:str)->bytes:
         """Acquire the named revision, reading current files as one stable file."""
         path=self.qualify(path)
+        if path in self.derived_inputs:
+            return self.derived_inputs[path]
         if path.startswith('@run/'):
             held=self.retained_snapshots.get(path) or self.snapshots.get(path)
             if held is not None:
@@ -68,6 +73,25 @@ class InputEvidence:
         selected=self.resolve(path)
         if selected.is_symlink() or not selected.is_file():raise ValueError(f'not a regular file: {selected.name}')
         return stable_read(selected,path)
+    def add_derived(self,files:dict[str,bytes])->None:
+        """Acquire an owner's generated local inputs without publishing files."""
+        for path,raw in files.items():
+            selected=self.qualify(path)
+            if selected.startswith('@') or not isinstance(raw,bytes) or self.root is None:
+                raise ValueError('derived input requires local byte content and its Studio root')
+            local=c.local(self.root,selected,exists=False)
+            if local.exists():
+                from production_store import stable_read
+                if local.is_symlink() or not local.is_file() or stable_read(local,selected)!=raw:
+                    raise ValueError('derived input differs from its local content address: '+selected)
+                continue
+            previous=self.derived_inputs.get(selected)
+            if previous is not None and previous!=raw:
+                raise ValueError('derived input changed during acquisition: '+selected)
+            captured=self.snapshots.get(selected)
+            if captured is not None and self._decode(captured)!=raw:
+                raise ValueError('derived input differs from its acquired bytes: '+selected)
+            self.derived_inputs[selected]=raw
     @staticmethod
     def _decode(item:dict)->bytes:
         try:return base64.b64decode(item['base64'],validate=True)
@@ -115,6 +139,7 @@ class EvidenceAcquisition(InputEvidence):
                  read_source:Callable[[str],bytes]|None=None):
         self.root=root;self.named_roots=named_roots or {};self.space=''
         self.read_source=read_source
+        self.derived_inputs={}
         self.retained_snapshots={}
         self._owner=self;self._files={};self._failure=None;self._closed=False
         self.read_paths=set();self.locators={}

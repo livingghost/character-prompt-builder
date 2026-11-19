@@ -8,7 +8,7 @@ import copy
 import tempfile
 import execution_contract as c
 import production_case_fixtures as fixtures
-import production_workflow as workflow
+import production_operations as workflow
 import production_execution as execution
 from test_production_execution import decisions
 import request_validation as rv
@@ -75,20 +75,30 @@ class ObservationAdoptionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'another run'):self.bundle(adoption(run='019a0000-0000-7000-8000-000000000002'))
 
 class RecordedObservationTests(unittest.TestCase):
-    def setUp(self):
-        import tempfile
-        import production_case_fixtures as fixtures
-        import production_workflow as workflow
+    @staticmethod
+    def build(base):
+        import production_operations as workflow
         import production_execution as execution
         from test_production_execution import decisions
+        case = fixtures.create(base / 'studio', base / 'runtime')
+        root = case['root']
+        run = workflow.prepare(root, 'task.json')['run']
+        execution.execute(root, run, decisions_file=decisions(root, run))
+        return case, {'run': run, 'source': observation.capture(root, run)}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = fixtures.CaseTemplate.for_class(cls, cls.build)
+
+    def setUp(self):
+        import tempfile
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         base = Path(self.temporary.name)
-        case = fixtures.create(base / 'studio', base / 'runtime')
+        case, metadata = fixtures.CaseTemplate.for_test(self, base, self.build, self._case_template)
         self.root = case['root']
-        self.run = workflow.prepare(self.root, 'task.json')['run']
-        execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
-        self.source = observation.capture(self.root, self.run)
+        self.run = metadata['run']
+        self.source = metadata['source']
 
     def test_export_keeps_recorded_observation_time_and_identity(self):
         first, _ = observation.bundle(self.root, self.run, relative_prefix='observed')
@@ -109,6 +119,7 @@ class RecordedObservationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'recorded dispatch evidence'):
             observation.validate_observation(value, InputEvidence(self.root))
 
+    @fixtures.cold_case
     def test_completed_formal_run_can_be_captured_without_recreating_a_run(self):
         import execution_lifecycle as accounting
         state = accounting.all_states(self.root)[0]
@@ -126,7 +137,7 @@ class RecordedObservationTests(unittest.TestCase):
 
     def test_observation_reads_only_formal_evidence(self):
         import shutil
-        import production_workflow as workflow
+        import production_operations as workflow
         import production_store as store
         rows=store.event_rows(self.root,self.run)
         claim=workflow.find(rows,'dispatch-claim')
@@ -235,7 +246,7 @@ def create_probe(base,upscale=False):
 
 class CaptureProgressObservationTests(unittest.TestCase):
     def test_partial_capture_then_resume_has_one_observed_output_without_resending(self):
-        import dispatch
+        import dispatch_runtime as dispatch
         import transport_synthetic
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory)

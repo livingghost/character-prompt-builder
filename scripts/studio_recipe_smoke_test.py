@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check explicit candidate recipes using synthetic local recording evidence."""
 from __future__ import annotations
+import studio as studio_cli
 import copy
 import json
 import subprocess
@@ -9,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import execution_contract as c
-import studio
+import studio_workspace as studio
 
 
 class RecipeTests(unittest.TestCase):
@@ -125,7 +126,7 @@ class RecipeTests(unittest.TestCase):
 
     def test_cli_explicit_candidate(self):
         before = self.files()
-        result = subprocess.run([sys.executable, str(Path(studio.__file__)), '--studio', str(self.root),
+        result = subprocess.run([sys.executable, str(Path(studio_cli.__file__)), '--studio', str(self.root),
             'recipe', '--character', 'subject-a', '--slot', 'base.front', '--iteration', self.row['iteration_id']],
             capture_output=True, text=True, encoding="utf-8", timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -133,7 +134,7 @@ class RecipeTests(unittest.TestCase):
         self.assertEqual(self.files(), before)
 
     def test_cli_takes_the_studio_after_the_command(self):
-        result = subprocess.run([sys.executable, str(Path(studio.__file__)), 'recipe', '--studio', str(self.root),
+        result = subprocess.run([sys.executable, str(Path(studio_cli.__file__)), 'recipe', '--studio', str(self.root),
             '--character', 'subject-a', '--slot', 'base.front', '--iteration', self.row['iteration_id']],
             capture_output=True, text=True, encoding="utf-8", timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)

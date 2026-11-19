@@ -18,7 +18,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import dispatch
+import dispatch_runtime as dispatch
 import execution_contract as c
 import execution_lifecycle as accounting
 import production_case_fixtures as cases
@@ -26,7 +26,7 @@ import production_compiler as compiler
 import production_execution as execution
 import production_fixtures
 import production_store as store
-import production_workflow as workflow
+import production_operations as workflow
 import service_auth
 import transport_synthetic
 from production_diagnostics import ProductionError

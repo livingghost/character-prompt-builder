@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Exercise a studio end to end on a temporary directory: init, a character, iterations, acceptance, the recipe, the work trail, validation."""
 from __future__ import annotations
+import studio as studio_cli
+import runtime_paths
 
 import contextlib
 import io
@@ -19,11 +21,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 
 import execution_contract  # noqa: E402
-import studio  # noqa: E402
+import studio_workspace as studio  # noqa: E402
 import studio_gallery  # noqa: E402
 import validate_studio  # noqa: E402
 import work_ledger  # noqa: E402
-from build_generation_payload import validate_generation_package_carrier_paths  # noqa: E402
+from generation_payload_builder import validate_generation_package_carrier_paths  # noqa: E402
 
 EXPECTED_CHECKS = 100
 
@@ -60,7 +62,7 @@ def cli(*argv: str) -> tuple[int, str, str]:
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
         try:
-            code = studio.main(list(argv))
+            code = studio_cli.main(list(argv))
         except SystemExit as exc:
             code = exc.code
     return code, out.getvalue(), err.getvalue()
@@ -73,7 +75,7 @@ def completes_while_owner_is_locked(owner: Path, action) -> bool:
     failures: list[BaseException] = []
 
     def holder() -> None:
-        with execution_contract.lock(owner):
+        with execution_contract.file_lock(owner):
             held.set()
             release.wait(60)
 
@@ -159,18 +161,18 @@ def package_attachments(tmp: Path, check) -> None:
     generation is performed and none of the source declarations are user consent.
     """
     import adoption_workflow
-    import catalog_cli
+    import catalog_api as catalog_cli
     import pack_manager as pm
-    from build_generation_payload import materialize_cli_reference_bundle
+    from generation_payload_builder import materialize_cli_reference_bundle
     from generation_payload_smoke_test import _write_fixture_pack, _package, PACK_ID, MODEL_ID
-    from prepare_generation_references import prepare_references
-    from verify_generation_payload import verify_content
+    from generation_references import prepare_references
+    from generation_payload_validation import verify_content
     from studio_activity import chronological
     from PIL import Image
 
     base = tmp / 'attachments'; base.mkdir()
     pack = base / 'pack'; _write_fixture_pack(pack)
-    settings = pm.PackSettings(roots=(pack,), state_file=base / 'state.json', cache_dir=base / 'cache',
+    settings = runtime_paths.PackSettings(roots=(pack,), state_file=base / 'state.json', cache_dir=base / 'cache',
         managed_root=base / 'managed', quarantine_root=base / 'quarantine', default_enabled_packs=(PACK_ID,))
     pm.save_state(settings.state_file, {'pack_roots': [], 'enabled_packs': [PACK_ID]})
     catalog_cli.configure_pack_runtime(settings)
@@ -287,7 +289,7 @@ def package_attachments(tmp: Path, check) -> None:
     # A genuine local Production package remains source evidence for a separately
     # imported row even after the run is abandoned. The original projection stays.
     from test_production_adoption import AdoptionTests
-    import production_workflow as workflow
+    import production_operations as workflow
     import production_store as store
     fixture_type = type('AttachmentAdoptionFixture', (AdoptionTests,), {})
     case = fixture_type('test_separate_authorized_adoption_and_completion')
@@ -368,7 +370,7 @@ def regressions(tmp: Path, source: Path, check) -> None:
     recorded(crash, "C06", "a.png")
     before = (crash_home / "iterations.jsonl").read_bytes()
     interrupted = False
-    with mock.patch("os.replace", side_effect=KeyboardInterrupt):
+    with mock.patch("execution_contract.replace_file", side_effect=KeyboardInterrupt):
         try:
             recorded(crash, "C06", "b.png")
         except KeyboardInterrupt:
@@ -387,7 +389,8 @@ def regressions(tmp: Path, source: Path, check) -> None:
         "independent character": lambda: recorded(locked, "C08", "c.png"),
         "gallery projection": lambda: studio.write_gallery(locked),
     }
-    completed = {name: completes_while_owner_is_locked(locked_owner, action) for name, action in actions.items()}
+    completed = {name: completes_while_owner_is_locked(locked_owner / 'iterations.jsonl', action)
+                 for name, action in actions.items()}
     check("an unrelated character and gallery complete while another character owner is locked",
           all(completed.values()) and len(studio.read_iteration_records(locked_owner)) == 2
           and len(studio.read_iteration_records(independent_owner)) == 1
@@ -666,14 +669,14 @@ def main() -> int:
         # This test's explicit synthetic review binds the delivered real fixture
         # bytes. Studio acceptance above remains a separate operation.
         import execution_contract as evidence
-        import production_workflow as production
+        import production_operations as production
         import production_fixtures
         (root / "delivery.txt").write_text("Deliver the selected test image.\n", encoding="utf-8")
         spec = {"task_id": task["task_id"], "route": "development", "features": [], "execution": "external",
                 "sources": [], "world_views": [],
                 "delivery": {"path": "delivery.txt",  "translation_notes": "Synthetic fixture."},
                 "criteria": [{"id": "fixture", "strength": "hard", "text": "Deliver the inspected image fixture."}]}
-        production_fixtures.task(root,spec,artifact="binary",execution="external")
+        production_fixtures.task(root,spec,artifact="binary",execution="external",focus="supporting-setting")
         (root / "production-task.json").write_bytes(evidence.encoded(spec))
         run = production.prepare(root, "production-task.json")["run"]
         production_fixtures.handoff(root, run, "synthetic fixture", "manual")
@@ -718,7 +721,7 @@ def main() -> int:
             "import sys\n"
             f"sys.path.insert(0, {str(ROOT / 'scripts')!r})\n"
             "from pathlib import Path\n"
-            "import studio\n"
+            "import studio_workspace as studio\n"
             "root, tag, image = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])\n"
             "for number in range(8):\n"
             "    studio.iterate(root, 'C02', 'base', image, package=None, request=None,\n"

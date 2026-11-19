@@ -12,6 +12,7 @@ import re
 import stat
 import time
 import threading
+import weakref
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable, Iterator
@@ -19,8 +20,6 @@ from typing import Any, Callable, Iterator
 from io_budget import read_stream
 from private_state import assert_public_path
 SHA = re.compile(r"^[0-9a-f]{64}$")
-# The file `lock` holds in the directory it locks.
-LOCK_FILE = ".cpb.lock"
 # The name `atomic` writes under before it publishes; one left behind is from an interrupted write.
 TEMPORARY_PREFIX = ".pending-"
 # How a file system without hard links refuses one: FAT and exFAT answer EPERM
@@ -68,9 +67,13 @@ def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def decode(raw: bytes) -> Any:
+def decode(raw: bytes, *, owned: bool = False) -> Any:
+    """Parse strict JSON, finishing read-only containers at an owning boundary."""
     def bad(value: str) -> None:
         raise ValueError(f"non-finite JSON number: {value}")
+    if owned:
+        from owned_json import decoded_array, decoded_object
+        return decoded_array(json.loads(raw.decode("utf-8"), object_pairs_hook=decoded_object, parse_constant=bad))
     return json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=bad)
 
 
@@ -99,7 +102,7 @@ _ROOTS: dict[str, tuple[tuple[int, int, bool], Path]] = {}
 
 def _root(root: Path) -> Path:
     """Verify current root ancestry before using a studio-relative path."""
-    root = Path(root).absolute()
+    root = (root if isinstance(root, Path) else Path(root)).absolute()
     key = str(root)
     try:
         info = os.lstat(root)
@@ -208,14 +211,14 @@ def _plain_entries(root: Path, target: Path, rel: PurePosixPath) -> tuple[bool, 
     return True, info
 
 
-def _not_relative(root: Path, relative: str) -> str | None:
+def _not_relative(root: Path, relative: str, parsed: PurePosixPath) -> str | None:
     """Why `relative` names no place below a root, or None when it starts at no drive or root.
 
     The operating system's own path rules decide: on Windows a drive such as
     C: or a leading separator starts the path, elsewhere a leading /. When the
     path lies below `root`, the reason also gives its root-relative form.
     """
-    anchor = (PureWindowsPath(relative) if os.name == "nt" else PurePosixPath(relative)).anchor
+    anchor = (PureWindowsPath(relative) if os.name == "nt" else parsed).anchor
     if not anchor:
         return None
     start = anchor.replace("\\", "/")
@@ -239,12 +242,12 @@ def _located(root: Path, relative: str, exists: bool) -> tuple[Path, os.stat_res
     """Return the checked path and, when the entry check read it, the target's lstat."""
     if not isinstance(relative, str) or not relative:
         raise ValueError("canonical studio-relative POSIX path required")
-    reason = _not_relative(root, relative)
+    rel = PurePosixPath(relative)
+    reason = _not_relative(root, relative, rel)
     if reason is not None:
         raise ValueError(reason)
     if "\\" in relative:
         raise ValueError("canonical studio-relative POSIX path required")
-    rel = PurePosixPath(relative)
     if rel.as_posix() != relative or any(x in {".", ".."} for x in rel.parts):
         raise ValueError("path must remain within the studio")
     assert_public_path(rel)
@@ -407,9 +410,9 @@ def atomic(path: Path, raw: bytes, *, replace: bool = False, durable: bool = Tru
     Durable writes reach disk under a temporary name first. A replacement is a
     rename and a new name is a hard link, so a reader sees the old file or the
     whole new one. A replacing rename waits out a transient permission or handle
-    refusal within a bounded budget. Without hard links, Windows renames the
-    temporary file, which refuses an existing name. Elsewhere a rename would
-    replace, so the new name is created exclusively and written in place. A
+    refusal within a bounded budget. Without hard links, an OS-level exclusive
+    rename publishes the complete temporary file while refusing an existing
+    destination. A
     private staging owner can defer durability until publication. It must flush
     file contents and then directory entries before publishing any part of that
     private tree.
@@ -422,7 +425,8 @@ def atomic(path: Path, raw: bytes, *, replace: bool = False, durable: bool = Tru
     try:
         _create(temp, raw, durable=durable)
         if replace:
-            _patiently(lambda: os.replace(temp, path))
+            retain_replacement_lock(temp, path)
+            _patiently(lambda: replace_file(temp, path))
         else:
             # Exclusive publication is decided by the filesystem operation.
             try:
@@ -430,10 +434,7 @@ def atomic(path: Path, raw: bytes, *, replace: bool = False, durable: bool = Tru
             except OSError as error:
                 if not _no_hard_links(error):
                     raise
-                if os.name == "nt":
-                    os.rename(temp, path)
-                else:
-                    _create(path, raw, durable=durable)
+                _patiently(lambda: _rename_exclusive(temp, path))
         if durable:
             fsync_dir(path.parent)
         from operation_context import current
@@ -449,8 +450,8 @@ def atomic_write_json(path: Path, value: Any) -> None:
     atomic(path, raw, replace=True)
 
 
-def _rename_directory_exclusive(staging: Path, target: Path) -> None:
-    """Use an OS-level no-replace rename, including an empty destination race."""
+def _rename_exclusive(staging: Path, target: Path) -> None:
+    """Publish a complete file or directory with an OS-level no-replace rename."""
     if os.name == 'nt':
         os.rename(staging, target)
         return
@@ -461,7 +462,7 @@ def _rename_directory_exclusive(staging: Path, target: Path) -> None:
     if sys.platform.startswith('linux'):
         function = getattr(libc, 'renameat2', None)
         if function is None:
-            raise OSError(errno.ENOTSUP, 'No exclusive directory rename is available')
+            raise OSError(errno.ENOTSUP, 'No atomic exclusive rename is available')
         function.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
         function.restype = ctypes.c_int
         # AT_FDCWD and RENAME_NOREPLACE are Linux ABI constants.
@@ -469,12 +470,12 @@ def _rename_directory_exclusive(staging: Path, target: Path) -> None:
     elif sys.platform == 'darwin':
         function = getattr(libc, 'renamex_np', None)
         if function is None:
-            raise OSError(errno.ENOTSUP, 'No exclusive directory rename is available')
+            raise OSError(errno.ENOTSUP, 'No atomic exclusive rename is available')
         function.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
         function.restype = ctypes.c_int
         result = function(source, destination, 0x00000004)  # RENAME_EXCL
     else:
-        raise OSError(errno.ENOTSUP, 'No exclusive directory rename is available')
+        raise OSError(errno.ENOTSUP, 'No atomic exclusive rename is available')
     if result != 0:
         number = ctypes.get_errno()
         raise OSError(number, os.strerror(number), str(target))
@@ -499,7 +500,7 @@ def publish_directory(staging: Path, target: Path, *, patience: float = 10.0) ->
                                   phase='publication', file=str(target), source=str(staging),
                                   required_action='Keep the existing destination and select a new output path.')
         try:
-            _rename_directory_exclusive(staging, target)
+            _rename_exclusive(staging, target)
         except OSError as exc:
             if exc.errno in {errno.EEXIST, errno.ENOTEMPTY} or target.exists() or target.is_symlink():
                 raise ProductionError('OUTPUT_ALREADY_EXISTS', 'Another writer occupied the publication destination.',
@@ -542,88 +543,213 @@ def flush_published(target: Path, *, phase: str = 'publication', continuation: s
             required_action=continuation) from exc
 
 
-_thread_locks: dict[str, Any] = {}
-_lock_registry_guard = threading.Lock()
-_held_locks = threading.local()
+_held_file_locks = threading.local()
+# Resource ownership for fork cleanup, not an acquisition cache or a mutex.
+_file_lock_streams: weakref.WeakSet = weakref.WeakSet()
+# Keep the coordination range outside the data so locked bytes remain readable.
+_WINDOWS_LOCK_OFFSET = (1 << 63) - 2
 
 
-def _reset_process_locks() -> None:
-    global _thread_locks, _lock_registry_guard, _held_locks
-    _thread_locks = {}
-    _lock_registry_guard = threading.Lock()
-    _held_locks = threading.local()
+def _reset_file_locks_after_fork() -> None:
+    global _held_file_locks, _file_lock_streams
+    # flock ownership belongs to an open file description inherited by fork.
+    # Close the child's copies; explicitly unlocking would unlock the parent.
+    try:
+        with contextlib.ExitStack() as cleanup:
+            for stream in tuple(_file_lock_streams):
+                cleanup.callback(stream.close)
+    finally:
+        _held_file_locks = threading.local()
+        _file_lock_streams = weakref.WeakSet()
 
 
 if hasattr(os, 'register_at_fork'):
-    os.register_at_fork(after_in_child=_reset_process_locks)
+    os.register_at_fork(after_in_child=_reset_file_locks_after_fork)
 
 
-@contextlib.contextmanager
-def lock(root: Path) -> Iterator[None]:
-    """Protect one mutable owner directory across nested calls and processes.
+def _file_lock_key(path: Path) -> str:
+    return os.path.normcase(os.path.abspath(path))
 
-    Read-only consumers and immutable publication do not use this primitive.
-    The caller chooses the smallest directory that owns its RMW state.
-    """
-    root = root.absolute()
-    root.mkdir(parents=True, exist_ok=True)
-    key = str(root.resolve())
-    with _lock_registry_guard:
-        mutex = _thread_locks.setdefault(key, threading.RLock())
-    with mutex:
-        held = getattr(_held_locks, 'roots', None)
-        if held is None:
-            held = _held_locks.roots = set()
-        if key in held:
-            yield
-            return
-        with _os_lock(root):
-            held.add(key)
+
+def _open_lock_stream(path: Path, *, read_only: bool = False, for_rename: bool = False):
+    """Open an existing data file with sharing that permits its coordinated replacement."""
+    if os.name == 'nt':
+        import ctypes
+        import msvcrt
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        create = kernel.CreateFileW
+        create.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                           wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+        create.restype = wintypes.HANDLE
+        access = 0x80000000 if read_only else 0xC0000000
+        if for_rename:
+            access |= 0x00010000
+        handle = create(str(path), access, 0x7, None, 3, 0x00200000, None)
+        if handle == ctypes.c_void_p(-1).value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            descriptor = msvcrt.open_osfhandle(handle, (os.O_RDONLY if read_only else os.O_RDWR) | os.O_BINARY)
+        except BaseException:
+            close = kernel.CloseHandle
+            close.argtypes = [wintypes.HANDLE]
+            close.restype = wintypes.BOOL
+            close(handle)
+            raise
+    else:
+        descriptor = os.open(path, (os.O_RDONLY if read_only else os.O_RDWR)
+                             | getattr(os, 'O_CLOEXEC', 0) | getattr(os, 'O_NOFOLLOW', 0))
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or getattr(info, 'st_file_attributes', 0) & _REDIRECTED:
+            raise ValueError('file locking requires an existing regular data file')
+        stream = os.fdopen(descriptor, 'rb' if read_only else 'r+b', buffering=0)
+    except BaseException:
+        os.close(descriptor)
+        raise
+    _file_lock_streams.add(stream)
+    return stream
+
+
+def _acquire_file_lock(stream) -> None:
+    if os.name == 'nt':
+        import msvcrt
+        stream.seek(_WINDOWS_LOCK_OFFSET)
+        while True:
             try:
-                yield
-            finally:
-                held.remove(key)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                return
+            except OSError as exc:
+                if exc.errno not in (errno.EACCES, errno.EDEADLOCK):
+                    raise
+                time.sleep(0.05)
+    else:
+        import fcntl
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
 
 
-@contextlib.contextmanager
-def _os_lock(root: Path) -> Iterator[None]:
-    """Cross-process advisory lock; a process crash releases the OS lock."""
-    root.mkdir(parents=True, exist_ok=True)
-    path = local(root, LOCK_FILE, exists=False)
-    with path.open("a+b") as stream:
-        if os.name == "nt":
+def _release_file_lock(stream) -> None:
+    if stream.closed:
+        return
+    try:
+        if os.name == 'nt':
             import msvcrt
-            # Another holder's byte lock refuses a read of that byte, so the
-            # file is sized rather than read before locking. LK_LOCK gives up
-            # after ten one-second attempts with a permission error; the POSIX
-            # branch waits, so wait here as well. Only another holder's lock
-            # is waited out; any other error is raised.
-            if os.fstat(stream.fileno()).st_size == 0:
-                stream.write(b"0")
-                # The first touch of a brand-new lock file can meet a scanner's
-                # transient handle; the flush waits it out like publication does.
-                _patiently(stream.flush)
-            stream.seek(0)
-            while True:
-                try:
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-                    break
-                except OSError as exc:
-                    if exc.errno not in (errno.EACCES, errno.EDEADLOCK):
-                        raise
-                    time.sleep(0.05)
-            try:
-                yield
-            finally:
-                stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            stream.seek(_WINDOWS_LOCK_OFFSET)
+            msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
         else:
             import fcntl
-            fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+            fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    finally:
+        stream.close()
+
+
+@contextlib.contextmanager
+def file_lock(path: Path, *, follow_symlinks: bool = False, read_only: bool = False) -> Iterator[None]:
+    """Own an existing mutable data file across nested calls and processes.
+
+    A waiter verifies the acquired file identity against the current path. A
+    replacement is locked before publication and remains owned by the outer
+    scope. An explicit private alias may follow its current target while
+    retaining the logical destination as owner for a later local replacement.
+    """
+    path = Path(path)
+    path = _root(path.parent) / path.name
+    key = _file_lock_key(path)
+    held = getattr(_held_file_locks, 'paths', None)
+    if held is None:
+        held = _held_file_locks.paths = {}
+    if key in held:
+        yield
+        return
+    while True:
+        source = path.resolve(strict=True) if follow_symlinks else path
+        stream = _open_lock_stream(source, read_only=read_only)
+        try:
+            _acquire_file_lock(stream)
+            current = path.stat() if follow_symlinks else path.lstat()
+            if stat.S_ISLNK(current.st_mode) or getattr(current, 'st_file_attributes', 0) & _REDIRECTED:
+                raise ValueError('file locking requires a regular data path')
+            if os.path.samestat(os.fstat(stream.fileno()), current):
+                break
+        except BaseException:
+            stream.close()
+            raise
+        _release_file_lock(stream)
+    streams = held[key] = [stream]
+    try:
+        yield
+    finally:
+        held.pop(key, None)
+        with contextlib.ExitStack() as cleanup:
+            for owned in streams:
+                cleanup.callback(_release_file_lock, owned)
+
+
+def retain_replacement_lock(source: Path, target: Path) -> None:
+    """Lock the complete replacement before its publication at the owned target."""
+    held = getattr(_held_file_locks, 'paths', None)
+    if not held:
+        return
+    streams = held.get(_file_lock_key(target))
+    if streams is None:
+        return
+    current = Path(target).stat()
+    retained = [stream for stream in streams
+                if os.path.samestat(os.fstat(stream.fileno()), current)]
+    if len(retained) != 1:
+        raise ValueError('the owned data file was replaced outside its update scope')
+    obsolete = [stream for stream in streams if stream is not retained[0]]
+    streams[:] = retained
+    with contextlib.ExitStack() as cleanup:
+        for stream in obsolete:
+            cleanup.callback(_release_file_lock, stream)
+    stream = _open_lock_stream(Path(source))
+    try:
+        _acquire_file_lock(stream)
+    except BaseException:
+        stream.close()
+        raise
+    streams.append(stream)
+
+
+def _rename_open_windows(source: Path, target: Path) -> None:
+    """Rename through a temporary delete handle, leaving the locked handle readable."""
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+    name = str(target.absolute())
+    class RenameInfo(ctypes.Structure):
+        _fields_ = [('Flags', wintypes.DWORD), ('RootDirectory', wintypes.HANDLE),
+                    ('FileNameLength', wintypes.DWORD),
+                    ('FileName', wintypes.WCHAR * (len(name) + 1))]
+    info = RenameInfo()
+    info.Flags = 0x1 | 0x2
+    info.FileNameLength = len(name.encode('utf-16-le'))
+    info.FileName = name
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    setinfo = kernel.SetFileInformationByHandle
+    setinfo.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD]
+    setinfo.restype = wintypes.BOOL
+    stream = _open_lock_stream(source, for_rename=True)
+    try:
+        handle = msvcrt.get_osfhandle(stream.fileno())
+        if not setinfo(handle, 22, ctypes.byref(info), ctypes.sizeof(info)):
+            raise ctypes.WinError(ctypes.get_last_error())
+    finally:
+        stream.close()
+
+
+def replace_file(source: Path, target: Path) -> None:
+    """Publish a replacement while retaining its independent lock handle."""
+    if os.name == 'nt':
+        held = getattr(_held_file_locks, 'paths', None)
+        streams = held.get(_file_lock_key(Path(target))) if held else None
+        if streams:
+            stream = streams[-1]
+            if os.path.samestat(os.fstat(stream.fileno()), Path(source).stat()):
+                _rename_open_windows(Path(source), Path(target))
+                return
+    os.replace(source, target)
 
 
 def object_store(run: Path, raw: bytes) -> str:

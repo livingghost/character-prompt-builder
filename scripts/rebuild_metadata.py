@@ -10,14 +10,6 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Sequence
 
-from catalog_cli import (
-    canonical_domain,
-    catalog_stats,
-    configure_pack_runtime,
-    load_entries,
-    load_pack_catalog,
-    record_tier,
-)
 from execution_contract import atomic, sha256_file
 from integration_contract import (
     content_hash,
@@ -37,7 +29,6 @@ from package_metadata import (
     iter_release_files,
     load_package_metadata,
 )
-from pack_manager import PackSettings
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -94,7 +85,7 @@ def rebuild_implementation_index() -> list[str]:
     The digest of each module is written beside the list, so a preparation can
     tell an index written for other sources from the current one.
     """
-    import production_workflow
+    import production_operations as production_workflow
     from execution_contract import sha256_file
     files = production_workflow.implementation_closure()
     sources = {path: sha256_file(ROOT / path) for path in files if path.endswith(".py")}
@@ -235,6 +226,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Generate without writing and report every artifact that differs from the tree.",
     )
     arguments = parser.parse_args(argv)
+    from catalog_api import canonical_domain, catalog_stats, configure_pack_runtime, load_entries, load_pack_catalog, record_tier
+    from runtime_paths import PackSettings
     if arguments.check:
         _CAPTURED = {}
     metadata = load_package_metadata(ROOT)

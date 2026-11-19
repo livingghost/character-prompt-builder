@@ -12,7 +12,7 @@ import tempfile
 from typing import Any
 
 import execution_contract as c
-import prepare_generation_references as references
+import generation_references as references
 
 
 FIELDS = frozenset({'transport_mode', 'max_side', 'reference_use_plan',
@@ -20,6 +20,7 @@ FIELDS = frozenset({'transport_mode', 'max_side', 'reference_use_plan',
     'source_files'})
 PLAN_ITEM_FIELDS = frozenset({'canonical_record_id', 'intended_influence', 'asset_id',
     'artifact_id', 'technical_role', 'source'})
+PLAN_SCOPE_FIELDS = frozenset({'selected_controls', 'control_expressions'})
 
 
 def _image_plan(binding: dict) -> dict:
@@ -30,7 +31,7 @@ def _image_plan(binding: dict) -> dict:
     plan['artifact_type'] = 'image-input-plan'
     external = plan.get('external_request')
     if external is not None:
-        for name in ('request', 'schema_validation', 'prompt_check'):
+        for name in ('request', 'request_sha256', 'schema_validation', 'prompt_check'):
             external.pop(name, None)
     return plan
 
@@ -101,15 +102,18 @@ def draft(prepared: dict | None, *, package_root: Path, root: Path | None = None
     plan = prepared['reference_use_plan']
     authored_plan = None
     if plan is not None:
+        from reference_contract import recorded_selected_controls
         surface = copy.deepcopy(plan['surface_lighting_plan'])
         for field in ('artifact_type', 'plan_id', 'source_evidence_roles', 'surface_lighting_plan_sha256'):
             surface.pop(field, None)
         authored_plan = {
             'items': [{key: copy.deepcopy(value) for key, value in item.items()
-                       if key in PLAN_ITEM_FIELDS or key == 'subject_uses'} for item in plan['reference_items']],
+                       if key in PLAN_ITEM_FIELDS or key in PLAN_SCOPE_FIELDS or key == 'subject_uses'} for item in plan['reference_items']],
             'unavailable_record_uses': (copy.deepcopy(plan['selected_records']) if not plan['reference_items'] else []),
             'surface_lighting': surface,
         }
+        for choice, item in zip(authored_plan['items'], plan['reference_items'], strict=True):
+            choice['selected_controls'] = recorded_selected_controls(item)
     state = copy.deepcopy(prepared['reference_selection'])
     if state is not None:
         state.pop('selection_sha256', None)
@@ -128,6 +132,10 @@ def draft(prepared: dict | None, *, package_root: Path, root: Path | None = None
             'image_input': _image_plan(binding) if binding is not None else {} if mirrored_input else None,
             'zero_reference_reason': copy.deepcopy(prepared['zero_reference_reason']),
             'source_files': {}}
+    from reference_delivery import reference_id
+    if prepared['selected_references']:
+        for choice, row in zip(_authored_rows(result), prepared['selected_references'], strict=True):
+            choice.setdefault('id', reference_id(row))
     # Supplied-file bytes are observations of a selected path, not an extra
     # authoring choice. Keep their original witnesses separate so selecting a
     # different file never asks the author to repair a generated checksum.
@@ -248,7 +256,7 @@ def _plan(value: Any, *, mode: str, model: str, zero_reason: dict | None,
     items = []
     selected = []
     for index, raw in enumerate(value['items']):
-        c.exact(raw, set(PLAN_ITEM_FIELDS) | (set(raw) & {'id', 'subject_uses'}),
+        c.exact(raw, set(PLAN_ITEM_FIELDS) | (set(raw) & ({'id', 'subject_uses'} | PLAN_SCOPE_FIELDS)),
                 'reference plan item')
         item = copy.deepcopy(raw)
         if 'id' in item:
@@ -258,8 +266,25 @@ def _plan(value: Any, *, mode: str, model: str, zero_reason: dict | None,
         record = {'record_id': raw['canonical_record_id'], 'intended_influence': raw['intended_influence']}
         if 'subject_uses' in raw:
             record['subject_uses'] = copy.deepcopy(raw['subject_uses'])
-        if record not in selected:
+        for key in PLAN_SCOPE_FIELDS:
+            if key in raw:
+                record[key] = copy.deepcopy(raw[key])
+        existing = next((row for row in selected if all(row.get(key) == record.get(key)
+                         for key in ('record_id', 'intended_influence', 'subject_uses'))), None)
+        if existing is None:
             selected.append(record)
+        else:
+            if 'selected_controls' in existing and 'selected_controls' in record:
+                existing['selected_controls'] = list(dict.fromkeys(
+                    existing['selected_controls'] + record['selected_controls']))
+            else:
+                existing.pop('selected_controls', None)
+            if 'control_expressions' in record:
+                expressions = existing.setdefault('control_expressions', {})
+                for key, text in record['control_expressions'].items():
+                    if key in expressions and expressions[key] != text:
+                        raise ValueError('one selected record contribution has conflicting input wording: ' + key)
+                    expressions[key] = text
     if items and value['unavailable_record_uses']:
         raise ValueError('unavailable record uses require an explicit resolution before model-facing preparation')
     if not items:
@@ -282,13 +307,13 @@ def _plan(value: Any, *, mode: str, model: str, zero_reason: dict | None,
 
 def _authored_rows(choices: dict) -> list[dict]:
     """Follow the native source owners' compiled order without duplicating scopes."""
-    native = choices['image_input']
+    native = choices.get('image_input')
     if native is not None and 'references' in native:
         return list(native['references'])
-    result = list((choices['reference_use_plan'] or {}).get('items', []))
-    result += [row for row in (choices['reference_selection'] or {}).get('selected_references', [])
+    result = list((choices.get('reference_use_plan') or {}).get('items', []))
+    result += [row for row in (choices.get('reference_selection') or {}).get('selected_references', [])
                if row['source']['kind'] != 'pack-artifact']
-    result += choices['additional_references']
+    result += choices.get('additional_references') or []
     return result
 
 
@@ -382,6 +407,75 @@ def identify_choices(choices: dict) -> bool:
             if not row.get('id'):
                 row['id']='reference-'+generate_uuid7();changed=True
     return changed
+
+
+def text_guide(choices: dict) -> dict:
+    """Expose actual selected wording and editable markers before compilation.
+
+    Attachment positions and board rectangles are transport results. This
+    source view names their slots without fabricating those values or requiring
+    incomplete drafts to resolve source bytes merely to read the editing guide.
+    """
+    from reference_contract import authority_for, control_capabilities
+    selections = []
+    ordinary = (choices.get('authoring') or {}).get('references')
+    external = choices.get('external') or {}
+    if isinstance(ordinary, dict):
+        selections.append(('authoring.references', ordinary))
+    canonical = (external.get('reference_delivery') or {}).get('choices')
+    if isinstance(canonical, dict):
+        selections.append(('external.reference_delivery.choices', canonical))
+    elif isinstance(external.get('image_input'), dict):
+        selections.append(('external.image_input', {'image_input': external['image_input']}))
+    result = []
+    for owner, selected in selections:
+        native = selected.get('image_input')
+        rows = _authored_rows(selected)
+        canonical_items = (selected.get('reference_use_plan') or {}).get('items', [])
+        for row in rows:
+            identifier = row.get('id') or (row.get('source') or {}).get('reference_id') or row.get('binding_id')
+            if not identifier:
+                continue
+            controls = None
+            available = None
+            if isinstance(native, dict) and 'use_for' in row:
+                controls = row['use_for']
+            elif row in canonical_items:
+                try:
+                    available = control_capabilities(row['intended_influence'], row['technical_role'])
+                    if row.get('selected_controls') is not None:
+                        controls = authority_for(row['technical_role'], row['intended_influence'],
+                            selected_controls=row['selected_controls'],
+                            control_expressions=row.get('control_expressions'))['controls']
+                except (KeyError, TypeError, ValueError):
+                    pass
+            elif 'binding_id' in row:
+                try:
+                    from reference_contract import state_authority_for
+                    controls = state_authority_for(row['intended_influence'])['controls']
+                except (KeyError, TypeError, ValueError):
+                    pass
+            elif row.get('role'):
+                try:
+                    controls = references.direct_reference_authority(row['role'], row.get('subject_uses', []))['controls']
+                except (KeyError, TypeError, ValueError):
+                    pass
+            fields = ['attachment_number', 'controls']
+            if selected.get('transport_mode') == 'single-board':
+                fields.append('region')
+            result.append({'owner': owner, 'reference_id': identifier,
+                'markers': {field: '{{reference:' + identifier + ':' + field + '}}' for field in fields},
+                'selected_controls': copy.deepcopy(controls),
+                'controls_text': ', '.join(controls) if isinstance(controls, list) else None,
+                'available_controls': available,
+                'derived_locations': ['attachment_number'] + (['region'] if 'region' in fields else [])})
+    return {'document_path': 'references/runtime/reference-delivery.md#author-the-consumed-reference-direction',
+            'source_owner': 'Write the reference direction in the existing editable delivery prompt.',
+            'slots': result,
+            'preview': 'reference_delivery.py --prepared-set FILE --prompt-file SOURCE --out RESOLVED; '
+                       'external plans use --image-input-plan FILE --studio STUDIO.',
+            'meaning': 'Current source choices and editable marker slots. Preparation derives actual image positions '
+                       'and board regions, expands the selected scopes, then checks the final model text.'}
 
 
 def _input_references(choices: dict, prepared: dict, *, publication_dir: str,
@@ -498,7 +592,7 @@ def build(choices: dict, *, model: str, root: Path, output_dir: Path, reader=Non
             plan = _plan(choices['reference_use_plan'], mode=mode, model=model,
                 zero_reason=choices['zero_reference_reason'], root=root, reader=reader, source_files=source_files)
             if plan is not None:
-                from reference_runtime import execute_reference_use_plan
+                from reference_plan_runtime import execute_reference_use_plan
                 prepared = execute_reference_use_plan(plan, output_dir=work / 'prepared',
                     reference_selection=state, additional_references=direct, max_side=maximum)
                 source_root = work / 'prepared'
@@ -520,7 +614,7 @@ def build(choices: dict, *, model: str, root: Path, output_dir: Path, reader=Non
         for choice,row in zip(rows,prepared['selected_references'],strict=True):
             row['reference_id']=choice['id']
         prepared=references.finalize_prepared_reference_set(prepared,package_root=source_root)
-        from build_generation_payload import materialize_cli_reference_bundle
+        from generation_payload_builder import materialize_cli_reference_bundle
         staged = work / 'output'
         staged.mkdir()
         portable, _ = materialize_cli_reference_bundle(prepared, model=model, source_root=source_root,

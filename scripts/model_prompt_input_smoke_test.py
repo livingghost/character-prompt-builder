@@ -192,7 +192,7 @@ class PromptInputTests(unittest.TestCase):
                                   dialect=None if target else "fixture-family", list=False,
                                   dialects=None, guide=None, weighting=None, service=None, mode=None)
         output = io.StringIO()
-        with patch("prepare_generation_references.resolve_model_record", return_value=(args.model, target)), \
+        with patch('generation_references.resolve_model_record', return_value=(args.model, target)), \
              patch.object(prompt_dialect, "resolve_resource", return_value=None), \
              patch.object(prompt_dialect, "find_dialect", return_value={"id": "fixture-family"}), \
              patch("model_suitability.guidance_card", return_value={}), redirect_stdout(output):

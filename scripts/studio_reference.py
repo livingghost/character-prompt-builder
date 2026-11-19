@@ -8,6 +8,7 @@ A command-line failure prints {"ok": false, "diagnostics": [...]} with the exit
 status its codes select in production_diagnostics.
 """
 from __future__ import annotations
+import read_context
 import operation_context as _operation_context
 import copy
 from datetime import datetime
@@ -17,11 +18,10 @@ import re
 from typing import Any, Mapping, TYPE_CHECKING
 
 import execution_contract as c
-import runtime_snapshot
 from owned_json import mutable
 
 if TYPE_CHECKING:
-    from studio import StudioRead
+    from studio_workspace import StudioRead
 
 SOURCE_FIELDS = frozenset({'kind', 'studio_root', 'studio_id', 'character', 'sheet', 'slot',
     'artifact_id', 'acceptance_sha256', 'proof_sha256', 'resolved_path', 'media_type', 'sha256'})
@@ -49,10 +49,10 @@ class ReferenceReads:
         self._studios: dict[str, tuple[object | None, StudioRead]] = {}
 
     def studio(self, root: Path) -> StudioRead:
-        import studio
+        import studio_workspace as studio
         root = studio.require_studio(root).resolve()
         identity = str(root)
-        scope = runtime_snapshot.check_scope(root)
+        scope = read_context.check_scope(root)
         phase = None
         if scope is not None:
             key = ('studio-read-phase', identity)
@@ -68,7 +68,7 @@ class ReferenceReads:
 
 def reference_reads() -> ReferenceReads:
     """Acquire the reference owner at a public API's current read boundary."""
-    scope = runtime_snapshot.call_scope()
+    scope = read_context.call_scope()
     if scope is None:
         return ReferenceReads()
     key = ('studio-reference-reads',)
@@ -103,7 +103,7 @@ def _owner(source: Mapping[str, Any]) -> None:
             raise ValueError('Studio reference ' + key + ' must be a nonzero hash')
     if not ID.fullmatch(source['slot']):
         raise ValueError('Studio reference slot requires a canonical identifier')
-    import studio
+    import studio_workspace as studio
     if not studio.valid_character_id(source['character']):
         raise ValueError('Studio reference requires a canonical Studio character ID')
     _origin_root(source['studio_root'])
@@ -133,7 +133,7 @@ def is_studio_source(source: Mapping[str, Any]) -> bool:
 
 
 def _accepted_owner(source: Mapping[str, Any]) -> None:
-    import studio
+    import studio_workspace as studio
     c.exact(source, ACCEPTED_SOURCE_FIELDS, 'accepted Studio image source')
     for key in ('studio_root', 'studio_id', 'character', 'slot', 'iteration_id', 'resolved_path', 'media_type'):
         c.text(source[key], 'accepted Studio image ' + key)
@@ -209,8 +209,8 @@ def _accepted_proof(proof: Mapping[str, Any]) -> None:
 
 def _load_accepted(root: Path, character: str, slot: str, *, read) -> tuple[dict, dict]:
     """Resolve the Studio slot's actual acceptance without requiring canonical adoption."""
-    import studio
-    from prepare_generation_references import detect_image_media_type
+    import studio_workspace as studio
+    from generation_references import detect_image_media_type
     studio.validate_recording_target(root, character, slot, writable=False, read=read)
     matches = [row for row in read.adoption_rows(character)
                if studio.placement_slot(row) == slot and row.get('status') == 'accepted']
@@ -226,7 +226,7 @@ def _load_accepted(root: Path, character: str, slot: str, *, read) -> tuple[dict
     origin = row.get('production')
     production = None
     if origin is not None:
-        import production_workflow as workflow
+        import production_operations as workflow
         loaded = read.run(origin['run'])
         _, prepared, _, records = loaded
         chosen = workflow.find(records, 'candidate', origin['candidate'])
@@ -247,7 +247,7 @@ def _load_accepted(root: Path, character: str, slot: str, *, read) -> tuple[dict
 
 
 def _read_accepted(root: Path, character: str, slot: str, *, read=None) -> tuple[dict, dict]:
-    import studio
+    import studio_workspace as studio
     root = studio.require_studio(root)
     if str(root.resolve()) != str(root) or any(path.is_symlink() for path in [root, *root.parents]):
         raise ValueError('Studio reference root must be canonical and must not traverse a symlink')
@@ -256,10 +256,10 @@ def _read_accepted(root: Path, character: str, slot: str, *, read=None) -> tuple
     return read.accepted_reference_view(character, slot)
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def current_accepted_source(root: Path, character: str, slot: str, *, read=None) -> dict:
     """Pin a current slot acceptance as scene evidence, without granting identity authority."""
-    import studio
+    import studio_workspace as studio
     root = studio.require_studio(root).absolute()
     source, _ = _read_accepted(root, character, slot, read=read)
     _accepted_owner(source)
@@ -269,7 +269,7 @@ def current_accepted_source(root: Path, character: str, slot: str, *, read=None)
 def _validate_accepted_source(source: Mapping[str, Any], *, active: bool,
                               source_archive: Path | None, read=None, reads=None) -> dict:
     if active:
-        import studio
+        import studio_workspace as studio
         root = studio.require_studio(Path(source['studio_root']))
         read = read or (reads or reference_reads()).studio(root)
         expected, proof = _read_accepted(root, source['character'], source['slot'], read=read)
@@ -329,7 +329,7 @@ def _decision(accepted: dict, sheet_root: Path, owner_sheet: str, slot: str, *, 
 
 
 def _read_current(root: Path, character: str, slot: str, *, read=None) -> tuple[dict, dict]:
-    import studio
+    import studio_workspace as studio
     root = studio.require_studio(root)
     if str(root.resolve()) != str(root) or any(p.is_symlink() for p in [root, *root.parents]):
         raise ValueError('Studio reference root must be canonical and must not traverse a symlink')
@@ -339,7 +339,7 @@ def _read_current(root: Path, character: str, slot: str, *, read=None) -> tuple[
 
 
 def _load_current(root: Path, character: str, slot: str, *, read) -> tuple[dict, dict]:
-    import studio
+    import studio_workspace as studio
     import sheet_artifacts as fills
     import adoption_workflow as adoption
     home = read.home(character)
@@ -397,7 +397,7 @@ def _load_current(root: Path, character: str, slot: str, *, read) -> tuple[dict,
             fills._production_decision(provenance, decision, sheet, loaded=loaded)
             adoption.require_production_claim(root, character, row, initial, decision['basis']['claim'], read=read)
             adoption.require_production_claim(root, character, row, approval, journal.get('production_claim'), read=read)
-            import production_workflow as workflow
+            import production_operations as workflow
             _, _, _, records = loaded
             workflow._studio_adoption_result(
                 {'character': character, 'iteration_id': iteration, 'scope': approval['scope']},
@@ -412,17 +412,17 @@ def _load_current(root: Path, character: str, slot: str, *, read) -> tuple[dict,
     return _source(proof), proof
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def current_source(root: Path, character: str, slot: str, *, read=None) -> dict:
     """Resolve a current selection; read all IDs and hashes from authoritative records."""
-    import studio
+    import studio_workspace as studio
     root = studio.require_studio(root).absolute()
     source, _ = _read_current(root, character, slot, read=read)
     _owner(source)
     return mutable(source)
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def validate_source(source: Any, *, active: bool = True, source_archive: Path | None = None,
                     read=None, reads: ReferenceReads | None = None) -> dict:
     """Live current-selection validation or recorded byte evidence, never a fallback between them."""
@@ -433,7 +433,7 @@ def validate_source(source: Any, *, active: bool = True, source_archive: Path | 
         return _validate_accepted_source(source, active=active, source_archive=source_archive,
                                          read=read, reads=reads)
     if active:
-        import studio
+        import studio_workspace as studio
         root = studio.require_studio(Path(source['studio_root']))
         read = read or (reads or reference_reads()).studio(root)
         expected, proof = _read_current(root, source['character'], source['slot'], read=read)
@@ -471,17 +471,17 @@ def _artifact_files(artifact: dict, root: Path, result: dict[str, bytes], seen: 
         _artifact_files(parent, root, result, seen)
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def archive_source(source: dict, companion: Path, *, read=None) -> list[dict]:
     """Copy exact approval and transitive artwork evidence into one portable companion."""
     import sheet_artifacts as fills
-    import studio
+    import studio_workspace as studio
     from publication_artifacts import ArtifactSet
     if source.get('kind') == 'studio-accepted-image':
         return _archive_accepted_source(source, companion, read=read)
     artifacts = ArtifactSet(companion)
     root = studio.require_studio(Path(source['studio_root']))
-    with runtime_snapshot.public_call():
+    with read_context.public_call():
         read = read or reference_reads().studio(root)
         proof = validate_source(source, read=read)
         sheet_root = Path(source['studio_root']) / PurePosixPath(source['sheet']).parent
@@ -528,12 +528,12 @@ def identity_source(source: dict, *, root: Path, character_id: str | None, read=
     return proof
 
 
-@runtime_snapshot.operation
+@read_context.operation
 def build_binding(root: Path, character: str, slot: str, *, scope: dict, identity: dict,
                   era: dict | None = None, appearance: dict | None = None, snapshot: dict | None = None) -> dict:
     """Combine an authored scope with actual accepted image and supplied state contracts."""
     from state_protocol import artifact_hash, finalize_artifact, validate_artifact
-    import studio
+    import studio_workspace as studio
     root = studio.require_studio(root)
     c.exact(scope, {'binding_id', 'role', 'effective_story_range', 'visibly_supported_state',
                    'unsupported_or_occluded_state', 'intended_influence', 'unsupported_assumptions', 'review_dimensions'}

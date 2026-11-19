@@ -46,17 +46,18 @@ def reviewed(root:Path, plan:dict|None=None,*,out='masks/a',guidance:bool=True) 
 
 def production(root:Path,runtime_root:Path)->dict:
     import production_case_fixtures as f
-    import pack_manager as packs
+    import production_fixtures
     from catalog_retrieval import runtime
-    from prepare_generation_references import prepare_references
+    from generation_references import prepare_references
     from reading_fixtures import task_reading
     from request_validation_fixtures import fixture_validation
     from prompt_retrieval import settle_retrieval_record
-    case=f.create(root,runtime_root)
-    models=c.load(case['pack']/'records/models.json')
-    model=models['records'][0]
-    model['offerings'][0]['request_keys']['mask image']=['mask_image']
-    f.write(case['pack']/'records/models.json',models);packs.write_lock(case['pack']);runtime.configure_pack_runtime(case['settings'])
+    from smoke_fixtures import fixture_reference_prompt, fixture_resolved_prompt
+    def configure_pack(pack):
+        models=c.load(pack/'records/models.json')
+        models['records'][0]['offerings'][0]['request_keys']['mask image']=['mask_image']
+        f.write(pack/'records/models.json',models)
+    case=f.create(root,runtime_root,configure_pack=configure_pack)
     binding=reviewed(root)
     task=c.load(root/'task.json')
     task['features'].append(masks.FEATURE)
@@ -68,9 +69,14 @@ def production(root:Path,runtime_root:Path)->dict:
                        'reference_id':'synthetic-scene-source','resolved_path':str(root/'source.png')}}],
                        model=f.MODEL_ID,output_dir=root/'source-preparation')
     f.write(root/'references.json',references);task['generation']['references']='references.json'
+    prompt = fixture_reference_prompt((root / 'prompt.txt').read_text(encoding='utf-8'), references)
+    f.write(root / 'prompt.txt', prompt)
     params=c.load(root/'parameters.json');params['strength']=.7;f.write(root/'parameters.json',params)
     retrieval=c.load(root/'retrieval.json');retrieval['pack_state']=runtime.load_pack_catalog().fingerprint
-    f.write(root/'retrieval.json',settle_retrieval_record(retrieval,prompt=(root/'prompt.txt').read_text(encoding='utf-8'),plot=c.load(root/'plot.json')))
+    f.write(root/'retrieval.json',settle_retrieval_record(retrieval,
+        prompt=fixture_resolved_prompt(prompt, references),plot=c.load(root/'plot.json')))
     f.write(root/'validation.json',fixture_validation(root,f.MODEL_ID,reference_mode='authored-rendition',service='synthetic'))
-    task_reading(root,task);f.write(root/'task.json',task)
+    task_reading(root,task)
+    production_fixtures.bind_work_basis(root, task)
+    f.write(root/'task.json',task)
     return case

@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 import io
 import json
+import os
+import read_context
 from pathlib import Path
 import tempfile
 import unittest
@@ -11,7 +13,7 @@ from unittest.mock import patch
 import execution_contract as c
 import production_case_fixtures as fixtures
 import production_execution as execution
-import production_workflow as workflow
+import production_operations as workflow
 import production_store as store
 import execution_lifecycle as accounting
 import transport_synthetic
@@ -34,16 +36,74 @@ def decisions(root: Path, run: str) -> str:
     return path
 
 
+class FixtureConstructionTests(unittest.TestCase):
+    def test_complete_case_issues_one_selected_reading_and_binds_final_task(self):
+        import production_fixtures
+        import route_reading
+        from catalog_retrieval import runtime
+
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        base = Path(temporary.name)
+        self.enterContext(production_fixtures.scratch_home(base / 'home'))
+        self.enterContext(patch.dict(os.environ))
+        self.addCleanup(runtime.configure_pack_runtime, None)
+        bound_tasks = []
+        original_bind = production_fixtures.bind_work_basis
+
+        def bind(root, task, **options):
+            bound_tasks.append(copy.deepcopy(task))
+            return original_bind(root, task, **options)
+
+        with patch.object(route_reading, 'issue', wraps=route_reading.issue) as issue, \
+                patch.object(production_fixtures, 'bind_work_basis', side_effect=bind) as binding:
+            case = fixtures.create(base / 'studio', base / 'runtime', with_authority=False)
+
+        self.assertEqual(issue.call_count, 1)
+        self.assertEqual(binding.call_count, 1)
+        root, task = case['root'], case['task']
+        for field in ('generation', 'recording', 'authority', 'route_reading'):
+            self.assertEqual(bound_tasks[0][field], task[field], field)
+        self.assertEqual(bound_tasks[0]['direction']['decisions'], task['direction']['decisions'])
+        self.assertEqual(bound_tasks[0]['direction']['decisions'][0]['expression'], 'flat graphic portrait')
+        self.assertIsNone(task['authority'])
+        self.assertEqual(task['route_reading'], 'reading.json')
+        self.assertEqual(issue.call_args.kwargs['ledger'], root / 'work/reads.jsonl')
+        record = c.load(root / task['route_reading'])
+        self.assertEqual((record['model']['id'], record['model']['service']),
+                         (fixtures.MODEL_ID, 'synthetic'))
+        model = next(entry.record for entry in runtime.load_pack_catalog().entries
+                     if entry.record.get('id') == fixtures.MODEL_ID)
+        os.environ.pop('CPB_READS_LEDGER', None)
+        row = route_reading.require_route_reading(record, studio=root, routes={'generation'},
+            operation='prepare', execution='dispatcher', model_record=model, service='synthetic')
+        self.assertEqual(row['key_sha256'], c.digest(record['reading_key'].encode('ascii')))
+        (root / 'work/reads.jsonl').unlink()
+        with self.assertRaisesRegex(ValueError, 'no issuance row'):
+            route_reading.require_route_reading(record, studio=root)
+
+
 class ExecutionTests(unittest.TestCase):
+    @staticmethod
+    def build(base):
+        case = fixtures.create(base / 'studio', base / 'runtime')
+        return case, {'run': workflow.prepare(case['root'], 'task.json')['run']}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = fixtures.CaseTemplate.for_class(cls, cls.build)
+
     def setUp(self):
+        from production_compiler import published_preparation
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         base = Path(self.temp.name)
-        self.case = fixtures.create(base / 'studio', base / 'runtime')
+        self.case, metadata = fixtures.CaseTemplate.for_test(self, base, self.build, self._case_template)
         self.root = self.case['root']
-        self.prepared = workflow.prepare(self.root, 'task.json')
-        self.run = self.prepared['run']
+        self.run = metadata['run']
+        self.prepared = published_preparation(self.root, self.run)
 
+    @fixtures.cold_case
     def test_execute_registers_candidate_and_records_results_once(self):
         result = execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
         self.assertEqual(result['runs'][0]['capture'], 'complete')
@@ -347,12 +407,22 @@ class ExecutionTests(unittest.TestCase):
 
 class ExternalEffectAccountingTests(unittest.TestCase):
     """Local fixture fees verify actual per-effect accounting, never provider billing."""
+    @staticmethod
+    def build(base):
+        case = fixtures.create(base / 'studio', base / 'runtime', with_upscale=True)
+        return case, {}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = fixtures.CaseTemplate.for_class(cls, cls.build)
+
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         base=Path(self.temp.name)
-        case=fixtures.create(base/'studio',base/'runtime',with_upscale=True)
+        case, _ = fixtures.CaseTemplate.for_test(self, base, self.build, self._case_template)
         self.root=case['root']
+        # The sealed request names private source-media paths in this Studio.
         self.task_path=fixtures.upscale_task(self.root)
         self.run=workflow.prepare(self.root,self.task_path)['run']
         self.decision=decisions(self.root,self.run)
@@ -377,6 +447,7 @@ class ExternalEffectAccountingTests(unittest.TestCase):
     def recorded(self):
         return accounting.summary(self.root)
 
+    @fixtures.cold_case
     def test_upload_and_send_actuals_are_added_once(self):
         with patch.object(transport_synthetic,'upload_media',side_effect=self.uploader()),patch.object(transport_synthetic,'send',side_effect=self.sender()):
             execution.execute(self.root,self.run,decisions_file=self.decision)
@@ -429,28 +500,49 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         self.assertTrue(result['execution_completed'])
         self.assertEqual(self.recorded()['reported_cost'],{'USD':'0.4'})
 
-    def test_changed_archived_member_after_upload_blocks_send_and_preserves_its_receipt(self):
+    def test_upload_and_send_keep_owned_runtime_and_new_audit_detects_archive_damage(self):
         import runtime_snapshot
+        import request_contract as rc
         descriptor=workflow.read_run(self.root,self.run).prepared['runtime_snapshot']
+        rendered=execution.compiled(self.root,self.run)[5]
         directory=runtime_snapshot.path(self.root,descriptor)
         snapshot=c.load(directory/'snapshot.json')
         pack,relative=sorted((pack['pack_id'],item['path']) for pack in snapshot['packs'] for item in pack['files'])[0]
         member=directory/'packs'/pack/relative
         original=member.read_bytes()
         upload=self.uploader()
+        sender=self.sender()
+        media_bytes=Path(rendered['media'][0]['path']).read_bytes()
+        uploaded={}
 
         def upload_then_change_archive(*args,**kwargs):
+            self.assertEqual(args[0],media_bytes)
             result=upload(*args,**kwargs)
-            # The preflight and upload boundary already acquired the original
-            # metadata. Identical metadata must not hide a changed member.
+            uploaded[0]=result['provider_id']
             member.write_bytes(original+b'\n')
             return result
 
-        with patch.object(transport_synthetic,'upload_media',side_effect=upload_then_change_archive), \
-                patch.object(transport_synthetic,'send',side_effect=AssertionError('Corrupt runtime must not send')):
+        def send_owned_request(*args,**kwargs):
+            self.assertIs(runtime_snapshot.acquire_runtime(directory,descriptor),owned)
+            self.assertEqual(owned.read_pack(pack,relative),original)
+            expected=rc.materialize(rendered,uploaded)
+            # Only the declared per-request identifiers are assigned at send.
+            for field in rendered['layout']['management']:
+                rc.put(expected,field,rc.get(args[0],field))
+            self.assertEqual(args[0],expected)
+            return sender(*args,**kwargs)
+
+        with read_context.public_call():
+            owned=runtime_snapshot.acquire_runtime(directory,descriptor)
+            with patch.object(transport_synthetic,'upload_media',side_effect=upload_then_change_archive) as upload_call, \
+                    patch.object(transport_synthetic,'send',side_effect=send_owned_request) as send:
+                result=execution.execute(self.root,self.run,decisions_file=self.decision)
+            self.assertTrue(result['execution_completed'],result)
+            self.assertEqual((upload_call.call_count,send.call_count),(1,1))
+            self.assertEqual(owned.read_pack(pack,relative),original)
             with self.assertRaises(ProductionError) as caught:
-                execution.execute(self.root,self.run,decisions_file=self.decision)
-        self.assertEqual(caught.exception.diagnostic.code,'RUNTIME_SNAPSHOT_CORRUPT')
+                runtime_snapshot.acquire_runtime(directory,descriptor,force_verify=True)
+            self.assertEqual(caught.exception.diagnostic.code,'RUNTIME_SNAPSHOT_CORRUPT')
         rows=store.event_rows(self.root,self.run)
         claim=workflow.find(rows,'dispatch-claim')
         journal=self.root/claim['data']['journal']
@@ -461,21 +553,19 @@ class ExternalEffectAccountingTests(unittest.TestCase):
         self.assertEqual(receipt['provider_id'],receipt['response']['media_id'])
         self.assertEqual(receipt['usage'],{'currency':'USD','amount':'0.1','final':True})
         steps=[row['data']['step'] for row in rows if row['event']=='external-step']
-        self.assertEqual(steps,['upload:0'])
+        self.assertEqual((steps.count('upload:0'),steps.count('send')),(1,1))
         effects=[row['data'] for row in rows if row['event']=='external-effect-result']
-        self.assertEqual(len(effects),1)
-        self.assertEqual(effects[0]['step'],'upload:0')
-        self.assertEqual(effects[0]['evidence'][0]['sha256'],c.digest(receipt_bytes))
-        self.assertFalse((journal/'answer.json').exists())
+        self.assertEqual(len(effects),3)
+        upload_effect=next(item for item in effects if item['step']=='upload:0')
+        self.assertEqual(upload_effect['evidence'][0]['sha256'],c.digest(receipt_bytes))
+        self.assertTrue((journal/'answer.json').exists())
         recorded=self.recorded()
-        self.assertEqual(recorded['reported_cost'],{'USD':'0.1'})
-        self.assertEqual((recorded['submissions'],recorded['captured_outputs']),(0,0))
+        self.assertEqual(recorded['reported_cost'],{'USD':'0.4'})
+        self.assertEqual((recorded['submissions'],recorded['captured_outputs']),(1,1))
 
-        with patch.object(transport_synthetic,'upload_media',side_effect=AssertionError('Do not repeat the completed upload')), \
-                patch.object(transport_synthetic,'send',side_effect=AssertionError('Do not send with the corrupt archive')):
-            with self.assertRaises(ProductionError) as resumed:
-                execution.resume(self.root,self.run)
-        self.assertEqual(resumed.exception.diagnostic.code,'RUNTIME_SNAPSHOT_CORRUPT')
+        with read_context.public_call(), self.assertRaises(ProductionError) as audited:
+            workflow.assert_current(self.root,self.run)
+        self.assertEqual(audited.exception.diagnostic.code,'RUNTIME_SNAPSHOT_CORRUPT')
         self.assertEqual(receipt_path.read_bytes(),receipt_bytes)
         self.assertEqual(self.recorded(),recorded)
 

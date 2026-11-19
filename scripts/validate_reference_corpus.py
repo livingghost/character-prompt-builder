@@ -15,9 +15,9 @@ sys.dont_write_bytecode = True
 
 from execution_contract import sha256_file
 from visual_evidence import validate_bundle
-from catalog_cli import load_pack_catalog
+from catalog_api import load_pack_catalog
 from catalog_retrieval.runtime import using_pack_runtime
-from pack_cache import RuntimePackCatalog
+from pack_cache import RuntimePackCatalog, validate_catalog_pack
 from pack_manager import validate_pack
 from pack_runtime_cli import add_pack_runtime_arguments, has_pack_runtime_arguments, resolve_pack_runtime
 
@@ -159,8 +159,11 @@ def _pack_record_closure(
     pack_root: Path,
     *,
     pack_roots: Mapping[str, Path] | None = None,
+    catalog: RuntimePackCatalog | None = None,
 ) -> tuple[dict[str, tuple[str, str, Mapping[str, Any]]], list[str], int]:
     """Load required dependencies from the selected runtime or a standalone sibling tree."""
+    if catalog is not None:
+        pack_roots = catalog.pack_roots
     roots_by_id = {pack_id: Path(path).resolve() for pack_id, path in (pack_roots or {}).items()}
     candidates = () if pack_roots is not None else sorted(pack_root.parent.iterdir(), key=lambda value: value.name.lower())
     for child in candidates:
@@ -178,9 +181,18 @@ def _pack_record_closure(
     records: dict[str, tuple[str, str, Mapping[str, Any]]] = {}
     errors: list[str] = []
     visited: set[str] = set()
+    reports = {}
 
     def visit(current_root: Path, expected_id: str | None = None) -> None:
-        report = validate_pack(current_root, verify_lock=False)
+        if current_root not in reports:
+            reports[current_root] = (
+                validate_catalog_pack(catalog, current_root) if catalog is not None
+                else validate_pack(current_root, verify_lock=False)
+            )
+        report = reports[current_root]
+        if report is None:
+            errors.append(f"pack at {current_root} has no captured validation input in the selected runtime")
+            return
         pack_id = str(report.pack_id or current_root.name)
         if expected_id is not None and pack_id != expected_id:
             errors.append(f"required pack {expected_id!r} resolves to pack {pack_id!r} at {current_root}")
@@ -253,7 +265,7 @@ def validate(
         errors.append("reference corpus is not owned by a content pack")
     else:
         available_records, pack_errors, pack_closure_count = _pack_record_closure(
-            pack_root, pack_roots=catalog.pack_roots if catalog is not None else None
+            pack_root, catalog=catalog
         )
         errors.extend(pack_errors)
     evidence_assets = {

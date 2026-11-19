@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Resolve task-scoped reads and verify artifact-bearing execution routes."""
 from __future__ import annotations
+import shlex
 import operation_context as _operation_context
 import argparse
 import ast
@@ -91,6 +92,15 @@ def unnamed(manifest: dict[str, Any], skill: str) -> list[str]:
 
 def validate(root: Path = ROOT) -> dict[str, Any]:
     d=load(local(root,MANIFEST)); errors=[]
+    implementations = {}
+
+    def functions(script):
+        if script not in implementations:
+            tree = ast.parse(read(local(root, script)).decode('utf-8'))
+            implementations[script] = {node.name for node in tree.body
+                                       if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        return implementations[script]
+
     stage_map={s['id']:s for s in d['stages']}
     if set(d['operation_contexts']) != set(OPERATIONS):
         errors.append('reading operations do not cover the current contract')
@@ -114,9 +124,12 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
                 if not isinstance(s['next'], list) or wanted not in s['next'] or s['on_failure'] not in stage_map:
                     raise ValueError(f'{sid}: disconnected success or failure path')
                 script,fn=s['owner'].split(':')
-                tree=ast.parse(read(local(root,script)).decode('utf-8'))
-                funcs={n.name for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))}
-                if fn not in funcs or 'main' not in funcs: raise ValueError(f'{sid}: missing implementation')
+                if fn not in functions(script): raise ValueError(f'{sid}: missing implementation')
+                command = shlex.split(s['command'])
+                if len(command) < 2 or command[0] not in {'python', 'python3'}:
+                    raise ValueError(f'{sid}: invalid command entrypoint')
+                if 'main' not in functions(command[1]):
+                    raise ValueError(f'{sid}: missing command entrypoint')
                 if s['resume']!='status': raise ValueError(f'{sid}: invalid recovery entrypoint')
         except (ValueError,KeyError,OSError) as exc: errors.append(f'{name}: {exc}')
     for feature in d['features']:
@@ -132,8 +145,7 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
     for name, operation in d.get('operations', {}).items():
         try:
             script, function = operation['owner'].split(':')
-            tree = ast.parse(read(local(root, script)).decode('utf-8'))
-            if function not in {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}:
+            if function not in functions(script):
                 raise ValueError('missing operation implementation')
         except (ValueError, KeyError, OSError) as exc:
             errors.append(f'{name}: {exc}')

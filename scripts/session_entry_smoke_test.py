@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 
 import session_entry_points  # noqa: E402
-import studio  # noqa: E402
+import studio_workspace as studio  # noqa: E402
 import work_ledger  # noqa: E402
 from pack_manager import COMMONS_PACK_ID  # noqa: E402
 

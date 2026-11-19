@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise authored input assembly with local synthetic sources and no provider."""
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 
 import copy
 import base64
@@ -25,22 +26,21 @@ from private_state import PrivateStateError
 class EditableChoiceAcquisitionTests(unittest.TestCase):
     """Decoded choices and their evidence belong to the same authored revision."""
 
+    def save_choices(self):
+        InputToolsTests.save_choices(self)
+
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.path = self.root / 'choices.json'
-        self.choices = {'target': None, 'reading': None, 'visual': None,
-                        'validation': None, 'task_changes': {'direction': {'purpose': 'First revision.'}},
-                        'external': None}
-        self.path.write_bytes(c.encoded(self.choices))
+        InputToolsTests.setUp(self)
+        self.path = self.root / self.choices_path
+        self.choices['authoring']['task']['direction']['purpose'] = 'First revision.'
+        self.save_choices()
 
     def load(self, reader, *, register=True):
-        return tool._load_editable(self.root, self.path.name, reader, register=register)
+        return tool._load_editable(self.root, self.choices_path, reader, register=register)
 
     def test_edit_between_decoding_and_capture_cannot_record_a_different_revision(self):
         changed = copy.deepcopy(self.choices)
-        changed['task_changes']['direction']['purpose'] = 'Second revision.'
+        changed['authoring']['task']['direction']['purpose'] = 'Second revision.'
         changed_raw = c.encoded(changed)
         read = c.read
         for register in (False, True):
@@ -73,17 +73,17 @@ class EditableChoiceAcquisitionTests(unittest.TestCase):
     def test_assigned_reference_ids_are_saved_captured_and_reused(self):
         self.references()
         reader = InputEvidence(self.root)
-        choices, reference, _, _ = self.load(reader)
+        choices, reference, _, _, _ = self.load(reader)
         raw = self.path.read_bytes()
         rows = choices['external']['image_input']['references']
         self.assertEqual(rows[0]['id'], 'chosen-use')
         self.assertTrue(rows[1]['id'].startswith('reference-'))
         self.assertNotEqual(rows[0]['id'], rows[1]['id'])
-        self.assertEqual(c.decode(raw), choices)
+        self.assertEqual(c.decode(raw)['external'], choices['external'])
         self.assertEqual(reference['sha256'], c.digest(raw))
-        self.assertEqual(reader._decode(reader.snapshots[self.path.name]), raw)
+        self.assertEqual(reader._decode(reader.snapshots[self.choices_path]), raw)
         with patch.object(c, 'atomic', side_effect=AssertionError('unchanged choices were rewritten')):
-            again, _, _, _ = self.load(InputEvidence(self.root))
+            again, _, _, _, _ = self.load(InputEvidence(self.root))
         self.assertEqual(again, choices)
         self.assertEqual(self.path.read_bytes(), raw)
 
@@ -97,7 +97,7 @@ class EditableChoiceAcquisitionTests(unittest.TestCase):
             atomic(path, raw, **kwargs)
             if path == self.path:
                 changed = c.decode(raw)
-                changed['task_changes']['direction']['purpose'] = 'Later authored revision.'
+                changed['authoring']['task']['direction']['purpose'] = 'Later authored revision.'
                 replacement = c.encoded(changed)
                 path.write_bytes(replacement)
 
@@ -110,17 +110,14 @@ class EditableChoiceAcquisitionTests(unittest.TestCase):
         self.assertEqual(self.path.read_bytes(), replacement)
 
     def test_selected_document_edits_are_read_as_new_authored_content(self):
-        self.choices['authoring'] = {'task': {}, 'delivery': {
-            'content': 'Synthetic prompt.', 'translation_notes': 'Use the selected prompt.'},
-            'documents': {'parameters': {'file': 'parameters.json'}}, 'generation': {},
-            'references': None, 'upscale': None, 'sources': {}, 'source_files': {}}
+        self.choices['authoring']['documents']['parameters'] = {'file': 'parameters.json'}
         self.path.write_bytes(c.encoded(self.choices))
         for steps in (12, 18):
             with self.subTest(steps=steps):
                 raw = c.encoded({'steps': steps})
                 (self.root / 'parameters.json').write_bytes(raw)
                 reader = InputEvidence(self.root)
-                choices, reference, _, gaps = self.load(reader)
+                choices, reference, _, gaps, _ = self.load(reader)
                 self.assertEqual(gaps, [])
                 self.assertEqual(choices['authoring']['documents']['parameters'], {'steps': steps})
                 self.assertEqual(reference['files']['parameters.json'], c.digest(raw))
@@ -199,7 +196,7 @@ class PrivateAuthenticationInputTests(unittest.TestCase):
         self.assertFalse((self.root / 'run').exists())
 
     def test_iteration_copy_refuses_private_file_and_companion_before_copy(self):
-        import studio
+        import studio_workspace as studio
         home = self.root / 'characters/synthetic'
         with self.assertRaises(PrivateStateError):
             studio._keep(self.root, home, 'it-0001', self.private, 'request')
@@ -237,7 +234,7 @@ class PrivateAuthenticationInputTests(unittest.TestCase):
                 operation.finish(0)
 
 class InputToolsTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self, *, draft=True):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -248,8 +245,12 @@ class InputToolsTests(unittest.TestCase):
                      'route_reading': 'reading.json'}
         self.task.update(artifact='text', execution='authored', production_id='01900000-0000-7000-8000-000000000010')
         self.task.update(authority='authority.json', world_views=[], direction={'purpose': 'Synthetic local task.',
-            'intended_effect': 'Synthetic output, not an audience claim.', 'basis': [], 'decisions': [],
+            'intended_effect': 'Synthetic output, not an audience claim.', 'basis': [], 'decisions': [], 'source_allowances': [],
             'action_slice': None, 'limitations': ['Synthetic input fixture.']})
+        if draft:
+            import work_ledger
+            self.work = work_ledger.begin(self.root, 'Inspect the synthetic authored inputs.', ['Inspect inputs'])
+            self.task['task_id'] = self.work['task_id']
         (self.root / 'task.json').write_bytes(c.encoded(self.task))
         (self.root / 'delivery.txt').write_text('Synthetic authored delivery.\n', encoding='utf-8')
         self.ledger = self.root / 'work/reads.jsonl'
@@ -258,12 +259,19 @@ class InputToolsTests(unittest.TestCase):
         self.addCleanup(self.env.stop)
         self.issued = reading.issue('development', studio=self.root, ledger=self.ledger,
                                     stream=io.StringIO(), key='1' * 32, at='2000-01-01T00:00:00Z', execution=self.task['execution'])
-        self.choices = tool.draft_choices(self.task)
+        self.choices_path = 'inputs/choices.json'
+        if draft:
+            result = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'inputs')
+            self.choices_path = result['choices_file']
+            self.choices = c.load(self.root / self.choices_path)
+        else:
+            self.choices = tool.draft_choices(self.task)
         self.choices['reading']['reading_key'] = self.issued['reading_key']
-        self.save_choices()
+        if draft:
+            self.save_choices()
 
     def save_choices(self):
-        (self.root / 'choices.json').write_bytes(c.encoded(self.choices))
+        (self.root / self.choices_path).write_bytes(c.encoded(self.choices))
 
     def files(self):
         # WAL/checkpoint coordination can change physical SQLite pages during a
@@ -280,7 +288,7 @@ class InputToolsTests(unittest.TestCase):
         return result
 
     def build(self, output='built'):
-        return tool.build_inputs(self.root, 'task.json', 'choices.json', output)
+        return tool.build_inputs(self.root, 'task.json', self.choices_path, output)
 
     def test_inspection_is_read_only(self):
         before = self.files()
@@ -290,7 +298,7 @@ class InputToolsTests(unittest.TestCase):
         self.assertFalse(result['authority']['eligibility_evaluated'])
 
     def test_draft_keeps_judgments_unanswered(self):
-        result = tool.draft_inputs(self.root, 'task.json', 'draft')
+        result = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         draft = c.load(self.root / result['choices_file'])
         self.assertIsNone(draft['reading']['reading_key'])
         self.assertIsNone(draft['visual'])
@@ -298,15 +306,16 @@ class InputToolsTests(unittest.TestCase):
         self.assertTrue(result['unresolved'])
         self.assertNotIn('clear', json.dumps(draft))
 
-    def test_missing_choices_publish_nothing(self):
-        self.choices = tool.draft_choices(self.task)
+    def test_missing_choices_publish_no_derived_inputs(self):
+        self.choices['reading']['reading_key'] = None
         self.save_choices()
-        before = self.files()
+        before = {path: (self.root / path).read_bytes() for path in
+                  ('task.json', self.choices_path, self.choices['authoring']['delivery']['file'])}
         result = self.build()
         self.assertFalse(result['ok'])
         self.assertIn('reading.reading_key', [x['field'] for x in result['unresolved']])
         self.assertFalse((self.root / 'built').exists())
-        self.assertEqual(self.files(), before)
+        self.assertEqual({path: (self.root / path).read_bytes() for path in before}, before)
 
     def test_build_derives_document_hashes(self):
         before_task = (self.root / 'task.json').read_bytes()
@@ -350,7 +359,7 @@ class InputToolsTests(unittest.TestCase):
         self.assertEqual(result['inputs'], {})
         diagnostic = result['diagnostics'][0]
         self.assertEqual(diagnostic['code'], 'INPUT_CONSISTENCY_ERROR')
-        self.assertEqual(diagnostic['file'], 'choices.json')
+        self.assertEqual(diagnostic['file'], self.choices_path)
         self.assertIn('$.reading', diagnostic['message'])
         self.assertEqual(diagnostic['guidance']['schema'],
                          'schemas/authoring/production-input-draft.schema.json')
@@ -384,7 +393,7 @@ class InputToolsTests(unittest.TestCase):
         original = adapters.build_validation
         def altered(*args, **kwargs):
             result = original(*args, **kwargs)
-            (self.root / 'choices.json').write_text('{}', encoding='utf-8')
+            (self.root / self.choices_path).write_text('{}', encoding='utf-8')
             return result
         with patch.object(adapters, 'build_validation', side_effect=altered):
             with self.assertRaises(ValueError):
@@ -434,7 +443,7 @@ class InputToolsTests(unittest.TestCase):
         self.assertTrue(self.build()['ok'])
 
     def test_context_does_not_fill_unanswered_choices(self):
-        draft = tool.draft_inputs(self.root, 'task.json', 'draft')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         context = c.load(self.root / draft['context_file'])
         context['unresolved'] = []
         (self.root / draft['context_file']).write_bytes(c.encoded(context))
@@ -443,11 +452,15 @@ class InputToolsTests(unittest.TestCase):
         self.assertTrue(result['unresolved'])
 
     def test_edit_file_contains_choices_and_context_is_separate(self):
-        draft = tool.draft_inputs(self.root, 'task.json', 'draft')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         document = c.load(self.root / draft['choices_file'])
         self.assertEqual(set(document), {'target', 'reading', 'visual', 'validation', 'task_changes', 'external', 'authoring'})
-        self.assertEqual(c.load(self.root / draft['context_file'])['task_content'], self.task)
-        (self.root / draft['choices_file']).write_bytes(c.encoded(self.choices))
+        context = c.load(self.root / draft['context_file'])
+        self.assertEqual(context['task_content']['task_id'], self.task['task_id'])
+        self.assertEqual(context['task_content']['criteria'], self.task['criteria'])
+        self.assertEqual(context['authoring_work']['content'], draft['choices_file'])
+        document['reading'] = copy.deepcopy(self.choices['reading'])
+        (self.root / draft['choices_file']).write_bytes(c.encoded(document))
         self.assertTrue(tool.build_inputs(self.root, 'task.json', draft['choices_file'], 'built')['ok'])
 
     def test_output_path_cannot_escape_studio(self):
@@ -462,7 +475,7 @@ class InputToolsTests(unittest.TestCase):
 
     def test_incomplete_image_task_names_its_actual_target_choices(self):
         task = self.dispatcher_task()
-        draft = tool.draft_inputs(self.root, 'task.json', 'draft')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         self.assertEqual((draft['choices']['visual'], draft['choices']['validation']), (None, None))
         fields = [x['field'] for x in draft['unresolved']]
         self.assertIn('reading.reading_key', fields)
@@ -497,17 +510,20 @@ class InputToolsTests(unittest.TestCase):
 
     def prepared_source(self):
         import work_ledger
-        self.task['task_id'] = work_ledger.begin(self.root, 'Synthetic saved-input test', ['inspect inputs'])['task_id']
+        work = work_ledger.read_current(self.root)
+        if work is None:
+            work = work_ledger.begin(self.root, 'Synthetic saved-input test', ['Inspect inputs'])
+        self.task['task_id'] = work['task_id']
         import production_fixtures
-        production_fixtures.task(self.root, self.task)
+        production_fixtures.task(self.root, self.task, focus='supporting-setting')
         (self.root / 'task.json').write_bytes(c.encoded(self.task))
-        import production_workflow
+        import production_operations as production_workflow
         return production_workflow.prepare(self.root, 'task.json')['run']
 
     def test_saved_reading_is_copied_with_provenance_not_reissued(self):
         run = self.prepared_source()
         before = self.ledger.read_bytes()
-        result = tool.draft_inputs(self.root, None, 'saved-draft', from_run=run)
+        result = authoring_fixtures.authoring_inputs(self.root, None, 'saved-draft', from_run=run)
         saved = result['derived_from']['source_run']
         self.assertEqual(saved['run'], run)
         self.assertEqual(result['choices']['reading']['reading_key'], saved['route_reading']['reading_key'])
@@ -531,12 +547,12 @@ class InputToolsTests(unittest.TestCase):
 
     def test_edited_saved_draft_builds_without_reusing_authority(self):
         run = self.prepared_source()
-        result = tool.draft_inputs(self.root, None, 'saved-draft', from_run=run)
+        result = authoring_fixtures.authoring_inputs(self.root, None, 'saved-draft', from_run=run)
         document = c.load(self.root / result['choices_file'])
         document['visual'] = self.choices['visual']
         document['validation'] = self.choices['validation']
         (self.root / result['choices_file']).write_bytes(c.encoded(document))
-        import production_workflow
+        import production_operations as production_workflow
         before = copy.deepcopy(production_workflow.load_run(self.root, run)[3])
         built = tool.build_inputs(self.root, None, result['choices_file'], 'built', from_run=run)
         self.assertTrue(built['ok'])
@@ -548,7 +564,7 @@ class InputToolsTests(unittest.TestCase):
         delivery = (self.root / self.task['delivery']['path']).read_bytes()
         (self.root / 'task.json').unlink()
         (self.root / self.task['delivery']['path']).write_text('Later unrelated edit.', encoding='utf-8')
-        draft = tool.draft_inputs(self.root, None, 'saved-draft', from_run=run)
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'saved-draft', from_run=run)
         built = tool.build_inputs(self.root, None, draft['choices_file'], 'built', from_run=run)
         task = c.load(self.root / built['inputs']['production-task']['path'])
         self.assertEqual((self.root / task['delivery']['path']).read_bytes(), delivery)
@@ -578,7 +594,7 @@ class InputToolsTests(unittest.TestCase):
             request['media'] = [None]
         (self.root / plan['external_request']['file']).write_bytes(c.encoded(request))
         (self.root / plan_path).write_bytes(c.encoded(plan))
-        draft = tool.draft_inputs(self.root, None, 'external-draft', from_run=run)
+        draft = authoring_fixtures.authoring_inputs(self.root, None, 'external-draft', from_run=run)
         choices = c.load(self.root / draft['choices_file'])
         record = fixture_reading(route='generation', features=['unlisted-interface'], studio=self.root,
                                  ledger=self.ledger, execution='external')
@@ -592,18 +608,24 @@ class InputToolsTests(unittest.TestCase):
         return run, draft, plan_path, plan
 
     def test_external_promotion_materializes_input_without_changing_sources_or_grants(self):
-        import production_workflow as workflow
+        import production_operations as workflow
         delivery = 'Synthetic line one.\r\nReference note: caf\u00e9.\r\n'.encode('utf-8')
         (self.root / self.task['delivery']['path']).write_bytes(delivery)
         run, draft, plan_path, plan = self.external_choice(with_reference=True)
+        source_direction = (b'Image {{reference:surface-sample:attachment_number}} supplies '
+                            b'{{reference:surface-sample:controls}}.\r\n')
+        authored_delivery = delivery + source_direction
+        (self.root / draft['choices']['authoring']['delivery']['file']).write_bytes(authored_delivery)
         source_plan = (self.root / plan_path).read_bytes()
         source_request = (self.root / plan['external_request']['file']).read_bytes()
         original_rows = copy.deepcopy(workflow.load_run(self.root, run)[3])
         built = tool.build_inputs(self.root, None, draft['choices_file'], 'external-built', from_run=run)
+        self.assertTrue(built['ok'], built.get('unresolved'))
         task = c.load(self.root / built['inputs']['production-task']['path'])
         request = c.load(self.root / built['inputs']['external-request']['path'])
-        self.assertEqual(request['prompt'].encode('utf-8'), delivery)
-        self.assertEqual((self.root / task['delivery']['path']).read_bytes(), delivery)
+        self.assertEqual(request['prompt'].encode('utf-8'), delivery + b'Image 1 supplies surface finish.\r\n')
+        self.assertEqual((self.root / task['delivery']['path']).read_bytes(), authored_delivery)
+        self.assertEqual((self.root / self.task['delivery']['path']).read_bytes(), delivery)
         self.assertEqual(request['model'], plan['model']['target']['model_identifier'])
         self.assertEqual(request['count'], 1)
         self.assertEqual(request['controls'], {'quality': 'fine', 'seed': 37})
@@ -662,7 +684,7 @@ class InputToolsTests(unittest.TestCase):
     def test_cli_build_binds_the_selected_source_delivery(self):
         run = subprocess.run([sys.executable, str(tool.ROOT / 'scripts/production_workflow.py'),
                               'build-inputs', '--root', str(self.root), '--task', 'task.json',
-                              '--choices', 'choices.json', '--out-dir', 'cli-built'],
+                              '--choices', self.choices_path, '--out-dir', 'cli-built'],
                              capture_output=True, text=True, encoding="utf-8", check=False)
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertEqual(json.loads(run.stdout)['state'], 'built')
@@ -677,11 +699,19 @@ class AuthoringRecoveryTests(unittest.TestCase):
     save_choices = InputToolsTests.save_choices
 
     def setUp(self):
-        InputToolsTests.setUp(self)
+        InputToolsTests.setUp(self, draft=False)
         import work_ledger
-        self.work = work_ledger.begin(self.root, 'Continue the synthetic authored inputs.', ['Inspect the saved inputs.'])
+        self.work = work_ledger.begin(self.root, 'Continue the synthetic authored inputs.', ['Inspect inputs'])
         self.task['task_id'] = self.work['task_id']
         (self.root / 'task.json').write_bytes(c.encoded(self.task))
+
+    def editable(self):
+        result = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'inputs')
+        reading_choice = self.choices['reading']
+        self.choices_path = result['choices_file']
+        self.choices = c.load(self.root / self.choices_path)
+        self.choices['reading'] = copy.deepcopy(reading_choice)
+        self.save_choices()
 
     def inspect(self):
         with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('catalog read')):
@@ -690,7 +720,7 @@ class AuthoringRecoveryTests(unittest.TestCase):
     def test_saved_choices_are_current_read_only_and_scoped_to_the_open_task(self):
         import work_ledger
         import session_entry_points
-        result = tool.draft_inputs(self.root, 'task.json', 'draft')
+        result = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         path = self.root / result['choices_file']
         choices = c.load(path)
         choices['reading'] = copy.deepcopy(self.choices['reading'])
@@ -709,16 +739,17 @@ class AuthoringRecoveryTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(), before)
 
     def test_published_build_is_found_when_its_caller_did_not_receive_the_result(self):
+        self.editable()
         original = tool._publish
         def interrupted(*args, **kwargs):
             original(*args, **kwargs)
             raise OSError('Synthetic interruption after directory publication.')
         with patch.object(tool, '_publish', side_effect=interrupted):
             with self.assertRaisesRegex(OSError, 'after directory publication'):
-                tool.build_inputs(self.root, 'task.json', 'choices.json', 'built')
+                tool.build_inputs(self.root, 'task.json', self.choices_path, 'built')
         before = (self.root / 'built/production-task.json').read_bytes()
         current = self.inspect()
-        built = current['inputs'][0]
+        built = next(row for row in current['inputs'] if row['kind'] == 'build-inputs')
         self.assertEqual((built['state'], built['task'], built['report']),
                          ('built', 'built/production-task.json', 'built/input-report.json'))
         self.assertIn('--task', built['next_actions'][0]['argv'])
@@ -795,8 +826,10 @@ class AuthoringRecoveryTests(unittest.TestCase):
         runtime = {'state-file': str(self.root / 'runtime/state.json'),
                    'cache-dir': str(self.root / 'runtime/cache'),
                    'managed-root': str(self.root / 'runtime/managed'), 'pack-root': []}
-        draft = tool.draft_inputs(self.root, 'task.json', 'draft', runtime_arguments=runtime)
-        (self.root / draft['choices_file']).write_bytes(c.encoded(self.choices))
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft', runtime_arguments=runtime)
+        choices = c.load(self.root / draft['choices_file'])
+        choices['reading'] = copy.deepcopy(self.choices['reading'])
+        (self.root / draft['choices_file']).write_bytes(c.encoded(choices))
         action = self.inspect()['next_actions'][0]
         self.assertEqual(action['command'], 'save')
         for key in ('state-file', 'cache-dir', 'managed-root'):
@@ -813,18 +846,22 @@ class AuthoringRecoveryTests(unittest.TestCase):
         self.assertEqual([action['command'] for action in state['next_actions']], ['finish'])
 
     def test_unpublished_attempt_accepts_corrected_choices_and_preserves_existing_outputs(self):
-        incomplete = self.root / 'incomplete.json'
-        incomplete.write_bytes(c.encoded(tool.draft_choices(self.task)))
-        first = tool.build_inputs(self.root, 'task.json', incomplete.name, 'built')
+        incomplete = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'inputs')
+        first = tool.build_inputs(self.root, 'task.json', incomplete['choices_file'], 'built')
         self.assertFalse(first['ok'])
-        built = tool.build_inputs(self.root, 'task.json', 'choices.json', 'built')
+        self.choices_path = incomplete['choices_file']
+        completed = c.load(self.root / self.choices_path)
+        completed['reading'] = copy.deepcopy(self.choices['reading'])
+        self.choices = completed
+        self.save_choices()
+        built = tool.build_inputs(self.root, 'task.json', self.choices_path, 'built')
         self.assertTrue(built['ok'])
-        self.assertEqual(self.inspect()['inputs'][0]['choices'], 'choices.json')
+        self.assertEqual(self.inspect()['inputs'][0]['choices'], self.choices_path)
         (self.root / 'prior').mkdir()
         marker = self.root / 'prior/marker.txt'
         marker.write_text('Existing local output.', encoding='utf-8')
         with self.assertRaises(FileExistsError):
-            tool.draft_inputs(self.root, 'task.json', 'prior')
+            authoring_fixtures.authoring_inputs(self.root, 'task.json', 'prior')
         self.assertEqual(marker.read_text(encoding='utf-8'), 'Existing local output.')
         self.assertNotIn('prior', [row['directory'] for row in self.inspect()['inputs']])
 
@@ -853,7 +890,7 @@ class AuthoringRecoveryTests(unittest.TestCase):
         self.assertEqual(self.ledger.read_bytes(), before)
 
     def test_reading_actions_follow_the_current_operation_and_features(self):
-        tool.draft_inputs(self.root, 'task.json', 'draft')
+        authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         selected = reading.read_page(route='development', studio=self.root, ledger=self.ledger,
                                       page_bytes=128, stream=io.StringIO(), execution=self.task['execution'])
         other = reading.read_page(route='development', operation='execute', features=['studio'], studio=self.root,
@@ -868,7 +905,7 @@ class AuthoringRecoveryTests(unittest.TestCase):
     def test_status_contract_and_source_free_inspection_accept_saved_authoring(self):
         import production_authoring_state
         from state_protocol import validate_against_schema
-        tool.draft_inputs(self.root, 'task.json', 'draft')
+        authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         schema = c.load(tool.ROOT / 'schemas/authoring/production-status.schema.json')
         current = production_authoring_state.current_task(self.root)
         self.assertEqual(validate_against_schema(current, {'$ref': '#/$defs/current_task', '$defs': schema['$defs']}), [])
@@ -883,23 +920,22 @@ class AuthoringRecoveryTests(unittest.TestCase):
         before = self.ledger.read_bytes()
         with patch.object(tool, '_publish', side_effect=OSError('Synthetic interruption before draft publication.')):
             with self.assertRaisesRegex(OSError, 'before draft publication'):
-                tool.draft_inputs(self.root, 'task.json', 'draft')
+                authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         state = self.inspect()
         self.assertFalse((self.root / 'draft').exists())
         action = state['next_actions'][0]
         self.assertEqual(action['command'], 'draft-inputs')
         self.assertEqual(action['argv'][action['argv'].index('--task') + 1], 'task.json')
         self.assertEqual(action['argv'][action['argv'].index('--out-dir') + 1], 'draft')
-        restored = tool.draft_inputs(self.root, 'task.json', 'draft')
+        restored = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         self.assertIsNone(c.load(self.root / restored['choices_file'])['reading']['reading_key'])
         self.assertEqual(self.ledger.read_bytes(), before)
-        incomplete = self.root / 'incomplete.json'
-        incomplete.write_bytes(c.encoded(tool.draft_choices(self.task)))
-        tool.build_inputs(self.root, 'task.json', incomplete.name, 'built')
-        incomplete.unlink()
+        incomplete = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'incomplete')
+        tool.build_inputs(self.root, 'task.json', incomplete['choices_file'], 'built')
+        (self.root / incomplete['choices_file']).unlink()
         missing = next(row for row in self.inspect()['inputs'] if row['kind'] == 'build-inputs')
         self.assertEqual(missing['unresolved'], [{'field': 'choices', 'code': 'authored-input-missing',
-                                                 'path': 'incomplete.json'}])
+                                                 'path': incomplete['choices_file']}])
         self.assertEqual(missing['next_actions'], [])
 
 

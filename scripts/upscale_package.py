@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 from execution_contract import sha256_file
 from model_contract import validate_model_record
-from prepare_generation_references import resolve_model_record
+from generation_references import resolve_model_record
 from state_protocol import artifact_hash, finalize_artifact, sha256_json, validate_artifact
 from owned_json import json_type
 

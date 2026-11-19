@@ -8,6 +8,7 @@ approved event history, extracts scene state, assembles an authored visual
 projection, and prepares reference-bundle plans from declared coverage needs.
 """
 from __future__ import annotations
+import read_context
 import operation_context as _operation_context
 
 import argparse
@@ -24,7 +25,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
-from package_metadata import PACKAGE_NAME
+from package_identity import PACKAGE_NAME
 import protocol_contract as public_contract
 from temporal_state import (
     array_index, decode_pointer, get_pointer, _parent_for_pointer, apply_change, entity_root, precondition_holds, _is_lifecycle_change, _state_path_key, validate_temporal_inputs, _approved_events_as_of, _change_is_active, _restartable_epochs, _process_operations, apply_event, resolve_world
@@ -371,8 +372,7 @@ def schema_documents() -> SchemaDocuments:
     owned = _SCHEMA_SCOPE.get()
     if owned is not None:
         return owned
-    import runtime_snapshot
-    scope = runtime_snapshot.call_scope()
+    scope = read_context.call_scope()
     if scope is None:
         return SchemaDocuments()
     key = ("schema-documents", Path(SCHEMA_DIR).absolute(), Path(public_contract.ROOT).absolute())
@@ -389,13 +389,12 @@ def schema_read_scope(*, fresh: bool = False, source: public_contract.SchemaSour
     inventory. Paths are installation-relative, or absolute paths inside its
     root. Both private schemas and sealed public contracts use those bytes.
     """
-    import runtime_snapshot
     existing = _SCHEMA_SCOPE.get()
     if not fresh:
         if existing is not None and (source is None or source is existing.source):
             yield existing
             return
-        if source is None and runtime_snapshot.call_scope() is not None:
+        if source is None and read_context.call_scope() is not None:
             yield schema_documents()
             return
     owner = SchemaDocuments(source=source)
@@ -2565,7 +2564,7 @@ def select_state_references(
     required_features: list[str],
     limit: int | None,
 ) -> dict[str, Any]:
-    from prepare_generation_references import validate_committed_source
+    from generation_references import validate_committed_source
 
     if (
         not isinstance(required_features, list)
@@ -2742,10 +2741,6 @@ def parse_processes(path: str | None) -> list[dict[str, Any]]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    # Import the pack runtime boundary only after this module has finished
-    # defining the schema validator used by pack_manager. A module-level import
-    # would create a state_protocol -> catalog -> pack_manager cycle.
-    from catalog_cli import configure_pack_runtime
     from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
 
     parser = _operation_context.ArgumentParser(description="Manage Shared State Protocol artifacts.")
@@ -2860,6 +2855,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     add_pack_runtime_arguments(select_cmd)
 
     args = parser.parse_args(argv)
+    from catalog_api import configure_pack_runtime
     try:
         if args.command == "validate":
             reports = []

@@ -111,8 +111,23 @@ class Boundary(unittest.TestCase):
         self.assertEqual(contract.read_json(out/'envelope.json')['contract_set_sha256'],contract.installed_contract_set_sha256())
     def test_cli_existing_output_preserved(self):
         out=self.root/'bundle';out.mkdir();(out/'keep').write_text('keep',encoding='utf-8');result=self.command(*self.args(out));self.assertNotEqual(result.returncode,0);self.assertEqual((out/'keep').read_text(encoding='utf-8'),'keep')
-    def test_cli_existing_lock_preserved(self):
-        out=self.root/'bundle';lock=self.root/'.bundle.publish.lock';lock.write_text('owned by another operation',encoding='utf-8');result=self.command(*self.args(out));self.assertNotEqual(result.returncode,0);self.assertEqual(lock.read_text(encoding='utf-8'),'owned by another operation');self.assertFalse(out.exists())
+    def test_cli_preserves_an_empty_destination_created_during_publication(self):
+        import build_interchange_envelope as builder
+        import execution_contract as publication
+        from contextlib import redirect_stdout
+        out = self.root / 'bundle'
+        original = publication.publish_directory
+        def occupy(staging, target):
+            target.mkdir()
+            return original(staging, target)
+        output = io.StringIO()
+        with patch.object(sys, 'argv', ['build_interchange_envelope.py', *map(str, self.args(out))]), \
+                patch.object(publication, 'publish_directory', side_effect=occupy), redirect_stdout(output):
+            code = builder.main()
+        self.assertNotEqual(code, 0)
+        self.assertFalse(json.loads(output.getvalue())['ok'])
+        self.assertTrue(out.is_dir())
+        self.assertEqual(list(out.iterdir()), [])
     def test_strict_json(self):
         p=self.root/'bad.json';p.write_text('{"x":1,"x":2}',encoding="utf-8");self.assertRaises(ValueError,contract.read_json,p)
 

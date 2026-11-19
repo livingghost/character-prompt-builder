@@ -1,5 +1,6 @@
 """Explicit target changes resolve complete new profiles without inheriting execution."""
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 import copy
 import json
 import os
@@ -12,7 +13,7 @@ import execution_contract as c
 import production_case_fixtures as f
 import production_execution as execution
 import production_variation as variation
-import production_workflow as workflow
+import production_operations as workflow
 import production_store as store
 from production_diagnostics import ProductionError,CompilationError
 
@@ -20,13 +21,22 @@ import production_fixtures
 
 
 class RetargetTests(unittest.TestCase):
+    @staticmethod
+    def build(base):
+        case = f.create(base / '\u65e5\u672c\u8a9e studio', base / 'runtime', with_alternate=True)
+        return case, {'run': workflow.prepare(case['root'], 'task.json')['run']}
+
+    @classmethod
+    def setUpClass(cls):
+        cls._case_template = f.CaseTemplate.for_class(cls, cls.build)
+
     def setUp(self):
+        from production_compiler import published_preparation
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         b=Path(self.temp.name);self.base=b
-        environment = production_fixtures.scratch_home(self.base / 'home')
-        environment.start();self.addCleanup(environment.stop)
-        self.case=f.create(b/'日本語 studio',b/'runtime',with_alternate=True)
-        self.root=self.case['root'];self.parent=workflow.prepare(self.root,'task.json');self.run=self.parent['run']
+        self.case, metadata = f.CaseTemplate.for_test(self, b, self.build, self._case_template)
+        self.root = self.case['root']; self.run = metadata['run']
+        self.parent = published_preparation(self.root, self.run)
 
     def target(self,**kwargs):
         return variation.retarget(self.root,self.run,kwargs.pop('task','retarget/task.json'),
@@ -34,7 +44,7 @@ class RetargetTests(unittest.TestCase):
 
     def editable_target(self):
         import production_inputs
-        result = production_inputs.draft_inputs(self.root, None, 'editor', from_run=self.run,
+        result = authoring_fixtures.authoring_inputs(self.root, None, 'editor', from_run=self.run,
                                                model=f.ALTERNATE_MODEL_ID, service='synthetic')
         return result, c.load(self.root / result['choices_file'])
 
@@ -53,11 +63,31 @@ class RetargetTests(unittest.TestCase):
         result, choices = self.editable_target()
         parent = workflow.read_run(self.root, self.run)
         self.assertEqual(choices['target'], {'kind': 'catalog', 'model': f.ALTERNATE_MODEL_ID, 'service': 'synthetic'})
-        for field in ('criteria', 'direction'):
-            self.assertEqual(choices['authoring']['task'][field], parent.prepared['task'][field])
-        for actual, original_source in zip(choices['authoring']['task']['sources'], parent.prepared['task']['sources'], strict=True):
-            self.assertEqual({key: value for key, value in actual.items() if key != 'path'},
-                             {key: value for key, value in original_source.items() if key != 'path'})
+        self.assertEqual(choices['authoring']['task']['criteria'], parent.prepared['task']['criteria'])
+        request = result['current_request']
+        expected_direction = copy.deepcopy(parent.prepared['task']['direction'])
+        if request['source'] not in expected_direction['basis']:
+            expected_direction['basis'].append(request['source'])
+        self.assertEqual(choices['authoring']['task']['direction'], expected_direction)
+        original_ids = {row['id'] for row in parent.prepared['task']['sources']}
+        retained = [row for row in choices['authoring']['task']['sources'] if row['id'] in original_ids]
+        self.assertEqual({row['id'] for row in choices['authoring']['task']['sources']},
+                         original_ids | {request['source'], 'task-subject:robot'})
+        definition = next(row for row in choices['authoring']['task']['sources']
+                          if row['id'] == 'task-subject:robot')
+        self.assertEqual(definition['definition_owner'], {'document': 'production_spec', 'subject_id': 'robot'})
+        self.assertEqual(definition['applications'], [{'id': 'task-subject:robot', 'pointer': '/identity',
+                                                      'subjects': ['robot'], 'requirement': False}])
+        self.assertEqual(c.load(self.root / definition['path']),
+                         f.read_document(self.root, choices, 'production_spec')['subjects'][0]['identity'])
+        self.assertEqual((self.root / request['path']).read_text(encoding='utf-8'), request['text'])
+        for actual, original_source in zip(retained, parent.prepared['task']['sources'], strict=True):
+            self.assertEqual({key: actual[key] for key in original_source if key not in {'path', 'origin'}},
+                             {key: value for key, value in original_source.items() if key not in {'path', 'origin'}})
+            if original_source.get('origin'):
+                self.assertEqual(actual['origin']['sha256'], original_source['origin']['sha256'])
+                self.assertEqual((self.root / actual['origin']['path']).read_bytes(),
+                                 (self.root / original_source['origin']['path']).read_bytes())
             self.assertEqual((self.root / actual['path']).read_bytes(), (self.root / original_source['path']).read_bytes())
         self.assertEqual((self.root / choices['authoring']['delivery']['file']).read_text(encoding='utf-8'), f.PROMPT)
         original = parent.artifacts['package.json']['request_validation']
@@ -69,6 +99,7 @@ class RetargetTests(unittest.TestCase):
         self.assertEqual(result['target_knowledge']['model'], f.ALTERNATE_MODEL_ID)
         self.assertEqual(store.event_rows(self.root, self.run), [])
 
+    @f.cold_case
     def test_editable_retarget_uses_current_evidence_and_preserves_parent_lineage(self):
         _, choices = self.editable_target()
         self.reassess(choices)
@@ -93,7 +124,7 @@ class RetargetTests(unittest.TestCase):
             'CPB_HOME': str(production_fixtures.scratch_home_dir(self.base / 'continuation-home'))}
 
         def invoke(argv):
-            result = subprocess.run(argv, cwd=self.base, env=environment, capture_output=True,
+            result = subprocess.run(authoring_fixtures.authoring_arguments(argv), cwd=self.base, env=environment, capture_output=True,
                                     text=True, encoding='utf-8', timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             return json.loads(result.stdout)
@@ -111,6 +142,13 @@ class RetargetTests(unittest.TestCase):
                             for row in parent.prepared['task']['sources']}
         draft = invoke([*cli, 'draft-inputs', '--root', str(self.root), '--from-run', self.run,
                         '--out-dir', 'editor', *runtime])
+        request = draft['current_request']
+        request_source = next(row for row in draft['choices']['authoring']['task']['sources']
+                              if row['id'] == request['source'])
+        original_sources[request['source']] = (request_source, request['text'].encode('utf-8'))
+        definition = next(row for row in draft['choices']['authoring']['task']['sources']
+                          if row['id'] == 'task-subject:robot')
+        original_sources[definition['id']] = (definition, (self.root / definition['path']).read_bytes())
         initial = next(action for action in draft['next_actions'] if action.get('operation') == 'prepare')
         self.assertNotIn('--from', initial['argv'])
         original = c.load(self.root / 'editor/choices.json')
@@ -147,7 +185,7 @@ class RetargetTests(unittest.TestCase):
         self.assertEqual(child['request_preview']['prompt'], self.parent['request_preview']['prompt'])
         for source in actual.prepared['task']['sources']:
             original_source, raw = original_sources[source['id']]
-            self.assertEqual({key: value for key, value in source.items() if key != 'path'},
+            self.assertEqual({key: source[key] for key in original_source if key != 'path'},
                              {key: value for key, value in original_source.items() if key != 'path'})
             self.assertEqual((self.root / source['path']).read_bytes(), raw)
         self.assertEqual(store.event_rows(self.root, self.run), [])
@@ -155,7 +193,7 @@ class RetargetTests(unittest.TestCase):
     def test_applicable_reopened_evidence_preserves_validation_content_and_reading(self):
         import production_inputs
         parent = workflow.read_run(self.root, self.run)
-        result = production_inputs.draft_inputs(self.root, None, 'unchanged', from_run=self.run)
+        result = authoring_fixtures.authoring_inputs(self.root, None, 'unchanged', from_run=self.run)
         self.assertEqual(result['unresolved'], [])
         child = workflow.prepare(self.root, choices=result['choices_file'])
         actual = workflow.read_run(self.root, child['run'])
@@ -182,7 +220,7 @@ class RetargetTests(unittest.TestCase):
         validation = parent.artifacts['package.json']['request_validation']
         (self.root / validation['contract']['path']).unlink()
         (self.root / 'validation.json').unlink()
-        result = production_inputs.draft_inputs(self.root, None, 'restored', from_run=self.run)
+        result = authoring_fixtures.authoring_inputs(self.root, None, 'restored', from_run=self.run)
         self.assertEqual(result['choices']['validation']['contract'], '@run/' + self.run + '/' + validation['contract']['path'])
         self.assertEqual(result['choices']['validation']['execution_policy'], '@run/' + self.run + '/' + validation['execution_policy']['path'])
         self.assertEqual(result['choices']['authoring']['task']['criteria'], self.case['task']['criteria'])
@@ -239,6 +277,7 @@ class RetargetTests(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostic.code,'RETARGET_NO_OP')
         self.assertEqual(len(store.runs(self.root)),1)
 
+    @f.cold_case
     def test_same_target_adopts_a_changed_runtime_with_lineage(self):
         import pack_manager
         import runtime_snapshot
@@ -287,6 +326,7 @@ class RetargetTests(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostic.code,'AUTHORIZATION_MISMATCH')
         self.assertEqual(store.event_rows(self.root,child['run']),[])
 
+    @f.cold_case
     def test_retarget_resolves_new_current_runtime(self):
         import pack_manager
         from catalog_retrieval import runtime
@@ -364,16 +404,23 @@ class ReferenceRetargetTests(unittest.TestCase):
             child = variation.retarget(root, parent['run'], choices=scenario['choices_file'],
                 reason='Compare explicitly selected synthetic reference operations.', prepare=True)
             after = workflow.read_run(root, child['run'])
-            self.assertEqual(child['request_preview']['prompt'], f.REFERENCE_RETRY_PROMPT)
+            controls = before.artifacts['package.json']['prepared_reference_set']['selected_references'][0]['authority']['controls']
+            expected_direction = ' Image 1 supplies ' + ', '.join(controls) + '.'
+            self.assertEqual(parent['request_preview']['prompt'], f.REFERENCE_RETRY_SUBJECT + expected_direction)
+            self.assertEqual(child['request_preview']['prompt'], f.REFERENCE_RETRY_SUBJECT + expected_direction)
             self.assertEqual(child['request_preview']['steps'], 22)
             self.assertNotIn('seed', child['request_preview'])
             self.assertEqual(child['request_preview']['inputs']['references'], parent['request_preview']['inputs']['references'])
             for field in ('criteria', 'direction', 'task_id', 'production_id', 'authority'):
                 self.assertEqual(after.prepared['task'][field], before.prepared['task'][field], field)
             for old, new in zip(before.prepared['task']['sources'], after.prepared['task']['sources'], strict=True):
-                self.assertEqual({key: value for key, value in old.items() if key != 'path'},
-                                 {key: value for key, value in new.items() if key != 'path'})
+                self.assertEqual({key: value for key, value in old.items() if key not in {'path', 'origin'}},
+                                 {key: value for key, value in new.items() if key not in {'path', 'origin'}})
                 self.assertEqual((root / old['path']).read_bytes(), (root / new['path']).read_bytes())
+                if old.get('origin'):
+                    self.assertEqual(old['origin']['sha256'], new['origin']['sha256'])
+                    self.assertEqual((root / old['origin']['path']).read_bytes(),
+                                     (root / new['origin']['path']).read_bytes())
             self.assert_identity_retained(root, before.prepared['identity_coverage'], after.prepared['identity_coverage'])
             self.assertEqual(after.prepared['parent']['run'], parent['run'])
             self.assertEqual(after.prepared['parent']['kind'], 'retarget')
@@ -391,12 +438,12 @@ class ReferenceRetargetTests(unittest.TestCase):
 
             # Reopen the new target, then edit only the ordinary prompt file.
             # The selected reference scope and independent review basis persist.
-            draft = production_inputs.draft_inputs(root, None, 'reference-prompt-retry', from_run=child['run'])
+            draft = authoring_fixtures.authoring_inputs(root, None, 'reference-prompt-retry', from_run=child['run'])
             prompt = 'The blue robot carries a small yellow toolbox through an open doorway.'
-            f.write(root / draft['choices']['authoring']['delivery']['file'], prompt)
+            f.write(root / draft['choices']['authoring']['delivery']['file'], prompt + f.REFERENCE_RETRY_DIRECTION)
             revised = workflow.prepare(root, choices=draft['choices_file'])
             revised_view = workflow.read_run(root, revised['run'])
-            self.assertEqual(revised['request_preview']['prompt'], prompt)
+            self.assertEqual(revised['request_preview']['prompt'], prompt + expected_direction)
             self.assertEqual(revised_view.prepared['task']['criteria'], before.prepared['task']['criteria'])
             self.assert_identity_retained(root, before.prepared['identity_coverage'], revised_view.prepared['identity_coverage'])
             expected_validation = copy.deepcopy(new_validation)

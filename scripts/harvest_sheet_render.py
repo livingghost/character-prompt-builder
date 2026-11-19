@@ -16,7 +16,6 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from character_sheet import sheet_status, validate_sidecar
 from execution_contract import atomic_write_json, sha256_file
 
 
@@ -179,6 +178,34 @@ def register_harvested(
     return fills.register_candidates(sidecar_path, selected)
 
 
+def protected_region_mask(edit_mask):
+    """Protect pixels beyond the editable mask's two-pixel square guard.
+
+    The thresholded mask needs a maximum over each five-pixel row and column.
+    Separating those passes preserves the square dilation and board clipping
+    without ranking a complete two-dimensional neighborhood for every pixel.
+    """
+    from PIL import ImageChops, ImageOps
+
+    maximum = edit_mask.point(lambda value: 255 if value >= 128 else 0)
+    width, height = maximum.size
+    for horizontal in (True, False):
+        source = maximum
+        limit = width if horizontal else height
+        for distance in (-2, -1, 1, 2):
+            if abs(distance) >= limit:
+                continue
+            shifted = ImageChops.offset(source, distance if horizontal else 0,
+                                        0 if horizontal else distance)
+            if horizontal:
+                edge = (0, 0, distance, height) if distance > 0 else (width + distance, 0, width, height)
+            else:
+                edge = (0, 0, width, distance) if distance > 0 else (0, height + distance, width, height)
+            shifted.paste(0, edge)
+            maximum = ImageChops.lighter(maximum, shifted)
+    return ImageOps.invert(maximum)
+
+
 def harvest_sheet(
     filled_png: Path,
     *,
@@ -211,7 +238,7 @@ def harvest_sheet(
     if not selected:
         raise ValueError("no harvestable panels were selected")
 
-    from PIL import Image, ImageChops, ImageFilter, ImageOps
+    from PIL import Image, ImageChops
 
     with Image.open(filled_png) as source:
         image = source.convert("RGB")
@@ -239,12 +266,9 @@ def harvest_sheet(
     if edit_mask.size != (canvas_width, canvas_height):
         raise ValueError("edit mask dimensions do not match layout.canvas")
 
-    scaffold_scaled = scaffold.resize(image.size, Image.Resampling.LANCZOS)
-    mask_scaled = edit_mask.resize(image.size, Image.Resampling.NEAREST)
-    editable_guard = mask_scaled.point(lambda value: 255 if value >= 128 else 0).filter(
-        ImageFilter.MaxFilter(5)
-    )
-    protected_mask = ImageOps.invert(editable_guard)
+    scaffold_scaled = scaffold if scaffold.size == image.size else scaffold.resize(image.size, Image.Resampling.LANCZOS)
+    mask_scaled = edit_mask if edit_mask.size == image.size else edit_mask.resize(image.size, Image.Resampling.NEAREST)
+    protected_mask = protected_region_mask(mask_scaled)
     difference = ImageChops.difference(scaffold_scaled, image)
     red, green, blue = difference.split()
     maximum_difference = ImageChops.lighter(ImageChops.lighter(red, green), blue)
@@ -388,6 +412,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Generation Package for the filled sheet; required when registering harvested candidates",
     )
     args = parser.parse_args(argv)
+    from character_sheet import sheet_status, validate_sidecar
 
     filled_png = args.filled_png.resolve()
     layout_path = (args.layout or args.filled_png.with_name("sheet-layout.json")).resolve()

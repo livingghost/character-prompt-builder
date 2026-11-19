@@ -54,7 +54,7 @@ def _image_bytes(value: Any) -> bytes:
 def _settle(root: Path, run: str, receipt: dict) -> dict:
     """Commit a generated receipt after receiving candidates, without live-input gates."""
     import image_input
-    import production_workflow as workflow
+    import production_operations as workflow
     from state_protocol import validate_against_schema
 
     schema = c.load(Path(__file__).resolve().parents[1] / 'schemas/production-external-receipt.schema.json')
@@ -121,7 +121,7 @@ def receive_external(root: Path, run: str, *, response_file: str,
     so a later read or comparison failure cannot discard an acquired image.
     Repeating this operation recovers the same result without another host call.
     """
-    import production_workflow as workflow
+    import production_operations as workflow
 
     c.text(reason, 'external result reason')
     if type(final) is not bool:

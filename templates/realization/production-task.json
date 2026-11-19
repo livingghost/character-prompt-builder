@@ -1,5 +1,6 @@
 {
   "task_id": "COPY_THE_OPEN_TASK_UUID",
+  "work_basis": "COPY_THE_ACQUIRED_WORK_BASIS_PATH",
   "production_id": "COPY_THE_ID_NEW-PRODUCTION-ID_PRINTS",
   "route": "development",
   "features": [],
@@ -35,6 +36,7 @@
       "brief"
     ],
     "decisions": [],
+    "source_allowances": [],
     "action_slice": null,
     "limitations": []
   },

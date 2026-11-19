@@ -3,7 +3,8 @@
 
 CI runs it once per operating system, and a contributor runs it the same way:
 
-    python scripts/run_checks.py               every command, one worker per processor
+    python scripts/run_checks.py               every command, up to four workers
+    python scripts/run_checks.py --jobs 2      every command, two workers
     python scripts/run_checks.py --only pack   the commands whose label or command contains "pack"
     python scripts/run_checks.py --list        print the commands without running them
 
@@ -19,8 +20,13 @@ with the source-control checks retained when present. Only the release packs
 are copied, so discovery cannot read an owner's other packs. ``CPB_HOME`` is
 ``<out>/home``, one scratch configuration directory whose pack state is
 ``config/default-pack-state.json``. Each command writes its output to
-``<out>/<index>.log``. The runner prints one line per finished
-command, then the slowest ten and the log tail of every failure:
+``<out>/<index>.log``. The automatic worker count is the smaller of four and
+the available CPU count. This limits contention; ``--jobs`` selects an explicit
+count. Nested CLI-help batches share the available CPU capacity across those
+workers, with up to four helpers per suite. The runner prints
+the chosen workers, Python, platform and CPU context
+before starting commands, then one line per finished command, the slowest ten
+and the log tail of every failure:
 
     [ 63/109]    58.5s  exit 0  python scripts/production_resume_smoke_test.py
     ...
@@ -28,9 +34,13 @@ command, then the slowest ten and the log tail of every failure:
         199.8s  python scripts/production_workflow_smoke_test.py
         157.1s  cd scripts && python -m unittest test_production_execution
     ...
-    109 commands: 105 passed, 4 failed in 379.7s with 8 workers
+    109 commands: 105 passed, 4 failed in 379.7s with 4 workers
+    elapsed phases: setup 0.100s; copy 0.800s; commands 378.000s; cleanup 0.800s
 
-It writes ``<out>/summary.json`` and exits 1 when any command failed.
+It writes ``<out>/summary.json`` and exits 1 when any command failed. The report
+includes the same execution context, elapsed time from setup through source
+cleanup, and separate setup, source-copy, command and cleanup durations. Each
+command's duration is elapsed subprocess time under that concurrent workload.
 """
 from __future__ import annotations
 
@@ -38,6 +48,7 @@ import argparse
 import concurrent.futures
 import json
 import os
+import platform
 import shlex
 import shutil
 import subprocess
@@ -105,6 +116,47 @@ LONGEST_FIRST = (
 )
 
 TAIL_LINES = 40
+AUTOMATIC_JOB_LIMIT = 4
+
+
+def cpu_context() -> dict[str, Any]:
+    """Describe the reported host CPUs and the CPUs available to this process."""
+    logical = os.cpu_count()
+    for name in ("process_cpu_count", "sched_getaffinity"):
+        probe = getattr(os, name, None)
+        if probe is None:
+            continue
+        try:
+            available = len(probe(0)) if name == "sched_getaffinity" else probe()
+        except (OSError, NotImplementedError):
+            continue
+        if available is not None and available > 0:
+            return {"logical_cpus": logical, "available_cpus": available, "cpu_source": "os." + name}
+    return {"logical_cpus": logical, "available_cpus": logical or 1,
+            "cpu_source": "os.cpu_count" if logical else "fallback"}
+
+
+def execution_context(jobs: int | None) -> dict[str, Any]:
+    """Choose bounded automatic concurrency or retain an explicit worker count."""
+    context = cpu_context()
+    selected_jobs = min(AUTOMATIC_JOB_LIMIT, context["available_cpus"]) if jobs is None else jobs
+    return {**context,
+            "jobs": selected_jobs,
+            "jobs_source": "automatic" if jobs is None else "explicit",
+            "child_command_workers": min(AUTOMATIC_JOB_LIMIT, max(1, context["available_cpus"] // selected_jobs)),
+            "temporary_directory": tempfile.gettempdir(),
+            "python": platform.python_version(), "python_implementation": platform.python_implementation(),
+            "python_executable": sys.executable, "platform": platform.platform()}
+
+
+def print_context(context: dict[str, Any]) -> None:
+    """Show the execution conditions retained in summary.json before commands start."""
+    print(f"workers: {context['jobs']} ({context['jobs_source']}); available CPUs: {context['available_cpus']} "
+          f"({context['cpu_source']}); logical CPUs: {context['logical_cpus'] or 'unknown'}", flush=True)
+    print(f"CLI-help workers per suite: {context['child_command_workers']}", flush=True)
+    print(f"temporary files: {context['temporary_directory']}", flush=True)
+    print(f"runtime: {context['python_implementation']} {context['python']}; {context['platform']}", flush=True)
+    print(f"python: {context['python_executable']}", flush=True)
 
 
 def _python(*arguments: str) -> list[str]:
@@ -212,11 +264,12 @@ def copy_check_tree(source: Path, destination: Path) -> Path:
     return destination.resolve()
 
 
-def run_one(index: int, label: str, argv: Sequence[str], out: Path, root: Path) -> dict[str, Any]:
+def run_one(index: int, label: str, argv: Sequence[str], out: Path, root: Path, *, child_workers: int) -> dict[str, Any]:
     """Run one command with CPB_HOME at the scratch home and record its exit status, time and log."""
     runtime = str(out / "pack-runtime")
     resolved = [argument.replace(PACK_RUNTIME, runtime) for argument in argv]
-    environment = {**os.environ, "CPB_HOME": str(out / "home"), "PYTHONDONTWRITEBYTECODE": "1"}
+    environment = {**os.environ, "CPB_HOME": str(out / "home"), "PYTHONDONTWRITEBYTECODE": "1",
+                   "CPB_CHECK_CHILD_WORKERS": str(child_workers)}
     log = out / f"{index:03d}.log"
     started = time.monotonic()
     with log.open("wb") as handle:
@@ -242,21 +295,36 @@ def tail(path: str, count: int = TAIL_LINES) -> list[str]:
     return text.splitlines()[-count:]
 
 
-def run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, out: Path) -> int:
-    """Run the commands against one product-owned source copy and scratch home."""
+def run(selected: Sequence[tuple[str, list[str]]], *, jobs: int | None, out: Path) -> int:
+    """Run against one isolated source tree and report elapsed setup through cleanup."""
+    started = time.monotonic()
+    context = execution_context(jobs)
+    print_context(context)
     out.mkdir(parents=True, exist_ok=True)
     scratch_home(out)
     with tempfile.TemporaryDirectory(prefix="source-", dir=out) as temporary:
+        setup_finished = time.monotonic()
         root = copy_check_tree(ROOT, Path(temporary) / ROOT.name)
-        return _run(selected, jobs=jobs, out=out, root=root)
+        copy_finished = time.monotonic()
+        results = _run(selected, jobs=context["jobs"], child_workers=context["child_command_workers"], out=out, root=root)
+        commands_finished = time.monotonic()
+    finished = time.monotonic()
+    timings = {"setup": setup_finished - started, "copy": copy_finished - setup_finished,
+               "commands": commands_finished - copy_finished, "cleanup": finished - commands_finished}
+    failed = [item for item in results if item["exit"] != 0]
+    summary = {"jobs": context["jobs"], "context": context, "seconds": round(finished - started, 3),
+               "timings_seconds": {name: round(seconds, 3) for name, seconds in timings.items()},
+               "passed": len(results) - len(failed), "failed": len(failed), "commands": results}
+    (out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print_summary(summary, out)
+    return 1 if failed else 0
 
 
-def _run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, out: Path, root: Path) -> int:
-    """Run each command once, print every result and the summary, and return the exit status."""
+def _run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, child_workers: int, out: Path, root: Path) -> list[dict[str, Any]]:
+    """Run each command once and print every result before source cleanup."""
     total = len(selected)
     results: list[dict[str, Any]] = []
     lock = threading.Lock()
-    started = time.monotonic()
 
     def report(result: dict[str, Any]) -> None:
         with lock:
@@ -269,7 +337,7 @@ def _run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, out: Path, roo
     pending = numbered
     if preparation is not None:
         index, (label, argv) = preparation
-        first = run_one(index, label, argv, out, root)
+        first = run_one(index, label, argv, out, root, child_workers=child_workers)
         report(first)
         pending = [entry for entry in numbered if entry[0] != index]
         if first["exit"] != 0:
@@ -278,20 +346,22 @@ def _run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, out: Path, roo
                 report(refused(index, label, argv, out, reason))
             pending = [entry for entry in pending if not needs_runtime(entry[1][1])]
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-        futures = [pool.submit(run_one, index, label, argv, out, root) for index, (label, argv) in pending]
+        futures = [pool.submit(run_one, index, label, argv, out, root, child_workers=child_workers)
+                   for index, (label, argv) in pending]
         try:
             for future in concurrent.futures.as_completed(futures):
                 report(future.result())
         except KeyboardInterrupt:
             pool.shutdown(wait=False, cancel_futures=True)
             raise
-    wall = time.monotonic() - started
-
     results.sort(key=lambda item: item["index"])
+    return results
+
+
+def print_summary(summary: dict[str, Any], out: Path) -> None:
+    """Print failures and the whole-run elapsed time after the source copy is removed."""
+    results = summary["commands"]
     failed = [item for item in results if item["exit"] != 0]
-    summary = {"jobs": jobs, "seconds": round(wall, 2), "passed": len(results) - len(failed),
-               "failed": len(failed), "commands": results}
-    (out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print()
     print("slowest:")
     for item in sorted(results, key=lambda entry: entry["seconds"], reverse=True)[:10]:
@@ -303,22 +373,22 @@ def _run(selected: Sequence[tuple[str, list[str]]], *, jobs: int, out: Path, roo
         for line in tail(item["log"]):
             print("  | " + line)
     print()
-    print(f"{total} commands: {summary['passed']} passed, {summary['failed']} failed "
-          f"in {wall:.1f}s with {jobs} workers")
+    print(f"{len(results)} commands: {summary['passed']} passed, {summary['failed']} failed "
+          f"in {summary['seconds']:.1f}s with {summary['jobs']} workers")
+    print("elapsed phases: " + "; ".join(f"{name} {seconds:.3f}s" for name, seconds in summary["timings_seconds"].items()))
     print(f"summary: {out / 'summary.json'}")
-    return 1 if failed else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run every test suite and check command once, in parallel.")
-    parser.add_argument("--jobs", type=int, default=os.cpu_count() or 1,
-                        help="commands run at once (default: the processor count)")
+    parser.add_argument("--jobs", type=int,
+                        help="commands run at once (default: available CPU count, capped at 4; an explicit value overrides the cap)")
     parser.add_argument("--out", type=Path, help="folder for the logs and summary.json (default: a new temporary folder)")
     parser.add_argument("--only", metavar="SUBSTRING",
                         help="run the commands whose label or command contains SUBSTRING")
     parser.add_argument("--list", action="store_true", help="print the commands without running them")
     args = parser.parse_args(argv)
-    if args.jobs < 1:
+    if args.jobs is not None and args.jobs < 1:
         parser.error("--jobs must be at least 1")
     selected = select(commands(), args.only)
     if not selected:

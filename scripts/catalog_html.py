@@ -22,21 +22,11 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 from urllib.parse import quote
 
-from pack_manager import (
-    DiscoveredPack,
-    PackError,
-    PackInput,
-    PackIssue,
-    PackRecord,
-    PackSettings,
-    PackValidation,
-    load_state,
-    resolve_enabled,
-    validate_pack_input,
-)
+from pack_manager import DiscoveredPack, PackError, PackInput, PackIssue, PackRecord, PackValidation, load_state, resolve_enabled, validate_pack_input
+from runtime_paths import PackSettings
 from pack_cache import RuntimePackCatalog, load_runtime_catalog
 from state_protocol import schema_read_scope
 
@@ -2188,6 +2178,7 @@ def write_catalog_directory(
     copy_assets: bool = False,
     runtime_projection: Mapping[str, Any] | None = None,
     notices: Sequence[str] = (),
+    publisher: Callable[[Path, Path], None] | None = None,
 ) -> dict[str, Any]:
     """Write a direct-open landing page, search page, galleries, and record pages."""
 
@@ -2440,7 +2431,11 @@ def write_catalog_directory(
             encoding="utf-8",
             newline="\n",
         )
-        if not output_directory.exists():
+        if publisher is not None:
+            publisher(temporary, output_directory)
+            if not temporary.exists():
+                temporary = None
+        elif not output_directory.exists():
             os.replace(temporary, output_directory)
             temporary = None
         else:

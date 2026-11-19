@@ -6,13 +6,13 @@ import argparse
 import json
 from pathlib import Path
 
-from visual_evidence import validate_bundle
 
 
 def main() -> int:
     parser = _operation_context.ArgumentParser()
     parser.add_argument("path")
     args = parser.parse_args()
+    from visual_evidence import validate_bundle
     root = Path(args.path)
     errors: list[str] = []
     dirs: list[Path] = []

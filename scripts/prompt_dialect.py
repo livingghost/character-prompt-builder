@@ -42,7 +42,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from pack_cache import load_runtime_catalog  # noqa: E402
-from pack_manager import PackError, PackSettings  # noqa: E402
+from pack_manager import PackError
+from runtime_paths import PackSettings  # noqa: E402
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime  # noqa: E402
 from model_prompt_input import prompt_input_card  # noqa: E402
 
@@ -69,9 +70,9 @@ SCHEMA_PATH = ROOT / "schemas" / "prompt-dialect.schema.json"
 def validate_dialects(value: Any) -> Any:
     """Refuse a prompt-dialects resource that does not meet its contract."""
 
-    from state_protocol import validate_against_schema
+    from state_protocol import read_schema, validate_against_schema
 
-    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    schema = read_schema(SCHEMA_PATH)
     errors = validate_against_schema(value, schema)
     if errors:
         raise PackError("prompt-dialects resource is invalid: " + "; ".join(errors))
@@ -140,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     if not (args.list or args.dialect or args.model or args.weighting):
         parser.error("one of --list, --dialect, --model or --weighting")
 
-    from catalog_cli import configure_pack_runtime
+    from catalog_api import configure_pack_runtime
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     try:
@@ -157,7 +158,7 @@ def render_report(args: argparse.Namespace, settings: PackSettings) -> int:
     model_id = None
     input_card: dict[str, Any] | None = None
     if args.model:
-        from prepare_generation_references import resolve_model_record
+        from generation_references import resolve_model_record
 
         model_id, record = resolve_model_record(args.model)
         input_card = prompt_input_card(record)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Synthetic reference-order, board-region and influence-contract checks."""
 from __future__ import annotations
+import runtime_paths
 import copy
 import json
 import os
@@ -10,14 +11,14 @@ import sys
 import tempfile
 import unittest
 import reference_delivery as d
-from prepare_generation_references import _validate_authority
+from generation_references import _validate_authority
 
 
 class ReferenceDeliveryTests(unittest.TestCase):
     def setUp(self):
-        self.rows = [{'role': 'declared-subject', 'source': {'sha256': 'a' * 64}, 'transport': {'sha256': 'b' * 64},
+        self.rows = [{'reference_id': 'subject', 'role': 'declared-subject', 'source': {'sha256': 'a' * 64}, 'transport': {'sha256': 'b' * 64},
                       'authority': {'controls': ['enduring shape'], 'must_not_control': ['current orientation', 'expression']}},
-                     {'role': 'environment', 'source': {'sha256': 'c' * 64}, 'transport': {'sha256': 'd' * 64},
+                     {'reference_id': 'space', 'role': 'environment', 'source': {'sha256': 'c' * 64}, 'transport': {'sha256': 'd' * 64},
                       'authority': {'controls': ['spatial arrangement'], 'must_not_control': ['current light']}}]
         self.board = {'panels': [{'semantic_role': row['role'], 'source_sha256': row['source']['sha256'],
                                  'transport_sha256': row['transport']['sha256'],
@@ -40,6 +41,134 @@ class ReferenceDeliveryTests(unittest.TestCase):
         rows = d.bindings('multi-image', self.rows)
         self.assertEqual(rows[0]['must_not_control'], ['current orientation', 'expression'])
         self.assertEqual(rows[1]['must_not_control'], ['current light'])
+
+    def test_scoped_choice_changes_consumed_model_text_without_unrelated_clauses(self):
+        from reference_contract import authority_for
+        from model_rendition import resolve_reference_text
+        source = 'Gesture guide: Image {{reference:subject:attachment_number}}, {{reference:subject:controls}}.'
+        texts = []
+        for control in ('target pose and body gesture', 'target camera framing and crop'):
+            self.rows[0]['authority'] = authority_for('adopted-reference', 'pose-camera',
+                selected_controls=[control])
+            result = resolve_reference_text(source, d.bindings('multi-image', self.rows[:1]))
+            texts.append(result['text'])
+            self.assertEqual(result['text'], 'Gesture guide: Image 1, ' + control + '.')
+            self.assertEqual(result['source_text'], source)
+            self.assertNotIn('must not', result['text'])
+            self.assertNotIn('silhouette', result['text'])
+        self.assertNotEqual(texts[0], texts[1])
+
+    def test_scope_selection_cannot_expand_declared_capability(self):
+        from reference_contract import authority_for
+        with self.assertRaisesRegex(ValueError, 'subset'):
+            authority_for('adopted-reference', 'identity', selected_controls=['target camera framing and crop'])
+        with self.assertRaisesRegex(ValueError, 'subset'):
+            authority_for('subject-mask', 'pose-camera', selected_controls=['target pose and body gesture'])
+        from reference_contract import normalize_selected_records
+        with self.assertRaisesRegex(ValueError, 'select selected_controls'):
+            normalize_selected_records([{'record_id': 'chosen-source', 'intended_influence': 'pose-camera'}],
+                                       require_selection=True)
+
+    def test_editable_guide_exposes_selected_words_before_preparation(self):
+        from production_reference_inputs import text_guide
+        guide = text_guide({'external': {'image_input': {'references': [
+            {'id': 'keeper', 'role': 'identity', 'use_for': ['three cheek marks'], 'do_not_transfer': []}]}}})
+        self.assertEqual(guide['slots'][0]['controls_text'], 'three cheek marks')
+        self.assertEqual(guide['slots'][0]['markers']['controls'], '{{reference:keeper:controls}}')
+        self.assertEqual(guide['slots'][0]['derived_locations'], ['attachment_number'])
+        unresolved = text_guide({'authoring': {'references': {'reference_use_plan': {'items': [
+            {'id': 'motion', 'intended_influence': 'pose-camera', 'technical_role': 'structural-line-tone'}]}}}})
+        self.assertIsNone(unresolved['slots'][0]['selected_controls'])
+        self.assertIn('target camera framing and crop', unresolved['slots'][0]['available_controls'])
+
+    def test_locators_alone_do_not_deliver_selected_contributions(self):
+        from model_rendition import resolve_reference_text
+        from production_diagnostics import ProductionError
+        with self.assertRaises(ProductionError) as caught:
+            resolve_reference_text('Use Image {{reference:subject:attachment_number}}.',
+                d.bindings('multi-image', self.rows[:1]))
+        self.assertEqual(caught.exception.diagnostic.code, 'REFERENCE_TEXT_UNRESOLVED')
+
+    def test_reordering_and_deduplication_rebind_stable_uses_in_authored_relation(self):
+        from model_rendition import resolve_reference_text
+        source = ('Use {{reference:subject:controls}} from Image {{reference:subject:attachment_number}} '
+                  'within {{reference:space:controls}} from Image {{reference:space:attachment_number}}.')
+        first = resolve_reference_text(source, d.bindings('multi-image', self.rows))
+        second = resolve_reference_text(source, d.bindings('multi-image', self.rows[::-1]))
+        self.assertEqual(first['text'], 'Use enduring shape from Image 1 within spatial arrangement from Image 2.')
+        self.assertEqual(second['text'], 'Use enduring shape from Image 2 within spatial arrangement from Image 1.')
+        self.rows[1]['transport'] = copy.deepcopy(self.rows[0]['transport'])
+        shared = resolve_reference_text(source, d.bindings('multi-image', self.rows))
+        self.assertEqual(shared['text'], 'Use enduring shape from Image 1 within spatial arrangement from Image 1.')
+
+    def test_board_scope_consumes_actual_region_with_author_owned_syntax(self):
+        from model_rendition import resolve_reference_text
+        source = ('Image {{reference:subject:attachment_number}} ({{reference:subject:region}}): '
+                  '{{reference:subject:controls}}; Image {{reference:space:attachment_number}} '
+                  '(x={{reference:space:x}}, y={{reference:space:y}}, w={{reference:space:width}}, '
+                  'h={{reference:space:height}}): {{reference:space:controls}}.')
+        rows = d.bindings('single-board', self.rows, self.board)
+        result = resolve_reference_text(source, rows)
+        self.assertEqual(result['text'], 'Image 1 (0, 0, 100, 100): enduring shape; '
+            'Image 1 (x=100, y=0, w=100, h=100): spatial arrangement.')
+        from production_diagnostics import ProductionError
+        with self.assertRaises(ProductionError):
+            resolve_reference_text(source.replace('{{reference:subject:region}}', 'top panel'), rows)
+
+    def test_target_expressions_and_explicit_exceptions_preserve_authored_grammar(self):
+        from reference_contract import authority_for
+        from model_rendition import resolve_reference_text
+        self.rows[0]['authority'] = authority_for('adopted-reference', 'pose-camera',
+            selected_controls=['target pose and body gesture'],
+            control_expressions={'target pose and body gesture': 'raised tentacles'})
+        rows = d.bindings('multi-image', self.rows[:1])
+        source = 'guide_{{reference:subject:attachment_number}}, ({{reference:subject:controls}}:1.2)'
+        self.assertEqual(resolve_reference_text(source, rows)['text'], 'guide_1, (raised tentacles:1.2)')
+        explicit = source + '; leave {{reference:subject:must_not_control}} with the scene.'
+        self.assertIn(', '.join(rows[0]['must_not_control']), resolve_reference_text(explicit, rows)['text'])
+
+    def test_only_selected_text_channel_requires_scope_consumption(self):
+        from model_rendition import resolve_reference_channels, validate_reference_channels
+        from production_diagnostics import ProductionError
+        rows = d.bindings('multi-image', self.rows[:1])
+        source = 'Image {{reference:subject:attachment_number}} supplies {{reference:subject:controls}}.'
+        result = resolve_reference_channels({'prompt': 'Working draft.', 'integrated_prompt': source}, rows,
+            reference_mode='authored-rendition', negative_transport='integrated-critical')
+        self.assertEqual(result['selected_channel'], 'integrated_prompt')
+        self.assertEqual(result['channels']['integrated_prompt']['text'], 'Image 1 supplies enduring shape.')
+        validate_reference_channels(result, rows, reference_mode='authored-rendition', negative_transport='integrated-critical')
+        with self.assertRaises(ProductionError):
+            resolve_reference_channels({'prompt': source, 'integrated_prompt': 'Unused scopes.'}, rows,
+                reference_mode='authored-rendition', negative_transport='integrated-critical')
+        changed = copy.deepcopy(result)
+        changed['channels']['integrated_prompt']['text'] = 'Image 1 supplies every feature.'
+        with self.assertRaises(ValueError):
+            validate_reference_channels(changed, rows, reference_mode='authored-rendition', negative_transport='integrated-critical')
+
+    def test_native_mapping_requires_no_authored_prose_and_no_reference_text_stays_exact(self):
+        from model_rendition import resolve_reference_channels
+        rows = d.bindings('multi-image', self.rows[:1])
+        for bindings, mode in ((rows, 'native-fields'), ([], 'none')):
+            record = resolve_reference_channels({'prompt': 'A complete composition.'}, bindings,
+                reference_mode=mode, negative_transport='separate-field')
+            self.assertEqual(record['channels']['prompt']['text'], 'A complete composition.')
+            self.assertEqual(record['channels']['prompt']['trace'], [])
+
+    def test_reference_execution_policy_requires_its_recorded_text_dialect(self):
+        import execution_contract as c
+        from execution_policy import load_policy
+        from input_evidence import InputEvidence
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = {'service': 'synthetic-host', 'model_identifier': 'tag-fixture', 'operation': 'generate'}
+            policy = {'artifact_type': 'execution-policy', 'target': target,
+                'reference_instruction_transport': None,
+                'basis': {'path': 'basis.txt', 'sha256': c.digest(b'Synthetic declaration.'), 'locator': 'whole'}}
+            (root / 'basis.txt').write_bytes(b'Synthetic declaration.')
+            (root / 'policy.json').write_bytes(c.encoded(policy))
+            declaration = {'execution_policy': {'path': 'policy.json', 'sha256': c.sha256_file(root / 'policy.json')}}
+            with self.assertRaisesRegex(ValueError, 'text_dialect'):
+                load_policy(declaration, InputEvidence(root), target, dialect='fixture-tags')
 
     def test_state_subject_survives_without_optional_use_priorities(self):
         from model_rendition import validate_bindings
@@ -135,6 +264,7 @@ class ReferenceDeliveryTests(unittest.TestCase):
 
     def test_complementary_groups_keep_delivery_order_and_priorities(self):
         third = copy.deepcopy(self.rows[1])
+        third['reference_id'] = 'space-detail'
         third['transport']['sha256'] = 'e' * 64
         self.rows.append(third)
         for row, priority in zip(self.rows, [2, 0, 0]):
@@ -182,10 +312,10 @@ class ReferenceDeliveryTests(unittest.TestCase):
 
 class ReferenceDeliveryCliTests(unittest.TestCase):
     def setUp(self):
-        import catalog_cli
+        import catalog_api as catalog_cli
         import pack_manager
-        from build_generation_payload import materialize_cli_reference_bundle
-        from prepare_generation_references import prepare_references
+        from generation_payload_builder import materialize_cli_reference_bundle
+        from generation_references import prepare_references
         from production_case_fixtures import create_pack, MODEL_ID, PACK_ID, write
         from production_fixtures import scratch_home
         from reference_runtime_smoke_test import _fixture_png
@@ -197,7 +327,7 @@ class ReferenceDeliveryCliTests(unittest.TestCase):
         self.addCleanup(catalog_cli.configure_pack_runtime, None)
         self.skill = Path(__file__).resolve().parents[1]
         pack = create_pack(self.work / 'synthetic-pack')
-        settings = pack_manager.PackSettings(roots=(pack,), state_file=self.work / 'state.json',
+        settings = runtime_paths.PackSettings(roots=(pack,), state_file=self.work / 'state.json',
             cache_dir=self.work / 'cache', managed_root=self.work / 'managed',
             quarantine_root=self.work / 'managed/.quarantine')
         pack_manager.save_state(settings.state_file, {'pack_roots': [str(pack)],

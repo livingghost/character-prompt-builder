@@ -160,7 +160,7 @@ Do not distribute the cache as authored content. See [Catalog Cache Lifecycle](.
 
 Use `inspect` for the complete canonical record plus compact asset activation summary. Use `asset-lookup --summary` for asset IDs and technical roles. Use full `asset-lookup` only when reference planning requires complete artifact paths, roles, media, hashes, and ownership. Reference activation and transport belong to [Prompt Artifact Reference Runtime](../runtime/reference-prompt-artifacts.md) and [Image Generation Runtime](../runtime/image-generation.md), not pack lifecycle.
 
-The automatic browser view is scoped by the selected state-file path, discovery roots and managed root, beneath `CACHE/browser-catalog/CONTEXT/`. Shared cache directories keep distinct runtime views separate. Display failures are reported without reversing successful pack operations or adding readiness decisions. Lock publication, installation, update and removal leave an absent state unselected; display maintenance never initializes activation.
+The automatic browser view is scoped by the selected state-file path, discovery roots and managed root, beneath `CACHE/browser-catalog/CONTEXT/GENERATION/`. Each source and renderer generation has its own complete output; the operation returns its matching entry point. Shared cache directories keep distinct runtime views separate. Display failures are reported without reversing successful pack operations or adding readiness decisions. Lock publication, installation, update and removal leave an absent state unselected; display maintenance never initializes activation.
 
 For a separate inspection or distribution that includes every pack in a chosen tree, export explicitly:
 

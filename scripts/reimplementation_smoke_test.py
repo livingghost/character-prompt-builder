@@ -21,11 +21,12 @@ import execution_contract as c
 import material_support as m
 import scene_persona as scene
 import production_binding as binding
-import production_workflow as workflow
+import production_operations as workflow
 import production_fixtures as fixture
+from production_case_fixtures import cold_case
 import work_ledger
-import studio
-import dispatch
+import studio_workspace as studio
+import dispatch_runtime as dispatch
 from create_authoring_example import create
 
 class SceneIntegration(unittest.TestCase):
@@ -37,7 +38,10 @@ class SceneIntegration(unittest.TestCase):
         started = work_ledger.begin(self.root, 'Synthetic authoring integration', ['prepare', 'deliver'])
         (self.root/'delivery.txt').write_text('The traveller rests one hand on the doorframe and waits.', encoding='utf-8')
         self.spec = {'task_id':started['task_id'], 'route':'performance','features':['scene-persona'], 'execution':'external',
-            'sources':[], 'delivery':{'path':'delivery.txt','translation_notes':'No private source copying.'},
+            'sources':[{'id':'subject-model', 'path':'originals/subject.md', 'role':'definition',
+                'disposition':'applied', 'locator':'whole', 'reason':'Actual functional definition from the prepared scene.',
+                'applications':[{'id':'subject-model', 'pointer':'', 'subjects':['subject'], 'requirement':False}]}],
+            'delivery':{'path':'delivery.txt','translation_notes':'No private source copying.'},
             'criteria':[{'id':'scope','strength':'hard','text':'Use only the prepared scope.'}], 'world_views':[],
             'scene_materials':[{'plan':'scene-plan.json','bundle':'scene-material'}]}
         fixture.task(self.root, self.spec, execution='external')
@@ -134,14 +138,28 @@ class SceneIntegration(unittest.TestCase):
 
 class UpscaleIntegration(unittest.TestCase):
     """Real compiler, permissions, transport bytes and recovery for one upscale."""
+    @staticmethod
+    def build(base):
+        import production_case_fixtures as cases
+        case = cases.create(base / 'studio', base / 'runtime', with_upscale=True)
+        return case, {}
+
+    @classmethod
+    def setUpClass(cls):
+        import production_case_fixtures as cases
+        cls._case_template = cases.CaseTemplate.for_class(cls, UpscaleIntegration.build)
+
     def setUp(self):
         import production_case_fixtures as cases
         import production_execution as execution
         import transport_synthetic
         from test_production_execution import decisions
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        base=Path(self.temp.name);case=cases.create(base/'studio',base/'runtime',with_upscale=True)
+        base = Path(self.temp.name)
+        case, _ = cases.CaseTemplate.for_test(self, base, UpscaleIntegration.build,
+                                            getattr(type(self), '_case_template', None))
         self.root=case['root'];self.case=case
+        # Sealed media paths belong to the new Studio, so prepare after copying.
         self.task=cases.upscale_task(self.root)
         self.run=workflow.prepare(self.root,self.task)['run']
         self.request=c.load(self.root/'upscale/input.json');self.source=self.root/'upscale/source.png'
@@ -162,6 +180,7 @@ class UpscaleIntegration(unittest.TestCase):
             result=self.execution.execute(self.root,self.run,decisions_file=self.decision_file)
         return 0 if result.get('execution_completed') else 1
 
+    @cold_case
     def test_execute_and_recover_share_one_formal_record(self):
         self.assertEqual(self.call(),0)
         from PIL import Image

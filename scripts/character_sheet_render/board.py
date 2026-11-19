@@ -1,7 +1,14 @@
-"""Board drawing, artifact emission, and the render_sheet orchestration."""
+"""Construct a sheet plan, then draw and publish its bound artifacts.
+
+Planning resolves source content, geometry and model-facing requests without
+creating output files. Publication renders that same plan and binds its actual
+SVG, PNG, mask and request files into the completed package.
+"""
 from __future__ import annotations
 
 import base64
+import copy
+from dataclasses import dataclass
 import io
 import json
 import math
@@ -63,18 +70,36 @@ from character_sheet_render.textmetrics import (
     REFERENCE_GUIDE,
     SCAFFOLD_GUIDE,
     SOFT,
-    begin_raster_text_collection,
     build_raster_text_layer,
     estimated_text_units,
     fit_title_size,
     fit_wrapped_text,
     make_svg_text,
     make_wrapped_svg_text,
-    take_raster_text_overlays,
+    SvgDrawing,
 )
 
 
 RENDERER_ID = "render_character_sheet"
+
+
+@dataclass(frozen=True)
+class SheetPlan:
+    """Resolved sheet content; artifact paths and output hashes belong to publication.
+
+    A plan owns its vector fragments, text instructions and source descriptions.
+    Publishing it does not change those values or repeat their construction.
+    """
+
+    profile: dict[str, Any]
+    coverage: dict[str, Any]
+    layout: dict[str, Any]
+    drawing: SvgDrawing
+    package_metadata: dict[str, Any]
+    panel_requests: dict[str, Any] | None
+    fill_prompt: str | None
+    reference_prompt: str | None
+    reference_bundle: dict[str, Any] | None
 
 
 def rasterize_board(svg_markup: str, png_path: Path) -> None:
@@ -106,14 +131,14 @@ def rasterize_board(svg_markup: str, png_path: Path) -> None:
     png_path.write_bytes(resvg_py.svg_to_bytes(svg_string=svg_markup))
 
 
-def image_data_uri(path: Path) -> str:
+def image_data_uri(path: Path, data: bytes) -> str:
     mime = mimetypes.guess_type(str(path))[0] or "image/png"
-    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    encoded = base64.b64encode(data).decode("ascii")
     return f"data:{mime};base64,{encoded}"
 
 
 def render_palette(
-    svg: list[str],
+    svg: SvgDrawing,
     rows: Sequence[Mapping[str, str]],
     *,
     x: int,
@@ -203,7 +228,7 @@ def render_palette(
 
 
 def render_profile_summary(
-    svg: list[str],
+    svg: SvgDrawing,
     sheet: Mapping[str, Any],
     *,
     x: int,
@@ -266,7 +291,7 @@ def render_profile_summary(
 
 
 def draw_header(
-    svg: list[str],
+    svg: SvgDrawing,
     *,
     profile: Mapping[str, Any],
     sheet: Mapping[str, Any],
@@ -320,7 +345,7 @@ def draw_header(
 
 
 def draw_guide(
-    svg: list[str],
+    svg: SvgDrawing,
     *,
     profile: Mapping[str, Any],
     width: int,
@@ -391,7 +416,7 @@ def draw_guide(
 
 
 def draw_model_brief(
-    svg: list[str], *, sheet: Mapping[str, Any], width: int, fill_transport: str
+    svg: SvgDrawing, *, sheet: Mapping[str, Any], width: int, fill_transport: str
 ) -> None:
     x = SIDE_MARGIN
     y = 224
@@ -462,30 +487,20 @@ def create_edit_mask(path: Path, *, width: int, height: int, boxes: Sequence[Map
     mask.save(path, format="PNG")
 
 
-def write_panel_fill_requests(
+def build_panel_fill_requests(
     *,
-    out_dir: Path,
     profile: Mapping[str, Any],
     sheet: Mapping[str, Any],
     plan_rows: Sequence[Mapping[str, Any]],
     layout_boxes: Sequence[Mapping[str, Any]],
-    scaffold_path: Path,
-    layout_path: Path,
     panel_geometries: Sequence[tuple[int, int]] | None = None,
-) -> tuple[Path, str, int]:
-    """Write one maskless model request per editable panel.
+) -> dict[str, Any]:
+    """Construct one maskless model request per editable panel.
 
     None of these requests includes the full sheet. A later deterministic
     compositor pastes result pixels into the declared content rectangles of the
     pristine renderer-owned scaffold.
     """
-
-    prompts_dir = out_dir / "panel-fill-prompts"
-    if prompts_dir.resolve().parent != out_dir.resolve():
-        raise ValueError("panel fill prompt directory must be a direct child of the render output")
-    if prompts_dir.exists():
-        shutil.rmtree(prompts_dir)
-    prompts_dir.mkdir(parents=True, exist_ok=False)
 
     plan_boxes = {
         str(box.get("resolved_slot_id", box.get("slot_id", ""))): box
@@ -502,8 +517,6 @@ def write_panel_fill_requests(
         if plan_box is None:
             raise ValueError(f"editable layout panel has no source plan: {slot_id}")
         output_name = str(layout_box["output_name"])
-        prompt_name = Path(output_name).with_suffix(".txt").name
-        prompt_path = prompts_dir / prompt_name
         content_width = int(round(float(layout_box["content_w"])))
         content_height = int(round(float(layout_box["content_h"])))
         generation_width, generation_height = panel_generation_size(
@@ -516,7 +529,6 @@ def write_panel_fill_requests(
             target_slot_id=slot_id,
             target_content_size=(generation_width, generation_height),
         )
-        prompt_path.write_text(prompt, encoding="utf-8", newline="\n")
         requests.append(
             {
                 "request_id": slot_id,
@@ -525,10 +537,7 @@ def write_panel_fill_requests(
                 "resolved_slot_id": slot_id,
                 "kind": layout_box.get("kind", "drawing"),
                 "reference_role": layout_box.get("reference_role", "identity"),
-                "prompt": {
-                    "path": prompt_path.relative_to(out_dir).as_posix(),
-                    "sha256": sha256_file(prompt_path),
-                },
+                "prompt": prompt,
                 "result_file": output_name,
                 # What the returned image is judged against. It is not in the
                 # prompt: a rule about what may not change is not a thing to draw.
@@ -596,34 +605,53 @@ def write_panel_fill_requests(
             "generation_order": "accept the identity anchor, derive and accept canonical views, then explicitly select accepted references for each remaining panel within the model attachment limit",
         },
         "identity_anchor_request_id": identity_anchor_request_id,
-        "scaffold": {
-            "path": scaffold_path.relative_to(out_dir).as_posix(),
-            "sha256": sha256_file(scaffold_path),
-        },
-        "layout": {
-            "path": layout_path.relative_to(out_dir).as_posix(),
-            "sha256": sha256_file(layout_path),
-        },
         "requests": requests,
     }
+    return manifest
+
+
+def write_panel_fill_requests(
+    request_plan: Mapping[str, Any],
+    *,
+    out_dir: Path,
+    scaffold_path: Path,
+    layout_path: Path,
+) -> tuple[Path, str, int]:
+    """Publish the planned requests and bind their actual companion files."""
+    prompts_dir = out_dir / "panel-fill-prompts"
+    if prompts_dir.resolve().parent != out_dir.resolve():
+        raise ValueError("panel fill prompt directory must be a direct child of the render output")
+    if prompts_dir.exists():
+        shutil.rmtree(prompts_dir)
+    prompts_dir.mkdir(parents=True, exist_ok=False)
+    manifest = copy.deepcopy(request_plan)
+    for request in manifest["requests"]:
+        prompt_path = prompts_dir / Path(request["result_file"]).with_suffix(".txt").name
+        prompt_path.write_text(request["prompt"], encoding="utf-8", newline="\n")
+        request["prompt"] = {
+            "path": prompt_path.relative_to(out_dir).as_posix(),
+            "sha256": sha256_file(prompt_path),
+        }
+    manifest["scaffold"] = {
+        "path": scaffold_path.relative_to(out_dir).as_posix(),
+        "sha256": sha256_file(scaffold_path),
+    }
+    manifest["layout"] = {
+        "path": layout_path.relative_to(out_dir).as_posix(),
+        "sha256": sha256_file(layout_path),
+    }
     manifest_path = out_dir / "panel-fill-requests.json"
-    manifest_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
-    return manifest_path, sha256_file(manifest_path), len(requests)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+                             encoding="utf-8", newline="\n")
+    return manifest_path, sha256_file(manifest_path), len(manifest["requests"])
 
 
-def write_reference_bundle(
-    path: Path,
+def build_reference_bundle(
     *,
     rows: Sequence[Mapping[str, Any]],
-    board_png: Path,
-    board_scope: str,
     profile_id: str,
-    sidecar_path: Path | None,
-) -> Path:
+    accepted_sha256: str | None,
+) -> dict[str, Any]:
     """List every accepted slot image with its role, for downstream selection.
 
     The board shows what its scope allows; the bundle lists all of it, so a
@@ -666,29 +694,19 @@ def write_reference_bundle(
         "artifact_type": "character-sheet-reference-bundle",
         "producer": {"id": RENDERER_ID},
         "profile": profile_id,
-        "sheet_accepted_sha256": __import__("sheet_artifacts").accepted_sha256(__import__("execution_contract").load(sidecar_path)) if sidecar_path else None,
-        "board": {
-            "path": board_png.name,
-            "sha256": sha256_file(board_png),
-            "scope": board_scope,
-            "audience": "people",
-        },
+        "sheet_accepted_sha256": accepted_sha256,
         "roles": roles,
         "panels": panels,
     }
-    path.write_text(
-        json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
-    )
-    return path
+    return bundle
 
 
-def render_sheet(
+def build_sheet_plan(
     profile: Mapping[str, Any],
     sheet: Mapping[str, Any],
     *,
     sheet_dir: Path,
     mode: str,
-    out_dir: Path,
     reference_scope: str = "all",
     profile_path: Path | None = None,
     sidecar_path: Path | None = None,
@@ -696,7 +714,7 @@ def render_sheet(
     fill_transport: str = PANEL_FILL_TRANSPORT,
     pixel_edit_mask_confirmed: bool = False,
     panel_geometries: Sequence[tuple[int, int]] | None = None,
-) -> dict[str, Any]:
+) -> SheetPlan:
     if mode not in {"scaffold", "reference"}:
         raise ValueError("mode must be scaffold or reference")
     if reference_scope not in {"identity", "all"}:
@@ -797,11 +815,10 @@ def render_sheet(
         fill_rows_to_width(plan_rows, width)
         height = stack_height()
 
-    begin_raster_text_collection()
-    svg: list[str] = [
+    svg = SvgDrawing([
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
         f'<rect width="{width}" height="{height}" fill="{PAPER}"/>',
-    ]
+    ])
     draw_header(svg, profile=resolved_profile, sheet=sheet, width=width, mode=mode)
     draw_guide(
         svg,
@@ -947,16 +964,17 @@ def render_sheet(
                 filled = True
             elif state == "keep" and box.get("image_path") is not None:
                 image_path = Path(box["image_path"])
+                image_bytes = image_path.read_bytes()
                 inputs.append(
                     {
                         "slot_id": str(box["resolved_slot_id"]),
                         "path": str(box["image_relative"]),
-                        "sha256": sha256_file(image_path),
+                        "sha256": sha256_bytes(image_bytes),
                     }
                 )
                 svg.append(
                     f'<image x="{content_x}" y="{content_y}" width="{content_width}" height="{content_height}" '
-                    f'preserveAspectRatio="xMidYMid meet" href="{image_data_uri(image_path)}"/>'
+                    f'preserveAspectRatio="xMidYMid meet" href="{image_data_uri(image_path, image_bytes)}"/>'
                 )
                 filled = True
             elif state == "skip":
@@ -1048,19 +1066,96 @@ def render_sheet(
         y = row_y + row_height
         if row_index != len(plan_rows) - 1:
             y += ROW_GAP
-    raster_text_manifest: dict[str, Any] | None = None
-    raster_text_overlays = take_raster_text_overlays()
-    if raster_text_overlays:
-        raster_layer_uri, raster_text_manifest = build_raster_text_layer(
-            width=width,
-            height=height,
-            overlays=raster_text_overlays,
+    layout = {
+        "renderer": {"id": RENDERER_ID},
+        "profile": resolved_profile["id"],
+        "mode": mode,
+        "reference_scope": reference_scope if mode == "reference" else None,
+        "canvas": {"w": width, "h": height},
+        "coordinate_space": "renderer-pixels",
+        "font_family": FONT_FAMILY,
+        "mask_semantics": "white-editable-black-protected" if mode == "scaffold" else None,
+        "boxes": layout_boxes,
+    }
+    request_plan = None
+    if mode == "scaffold" and fill_transport == PANEL_FILL_TRANSPORT:
+        request_plan = build_panel_fill_requests(
+            profile=resolved_profile, sheet=sheet, plan_rows=plan_rows,
+            layout_boxes=layout_boxes, panel_geometries=panel_geometries,
         )
-        svg.append(
-            f'<image x="0" y="0" width="{width}" height="{height}" '
-            f'href="{raster_layer_uri}"/>'
+    accepted_sha256 = None
+    if sidecar_path is not None:
+        from execution_contract import load
+        from sheet_artifacts import accepted_sha256 as accepted_digest
+        accepted_sha256 = accepted_digest(load(sidecar_path))
+    reference_bundle = None
+    if mode == "reference":
+        bundle_rows = plan_rows if reference_scope == "all" else build_panel_plan(
+            resolved_profile, sheet, sheet_dir=sheet_dir, mode="reference", reference_scope="all",
         )
-    svg.append("</svg>")
+        reference_bundle = build_reference_bundle(
+            rows=bundle_rows, profile_id=resolved_profile["id"], accepted_sha256=accepted_sha256,
+        )
+    package_metadata = {
+        "renderer": {"id": RENDERER_ID},
+        "mode": mode,
+        "reference_scope": reference_scope if mode == "reference" else None,
+        "profile": resolved_profile["id"],
+        "profile_source": str(profile_path) if profile_path else None,
+        "profile_selection": copy.deepcopy(dict(profile_selection)) if profile_selection is not None else None,
+        "coverage_gaps": coverage["gaps"],
+        "coverage_warnings": coverage["warnings"],
+        "coverage_exceptions": coverage_exceptions if mode == "scaffold" else None,
+        "coverage_exception_records": exception_records if mode == "scaffold" else None,
+        "state_panels": resolved_state_panels,
+        "form_lineage": form_lineage,
+        "profile_sha256": sha256_bytes(json_bytes(profile)),
+        "sheet_data_source": str(sidecar_path) if sidecar_path else None,
+        "sheet_accepted_sha256": accepted_sha256,
+        "inputs": inputs,
+        "fill_transport": (
+            {
+                "id": fill_transport,
+                "pixel_edit_mask_confirmed": (
+                    pixel_edit_mask_confirmed if fill_transport == MASKED_SHEET_TRANSPORT else False
+                ),
+                "full_sheet_model_input": fill_transport == MASKED_SHEET_TRANSPORT,
+                "panel_request_count": len(request_plan["requests"]) if request_plan else 0,
+                "panel_geometries": (
+                    [{"w": width, "h": height} for width, height in panel_geometries]
+                    if panel_geometries and fill_transport == PANEL_FILL_TRANSPORT else None
+                ),
+            }
+            if mode == "scaffold" else None
+        ),
+    }
+    return SheetPlan(
+        profile=resolved_profile, coverage=coverage, layout=layout, drawing=svg,
+        package_metadata=package_metadata, panel_requests=request_plan,
+        fill_prompt=fill_prompt,
+        reference_prompt=build_reference_prompt(reference_scope) if mode == "reference" else None,
+        reference_bundle=reference_bundle,
+    )
+
+
+def publish_sheet(plan: SheetPlan, *, out_dir: Path) -> dict[str, Any]:
+    """Draw one resolved plan and publish its real files and artifact bindings."""
+    mode = plan.layout["mode"]
+    width, height = plan.layout["canvas"]["w"], plan.layout["canvas"]["h"]
+    package = copy.deepcopy(plan.package_metadata)
+    layout = copy.deepcopy(plan.layout)
+    fragments = list(plan.drawing)
+    raster_text_manifest = None
+    if plan.drawing.text_overlays:
+        raster_layers, raster_text_manifest = build_raster_text_layer(
+            width=width, height=height, overlays=plan.drawing.text_overlays,
+        )
+        for layer in raster_layers:
+            fragments.append(f'<image x="{layer["x"]}" y="{layer["y"]}" '
+                             f'width="{layer["width"]}" height="{layer["height"]}" href="{layer["uri"]}"/>')
+    fragments.append("</svg>")
+    svg_markup = "\n".join(fragments) + "\n"
+    layout["raster_text"] = raster_text_manifest
 
     out_dir.mkdir(parents=True, exist_ok=True)
     svg_path = out_dir / "sheet-render.svg"
@@ -1072,165 +1167,101 @@ def render_sheet(
     edit_mask_path = out_dir / "sheet-edit-mask.png"
     panel_requests_path = out_dir / "panel-fill-requests.json"
     panel_prompts_dir = out_dir / "panel-fill-prompts"
+    reference_bundle_path = out_dir / "reference-bundle.json"
 
-    svg_markup = "\n".join(svg) + "\n"
     svg_path.write_text(svg_markup, encoding="utf-8", newline="\n")
-    layout = {
-        "renderer": {"id": RENDERER_ID},
-        "profile": resolved_profile["id"],
-        "mode": mode,
-        "reference_scope": reference_scope if mode == "reference" else None,
-        "canvas": {"w": width, "h": height},
-        "coordinate_space": "renderer-pixels",
-        "font_family": FONT_FAMILY,
-        "raster_text": raster_text_manifest,
-        "mask_semantics": "white-editable-black-protected" if mode == "scaffold" else None,
-        "boxes": layout_boxes,
-    }
-    layout_path.write_text(
-        json.dumps(layout, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
-
+    layout_path.write_text(json.dumps(layout, ensure_ascii=False, indent=2) + "\n",
+                           encoding="utf-8", newline="\n")
     rasterize_board(svg_markup, png_path)
 
     fill_prompt_sha256 = None
     panel_requests_sha256 = None
-    panel_request_count = 0
     reference_prompt_sha256 = None
     edit_mask_sha256 = None
     if mode == "scaffold":
-        create_edit_mask(edit_mask_path, width=width, height=height, boxes=layout_boxes)
+        create_edit_mask(edit_mask_path, width=width, height=height, boxes=layout["boxes"])
         edit_mask_sha256 = sha256_file(edit_mask_path)
-        if fill_transport == MASKED_SHEET_TRANSPORT:
-            prompt = fill_prompt
-            fill_prompt_path.write_text(prompt, encoding="utf-8", newline="\n")
+        if plan.fill_prompt is not None:
+            fill_prompt_path.write_text(plan.fill_prompt, encoding="utf-8", newline="\n")
             fill_prompt_sha256 = sha256_file(fill_prompt_path)
-            panel_requests_path.unlink(missing_ok=True)
-            if panel_prompts_dir.exists():
-                if panel_prompts_dir.resolve().parent != out_dir.resolve():
-                    raise ValueError("refusing to remove a panel prompt directory outside the render output")
-                shutil.rmtree(panel_prompts_dir)
         else:
             fill_prompt_path.unlink(missing_ok=True)
-            panel_requests_path, panel_requests_sha256, panel_request_count = write_panel_fill_requests(
-                out_dir=out_dir,
-                profile=resolved_profile,
-                sheet=sheet,
-                plan_rows=plan_rows,
-                layout_boxes=layout_boxes,
-                scaffold_path=png_path,
-                layout_path=layout_path,
-                panel_geometries=panel_geometries,
+        if plan.panel_requests is not None:
+            panel_requests_path, panel_requests_sha256, _ = write_panel_fill_requests(
+                plan.panel_requests, out_dir=out_dir, scaffold_path=png_path, layout_path=layout_path,
             )
         reference_prompt_path.unlink(missing_ok=True)
     else:
-        prompt = build_reference_prompt(reference_scope)
-        reference_prompt_path.write_text(prompt, encoding="utf-8", newline="\n")
+        reference_prompt_path.write_text(plan.reference_prompt, encoding="utf-8", newline="\n")
         reference_prompt_sha256 = sha256_file(reference_prompt_path)
         fill_prompt_path.unlink(missing_ok=True)
         edit_mask_path.unlink(missing_ok=True)
+
+    if plan.panel_requests is None:
         panel_requests_path.unlink(missing_ok=True)
         if panel_prompts_dir.exists():
             if panel_prompts_dir.resolve().parent != out_dir.resolve():
                 raise ValueError("refusing to remove a panel prompt directory outside the render output")
             shutil.rmtree(panel_prompts_dir)
 
-    reference_bundle_path = out_dir / "reference-bundle.json"
     reference_bundle_sha256 = None
-    if mode == "reference":
-        bundle_rows = build_panel_plan(
-            resolved_profile,
-            sheet,
-            sheet_dir=sheet_dir,
-            mode="reference",
-            reference_scope="all",
-        )
-        write_reference_bundle(
-            reference_bundle_path,
-            rows=bundle_rows,
-            board_png=png_path,
-            board_scope=reference_scope,
-            profile_id=resolved_profile["id"],
-            sidecar_path=sidecar_path,
-        )
+    if plan.reference_bundle is not None:
+        bundle = copy.deepcopy(plan.reference_bundle)
+        bundle["board"] = {
+            "path": png_path.name, "sha256": sha256_file(png_path),
+            "scope": plan.layout["reference_scope"], "audience": "people",
+        }
+        reference_bundle_path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n",
+                                        encoding="utf-8", newline="\n")
         reference_bundle_sha256 = sha256_file(reference_bundle_path)
     else:
         reference_bundle_path.unlink(missing_ok=True)
 
-    profile_sha256 = sha256_bytes(json_bytes(profile))
-    package: dict[str, Any] = {
-        "renderer": {"id": RENDERER_ID},
-        "mode": mode,
-        "reference_scope": reference_scope if mode == "reference" else None,
-        "profile": resolved_profile["id"],
-        "profile_source": str(profile_path) if profile_path else None,
-        "profile_selection": dict(profile_selection)
-        if profile_selection is not None
-        else None,
-        "coverage_gaps": coverage["gaps"],
-        "coverage_warnings": coverage["warnings"],
-        "coverage_exceptions": coverage_exceptions if mode == "scaffold" else None,
-        "coverage_exception_records": exception_records if mode == "scaffold" else None,
-        "state_panels": resolved_state_panels,
-        "form_lineage": form_lineage,
-        "profile_sha256": profile_sha256,
-        "sheet_data_source": str(sidecar_path) if sidecar_path else None,
-        "sheet_accepted_sha256": __import__("sheet_artifacts").accepted_sha256(__import__("execution_contract").load(sidecar_path)) if sidecar_path else None,
-        "inputs": inputs,
+    package.update({
         "layout_sha256": sha256_file(layout_path),
         "svg_sha256": sha256_file(svg_path),
         "png_sha256": sha256_file(png_path),
         "edit_mask_sha256": edit_mask_sha256,
         "fill_prompt_sha256": fill_prompt_sha256,
-        "fill_transport": (
-            {
-                "id": fill_transport,
-                "pixel_edit_mask_confirmed": (
-                    pixel_edit_mask_confirmed if fill_transport == MASKED_SHEET_TRANSPORT else False
-                ),
-                "full_sheet_model_input": fill_transport == MASKED_SHEET_TRANSPORT,
-                "panel_requests_sha256": panel_requests_sha256,
-                "panel_request_count": panel_request_count,
-                "panel_geometries": (
-                    [{"w": width, "h": height} for width, height in panel_geometries]
-                    if panel_geometries and fill_transport == PANEL_FILL_TRANSPORT
-                    else None
-                ),
-            }
-            if mode == "scaffold"
-            else None
-        ),
         "reference_prompt_sha256": reference_prompt_sha256,
         "reference_bundle_sha256": reference_bundle_sha256,
-    }
-    package_path.write_text(
-        json.dumps(package, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    })
+    if package["fill_transport"] is not None:
+        package["fill_transport"]["panel_requests_sha256"] = panel_requests_sha256
+    package_path.write_text(json.dumps(package, ensure_ascii=False, indent=2) + "\n",
+                            encoding="utf-8", newline="\n")
     return {
-        "mode": mode,
-        "coverage": coverage,
-        "state_panels": resolved_state_panels,
-        "form_lineage": form_lineage,
-        "png": png_path,
-        "svg": svg_path,
-        "layout": layout_path,
-        "package": package_path,
+        "mode": mode, "coverage": plan.coverage,
+        "state_panels": package["state_panels"], "form_lineage": package["form_lineage"],
+        "png": png_path, "svg": svg_path, "layout": layout_path, "package": package_path,
         "edit_mask": edit_mask_path if mode == "scaffold" else None,
-        "fill_prompt": (
-            fill_prompt_path
-            if mode == "scaffold" and fill_transport == MASKED_SHEET_TRANSPORT
-            else None
-        ),
-        "panel_requests": (
-            panel_requests_path
-            if mode == "scaffold" and fill_transport == PANEL_FILL_TRANSPORT
-            else None
-        ),
+        "fill_prompt": fill_prompt_path if plan.fill_prompt is not None else None,
+        "panel_requests": panel_requests_path if plan.panel_requests is not None else None,
         "reference_prompt": reference_prompt_path if mode == "reference" else None,
         "reference_bundle": reference_bundle_path if mode == "reference" else None,
-        "profile": resolved_profile,
+        "profile": plan.profile,
     }
+
+
+def render_sheet(
+    profile: Mapping[str, Any],
+    sheet: Mapping[str, Any],
+    *,
+    sheet_dir: Path,
+    mode: str,
+    out_dir: Path,
+    reference_scope: str = "all",
+    profile_path: Path | None = None,
+    sidecar_path: Path | None = None,
+    profile_selection: Mapping[str, Any] | None = None,
+    fill_transport: str = PANEL_FILL_TRANSPORT,
+    pixel_edit_mask_confirmed: bool = False,
+    panel_geometries: Sequence[tuple[int, int]] | None = None,
+) -> dict[str, Any]:
+    plan = build_sheet_plan(
+        profile, sheet, sheet_dir=sheet_dir, mode=mode, reference_scope=reference_scope,
+        profile_path=profile_path, sidecar_path=sidecar_path, profile_selection=profile_selection,
+        fill_transport=fill_transport, pixel_edit_mask_confirmed=pixel_edit_mask_confirmed,
+        panel_geometries=panel_geometries,
+    )
+    return publish_sheet(plan, out_dir=out_dir)

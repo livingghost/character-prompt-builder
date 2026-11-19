@@ -53,7 +53,7 @@ def _selected_model(target: dict, read) -> dict:
     if target.get('model_file') is not None:
         record = c.decode(read(target['model_file']))
     else:
-        from prepare_generation_references import resolve_model_record
+        from generation_references import resolve_model_record
         _, record = resolve_model_record(target['model'])
     c.text(record.get('id'), 'authored model identity')
     resolve_prompt_input(record)
@@ -112,6 +112,15 @@ def _inspect(prompt: str, negative: str, model: dict, syntax: str,
 def _validate_artifact(task: dict, read) -> None:
     if task.get('artifact') == 'json':
         c.decode(read(task['delivery']['path']))
+    if task.get('route') == 'prompt-artifacts' or (task.get('authored') or {}).get('target'):
+        prompt, negative = surfaces(task, read)
+        if any('{{reference:' in text for text in (prompt, negative)):
+            raise ProductionError('REFERENCE_TEXT_UNRESOLVED',
+                'Finished authored prompt text contains an unresolved reference input marker.',
+                phase='authored-prompt', file=task['delivery']['path'],
+                required_action='Write the final reference wording for the intended supplied inputs, or prepare '
+                    'the reference-bearing generation request to resolve its actual attachments and scope. '
+                    'Use save --draft while the target input is unfinished.')
 
 
 def check(task: dict, read) -> dict | None:

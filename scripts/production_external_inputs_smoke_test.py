@@ -1,5 +1,6 @@
 """External authoring through real image, schema and evidence contracts."""
 from __future__ import annotations
+import production_fixtures as authoring_fixtures
 
 import copy
 from pathlib import Path
@@ -10,7 +11,25 @@ import execution_contract as c
 import image_input
 from input_evidence import InputEvidence
 import production_external_inputs as authored
-from semantic_edit_plan_smoke_test import PROMPT, TARGET, png, setup_plan, write
+from semantic_edit_plan_smoke_test import (PROMPT, PROMPT_FINAL, REFERENCE_DIRECTION, BOARD_REFERENCE_DIRECTION,
+                                           TARGET, png, setup_plan, sync_external_prompt, write)
+
+BASE_DELIVERY = 'Repaint the cafe wall.'
+
+
+def fixture_direction(choice):
+    """Author scope directions for fixtures testing native media reconstruction."""
+    if not isinstance(choice.get('image_input'), dict):
+        return PROMPT
+    mode = ((choice.get('reference_delivery') or {}).get('choices') or {}).get('transport_mode')
+    parts = [BASE_DELIVERY]
+    for row in choice['image_input']['references']:
+        identifier = row['id']
+        text = 'Use Image {{reference:' + identifier + ':attachment_number}}'
+        if mode == 'single-board':
+            text += ', panel (x, y, width, height) {{reference:' + identifier + ':region}}'
+        parts.append(text + ' for {{reference:' + identifier + ':controls}}.')
+    return ' '.join(parts)
 
 
 class ExternalInputTests(unittest.TestCase):
@@ -26,7 +45,9 @@ class ExternalInputTests(unittest.TestCase):
         self.plan = setup_plan(self.root)
         self.request = c.load(self.root / 'request.json')
 
-    def build(self, choice, delivery=PROMPT):
+    def build(self, choice, delivery=None):
+        if delivery is None:
+            delivery = fixture_direction(choice)
         files, report = authored.build(choice, {}, InputEvidence(self.root), self.root,
                                        'built', delivery.encode('utf-8'))
         return c.decode(files['image-input.json']), c.decode(files['external-request.json']), report
@@ -48,13 +69,14 @@ class ExternalInputTests(unittest.TestCase):
         before = copy.deepcopy((self.plan, self.request))
         choice = authored.draft(self.plan, self.request)
         original_choice = copy.deepcopy(choice)
-        delivery = 'A blue glass vase.\r\nKeep the square table.\r\n'
+        delivery = 'A blue glass vase.\r\nKeep the square table.\r\n' + REFERENCE_DIRECTION
         plan, request, report = self.build(choice, delivery)
         self.assertEqual((self.plan, self.request), before)
         self.assertEqual(choice, original_choice)
         self.assertIsNone(choice['request']['prompt'])
         self.assertNotIn('reference_fields', choice['image_input']['external_request'])
-        self.assertEqual(request['prompt'], delivery)
+        self.assertEqual(request['prompt'], 'A blue glass vase.\r\nKeep the square table.\r\n'
+            'Use Image 2 for vase geometry; retain composition, camera framing from Image 1.')
         self.assertEqual(request['images'], ['synthetic-scene', 'synthetic-design'])
         self.assertEqual(request['vendor_extension'], {'quality': 'standard'})
         self.assertEqual((request['seed'], request['negative']), (142, 'warped table'))
@@ -92,7 +114,7 @@ class ExternalInputTests(unittest.TestCase):
         self.assertEqual(request['vendor_extension'], {'image': 'independent-control-value'})
         self.assertEqual(plan['references'], [])
         self.assertEqual(plan['external_request']['reference_fields'], [])
-        self.assertEqual(request['prompt'], PROMPT)
+        self.assertEqual(request['prompt'], BASE_DELIVERY)
 
     def test_mixed_content_preserves_text_and_relocates_its_declared_field(self):
         self.request.pop('images')
@@ -110,7 +132,7 @@ class ExternalInputTests(unittest.TestCase):
         choice['image_input']['references'] = []
         plan, request, _ = self.build(choice)
         self.assertEqual(request['content'], [
-            {'type': 'text', 'text': PROMPT}, {'type': 'control', 'options': {'seed': 27}}])
+            {'type': 'text', 'text': BASE_DELIVERY}, {'type': 'control', 'options': {'seed': 27}}])
         self.assertEqual(plan['external_request']['prompt_field'], ['content', 0, 'text'])
 
     def test_native_array_root_uses_exact_target_and_acquired_schema(self):
@@ -167,7 +189,7 @@ class ExternalInputTests(unittest.TestCase):
         choice['image_input']['references'] = []
         plan, request, _ = self.build(choice)
         self.assertEqual(request['content'], [
-            {'type': 'instruction', 'text': PROMPT},
+            {'type': 'instruction', 'text': BASE_DELIVERY},
             {'type': 'control', 'options': {'reference': 'independent-setting', 'seed': 27}}])
         self.assertEqual(plan['external_request']['prompt_field'], ['content', 0, 'text'])
         self.assertEqual(plan['external_request']['reference_fields'], [])
@@ -230,7 +252,7 @@ class ExternalInputTests(unittest.TestCase):
 
     def prepared_fixture(self, mode):
         import production_case_fixtures as cases
-        import prepare_generation_references as refs
+        import generation_references as refs
         case = cases.create(self.root / 'studio', self.root / 'runtime')
         self.root = case['root']
         self.plan = setup_plan(self.root)
@@ -254,11 +276,21 @@ class ExternalInputTests(unittest.TestCase):
             attachment = 0 if mode == 'single-board' else index
             field.update(field=['images', attachment], value=values[attachment])
             field['evidence']['sha256'] = c.sha256_file(self.root / 'upload-evidence.json')
+        sync_external_prompt(self.root, self.plan,
+            BOARD_REFERENCE_DIRECTION if mode == 'single-board' else REFERENCE_DIRECTION)
+        self.request = c.load(self.root / 'request.json')
         write(self.root, 'image-input.json', self.plan)
         task = copy.deepcopy(case['task'])
         task.pop('generation')
         task.pop('recording')
         task.update(execution='external', image_input='image-input.json')
+        task['sources']=[{'id':row['id'],'path':row['file'],'role':'reference-images',
+            'disposition':'applied','locator':'whole image','reason':'The selected cafe scene or vase geometry.'}
+            for row in self.plan['references']]
+        task['direction'].update(purpose='Edit the cafe wall while preserving the vase geometry.',
+                                 basis=[],decisions=[])
+        authoring_fixtures.bind_work_basis(self.root, task,
+            request='Edit the cafe wall while preserving the vase geometry.', focus='supporting-setting')
         from reading_fixtures import task_reading
         task_reading(self.root, task)
         write(self.root, 'task.json', task)
@@ -269,12 +301,16 @@ class ExternalInputTests(unittest.TestCase):
         choice = authored.draft(self.plan, self.request, prepared=prepared, package_root=self.root, root=self.root)
         self.assertEqual(set(choice['image_input']['references'][0]), {'id', 'transport'})
         self.assertNotEqual(choice['reference_delivery']['target_model'], TARGET['model_identifier'])
-        files, report = authored.build(choice, {}, InputEvidence(self.root), self.root, 'rebuilt', PROMPT.encode())
+        files, report = authored.build(choice, {}, InputEvidence(self.root), self.root, 'rebuilt',
+            (self.root / 'prompt.txt').read_bytes())
         self.assertEqual(report['state'], 'materialized')
         plan = c.decode(files['image-input.json'])
         output = c.decode(files['external-request.json'])
         self.assertEqual(plan['model']['target'], TARGET)
-        self.assertEqual(output, self.request)
+        expected = copy.deepcopy(self.request)
+        expected['prompt'] = ('Use Image 2 for ' + ', '.join(prepared['selected_references'][1]['authority']['controls'])
+            + '; retain ' + ', '.join(prepared['selected_references'][0]['authority']['controls']) + ' from Image 1.')
+        self.assertEqual(output, expected)
         self.assertEqual([row['use_for'] for row in plan['references']], [row['authority']['controls'] for row in prepared['selected_references']])
         for name, raw in files.items():
             write(self.root, 'rebuilt/' + name, raw)
@@ -286,11 +322,15 @@ class ExternalInputTests(unittest.TestCase):
         import production_inputs
         import production_target
         prepared = self.prepared_fixture('single-board')
-        draft = production_inputs.draft_inputs(self.root, 'task.json', 'draft')
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft', focus='supporting-setting')
         path = draft['choices_file']
         choice = c.load(self.root / path)
         external = choice['external']
         external['reference_delivery']['choices']['additional_references'].pop()
+        choice['authoring']['delivery'] = {'content':
+            'Use Image {{reference:scene:attachment_number}}, panel (x, y, width, height) '
+            '{{reference:scene:region}} for {{reference:scene:controls}}.',
+            'translation_notes': choice['authoring']['delivery']['translation_notes']}
         # The source choice owns deletion; its old transport needs no second edit.
         self.assertEqual(len(external['image_input']['references']), 2)
         write(self.root, path, choice)
@@ -344,7 +384,7 @@ class ExternalInputTests(unittest.TestCase):
         choice = authored.draft(self.plan, self.request, prepared=prepared, package_root=self.root, root=self.root)
         choice['reference_delivery']['choices']['max_side'] = 64
         files, pending = authored.build(choice, {}, InputEvidence(self.root), self.root,
-            'shared-carrier', PROMPT.encode())
+            'shared-carrier', (self.root / 'prompt.txt').read_bytes())
         self.assertEqual(len(pending['unresolved']), 2)
         for name, raw in files.items():
             write(self.root, 'shared-carrier/' + name, raw)
@@ -355,7 +395,7 @@ class ExternalInputTests(unittest.TestCase):
             uploaded_file=carrier['path'], value='synthetic-new-shared-board',
             evidence={'path': 'shared-upload.json', 'locator': 'whole synthetic upload'})
         files, ready = authored.build(choice, {}, InputEvidence(self.root), self.root,
-            'shared-final', PROMPT.encode())
+            'shared-final', (self.root / 'prompt.txt').read_bytes())
         self.assertEqual(ready['state'], 'materialized')
         self.assertEqual(c.decode(files['external-request.json'])['images'], ['synthetic-new-shared-board'])
         plan = c.decode(files['image-input.json'])
@@ -370,7 +410,7 @@ class ExternalInputTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'requires selected choices'):
             self.build(authored.template())
         plan, request, report = self.build({'image_input': 'image-input.json'})
-        self.assertEqual(request, self.request)
+        self.assertEqual(request, {**self.request, 'prompt': PROMPT_FINAL})
         self.assertEqual(report['source']['path'], 'image-input.json')
         self.assertEqual(plan['references'][0]['sha256'], c.sha256_file(self.root / 'scene.png'))
 
@@ -379,7 +419,7 @@ class ExternalInputTests(unittest.TestCase):
         import production_compiler
         import production_execution
         import production_fixtures
-        import production_workflow
+        import production_operations as production_workflow
         import work_ledger
         from unittest.mock import patch
         import transport_synthetic
@@ -390,7 +430,9 @@ class ExternalInputTests(unittest.TestCase):
         for row in external['reference_fields']:
             row['field'] = [0] + row['field']
         choice = authored.draft(self.plan, [self.request])
-        plan, request, _ = self.build(choice)
+        delivery = fixture_direction(choice)
+        plan, request, _ = self.build(choice, delivery)
+        write(self.root, 'prompt.txt', delivery.encode('utf-8'))
         write(self.root, 'built/image-input.json', plan)
         write(self.root, 'built/external-request.json', request)
         entry = work_ledger.begin(self.root, 'Synthetic native-array preparation', ['prepare', 'review'])
@@ -404,7 +446,7 @@ class ExternalInputTests(unittest.TestCase):
             'criteria': [{'id': 'wall', 'strength': 'hard', 'text': 'Inspect the requested wall edit.'},
                          {'id': 'geometry', 'strength': 'hard', 'text': 'Inspect the preserved vase geometry.'}],
             'world_views': [], 'semantic_edit': 'edit-plan.json', 'image_input': 'built/image-input.json'}
-        production_fixtures.task(self.root, task, artifact='image', execution='external')
+        production_fixtures.task(self.root, task, artifact='image', execution='external', focus='supporting-setting')
         for criterion in task['criteria']:
             criterion['evidence'] = 'image'
         write(self.root, 'task.json', task)

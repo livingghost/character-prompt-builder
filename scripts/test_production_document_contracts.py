@@ -29,7 +29,10 @@ class DocumentContractsTests(unittest.TestCase):
                     self.assertTrue((ROOT / example).is_file(), example)
                 source, function = entry['validator_source'].split(':')
                 module = importlib.import_module(Path(source).stem)
-                self.assertTrue(callable(getattr(module, function)))
+                owner = module
+                for component in function.split('.'):
+                    owner = getattr(owner, component)
+                self.assertTrue(callable(owner))
                 self.assertIn('python scripts/', entry['validation_command'])
 
     def test_schema_field_discovery_preserves_exact_nested_requirements(self):
@@ -44,7 +47,7 @@ class DocumentContractsTests(unittest.TestCase):
         self.assertEqual(shape['properties']['performance']['$ref'], 'performance-language.schema.json')
 
     def test_negative_provenance_uses_the_generation_owner_and_complete_key_diagnostic(self):
-        from build_generation_payload import NEGATIVE_PROVENANCE_FIELDS, normalize_negative_provenance
+        from generation_payload_builder import NEGATIVE_PROVENANCE_FIELDS, normalize_negative_provenance
         content = {'semantic_exclusions_user_supplied': ['輪郭']}
         report = contracts.validate_document('negative_provenance', content)
         self.assertTrue(report['ok'], report)

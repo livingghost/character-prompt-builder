@@ -114,7 +114,7 @@ def validate_preferences(value: Any) -> None:
 
 
 def preferences_path() -> Path:
-    from pack_manager import user_data_home
+    from runtime_paths import user_data_home
     return user_data_home() / PREFERENCES_FILE
 
 

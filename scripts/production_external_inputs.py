@@ -109,7 +109,7 @@ def draft(plan: dict, request: Any, *, prepared: dict | None = None,
         if prepared is None or package_root is None:
             raise ValueError('draft the prepared reference content with its package root')
         import production_reference_inputs
-        from prepare_generation_references import _resolve_packaged_file
+        from generation_references import _resolve_packaged_file
         reference_delivery = production_reference_inputs.draft_external(
             plan, prepared, package_root=package_root, root=root, source_archive=source_archive)
         carriers = []
@@ -185,7 +185,10 @@ def draft(plan: dict, request: Any, *, prepared: dict | None = None,
         # Negative text has no separate owner in this external authoring input.
         if field != 'negative_field' and path is not None and rc.present(native, path):
             rc.put(native, path, None)
-    for key in ('file', 'sha256', 'request', 'schema_validation', 'prompt_check'):
+    reference_text = external.get('reference_text')
+    if reference_text is not None and external.get('negative_field') is not None:
+        rc.put(native, external['negative_field'], reference_text['channels']['negative_prompt']['source_text'])
+    for key in ('file', 'sha256', 'request', 'request_sha256', 'schema_validation', 'prompt_check', 'reference_text'):
         external.pop(key, None)
     if reference_delivery is not None:
         selected['references'] = [{'id': row['id'], 'transport': row['transport']} for row in references]
@@ -529,7 +532,7 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
     if not isinstance(request, (dict, list)):
         raise ValueError('external request controls must be a JSON object or array')
     external = plan['external_request']
-    if any(key in external for key in ('file', 'sha256', 'reference_fields', 'request', 'schema_validation', 'prompt_check')):
+    if any(key in external for key in ('file', 'sha256', 'reference_fields', 'request', 'request_sha256', 'schema_validation', 'prompt_check', 'reference_text')):
         raise ValueError('external request files and reference_fields are derived from the authored input')
     measured(plan['model']['evidence'])
     if external.get('model_identity') is not None:
@@ -677,6 +680,10 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
         bind(external['model_field'], plan['model']['target']['model_identifier'], 'model.target')
         bind(external['operation_field'], plan['model']['target']['operation'], 'model.target')
         bind(external['count_field'], external['count'], 'external_request.count')
+        prepared_set = c.decode(files['prepared-reference-set.json']) if canonical else None
+        request, reference_text = image_input.resolve_request_text(plan, external, request,
+            prompt=delivery.decode('utf-8'), prepared=prepared_set)
+        external['reference_text'] = reference_text
         raw = c.encoded(request)
         external.update(file=(Path(out_dir) / 'external-request.json').as_posix(), sha256=c.digest(raw))
         generated[external['file']] = raw
@@ -685,11 +692,12 @@ def build(selection: dict, task: dict, reader, root: Path, out_dir: str,
             return generated[path] if path in generated else reader.read(reader.select(path))
 
         binding = image_input.validate(plan, validation_root, read=read)
-        image_input._request(plan, external, request, prompt=delivery.decode('utf-8'))
+        image_input._request(binding, binding['external_request'], request, prompt=delivery.decode('utf-8'))
         files.update({'external-request.json': raw, 'image-input.json': c.encoded(plan)})
         return files, {'source': source, 'state': 'materialized', 'unresolved': [],
             'carriers': carriers, 'request': request, 'model': binding['model'],
             'references': binding['references'], 'changes': changes,
             'prompt_check': binding['external_request']['prompt_check'],
             'schema_validation': binding['external_request']['schema_validation'],
+            'reference_text': reference_text,
             'dialect': plan['model'].get('prompt_dialect')}

@@ -6,17 +6,17 @@
       "id": "body-language-cue-tail-wag-joy",
       "category": "body-language-cue",
       "label": "tail wag joy cue",
-      "visual_function": "Use a big, fast, sweeping tail wag as the visible proof of happiness or high positive arousal in tailed anthro characters.",
-      "prompt": "Show a large fast sweeping tail wag with loose body follow-through: the tail base moves with the character, the wag amplitude is wide, and the ears and face carry matching open happiness.",
+      "visual_function": "Stage one authored joy or high-drive display through a wide fast tail sweep and loose body follow-through, when the individual's performance definition selects this combination.",
+      "prompt": "Show the selected joyful display with a wide, fast sweeping tail movement and loose body follow-through. The tail root moves with the body, and the character's declared facial and ear channels carry the selected open expression. For a still, choose the compatible instant of the sweep and its body response.",
       "invariants": [
-        "wag amplitude scales with the strength of the joy",
-        "the tail and the facial expression support the same positive emotion",
-        "the body stays loose and the tail follows through from the base during a joy wag"
+        "the sweep's amplitude and rate realize the selected degree of this display",
+        "the selected facial, ear and tail configurations belong to one compatible moment",
+        "the body stays loose and the tail follows through from its connected root"
       ],
       "misreadings_to_avoid": [
-        "a stiff or slow tail read as joy",
-        "tail motion copied onto a stubby-tailed lineage such as bear characters",
-        "a tail wag pasted on while the face stays neutral or flat"
+        "a stiff stationary tail replacing the selected wide fast sweep",
+        "sweep extent exceeding this individual's declared tail construction or range",
+        "the selected coordinated display replaced by unrelated facial or ear states"
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
@@ -31,7 +31,7 @@
         "anthropomorphic-animal",
         "hybrid"
       ],
-      "applies_to": "appendage_emotion_grammar",
+      "applies_to": "an explicitly selected coordinated display using this individual's available tail, body, facial and ear channels; visible movement alone does not establish a hidden feeling",
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
       "search_terms": [
@@ -77,17 +77,17 @@
       "id": "body-language-cue-tail-small-sway-anticipation",
       "category": "body-language-cue",
       "label": "tail small sway anticipation cue",
-      "visual_function": "Use a small, slow, hesitant tail sway as the visible marker of excited expectation or focused attention.",
-      "prompt": "Show a small low-amplitude tail sway, often with the body leaning slightly forward, ears oriented toward the object of attention, and eyes fixed on it.",
+      "visual_function": "Stage one authored expectant display through a small slow tail sway, a slight forward lean and attention toward a selected object, when the individual's definition permits this combination.",
+      "prompt": "Show the selected expectant display with a small low-amplitude tail sway and a slight forward lean. The declared ear and gaze channels attend to the selected object. For a still, choose the compatible instant of the sway, held stance and attention.",
       "invariants": [
-        "sway amplitude stays small and slow compared with a joy wag",
+        "sway amplitude stays small and its timing slow within this selected display",
         "the gaze, ear orientation, and tail sway point at the same expected thing",
         "the body holds a forward-leaning ready stance while the sway stays low and slow"
       ],
       "misreadings_to_avoid": [
-        "the small sway read as boredom or indifference",
-        "sway so wide it reads as a joy wag",
-        "the small sway paired with a slack, disengaged face"
+        "the selected attentive relationship replaced by an unrelated gaze or target",
+        "a broad fast sweep replacing the selected small slow movement",
+        "the held ready stance lost while the appendage alone performs the response"
       ],
       "misreading_policy": {
         "role": "diagnostic-only",
@@ -102,7 +102,7 @@
         "anthropomorphic-animal",
         "hybrid"
       ],
-      "applies_to": "appendage_emotion_grammar",
+      "applies_to": "an explicitly selected expectant display using the individual's available tail, body, ear and gaze channels; it is not an emotion-to-anatomy rule",
       "curation_status": "curated",
       "record_role": "atomic-visual-instruction",
       "search_terms": [

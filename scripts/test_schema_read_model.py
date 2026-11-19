@@ -1,5 +1,6 @@
 """Owned schema inputs and shared evaluation using synthetic JSON documents."""
 from __future__ import annotations
+import read_context
 
 from collections import Counter
 import json
@@ -15,7 +16,6 @@ from unittest import mock
 import protocol_contract as public
 import state_protocol as state
 import builder_inputs
-import runtime_snapshot
 
 
 class SchemaReadModelTests(unittest.TestCase):
@@ -61,6 +61,112 @@ class SchemaReadModelTests(unittest.TestCase):
         self.assertEqual(Counter(reads), Counter({source: 1, definitions: 1}))
         self.assertEqual(len(fragments), 2)
         self.assertTrue(all(count == 1 for count in Counter(fragments).values()))
+
+    def test_character_sheet_uses_the_acquired_schema_and_exports_independent_values(self):
+        import character_sheet
+        relative = 'schemas/character-sheet-data.schema.json'
+        schema = {'type': 'object', 'properties': {'marker': {'const': 'first'}}, 'required': ['marker']}
+        source = builder_inputs.BuilderInputs(self.root, (
+            builder_inputs.FileInput(relative, json.dumps(schema).encode('utf-8')),))
+        value = {'marker': 'first', 'sheet_status': 'draft', 'slots': {}, 'fields': {}, 'tables': {}}
+        with mock.patch.object(character_sheet, 'SCHEMA_PATH', self.root / relative), \
+                mock.patch.object(Path, 'read_bytes', side_effect=AssertionError('Use acquired schema bytes')), \
+                state.schema_read_scope(source=source):
+            one = character_sheet.validate_sidecar(value)
+            two = character_sheet.validate_sidecar(value)
+        one['fields']['identity.name'] = 'Private edit'
+        self.assertEqual(two, value)
+        self.assertNotEqual(one, value)
+
+    def test_character_sheet_acquires_once_per_phase_and_observes_a_later_schema(self):
+        import character_sheet
+        schema = self.write('sheet.json', {'type': 'object', 'properties': {'marker': {'const': 'first'}}})
+        value = {'marker': 'first', 'sheet_status': 'draft', 'slots': {}, 'fields': {}, 'tables': {}}
+        original = Path.read_bytes
+        reads = []
+        def read(path):
+            if path == schema:
+                reads.append(path)
+            return original(path)
+        with mock.patch.object(character_sheet, 'SCHEMA_PATH', schema), mock.patch.object(Path, 'read_bytes', read):
+            with state.schema_read_scope():
+                for _ in range(5):
+                    self.assertEqual(character_sheet.validate_sidecar(value), value)
+            self.write('sheet.json', {'type': 'object', 'properties': {'marker': {'const': 'later'}}})
+            with state.schema_read_scope(), self.assertRaisesRegex(ValueError, 'expected constant'):
+                character_sheet.validate_sidecar(value)
+        self.assertEqual(reads, [schema, schema])
+
+    def test_definition_consumers_share_acquired_schemas_without_live_fallback(self):
+        from contextlib import ExitStack
+        import authoring_work
+        import model_prompt_input
+        import prompt_dialect
+        import prompt_plot
+        import prompt_retrieval
+        import prompt_vocabulary_selection
+        import story_context
+        import world_realization
+        from pack_manager import PackError
+        root = Path(state.__file__).resolve().parents[1]
+        paths = {authoring_work.SCHEMA, model_prompt_input.SCHEMA_PATH, prompt_dialect.SCHEMA_PATH,
+                 prompt_plot.SCHEMA_PATH, root / 'schemas/prompt-vocabulary-selection.schema.json',
+                 story_context.SCHEMA, world_realization.SCHEMA}
+        source = builder_inputs.BuilderInputs(root, tuple(builder_inputs.FileInput(
+            path.relative_to(root).as_posix(), b'{"const":"synthetic accepted value"}') for path in paths))
+        self.write('input.json', {})
+        source_reads = []
+        original = builder_inputs.BuilderInputs.read_bytes
+        def acquired(owner, path):
+            source_reads.append(Path(path))
+            return original(owner, path)
+        read_bytes, read_text = Path.read_bytes, Path.read_text
+        def bytes_from_disk(path):
+            if path in paths:
+                raise AssertionError('A definition consumer reopened its acquired schema')
+            return read_bytes(path)
+        def text_from_disk(path, *args, **kwargs):
+            if path in paths:
+                raise AssertionError('A definition consumer reopened its acquired schema')
+            return read_text(path, *args, **kwargs)
+        with ExitStack() as contexts:
+            contexts.enter_context(mock.patch.object(builder_inputs.BuilderInputs,'read_bytes',acquired))
+            contexts.enter_context(mock.patch.object(Path,'read_bytes',bytes_from_disk))
+            contexts.enter_context(mock.patch.object(Path,'read_text',text_from_disk))
+            contexts.enter_context(state.schema_read_scope(source=source))
+            self.assertIn('expected constant', str(authoring_work.validate_work({})))
+            for validate in (model_prompt_input.validate_prompt_input,prompt_dialect.validate_dialects):
+                with self.assertRaisesRegex((ValueError,PackError),'expected constant'):
+                    validate({})
+            self.assertIn('expected constant', str(prompt_plot.schema_errors({})))
+            self.assertIn('expected constant', str(prompt_retrieval.validate_prompt_retrieval_record(
+                {'artifact_type':'prompt-retrieval-record','elements':[],'vocabulary':{}})))
+            # Isolate dictionary discovery; the previous selection's real schema check remains active.
+            with mock.patch.object(prompt_vocabulary_selection,'resolve_prompt_input',return_value={'mode':'tag-based'}), \
+                    mock.patch.object(prompt_vocabulary_selection,'_resources',return_value=([],{},{})), \
+                    self.assertRaisesRegex(ValueError,'expected constant'):
+                prompt_vocabulary_selection.search_selection(prompt='',negative='',syntax='literal',
+                    model_record={'id':'synthetic','prompt_dialect':'synthetic'},previous={})
+            for load in (story_context.load_query,world_realization.load_plan):
+                with self.assertRaisesRegex(ValueError,'expected constant'):
+                    load(self.root,'input.json')
+        self.assertEqual(Counter(source_reads),Counter({path:1 for path in paths}))
+        with state.schema_read_scope(source=builder_inputs.BuilderInputs(root, ())):
+            self.assertIn('not in the acquired implementation',str(prompt_plot.schema_errors({})))
+
+    def test_production_specification_schema_follows_the_current_read_phase(self):
+        import production_spec
+        path = self.write('specification.json',{'type':'object','properties':{'marker':{'const':'first'}}})
+        value = {'marker':'first'}
+        with mock.patch.object(production_spec,'SCHEMA_PATH',path):
+            with state.schema_read_scope():
+                self.assertTrue(production_spec.validate(value)['ok'])
+                self.write('specification.json',{'type':'object','properties':{'marker':{'const':'later'}}})
+                self.assertTrue(production_spec.validate(value)['ok'])
+            with state.schema_read_scope():
+                report = production_spec.validate(value)
+                self.assertFalse(report['ok'])
+                self.assertIn('expected constant',str(report['errors']))
 
     def test_local_reference_identity_belongs_to_its_document(self):
         first = self.write("first.json", {"$defs": {"value": {"const": 1}}, "$ref": "#/$defs/value"})
@@ -154,6 +260,119 @@ class SchemaReadModelTests(unittest.TestCase):
                 "$.<property-name:A>: string does not match pattern '^[a-z]+$'",
                 "$.A: expected type ['integer'], got str"])
 
+    def test_any_of_reads_alternatives_until_one_matches_and_keeps_failure_details(self):
+        source = self.write("alternatives.json", {
+            "anyOf": [{"const": "selected"}, {"$ref": "./unavailable.json"}],
+            "maxLength": 4})
+        with state.schema_read_scope() as owner:
+            document = owner.read(source)
+            self.assertEqual(owner.validate("selected", document), ["$: string is longer than maxLength"])
+            with self.assertRaises(FileNotFoundError):
+                owner.validate("other", document)
+        self.write("alternatives.json", {
+            "anyOf": [{"const": "selected"}, {"unknown-constraint": True}]})
+        with state.schema_read_scope() as owner, self.assertRaisesRegex(ValueError, r"\$\.anyOf\[1\]\.unknown-constraint"):
+            owner.read(source)
+        schema = {"anyOf": [{"const": 1}, {"const": 2}]}
+        for validate in (public.validate_against_schema, state.validate_against_schema):
+            self.assertEqual(validate(3, schema), [
+                "$: value matches none of the 2 alternatives: expected constant 1; or expected constant 2"])
+            self.assertEqual(validate(1, {"anyOf": []}),
+                             ["$: value matches none of the 0 alternatives"])
+            self.assertEqual(validate(1, {"oneOf": [{"type": "number"}, {"type": "integer"}]}),
+                             ["$: value matches 2 of the 2 alternatives; exactly one must match"])
+
+    def test_empty_constraints_and_scalar_types_keep_their_validation_meaning(self):
+        cases = [
+            (1, {"not": {}}, ["$: value satisfies a forbidden schema"]),
+            (2, {"if": {}, "then": {"const": 1}}, ["$: expected constant 1"]),
+            ([], {"contains": {}}, ["$: no item satisfies contains"]),
+            ([float('nan')], {"items": {}}, ["$[0]: number must be finite"]),
+            ({"extra": float('nan')}, {"additionalProperties": {}}, ["$.extra: number must be finite"]),
+            (True, {"type": "integer"}, ["$: expected type ['integer'], got bool"]),
+            (True, {"type": ["integer", "null"]}, ["$: expected type ['integer', 'null'], got bool"]),
+            ({"z": "bad", "a": "bad", "declared": "bad"},
+             {"properties": {"declared": {"type": "integer"}}, "additionalProperties": {"type": "integer"}},
+             ["$.declared: expected type ['integer'], got str", "$.a: expected type ['integer'], got str",
+              "$.z: expected type ['integer'], got str"]),
+            ({"z": 1, "a": 2}, {"additionalProperties": False},
+             ["$: unexpected properties ['a', 'z']; permitted properties []"]),
+        ]
+        for value, schema, expected in cases:
+            for validate in (public.validate_against_schema, state.validate_against_schema):
+                with self.subTest(value=value, schema=schema, evaluator=validate.__module__):
+                    self.assertEqual(validate(value, schema), expected)
+
+    def test_alternatives_stop_rejected_kinds_before_walking_their_records(self):
+        branches = [{'properties': {'kind': {'const': kind}, 'records': {
+            'type': 'array', 'items': {'type': 'integer', 'minimum': 1}}}}
+            for kind in ('one', 'two', 'three', 'selected')]
+        document = public.SchemaDocument({'oneOf': branches})
+        value = {'kind': 'selected', 'records': [1] * 80}
+        visit = public._validate_schema
+        paths = []
+
+        def observe(instance, schema, path, root, **options):
+            paths.append(path)
+            return visit(instance, schema, path, root, **options)
+
+        with mock.patch.object(public, '_validate_schema', observe):
+            self.assertEqual(public.validate_against_schema(value, document), [])
+        # A selected record is inspected once, independent of how many other
+        # record kinds the container permits.
+        self.assertEqual(sum(path.startswith('$.records[') for path in paths), 80)
+        value['records'][-1] = 0
+        self.assertEqual(public.validate_against_schema(value, document), [
+            '$: value matches none of the 4 alternatives: '
+            "$.kind: expected constant 'one'; or $.kind: expected constant 'two'; or "
+            "$.kind: expected constant 'three'; or $.records[79]: value is below minimum 1"])
+        value['kind'] = 'one'
+        value['records'][-1] = 2
+        self.assertEqual(public.validate_against_schema(value, document), [])
+
+    def test_predicates_keep_first_diagnostics_and_full_validation_keeps_all(self):
+        definitions = {'record': {'type': 'object', 'required': ['first', 'second'],
+            'properties': {'count': {'type': 'integer', 'minimum': 1},
+                           'title': {'minLength': 3, 'pattern': '^valid$'}}}}
+        branch = {'$ref': '#/$defs/record', 'maxProperties': 0}
+        value = {'count': 0, 'title': 'x'}
+        self.assertEqual(public.validate_against_schema(value, {'$defs': definitions, **branch}), [
+            "$: missing required property 'first'", "$: missing required property 'second'",
+            '$.count: value is below minimum 1', '$.title: string is shorter than minLength',
+            "$.title: string does not match pattern '^valid$'",
+            '$: object has more properties than maxProperties'])
+        for keyword in ('anyOf', 'oneOf'):
+            with self.subTest(keyword=keyword):
+                self.assertEqual(public.validate_against_schema(value,
+                    {'$defs': definitions, keyword: [branch, {'allOf': [branch]}]}), [
+                    '$: value matches none of the 2 alternatives: '
+                    "missing required property 'first'; or missing required property 'first'"])
+
+    def test_conditions_skip_reference_work_after_a_decisive_mismatch(self):
+        condition = {'properties': {'kind': {'const': 'other'},
+                                    'payload': {'$ref': './unvisited.json'}}}
+        source = self.write('conditional.json', {'if': condition,
+            'then': {'const': 'unreachable'}, 'else': {'properties': {'payload': {'type': 'integer'}}}})
+        with state.schema_read_scope() as owner:
+            document = owner.read(source)
+            self.assertEqual(owner.validate({'kind': 'selected', 'payload': 1}, document), [])
+            self.assertEqual(owner.validate({'kind': 'selected', 'payload': 'bad'}, document),
+                             ["$.payload: expected type ['integer'], got str"])
+            with self.assertRaises(FileNotFoundError):
+                owner.validate({'kind': 'other', 'payload': 1}, document)
+
+    def test_one_of_still_counts_every_matching_branch_and_semantic_failures(self):
+        schema = {'oneOf': [{'type': 'number'}, {'type': 'integer'}, {'minimum': 0},
+                            {'$id': 'synthetic-semantic-check'}]}
+        check = mock.Mock(return_value=['$: first semantic error', '$: second semantic error'])
+        self.assertEqual(public.validate_against_schema(1, schema,
+            semantic_checks={'synthetic-semantic-check': check}), [
+                '$: value matches 3 of the 4 alternatives; exactly one must match'])
+        check.assert_called_once_with(1, '$')
+        self.assertEqual(public.validate_against_schema(1, {'$id': 'synthetic-semantic-check'},
+            semantic_checks={'synthetic-semantic-check': check}),
+            ['$: first semantic error', '$: second semantic error'])
+
     def test_product_semantic_check_retains_its_owned_diagnostic(self):
         value = {"a": {"overrides": [{"structure_id": "b", "properties": ["shape"]}]},
                  "b": {"geometry": {"shape": "declared synthetic shape"}}}
@@ -169,6 +388,36 @@ class SchemaReadModelTests(unittest.TestCase):
                                        ("https://example.invalid/schema.json", "remote schema references")):
                 with self.subTest(reference=reference), self.assertRaisesRegex(ValueError, message):
                     owner.validate(None, {"$ref": reference})
+
+    def test_dispatch_plans_belong_to_owned_schema_nodes_and_preserve_changed_input_checks(self):
+        schema = {'type': 'array', 'items': {'type': 'object', 'required': ['mode', 'count'],
+            'properties': {'mode': {'enum': ['draft', 'ready']}, 'count': {'type': 'integer', 'minimum': 1}},
+            'additionalProperties': False}}
+        document = public.SchemaDocument(schema)
+        rows = [{'mode': 'ready', 'count': 3} for _ in range(100)]
+        with mock.patch.object(public, '_SchemaPlan', wraps=public._SchemaPlan) as planned:
+            self.assertEqual(public.validate_against_schema(rows, document), [])
+            acquired = planned.call_count
+            self.assertEqual(acquired, 4)
+            rows[45]['count'] = 0
+            self.assertEqual(public.validate_against_schema(rows, document),
+                             ['$[45].count: value is below minimum 1'])
+            self.assertEqual(planned.call_count, acquired)
+        schema['items']['properties']['count']['minimum'] = 5
+        self.assertEqual(public.validate_against_schema([{'mode': 'ready', 'count': 3}], document), [])
+        self.assertEqual(public.validate_against_schema([{'mode': 'ready', 'count': 3}], schema),
+                         ['$[0].count: value is below minimum 5'])
+
+    def test_plans_keep_known_keyword_errors_lazy_and_check_unconstrained_nonfinite_numbers(self):
+        schema = public.SchemaDocument({'anyOf': [{}, {'minLength': 'invalid limit'}],
+            'if': {'type': 'number'}, 'then': {'multipleOf': 2}, 'else': {'type': 'string'}})
+        self.assertEqual(public.validate_against_schema('selected', schema), [])
+        self.assertEqual(public.validate_against_schema(3, schema), ['$: value is not a multiple of 2'])
+        with self.assertRaises(ValueError):
+            public.validate_against_schema('selected', {'minLength': 'invalid limit'})
+        self.assertEqual(public.validate_against_schema(float('inf'), {}), ['$: number must be finite'])
+        self.assertEqual(public.validate_against_schema(float('nan'), {'type': 'string'}),
+                         ["$: expected type ['string'], got float"])
 
     def test_public_evaluator_runs_without_product_modules_or_installation(self):
         isolated = self.root / "standalone"
@@ -220,18 +469,18 @@ assert not {'state_protocol', 'runtime_snapshot', 'pack_manager', 'owned_json'} 
         self.write("installed/schemas/local.json", {"const": 2})
         public_path = installed / "protocols/shared-state/schemas/state-event.schema.json"
         public_path.write_bytes(public_path.read_bytes() + b" ")
-        with mock.patch.object(public, "ROOT", installed), runtime_snapshot.public_call():
-            outer = runtime_snapshot.call_scope()
+        with mock.patch.object(public, "ROOT", installed), read_context.public_call():
+            outer = read_context.call_scope()
             outer["synthetic-scope-marker"] = True
             with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("owned schema evaluation reopened a file")), \
                     state.schema_read_scope(source=source) as owner:
-                self.assertIs(runtime_snapshot.call_scope(), outer)
+                self.assertIs(read_context.call_scope(), outer)
                 self.assertEqual(owner.validate(1, owner.read(private)), [])
                 self.assertTrue(owner.validate(2, owner.read(private)))
                 contracts = public.contract_set()
                 self.assertIs(contracts, owner.contracts())
                 self.assertTrue(public.validate_artifact(fixture, contracts=contracts)["ok"])
-            self.assertIs(runtime_snapshot.call_scope(), outer)
+            self.assertIs(read_context.call_scope(), outer)
             self.assertTrue(outer["synthetic-scope-marker"])
             with state.schema_read_scope(fresh=True) as current:
                 self.assertEqual(current.validate(2, current.read(private)), [])

@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -84,580 +85,272 @@ APPROVED_PLOT = {**PLOT, "approved": {
     "content_sha256": content_sha256(PLOT),
 }}
 
-PREVIOUS_PACKAGE = "previous package" + NL
-UNAVAILABLE = "no pack state is resolvable in this environment"
+
+import execution_contract as c
+from authoring_work_fixtures import prompt_work
+from build_prompt_artifacts import publish
 
 
-def run(script: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(script), *arguments], text=True, encoding="utf-8", capture_output=True, check=False
-    )
+class PromptArtifactTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix='cpb-prompt-work-')
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.model = {'id': 'synthetic-prompt-editor', 'prompt_input': prompt_input('descriptive')}
+        self.prompt = 'An articulated robot steadies a bowl while another repairs its rim.\n'
+        self.content = {'prompt': self.prompt}
+        self.serial = 0
+
+    def work_file(self, content=None, *, work=None):
+        self.serial += 1
+        path = self.root / ('work-' + str(self.serial) + '.json')
+        path.write_bytes(c.encoded(work if work is not None else prompt_work(content or self.content)))
+        return path
+
+    def export(self, content=None, *, work=None, name=None, **options):
+        path = self.work_file(content, work=work)
+        out = self.root / (name or ('output-' + str(self.serial)))
+        return out, publish(path, out, **options)
+
+    def test_exact_candidate_text_and_acquired_work_are_published(self):
+        work_path = self.work_file({'prompt': self.prompt, 'negative': ''})
+        out = self.root / 'exact'
+        manifest = publish(work_path, out)
+        self.assertEqual((out / 'final-prompt.txt').read_bytes(), self.prompt.encode())
+        self.assertEqual((out / 'final-negative.txt').read_bytes(), b'')
+        self.assertEqual((out / 'authoring-work.json').read_bytes(), work_path.read_bytes())
+        for row in manifest['included']:
+            self.assertEqual(c.digest((out / row['path']).read_bytes()), row['sha256'])
+        self.assertFalse(manifest['execution_authorized'])
+        self.assertFalse(manifest['canonical_update_authorized'])
+        self.assertIsNone(manifest['target'])
+        self.assertEqual(manifest['input_validation'], {'state': 'unverified-draft', 'vocabulary_searched': False})
+
+    def test_completed_character_prompt_uses_an_applied_definition(self):
+        work = prompt_work(self.content)
+        work['basis']['subjects'] = {}
+        with self.assertRaises(ValueError):
+            self.export(work=work)
+
+    def test_explicit_supporting_setting_can_finish_without_subject_definition(self):
+        from authoring_work import begin_work
+        work = begin_work(operation='compose', request='Prepare only the empty repair workshop for this character project.',
+                          focus='supporting-setting', content={'prompt': 'An empty repair workshop with a lit bench.'})
+        out, _ = self.export(work=work)
+        self.assertEqual((out / 'final-prompt.txt').read_text(encoding='utf-8'), work['content']['prompt'])
+
+    def test_delivery_uses_the_actual_amended_candidate(self):
+        from authoring_work import begin_work
+        original = prompt_work({'prompt': self.prompt, 'negative': 'lettering'})
+        basis = original['basis']
+        work = begin_work(operation='amend', request='Have the second robot steady the bowl while the first repairs the rim.',
+            sources=basis['sources'], applications=basis['applications'], subjects=basis['subjects'],
+            requirements=basis['requirements'], baseline=original['content'])
+        work['content']['prompt'] = 'The second robot steadies the bowl while the first repairs its rim.\n'
+        out, manifest = self.export(work=work)
+        self.assertEqual((out / 'final-prompt.txt').read_text(encoding='utf-8'), work['content']['prompt'])
+        self.assertEqual((out / 'final-negative.txt').read_text(encoding='utf-8'), original['content']['negative'])
+        self.assertEqual(manifest['authoring']['content_sha256'], c.content_id(work['content']))
+        self.assertEqual(c.load(out / 'authoring-work.json')['basis']['baseline'], work['basis']['baseline'])
+
+    def test_target_is_selected_in_the_work(self):
+        out, manifest = self.export({'prompt': self.prompt, 'model_record': self.model}, generation=True)
+        self.assertEqual(manifest['target']['id'], self.model['id'])
+        self.assertEqual(c.load(out / 'model-input.json'), self.model)
+        self.assertEqual(manifest['input_validation'], {'state': 'model-input-checked', 'vocabulary_searched': False})
+        with self.assertRaisesRegex(ValueError, 'content.model'):
+            self.export(generation=True)
+
+    def test_unselected_retrieval_records_no_invented_search(self):
+        for target in (None, self.model):
+            content = dict(self.content)
+            if target is not None:
+                content['model_record'] = target
+            out, manifest = self.export(content)
+            self.assertEqual(manifest['retrieval'], {'settled': True, 'elements': 0, 'adopted': 0, 'composed': 0, 'unused': 0})
+            self.assertFalse((out / 'prompt-retrieval-record.json').exists())
+
+    def test_selected_retrieval_has_the_actual_prompt_and_plot_binding(self):
+        record = settle_retrieval_record(RETRIEVAL_RECORD, prompt=self.prompt, plot=APPROVED_PLOT)
+        content = {'prompt': self.prompt, 'model_record': self.model,
+                   'documents': {'plot': APPROVED_PLOT, 'retrieval_record': record}}
+        out, manifest = self.export(content, generation=True)
+        self.assertEqual(c.load(out / 'prompt-retrieval-record.json'), record)
+        self.assertEqual(c.load(out / 'prompt-plot.json'), APPROVED_PLOT)
+        self.assertEqual(manifest['retrieval'], {'settled': True, 'elements': 2, 'adopted': 1, 'composed': 1, 'unused': 0})
+        content['prompt'] += 'The repaired bowl sits on the table.'
+        with self.assertRaisesRegex(ValueError, 'different prompt or plot'):
+            self.export(content, generation=True)
+
+    def test_empty_retrieval_remains_exactly_bound(self):
+        record = settle_retrieval_record({'artifact_type': 'prompt-retrieval-record', 'elements': []},
+                                        prompt=self.prompt, plot=APPROVED_PLOT)
+        content = {'prompt': self.prompt, 'model_record': self.model,
+                   'documents': {'plot': APPROVED_PLOT, 'retrieval_record': record}}
+        self.export(content, generation=True)
+        content['prompt'] += 'A distinct scene.'
+        with self.assertRaisesRegex(ValueError, 'different prompt or plot'):
+            self.export(content, generation=True)
+
+    def test_pending_lookup_does_not_become_settled_through_publication(self):
+        content = {'prompt': self.prompt, 'documents': {'retrieval_record': {
+            'artifact_type': 'prompt-retrieval-record', 'elements': [{'element': 'support', 'queries': ['shared support']}]
+        }}}
+        with self.assertRaisesRegex(ValueError, 'retrieval record is invalid'):
+            self.export(content)
+
+    def test_unavailable_lookup_is_explicit_and_limits_preparation(self):
+        content = {'prompt': self.prompt, 'model_record': self.model, 'retrieval_unavailable': 'Synthetic inaccessible dictionary.'}
+        _, manifest = self.export(content)
+        self.assertEqual(manifest['retrieval'], {'settled': False, 'reason': content['retrieval_unavailable']})
+        with self.assertRaisesRegex(ValueError, 'retrieval was unavailable'):
+            self.export(content, generation=True)
+        content['documents'] = {'retrieval_record': {'artifact_type': 'prompt-retrieval-record', 'elements': []}}
+        with self.assertRaisesRegex(ValueError, 'select a retrieval_record'):
+            self.export(content)
+
+    def test_plot_approval_and_story_links_reach_the_publication_gate(self):
+        content = {'prompt': self.prompt, 'model_record': self.model, 'documents': {'plot': PLOT}}
+        self.export(content)
+        with self.assertRaisesRegex(ValueError, 'approved selected plot'):
+            self.export(content, generation=True)
+        content['documents']['plot'] = APPROVED_PLOT
+        _, manifest = self.export(content, generation=True)
+        self.assertTrue(manifest['plot']['approved'])
+        for changed in (
+            {**APPROVED_PLOT, 'target': 'another-interface'},
+            {**PLOT, 'approved': {'by': 'fixture author', 'at': 'yesterday'}},
+            {**PLOT, 'derived': [{'kind': 'shows', 'statement': 'an unrelated item', 'from': ['missing']}]},
+        ):
+            with self.subTest(changed=changed):
+                content['documents']['plot'] = changed
+                with self.assertRaises(ValueError):
+                    self.export(content)
+
+    def test_numeric_camera_and_structure_requirements_are_checked(self):
+        content = {'prompt': self.prompt, 'documents': {'semantic_plan': BOUNDED_CAMERA_PLAN}}
+        out, _ = self.export(content, require_semantics=True)
+        self.assertTrue(c.load(out / 'semantic-preflight.json')['ok'])
+        plan = copy.deepcopy(BOUNDED_CAMERA_PLAN)
+        plan['camera']['subject_frame_occupancy'] = 0.4
+        content['documents']['semantic_plan'] = plan
+        with self.assertRaisesRegex(ValueError, 'outside declared bounds'):
+            self.export(content)
+        content['documents']['semantic_plan'] = INVALID_SEMANTIC_PLAN
+        with self.assertRaisesRegex(ValueError, 'semantic preflight'):
+            self.export(content)
+        with self.assertRaisesRegex(ValueError, 'content.documents.semantic_plan'):
+            self.export(require_semantics=True)
+
+    def test_reference_count_and_transport_are_owned_by_selected_documents(self):
+        plan = {'artifact_type': 'reference-use-plan', 'reference_items': [{'record_id': 'R1'}, {'record_id': 'R2'}]}
+        content = {'prompt': self.prompt, 'documents': {'reference_use_plan': plan}}
+        out, manifest = self.export(content)
+        self.assertEqual(manifest['selected_reference_count'], 2)
+        self.assertEqual(c.load(out / 'reference-use-plan.json'), plan)
+        content['model_record'] = self.model
+        with self.assertRaisesRegex(ValueError, 'prepared_reference_set'):
+            self.export(content, generation=True)
+        content['documents']['reference_use_plan'] = {'selected_references': []}
+        with self.assertRaisesRegex(ValueError, 'reference use plan'):
+            self.export(content)
+
+    def test_failed_publication_keeps_existing_package_and_work(self):
+        out, _ = self.export(name='existing')
+        original = {path.name: path.read_bytes() for path in out.iterdir()}
+        bad = self.work_file({'prompt': self.prompt, 'documents': {'semantic_plan': INVALID_SEMANTIC_PLAN}})
+        with self.assertRaises(ValueError):
+            publish(bad, out, overwrite=True)
+        self.assertEqual({path.name: path.read_bytes() for path in out.iterdir()}, original)
+        nested = out / 'my-work.json'
+        nested.write_bytes(self.work_file().read_bytes())
+        with self.assertRaisesRegex(ValueError, 'inside the output directory'):
+            publish(nested, out, overwrite=True)
+        self.assertTrue(nested.is_file())
+        good = self.work_file({'prompt': self.prompt + 'A different actual candidate.'})
+        with self.assertRaisesRegex(ValueError, 'not empty'):
+            publish(good, out)
+        publish(good, out, overwrite=True)
+        self.assertEqual((out / 'final-prompt.txt').read_text(encoding='utf-8'), c.load(good)['content']['prompt'])
+
+    def test_cli_publishes_the_chosen_work_without_separate_text_input(self):
+        path = self.work_file()
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name('build_prompt_artifacts.py')),
+            '--work', str(path), '--out-dir', str(self.root / 'cli')], text=True, encoding='utf-8', capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.root / 'cli/final-prompt.txt').read_text(encoding='utf-8'), self.prompt)
+
+    def test_dictionary_selection_is_acquired_and_bound_to_actual_text(self):
+        import production_case_fixtures as fixture
+        import pack_manager as packs
+        folder = self.root / 'tags'
+        pack = fixture.create_pack(folder / 'pack')
+        manifest = c.load(pack / 'pack.json')
+        manifest['content']['resource_bindings'].update({
+            'prompt-vocabulary': 'resources/dictionary.json', 'prompt-dialects': 'resources/dialects.json'})
+        fixture.write(pack / 'pack.json', manifest)
+        fixture.write(pack / 'resources/dictionary.json', {
+            'format': 'character-prompt-builder-prompt-vocabulary', 'name': 'Synthetic artifact wording',
+            'description': 'Fictional lookup terms for artifact input tests.',
+            'categories': [{'id': 'synthetic', 'name': 'Synthetic terms', 'description': 'Authored fixture terms.',
+                'entries': [{'term': term} for term in ('blue triangle', 'plain backdrop', 'lettering')]}]})
+        fixture.write(pack / 'resources/dialects.json', {
+            'format': 'character-prompt-builder-prompt-dialects', 'name': 'Synthetic artifact dialect',
+            'description': 'Fictional tag input contract, not a model claim.',
+            'dialects': [{'id': 'synthetic-tags', 'name': 'Synthetic tags', 'description': 'Test-only family.',
+                'vocabularies': ['synthetic'], 'tag_separator': ', ', 'block_order': ['subject', 'environment']}]})
+        models = c.load(pack / 'records/models.json')
+        model = models['records'][0]
+        model.update(prompt_input=prompt_input('tag-based', vocabularies=('synthetic',)), prompt_dialect='synthetic-tags')
+        fixture.write(pack / 'records/models.json', models)
+        packs.write_lock(pack)
+        packs.save_state(folder / 'state.json', {'pack_roots': [], 'enabled_packs': [fixture.PACK_ID]})
+        runtime_args = ['--state-file', str(folder / 'state.json'), '--cache-dir', str(folder / 'cache'),
+                        '--managed-root', str(folder / 'managed'), '--pack-root', str(pack)]
+        model_record = {key: model[key] for key in ('id', 'prompt_input', 'prompt_dialect')}
+        files = {name: folder / (name + '.json') for name in ('model', 'retrieval', 'plot')}
+        files.update(prompt=folder / 'prompt.txt', negative=folder / 'negative.txt')
+        fixture.write(files['model'], model_record)
+        fixture.write(files['prompt'], 'blue triangle, (plain backdrop:1.2)')
+        fixture.write(files['negative'], '(lettering:1.1)')
+        fixture.write(files['retrieval'], {'artifact_type': 'prompt-retrieval-record', 'elements': []})
+        fixture.write(files['plot'], APPROVED_PLOT)
+        script = Path(__file__).with_name('build_prompt_artifacts.py')
+        content = {'prompt': files['prompt'].read_text(encoding='utf-8'), 'negative': files['negative'].read_text(encoding='utf-8'),
+                   'weighting': 'sdEmbeds', 'model_record': model_record,
+                   'documents': {'plot': APPROVED_PLOT}}
+        def export_cli(name, *, generation=False):
+            path = self.work_file(content)
+            return subprocess.run([sys.executable, str(script), '--work', str(path),
+                '--out-dir', str(folder / name), *(['--prepare-for-generation'] if generation else []), *runtime_args],
+                capture_output=True, text=True, encoding='utf-8')
+        blocked = export_cli('unsearched')
+        self.assertNotEqual(blocked.returncode, 0)
+        self.assertIn('searched vocabulary selection', blocked.stdout + blocked.stderr)
+        for command in ('--search-vocabulary', '--settle'):
+            result = subprocess.run([sys.executable, str(script.with_name('prompt_retrieval.py')),
+                str(files['retrieval']), command, '--model-file', str(files['model']),
+                '--prompt-file', str(files['prompt']), '--negative-file', str(files['negative']),
+                '--weighting', 'sdEmbeds',
+                *(['--plot-file', str(files['plot']), '--out', str(files['retrieval'])] if command == '--settle' else []),
+                *runtime_args],
+                capture_output=True, text=True, encoding='utf-8')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        content['documents']['retrieval_record'] = c.load(files['retrieval'])
+        result = export_cli('searched')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(json.loads(result.stdout)['manifest']['input_validation']['vocabulary_searched'])
+        content.pop('model_record')
+        content['model'] = fixture.MODEL_ID
+        result = export_cli('catalog', generation=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        content['negative'] = '(lettering:1.3)'
+        changed = export_cli('changed-negative')
+        self.assertNotEqual(changed.returncode, 0)
+        self.assertIn('different text', changed.stdout + changed.stderr)
 
 
-def check_authored_depictions(root: Path, script: Path, model_file: Path) -> list[str]:
-    """Exercise exact text/plot transport for purpose-specific synthetic briefs.
-
-    These checks verify packaging, not the author's semantic judgment or any
-    image model's ability to follow the wording.
-    """
-    cases = [
-        (
-            "shared-repair",
-            "Show two conservators repairing a wooden frame together.",
-            "Two conservators repair a wooden frame at a workbench. One steadies "
-            "the frame while the other brushes adhesive into its joint. Both "
-            "watch the joint. Frame the work so their distinct roles are readable.",
-            "The two actions share the frame joint as their target.",
-            "One conservator steadies the frame while the other works its joint.",
-            "The framing keeps both roles readable.",
-            "Both participants stay engaged with the same joint.",
-            "The exact camera height remains open.",
-        ),
-        (
-            "outfit-reference",
-            "Show the complete work outfit, including gloves and lace-up boots.",
-            "A full-length outfit reference shows a canvas jacket, trousers, "
-            "gloves and lace-up boots. The garment shapes and fastenings are clear.",
-            "The complete outfit and its footwear are visible.",
-            "Each garment sits in its worn position on the figure.",
-            "The full figure fits inside the frame.",
-            "Gloves and lace-up boots remain visible.",
-            "The backdrop tone remains open.",
-        ),
-        (
-            "label-free-product",
-            "Show a plain carton with no text or logos.",
-            "A plain cardboard carton under soft studio light, with no text or logos.",
-            "The surface is unprinted.",
-            "No spatial relationship is required beyond the carton itself.",
-            "The carton is the only subject in frame.",
-            "No text or logos appear on any face.",
-            "The carton orientation remains open.",
-        ),
-    ]
-    errors = []
-    for name, brief, wording, requirement, placement, composition, preserved, open_choice in cases:
-        folder = root / name
-        folder.mkdir()
-        text = wording + NL
-        prompt = folder / "prompt.txt"
-        prompt.write_text(text, encoding="utf-8")
-        plot_value = {
-            "artifact_type": "prompt-plot",
-            "story": [{"id": "purpose", "beat": brief, "visibility": "visible"}],
-            "derived": [
-                {"kind": "shows", "statement": requirement, "from": ["purpose"]},
-                {"kind": "placement", "statement": placement, "from": ["purpose"]},
-                {"kind": "composition", "statement": composition, "from": ["purpose"]},
-                {"kind": "must_preserve", "statement": preserved, "from": ["purpose"]},
-                {"kind": "free", "statement": open_choice},
-            ],
-        }
-        plot_value["approved"] = {
-            "by": "synthetic fixture author", "at": "2026-10-22T00:00:00Z",
-            "content_sha256": content_sha256(plot_value),
-        }
-        plot_path = folder / "plot.json"
-        plot_path.write_text(json.dumps(plot_value) + NL, encoding="utf-8")
-        retrieval = {
-            "artifact_type": "prompt-retrieval-record",
-            "elements": [{
-                "element": "depiction", "queries": [brief], "inspected_records": [],
-                "outcome": "composed", "composed_wording": wording,
-                "reason": "Synthetic authored wording for a packaging contract test.",
-            }],
-        }
-        record = folder / "retrieval.json"
-        record.write_text(json.dumps(settle_retrieval_record(retrieval, prompt=text, plot=plot_value)) + NL,
-                          encoding="utf-8")
-        out = folder / "package"
-        result = run(script, "--prompt", str(prompt), "--plot", str(plot_path),
-                     "--retrieval-record", str(record), "--prepare-for-generation", "--out-dir", str(out),
-                     "--model-file", str(model_file))
-        if result.returncode:
-            errors.append(f"{name}: package failed: {result.stderr}")
-            continue
-        if (out / "final-prompt.txt").read_bytes() != prompt.read_bytes():
-            errors.append(f"{name}: final prompt differs from authored depiction")
-        if json.loads((out / "prompt-plot.json").read_text(encoding="utf-8")) != plot_value:
-            errors.append(f"{name}: plot requirements or open choices were changed")
-
-    # Context can ground performance while a single frame statement carries the
-    # chosen depiction. Packaging retains that context and the authored wording.
-    folder = root / "context-performance"
-    folder.mkdir()
-    text = "A visitor waits beside a busy workbench, following the worker's hands with an attentive gaze.\n"
-    plot_value = {
-        "artifact_type": "prompt-plot",
-        "story": [
-            {"id": "present", "beat": "A visitor waits beside a working craftsperson.", "visibility": "visible"},
-            {"id": "choice", "beat": "The visitor is considering an invitation to join the work.", "visibility": "context"},
-        ],
-        "derived": [{"kind": "shows", "statement": text.strip(), "from": ["present", "choice"]}],
-    }
-    plot_value["approved"] = {"by": "synthetic fixture author", "at": "2026-10-30T00:00:00Z",
-                              "content_sha256": content_sha256(plot_value)}
-    prompt = folder / "prompt.txt"
-    prompt.write_text(text, encoding="utf-8")
-    plot_path = folder / "plot.json"
-    plot_path.write_text(json.dumps(plot_value) + NL, encoding="utf-8")
-    retrieval = {"artifact_type": "prompt-retrieval-record", "elements": [{
-        "element": "performance", "queries": ["visitor attentive gaze shared work"], "inspected_records": [],
-        "outcome": "composed", "composed_wording": text.strip(),
-        "reason": "Synthetic authored performance for an input-retention test.",
-    }]}
-    record = folder / "retrieval.json"
-    record.write_text(json.dumps(settle_retrieval_record(retrieval, prompt=text, plot=plot_value)) + NL,
-                      encoding="utf-8")
-    out = folder / "package"
-    result = run(script, "--prompt", str(prompt), "--plot", str(plot_path),
-                 "--retrieval-record", str(record), "--prepare-for-generation", "--out-dir", str(out),
-                 "--model-file", str(model_file))
-    if result.returncode:
-        errors.append("context-performance: package failed: " + result.stdout + result.stderr)
-    elif ((out / "final-prompt.txt").read_bytes() != prompt.read_bytes()
-          or json.loads((out / "prompt-plot.json").read_text(encoding="utf-8")) != plot_value):
-        errors.append("context-performance: packaging changed the selected performance or its story basis")
-    return errors
-
-
-def check_unused_retrieval(root: Path, script: Path, prompt: Path, plot: Path, model_file: Path) -> list[str]:
-    """Keep unused retrieval optional without inventing activity or model validation."""
-    errors = []
-    for label, target, preparation in (
-        ("portable", [], []),
-        ("descriptive", ["--model-file", str(model_file)], []),
-        ("descriptive-generation", ["--model-file", str(model_file)], ["--prepare-for-generation"]),
-    ):
-        out = root / ("unused-retrieval-" + label)
-        result = run(script, "--prompt", str(prompt), "--plot", str(plot),
-                     "--out-dir", str(out), *target, *preparation)
-        if result.returncode:
-            errors.append(label + ": unused retrieval prevented publication: " + result.stdout + result.stderr)
-            continue
-        manifest = json.loads(result.stdout)["manifest"]
-        expected_state = "model-input-checked" if target else "unverified-draft"
-        if (manifest["retrieval"] != {"settled": True, "elements": 0, "adopted": 0, "composed": 0, "unused": 0}
-                or manifest["input_validation"] != {"state": expected_state, "vocabulary_searched": False}
-                or bool(manifest["target"]) != bool(target)):
-            errors.append(label + ": unused retrieval invented activity or changed target validation")
-        if ({"artifact": "prompt-retrieval-record.json", "reason": "no retrieval work selected"}
-                not in manifest["omitted"] or (out / "prompt-retrieval-record.json").exists()):
-            errors.append(label + ": unused retrieval was not recorded as an omitted artifact")
-        if (out / "final-prompt.txt").read_bytes() != prompt.read_bytes():
-            errors.append(label + ": publication changed the authored prompt")
-    return errors
-
-
-def check_source_sufficient_package(root: Path, script: Path, prompt: Path, plot: Path, model_file: Path) -> list[str]:
-    """Exercise empty initialization, exact settlement and the real packaging gate."""
-    errors = []
-    retrieval_script = script.with_name("prompt_retrieval.py")
-    record = root / "source-sufficient.json"
-    initialized = run(retrieval_script, str(record), "--init")
-    expected = {"artifact_type": "prompt-retrieval-record", "elements": []}
-    if initialized.returncode or not record.is_file() or json.loads(record.read_text(encoding="utf-8")) != expected:
-        return ["source-sufficient initialization failed: " + initialized.stdout + initialized.stderr]
-    original = record.read_bytes()
-    repeated = run(retrieval_script, str(record), "--init")
-    if repeated.returncode == 0 or record.read_bytes() != original:
-        errors.append("retrieval initialization did not preserve an existing record")
-
-    settled = root / "source-sufficient-settled.json"
-    resolution = run(retrieval_script, str(record), "--settle", "--prompt-file", str(prompt),
-                     "--plot-file", str(plot), "--out", str(settled), "--model-file", str(model_file))
-    if resolution.returncode:
-        return errors + ["empty retrieval settlement failed: " + resolution.stdout + resolution.stderr]
-    out = root / "source-sufficient-package"
-    package = run(script, "--prompt", str(prompt), "--plot", str(plot),
-                  "--retrieval-record", str(settled), "--prepare-for-generation", "--out-dir", str(out),
-                  "--model-file", str(model_file))
-    if package.returncode:
-        errors.append("source-sufficient generation preparation failed: " + package.stdout + package.stderr)
-    else:
-        manifest = json.loads(package.stdout)["manifest"]
-        if manifest["retrieval"] != {"settled": True, "elements": 0, "adopted": 0, "composed": 0, "unused": 0}:
-            errors.append("source-sufficient preparation invented retrieval activity")
-        if (out / "prompt-retrieval-record.json").read_bytes() != settled.read_bytes():
-            errors.append("source-sufficient preparation changed its retrieval record")
-
-    changed_prompt = root / "changed-source-sufficient-prompt.txt"
-    changed_prompt.write_text("A different authored depiction.\n", encoding="utf-8")
-    changed_out = root / "changed-source-sufficient-package"
-    changed = run(script, "--prompt", str(changed_prompt), "--plot", str(plot),
-                  "--retrieval-record", str(settled), "--prepare-for-generation", "--out-dir", str(changed_out),
-                  "--model-file", str(model_file))
-    if changed.returncode == 0 or changed_out.exists() or "different prompt or plot" not in changed.stdout + changed.stderr:
-        errors.append("an empty retrieval record lost its exact prompt binding")
-
-    pending = root / "pending-question.json"
-    pending.write_text(json.dumps({"artifact_type": "prompt-retrieval-record", "elements": [
-        {"element": "support", "queries": ["shared support surface"], "inspected_records": []}
-    ]}) + NL, encoding="utf-8")
-    pending_out = root / "pending-settled.json"
-    unresolved = run(retrieval_script, str(pending), "--settle", "--prompt-file", str(prompt),
-                     "--plot-file", str(plot), "--out", str(pending_out))
-    if unresolved.returncode == 0 or pending_out.exists() or "has no outcome" not in unresolved.stdout + unresolved.stderr:
-        errors.append("an actual unfinished investigation was accepted as settled")
-    return errors
-
-
-def check_tag_input_binding(root: Path, script: Path) -> list[str]:
-    """Exercise real lookup and exact input binding on both target selectors."""
-    import production_case_fixtures as fixture
-    import pack_manager as packs
-    errors = []
-    folder = root / "tag-input"
-    pack = fixture.create_pack(folder / "pack")
-    manifest = json.loads((pack / "pack.json").read_text(encoding="utf-8"))
-    manifest["content"]["resource_bindings"].update({
-        "prompt-vocabulary": "resources/dictionary.json", "prompt-dialects": "resources/dialects.json"})
-    fixture.write(pack / "pack.json", manifest)
-    fixture.write(pack / "resources/dictionary.json", {
-        "format": "character-prompt-builder-prompt-vocabulary", "name": "Synthetic artifact wording",
-        "description": "Fictional lookup terms for artifact input tests.",
-        "categories": [{"id": "synthetic", "name": "Synthetic terms", "description": "Authored fixture terms.",
-                        "entries": [{"term": term} for term in ("blue triangle", "plain backdrop", "lettering")]}]})
-    fixture.write(pack / "resources/dialects.json", {
-        "format": "character-prompt-builder-prompt-dialects", "name": "Synthetic artifact dialect",
-        "description": "Fictional tag input contract, not a model claim.",
-        "dialects": [{"id": "synthetic-tags", "name": "Synthetic tags", "description": "Test-only family.",
-                      "vocabularies": ["synthetic"], "tag_separator": ", ", "block_order": ["subject", "environment"]}]})
-    models = json.loads((pack / "records/models.json").read_text(encoding="utf-8"))
-    model = models["records"][0]
-    model.update(prompt_input=prompt_input("tag-based", vocabularies=("synthetic",)), prompt_dialect="synthetic-tags")
-    fixture.write(pack / "records/models.json", models)
-    packs.write_lock(pack)
-    packs.save_state(folder / "state.json", {"pack_roots": [], "enabled_packs": [fixture.PACK_ID]})
-    runtime_args = ["--state-file", str(folder / "state.json"), "--cache-dir", str(folder / "cache"),
-                    "--managed-root", str(folder / "managed"), "--pack-root", str(pack)]
-    model_file = folder / "model-input.json"
-    fixture.write(model_file, {key: model[key] for key in ("id", "prompt_input", "prompt_dialect")})
-    prompt, negative, retrieval, plot = (folder / name for name in ("prompt.txt", "negative.txt", "retrieval.json", "plot.json"))
-    fixture.write(prompt, "blue triangle, (plain backdrop:1.2)")
-    fixture.write(negative, "(lettering:1.1)")
-    fixture.write(retrieval, {"artifact_type": "prompt-retrieval-record", "elements": []})
-    plot_value = {"artifact_type": "prompt-plot", "story": [
-        {"id": "shape", "beat": "A blue triangle appears against a plain backdrop.", "visibility": "visible"}],
-        "derived": [{"kind": "shows", "statement": "one blue triangle on a plain backdrop", "from": ["shape"]}]}
-    plot_value["approved"] = {"by": "Synthetic fixture author", "at": "2000-01-01T00:00:00Z",
-                               "content_sha256": content_sha256(plot_value)}
-    fixture.write(plot, plot_value)
-    package_args = ["--prompt", str(prompt), "--negative", str(negative), "--weighting", "sdEmbeds",
-                    "--retrieval-record", str(retrieval), "--plot", str(plot), *runtime_args]
-    blocked_dir = folder / "unsearched"
-    blocked = run(script, *package_args, "--model-file", str(model_file), "--out-dir", str(blocked_dir))
-    if blocked.returncode == 0 or blocked_dir.exists() or "searched vocabulary selection" not in blocked.stdout + blocked.stderr:
-        errors.append("a model-bound tag prompt was not refused before its dictionary search")
-    for label, preparation, diagnostic in (("publication", [], "searched vocabulary selection"),
-                                            ("generation", ["--prepare-for-generation"], "dictionary search")):
-        absent_dir = folder / ("missing-retrieval-" + label)
-        absent = run(script, "--prompt", str(prompt), "--negative", str(negative), "--weighting", "sdEmbeds",
-                     "--plot", str(plot), "--model-file", str(model_file), "--out-dir", str(absent_dir),
-                     *preparation, *runtime_args)
-        if absent.returncode == 0 or absent_dir.exists() or diagnostic not in absent.stdout + absent.stderr:
-            errors.append(label + ": omitting retrieval bypassed the model's required vocabulary search")
-    retrieval_script = script.with_name("prompt_retrieval.py")
-    searched = run(retrieval_script, str(retrieval), "--search-vocabulary", "--model-file", str(model_file),
-                   "--prompt-file", str(prompt), "--negative-file", str(negative), "--weighting", "sdEmbeds", *runtime_args)
-    if searched.returncode:
-        return errors + ["tag vocabulary search failed: " + searched.stdout + searched.stderr]
-    settled = run(retrieval_script, str(retrieval), "--settle", "--model-file", str(model_file),
-                  "--prompt-file", str(prompt), "--negative-file", str(negative), "--weighting", "sdEmbeds",
-                  "--plot-file", str(plot), "--out", str(retrieval), *runtime_args)
-    if settled.returncode:
-        return errors + ["tag vocabulary settlement failed: " + settled.stdout + settled.stderr]
-    for label, selector in (("acquired", ["--model-file", str(model_file)]),
-                            ("catalog", ["--model", fixture.MODEL_ID, "--prepare-for-generation"])):
-        published = run(script, *package_args, *selector, "--out-dir", str(folder / label))
-        if published.returncode:
-            errors.append(label + " searched tag publication failed: " + published.stdout + published.stderr)
-            continue
-        result = json.loads(published.stdout)["manifest"]
-        if (result["input_validation"] != {"state": "model-input-checked", "vocabulary_searched": True}
-                or result["target"]["prompt_input"] != model["prompt_input"] or result["target"]["weighting"] != "sdEmbeds"):
-            errors.append(label + " package lost the searched model input contract")
-    fixture.write(negative, "(lettering:1.3)")
-    changed_dir = folder / "changed-negative"
-    changed = run(script, *package_args, "--model-file", str(model_file), "--out-dir", str(changed_dir))
-    if changed.returncode == 0 or changed_dir.exists() or "different text" not in changed.stdout + changed.stderr:
-        errors.append("a tag vocabulary selection was reused for changed negative text")
-    return errors
-
-
-def main() -> int:
-    script = Path(__file__).with_name("build_prompt_artifacts.py")
-    with tempfile.TemporaryDirectory(prefix="cpb-prompt-artifacts-") as temp:
-        root = Path(temp)
-        model_file = root / "synthetic-model.json"
-        model_file.write_text(json.dumps({"id": "synthetic-prompt-editor",
-                              "prompt_input": prompt_input("descriptive")}) + NL, encoding="utf-8")
-        prompt = root / "prompt.txt"
-        prompt.write_text("A coherent prompt." + NL, encoding="utf-8")
-        record = root / "retrieval-record.json"
-        record.write_text(json.dumps(settle_retrieval_record(RETRIEVAL_RECORD, prompt=prompt.read_text(encoding="utf-8"), plot=PLOT), ensure_ascii=False, indent=2) + NL, encoding="utf-8")
-        plot = root / "plot.json"
-        plot.write_text(json.dumps(PLOT, ensure_ascii=False, indent=2) + NL, encoding="utf-8")
-        approved_plot = root / "approved-plot.json"
-        approved_plot.write_text(json.dumps(APPROVED_PLOT, ensure_ascii=False, indent=2) + NL, encoding="utf-8")
-        answered = ("--retrieval-record", str(record), "--plot", str(approved_plot))
-        unapproved = ("--retrieval-record", str(record), "--plot", str(plot))
-
-        out = root / "out"
-        proc = run(script, "--prompt", str(prompt), "--out-dir", str(out), *answered)
-        files = sorted(path.name for path in out.iterdir()) if out.is_dir() else []
-        expected = ["final-prompt.txt", "prompt-artifact-manifest.json", "prompt-plot.json", "prompt-retrieval-record.json"]
-        minimal_ok = proc.returncode == 0 and files == expected
-        neutral_manifest = json.loads(proc.stdout)["manifest"] if proc.returncode == 0 else {}
-        neutral_unverified = (neutral_manifest.get("target") is None and neutral_manifest.get("input_validation") ==
-                              {"state": "unverified-draft", "vocabulary_searched": False})
-
-        invalid = root / "invalid-semantic.json"
-        invalid.write_text(json.dumps(INVALID_SEMANTIC_PLAN, ensure_ascii=False, indent=2) + NL, encoding="utf-8")
-        blocked = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "blocked"), *answered,
-            "--semantic-plan", str(invalid), "--require-semantic-plan",
-        )
-
-        # An occupancy requirement alone controls publication, independent of anatomy and camera wording.
-        camera_plan = root / "camera-semantic.json"
-        camera_plan.write_text(json.dumps(BOUNDED_CAMERA_PLAN) + NL, encoding="utf-8")
-        accepted_camera = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "accepted-camera"), *answered,
-            "--semantic-plan", str(camera_plan), "--require-semantic-plan",
-        )
-        outside_camera = copy.deepcopy(BOUNDED_CAMERA_PLAN)
-        outside_camera["camera"]["subject_frame_occupancy"] = 0.4
-        camera_plan.write_text(json.dumps(outside_camera) + NL, encoding="utf-8")
-        camera_output = root / "blocked-camera"
-        blocked_camera = run(
-            script, "--prompt", str(prompt), "--out-dir", str(camera_output), *answered,
-            "--semantic-plan", str(camera_plan), "--require-semantic-plan",
-        )
-        camera_refused = (blocked_camera.returncode != 0 and not camera_output.exists()
-                          and "camera.subject_frame_occupancy: 0.4 is outside declared bounds [0.2, 0.3]"
-                          in blocked_camera.stdout + blocked_camera.stderr)
-
-        # A prompt begins from a plot, and generation-ready needs it approved.
-        no_plot = run(script, "--prompt", str(prompt), "--out-dir", str(root / "no-plot"),
-                      "--retrieval-record", str(record))
-        unapproved_package = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "unapproved"), *unapproved,
-        )
-        approved_generation = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "approved-gen"), *answered,
-            "--prepare-for-generation", "--model-file", str(model_file),
-        )
-        no_target_dir = root / "generation-without-target"
-        no_target = run(script, "--prompt", str(prompt), "--out-dir", str(no_target_dir), *answered,
-                        "--prepare-for-generation")
-        target_required = (no_target.returncode != 0 and not no_target_dir.exists()
-                           and "requires --model or --model-file" in no_target.stdout + no_target.stderr)
-        invented = {
-            "artifact_type": "prompt-plot",
-            "story": PLOT["story"],
-            "derived": PLOT["derived"][:-1] + [
-                {"kind": "shows", "statement": "a kettle on the bench", "from": ["missing-beat"]},
-                {"kind": "free", "statement": "the backdrop"},
-            ],
-        }
-        invented["approved"] = {**APPROVED_PLOT["approved"], "content_sha256": content_sha256(invented)}
-        invented_path = root / "invented-approved.json"
-        invented_path.write_text(json.dumps(invented, ensure_ascii=False) + NL, encoding="utf-8")
-        invented_run = run(script, "--prompt", str(prompt), "--out-dir", str(root / "invented"),
-                           "--retrieval-record", str(record), "--plot", str(invented_path))
-        targeted = root / "targeted-plot.json"
-        targeted.write_text(json.dumps({**APPROVED_PLOT, "target": "some-interface"}, ensure_ascii=False) + NL, encoding="utf-8")
-        targeted_run = run(script, "--prompt", str(prompt), "--out-dir", str(root / "targeted"),
-                           "--retrieval-record", str(record), "--plot", str(targeted))
-        plot_counts = json.loads(proc.stdout)["manifest"]["plot"] if proc.returncode == 0 else None
-        duplicate = root / "duplicate-source-plot.json"
-        duplicate.write_text(json.dumps({**APPROVED_PLOT, "derived": [
-            {**APPROVED_PLOT["derived"][0], "from": ["s1", "s1"]},
-        ] + APPROVED_PLOT["derived"][1:]}, ensure_ascii=False) + NL, encoding="utf-8")
-        duplicate_run = run(script, "--prompt", str(prompt), "--out-dir", str(root / "duplicate"),
-                            "--retrieval-record", str(record), "--plot", str(duplicate))
-        loose_time = root / "loose-time-plot.json"
-        loose_time.write_text(json.dumps({**PLOT, "approved": {"by": "someone", "at": "yesterday"}},
-                                         ensure_ascii=False) + NL, encoding="utf-8")
-        loose_time_run = run(script, "--prompt", str(prompt), "--out-dir", str(root / "loose-time"),
-                             "--retrieval-record", str(record), "--plot", str(loose_time))
-        plot_ok = (
-            no_plot.returncode == 0
-            and unapproved_package.returncode == 0
-            and approved_generation.returncode == 0
-            and invented_run.returncode != 0
-            and targeted_run.returncode != 0
-            and duplicate_run.returncode != 0
-            and loose_time_run.returncode != 0
-            and plot_counts == {"settled": True, "beats": 2, "visible_beats": 1, "derived": 5,
-                            "source": None, "approved": True}
-        )
-
-        # Unused retrieval is optional; selected investigations keep their own checks.
-        optional_retrieval_errors = check_unused_retrieval(root, script, prompt, approved_plot, model_file)
-        unavailable = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "unavailable"),
-            "--retrieval-unavailable", UNAVAILABLE, "--plot", str(approved_plot),
-        )
-        unavailable_settled = None
-        if unavailable.returncode == 0:
-            unavailable_settled = json.loads(unavailable.stdout)["manifest"]["retrieval"]
-        unavailable_generation = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "unavailable-gen"),
-            "--retrieval-unavailable", UNAVAILABLE, "--plot", str(approved_plot), "--prepare-for-generation",
-            "--model-file", str(model_file),
-        )
-        both = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "both"), *answered,
-            "--retrieval-unavailable", UNAVAILABLE,
-        )
-        malformed = root / "malformed-record.json"
-        malformed.write_text(json.dumps({
-            "artifact_type": "prompt-retrieval-record",
-            "elements": [{"element": "pose", "queries": ["x"], "outcome": "composed"}],
-        }) + NL, encoding="utf-8")
-        malformed_run = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "malformed"),
-            "--retrieval-record", str(malformed),
-        )
-        counted_retrieval = json.loads(proc.stdout)["manifest"]["retrieval"] if proc.returncode == 0 else None
-        gate_ok = (
-            not optional_retrieval_errors
-            and unavailable.returncode == 0
-            and unavailable_settled == {"settled": False, "reason": UNAVAILABLE}
-            and unavailable_generation.returncode != 0
-            and both.returncode != 0
-            and malformed_run.returncode != 0
-            and counted_retrieval == {"settled": True, "elements": 2, "adopted": 1, "composed": 1, "unused": 0}
-        )
-
-        # A rejected run leaves the previous package and the inputs alone.
-        kept = root / "kept"
-        kept.mkdir()
-        survivor = kept / "keep.txt"
-        survivor.write_text(PREVIOUS_PACKAGE, encoding="utf-8")
-        missing_input = run(script, "--prompt", str(root / "absent.txt"), "--out-dir", str(kept), *answered)
-        survived = survivor.is_file() and survivor.read_text(encoding="utf-8") == PREVIOUS_PACKAGE
-
-        # An input inside the output directory is refused rather than destroyed.
-        nested_dir = root / "nested"
-        nested_dir.mkdir()
-        nested_prompt = nested_dir / "prompt.txt"
-        nested_prompt.write_text("A prompt inside the output directory." + NL, encoding="utf-8")
-        nested = run(script, "--prompt", str(nested_prompt), "--out-dir", str(nested_dir), *answered)
-        nested_ok = nested.returncode != 0 and nested_prompt.is_file()
-
-        # Replacing a package that is already there is an explicit request.
-        refused = run(script, "--prompt", str(prompt), "--out-dir", str(kept), *answered)
-        allowed = run(script, "--prompt", str(prompt), "--out-dir", str(kept), "--overwrite", *answered)
-        overwrite_ok = refused.returncode != 0 and allowed.returncode == 0
-
-        # A plan carrying reference_items keeps its count, and a document that
-        # does not answer the schema is an error rather than a plan with none.
-        plan = root / "reference-use-plan.json"
-        plan.write_text(json.dumps({
-            "artifact_type": "reference-use-plan",
-            "reference_items": [{"record_id": "R1"}, {"record_id": "R2"}],
-        }, ensure_ascii=False) + NL, encoding="utf-8")
-        with_refs = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "with-refs"), *answered,
-            "--reference-use-plan", str(plan),
-        )
-        counted = -1
-        carried = False
-        if with_refs.returncode == 0:
-            manifest = json.loads(with_refs.stdout)["manifest"]
-            counted = manifest["selected_reference_count"]
-            carried = (root / "with-refs" / "reference-use-plan.json").is_file()
-
-        unknown = root / "unknown-plan.json"
-        unknown.write_text(json.dumps({"selected_references": [{"record_id": "R1"}]}) + NL, encoding="utf-8")
-        unknown_run = run(
-            script, "--prompt", str(prompt), "--out-dir", str(root / "unknown"), *answered,
-            "--reference-use-plan", str(unknown),
-        )
-        references_ok = counted == 2 and carried and unknown_run.returncode != 0
-
-        errors: list[str] = check_authored_depictions(root, script, model_file)
-        errors.extend(check_source_sufficient_package(root, script, prompt, approved_plot, model_file))
-        errors.extend(check_tag_input_binding(root, script))
-        if not neutral_unverified or not target_required:
-            errors.append("model selection was not distinguished from an unverified portable draft")
-        if not minimal_ok:
-            errors.append(f"unexpected minimal prompt-only package: return={proc.returncode}, files={files}, stderr={proc.stderr}")
-        if blocked.returncode == 0:
-            errors.append("an invalid semantic plan was published")
-        if accepted_camera.returncode != 0 or not camera_refused:
-            errors.append("camera occupancy publication gate failed: "
-                          f"accepted={accepted_camera.returncode}, refused={camera_refused}, "
-                          f"accepted_output={accepted_camera.stdout + accepted_camera.stderr}, "
-                          f"blocked_output={blocked_camera.stdout + blocked_camera.stderr}")
-        if not plot_ok:
-            errors.append(
-                "plot gate wrong: "
-                f"no_plot={no_plot.returncode}, unapproved_package={unapproved_package.returncode}, "
-                f"approved_generation={approved_generation.returncode}, invented={invented_run.returncode}, "
-                f"targeted={targeted_run.returncode}, duplicate={duplicate_run.returncode}, "
-                f"loose_time={loose_time_run.returncode}, counts={plot_counts}"
-            )
-        if not gate_ok:
-            errors.append(
-                "retrieval gate wrong: "
-                f"optional_retrieval={optional_retrieval_errors}, unavailable={unavailable.returncode}, "
-                f"settled={unavailable_settled}, unavailable_generation={unavailable_generation.returncode}, "
-                f"both={both.returncode}, malformed={malformed_run.returncode}, counted={counted_retrieval}"
-            )
-        if not survived:
-            errors.append("a rejected run destroyed the existing output directory")
-        if not nested_ok:
-            errors.append("an input inside the output directory was not refused")
-        if not overwrite_ok:
-            errors.append(f"overwrite handling wrong: refused={refused.returncode}, allowed={allowed.returncode}")
-        if not references_ok:
-            errors.append(
-                f"reference plan handling wrong: counted={counted}, carried={carried}, "
-                f"unknown_refused={unknown_run.returncode != 0}"
-            )
-
-        report = {
-            "ok": not errors,
-            "errors": errors,
-            "stats": {
-                "files": files,
-                "authored_depiction_cases": 4,
-                "invalid_semantic_plan_blocked": blocked.returncode != 0,
-                "declared_camera_bounds_allow_publication": accepted_camera.returncode == 0,
-                "camera_only_violation_blocks_publication": camera_refused,
-                "plot_required": no_plot.returncode != 0,
-                "unapproved_plot_refused": unapproved_package.returncode != 0,
-                "approved_plot_allows_generation": approved_generation.returncode == 0,
-                "generation_target_required": target_required,
-                "neutral_draft_explicitly_unverified": neutral_unverified,
-                "unknown_beat_as_source_refused": invented_run.returncode != 0,
-                "plot_naming_a_target_refused": targeted_run.returncode != 0,
-                "repeated_source_refused": duplicate_run.returncode != 0,
-                "loose_approval_time_refused": loose_time_run.returncode != 0,
-                "plot_counts": plot_counts,
-                "unused_retrieval_optional": not optional_retrieval_errors,
-                "retrieval_unavailable_recorded": unavailable_settled,
-                "retrieval_unavailable_blocks_generation": unavailable_generation.returncode != 0,
-                "retrieval_flags_exclusive": both.returncode != 0,
-                "malformed_record_refused": malformed_run.returncode != 0,
-                "retrieval_counts": counted_retrieval,
-                "existing_output_survived_rejected_run": survived,
-                "input_under_output_refused": nested_ok,
-                "overwrite_requires_flag": overwrite_ok,
-                "reference_items_counted": counted,
-                "reference_plan_carried": carried,
-                "unknown_plan_shape_refused": unknown_run.returncode != 0,
-            },
-        }
-        print(json.dumps(report, ensure_ascii=False, indent=2))
-        return 0 if not errors else 1
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(main())
+    unittest.main(verbosity=2)

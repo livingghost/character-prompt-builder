@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
-from catalog_cli import configure_pack_runtime, inspire, load_entries, named_resource_path
+from catalog_api import configure_pack_runtime, inspire, load_entries, named_resource_path
 from pack_runtime_cli import (
     add_pack_runtime_arguments,
     has_pack_runtime_arguments,

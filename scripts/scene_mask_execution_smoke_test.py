@@ -12,7 +12,7 @@ from PIL import Image
 import execution_contract as c
 import production_compiler as compiler
 import production_case_fixtures as base
-import production_workflow as w
+import production_operations as w
 import scene_mask_fixtures as fixture
 import scene_mask_planner as masks
 import transport_synthetic as transport
@@ -119,8 +119,15 @@ class ProductionMaskTests(unittest.TestCase):
         task=c.load(self.root/'task.json');del task['generation']['mask_binding'];self.write('task.json',task)
         self.assertFalse(self.check()['ok'])
     def test_absent_applied_source_is_rejected(self):
-        task=c.load(self.root/'task.json');task['sources']=[r for r in task['sources'] if r['path']!='source.png'];self.write('task.json',task)
-        self.assertFalse(self.check()['ok'])
+        import production_fixtures
+        task=c.load(self.root/'task.json')
+        task['sources']=[r for r in task['sources'] if r['id']!='mask-source']
+        production_fixtures.bind_work_basis(self.root,task)
+        self.write('task.json',task)
+        result=self.check()
+        self.assertFalse(result['ok'])
+        self.assertTrue(any(row['phase']=='scene-mask-binding' and 'applied production source' in row['message']
+                            for row in result['diagnostics']))
     def test_changed_dimensions_are_rejected(self):
         params=c.load(self.root/'parameters.json');params['width']=64;self.write('parameters.json',params)
         self.assertFalse(self.check()['ok'])
@@ -130,8 +137,10 @@ class ProductionMaskTests(unittest.TestCase):
         models=c.load(self.case['pack']/'records/models.json');del models['records'][0]['offerings'][0]['request_keys']['mask image']
         base.write(self.case['pack']/'records/models.json',models);pack_manager.write_lock(self.case['pack']);runtime.configure_pack_runtime(self.case['settings'])
         from prompt_retrieval import settle_retrieval_record
+        from smoke_fixtures import fixture_resolved_prompt
         record=c.load(self.root/'retrieval.json');record['pack_state']=runtime.load_pack_catalog().fingerprint
-        self.write('retrieval.json',settle_retrieval_record(record,prompt=(self.root/'prompt.txt').read_text(encoding='utf-8'),plot=c.load(self.root/'plot.json')))
+        prompt=fixture_resolved_prompt((self.root/'prompt.txt').read_text(encoding='utf-8'),c.load(self.root/'references.json'))
+        self.write('retrieval.json',settle_retrieval_record(record,prompt=prompt,plot=c.load(self.root/'plot.json')))
         result=self.check();self.assertFalse(result['ok'])
         self.assertIn('no native mask image',str(result))
     def test_resume_uses_existing_result_without_sending_again(self):

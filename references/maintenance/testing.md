@@ -51,7 +51,8 @@ settings before use.
 Studio publication checks in `iterative_workflow_smoke_test.py` exercise an
 older supplied read model, overlapping processes, retried event receipts and
 events arriving during cleanup. `test_production_read_model.py` verifies that
-publication starts a fresh Production read boundary inside an older caller.
+publication reuses an owned decision's successor and observes another writer's
+commit before using an older caller's state.
 `test_reference_read_model.py` preserves current selection, exact source bytes
 and completed adoption evidence while sharing one decoded model per build.
 Test-owned SQLite connections must close before their temporary directories
@@ -62,11 +63,44 @@ acquisition, same-size/same-mtime edits, disabled-pack isolation, one acquisitio
 per selected file and fixed-runtime inputs taken from the catalog's own input.
 `test_schema_read_model.py` checks immutable schema ownership, root isolation,
 lazy references, keyword coverage, diagnostic order and standalone validation.
+Its dispatch checks reuse one owned schema while changing the supplied instance;
+schema execution plans retain constraints, not earlier validation outcomes.
+Alternative and condition predicates stop at a decisive mismatch. Ordinary
+validation preserves all diagnostics in order, and oneOf reports the exact
+number of matching alternatives. Shared sheet artwork is acquired once within
+a complete sidecar check; a later check acquires its files again.
 Run-view tests distinguish shared read-only state from editable exports and
 verify compiled artifacts against the bytes that publication checking acquired.
+Owned JSON tests preserve first duplicate-key diagnostics, nested immutability,
+editable-copy aliases, explicit memo entries and scalar subclass copy behavior.
+They count actual object opens across publication checking and evidence
+interpretation, preserve streaming for objects beyond the retained byte
+budget, and check same-size/same-mtime corruption at a new boundary.
+Candidate display tests measure acquisition independently of complete status:
+registered input and event evidence remain checked, while unrelated compiled
+artifacts are acquired by the complete audit and mutation owners. Display
+values cannot substitute for a complete run. New operations and forced reads
+acquire current stored content. Successful transactions retain owned inputs;
+rollback restores their predecessor and invalidates abandoned writer handles.
+Tests count publication reads and complete history replays across save and
+display stages, and detect external edits even with unchanged event count and
+tail. Journal tests verify that newly written JSON is consumed from memory and
+that a new recovery call reads its persisted state.
 Reference tests exercise multiple identity/continuity sources together, owned
 writes, transaction changes and fresh publication boundaries. Count operations
 in these cases independently of uninstrumented wall-time measurements.
+
+Construct a synthetic pack's complete records before its first catalog build.
+Fixture configuration belongs to that construction; later source edits exercise
+the actual catalog refresh. Shared input templates may supply immutable source
+material, while each test owns its editable Studio and any custom preparation.
+Live-pack and runtime-state changes use independent construction.
+
+Sheet planning tests inspect the same geometry, coverage, prompts and drawing
+instructions that image publication consumes. Keep actual rasterization,
+fallback text, masks, panel composition and harvesting under image-level
+checks. `test_sheet_drawing_scope.py` covers text bounds and image-operation
+equivalence alongside `character_sheet_smoke_test.py`'s complete sheet workflow.
 
 The full runner includes the subsystem suites below. Use their individual
 commands for focused diagnosis and reuse completed full-run results for those suites.
@@ -80,15 +114,39 @@ packs stay outside that copy. It starts the commands with `CPB_HOME` at one scra
 - every `examples/*/*.py` script that offers `--check`, such as an example's `build_example.py --check`;
 - the validators and the default pack audit.
 
-`--only SUBSTRING` keeps the commands whose label or command contains SUBSTRING, such as the suites of one subsystem. `--list` prints the commands without running them, and `--jobs N` sets how many run at once. For a focused diagnosis:
+`--only SUBSTRING` keeps the commands whose label or command contains SUBSTRING,
+such as the suites of one subsystem. `--list` prints the commands without running
+them. The automatic concurrency is the smaller of four and the available CPU
+count. Availability comes from the process CPU count when supported, then
+process affinity, then the reported CPU count. This cap limits contention
+between independent suites; it is not a measured optimum or a memory budget.
+`--jobs N` explicitly sets how many commands run at once, including values above
+that cap. The runner supplies `CPB_CHECK_CHILD_WORKERS` to nested CLI-help
+batches as `min(4, max(1, available CPUs // selected jobs))`. Each outer command
+receives a share of the available CPU capacity for its batch. Direct invocation
+of the documentation suite uses up to four available CPUs for those probes.
+Each CLI-help key has one result owner for the command batch. Commands requesting
+the same key share its completed result; different keys can run concurrently,
+including different subcommands of one script.
+Tests of concurrent product operations still exercise their declared concurrency.
+For a focused diagnosis:
 
 ```bash
 python scripts/run_checks.py --only render_contract
 ```
 
-The runner prints one line per finished command, then the slowest ten and the log tail of each failure, and exits 1 when any command failed:
+The runner first prints its worker selection, CPU counts, Python, platform and
+default temporary directory. Fixtures using the system's default temporary
+location create their work there; I/O costs also depend on its filesystem. It prints one
+line per finished command, then the slowest ten and the log tail of each failure,
+and exits 1 when any command failed. Illustrative output:
 
 ```
+workers: 4 (automatic); available CPUs: 8 (os.sched_getaffinity); logical CPUs: 8
+CLI-help workers per suite: 2
+temporary files: <temporary directory>
+runtime: CPython 3.12.14; <platform>
+python: <project>/.venv/bin/python
 [ 63/109]    58.5s  exit 0  python scripts/production_resume_smoke_test.py
 ...
 slowest:
@@ -97,8 +155,19 @@ slowest:
 ...
 FAILED (exit 1): python scripts/release_management_smoke_test.py  log <out>/061.log
 ...
-109 commands: 105 passed, 4 failed in 379.7s with 8 workers
+109 commands: 105 passed, 4 failed in 379.7s with 4 workers
+elapsed phases: setup 0.100s; copy 0.800s; commands 378.000s; cleanup 0.800s
 ```
+
+`summary.json` retains that execution `context`, the selected `jobs`, total
+`seconds` and `timings_seconds` for `setup`, `copy`, `commands` and `cleanup`.
+Total elapsed time starts with configuration and context setup and ends after
+the temporary source copy is removed; final summary writing and printing follow
+that measurement. The command phase includes pack runtime preparation and all
+selected commands. Each command's own `seconds` measures its subprocess while
+the selected workload is running, including time waiting for CPU or storage.
+Compare timings with the same command selection, worker count and execution
+environment; the slowest-command list alone does not identify a bottleneck.
 
 A test that needs a configuration directory of its own takes it from `production_fixtures.scratch_home(folder)` or `scratch_home_dir(folder)`.
 
@@ -107,6 +176,12 @@ A test that needs a configuration directory of its own takes it from `production
 For any core or pack publication, [Release Validation](../release/validation.md) is the sole exact authority for environments, commands, pack isolation, acceptance, package verification, and metadata ordering.
 
 ## Documentation checks
+
+Release startup checks import the ordinary runtime in a fresh process.
+Their `runtime_import.release_declaration_reads` report records any release
+declarations opened during those imports. Runtime product identity and release
+syntax belong to `package_identity`; explicit package checks acquire and
+validate release declarations and dependency metadata.
 
 Run `python scripts/readme_smoke_test.py` after changing user-facing examples. It executes the marked example commands in temporary directories and verifies outputs and source-change behavior; live-send examples are checked without contacting a service. Keep the surrounding explanations accurate as well: executable commands do not establish prose completeness or artistic quality.
 
@@ -173,8 +248,10 @@ default. Do not use novelty quotas, mandatory or random rotation, prohibited
 media or lists of prompt words as artistic acceptance tests.
 Check instruction and template defaults separately so successful prose does
 not hide a conflicting authoring surface. Use new contexts after corrections.
-When the workflow includes a conception study, retain its actual preselection
-descriptions, consulted source material and separate assessment. Distinguish
+Use one ordinary author per runtime case. User-role agents and independent
+evaluators are maintenance instruments; keep that setup out of the Skill's
+production prerequisites. For a conception comparison, retain its actual
+preselection descriptions, consulted sources and resulting judgment. Distinguish
 the alternatives constructed, the grounds of selection and their rendition in
 the final proposal. A retrospective list of rejected ideas cannot establish
 that comparison took place; different technique names cannot establish that

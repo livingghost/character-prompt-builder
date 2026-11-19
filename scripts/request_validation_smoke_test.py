@@ -218,7 +218,7 @@ class OfferingSchemaTests(unittest.TestCase):
     def acquired_target(self, *, model=None, offering=None):
         """An independent immutable target fixture with an actual local schema."""
         from types import SimpleNamespace
-        from build_generation_payload import ResolvedTarget
+        from generation_payload_builder import ResolvedTarget
         from owned_json import freeze
         value=object.__new__(ResolvedTarget)
         selected_model=model or self.model

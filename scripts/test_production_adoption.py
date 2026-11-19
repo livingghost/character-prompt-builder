@@ -1,5 +1,6 @@
 """Explicit canonical adoption is separate from synthetic generation and selection."""
 from __future__ import annotations
+import read_context
 import copy
 from pathlib import Path
 import tempfile
@@ -11,11 +12,11 @@ import execution_contract as c
 import production_case_fixtures as f
 import production_fixtures as fixture
 import production_execution as execution
-import production_workflow as workflow
+import production_operations as workflow
 import production_store as store
 import production_acceptance as acceptance
 import execution_lifecycle as accounting
-import studio
+import studio_workspace as studio
 import studio_reference
 import transport_synthetic
 from production_diagnostics import ProductionError
@@ -359,7 +360,7 @@ class AdoptionTests(unittest.TestCase):
         token=self.authorize_adoption()
         append=workflow.append_record
         def interrupted(*args,**kwargs):
-            if args[3]=='adoption-result':raise OSError('Synthetic interruption before adoption result')
+            if args[1]=='adoption-result':raise OSError('Synthetic interruption before adoption result')
             return append(*args,**kwargs)
         with patch.object(workflow,'append_record',side_effect=interrupted):
             with self.assertRaises(OSError):self.adopt(token)
@@ -374,7 +375,8 @@ class AdoptionTests(unittest.TestCase):
 
     def assert_rejected_transition(self,event,data):
         directory,prepared,_,before=workflow.load_run(self.root,self.run)
-        with self.assertRaises(ValueError):workflow.append_record(directory,prepared,before,event,data)
+        with store.transaction(self.root), self.assertRaises(ValueError):
+            workflow.append_record(workflow.read_run(self.root,self.run),event,data)
         self.assertEqual(store.event_rows(self.root,self.run),before)
         with self.assertRaises(ProductionError) as caught:
             with store.transaction(self.root):
@@ -401,9 +403,10 @@ class AdoptionTests(unittest.TestCase):
             ('adoption-result',{'claim':'f'*64,'result':{}})]
         for event,data in cases:
             with self.subTest(event=event):self.assert_rejected_transition(event,data)
-        loaded=workflow.load_run(self.root,self.run)
-        claim=workflow.append_record(loaded[0],loaded[1],loaded[3],'adoption-claim',
-            {'intent':intent,'files':[approval],'authorizations':[token]})
+        with store.transaction(self.root):
+            loaded=workflow.read_run(self.root,self.run)
+            claim=workflow.append_record(loaded,'adoption-claim',
+                {'intent':intent,'files':[approval],'authorizations':[token]})
         self.assert_rejected_transition('adoption-result',{'claim':claim['sha256'],'result':{}})
         self.assertEqual(self.adopt(token)['data']['claim'],claim['sha256'])
 
@@ -533,6 +536,28 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(accounting.summary(self.root)['submissions'],1)
         self.assertIsNone(execution.status(self.root,self.run)['runs'][0]['next_action'])
 
+    def test_selection_views_share_owned_assessments_and_recheck_changed_evidence_at_new_boundaries(self):
+        self.select()
+        self.adopt(self.authorize_adoption())
+        self.select_adoption()
+        with read_context.public_call():
+            held = workflow.read_run(self.root, self.run)
+            selected = held.lifecycle.latest('selection')
+            with patch.object(workflow, '_selection_basis', side_effect=AssertionError('Use the acquired assessment')), \
+                 patch.object(workflow, '_selection_adoption_evidence', side_effect=AssertionError('Use the checked adoption evidence')):
+                self.assertIs(workflow.current_selection(held.prepared, held.rows)[0], selected)
+                self.assertTrue(workflow.candidate_state(self.root, self.run, self.candidate)['selection_current'])
+                self.assertIsInstance(workflow.verify_studio_adoption_receipt(self.root, self.run, selected), dict)
+            exported = copy.deepcopy(selected)
+            exported['data']['selection']['adoption']['character'] = 'different-character'
+            with self.assertRaises(ProductionError):
+                workflow.verify_studio_adoption_receipt(self.root, self.run, exported)
+            sidecar = next(item for item in selected['data']['files'] if item['path'].endswith('/sheet-data.json'))
+            path = held.directory / 'objects' / sidecar['sha256']
+            path.write_bytes(path.read_bytes() + b' ')
+            with self.assertRaises(ProductionError):
+                workflow.read_run(self.root, self.run, force=True)
+
     def test_adoption_publishes_views_once_after_its_production_result(self):
         import studio_activity as activity
         self.select()
@@ -596,7 +621,7 @@ class AdoptionTests(unittest.TestCase):
         token=self.authorize_adoption()
         append=workflow.append_record
         def interrupted(*args, **kwargs):
-            if args[3]=='adoption-result':
+            if args[1]=='adoption-result':
                 raise OSError('Synthetic interruption after Studio adoption.')
             return append(*args, **kwargs)
         with patch.object(workflow,'append_record',side_effect=interrupted):
@@ -634,6 +659,30 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(self.adopt(token)['event'], 'adoption-result')
         self.assertEqual(self.select_adoption()['event'], 'selection')
 
+    def test_selection_refuses_adoption_evidence_changed_after_confirmation(self):
+        _, _, path = self.adopted_record()
+        promote, token = self.catalog_promotion()
+        with patch.object(adoption_workflow, 'adopt', side_effect=OSError('Synthetic stop before the owner starts.')):
+            with self.assertRaises(OSError):
+                promote()
+        later = workflow.find(store.event_rows(self.root, self.run), 'adoption-claim')
+        confirm = workflow.confirm_studio_adoption
+        def rewritten_meanwhile(*args, **kwargs):
+            paths = confirm(*args, **kwargs)
+            c.atomic_write_json(path, {**c.load(path), 'production_claim': later['sha256']})
+            return paths
+        choice = workflow.draft_selection(self.root, self.run, self.candidate)
+        choice.update(reason='Explicit synthetic adoption selection.', scope='studio-adoption',
+                      adoption={'character': 'robot', 'iteration_id': self.row['iteration_id'], 'scope': 'sheet'})
+        fixture.selection(self.root, self.run, choice)
+        f.write(self.root / 'selection.json', choice)
+        before = store.event_rows(self.root, self.run)
+        with patch.object(workflow, 'confirm_studio_adoption', side_effect=rewritten_meanwhile):
+            with self.assertRaises(ProductionError) as caught:
+                workflow.select(self.root, self.run, 'selection.json')
+        self.assert_names_adopt(caught.exception, token, 'ADOPTION_RESULT_MISSING')
+        self.assertEqual(store.event_rows(self.root, self.run), before)
+
     def test_completion_refuses_a_selection_that_saved_an_unfinished_adoption_record(self):
         token, record, path = self.adopted_record()
         promote, _ = self.catalog_promotion()
@@ -646,7 +695,15 @@ class AdoptionTests(unittest.TestCase):
             paths = confirm(*args, **kwargs)
             c.atomic_write_json(path, {**c.load(path), 'production_claim': later['sha256']})
             return paths
-        with patch.object(workflow, 'confirm_studio_adoption', side_effect=rewritten_meanwhile):
+        append = workflow.append_record
+        def persist_unchecked_selection(loaded, event, data):
+            if event == 'selection':
+                # The storage chain is valid, but this record bypasses the
+                # selection owner's evidence checks. Completion must inspect it.
+                return store.append(self.root, self.run, loaded.prepared['input_sha256'], event, data)
+            return append(loaded, event, data)
+        with patch.object(workflow, 'confirm_studio_adoption', side_effect=rewritten_meanwhile), \
+                patch.object(workflow, 'append_record', side_effect=persist_unchecked_selection):
             selected = self.select_adoption()
         with self.assertRaises(ProductionError) as caught:
             workflow.complete(self.root, self.run)
@@ -920,7 +977,7 @@ class RecordedAdoptionEvidenceTests(unittest.TestCase):
             'scope': 'studio-adoption', 'candidate': candidate['sha256'],
             'adoption': {'character': 'robot', 'iteration_id': 'synthetic-iteration', 'scope': 'sheet'}}}}
         with self.assertRaises(ProductionError) as caught:
-            workflow._recorded_studio_adoption(run, selection, [candidate, selection], lambda key: b'')
+            workflow._selection_adoption_evidence(run, selection, [candidate, selection], lambda key: b'', recorded=True)
         found = caught.exception.diagnostic.as_dict()
         self.assertEqual((found['code'], found['file'], found['run'], found['event']),
                          ('EVIDENCE_SNAPSHOT_MISSING', 'characters/robot/adoptions/synthetic-iteration.json',

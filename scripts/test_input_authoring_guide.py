@@ -18,7 +18,7 @@ class InputGuideTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         base = Path(temporary.name)
         self.enterContext(production_fixtures.scratch_home(base / 'home'))
-        import studio
+        import studio_workspace as studio
         self.root = studio.init(base / 'studio', 'input-guide-test', 'Input guide fixture')
         self.path = 'work/input/choices.json'
         self.choices = {'target': None, 'reading': {'reading_key': None},
@@ -30,7 +30,7 @@ class InputGuideTests(unittest.TestCase):
 
     def test_explanation_needs_no_past_runs_or_catalog_and_does_not_repair_choices(self):
         original = (self.root / self.path).read_bytes()
-        with (patch('production_workflow.read_run', side_effect=AssertionError('no run is needed')),
+        with (patch('production_operations.read_run', side_effect=AssertionError('no run is needed')),
               patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('no catalog is needed'))):
             result = guide.explain(self.root, self.path)
         self.assertFalse(result['validated'])

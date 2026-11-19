@@ -8,10 +8,8 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from catalog_cli import configure_pack_runtime
 from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
-from prepare_generation_references import write_json_atomic
-from reference_runtime import add_reference_plan_arguments, build_reference_use_plan
+from reference_plan_cli_contract import add_reference_plan_arguments
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -22,6 +20,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True)
     add_pack_runtime_arguments(parser)
     args = parser.parse_args(argv)
+    from catalog_api import configure_pack_runtime
+    from generation_references import write_json_atomic
+    from reference_plan_runtime import build_reference_use_plan
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
     try:

@@ -2,8 +2,8 @@
 """Verify that core behavior does not depend on one nondefault pack's contents.
 
 The smoke test deliberately does not inspect any owner-maintained pack. It builds a
-temporary core-only tree containing ``packs/commons`` and proves that the relevant
-regressions remain self-contained there.
+temporary core-only tree containing ``packs/commons`` and starts a fresh process
+that uses the shipped catalog and a self-contained synthetic upscale input.
 """
 from __future__ import annotations
 
@@ -22,12 +22,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PACK = ROOT / "packs" / "commons"
-SELECTED_SMOKES = (
-    "scripts/model_contract_smoke_test.py",
-    "scripts/upscale_package_smoke_test.py",
-    "scripts/search_discovery_smoke_test.py",
-    "scripts/catalog_cli_runtime_smoke_test.py",
-)
 
 
 def load_default_record_ids() -> set[str]:
@@ -52,11 +46,12 @@ def load_default_model_record_count() -> int:
     return count
 
 
-def copy_core_only(destination: Path) -> None:
+def copy_core_only(destination: Path, *, source: Path = ROOT) -> None:
     """Copy the working tree without any nondefault pack or generated catalog."""
 
     ignored_at_root = {
         ".git",
+        ".venv",
         "catalog",
         "dist",
         "packs",
@@ -70,19 +65,128 @@ def copy_core_only(destination: Path) -> None:
     def ignore(directory: str, names: list[str]) -> set[str]:
         base = Path(directory)
         ignored = {name for name in names if name in {"__pycache__", ".pytest_cache", ".mypy_cache"}}
-        if base.resolve() == ROOT.resolve():
+        if base.resolve() == source.resolve():
             ignored.update(name for name in names if name in ignored_at_root)
         return ignored
 
-    shutil.copytree(ROOT, destination, ignore=ignore)
-    shutil.copytree(DEFAULT_PACK, destination / "packs" / "commons")
+    shutil.copytree(source, destination, ignore=ignore)
+    shutil.copytree(source / "packs" / "commons", destination / "packs" / "commons")
 
 
-def run_smoke(root: Path, relative_script: str) -> dict[str, Any]:
+def copy_boundary_probe(root: Path) -> dict[str, bool]:
+    """Exercise the copy boundary with a malformed synthetic nondefault pack."""
+    source, copied = root / "source", root / "copied"
+    content = {
+        "scripts/core.py": b"# Synthetic core source.\n",
+        "packs/commons/pack.json": b'{}\n',
+        "packs/commons/records/kept.json": b'{"synthetic":"shipped"}\n',
+        "packs/unselected/pack.json": b"malformed synthetic nondefault manifest\n",
+        "packs/unselected/records/broken.json": b"malformed synthetic record\n",
+        ".venv/marker": b"synthetic interpreter marker\n",
+    }
+    for relative, raw in content.items():
+        path = source / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    copy_core_only(copied, source=source)
+    return {
+        "core_source_copied": (copied / "scripts/core.py").read_bytes() == content["scripts/core.py"],
+        "default_pack_copied": all((copied / path).read_bytes() == raw for path, raw in content.items()
+                                   if path.startswith("packs/commons/")),
+        "unselected_pack_absent": not (copied / "packs/unselected").exists(),
+        "environment_absent": not (copied / ".venv").exists(),
+        "source_unchanged": all((source / path).read_bytes() == raw for path, raw in content.items()),
+    }
+
+
+def core_runtime_probe(work: Path) -> dict[str, Any]:
+    """Use public core operations from the copied installation in a fresh process."""
+    import contextlib
+    import io
+    import catalog_cli
+    from catalog_retrieval import runtime
+    import pack_cli
+    import pack_manager
+    from model_contract import validate_model_record
+    from upscale_package import build_upscale_package, verify_upscale_package
+    from upscale_package_smoke_test import make_image, model_rows
+
+    work.mkdir(parents=True, exist_ok=True)
+    manifest = json.loads((DEFAULT_PACK / "pack.json").read_text(encoding="utf-8"))
+    commons_id = manifest["pack_id"]
+    unselected_id = "019a0290-1234-789a-8123-0123456789ac"
+    unselected = work / "unselected-pack"
+    unselected.mkdir()
+    manifest.update(pack_id=unselected_id, name="Synthetic unselected pack")
+    (unselected / "pack.json").write_text(json.dumps(manifest), encoding="utf-8")
+    record = unselected / "records/broken.json"
+    record.parent.mkdir()
+    poisoned_bytes = b"Malformed synthetic content in an unselected pack.\n"
+    record.write_bytes(poisoned_bytes)
+    settings = pack_manager.default_settings(extra_roots=[unselected], state_file=work / "state.json",
+        cache_dir=work / "cache", managed_root=work / "managed")
+    pack_manager.save_state(settings.state_file, {"pack_roots": [], "enabled_packs": [commons_id],
+        "disabled_packs": [unselected_id], "pack_order": [commons_id]})
+    arguments = ["--state-file", str(settings.state_file), "--cache-dir", str(settings.cache_dir),
+                 "--managed-root", str(settings.managed_root), "--pack-root", str(unselected)]
+
+    def command(main, *words, structured=True):
+        output, errors = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            status = main([*arguments, *words])
+        if status != 0:
+            raise AssertionError(output.getvalue() + errors.getvalue())
+        return json.loads(output.getvalue()) if structured else output.getvalue()
+
+    command(pack_cli.main, "ready", "--only", commons_id, structured=False)
+    runtime.configure_pack_runtime(settings)
+    try:
+        catalog = runtime.load_pack_catalog()
+        assert catalog.entries and {entry.source_pack for entry in catalog.entries} == {commons_id}
+        models = sorted((entry.record for entry in catalog.entries if entry.kind == "model"), key=lambda row: row["id"])
+        assert models
+        for model in models:
+            assert not validate_model_record(model)
+    finally:
+        runtime.configure_pack_runtime(None)
+    selected = models[0]
+    query = selected["search_terms"][0]["phrase"]
+    searched = command(catalog_cli.main, "search", query, "--kind", "model", "--limit", str(len(models)))
+    assert selected["id"] in {row["id"] for row in searched["results"]}
+    assert {row["source_pack"] for row in searched["results"]} == {commons_id}
+    inspected = command(catalog_cli.main, "inspect", selected["id"])
+    assert inspected["record"] == selected and inspected["source_pack"] == commons_id
+
+    synthetic = model_rows()[0]
+    package_root = work / "upscale"
+    source, output = package_root / "source.png", package_root / "output.png"
+    make_image(source, (2, 2), 40)
+    make_image(output, (4, 4), 80)
+    package = build_upscale_package(model=synthetic["id"], model_record=synthetic,
+        source_image=source, output_image=output, package_root=package_root,
+        source_stored_path="source.png", output_stored_path="output.png", scale_factor=2,
+        settings={"variant": "general"}, guidance_prompt=None, audit_status="not-required", audit_notes=[])
+    assert package["status"] == "ready"
+    assert verify_upscale_package(package, package_root=package_root, model_record=synthetic) == package
+    assert record.read_bytes() == poisoned_bytes
+    return {"ok": True, "installation": str(ROOT), "active_pack_ids": [commons_id],
+            "model_count": len(models), "searched_model": selected["id"],
+            "inspected_record": inspected["record_id"], "synthetic_upscale_verified": True,
+            "unselected_pack_content_unchanged": True}
+
+
+def run_core_probe(root: Path, work: Path) -> dict[str, Any]:
+    program = (
+        "import json, sys\nfrom pathlib import Path\n"
+        "sys.path.insert(0, str(Path(sys.argv[1]) / 'scripts'))\n"
+        "from nondefault_pack_isolation_smoke_test import core_runtime_probe\n"
+        "print(json.dumps(core_runtime_probe(Path(sys.argv[2]))))\n"
+    )
     process = subprocess.run(
-        [sys.executable, relative_script],
+        [sys.executable, "-I", "-B", "-c", program, str(root), str(work)],
         cwd=root,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "CPB_HOME": str(work / "home"),
+             "CPB_READS_LEDGER": str(work / "home/reads.jsonl")},
         text=True,
         encoding="utf-8",
         stdout=subprocess.PIPE,
@@ -90,9 +194,9 @@ def run_smoke(root: Path, relative_script: str) -> dict[str, Any]:
         check=False,
     )
     return {
-        "script": relative_script,
         "returncode": process.returncode,
-        "stdout": process.stdout.strip(),
+        "probe": json.loads(process.stdout) if process.returncode == 0 else None,
+        "stdout": process.stdout.strip() if process.returncode != 0 else "",
         "stderr": process.stderr.strip(),
         "passed": process.returncode == 0,
     }
@@ -228,17 +332,20 @@ def main() -> int:
     )
 
     with tempfile.TemporaryDirectory(prefix="cpb-core-only-") as raw:
+        boundary = copy_boundary_probe(Path(raw) / "copy-boundary")
+        check("core copy preserves shipped inputs and leaves synthetic nondefault inputs at source",
+              all(boundary.values()), boundary)
         isolated = Path(raw) / "character-prompt-builder"
         copy_core_only(isolated)
         nondefault_dirs = sorted(
             path.name for path in (isolated / "packs").iterdir() if path.is_dir() and path.name != "commons"
         )
         check("isolated regression tree contains no nondefault packs", not nondefault_dirs, nondefault_dirs)
-        smoke_rows = [run_smoke(isolated, script) for script in SELECTED_SMOKES]
+        probe = run_core_probe(isolated, Path(raw) / "runtime-probe")
         check(
-            "selected core regressions pass with only the default pack present",
-            all(row["passed"] for row in smoke_rows),
-            smoke_rows,
+            "fresh core catalog and synthetic upscale work with only the default pack selected",
+            probe["passed"],
+            probe,
         )
 
     passed = sum(1 for row in results if row["passed"])

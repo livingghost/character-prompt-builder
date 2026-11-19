@@ -11,92 +11,15 @@ search tool so the package does not maintain per-language word lists.
 """
 from __future__ import annotations
 import operation_context as _operation_context
-
 import argparse
 import json
 import time
 from pathlib import Path
 from typing import Sequence
-
-import prompt_retrieval
-from pack_runtime_cli import add_pack_runtime_arguments, resolve_pack_runtime
-from search_discovery import CatalogQueryInput, catalog_query_from_mapping
-
-from catalog_retrieval.assets import (
-    active_pack_artifact_sources,
-    asset_lookup,
-    linked_asset_activation,
-    resolve_asset_resources,
-)
-from catalog_retrieval.batch import (
-    DEFAULT_INSPIRE_CATEGORIES,
-    DEFAULT_SEARCH_KINDS,
-    batch_help_example,
-    execute_batch,
-    execute_query_command,
-    load_batch_requests,
-)
-from catalog_retrieval.core import (
-    CONTRASTIVE_MODIFIER_GROUPS,
-    MODERATE_FLOOR,
-    STOPWORDS,
-    STRONG_FLOOR,
-    VALID_DOMAINS,
-    VALID_TIERS,
-    ascii_fold,
-    canonical_category,
-    canonical_domain,
-    contrastive_modifier_conflicts,
-    load_json,
-    normalize,
-    normalize_tier,
-    parse_csv,
-    record_tier,
-    relevance_band,
-    token_set,
-    tokens_of,
-)
-from catalog_retrieval.discovery import recommend
-from catalog_retrieval.queries import (
-    analyze_catalog_query,
-    ensure_supported_query,
-    load_catalog_query,
-    resolve_query_input,
-    validate_query_request,
-)
-from catalog_retrieval.retrieval import (
-    AXIS_CATEGORIES,
-    catalog_stats,
-    compact_record,
-    inspect_record,
-    inspire,
-    search_entries,
-)
-from catalog_retrieval.runtime import (
-    ROOT,
-    Entry,
-    begin_catalog_request,
-    clear_corpus_cache,
-    clear_runtime_caches,
-    configure_pack_runtime,
-    load_entries,
-    load_pack_catalog,
-    load_search_index,
-    named_resource_path,
-    require_active_catalog,
-    reset_catalog_request,
-    runtime_profile,
-)
-from catalog_retrieval.scoring import (
-    Corpus,
-    EXACT_SELECTION_FACETS,
-    FACET_COMPATIBILITY,
-    IndexedEntry,
-    LEXICAL_FACET_COMPATIBILITY,
-    lexical_facet_candidates,
-    primary_facet_query_phrases,
-    semantic_primary_facet,
-)
+from catalog_retrieval.core import VALID_DOMAINS, VALID_TIERS
+from catalog_retrieval.command_contract import DEFAULT_SEARCH_KINDS, DEFAULT_INSPIRE_CATEGORIES, batch_help_example
+from craft_consultation_contract import LAYERS
+from pack_runtime_cli import add_pack_runtime_arguments
 
 
 def _add_query_source_arguments(parser: argparse.ArgumentParser) -> None:
@@ -118,7 +41,6 @@ def _add_query_source_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
 
-
 def _add_record_arguments(parser: argparse.ArgumentParser, *, element: str | None = "one") -> None:
     parser.add_argument(
         "--record",
@@ -139,35 +61,6 @@ def _add_record_arguments(parser: argparse.ArgumentParser, *, element: str | Non
             help="Investigated question: give one for all IDs, or one per ID in order",
         )
 
-
-def _recorded_lookups(args: argparse.Namespace, result: dict, *, query: str | None = None,
-                      requests: Sequence[dict] | None = None) -> list[tuple[str, list[str], list[str]]]:
-    """Return (element, queries, inspected records) for each lookup this command ran."""
-    if args.command == "batch":
-        by_id = {item["request_id"]: item for item in requests or ()}
-        return [(item["request_id"], [by_id[item["request_id"]]["canonical_query"]], [])
-                for item in result["results"] if item["ok"]]
-    if args.command == "inspect-many":
-        identifiers = [row["record_id"] for row in result["records"]]
-        elements = args.element if len(args.element) != 1 else args.element * len(identifiers)
-        return [(element, [], [identifier]) for element, identifier in zip(elements, identifiers)]
-    if args.command == "inspect":
-        return [(args.element, [], [args.record_id])]
-    return [(args.element, [query] if query else [], [])]
-
-
-def _check_record_arguments(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
-    if getattr(args, "record", None) is None:
-        if getattr(args, "element", None):
-            parser.error("--element requires --record")
-        return
-    if args.command == "inspect-many":
-        if len(args.element) not in {1, len(dict.fromkeys(args.record_ids))}:
-            parser.error("--record needs one --element, or one --element per record ID")
-    elif args.command != "batch" and not args.element:
-        parser.error("--record requires --element")
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _operation_context.ArgumentParser(
         description=(
@@ -182,8 +75,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub.add_parser("stats", help="Show catalog counts")
     consultation = sub.add_parser("consult", help="Search explicit craft layers and open complete chosen records in one runtime.")
     consultation.add_argument("query", nargs="?")
-    import craft_consultation
-    consultation.add_argument("--focus", choices=["all", *craft_consultation.LAYERS], default="all")
+    consultation.add_argument("--focus", choices=["all", *LAYERS], default="all")
     consultation.add_argument("--inspect", nargs="*", default=[], metavar="ID")
     consultation.add_argument("--previous", type=Path)
 
@@ -321,56 +213,58 @@ def main(argv: Sequence[str] | None = None) -> int:
     inspiration.add_argument("--archetype-limit", type=int, default=2, help="Number of subject-archetype identity candidates")
 
     args = parser.parse_args(argv)
-    _check_record_arguments(parser, args)
-    runtime = resolve_pack_runtime(parser, args)
-    configure_pack_runtime(runtime.settings)
+    import catalog_api as implementation
+    implementation._check_record_arguments(parser, args)
+    runtime = implementation.resolve_pack_runtime(parser, args)
+    implementation.configure_pack_runtime(runtime.settings)
     if args.command == "consult":
+        import craft_consultation
         try:
             questions = ([{"request_id": "craft", "canonical_query": args.query, "focus": args.focus}]
                          if args.query else [])
-            previous = load_json(args.previous) if args.previous else None
+            previous = implementation.load_json(args.previous) if args.previous else None
             result = craft_consultation.consult(questions, args.inspect, settings=runtime.settings, previous=previous)
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0 if result["ok"] else 1
         except (ValueError, OSError, KeyError, TypeError) as exc:
             parser.error(str(exc))
         finally:
-            configure_pack_runtime(None)
+            implementation.configure_pack_runtime(None)
     try:
         batch_requests = (
-            load_batch_requests(args.requests)
+            implementation.load_batch_requests(args.requests)
             if args.command == "batch"
             else None
         )
         record = getattr(args, "record", None)
         if record is not None:
-            prompt_retrieval.check_recordable(record, None)
+            implementation.prompt_retrieval.check_recordable(record, None)
             elements = ([item["request_id"] for item in batch_requests] if batch_requests is not None
                         else args.element if args.command == "inspect-many" else [args.element])
         started = time.perf_counter()
         try:
-            catalog = begin_catalog_request()
+            catalog = implementation.begin_catalog_request()
         except Exception:
             if record is not None:
                 # The question was requested, but no catalog or lookup evidence
                 # became available. Keep it pending without claiming either.
-                prompt_retrieval.begin_lookups(record, elements)
+                implementation.prompt_retrieval.begin_lookups(record, elements)
             raise
         runtime_seconds = time.perf_counter() - started
         if record is not None:
-            prompt_retrieval.check_recordable(record, catalog.fingerprint)
-            prompt_retrieval.begin_lookups(record, elements, pack_state=catalog.fingerprint)
-        entries = load_entries()
+            implementation.prompt_retrieval.check_recordable(record, catalog.fingerprint)
+            implementation.prompt_retrieval.begin_lookups(record, elements, pack_state=catalog.fingerprint)
+        entries = implementation.load_entries()
         request = None
         if args.command == "stats":
-            result = catalog_stats(entries)
+            result = implementation.catalog_stats(entries)
             result["active_pack_count"] = catalog.active_pack_count
             result["diagnostics"] = list(catalog.diagnostics)
         elif args.command == "inspect":
-            require_active_catalog(catalog)
-            result = inspect_record(entries, args.record_id)
+            implementation.require_active_catalog(catalog)
+            result = implementation.inspect_record(entries, args.record_id)
         elif args.command == "inspect-many":
-            require_active_catalog(catalog)
+            implementation.require_active_catalog(catalog)
             identifiers = list(dict.fromkeys(args.record_ids))
             if not identifiers:
                 raise ValueError("inspect-many requires at least one distinct record ID")
@@ -378,8 +272,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             for identifier in identifiers:
                 item_start = time.perf_counter()
                 rows.append({"record_id": identifier,
-                             "record": inspect_record(entries, identifier),
-                             "assets": asset_lookup(identifier, summary=False),
+                             "record": implementation.inspect_record(entries, identifier),
+                             "assets": implementation.asset_lookup(identifier, summary=False),
                              "elapsed_seconds": round(time.perf_counter() - item_start, 6)})
             result = {"ok": True, "runtime_fingerprint": catalog.fingerprint,
                       "active_pack_count": catalog.active_pack_count,
@@ -388,30 +282,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                       "timing": {"runtime_seconds": round(runtime_seconds, 6),
                                  "total_seconds": round(time.perf_counter() - started, 6)}}
         elif args.command == "asset-lookup":
-            require_active_catalog(catalog)
-            result = asset_lookup(args.lookup_id, summary=args.summary)
+            implementation.require_active_catalog(catalog)
+            result = implementation.asset_lookup(args.lookup_id, summary=args.summary)
         elif args.command == "batch":
-            require_active_catalog(catalog)
+            implementation.require_active_catalog(catalog)
             assert batch_requests is not None
-            result = execute_batch(entries, batch_requests)
+            result = implementation.execute_batch(entries, batch_requests)
         else:
-            require_active_catalog(catalog)
-            request = resolve_query_input(args.query, args.query_json, args.domain)
-            result = execute_query_command(
+            implementation.require_active_catalog(catalog)
+            request = implementation.resolve_query_input(args.query, args.query_json, args.domain)
+            result = implementation.execute_query_command(
                 entries,
                 args.command,
                 request,
                 vars(args),
             )
         if record is not None:
-            for element, queries, inspected in _recorded_lookups(
+            for element, queries, inspected in implementation._recorded_lookups(
                     args, result, query=request.canonical_query if request else None, requests=batch_requests):
-                prompt_retrieval.record_lookup(record, element, queries=queries, inspected=inspected,
+                implementation.prompt_retrieval.record_lookup(record, element, queries=queries, inspected=inspected,
                                                pack_state=catalog.fingerprint)
     except ValueError as exc:
         parser.error(str(exc))
     finally:
-        configure_pack_runtime(None)
+        implementation.configure_pack_runtime(None)
     serialized = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     if args.command in {"inspect", "inspect-many"} and args.out:
         output_path = Path(args.out)

@@ -1,5 +1,6 @@
 """Batch request loading and shared query-command execution."""
 from __future__ import annotations
+from catalog_retrieval.command_contract import DEFAULT_SEARCH_KINDS, DEFAULT_INSPIRE_CATEGORIES
 
 import json
 import sys
@@ -14,14 +15,6 @@ from catalog_retrieval.queries import analyze_catalog_query, validate_query_requ
 from catalog_retrieval.retrieval import inspire, search_entries
 from catalog_retrieval.runtime import Entry, load_search_index
 
-DEFAULT_SEARCH_KINDS = (
-    "module,profile,aesthetic-core,style-family,domain-realization,scene,"
-    "archetype,correction"
-)
-DEFAULT_INSPIRE_CATEGORIES = (
-    "composition,camera,lighting,mood-palette,rendering,environment,"
-    "pose-action,expression"
-)
 _BATCH_QUERY_FIELDS = {
     "canonical_query",
     "domain",
@@ -54,20 +47,6 @@ _BATCH_OPTION_FIELDS = {
 }
 
 
-def batch_help_example() -> str:
-    """Return the smallest complete ordered-query example for CLI discovery."""
-
-    return json.dumps(
-        [
-            {
-                "request_id": "identity",
-                "command": "search",
-                "canonical_query": "muscular black panther",
-            },
-        ],
-        ensure_ascii=True,
-        separators=(",", ":"),
-    )
 
 
 def load_batch_requests(source: str) -> list[dict[str, Any]]:

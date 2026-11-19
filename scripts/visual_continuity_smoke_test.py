@@ -68,7 +68,7 @@ class SubjectTests(unittest.TestCase):
 
 class PanelDeclarationTests(unittest.TestCase):
     def setUp(self):
-        import studio
+        import studio_workspace as studio
         import production_fixtures
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
@@ -80,7 +80,7 @@ class PanelDeclarationTests(unittest.TestCase):
 
     def test_registered_and_adopted_scenes_keep_all_production_subjects(self):
         import production_compiler
-        from prepare_generation_references import empty_stateless_reference_set
+        from generation_references import empty_stateless_reference_set
         from sheet_artifacts_smoke_test import accepted
         before = v.declared_sheet_slots(self.root, 'robot')
         accepted(self.sheet, slot='episode.opening')
@@ -112,8 +112,8 @@ class PanelDeclarationTests(unittest.TestCase):
 class DecisionTests(unittest.TestCase):
     """Stated decisions become a recorded basis and the same record a person would write."""
     def setUp(self):
-        import studio
-        from prepare_generation_references import empty_stateless_reference_set
+        import studio_workspace as studio
+        from generation_references import empty_stateless_reference_set
         t=tempfile.TemporaryDirectory(); self.addCleanup(t.cleanup)
         self.root=studio.init(Path(t.name)/'studio','decision-tests','Synthetic decisions')
         studio.add_character(self.root,'C01','')
@@ -144,7 +144,7 @@ class DecisionTests(unittest.TestCase):
     def test_recurring_selects_the_accepted_identity_and_work_character(self):
         binding={'slot':'base.front','iteration_id':'I1','influence':'identity','image_path':'accepted.png','image_sha256':'a'*64}
         self.prepared['selected_references']=[{'source':{'sha256':'a'*64}}]
-        with mock.patch('studio.StudioRead.reference_index',return_value={'ok':True,'errors':[],'bindings':[binding]}),                 mock.patch.object(v,'build_record',side_effect=lambda choices,**_:choices):
+        with mock.patch('studio_workspace.StudioRead.reference_index',return_value={'ok':True,'errors':[],'bindings':[binding]}),                 mock.patch.object(v,'build_record',side_effect=lambda choices,**_:choices):
             record=self.decide({'subject-a':'recurring'},characters={'subject-a':'C01'},work_ids={'subject-a':'CHR-1'})
         self.assertEqual(record['subjects']['subject-a']['character_id'],'CHR-1')
         self.assertEqual(record['subjects']['subject-a']['identity_refs'],[{'slot':'base.front','iteration_id':'I1'}])

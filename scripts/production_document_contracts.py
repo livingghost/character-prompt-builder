@@ -56,24 +56,24 @@ _CONTRACTS = {
         remaining='Compilation binds the current prompt, plot, model, syntax and dictionary investigations.'),
     'creative_intent': _contract(
         'references/runtime/prompt-composition.md#revision-contract',
-        'scripts/revision_contract.py:require_intent_revision', example=_PILOT + 'creative-intent.json',
-        remaining='The object preserves authored detail; its revision_contract, when selected, has semantic-diff checks.'),
+        'scripts/generation_inputs.py:GenerationInputs.acquire', example=_PILOT + 'creative-intent.json',
+        remaining='The object preserves authored detail. Compilation binds it to the actual specification and state lineage; authoring_work owns candidate changes.'),
     'negative': _contract(
         'references/runtime/prompt-composition.md#negative-output',
-        'scripts/build_generation_payload.py:prepare_text_transports', representation='text',
+        'scripts/generation_payload_builder.py:prepare_text_transports', representation='text',
         example=_PILOT + 'negative.txt', remaining='The target and selected transport determine whether and where this text is delivered.'),
     'integrated_prompt': _contract(
         'references/runtime/image-generation.md#model-and-negative-transport',
-        'scripts/build_generation_payload.py:prepare_text_transports', representation='text',
+        'scripts/generation_payload_builder.py:prepare_text_transports', representation='text',
         example=_PILOT + 'integrated-prompt.txt',
         remaining='The target and selected transport determine whether this complete rendition is delivered.'),
     'native_negative': _contract(
         'references/runtime/image-generation.md#model-and-negative-transport',
-        'scripts/build_generation_payload.py:prepare_text_transports', representation='text',
+        'scripts/generation_payload_builder.py:prepare_text_transports', representation='text',
         remaining='The target and selected transport determine the supported native negative rendition.'),
     'negative_provenance': _contract(
         'references/runtime/prompt-composition.md#negative-output',
-        'scripts/build_generation_payload.py:normalize_negative_provenance',
+        'scripts/generation_payload_builder.py:normalize_negative_provenance',
         example=_PILOT + 'negative-provenance.json',
         remaining='The author selects applicable exclusions; this check validates the record shape only.'),
     'state_lineage': _contract(
@@ -227,7 +227,7 @@ def metadata(name: str) -> dict:
         entry['permitted_keys'] = sorted(schema.get('properties', {}))
         entry['additional_properties'] = schema.get('additionalProperties', True) is not False
     elif name == 'negative_provenance':
-        from build_generation_payload import NEGATIVE_PROVENANCE_FIELDS
+        from generation_payload_builder import NEGATIVE_PROVENANCE_FIELDS
         entry.update(required_keys=[], permitted_keys=sorted(NEGATIVE_PROVENANCE_FIELDS), additional_properties=False)
         entry['structure'] = [{'validator_source': entry['validator_source'], 'required_keys': [],
             'permitted_keys': sorted(NEGATIVE_PROVENANCE_FIELDS), 'additional_properties': False,
@@ -275,7 +275,7 @@ def schema_fragment(name: str, pointer: str) -> Any:
     return mutable(value)
 
 
-def validate_document(name: str, value: Any, *, root: Path | None = None) -> dict:
+def validate_document(name: str, value: Any, *, root: Path | None = None, render_presets=None) -> dict:
     """Invoke the actual local owner; contextual contracts keep their full gate."""
     entry = metadata(name)
     result = {'name': name, 'validation_scope': entry['validation_scope'], 'guidance': guidance(name),
@@ -288,11 +288,11 @@ def validate_document(name: str, value: Any, *, root: Path | None = None) -> dic
                 raise ValueError('The selected text document must contain UTF-8 text.')
             report = {'ok': True, 'errors': []}
         elif name == 'negative_provenance':
-            from build_generation_payload import normalize_negative_provenance
+            from generation_payload_builder import normalize_negative_provenance
             report = {'ok': True, 'errors': [], 'normalized': normalize_negative_provenance(value)}
         elif name == 'production_spec':
             from production_spec import validate_authored
-            report = validate_authored(value, require_content=True)
+            report = validate_authored(value, require_content=True, render_presets=render_presets)
         elif name == 'plot':
             from prompt_plot import validate_authored_prompt_plot
             report = validate_authored_prompt_plot(value)
@@ -300,10 +300,8 @@ def validate_document(name: str, value: Any, *, root: Path | None = None) -> dic
             from prompt_retrieval import validate_prompt_retrieval_record
             report = validate_prompt_retrieval_record(value)
         elif name == 'creative_intent':
-            from revision_contract import require_intent_revision
             if not isinstance(value, dict):
                 raise ValueError('creative intent must be an object')
-            require_intent_revision(value)
             report = {'ok': True, 'errors': []}
         elif name in {'state_lineage', 'state_snapshot'}:
             from state_protocol import validate_artifact, validate_against_schema
@@ -330,7 +328,7 @@ def validate_document(name: str, value: Any, *, root: Path | None = None) -> dic
             report = validate_shape(value)
         elif name == 'render_intent':
             from render_contract_lib import validate_intent
-            validate_intent(value)
+            validate_intent(value, render_presets=render_presets)
             report = {'ok': True, 'errors': []}
         elif name == 'scene_plot':
             from scene_plot import validate_scene_plot

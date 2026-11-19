@@ -55,6 +55,18 @@ def work_dir(root: Path) -> Path:
     return root / WORK_DIR
 
 
+def ledger_lock(root: Path):
+    """Own task updates through their real append-only journal."""
+    from execution_contract import atomic, file_lock, local
+    path = local(root, WORK_DIR + '/' + LEDGER, exists=False)
+    if not path.exists():
+        try:
+            atomic(path, b'')
+        except FileExistsError:
+            pass
+    return file_lock(path)
+
+
 def read_current(root: Path) -> dict[str, Any] | None:
     path = work_dir(root) / CURRENT
     if not path.is_file():
@@ -158,8 +170,7 @@ def require_beginnable(root: Path, goal: str, steps: list[str]) -> None:
 @mutation
 def begin(root: Path, goal: str, steps: list[str], *, task_id: str | None = None) -> dict[str, Any]:
     """Open work. A caller that built inputs for an unopened task supplies that task's ID."""
-    from execution_contract import lock
-    with lock(work_dir(root)):
+    with ledger_lock(root):
         return _begin_locked(root, goal, steps, task_id)
 
 
@@ -197,8 +208,7 @@ def record_prepared(root: Path, task_id: str, run: str) -> dict:
     Production publication is already durable. A changed task is reported to
     that caller instead of overwriting another task's current pointer.
     """
-    from execution_contract import lock
-    with lock(work_dir(root)):
+    with ledger_lock(root):
         task = require_open(root)
         if task['task_id'] != task_id:
             raise ValueError('the open work task changed during Production preparation')
@@ -213,8 +223,7 @@ def record_prepared(root: Path, task_id: str, run: str) -> dict:
 
 @mutation
 def step_done(root: Path, number: int, note: str | None = None) -> dict[str, Any]:
-    from execution_contract import lock
-    with lock(work_dir(root)):
+    with ledger_lock(root):
         return _step_done_locked(root, number, note)
 
 
@@ -237,8 +246,7 @@ def _step_done_locked(root: Path, number: int, note: str | None = None) -> dict[
 
 @mutation
 def note(root: Path, text: str) -> dict[str, Any]:
-    from execution_contract import lock
-    with lock(work_dir(root)):
+    with ledger_lock(root):
         return _note_locked(root, text)
 
 
@@ -254,8 +262,7 @@ def _note_locked(root: Path, text: str) -> dict[str, Any]:
 
 @mutation
 def block(root: Path, question: str) -> dict[str, Any]:
-    from execution_contract import lock
-    with lock(work_dir(root)):
+    with ledger_lock(root):
         return _block_locked(root, question)
 
 
@@ -278,7 +285,7 @@ def respond(root: Path, question_id: str, answer: str, *, actor: str,
             evidence: str | None = None, candidates: list[str] | None = None) -> dict:
     """Record an actual answer, without inferring approval or changing artwork."""
     import execution_contract as c
-    with c.lock(work_dir(root)):
+    with ledger_lock(root):
         task = require_open(root)
         question = next((q for q in task['questions'] if q['question_id'] == question_id), None)
         if question is None:
@@ -304,7 +311,7 @@ def respond(root: Path, question_id: str, answer: str, *, actor: str,
 def reopen(root: Path, from_step: int, *, reason: str, actor: str) -> dict:
     """Reopen this and later steps as a new work revision, retaining the old plan and runs."""
     import execution_contract as c
-    with c.lock(work_dir(root)):
+    with ledger_lock(root):
         task = require_open(root)
         c.text(reason, 'reopen reason'); c.text(actor, 'reopening actor')
         if type(from_step) is not int or from_step not in {s['n'] for s in task['steps']}:
@@ -334,7 +341,7 @@ def reopen(root: Path, from_step: int, *, reason: str, actor: str) -> dict:
 @mutation
 def suspend(root: Path, *, reason: str) -> dict:
     import execution_contract as c
-    with c.lock(work_dir(root)):
+    with ledger_lock(root):
         task = require_open(root)
         c.text(reason, 'suspension reason')
         task.update(work_state='suspended', suspended_at=now(), suspension_reason=reason.strip())
@@ -347,7 +354,7 @@ def suspend(root: Path, *, reason: str) -> dict:
 @mutation
 def resume_task(root: Path, task_id: str) -> dict:
     import execution_contract as c
-    with c.lock(work_dir(root)):
+    with ledger_lock(root):
         current = read_current(root)
         if current is not None:
             if current['task_id'] == task_id: return current
@@ -380,8 +387,7 @@ def finish(root: Path, run: str) -> dict[str, Any]:
     was removed. A suspended task can finish on its own verified completion;
     another task's completion and progress flags never substitute for it.
     """
-    from execution_contract import lock
-    with lock(work_dir(root)):
+    with ledger_lock(root):
         return _finish_verified(root, run)
 
 
@@ -428,7 +434,7 @@ def finish_state(root: Path, run: str) -> dict[str, Any]:
     Reading this view records no progress, answers no question and closes no task.
     The explicit run identifies its owner even when another task is active.
     """
-    from production_workflow import read_run, verify_completion
+    from production_operations import read_run, verify_completion
     from execution_contract import load
     from production_diagnostics import from_exception
     loaded = read_run(root, run)
@@ -464,7 +470,7 @@ def finish_state(root: Path, run: str) -> dict[str, Any]:
 
 
 def _finish_verified(root: Path, run: str) -> dict[str, Any]:
-    from production_workflow import complete, read_run, verify_completion
+    from production_operations import complete, read_run, verify_completion
     from execution_contract import load
     loaded = read_run(root, run)
     task_id = loaded.prepared['task']['task_id']
@@ -497,8 +503,7 @@ def _finish_verified(root: Path, run: str) -> dict[str, Any]:
 
 @mutation
 def abandon(root: Path, reason: str, *, actor: str | None = None) -> dict[str, Any]:
-    from execution_contract import lock
-    with lock(work_dir(root)):
+    with ledger_lock(root):
         return _abandon_locked(root, reason, actor)
 
 
@@ -516,7 +521,7 @@ def _abandon_locked(root: Path, reason: str, actor: str | None) -> dict[str, Any
     if production_runs:
         if not (actor or "").strip():
             raise ValueError("this task has prepared production runs; name who abandons it with --actor")
-        from production_workflow import abandon_task
+        from production_operations import abandon_task
         abandon_task(root, task["task_id"], actor=actor.strip(), reason=reason.strip())
     append(root, {"at": now(), "task_id": task["task_id"], "event": "abandoned", "text": reason.strip(),
                   "left": [s["text"] for s in task.get("steps") or [] if not s.get("done_at")],

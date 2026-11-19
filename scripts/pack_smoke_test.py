@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise pack identity, concurrent publication, lifecycle, and cache invalidation."""
 from __future__ import annotations
+import runtime_paths
 
 import io
 import itertools
@@ -23,7 +24,7 @@ from unittest.mock import patch
 import pack_cache as pack_cache_module
 import pack_manager as pack_manager_module
 from audit_preset_quality import Record as AuditRecord, check_species_scaffold_policy
-from catalog_cli import begin_catalog_request, configure_pack_runtime, load_entries
+from catalog_api import begin_catalog_request, configure_pack_runtime, load_entries
 from pack_cache import (
     _resolve_records,
     cache_status,
@@ -32,38 +33,14 @@ from pack_cache import (
     resource_warning,
 )
 from pack_cli import main as pack_cli_main
-from package_metadata import PACKAGE_VERSION, calver_key, load_package_metadata
+from package_identity import calver_key
+from package_metadata import PACKAGE_VERSION, load_package_metadata
 from resource_policy import (
     negative_source_emission_allowed,
     validate_known_resource,
 )
-from pack_manager import (
-    PACK_ID_RE,
-    PackError,
-    PackSettings,
-    active_snapshot,
-    add_pack_root,
-    atomic_write_json,
-    canonical_json,
-    default_settings,
-    disable_pack,
-    initialize_state_file,
-    discover_packs,
-    enable_pack,
-    generate_uuid7,
-    initialize_pack,
-    install_pack,
-    inventory_rows,
-    list_packs,
-    load_effective_state,
-    remove_pack,
-    resolve_enabled,
-    save_state,
-    sha256_bytes,
-    sha256_file,
-    validate_pack,
-    write_lock,
-)
+from pack_manager import PACK_ID_RE, PackError, active_snapshot, add_pack_root, atomic_write_json, canonical_json, default_settings, disable_pack, initialize_state_file, discover_packs, enable_pack, generate_uuid7, initialize_pack, install_pack, inventory_rows, list_packs, load_effective_state, remove_pack, resolve_enabled, save_state, sha256_bytes, sha256_file, validate_pack, write_lock
+from runtime_paths import PackSettings
 
 
 def _test_settings(
@@ -929,10 +906,10 @@ def run() -> dict[str, Any]:
 
             configured_home = (root / "configured-home").resolve()
             with patch.dict(os.environ, {"CPB_HOME": str(configured_home)}):
-                named_home = pack_manager_module.user_data_home()
+                named_home = runtime_paths.user_data_home()
             with patch.dict(os.environ):
                 os.environ.pop("CPB_HOME", None)
-                plain_home = pack_manager_module.user_data_home()
+                plain_home = runtime_paths.user_data_home()
             if named_home != configured_home or plain_home != (Path.home() / ".character-prompt-builder").resolve():
                 errors.append(
                     "the configuration home is not CPB_HOME, or ~/.character-prompt-builder without it: "
@@ -941,7 +918,7 @@ def run() -> dict[str, Any]:
             else:
                 checks += 1
 
-            data_home = pack_manager_module.user_data_home()
+            data_home = runtime_paths.user_data_home()
             flag_free = default_settings(default_enabled_packs=())
             if flag_free.state_file != (data_home / "pack-state.json").resolve():
                 errors.append("flag-free settings do not resolve the data-home state file")
@@ -3608,7 +3585,7 @@ def run() -> dict[str, Any]:
             else:
                 checks += 1
             named_default_runtime = default_settings(
-                state_file=pack_manager_module.user_data_home() / "pack-state.json"
+                state_file=runtime_paths.user_data_home() / "pack-state.json"
             )
             if named_default_runtime.protected_pack_ids != shipped_defaults:
                 errors.append(
