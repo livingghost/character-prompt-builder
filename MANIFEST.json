@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1170,
-  "total_bytes_excluding_manifest": 22883880,
+  "total_bytes_excluding_manifest": 22884053,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -5356,8 +5356,8 @@
     },
     {
       "path": "scripts/test_production_foundation.py",
-      "bytes": 107974,
-      "sha256": "3cd7ad35550ec3c1d5c9b8ff157892e9aa77e8ec93f1bfffe32a5c8019c1e643"
+      "bytes": 108119,
+      "sha256": "86ed39b61a3e2ee4279190356a73edc97c2c79dd1a87fe6190e406752faa3d57"
     },
     {
       "path": "scripts/test_production_identity.py",
@@ -5431,8 +5431,8 @@
     },
     {
       "path": "scripts/test_production_source_acquisition.py",
-      "bytes": 28704,
-      "sha256": "d97fdf33bea0e8682064819f5ce156f1d505e142bb4db08bad1640d7f1efe3f8"
+      "bytes": 28732,
+      "sha256": "6f5821e82488258bb4b7a6bb528c113af748ae7c6e9014ae6c204e56f6895c0f"
     },
     {
       "path": "scripts/test_production_status_view.py",
