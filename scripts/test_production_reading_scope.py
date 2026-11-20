@@ -182,8 +182,10 @@ class StageCliTests(unittest.TestCase):
         case = cases.create(self.base / 'model-studio', self.base / 'selected-runtime')
         self.root = case['root']
         settings = case['settings']
-        arguments = {'state-file': str(settings.state_file), 'cache-dir': str(settings.cache_dir),
-            'managed-root': str(settings.managed_root), 'pack-root': [str(case['pack'])]}
+        arguments = {'state-file': str(settings.state_file.resolve()),
+            'cache-dir': str(settings.cache_dir.resolve()),
+            'managed-root': str(settings.managed_root.resolve()),
+            'pack-root': [str(case['pack'].resolve())]}
         original_task = (self.root / 'task.json').read_bytes()
         saved = workflow.prepare(self.root, 'task.json')['run']
         loaded = workflow.read_run(self.root, saved)

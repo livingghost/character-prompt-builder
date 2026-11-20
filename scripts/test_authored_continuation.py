@@ -140,6 +140,11 @@ class RegisteredRuntimeContinuationTests(unittest.TestCase):
             'pack-root': [str(self.case['pack'])]}
         self.model = cases.ALTERNATE_MODEL_ID
 
+    @staticmethod
+    def resolved_runtime(values):
+        return {name: [str(Path(item).resolve()) for item in value] if isinstance(value, list)
+                else str(Path(value).resolve()) for name, value in values.items()}
+
     def draft(self, directory='edit', *, source_run=None, registered=True):
         result = authoring_fixtures.authoring_inputs(self.root, self.task_path if source_run is None else None,
             directory, from_run=source_run,
@@ -261,7 +266,7 @@ class RegisteredRuntimeContinuationTests(unittest.TestCase):
         self.assertEqual(parsed.state_file, Path(self.runtime_arguments['state-file']))
         self.assertEqual(parsed.cache_dir, Path(self.runtime_arguments['cache-dir']))
         self.assertEqual(parsed.managed_root, Path(self.runtime_arguments['managed-root']))
-        self.assertEqual(parsed.pack_root, [Path(value) for value in self.runtime_arguments['pack-root']])
+        self.assertEqual(parsed.pack_root, [Path(value).resolve() for value in self.runtime_arguments['pack-root']])
         self.assertEqual(self.source_snapshot(), original)
 
     def test_public_inspect_check_prepare_and_fresh_status_keep_the_selected_runtime(self):
@@ -312,7 +317,7 @@ class RegisteredRuntimeContinuationTests(unittest.TestCase):
         self.assertTrue(checked['publishable'])
         args = production_workflow_cli.build_parser().parse_args(checked['next_action']['argv'][2:])
         self.assertEqual(args.state_file, Path(self.runtime_arguments['state-file']))
-        self.assertEqual(args.pack_root, [Path(value) for value in self.runtime_arguments['pack-root']])
+        self.assertEqual(args.pack_root, [Path(value).resolve() for value in self.runtime_arguments['pack-root']])
         prepared = self.follow_cli(checked['next_action']['argv'])
         status = self.follow_cli(prepared['next_action']['argv'])
         self.assertFalse(status['current_task']['authoring']['pending'])
@@ -355,14 +360,16 @@ class RegisteredRuntimeContinuationTests(unittest.TestCase):
         self.assertEqual(branches[bound]['unresolved'], [])
         self.assertEqual(branches[bound_again]['unresolved'], [])
         self.assertIn('target-evidence-required', [row.get('reason') for row in branches[unbound]['unresolved']])
-        self.assertEqual(branches[bound]['assembly_basis']['runtime_arguments'], self.runtime_arguments)
-        self.assertEqual(branches[unbound]['assembly_basis']['runtime_arguments'], other)
+        self.assertEqual(self.resolved_runtime(branches[bound]['assembly_basis']['runtime_arguments']),
+                         self.resolved_runtime(self.runtime_arguments))
+        self.assertEqual(self.resolved_runtime(branches[unbound]['assembly_basis']['runtime_arguments']),
+                         self.resolved_runtime(other))
         self.assertTrue(report['selection_required'])
         for option in report['input_options']:
             expected = other if option['choices'] == unbound else self.runtime_arguments
             args = production_workflow_cli.build_parser().parse_args(option['action']['argv'][2:])
-            self.assertEqual(args.state_file, Path(expected['state-file']))
-            self.assertEqual(args.pack_root, [Path(value) for value in expected['pack-root']])
+            self.assertEqual(args.state_file, Path(expected['state-file']).resolve())
+            self.assertEqual(args.pack_root, [Path(value).resolve() for value in expected['pack-root']])
         source_observations, catalog_observations = [], []
         source_run, target_runtime = inputs._source_run, production_target._runtime
         def observe_source(root, selected, *, read_run=None):
