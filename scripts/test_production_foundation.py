@@ -532,6 +532,9 @@ class PublicationRecoveryTests(ProductionCase):
         self.assertEqual((named['code'], named['file'], named['pointer'], named['expected'], named['actual']),
                          ('TASK_CHANGED', 'task.json', '$.task_id', other['task_id'], opened['task_id']))
         self.assertIn('names another work task', named['message'])
+        self.assertEqual(named['next_action']['command'], 'show')
+        self.assertNotIn('recovery_actions', named)
+        self.assertEqual(named['task_id_to_preserve'], opened['task_id'])
         answers = iter([other])
         with patch.object(work_ledger, 'require_open', side_effect=lambda root: next(answers, opened)), \
                 self.assertRaises(ProductionError) as caught:
@@ -542,6 +545,67 @@ class PublicationRecoveryTests(ProductionCase):
         self.assertIn('changed during preparation', changed['message'])
         self.assertIn('Run the same preparing command again', changed['required_action'])
         self.assertEqual(store.runs(self.root), [])
+
+    def test_missing_intended_work_never_invents_a_resume_sequence(self):
+        from production_compiler import _publication_task_recovery
+        from pack_manager import generate_uuid7
+        import work_ledger
+        active = work_ledger.require_open(self.root)
+        unknown = generate_uuid7()
+        before = work_ledger.task_path(self.root, active['task_id']).read_bytes()
+        result = _publication_task_recovery(self.root,
+            {'task': {'task_id': unknown}, 'task_path': 'task.json'}, active)
+        self.assertEqual(result['intended_task']['state'], 'unavailable')
+        self.assertEqual(result['task_id_to_preserve'], unknown)
+        self.assertEqual(result['next_action']['command'], 'show')
+        self.assertNotIn('recovery_actions', result)
+        self.assertEqual(work_ledger.task_path(self.root, active['task_id']).read_bytes(), before)
+        self.assertFalse(work_ledger.task_path(self.root, unknown).exists())
+
+    def test_suspended_work_recovery_keeps_complete_retry_arguments_in_summary(self):
+        from types import SimpleNamespace
+        from cli_invocation import python_argv
+        import production_compiler as compiler
+        from production_report_view import VALUE_LIMIT, diagnostic
+        import work_ledger
+        target = work_ledger.require_open(self.root)
+        work_ledger.suspend(self.root, reason='Retain the original work for a later publication.')
+        active = work_ledger.begin(self.root, 'An independent work task.', ['Keep its own inputs.'])
+        owned = [work_ledger.task_path(self.root, target['task_id']),
+                 work_ledger.task_path(self.root, active['task_id']),
+                 self.root / 'work/current.json', self.root / 'work/ledger.jsonl']
+        before = {path: path.read_bytes() for path in owned}
+        runtime = {'state_file': str(self.base / 'runtime/state.json'),
+                   'cache_dir': str(self.base / 'runtime/cache'),
+                   'managed_root': str(self.base / 'runtime/managed'),
+                   'pack_root': [str(self.base / 'runtime/pack-a'), str(self.base / 'runtime/pack-b')]}
+        for command in ('save', 'prepare'):
+            with self.subTest(command=command):
+                prepared = {'task': {'task_id': target['task_id']}, 'task_path': 'task.json'}
+                selector = ['--task', 'task.json']
+                if command == 'save':
+                    prepared.update(authoring={'choices': 'work/original/choices.json'},
+                                    authored_revision={'state': 'draft'})
+                    selector = ['--choices', 'work/original/choices.json', '--draft']
+                operation = SimpleNamespace(metadata={'arguments': {'command': command, **runtime}})
+                with patch.object(compiler, 'current', return_value=operation):
+                    recovery = compiler._publication_task_recovery(self.root, prepared, active)
+                public = diagnostic({'code': 'TASK_CHANGED', **recovery})
+                suspend = public['next_action']
+                resume = suspend['next_action']
+                retry = resume['next_action']
+                self.assertEqual([suspend['command'], resume['command'], retry['command']],
+                                 ['suspend', 'resume-task', command])
+                self.assertEqual(resume['argv'][-2:], ['--task-id', target['task_id']])
+                expected = python_argv(compiler.ROOT / 'scripts/production_workflow.py', command,
+                    '--root', str(self.root), *selector,
+                    '--state-file', runtime['state_file'], '--cache-dir', runtime['cache_dir'],
+                    '--managed-root', runtime['managed_root'],
+                    '--pack-root', runtime['pack_root'][0], '--pack-root', runtime['pack_root'][1])
+                self.assertGreater(len(expected), VALUE_LIMIT)
+                self.assertEqual(retry['argv'], expected)
+                self.assertEqual(retry['task_id'], target['task_id'])
+        self.assertEqual({path: path.read_bytes() for path in owned}, before)
 
     def test_status_reports_authority_readiness_without_creating_events(self):
         import production_execution as execution

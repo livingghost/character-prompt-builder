@@ -1,0 +1,222 @@
+{
+  "type": "object",
+  "properties": {
+    "artifact_type": {
+      "const": "production-authority-update"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issuer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run": {
+      "type": "string",
+      "minLength": 1
+    },
+    "input_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "request_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expected_event": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "selection": {
+      "description": "Present only for explicit selection authority. The selection owner derives the exact candidate, its latest recorded review and the selection it would replace; import verifies that basis again.",
+      "type": "object",
+      "properties": {
+        "candidate": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "review": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "replaces": {
+          "anyOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "required": ["candidate", "review", "replaces"],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "locator": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "locator",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "grants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "mode": {
+            "enum": [
+              "direct",
+              "delegated",
+              null
+            ]
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "protected_criteria": {
+            "description": "Criterion ids that this additional grant requires to remain identical to the previous prepared run in the same production_id. Adding or removing a protected id also changes it. Choose invariants from the actual instruction; an authorized change needs the corresponding grant terms. Hard task.criteria remain review requirements independently of this list.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 0
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request_scope": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "authoring/request-scope.schema.json"
+              }
+            ]
+          },
+          "submission_validation_modes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "target-schema",
+                "bounded-probe",
+                "observed-profile"
+              ]
+            },
+            "uniqueItems": true
+          },
+          "operation": {
+            "enum": [
+              "direction",
+              "submit",
+              "select"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "actor",
+          "mode",
+          "targets",
+          "protected_criteria",
+          "expires_at",
+          "request_scope",
+          "submission_validation_modes",
+          "operation",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "additional_stop_conditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    }
+  },
+  "required": [
+    "artifact_type",
+    "task_id",
+    "issuer",
+    "run",
+    "input_sha256",
+    "request_sha256",
+    "expected_event",
+    "evidence",
+    "grants",
+    "additional_stop_conditions"
+  ],
+  "additionalProperties": false,
+  "if": {"required": ["selection"]},
+  "else": {"properties": {"request_sha256": {"type": "string"}}},
+  "title": "Run-bound authority additions",
+  "description": "An editable additional-grant draft. By default it covers the prepared direction/submission operations. An explicit selection binding covers select/delivery from that candidate's recorded review. Import derives a complete declaration from current authority while checking its observed predecessor, issuer and operation basis."
+}

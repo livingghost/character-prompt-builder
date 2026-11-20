@@ -155,6 +155,14 @@ python scripts/work_ledger.py resume-task --studio STUDIO --task-id PREVIOUS_TAS
 
 `respond` may additionally bind `--evidence STUDIO_RELATIVE_FILE` and repeated `--candidate ID` values. It records an answer, not generation or adoption approval. `reopen` snapshots the previous revision, including completed steps and linked run, before resetting the chosen and later steps. It neither deletes results nor changes any accepted artwork. `suspend` preserves questions, notes and the next step; only one task is active, and `resume-task` does not implicitly suspend a different task. `show` includes suspended task IDs and open question IDs so the next session need not reconstruct these from chat. Terminal tasks cannot be resumed as active work.
 
+For characters with independent commissions, criteria and authority, keep
+separate work tasks, `production_id` values and editable draft directories.
+Switch them with `suspend` and `resume-task`, preserving each task's inputs and
+history. A Studio can retain several characters while one ledger task is active.
+Two characters commissioned together in one image belong to that scene's work:
+declare each subject and its source applications, reference uses and criteria
+explicitly. Organize work by its actual scope and authority, not subject count.
+
 The ledger's `at` records when the entry was written. If an answer is recovered
 later, append its record at the current time and bind the original instruction
 with `--evidence`. Identify the original message or passage, including its source
@@ -307,6 +315,17 @@ The journal does not promise recovery from loss of the storage device.
 ## Session entry
 
 `scripts/session_entry_points.py` finds the studio the working directory belongs to and prints the open task first: goal, steps done, the next step, and what it is blocked on. It prints them whether or not a pack runtime exists; text authoring resumes without one. A studio it cannot read is named with the problem in one line, and the report goes on. Read that before doing anything else; if a task is open, continue from `next`; if none is open, inspect suspended tasks before the last finished tasks and resolve the intended continuation. Do not reconstruct the state of the work from chat history when the trail is there.
+
+Session entry reads the saved task trail and pack settings without opening the
+Production database, creating operation logs or rebuilding gallery, reference
+or timeline displays. Its printed Production status and input-inspection
+commands read detailed saved choices and continuation state when explicitly run.
+Pending projection receipts remain for
+an explicit `studio.py sync --studio DIR` or an ordinary mutating operation.
+The host uses the already provisioned project interpreter with bytecode disabled;
+it reports missing setup without installing anything. Follow
+[Dependencies](../../DEPENDENCIES.md#uv-project-environment) for that explicit
+setup and the environment's functional check.
 
 Resume in this order: bind the studio, read the trail and the open task, read the applicable originals for the next operation, compare any new instruction with what is saved, then take the next safe operation. Do not repeat an answered question, revive a rejected idea, resend a completed generation, or treat a pending candidate or a held draft choice as adopted. Report what is saved by its actual guarantee: a local checkpoint read back, an export verified, a remote write with an unknown outcome, or a stale resume record. None of these is "backed up"; when writing is unavailable, say what is unsaved and hand over a recoverable export instead of accumulating decisions as if they were safe.
 

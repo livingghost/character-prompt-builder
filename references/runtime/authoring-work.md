@@ -77,6 +77,23 @@ comparison and later selection. Repeated `--requirement APP` arguments replace
 the current requirement selection; its actual ID list can also be edited in
 the basis when clearing that selection within authority.
 
+For saved Production work, `inspect-inputs` reports
+`AUTHORING_WORK_MISMATCH` with cause `protected-requirement-changed` when a
+retained protected requirement differs from the current task criterion.
+`expected` and `actual` show those complete values. `repair_owner` identifies
+the basis's `/requirements`, `/applications/<ID>` and acquired source selection;
+`current_criterion_owner` locates the editable criterion. The report supplies
+`authoring_work.py context --help` and a `context_edit` prefix selecting the
+basis with `--basis-only`, plus source, application and requirement arguments.
+Restore a still-binding criterion, or use an actual instruction
+authorizing change to acquire the current requirement sources and select the
+complete intended requirement set with repeated `--requirement APP`. Then
+inspect the same draft again. The author chooses that scope; inspection changes
+no source, selection, saved history or authority, and a context update retains
+the acquired source catalog without granting execution authority.
+Execution grants keep their own
+[protected-criteria scope](production-permissions.md#protected-criteria-across-runs).
+
 Capture a changed source and update its application when the work adopts that
 change. The owner checks source hashes and pointers against the acquired
 content. Read the actual definitions and their allowed scope; a successful
@@ -142,6 +159,12 @@ their contents. `replace-text` changes the selected text within the
 current string. The owner derives the difference from the actual baseline and
 current content. Keep one actual content owner; extract its bytes when another
 tool needs an intermediate text or JSON file.
+
+`context`, `edit` and `replace-text` own the existing work file through
+`execution_contract.file_lock` before reading its current bytes and through
+publication of the edit. On a saved basis this coordinates with Production
+`acquire-source` on the same file. This scope covers those cooperating
+mutations; unrelated editors and commands have their own concurrency behavior.
 
 Use `extract` for intermediate content needed by vocabulary lookup, settlement
 or an unfinished baseline:

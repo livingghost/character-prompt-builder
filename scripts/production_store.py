@@ -833,19 +833,23 @@ def edited_authority_source(root: Path, current: CurrentAuthority | None) -> dic
 
 
 def authority_snapshot(root: Path, task_id: str, current: CurrentAuthority | None, *,
-                       source_path: str | None = None) -> dict:
+                       source_path: str | None = None, run: str | None = None) -> dict:
     """Expose the already acquired authority and its exact update predecessor.
 
     `source_edited` names the authority file when it changed after its import;
     the update action then imports that edit.
     """
     from cli_invocation import python_argv
+    compact_source = None
     if current is not None and current.task_id != task_id:
         raise ValueError('current authority belongs to another work task')
     if current is not None:
-        sources = [item['path'] for item in current.evidence if item['purpose'] == 'authority-source']
+        sources = [item for item in current.evidence if item['purpose'] == 'authority-source']
         if sources:
-            source_path = sources[-1]
+            source_path = sources[-1]['path']
+            source = c.decode(sources[-1]['raw'])
+            if source.get('artifact_type') == 'production-authority-update':
+                compact_source = source
     arguments = ['authority-import', '--root', str(root), '--file', source_path or '<authority-file>']
     if current is not None:
         arguments += ['--expected-event', current.event['sha256']]
@@ -857,25 +861,42 @@ def authority_snapshot(root: Path, task_id: str, current: CurrentAuthority | Non
         reason = (f'{edited["path"]} changed after its import, and draft-execution, execute and status read the '
                   'imported authority. Import the edit with this command when it records an actual authority change; '
                   'otherwise restore the imported content. ' + reason)
+    command = 'authority-import'
+    if compact_source is not None:
+        selected_run = run or compact_source['run']
+        out = f'production/authority-updates/{selected_run}/{current.event["sha256"][:24]}.json'
+        number, stem = 2, out[:-5]
+        while c.local(root, out, exists=False).exists():
+            out = stem + '-' + str(number) + '.json'
+            number += 1
+        command = 'draft-authority-update'
+        arguments = [command, '--root', str(root), '--run', selected_run, '--out', out]
+        reason = ('The latest authority source is a run-bound addition already imported under its observed predecessor. '
+                  'Draft a new update against the current event, then apply actual instruction evidence. '
+                  'Existing grants and stop conditions remain current; an edited earlier draft does not replace them.')
     return {'document': mutable(current.document) if current is not None else None,
         'event_sha256': current.event['sha256'] if current is not None else None,
         'source_path': source_path,
         'source_edited': edited,
-        'update_action': {'command': 'authority-import',
+        'update_action': {'command': command,
             'argv': python_argv(Path(__file__).with_name('production_workflow.py'), *arguments),
             'reason': reason,
             'requires_author_input': True}}
 
 
-def import_authority(root: Path, file: str, *, expected: str | None = None, initial: bool = False) -> dict:
+def import_authority(root: Path, file: str, *, expected: str | None = None, initial: bool = False,
+                     report_changes: bool = False) -> dict:
     import production_permissions as permissions
+    import production_authority_drafts as drafts
     from state_protocol import validate_against_schema
     raw=stable_bytes(root,file); document=c.decode(raw)
-    errors=validate_against_schema(document,c.load(Path(__file__).resolve().parents[1]/'schemas/authoring/production-authority.schema.json'))
+    compact = isinstance(document, dict) and document.get('artifact_type') == drafts.UPDATE_TYPE
+    schema = drafts.UPDATE_SCHEMA if compact else 'schemas/authoring/production-authority.schema.json'
+    errors=validate_against_schema(document,c.load(Path(__file__).resolve().parents[1]/schema))
     if errors:
         raise ProductionError('INPUT_SCHEMA_INVALID','; '.join(errors),file=file,phase='authority-import',
                               required_action='Correct the fields the message names in this authority declaration, following '
-                                              'schemas/authoring/production-authority.schema.json, then run the command again.')
+                                              f'{schema}, then run the command again.')
     with transaction(root) as connection:
         prior=authority_record(root,document['task_id'])
         if initial and prior is not None:
@@ -884,6 +905,12 @@ def import_authority(root: Path, file: str, *, expected: str | None = None, init
             raise ProductionError('AUTHORITY_UPDATE_CONFLICT','An update must name the current authority event digest.',phase='authority-import',
                                   expected=prior['sha256'],actual=expected,
                                   required_action='Read the current authority, reconcile changes, and supply --expected-event.')
+        if compact and (prior is None or document['expected_event'] != prior['sha256']):
+            raise ProductionError('AUTHORITY_UPDATE_CONFLICT',
+                'The run-bound update does not name the current authority event.', phase='authority-import', file=file,
+                pointer='$.expected_event', expected=prior['sha256'] if prior else None, actual=document['expected_event'],
+                required_action='Inspect the current authority and use draft-authority-update for this run again. '
+                                'Reconcile its actual new authority; changing only --expected-event cannot update the draft.')
         if prior is not None and document['issuer']!=prior['data']['authority']['issuer']:
             issuer=prior['data']['authority']['issuer']
             raise ProductionError('AUTHORIZATION_MISMATCH','An authority update cannot silently replace its issuer.',
@@ -894,22 +921,39 @@ def import_authority(root: Path, file: str, *, expected: str | None = None, init
                                 'A different issuing principal requires its own work-task authority; do not rename the current issuer.')
         from input_evidence import EvidenceAcquisition
         inputs=EvidenceAcquisition(root)
-        document=permissions.acquire(document,document['task_id'],inputs)
+        held = read_authority(root, document['task_id']) if compact else None
+        document = (drafts.materialize_update(root, document, held, inputs, file=file) if compact
+                    else permissions.acquire(document,document['task_id'],inputs))
         declaration = inputs.select(document['evidence']['path'])
+        if not inputs.bytes[declaration['path']].strip():
+            raise ProductionError('AUTHORIZATION_REQUIRED', 'The authority declaration evidence is empty.',
+                phase='authority-evidence', file=document['evidence']['path'],
+                required_action='Select nonempty actual instruction evidence before importing authority.')
+        if not compact:
+            drafts.check_approval_evidence(root, inputs.bytes[declaration['path']], task_id=document['task_id'],
+                                           issuer=document['issuer'], file=document['evidence']['path'])
         evidence=[evidence_snapshot(root,document['evidence']['path'],document['evidence']['locator'],
             purpose='authority-declaration',raw=inputs.bytes[declaration['path']])]
+        if held is not None:
+            # Unchanged grants keep their captured evidence even if the original
+            # scope files moved or changed. New additions acquire their own bytes.
+            evidence.extend({key: value for key, value in item.items() if key != 'raw'}
+                            for item in held.evidence if item['purpose'] != 'authority-source')
         # Store the scope bytes the verifier read, not a second reading of the files.
         for path in sorted(inputs.locators):
             evidence.append(evidence_snapshot(root,path,inputs.locators.get(path,'whole'),purpose='request-scope',
                                               raw=inputs.bytes[path]))
         # The declaration itself is also immutable evidence of this update.
         evidence.append(evidence_snapshot(root,file,'whole',purpose='authority-source',raw=raw))
+        evidence = list({(item['path'], item['sha256'], item['locator'], item['purpose']): item
+                         for item in evidence}.values())
         row=append(root,'authority:'+document['task_id'],None,'authority-updated',
                    {'authority':document,'evidence':evidence,'previous_state':prior['sha256'] if prior else None,'effective_at':c.now()})
         connection.execute('INSERT INTO authority_states VALUES (?,?,?) ON CONFLICT(task_id) DO UPDATE SET content_sha256=excluded.content_sha256,event_sha256=excluded.event_sha256',
                            (document['task_id'],c.content_id(document),row['sha256']))
         read_context.invalidate_studio(root)
-        return row
+        return ({**row, 'changed_grants': drafts.changed_grants(prior['data']['authority'] if prior else None, document)}
+                if report_changes else row)
 
 
 def captured_authority_inputs(authority: CurrentAuthority) -> tuple[dict, ...]:

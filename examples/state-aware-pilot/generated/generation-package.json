@@ -9623,10 +9623,10 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "76dbbfe89425f9b1a83060ef38c2983e5920c9ca5bf1ffb3e6fed190a1c132ea",
+    "route_reading_sha256": "6db090ffc22448e5eaf92f3c902abde4cadfd671da76ea237401e1d2f8d99b73",
     "request_validation_sha256": "753a532103432f1ad28f7901525099f1b9379b8e167dbb9549320a8099e12036",
     "input_snapshots_sha256": "b8a4b22d7106b7c2cd541c933a191bfc1d5c651cc53f96050c5f4779333339a1",
-    "generation_input_sha256": "8c337211b2578f080d7b30475d0b6486cea02a5dcc309f1aada0148c5e78fe46"
+    "generation_input_sha256": "5ba7e5d3c5aa4a0a3e35b6297088a5911454229f5aa82448e5d624c9b11a8824"
   },
   "visual_continuity": {
     "purpose": "image",
@@ -9649,7 +9649,7 @@
     "documents": [
       {
         "path": "references/runtime/authoring-work.md",
-        "sha256": "b3b8d0b56311fc5015aef5e1e1c428118ead422f3dcc60629d512a8f85a4b6a5"
+        "sha256": "87dd5c807c0664f4c137044f48e0346cf82c6f07e620b55806a6f2e85a072668"
       },
       {
         "path": "references/runtime/production-workflow.md",
@@ -9657,11 +9657,11 @@
       },
       {
         "path": "references/runtime/production-direction.md",
-        "sha256": "6aae7b3f58fa49aa10e54e2bb4c5874839a4b3bf681516456c545a8db28d322b"
+        "sha256": "363b470b12d4c8e23ccbf85c98e138cc60bb4458ceb46313c79bd6d39c298214"
       },
       {
         "path": "references/runtime/production-authoring.md",
-        "sha256": "8c07faa8b2d43fb412b630f4acb5a07d7baddae3370d41ce6428d44f77ffdc58"
+        "sha256": "9310794bd77901e1187961ebc1d4a03f8cda20fee3863c9877f7edb711fd2735"
       },
       {
         "path": "references/runtime/production-preparation.md",
@@ -9673,7 +9673,7 @@
       },
       {
         "path": "references/runtime/production-permissions.md",
-        "sha256": "8d11979469adfb34553b30d2ebbf68ecf6dbf85223ebc0b434e5ffd15cff4ead"
+        "sha256": "a1f8d496a260cf0a18aa53a6d8cf6fc537be98fbd0a5bc2509ef62cb903e5edc"
       },
       {
         "path": "references/runtime/production-image-inputs.md",
@@ -9697,11 +9697,11 @@
       },
       {
         "path": "references/runtime/prompt-writing-guide.md",
-        "sha256": "6a71871bb7fd7a84a09f859162de2b8b763a5561919985fff90b4d4921ebc441"
+        "sha256": "ae6c2fe3546ef3ea96a71281937b3d3082a455b042465381eda5326a6e11f4a9"
       },
       {
         "path": "references/runtime/prompt-weighting.md",
-        "sha256": "2e7d780cfda9262f6428432e25bab0c0ed42f7a4fdbcfdd25900576b21690b26"
+        "sha256": "a7e0cd10f907bd83e86647c702a731fc9e8bb4710df3a17ac9110b1e4af1ab24"
       },
       {
         "path": "references/runtime/reference-delivery.md",
@@ -9713,7 +9713,7 @@
       },
       {
         "path": "references/runtime/studio.md",
-        "sha256": "067389b9427ac244d3280323b2099102695043a25b391dccea4f3f67666a9fa8"
+        "sha256": "59d3aedb5a1187085be5be47efaef56528e2afb72c6f5eff4ea2a39a05925774"
       },
       {
         "path": "references/runtime/world-realization.md",
@@ -9753,9 +9753,9 @@
       }
     },
     "route": "state-series",
-    "reading_key": "0b25b60c9bd89416b8ad7bfe382d5868"
+    "reading_key": "293c6a2c9bdf2c4c75acf77b97cfa6a7"
   },
-  "route_reading_sha256": "76dbbfe89425f9b1a83060ef38c2983e5920c9ca5bf1ffb3e6fed190a1c132ea",
+  "route_reading_sha256": "6db090ffc22448e5eaf92f3c902abde4cadfd671da76ea237401e1d2f8d99b73",
   "request_validation": {
     "mode": "target-schema",
     "target": {
@@ -9820,5 +9820,5 @@
     }
   },
   "input_snapshots_sha256": "b8a4b22d7106b7c2cd541c933a191bfc1d5c651cc53f96050c5f4779333339a1",
-  "generation_input_sha256": "8c337211b2578f080d7b30475d0b6486cea02a5dcc309f1aada0148c5e78fe46"
+  "generation_input_sha256": "5ba7e5d3c5aa4a0a3e35b6297088a5911454229f5aa82448e5d624c9b11a8824"
 }

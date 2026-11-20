@@ -15,15 +15,21 @@ Generated file. Edit `hosts/shared/repository-guide.md.template`.
   examples/ .github/ .gitattributes .gitignore
 ```
 
-`SKILL.md` sits at the plugin root rather than under a `skills/` directory. A
-plugin with no `skills/` directory and no `skills` manifest field is loaded as a
-single skill, and declaring the field would suppress that.
+`SKILL.md` sits at the plugin root rather than under a `skills/` directory.
+The generated Codex manifest declares `skills: "./"` to name that root; the
+Claude manifest leaves the optional `skills` field unset. Keep these host
+configurations distinct and verify discovery under the selected host's contract.
 
 The skill uses one uv environment for runtime work and validation. Follow
 [Dependencies](DEPENDENCIES.md#uv-project-environment) to synchronize it. Commands
 written with `python` run through `uv run --locked` or with the synchronized
 environment's interpreter. Paths are relative to the directory holding `SKILL.md`,
 which is wherever the skill is installed.
+
+The automatic session hook uses an already prepared environment and reports
+missing setup. It does not synchronize dependencies, write operation logs or
+refresh Studio projections. Explicit runtime commands below keep their own
+setup and update behavior.
 
 When the working directory is a Studio, preserve it and select the installed skill
 explicitly:

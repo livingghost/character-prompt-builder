@@ -19,7 +19,8 @@ def _candidate(loaded, candidate: str) -> dict:
         raw = loaded.evidence.read(item['sha256'])
         files.append({'path': str(loaded.directory / 'objects' / item['sha256']),
                       'sha256': item['sha256'], 'size': len(raw)})
-    return {'id': candidate, 'files': files, 'media': row['data']['media']}
+    return {'id': candidate, 'evidence_id': workflow.REVIEW_CANDIDATE_EVIDENCE,
+            'files': files, 'media': row['data']['media']}
 
 
 def _reading(prepared: dict) -> dict:
@@ -99,7 +100,7 @@ def _sources(loaded) -> list[dict]:
     return sources
 
 
-def _authored(loaded, phase: str) -> dict:
+def _authored(root: Path, loaded, phase: str) -> dict:
     """Read the exact authored artifact before its independent assessment basis."""
     prepared, consumer = loaded.prepared, loaded.consumer
     revision = prepared['authored_revision']
@@ -114,6 +115,9 @@ def _authored(loaded, phase: str) -> dict:
     else:
         from production_authored import review_basis
         result.update(review_basis(loaded))
+        result['review_guide'] = workflow.review_authoring_guide(
+            root, prepared['run'], loaded=loaded, basis=result)
+        result['next_action'] = result['review_guide']['next_action']
     return result
 
 
@@ -129,7 +133,7 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
     if prepared['task']['execution'] == 'authored':
         if candidate is not None:
             raise ValueError('an authored workspace reads its saved revision')
-        return _authored(loaded, phase)
+        return _authored(root, loaded, phase)
     if phase in {'observe', 'review'} and candidate is None:
         raise ValueError('observation and review views require one actual candidate')
     result = {'phase': phase, 'run': run}
@@ -157,14 +161,13 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
         result['identity_instruction'] = result['basis']['identity_instruction']
     if phase == 'decision':
         import production_store
-        import production_permissions
         import production_request
         plan = loaded.artifacts['execution-plan.json']
         held = production_store.read_authority(root, prepared['task']['task_id'], required=False)
         authority = held.document if held is not None else None
         result['authority'] = production_store.authority_snapshot(root, prepared['task']['task_id'], held,
-                                                                 source_path=prepared['task'].get('authority'))
-        result['authorization_requirements'] = production_permissions.grant_requirements(authority, plan['operations'])
+                                                                 source_path=prepared['task'].get('authority'), run=run)
+        result['authorization_requirements'] = workflow.authorization_requirements(root, prepared, held, plan['operations'])
         result['request_scope_template'] = production_request.delegation_template(prepared, plan['operations'], authority)
         result['operations'] = plan['operations']
         result['review_requirements'] = plan.get('review_requirements', [])
@@ -203,4 +206,7 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
                              'candidate against the required outcome. Use the evidence IDs in this view '
                              'for source comparisons. Record author self-review in the review fields '
                              'when the observing context already knew the intended result.')
+    result['review_guide'] = workflow.review_authoring_guide(root, run, candidate,
+                                                           loaded=loaded, basis=result['basis'])
+    result['next_action'] = result['review_guide']['next_action']
     return result

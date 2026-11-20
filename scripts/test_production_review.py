@@ -6,6 +6,8 @@ import copy
 import json
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -307,8 +309,9 @@ class ReviewTests(ReviewCase):
         view = workspace.workspace(self.root, self.run, phase='observe', candidate=self.candidate)
         self.assertEqual(set(view), {'phase', 'run', 'candidate', 'instruction'})
         actual = view['candidate']
-        self.assertEqual(set(actual), {'id', 'files', 'media'})
+        self.assertEqual(set(actual), {'id', 'evidence_id', 'files', 'media'})
         self.assertEqual(actual['id'], self.candidate)
+        self.assertEqual(actual['evidence_id'], 'candidate')
         self.assertEqual((actual['media']['width'], actual['media']['height']), (32, 32))
         for item in actual['files']:
             raw = Path(item['path']).read_bytes()
@@ -611,6 +614,91 @@ class IdentityReviewCase(ReviewCase):
 
 
 class IdentityReviewTests(IdentityReviewCase):
+    def public_command(self, argv, *, code=0):
+        result = subprocess.run(argv, capture_output=True, text=True, encoding='utf-8')
+        self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def test_public_workspace_and_draft_supply_the_complete_citation_interface(self):
+        script = workflow.ROOT / 'scripts/production_workflow.py'
+        before = store.event_rows(self.root, self.run)
+        view = self.public_command([sys.executable, str(script), 'workspace', '--root', str(self.root),
+            '--run', self.run, '--phase', 'review', '--candidate', self.candidate])
+        self.assertEqual(view['next_action']['command'], 'draft-review')
+        drafted = self.public_command(view['next_action']['argv'])
+        form = c.load(self.root / drafted['draft_file'])
+        self.assertEqual(drafted['choices'], form)
+        self.assertNotIn('review_guide', form)
+        self.assertEqual(form['observations'], [])
+        self.assertEqual(form['evidence'], [])
+        self.assertTrue(all(row['verdict'] == 'not-assessed' for row in form['checks']))
+        guide = drafted['review_guide']
+        self.assertEqual(guide['automatic_evidence'], view['review_guide']['automatic_evidence'])
+        candidate = next(item for item in guide['automatic_evidence'] if item['role'] == 'candidate')
+        self.assertEqual(view['candidate']['evidence_id'], candidate['id'])
+        self.assertEqual(candidate['candidate'], form['candidate'])
+        self.assertEqual(candidate['kind'], 'image')
+        candidate_file = candidate['files'][0]
+        self.assertEqual(c.digest(Path(candidate_file['path']).read_bytes()), candidate_file['sha256'])
+        # Select the comparison by its public path and actual source content;
+        # no implementation/fixture evidence-ID convention is used to author it.
+        comparison = next(item for item in guide['automatic_evidence']
+            if item['role'] == 'comparison' and item['kind'] == 'json'
+            and c.decode(Path(item['path']).read_bytes()) == self.original_identity)
+        observed = copy.deepcopy(guide['observation_template'])
+        observed.update(observation='The supplied synthetic candidate is a decoded 32 by 32 PNG.',
+            interpretation='Explicit synthetic protocol observation; no model fidelity is asserted.',
+            limitations=['Only this local fixture artifact was inspected.'])
+        original = copy.deepcopy(observed)
+        original.update(evidence=comparison['id'], locator={'kind': 'whole'},
+            observation='The retained JSON contains the supplied synthetic shell definition and relation.',
+            interpretation='This is the comparison source, independently of the candidate observation.')
+        form.update(reviewer='Synthetic public-interface reviewer - not user approval',
+            observations=[observed, original], conclusion='Synthetic citation-interface exercise only.')
+        citations = {item['criterion']: item for item in guide['criterion_citations']}
+        for check in form['checks']:
+            check.update(verdict='pass', reason='Explicit synthetic protocol assessment.',
+                observation_indices=[0, 1] if citations[check['criterion']]['candidate_required_for_pass'] else [0])
+        fixtures.write(self.root / drafted['draft_file'], form)
+        result = self.public_command(drafted['next_action']['argv'])
+        self.assertEqual(result['event'], 'review')
+        recorded = result['data']['review']
+        self.assertEqual(recorded['observations'][0]['evidence'], candidate['id'])
+        self.assertEqual(recorded['observations'][1]['evidence'], comparison['id'])
+        self.assertIn(comparison['id'], {item['id'] for item in recorded['evidence']})
+        rows = store.event_rows(self.root, self.run)
+        self.assertEqual(rows[:len(before)], before)
+        self.assertEqual(len([row for row in rows if row['event'] == 'review']), 1)
+
+    def test_public_review_rejects_candidate_alias_with_its_correct_citation_owner(self):
+        script = workflow.ROOT / 'scripts/production_workflow.py'
+        drafted = self.public_command([sys.executable, str(script), 'draft-review', '--root', str(self.root),
+            '--run', self.run, '--candidate', self.candidate, '--out', 'work/alias-review.json'])
+        form, guide = drafted['choices'], drafted['review_guide']
+        candidate = next(item for item in guide['automatic_evidence'] if item['role'] == 'candidate')
+        observation = copy.deepcopy(guide['observation_template'])
+        observation.update(evidence='returned-image', observation='The same synthetic PNG was inspected.',
+            interpretation='This negative case deliberately assigns a supplemental ID to those bytes.')
+        form.update(reviewer='Synthetic negative-case reviewer', observations=[observation],
+            evidence=[{'id': 'returned-image',
+                'path': Path(candidate['files'][0]['path']).relative_to(self.root).as_posix(),
+                'kind': candidate['kind'], 'relation': 'The candidate bytes under an additional authored ID.',
+                'limitations': []}], conclusion='Synthetic alias refusal exercise.')
+        for check in form['checks']:
+            check.update(verdict='pass', observation_indices=[0], reason='Synthetic negative case.')
+        fixtures.write(self.root / drafted['draft_file'], form)
+        before = store.event_rows(self.root, self.run)
+        result = self.public_command(drafted['next_action']['argv'], code=2)
+        problem = result['diagnostics'][0]
+        first_identity = next(index for index, item in enumerate(guide['criterion_citations'])
+                              if item['candidate_required_for_pass'])
+        self.assertEqual(problem['file'], drafted['draft_file'])
+        self.assertEqual(problem['pointer'], f'$.checks[{first_identity}].observation_indices')
+        self.assertEqual(problem['expected'], {'evidence': candidate['id'], 'medium': 'image'})
+        self.assertEqual(problem['actual'][0]['evidence'], 'returned-image')
+        self.assertIn('zero-based index', problem['required_action'])
+        self.assertEqual(store.event_rows(self.root, self.run), before)
+
     def test_original_identity_is_frozen_independent_context_only_after_blind_views(self):
         directory, prepared, consumer, _ = workflow.load_run(self.root, self.run)
         original = copy.deepcopy(prepared['identity_coverage'])

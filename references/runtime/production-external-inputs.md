@@ -9,6 +9,15 @@ Author the exact request for the selected host or provider. Keep its complete ta
 
 ## Edit the request and media choices
 
+Use `explain-inputs --field external` to recover the complete editable envelope
+from its runtime owner. Follow its child actions for `external.image_input`,
+`external.image_input.external_request`, references and native controls. The
+request-mapping view links directly to the `model_identity` and acquired `schema`
+contracts and shows which published fields the builder supplies.
+`explain-inputs --field target.model` separately locates the selected model
+kind's identity and evidence contract. These views read the current choices
+without selecting an interface, interpreting source meaning or issuing authority.
+
 For external image work, a draft selects its actual target at `choices.target`
 and restores `external.image_input`, the native
 `external.request` object or array, and the recorded `external.media_slots`.
@@ -18,6 +27,16 @@ reorder those rows in the image-input choice. The builder derives media fields
 and attachment positions from the declared mapping, preserving unrelated text
 and controls. With one homogeneous media-array mapping, a new reference can
 omit its field position. Ambiguous mappings remain an explicit choice.
+
+For the first direct reference in a newly authored request, declare its native media
+array explicitly in `external.request` and name the item path in
+`transport.field`. Start a new empty array with `[]` and leave `media_slots`
+empty; a `null` placeholder is a populated slot, not an empty array. Preserve
+any enclosing operation records and independent controls required by the
+acquired native schema. `explain-inputs --field external.request` and early
+inspection locate a missing array and its reference mapping. The
+`external.media_slots` child action explains how existing declared media leaves
+may be rebuilt without claiming unrelated values.
 
 An existing plan can also be selected as
 `external: {"image_input": "inputs/selected-plan.json"}`. The builder
@@ -37,8 +56,8 @@ reference ID and its actual transport evidence. The builder derives the full
 reference scope and source bindings from the canonical choices.
 
 When the selected host accepts local files, set a reference's editable
-`transport` to `{"local_file": true}`. Add `field` only when its native media
-mapping is ambiguous. The builder derives the path from the selected source or
+`transport` to `{"local_file": true}`. Add `field` when its native media
+mapping is ambiguous or no prior mapping is declared. The builder derives the path from the selected source or
 prepared carrier, including a shared board; it requires no invented upload
 response. A provider upload instead uses `transport.value` and `evidence`.
 These are distinct representations: provider values remain opaque even when

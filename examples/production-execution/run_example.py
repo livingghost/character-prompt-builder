@@ -54,7 +54,7 @@ def run(out: Path) -> dict:
     if (out/'deliveries/sentence.txt').read_bytes() != b'One lamp stands in the room.\n':
         raise ValueError('the delivered text differs from the authored fixture')
     workflow('workspace','--phase','review')
-    review=workflow('draft-review','--out','review.json')
+    review=workflow('draft-review','--out','review.json')['choices']
     review.update(reviewer='Synthetic text reviewer',observations=[{
         'evidence':'candidate','locator':{'kind':'whole'},
         'observation':'The actual saved sentence names one lamp in the room and introduces no character.',

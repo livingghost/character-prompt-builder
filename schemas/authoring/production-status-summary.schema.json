@@ -1,13 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Production status navigation view",
-  "description": "Current states and executable continuations with explicit links to complete decision evidence.",
+  "description": "Current states, unresolved requirements and executable continuations. Grant alternatives and historical inventories are bounded; the full report retains every original detail.",
   "type": "object",
   "properties": {
     "view": {"const": "summary"},
     "ok": {"type": "boolean"},
     "external_effect": {"type": "boolean"},
+    "command": {"type": "string", "minLength": 1},
+    "next_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"},
     "details_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"},
+    "full_report": {"type": ["string", "null"]},
+    "full_report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "full_report_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"},
+    "complete_report": {"type": "object"},
+    "report_warning": {"type": "object"},
     "current_task": {"type": ["object", "null"]},
     "runs": {
       "type": "array",
@@ -16,6 +23,9 @@
         "properties": {
           "run": {"type": "string", "minLength": 1},
           "integrity": {"enum": ["intact", "blocked"]},
+          "authorization_requirements": {"anyOf": [
+            {"type": "null"}, {"$ref": "#/$defs/authorization_requirements"}
+          ]},
           "next_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"},
           "details_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"}
         },
@@ -23,15 +33,142 @@
       }
     },
     "diagnostics": {"type": "array", "items": {"type": "object"}},
-    "staging": {"type": "array", "items": {"type": "string"}},
-    "staging_details": {"type": "array", "items": {"type": "object"}},
-    "unclaimed_journals": {"type": "array", "items": {"type": "object"}},
-    "unregistered_publications": {"type": "array", "items": {"type": "object"}},
+    "inventory": {
+      "type": "object",
+      "properties": {
+        "staging_details": {"$ref": "#/$defs/inventory"},
+        "unclaimed_journals": {"$ref": "#/$defs/inventory"},
+        "unregistered_publications": {"$ref": "#/$defs/inventory"}
+      },
+      "required": ["staging_details", "unclaimed_journals", "unregistered_publications"],
+      "additionalProperties": false
+    },
     "execution_records": {"type": "object"},
     "execution_completed": {"type": "boolean"},
     "warnings": {"type": "array", "items": {"type": "object"}}
   },
   "required": ["view", "ok", "external_effect", "details_action", "current_task", "runs", "diagnostics",
-    "staging", "staging_details", "unclaimed_journals", "unregistered_publications", "execution_records"],
-  "additionalProperties": false
+    "inventory", "execution_records", "next_action"],
+  "additionalProperties": false,
+  "$defs": {
+    "inventory": {
+      "type": "object",
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "matching": {"type": "integer", "minimum": 0},
+        "omitted": {"type": "integer", "minimum": 0},
+        "items": {"type": "array", "maxItems": 8, "items": {"type": "object"}},
+        "diagnostics": {"type": "array", "items": {"type": "object"}}
+      },
+      "required": ["total", "matching", "omitted", "items", "diagnostics"],
+      "additionalProperties": false
+    },
+    "authorization_requirements": {
+      "type": "object",
+      "properties": {
+        "state": {"enum": ["covered", "action-required"]},
+        "display_limit": {"const": 8},
+        "limit": {"type": "string"},
+        "coverage_note": {"type": "string"},
+        "protected_criteria": {"$ref": "#/$defs/protected_criteria"},
+        "diagnostics": {"type": "array", "items": {"type": "object"}},
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {"enum": ["direction", "edit", "submit", "select", "adopt"]},
+              "targets": {"type": "array", "items": {"type": "string"}},
+              "selected_grant": {"type": ["string", "null"]},
+              "selected_actor": {"type": ["string", "null"]},
+              "eligible": {"type": "boolean"},
+              "selection_required": {"type": "boolean"},
+              "eligible_grants": {"type": "array", "maxItems": 8, "items": {
+                "type": "object", "properties": {"grant": {"type": "string"}, "actor": {"type": "string"}},
+                "required": ["grant", "actor"], "additionalProperties": false
+              }},
+              "eligible_grant_count": {"type": "integer", "minimum": 0},
+              "eligible_grants_omitted": {"type": "integer", "minimum": 0},
+              "ineligible_grant_count": {"type": "integer", "minimum": 0},
+              "ineligible_reasons": {"type": "object", "properties": {
+                "actor": {"type": "integer", "minimum": 0},
+                "operation": {"type": "integer", "minimum": 0},
+                "targets": {"type": "integer", "minimum": 0},
+                "revoked-or-expired": {"type": "integer", "minimum": 0},
+                "not-effective": {"type": "integer", "minimum": 0},
+                "protected-criteria": {"type": "integer", "minimum": 0},
+                "other": {"type": "integer", "minimum": 0}
+              }, "additionalProperties": false},
+              "missing_targets": {"type": "array", "items": {"type": "string"}},
+              "missing_targets_basis": {"enum": ["selected-grant", "eligible-alternatives", "not-covered-by-current-operation-grants"]},
+              "diagnostics": {"type": "array", "items": {"type": "object"}}
+            },
+            "required": ["operation", "targets", "selected_grant", "selected_actor", "eligible", "selection_required",
+              "eligible_grants", "eligible_grant_count", "eligible_grants_omitted", "ineligible_grant_count",
+              "ineligible_reasons", "missing_targets", "missing_targets_basis", "diagnostics"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["state", "display_limit", "coverage_note", "requirements", "diagnostics"],
+      "additionalProperties": false
+    },
+    "protected_criteria": {
+      "type": "object",
+      "description": "The bounded protected-criterion comparison and its existing authority repair owner.",
+      "properties": {
+        "run": {"type": "string", "minLength": 1},
+        "production_id": {"type": "string", "minLength": 1},
+        "comparison_run": {"type": ["string", "null"]},
+        "comparison": {"enum": ["revision", "production-predecessor"]},
+        "meaning": {"type": "string"},
+        "authoring": {"type": "string"},
+        "repair_owner": {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "current-authority"},
+            "task_id": {"type": "string", "minLength": 1},
+            "event_sha256": {"type": ["string", "null"]},
+            "file": {"type": ["string", "null"]},
+            "field": {"const": "grants[].protected_criteria"}
+          },
+          "required": ["kind", "task_id", "event_sha256", "file", "field"],
+          "additionalProperties": false
+        },
+        "repair_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"},
+        "changes": {"anyOf": [
+          {"type": "array", "maxItems": 12, "items": {"$ref": "#/$defs/criterion_change"}},
+          {
+            "type": "object",
+            "properties": {
+              "items": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"$ref": "#/$defs/criterion_change"}},
+              "total": {"type": "integer", "minimum": 13},
+              "omitted": {"type": "integer", "minimum": 1}
+            },
+            "required": ["items", "total", "omitted"],
+            "additionalProperties": false
+          }
+        ]}
+      },
+      "required": ["run", "production_id", "comparison_run", "comparison", "meaning", "authoring",
+        "repair_owner", "repair_action", "changes"],
+      "additionalProperties": false
+    },
+    "criterion_change": {
+      "type": "object",
+      "properties": {
+        "id": {"anyOf": [
+          {"type": "string"},
+          {"type": "object", "properties": {
+            "excerpt": {"type": "string"}, "characters": {"type": "integer", "minimum": 1},
+            "details": {"const": "full_report"}
+          }, "required": ["excerpt", "characters", "details"], "additionalProperties": false}
+        ]},
+        "before": {"type": ["object", "null"]},
+        "after": {"type": ["object", "null"]}
+      },
+      "required": ["id", "before", "after"],
+      "additionalProperties": false
+    }
+  }
 }

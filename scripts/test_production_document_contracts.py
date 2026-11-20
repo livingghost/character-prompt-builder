@@ -107,9 +107,10 @@ class DocumentContractsTests(unittest.TestCase):
 
     def test_execution_decisions_validate_shape_without_a_task_or_execution(self):
         value = {'run': 'synthetic-run', 'input_sha256': 'a' * 64,
-                 'request_sha256': 'b' * 64,
+                 'request_sha256': 'b' * 64, 'stop_conditions_sha256': 'c' * 64,
+                 'shared_stop_assessments': [],
                  'decisions': [{'operation': 'direction', 'grant': None, 'reason': '',
-                                'stop_assessments': []}]}
+                                'additional_stop_assessments': []}]}
         report = contracts.validate_document('execution_decisions', value)
         self.assertTrue(report['ok'], report)
         self.assertEqual(report['validation_scope'], 'document-shape')

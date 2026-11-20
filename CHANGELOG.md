@@ -1,5 +1,75 @@
 # Changelog
 
+## 2026.11.20.2
+
+- Apply the host's instructions and content rules during source interpretation,
+  retrieval, prompt-only authoring, saving, delivery and execution. Keep permitted
+  evidence faithful, disclose scoped omissions, and distinguish source facts from
+  permission to reproduce or elaborate them.
+- Clarify that canonical biography and appearance-control terms do not determine
+  content permission. Assess the actual depiction and context without using age
+  labels, alternative targets or prompt-only output to bypass a restriction.
+- Keep session startup read-only. Use an already prepared environment and report
+  missing setup without installing dependencies, writing operation logs or
+  refreshing Studio projections. Explicit runtime operations retain their own
+  environment setup and publication behavior.
+- Describe the Codex root-skill binding separately from the Claude manifest's
+  unset optional field, keeping host-specific discovery configuration intact.
+- Keep acquired run histories and derived read views in one database snapshot
+  through cache publication, so concurrent result capture cannot republish stale
+  history after invalidation. Retain event-conflict and current-authority checks.
+
+## 2026.11.20.1
+
+- Acquire complete Production source rows through `acquire-source`, retaining
+  roles, identity selections and original bytes across projection. Reacquisition
+  derives selected files and subject applications together and restores the
+  previous editable draft when publication fails.
+- Report missing current input structure before derivation, with public JSON
+  Pointers, schema shapes, source owners and concrete repair commands. Show
+  required applied source roles while drafting and inspecting inputs, and
+  distinguish acquisition metadata failures from invalid identity bindings.
+- Keep interactive summaries bounded as grant history grows. Preserve complete
+  JSON reports separately and show current requirements, editable locations,
+  recording results and executable next actions.
+- Keep reopened-source summaries focused on their owners and remaining
+  assessments, with complete source inputs available through a read action.
+  Put the next action before repeated context and count route documents in
+  summaries while retaining their complete reading record.
+- Distinguish an image run's restored inputs from its captured output candidates
+  when reopening work. Show retained output files and existing source/reference
+  owners without choosing a candidate, its identity uses or its current scope.
+- Draft run-bound authority additions and principal approval from actual
+  instructions. Retain issuer, current predecessor and exact request bindings;
+  unanswered drafts grant no authority. Edit common stop assessments once and
+  retain each operation's complete effective judgment in its formal event.
+- Draft selection authority for an explicitly named, reviewed candidate through
+  `draft-authority-update --phase selection --candidate`. Status and acceptance
+  diagnostics provide this action when the current grants do not cover delivery
+  selection; import rechecks the candidate, review and replaced selection.
+- Distinguish established character facts, the current appearance goal, model
+  control language and returned-image evidence. Connect supported weights,
+  feature terms, negatives and natural language to appearance adjustment in
+  the existing direction, vocabulary and review workflow.
+- Expose exact target and external-input contracts, Production Specification
+  subject scaffolds, recording subject maps and execution-specific document
+  limits through the input guide. Review guides identify candidate and automatic
+  comparison evidence, observation indices and criterion citation requirements.
+- Derive inline generation limits from the same execution-specific task schema
+  as the input guide, and map rejected nested fields to their actual authored
+  owner. `draft-review` stdout now returns a report with the form in `choices`;
+  its `--out` file and the Python draft API retain the editable form directly.
+- Locate undeclared native media arrays during input inspection, with the actual
+  request and reference-mapping owners. Explain new empty arrays and existing
+  media slots without inferring a provider interface or changing reference scope.
+- Report retained-requirement conflicts during draft inspection and protected
+  criterion changes against their comparison runs, with exact values, editable
+  owners and public actions. Authors retain responsibility for requirement and
+  grant scope under actual instructions; saved evidence remains intact.
+- Coordinate core authoring edits and Production source acquisition through the
+  existing document lock before reading the mutable file. Clarify independent
+  character task switches and explicit subject scopes within shared scenes.
+
 ## 2026.11.19.5
 
 - Stop schema alternative and condition checks at their first decisive

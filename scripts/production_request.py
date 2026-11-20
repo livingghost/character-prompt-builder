@@ -298,6 +298,13 @@ def check_authorization(root: Path, prepared: dict, request: dict, grant: dict, 
     reader = EvidenceWitnesses(root, items + list(recorded or []), live=recorded is None, run=prepared.get('run'),
                                authorization=authorization)
     request_scope.verify_sources(grant['request_scope'], principal, reader)
+    if principal is not None:
+        from production_authority_drafts import principal_document, validate_principal_approval
+        evidence = principal['evidence']
+        document = principal_document(reader.items[(evidence['path'], evidence['sha256'])])
+        if document is not None:
+            validate_principal_approval(document, prepared, payload, authority.document['issuer'],
+                                        file=evidence['path'])
     scoped = request_scope.assess(
         grant['request_scope'],
         case_id=decision['case'],

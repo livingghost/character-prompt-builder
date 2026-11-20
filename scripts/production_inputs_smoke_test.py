@@ -732,7 +732,9 @@ class AuthoringRecoveryTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(), before)
         with patch('catalog_retrieval.runtime.load_pack_catalog', side_effect=AssertionError('catalog read')):
             lines = session_entry_points.authoring_lines(self.root)
-        self.assertIn(str(path), '\n'.join(lines))
+        from cli_invocation import python_argv, shown
+        self.assertIn('Inspect saved inputs: ' + shown(python_argv(
+            tool.ROOT / 'scripts/production_workflow.py', 'inspect-inputs', '--root', str(self.root))), lines)
         work_ledger.suspend(self.root, reason='Synthetic task switch.')
         work_ledger.begin(self.root, 'A different synthetic task.', ['Inspect its own inputs.'])
         self.assertEqual(self.inspect()['inputs'], [])

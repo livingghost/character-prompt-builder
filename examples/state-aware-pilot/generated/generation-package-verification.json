@@ -3195,7 +3195,7 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9"
   },
   "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
-  "generation_input_sha256": "8c337211b2578f080d7b30475d0b6486cea02a5dcc309f1aada0148c5e78fe46",
+  "generation_input_sha256": "5ba7e5d3c5aa4a0a3e35b6297088a5911454229f5aa82448e5d624c9b11a8824",
   "parameters": {
     "height": 1024,
     "safety": {
@@ -3245,7 +3245,7 @@
     "effective_prompt": "Create a polished cinematic 2D soft-cel office portrait of a tall broad-shouldered blue-gray anthropomorphic wolf in a left three-quarter medium close view. Preserve the long canine muzzle, thick charcoal brows, electric-cyan eyes, pale muzzle and chest, paired charcoal cheek wedges, one small cyan stud on the subject-left upper ear rim, and one healed triangular notch on the outer upper subject-left ear tip. He wears a dry closed field-office shirt and braces his clearly separated left hand against the desk edge. His face presents controlled professional calm while shallow breathing, slight temple sweat, and tension concentrated in the left hand reveal stronger fear. His head stays angled toward a nearby colleague outside the frame while his eyes glance down and aside. Use crisp facial markings, warm window light, cool neutral office fill, restrained soft modeling and a quiet field-office background. Preserve the subject-left placement of the ear stud and healed notch. Keep the hand distinct from the desk at their contact. No pendant hangs at his neck.",
     "effective_prompt_sha256": "a14159faf9206fbba8e10d525d94a199b666d2a8af2747cf075e507c87d81121",
     "selected_references": [],
-    "generation_input_sha256": "8c337211b2578f080d7b30475d0b6486cea02a5dcc309f1aada0148c5e78fe46",
+    "generation_input_sha256": "5ba7e5d3c5aa4a0a3e35b6297088a5911454229f5aa82448e5d624c9b11a8824",
     "prompt_trace": [
       {
         "source_kind": "authored",

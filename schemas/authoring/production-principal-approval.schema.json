@@ -1,0 +1,143 @@
+{
+  "type": "object",
+  "properties": {
+    "artifact_type": {
+      "const": "production-principal-approval"
+    },
+    "binding": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "request_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "service": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model_identifier": {
+              "type": "string",
+              "minLength": 1
+            },
+            "operation": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "service",
+            "model_identifier",
+            "operation"
+          ],
+          "additionalProperties": false
+        },
+        "references": {
+          "type": "object",
+          "properties": {
+            "bindings": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "media": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "bindings",
+            "media"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "task_id",
+        "run",
+        "input_sha256",
+        "request_sha256",
+        "target",
+        "references"
+      ],
+      "additionalProperties": false
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "instruction": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "encoding": {
+          "const": "utf-8"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "encoding",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "approval": {
+      "type": "object",
+      "properties": {
+        "approved": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "scope": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "approved",
+        "scope"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "artifact_type",
+    "binding",
+    "actor",
+    "instruction",
+    "approval"
+  ],
+  "additionalProperties": false,
+  "title": "Principal instruction and request approval",
+  "description": "Retained literal instruction, exact prepared dispatcher binding and authored approval. A newly drafted document is unapproved."
+}

@@ -18,6 +18,39 @@ Targets are exact strings: `purpose`, `decision:<id>`, `delivery`, `canon:sheet`
 `authority` scopes. Grant only necessary targets. Calling a repair a local edit
 does not exempt its changed sources or protected criteria.
 
+## Protected criteria across runs
+
+A grant's `protected_criteria` names criterion ids whose complete definitions
+must stay identical to the comparison run. Direction compares the new run with
+the previous registered run in the same work task and `production_id`; an edit
+compares its revised task with the parent run. Added and removed protected ids
+also differ. The first run of a production series has no earlier comparison.
+
+Choose these invariants from the actual instruction. `task.criteria` continues
+to hold the intended hard and advisory review requirements. A hard criterion can
+change under explicit authority and remain a hard review requirement of the new
+run. Its changed definition cannot at the same time satisfy a grant requiring
+that id to stay identical. Scripts compare the declared values; they do not
+interpret an instruction or choose the protection scope.
+
+`workspace --phase decision`, `draft-execution`, `draft-authority-update` and
+unsent-run status expose the same comparison in
+`authorization_requirements.protected_criteria`. The report names the comparison
+run, production series, changed ids and their exact before/after values. Grant
+eligibility includes this constraint. A conflicting selected grant reports its
+actual declaration field and the public authority update action.
+
+When an existing actual instruction authorizes a change, use that evidence to
+author the corresponding grant terms. The run-bound additional-grant draft
+preserves every existing grant and records a separate selection; choose its
+`protected_criteria` from the invariants the instruction still requires, import
+it with the observed predecessor, and select that grant for the affected
+operation. A complete current-authority declaration can also record a supported
+change to existing grant terms. Follow the report's update action for that
+owner. Keep the new task's hard review requirements and every saved run intact.
+An already imported compact addition is retained evidence: draft a new update
+against current authority for another change.
+
 ## Authorization and execution records
 
 ```text
@@ -74,7 +107,39 @@ Binding IDs retain their exact delivery order. An external image submission's
 `request_decision` contains only this `rendition_review`; its ordinary outer
 authorization grants the exact operation.
 
-`draft-execution` produces one compact editing document for dispatcher and external image execution. Its `decisions` keep direction and submission separate. Select grants and write each operation's reason, stop assessments and request judgments; exact payloads, actors, counts and review hashes are derived from the prepared input when execution records the separate authorizations. For a dispatcher principal approval, select only its actual evidence `path` and `locator`; the runtime measures the bytes and binds the current issuer and exact request. Scope assessment entries contain criterion, conclusion and reason. The editing `rendition_review` contains its assessments; the runtime supplies the exact input and reference identities in the formal record.
+`draft-execution` produces one compact editing document for dispatcher and
+external image execution. Its `decisions` keep direction and submission separate.
+Select grants and write each operation's reason and request judgments. Author a
+common stop judgment once in `shared_stop_assessments`. Each decision's
+`additional_stop_assessments` adds judgments or replaces the complete shared
+judgment with the same id for that operation. Duplicate ids within either list
+are refused. An operation-specific `clear: false` therefore blocks that
+operation even when the shared judgment is clear; it does not inherit the
+shared evidence or approval. Every formal authorization retains its own complete
+`stop_assessments` and passes the ordinary current-condition check.
+
+For example, a synthetic shared assessment for `single-trial` can say
+`{"id":"single-trial","clear":true,"evidence":"Synthetic instruction permits this trial."}`.
+If submission needs separate evidence, put its complete replacement in the
+submission decision's `additional_stop_assessments`; direction keeps the shared
+assessment. Drafts leave `clear` false and evidence empty. Their derived
+`stop_conditions_sha256` identifies the actual condition definitions. A changed
+definition, including changed text under the same id, requires reassessment.
+Do not update only that digest to reuse an earlier judgment.
+Consuming a recorded authorization also compares the stop definitions of its
+recorded authority event with current authority before an external step. A
+later authority event with unchanged definitions remains usable; changed text
+under the same id requires a new assessment. The old receipt stays unchanged.
+An existing claim retains its original authorizations and cannot be repurposed
+to send again after the condition changes.
+
+Exact payloads, actors, counts and review hashes are derived from the prepared
+input when execution records the separate authorizations. For a dispatcher
+principal approval, select only its actual evidence `path` and `locator`; the
+runtime measures the bytes and binds the current issuer and exact request.
+Scope assessment entries contain criterion, conclusion and reason. The editing
+`rendition_review` contains its assessments; the runtime supplies the exact
+input and reference identities in the formal record.
 
 Before execution, `workspace --phase decision`, `status` and `draft-execution`
 expose `authorization_requirements`: each operation and all required targets,
@@ -161,6 +226,106 @@ the current `event_sha256` and an `update_action` containing the exact predecess
 argument. Edit that declaration from the actual instruction and use the returned
 action. A concurrent authority change requires another inspection and
 reconciliation; no `current` shortcut replaces the observed predecessor.
+
+### Retain a direct instruction for one request
+
+Use the actual instruction file when a dispatcher request needs exact principal
+approval. The actor is the instruction's actual speaker and must equal this work
+task's current issuer. Existing explicit instruction can supply the decision;
+the command introduces no additional user confirmation.
+
+```text
+python scripts/production_workflow.py draft-principal-approval --root STUDIO --run RUN --instruction-file instruction.txt --actor "ACTUAL_ISSUER" --out approval.json
+```
+
+The [principal approval schema](../../schemas/authoring/production-principal-approval.schema.json)
+keeps the literal UTF-8 text in `instruction.text`, with its source path and byte
+digest. Leading spaces, Unicode and line endings are preserved. Empty or invalid
+UTF-8 input is refused. The `binding` derives task, run, exact input and request
+hashes, target model/service and transported reference/media bindings from the
+saved run. It remains separate from `approval`, whose `approved` is initially
+null and whose `scope` is empty. The retained text is not replaced by a summary.
+
+After interpreting the real instruction, fill those approval fields only within
+its actual scope. The retained instruction is available even when the original
+file moves. Select the completed file as
+`{"path":"approval.json","locator":"whole"}` in the dispatcher submission's
+`principal_approval`. Import and execution refuse an unanswered, declined,
+different-run or mismatched structured approval. The same checks use captured
+evidence at later execution boundaries. A hash authenticates neither the speaker
+nor the words' meaning. Ordinary evidence files remain supported for instructions
+already recorded in another format.
+
+### Add authority for a prepared run
+
+```text
+python scripts/production_workflow.py draft-authority-update --root STUDIO --run RUN --approval-evidence approval.json --out authority-update.json
+python scripts/production_workflow.py authority-import --root STUDIO --file authority-update.json --expected-event EVENT
+```
+
+The first command writes a draft and prints the exact observed `expected_event`
+for the second command. The [authority update schema](../../schemas/authoring/production-authority-update.schema.json)
+contains only new grants and optional `additional_stop_conditions`. The current
+issuer, work task, run, prepared input/request, operation order and required
+targets are derived. Direction and submission receive separate grant entries.
+The actual actor, direct/delegated mode, permission reason and permitted
+submission validation modes remain unanswered. The report shows the mode this
+request needs and the current stop definitions; select that mode only where the
+instruction allows it. An optional request scope retains its ordinary delegated
+scope contract. The drafting operation never imports or activates these grants.
+
+For authority to select an already reviewed candidate, name that operation and
+candidate explicitly:
+
+```text
+python scripts/production_workflow.py draft-authority-update --root STUDIO --run RUN --phase selection --candidate CANDIDATE --approval-evidence actual-choice.txt --out selection-authority-update.json
+```
+
+The default `--phase execution` still derives direction and submission. The
+selection phase uses the existing selection owner to derive only `select` with
+the `delivery` target. It requires a recorded review with the hard criteria
+assessed, and pins the candidate, latest review and selection it would replace.
+Import refuses a changed basis; inspect the changed review or selection and
+draft again if the actual instruction still supports it. A nonpassing assessed
+criterion remains nonpassing: its explicit owner allowance belongs to the later
+selection decision. Neither a grant draft nor its import supplies that allowance,
+selects an image, approves an actor or completes the work.
+
+When no current grant covers selection, status and the `draft-acceptance`
+diagnostic provide this candidate-specific drafting action. Complete its actual
+instruction evidence, actor, direct/delegated mode and reason, follow its
+`authority-import` action, then inspect status for the acceptance decision. This
+grant covers the selection operation and `delivery` target within its work task;
+the actual selection authorization still binds the exact reviewed candidate and
+decision. The draft's candidate binding does not create a new candidate-limited
+grant format. General authority declarations remain the owner for other scopes.
+
+`--approval-evidence` may select the completed structured approval above or an
+existing actual instruction file. Omitting it leaves evidence unanswered and
+prevents import. A selected file's digest pins the acquired revision; changing
+that evidence requires a new draft from the revised instruction. The host judges
+the evidence and fills each grant's reason from the actual instruction. A
+nonempty file, completed form or derived target alone establishes no consent.
+
+Import checks the command's `--expected-event` and the draft's `expected_event`
+against the same current event within its transaction. It preserves every
+existing grant and stop definition, including revocations and captured scope
+evidence, and refuses a new grant that reuses an existing id. It derives the
+complete declaration and stores the compact source with its authored reasons as
+evidence. Editing the issuer or required targets cannot change their derived
+meaning. Another authority update requires inspection and a new draft; changing
+the command's predecessor alone cannot rebase an old decision. Status supplies
+that new drafting action after a compact update has been imported.
+
+The complete `production-authority.schema.json` declaration and its ordinary
+`authority-import` remain available for an actual change to existing grants or
+stop definitions. Its issuer and predecessor checks still apply. The import
+result can report added, updated, revoked and removed grant ids; that display
+does not modify the formal event. Use
+`production_document_contracts.py explain authority_update` or
+`production_document_contracts.py explain principal_approval` for the fields,
+and its `validate` command for a shape check. Actual evidence and current
+authority are checked only by their owning import or execution operation.
 
 An edit of the authority file takes effect only through `authority-import`:
 `draft-execution`, `execute` and `status` read the imported authority. When the

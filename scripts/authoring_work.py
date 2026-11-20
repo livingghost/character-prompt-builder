@@ -594,53 +594,58 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.out is not None:
                 c.atomic_write_json(args.out, report)
         else:
-            work = c.decode(args.work.read_bytes())
-            if args.command == 'context':
-                basis = work if args.basis_only else work['basis']
-                updated = revise_basis(basis, **_selections(args, basis))
-                if args.basis_only:
-                    work = updated
-                else:
-                    work['basis'] = updated
-            elif args.command == 'edit':
-                value = (c.decode(args.value_file.read_bytes()) if args.value_file else
-                         args.text_file.read_bytes().decode('utf-8') if args.text_file else _UNSET)
-                work = edit_value(work, args.pointer, value, operation=args.operation)
-            elif args.command == 'replace-text':
-                work = replace_text(work, args.pointer, args.old_file.read_bytes().decode('utf-8'),
-                                    args.new_file.read_bytes().decode('utf-8'))
-            if args.command in ('context', 'edit', 'replace-text'):
-                c.atomic_write_json(args.work, work)
-                basis_only = args.command == 'context' and args.basis_only
-                report = {'ok': True, 'basis' if basis_only else 'work': str(args.work),
-                          'validation': validate_work({'basis': work, 'content': {}} if basis_only else work)}
-            elif args.command == 'inspect':
-                report = resolve_work(work, complete=False)
-            elif args.command == 'check':
-                report = validate_work(work, complete=True, require_subject=True)
-            elif args.command in ('extract', 'export'):
-                complete = args.command == 'export'
-                resolved = resolve_work(work, complete=complete, require_subject=complete)
-                content = resolved['content']
-                basis_selected = not complete and args.basis
-                pointer = args.pointer if args.pointer is not None else '' if basis_selected else '/prompt'
-                value = _select(work['basis'] if basis_selected else content, pointer)
-                inspection = None
-                if complete:
-                    from catalog_api import configure_pack_runtime
-                    configure_pack_runtime(resolve_pack_runtime(parser, args).settings)
-                    if 'prompt' in content and pointer in ('/prompt', '/negative'):
-                        from build_prompt_artifacts import check_content, inspect_content
-                        inspection = inspect_content(check_content(content), generation=False,
-                                                     require_semantics=False)
-                raw = value.encode('utf-8') if isinstance(value, str) else (json.dumps(value, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
-                c.atomic(args.out, raw, replace=True)
-                report = {'ok': True, 'output': str(args.out), 'pointer': pointer,
-                          'selection': 'basis' if basis_selected else 'content',
-                          'state': 'complete' if complete else 'intermediate',
-                          'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw)}
-                if inspection is not None:
-                    report.update(input_validation=inspection['input_validation'], target=inspection['target'])
+            from contextlib import nullcontext
+            changes_work = args.command in ('context', 'edit', 'replace-text')
+            # Share the actual document lock with Production source acquisition.
+            # Read the current revision only after obtaining ownership.
+            with c.file_lock(args.work) if changes_work else nullcontext():
+                work = c.decode(args.work.read_bytes())
+                if args.command == 'context':
+                    basis = work if args.basis_only else work['basis']
+                    updated = revise_basis(basis, **_selections(args, basis))
+                    if args.basis_only:
+                        work = updated
+                    else:
+                        work['basis'] = updated
+                elif args.command == 'edit':
+                    value = (c.decode(args.value_file.read_bytes()) if args.value_file else
+                             args.text_file.read_bytes().decode('utf-8') if args.text_file else _UNSET)
+                    work = edit_value(work, args.pointer, value, operation=args.operation)
+                elif args.command == 'replace-text':
+                    work = replace_text(work, args.pointer, args.old_file.read_bytes().decode('utf-8'),
+                                        args.new_file.read_bytes().decode('utf-8'))
+                if args.command in ('context', 'edit', 'replace-text'):
+                    c.atomic_write_json(args.work, work)
+                    basis_only = args.command == 'context' and args.basis_only
+                    report = {'ok': True, 'basis' if basis_only else 'work': str(args.work),
+                              'validation': validate_work({'basis': work, 'content': {}} if basis_only else work)}
+                elif args.command == 'inspect':
+                    report = resolve_work(work, complete=False)
+                elif args.command == 'check':
+                    report = validate_work(work, complete=True, require_subject=True)
+                elif args.command in ('extract', 'export'):
+                    complete = args.command == 'export'
+                    resolved = resolve_work(work, complete=complete, require_subject=complete)
+                    content = resolved['content']
+                    basis_selected = not complete and args.basis
+                    pointer = args.pointer if args.pointer is not None else '' if basis_selected else '/prompt'
+                    value = _select(work['basis'] if basis_selected else content, pointer)
+                    inspection = None
+                    if complete:
+                        from catalog_api import configure_pack_runtime
+                        configure_pack_runtime(resolve_pack_runtime(parser, args).settings)
+                        if 'prompt' in content and pointer in ('/prompt', '/negative'):
+                            from build_prompt_artifacts import check_content, inspect_content
+                            inspection = inspect_content(check_content(content), generation=False,
+                                                         require_semantics=False)
+                    raw = value.encode('utf-8') if isinstance(value, str) else (json.dumps(value, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+                    c.atomic(args.out, raw, replace=True)
+                    report = {'ok': True, 'output': str(args.out), 'pointer': pointer,
+                              'selection': 'basis' if basis_selected else 'content',
+                              'state': 'complete' if complete else 'intermediate',
+                              'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw)}
+                    if inspection is not None:
+                        report.update(input_validation=inspection['input_validation'], target=inspection['target'])
     except AuthoringWorkError as error:
         report = error.report
     print(json.dumps(report, ensure_ascii=False, indent=2))

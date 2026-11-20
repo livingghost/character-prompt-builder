@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = 'schemas/authoring/production-input-draft.schema.json'
 DOCUMENT = 'references/runtime/production-authoring.md#discover-input-structures'
 EXAMPLE = 'examples/input-authoring/README.md'
+EXTERNAL_DOCUMENT = 'references/runtime/production-external-inputs.md'
+IMAGE_SCHEMA = 'schemas/authoring/image-input-plan.schema.json'
 
 # These describe responsibilities. Allowed keys and required fields come from
 # the schemas or the document's logical owner, never this navigation map.
@@ -45,6 +47,25 @@ OWNERS = {
     'authoring.source_files': ('Retain source provenance; the builder captures actual file bytes.', DOCUMENT),
 }
 
+# These are navigation locations within existing contracts, not additional
+# authoring fields or validation rules. The selected target kind remains an
+# explicit choice even when the task uses an external execution branch.
+CHILD_OWNERS = {
+    'authoring.task.recording': ('Own explicit subject IDs and their Studio character assignments for recording.',
+                                'references/character-identity-contract.md#source-to-input-and-review-coverage'),
+    'target.model': ('Select the actual model name or acquired external interface.', EXTERNAL_DOCUMENT),
+    'target.model.target': ('Name the exact service, model identifier and wire operation from evidence.', EXTERNAL_DOCUMENT),
+    'target.model.evidence': ('Select the saved evidence identifying this external interface.', EXTERNAL_DOCUMENT),
+    'target.model.prompt_input': ('Declare only prompt-form knowledge supported by acquired model evidence.', EXTERNAL_DOCUMENT),
+    'external.image_input': ('Select the image plan and current reference scope; choices.target owns its model.', EXTERNAL_DOCUMENT),
+    'external.image_input.external_request': ('Map the actual native prompt, model, count and operation fields.', EXTERNAL_DOCUMENT),
+    'external.image_input.external_request.model_identity': ('Identify an endpoint or tool when the native request has no model parameter.', EXTERNAL_DOCUMENT),
+    'external.image_input.external_request.schema': ('Select the exact acquired native request schema.', EXTERNAL_DOCUMENT),
+    'external.image_input.references': ('Choose actual image sources, their intended uses and delivery transports.', EXTERNAL_DOCUMENT),
+    'external.request': ('Edit independent controls supported by the selected native interface.', EXTERNAL_DOCUMENT),
+    'external.media_slots': ('Declare existing native media leaves while retaining unrelated request values.', EXTERNAL_DOCUMENT),
+}
+
 
 def action(root: Path, choices_path: str, *, field: str | None = None) -> dict:
     argv = python_argv(ROOT / 'scripts/production_workflow.py', 'explain-inputs',
@@ -53,6 +74,23 @@ def action(root: Path, choices_path: str, *, field: str | None = None) -> dict:
         argv.extend(('--field', field))
     return {'operation': 'explain-inputs', 'argv': argv, 'shown': shown(argv),
             'external_effect': False}
+
+
+def _contract_action(name: str, pointer: str | None = None) -> dict:
+    import production_document_contracts as contracts
+    return contracts.explain_action(name, pointer)
+
+
+def _child(root: Path, choices_path: str, field: str, *, contract: str | None = None,
+           pointer: str | None = None) -> dict:
+    result = {'field': field, 'explain_action': action(root, choices_path, field=field)}
+    if contract is not None:
+        import production_document_contracts as contracts
+        result.update(contracts.guidance(contract))
+        result['schema_action'] = _contract_action(contract, pointer)
+        if pointer is not None:
+            result['schema_pointer'] = pointer
+    return result
 
 
 def summary(root: Path, choices_path: str, choices: dict) -> dict:
@@ -69,17 +107,35 @@ def summary(root: Path, choices_path: str, choices: dict) -> dict:
     from production_reference_inputs import text_guide
     basis_path = (Path(choices_path).parent / 'work-basis.json').as_posix()
     context_argv = python_argv(ROOT / 'scripts/authoring_work.py', 'context', str(root / basis_path), '--basis-only')
+    source_row_path = (Path(choices_path).parent / 'source-row.json').as_posix()
+    source_argv = python_argv(ROOT / 'scripts/production_workflow.py', 'acquire-source',
+        '--root', str(root), '--choices', choices_path, '--source-row', source_row_path)
+    import production_input_preflight
+    task = (choices.get('authoring') or {}).get('task') or {}
+    input_contracts = {'target': _child(root, choices_path, 'target')}
+    if task.get('execution') == 'external' or choices.get('external') is not None:
+        input_contracts['external'] = _child(root, choices_path, 'external', contract='external_choices')
     return {'document_path': DOCUMENT, 'schema': SCHEMA, 'example': EXAMPLE,
             'explain_action': action(root, choices_path),
+            'input_contracts': input_contracts,
             'documents': selected,
             'reference_text': text_guide(choices),
+            'source_acquisition': {'operation': 'acquire-source', 'argv': source_argv, 'shown': shown(source_argv),
+                'source_row_file': source_row_path, 'schema': production_input_preflight.TASK_SCHEMA,
+                'schema_pointer': '/properties/sources/items',
+                'meaning': 'Write one complete Production source row, including its role and any identity selection. '
+                           'The command acquires bytes and derives applications, subjects and task sources.'},
+            **({'source_requirements': production_input_preflight.source_roles(root, task, choices_path=choices_path)}
+               if task.get('route') and task.get('execution') else {}),
             'authoring_work': {'basis': basis_path, 'actual_content': choices_path,
                 'context_argv': context_argv,
                 'context_command': shown(context_argv),
-                'inputs': '--request FILE; --source ID=FILE; --application APP=SOURCE#POINTER; '
+                'inputs': '--request FILE; --application APP=SOURCE#POINTER; '
                           '--subject SUBJECT=APP[,APP...]; --requirement APP; --focus character|supporting-setting',
                 'ownership': 'The basis owns acquired originals and current applications. Task sources are a derived '
-                             'view. A Production Specification subject supplies its actual identity owner when no '
+                             'view. Acquire Production sources with source_acquisition; the generic context command '
+                             'does not declare Production role or identity metadata. A Production Specification '
+                             'subject supplies its actual identity owner when no '
                              'independent adopted definition is selected.'},
             'meaning': 'Structure and source navigation only. Complete the actual author decisions; '
                        'check or prepare validates the selected content and its context.'}
@@ -99,7 +155,231 @@ def _shape(schema: dict) -> dict:
     for kind in ('oneOf', 'anyOf', 'allOf'):
         if kind in schema:
             result[kind] = [_shape(item) for item in schema[kind]]
+    for kind in ('items', 'if', 'then', 'else', 'not'):
+        if isinstance(schema.get(kind), dict):
+            result[kind] = _shape(schema[kind])
     return result
+
+
+def _field_shape(schema: dict) -> dict:
+    return {**_shape(schema), 'fields': {key: _shape(value)
+            for key, value in schema.get('properties', {}).items()}}
+
+
+def _fragment(row: dict, pointer: str) -> dict:
+    """Expose an exact published schema and keep its editable projection explicit."""
+    import production_document_contracts as contracts
+    fragment = contracts.schema_fragment('image_input', pointer)
+    row.update(content_schema=IMAGE_SCHEMA, content_schema_pointer=pointer,
+               schema_action=_contract_action('image_input', pointer),
+               published_declaration=_field_shape(fragment))
+    return fragment
+
+
+def _external_fields(root: Path, choices_path: str, choices: dict, name: str, row: dict,
+                     *, detailed: bool) -> None:
+    """Navigate the real external input owners without selecting interface values."""
+    import production_document_contracts as contracts
+    target = choices.get('target')
+    kind = target.get('kind') if isinstance(target, dict) else None
+    selected = choices.get('external')
+    selected_plan = selected.get('image_input') if isinstance(selected, dict) else None
+    if name == 'target':
+        row['selected_kind'] = kind
+        row['child_contracts'] = {'model': _child(root, choices_path, 'target.model')}
+        if detailed:
+            row['branches'] = [{
+                'kind': variant['properties']['kind']['const'],
+                'schema_pointer': '/properties/target/oneOf/' + str(index),
+                'declaration': _field_shape(variant)}
+                for index, variant in enumerate(contracts.schema_fragment('choices', '/properties/target')['oneOf'])
+                if 'kind' in variant.get('properties', {})]
+            row['required_action'] = ('Keep the selected kind, or choose catalog, acquired or external from the '
+                'actual target evidence. Follow the model child contract for that selection.')
+        return
+    if name.startswith('target.model'):
+        row['selected_kind'] = kind
+        if kind != 'external':
+            variants = contracts.schema_fragment('choices', '/properties/target')['oneOf']
+            row['target_branches'] = [{
+                'kind': variant['properties']['kind']['const'],
+                'model_field': 'model_file' if variant['properties']['kind']['const'] == 'acquired' else 'model',
+                'declaration': _shape(variant['properties'].get('model', variant['properties'].get('model_file', {})))}
+                for variant in variants if 'kind' in variant.get('properties', {})]
+            row['external_contract'] = {**contracts.guidance('external_target'),
+                                       'explain_action': _contract_action('external_target')}
+            if kind is not None:
+                selected_branch = next((item for item in row['target_branches'] if item['kind'] == kind), None)
+                if selected_branch is not None:
+                    row['declaration'] = selected_branch['declaration']
+            row['required_action'] = ('Select target.kind explicitly from the actual model/interface evidence. '
+                'The external model object applies only to kind external; a catalog model uses its ID string '
+                'and an acquired model uses model_file.')
+            return
+        if name == 'target.model':
+            entry = contracts.metadata('external_target')
+            row['contract'] = {key: value for key, value in entry.items() if key != 'structure'}
+            row['declaration'] = entry['structure'][0]
+            row['template'] = entry['template']
+            row['child_contracts'] = {
+                'target': _child(root, choices_path, name + '.target', contract='image_input', pointer='/$defs/target'),
+                'evidence': _child(root, choices_path, name + '.evidence', contract='image_input', pointer='/$defs/evidence'),
+                'prompt_input': _child(root, choices_path, name + '.prompt_input', contract='model_prompt_input')}
+            row['required_action'] = ('Fill requested, target and evidence from the selected interface. '
+                'Omit catalog_status, catalog_model and unacquired prompt_input; the builder derives catalog '
+                'facts and evidence hashes. Follow a child action for its exact shape.')
+        elif name == 'target.model.prompt_input':
+            entry = contracts.metadata('model_prompt_input')
+            row['contract'] = {key: value for key, value in entry.items() if key != 'structure'}
+            row['declaration'] = _field_shape(contracts.schema_fragment('model_prompt_input', ''))
+            row['schema_action'] = _contract_action('model_prompt_input', '')
+            row['required_action'] = ('Include this optional declaration only when acquired evidence supports '
+                'the selected model form. Leaving it absent records unresolved knowledge for an unlisted '
+                'interface; it does not select natural language or tags.')
+        else:
+            child = name.rsplit('.', 1)[1]
+            fragment = _fragment(row, '/$defs/' + child)
+            if child == 'evidence':
+                fragment['required'].remove('sha256')
+            row['declaration'] = _field_shape(fragment)
+            row['template'] = {key: None for key in fragment['required']}
+            row['required_action'] = ('Select these values from the actual acquired interface evidence. '
+                'For evidence, path is Studio-relative and locator identifies the relevant section; '
+                'an omitted sha256 is derived from the selected bytes.')
+        return
+    if name == 'external':
+        row['contract'] = {key: value for key, value in contracts.metadata('external_choices').items()
+                           if key != 'structure' and (detailed or key not in {'template', 'representations'})}
+        row['selected_representation'] = ('existing-plan' if isinstance(selected_plan, str) else
+                                          'editable' if isinstance(selected, dict) else 'unselected')
+        row['child_contracts'] = {
+            'image_input': _child(root, choices_path, 'external.image_input', contract='image_input'),
+            'request': _child(root, choices_path, 'external.request'),
+            'media_slots': _child(root, choices_path, 'external.media_slots')}
+        if detailed:
+            row['template'] = contracts.metadata('external_choices')['template']
+            row['required_action'] = ('Use the complete editable template for a new request, then fill '
+                'image_input and the native request through their child contracts. To select an existing '
+                'complete plan instead, use only {"image_input": STUDIO_RELATIVE_PLAN_PATH}.')
+        return
+    if name == 'external.image_input':
+        fragment = _fragment(row, '')
+        fragment['required'].remove('model')
+        fragment['properties'].pop('model')
+        row['declaration'] = _field_shape(fragment)
+        row['template'] = {'artifact_type': fragment['properties']['artifact_type']['const'],
+                           'references': [], 'external_request': None}
+        row['template_scope'] = 'An unanswered inline plan. Select the actual references or an exact request with none.'
+        row['derived_fields'] = {'model': 'choices.target'}
+        row['child_contracts'] = {
+            'external_request': _child(root, choices_path, name + '.external_request',
+                                      contract='image_input', pointer='/properties/external_request'),
+            'references': _child(root, choices_path, name + '.references',
+                                contract='image_input', pointer='/$defs/reference')}
+        if isinstance(selected_plan, str):
+            row['source'] = {'file': selected_plan}
+            row['required_action'] = ('The selected file owns the complete plan. Use its published schema, '
+                'including its model and request file; the inline template applies when authoring the '
+                'complete external envelope instead.')
+        else:
+            row['required_action'] = ('Fill external_request from the native interface field mappings and '
+                'select the actual ordered references. Keep model at choices.target; the builder supplies '
+                'it here. Follow the child actions for request and reference shapes.')
+        return
+    if name == 'external.image_input.external_request':
+        fragment = _fragment(row, '/properties/external_request/anyOf/0')
+        generated = {'file', 'sha256', 'reference_fields', 'reference_text'}
+        fragment['required'] = [key for key in fragment['required'] if key not in generated]
+        fragment['properties'] = {key: value for key, value in fragment['properties'].items() if key not in generated}
+        row['declaration'] = _field_shape(fragment)
+        row['template'] = {key: None for key in fragment['required']}
+        row['derived_fields'] = sorted(generated)
+        row['field_paths'] = 'Paths are arrays of object keys and array indices in the native request.'
+        row['child_contracts'] = {
+            'model_identity': _child(root, choices_path, name + '.model_identity',
+                                     contract='image_input', pointer='/$defs/model-identity'),
+            'schema': _child(root, choices_path, name + '.schema',
+                             contract='image_input', pointer='/properties/external_request/anyOf/0/properties/schema')}
+        row['required_action'] = ('Set prompt_field to the actual prompt path and count to the expected output '
+            'count. Set model_field to its native parameter path, or null and fill model_identity for an '
+            'evidenced endpoint/tool. operation_field and count_field are null when absent from the native '
+            'interface. Select the acquired request schema through its child contract. Tag input also '
+            'requires its negative_field, prompt_syntax and acquired vocabulary_record.')
+        return
+    if name in {'external.image_input.external_request.model_identity',
+                'external.image_input.external_request.schema'}:
+        identity = name.endswith('.model_identity')
+        pointer = '/$defs/model-identity' if identity else '/properties/external_request/anyOf/0/properties/schema/anyOf/0'
+        fragment = _fragment(row, pointer)
+        if identity:
+            evidence = contracts.schema_fragment('image_input', '/$defs/evidence')
+            evidence['required'].remove('sha256')
+            fragment['properties']['evidence'] = evidence
+            row['template'] = {'kind': None, 'value': None,
+                               'evidence': {key: None for key in evidence['required']}}
+        else:
+            fragment['required'].remove('sha256')
+            row['template'] = {'path': None, 'pointer': []}
+        row['declaration'] = _field_shape(fragment)
+        row['required_action'] = (
+            'Use kind endpoint or tool, the exact interface value and saved evidence when model_field is null. '
+            'When model_field names a native parameter, omit model_identity or set it to null.' if identity else
+            'Set path to the Studio-relative acquired schema file and pointer to its exact keys/indices; '
+            '[] selects the complete document. The builder captures sha256. Native parameters remain '
+            'governed by this selected schema.')
+        return
+    if name == 'external.image_input.references':
+        fragment = _fragment(row, '/$defs/reference')
+        row['declaration'] = {'type': 'array', 'items': _field_shape(fragment)}
+        row['direct_reference_template'] = {key: [] if fragment['properties'][key].get('type') == 'array' else None
+                                            for key in fragment['required']}
+        row['direct_reference_template']['transport'] = None
+        row['transport_choices'] = [
+            {'local_file': True}, {'value': None, 'evidence': {'path': None, 'locator': None}}]
+        row['canonical_reference_template'] = {'id': None, 'transport': None}
+        row['selected_source_owner'] = ('external.reference_delivery.choices'
+            if isinstance(selected, dict) and selected.get('reference_delivery') is not None else name)
+        row['required_action'] = ('Select actual source files, uses, exclusions and subject assignments. '
+            'Use local_file only when the host accepts local carriers; otherwise retain the actual returned '
+            'upload value and evidence. transport.field selects a native media path when its mapping is '
+            'ambiguous or no media array is declared yet. Declare each enclosing native media array in '
+            'external.request; [] starts a new empty media array. For canonical reference_delivery, '
+            'its choices own source scope and these rows own '
+            'only ID and transport. An exact request with no references uses an empty array.')
+        row['request_action'] = action(root, choices_path, field='external.request')
+        return
+    if name == 'external.media_slots':
+        fragment = _fragment(row, '/$defs/field-path')
+        row['declaration'] = {'type': 'array', 'items': _shape(fragment)}
+        row['validator_source'] = 'scripts/production_external_inputs.py:_media'
+        row['required_action'] = ('List the exact field paths of existing media leaves in external.request. '
+            'The builder may reorder or remove only those declared media items; it retains unrelated native '
+            'values. For a new empty media array, declare that array as [] in external.request, leave '
+            'media_slots empty, and give each selected reference its explicit transport.field. Never mark '
+            'independent prompt, model, count, operation or control fields as media slots.')
+        row['request_action'] = action(root, choices_path, field='external.request')
+        return
+    if name == 'external.request':
+        row['declaration'] = {'anyOf': [{'type': 'object'}, {'type': 'array'}]}
+        row['validator_source'] = 'scripts/production_external_inputs.py:build'
+        schema = ((selected_plan or {}).get('external_request') or {}).get('schema') if isinstance(selected_plan, dict) else None
+        row['native_schema'] = copy.deepcopy(schema)
+        row['child_contracts'] = {'schema': _child(root, choices_path,
+            'external.image_input.external_request.schema', contract='image_input',
+            pointer='/properties/external_request/anyOf/0/properties/schema'),
+            'media_slots': _child(root, choices_path, 'external.media_slots')}
+        row['derived_values'] = {'prompt': 'authoring.delivery', 'model': 'choices.target',
+                                'count': 'external.image_input.external_request.count',
+                                'media': 'external.image_input.references'}
+        row['required_action'] = ('Use the actual native request object or array and its independent controls '
+            'from the acquired schema. The declared field mappings supply prompt, model, operation, count '
+            'and media during assembly. Declare each enclosing media array explicitly: [] starts a new '
+            'empty media array, with reference transport.field selecting its item location. Keep native '
+            'operation records and independent controls; media_slots identifies existing media leaves '
+            'when retaining a populated array. A schema for another interface does not define these controls.')
+        from production_external_inputs import media_location_diagnostics
+        row['media_location_diagnostics'] = media_location_diagnostics(
+            selected, root=root, choices_path=choices_path)
 
 
 def _schema_field(schema: dict, parts: list[str]) -> dict:
@@ -120,6 +400,22 @@ def _value(choices: dict, parts: list[str]):
             return False, None
         value = value[part]
     return True, value
+
+
+def _document_execution_scope(choices: dict) -> dict:
+    """Read current generation-document limits from the existing task schema."""
+    import production_document_contracts as contracts
+    from production_input_preflight import generation_scope
+    scope = generation_scope(choices)
+    allowed = set(scope['permitted_generation_fields'])
+    return {**scope,
+            'permitted_generation_documents': sorted(allowed & contracts.DOCUMENT_KEYS),
+            'not_permitted_generation_documents': sorted(contracts.DOCUMENT_KEYS - allowed),
+            'meaning': 'These are the current task schema limits for execution inputs under generation. '
+                       'A known document key is not permission to send it through this execution branch. '
+                       'Keep applicable research or source evidence at its existing source owner; '
+                       'select documents as execution inputs only where permitted. Other route, content '
+                       'and evidence checks still apply.'}
 
 
 def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
@@ -145,10 +441,15 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
         # Deep schema traversal is an explicit registry explain/pointer read.
         # This source-location view does not repeat an entire schema closure.
         result.update(field=field, selected=present, source=selected if present else None,
-                      contract={key: value for key, value in contract.items() if key != 'structure'})
+                      choices_pointer='/authoring/documents/' + name,
+                      contract={key: value for key, value in contract.items() if key != 'structure'},
+                      contract_action=contracts.explain_action(name))
+        scope = _document_execution_scope(choices)
+        result['execution_input'] = {'permitted_as_generation_document':
+            name in scope['permitted_generation_documents'] if scope['execution_selected'] else None, **scope}
         return result
-    if field and field not in OWNERS:
-        raise ValueError('select one input field: ' + ', '.join(OWNERS) +
+    if field and field not in OWNERS and field not in CHILD_OWNERS:
+        raise ValueError('select one input field: ' + ', '.join((*OWNERS, *CHILD_OWNERS)) +
                          ', or authoring.documents.<document-name>')
     selected_fields = [field] if field else list(OWNERS)
     fields = []
@@ -157,12 +458,14 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
         actual = _schema_field(schema, parts)
         parent = _schema_field(schema, parts[:-1]) if len(parts) > 1 else schema
         present, value = _value(choices, parts)
-        purpose, document = OWNERS[name]
+        purpose, document = (OWNERS | CHILD_OWNERS)[name]
         row = {'field': name, 'purpose': purpose, 'document_path': document,
-               'schema_pointer': '/properties/' + '/properties/'.join(parts),
+               'choices_pointer': '/' + '/'.join(parts),
                'required_in_draft': parts[-1] in parent.get('required', []),
                'present': present, 'value_state': 'absent' if not present else 'null' if value is None else 'supplied',
                'declaration': _shape(actual)}
+        if name in OWNERS:
+            row['schema_pointer'] = '/properties/' + '/properties/'.join(parts)
         if isinstance(value, dict) and 'file' in value:
             row['source'] = {key: copy.deepcopy(value[key]) for key in ('file', 'field') if key in value}
         if name == 'authoring.task':
@@ -178,13 +481,66 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
                 **{key: {'schema': row['content_schema'], 'pointer': '/properties/' + key}
                    for key in ('sources', 'criteria', 'recording', 'world_views')},
             }
+            row['child_contracts']['recording']['explain_action'] = action(
+                root, choices_path, field='authoring.task.recording')
+        if name == 'authoring.task.recording':
+            row['content_schema'] = 'schemas/authoring/production-task.schema.json'
+            row['schema_pointer'] = '/properties/recording'
+            fragment = c.load(ROOT / row['content_schema'])['properties']['recording']
+            row['declaration'] = _field_shape(fragment)
+            row['schema_fragment'] = fragment
+            row['subject_declaration'] = {'choices_pointer': '/authoring/task/recording/subject_map',
+                'schema_pointer': '/properties/recording/properties/subject_map',
+                'meaning': 'Each key is an explicitly declared image subject ID; its value is the Studio character ID. '
+                           'The other recording choices retain their existing required fields.'}
         if name == 'authoring.documents':
             row['available_documents'] = sorted(contracts.DOCUMENT_KEYS)
             row['selected_documents'] = copy.deepcopy(value) if isinstance(value, dict) else {}
             row['document_help'] = 'Select --field authoring.documents.NAME for its complete contract and current file.'
+            row['execution_inputs'] = _document_execution_scope(choices)
+        if name == 'authoring.generation':
+            scope = _document_execution_scope(choices)
+            allowed = set(scope['permitted_generation_fields'])
+            declaration = copy.deepcopy(actual)
+            declaration['properties'] = {key: value for key, value in actual.get('properties', {}).items()
+                                         if key in allowed}
+            row['declaration'] = _field_shape(declaration)
+            row['content_schema'] = scope['schema']
+            row['content_schema_pointers'] = scope['schema_pointers']
+            row['schema_scope'] = 'Editable inline choices within the selected execution contract; derived fields retain their own owners.'
+            row['execution_inputs'] = scope
+            row['derived_owners'] = {}
+            documents = (choices.get('authoring') or {}).get('documents') or {}
+            for key in sorted(allowed - set(declaration['properties'])):
+                if key in contracts.DOCUMENT_KEYS:
+                    child = _child(root, choices_path, 'authoring.documents.' + key, contract=key)
+                    child['choices_pointer'] = '/authoring/documents/' + key
+                    if key in documents:
+                        child['source'] = copy.deepcopy(documents[key])
+                else:
+                    field_owner = {'model': 'target', 'service': 'target',
+                                   'references': 'authoring.references', 'request_validation': 'validation'}.get(key)
+                    if field_owner is None:
+                        continue
+                    child = _child(root, choices_path, field_owner)
+                    child['choices_pointer'] = '/' + field_owner.replace('.', '/')
+                row['derived_owners'][key] = child
+            row['required_action'] = ('Edit the listed inline fields for the selected execution. '
+                if declaration['properties'] else 'Keep authoring.generation empty for the selected execution. ')
+            row['required_action'] += ('Use derived_owners to select compiled generation documents and bindings '
+                'through their existing owners. Retain the brief at its existing source, specification, direction '
+                'or prompt owner; this guide does not move or duplicate its content.')
         if name in {'authoring.references', 'external', 'authoring.delivery'}:
             from production_reference_inputs import text_guide
             row['reference_text'] = text_guide(choices)
+        if name == 'target' or name.startswith('target.model') or name == 'external' or name.startswith('external.'):
+            _external_fields(root, choices_path, choices, name, row, detailed=field is not None)
         fields.append(row)
     result['fields'] = fields
+    if field is not None:
+        check = python_argv(ROOT / 'scripts/production_workflow.py', 'check', '--root', str(root),
+                            '--choices', choices_path)
+        result['next_actions'] = [{'operation': 'check', 'argv': check, 'shown': shown(check),
+                                   'reason': 'After editing the owning fields, check this complete current draft.',
+                                   'external_effect': False}]
     return result

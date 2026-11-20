@@ -22,6 +22,7 @@ import production_variation as variation
 import execution_lifecycle as accounting
 import studio_workspace as studio
 import transport_synthetic
+from cli_invocation import python_argv, shown
 from test_production_execution import decisions
 
 
@@ -502,7 +503,9 @@ class AuthoringContinuationTests(unittest.TestCase):
                          self.choices['task_changes']['direction']['purpose'])
         self.assertEqual(context['prepared_run'], self.run)
         lines = '\n'.join(session_entry_points.authoring_lines(self.root))
-        self.assertLess(lines.index(str(self.root / self.choices_path)), lines.index('Saved authored revision: ' + self.run))
+        self.assertLess(lines.index('Inspect saved inputs:'), lines.index('Saved production revision:'))
+        self.assertIn(shown(python_argv(workflow.ROOT / 'scripts/production_workflow.py',
+            'status', '--root', str(self.root), '--run', self.run)), lines)
         self.assertEqual((self.root / 'built/production-task.json').read_bytes(), before)
         self.assertEqual(store.event_rows(self.root, self.run), events)
 
@@ -549,7 +552,9 @@ class AuthoringContinuationTests(unittest.TestCase):
         self.assertEqual(c.sha256_file(retained),dependency['sha256'])
         self.assertEqual(workflow.read_run(self.root,self.run).prepared,saved.prepared)
         lines = '\n'.join(session_entry_points.authoring_lines(self.root))
-        self.assertLess(lines.index(str(self.root / drafted['choices_file'])), lines.index('Saved authored revision: ' + self.run))
+        self.assertLess(lines.index('Inspect saved inputs:'), lines.index('Saved production revision:'))
+        self.assertIn(shown(python_argv(workflow.ROOT / 'scripts/production_workflow.py',
+            'status', '--root', str(self.root), '--run', self.run)), lines)
 
 
 class InitialAuthoringContinuationTests(unittest.TestCase):

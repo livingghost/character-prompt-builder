@@ -24,14 +24,16 @@ DERIVED_PREFIXES = ('reference:', 'state:')
 ReadSource = Callable[[str], bytes]
 
 
-REPAIR = ('Correct the identity field this message names in the task: the identity of an applied source in '
-          'sources[].identity (subject_ids and selectors), or a criterion\'s identity_bindings or identity_review in '
-          'criteria[], as the guidance section describes. In a draft these fields sit under authoring.task of '
-          'choices.json. Then run check or prepare again.')
+REPAIR = ('Correct the named criterion identity_bindings or identity_review at its authored task location. '
+          'For a draft source identity, correct the public source-row descriptor and run '
+          'production_workflow.py acquire-source --root STUDIO --choices CHOICES --source-row SOURCE_ROW; '
+          'the acquired descriptor owns the projected source identity. A complete standalone ProductionTask '
+          'owns its source rows directly. Then run check or prepare again.')
 
 
-def _fail(message: str, *, code: str = 'IDENTITY_CONTRACT_INVALID', **details: Any) -> None:
-    raise ProductionError(code, message, phase='identity-coverage', required_action=REPAIR, **details)
+def _fail(message: str, *, code: str = 'IDENTITY_CONTRACT_INVALID',
+          required_action: str = REPAIR, **details: Any) -> None:
+    raise ProductionError(code, message, phase='identity-coverage', required_action=required_action, **details)
 
 
 def _strings(value: Any, label: str, *, empty: bool = False) -> list[str]:
@@ -235,7 +237,7 @@ def _validate_task(task: dict) -> None:
                       'criterion bindings describe explicit scene obligations.',
                       source=ident)
     criterion_ids = set()
-    for criterion in task.get('criteria', []):
+    for criterion_index, criterion in enumerate(task.get('criteria', [])):
         ident = c.text(criterion['id'], 'criterion id')
         if ident in criterion_ids:
             _fail('Task criterion IDs must be unique.', criterion=ident)
@@ -247,18 +249,33 @@ def _validate_task(task: dict) -> None:
         if not isinstance(bindings, list):
             _fail('identity_bindings must be an array.', criterion=ident)
         seen = set()
-        for binding in bindings:
+        for binding_index, binding in enumerate(bindings):
             c.exact(binding, {'source', 'subject_ids', 'selectors', 'treatment', 'reason', 'carriers', 'variation'},
                     'identity binding')
             source_id = c.text(binding['source'], 'identity binding source')
             source = sources.get(source_id)
+            binding_pointer = '/criteria/' + str(criterion_index) + '/identity_bindings/' + str(binding_index)
             if source is None and not source_id.startswith(DERIVED_PREFIXES):
-                _fail('An identity binding names an unknown source.', source=source_id, criterion=ident)
+                _fail('An identity binding names an unknown source.', source=source_id, criterion=ident,
+                      cause='identity-binding-source-unknown', pointer=binding_pointer + '/source',
+                      repair_owner={'kind': 'criterion', 'pointer': binding_pointer + '/source'},
+                      required_action='Set this criterion binding source to its intended applied source ID, '
+                          'or acquire that source through acquire-source before binding it. '
+                          'For draft criteria, edit authoring.task.criteria in choices.json.')
             if source is not None and 'identity' not in source:
-                _fail('An identity binding requires the source identity selection.', source=source_id)
+                _fail('An identity binding requires the source identity selection.', source=source_id,
+                      criterion=ident, cause='source-identity-not-declared',
+                      pointer=binding_pointer + '/source')
             subjects = _strings(binding['subject_ids'], 'binding subject IDs')
             if source is not None and set(subjects) - set(source['identity']['subject_ids']):
-                _fail('An identity binding exceeds its source subject scope.', source=source_id)
+                _fail('An identity binding exceeds its source subject scope.', source=source_id,
+                      criterion=ident, cause='identity-binding-subject-scope',
+                      pointer=binding_pointer + '/subject_ids',
+                      expected_subject_ids=source['identity']['subject_ids'], actual_subject_ids=subjects,
+                      repair_owner={'kind': 'criterion', 'pointer': binding_pointer + '/subject_ids'},
+                      required_action='Bind only subjects within the selected source identity scope. '
+                          'If the source scope itself was selected incorrectly, reacquire its Production '
+                          'source-row descriptor using the actual source authority before checking again.')
             _selectors(binding['selectors'], 'binding selectors')
             if binding['treatment'] not in TREATMENTS:
                 _fail('Unknown identity scene treatment.')
@@ -460,6 +477,8 @@ def _inventory(task: dict, read_source: ReadSource, context: dict) -> dict:
     return {'artifact_type': 'identity-coverage', 'structural_only': True, 'status': 'inventory',
             'sources': list(sources.values()), 'bindings': bindings, 'whole_reviews': whole_reviews,
             'subject_ids': sorted(subjects), 'actual_subject_ids': sorted(actual),
+            **({'subject_declaration': copy.deepcopy(context['subject_declaration'])}
+               if 'subject_declaration' in context else {}),
             'required_subject_ids': sorted(required), 'unbound_source_values': unbound_source_values,
             'unresolved': unresolved,
             'missing_carriers': missing_carriers, 'missing_subject_sources': sorted(required - subjects),
@@ -568,6 +587,48 @@ def _reference_carrier(carrier: dict, binding: dict, references: dict) -> dict:
             **{key: copy.deepcopy(reference[key]) for key in ('controls', 'intended_influence') if key in reference}}
 
 
+def subject_gap(report: dict) -> dict:
+    """Explain absent input declarations separately from a declared scope mismatch.
+
+    Only the adapter knows which existing input declared the actual subjects.
+    Source names and prompt prose never supply that declaration implicitly.
+    """
+    declaration = copy.deepcopy(report.get('subject_declaration') or {})
+    missing = declaration.get('present') is False
+    owner = declaration.get('owner')
+    location = ('Production Specification /subjects' if owner == 'production_spec' else
+                'task recording.subject_map' if owner == 'recording.subject_map' else
+                'actual input subject declaration')
+    if missing:
+        message = 'Identity sources or reviews name subjects, but this image input has no subject declaration.'
+        repair = ('Declare the actual image subjects in a selected Production Specification at /subjects. '
+                  'Use production_document_contracts.py explain production_spec --pointer /properties/subjects/items '
+                  'and the existing production_spec.py draft owner. Acquired source assignments and prompt '
+                  'text do not declare the image subjects.')
+    else:
+        message = 'Identity sources or reviews name subjects outside the declared subject scope.'
+        repair = ('Compare ' + location + ' with the listed unknown IDs and actual_subject_ids. Correct the '
+                  'mistaken input declaration or the source/criterion subject scope at its existing owner. '
+                  'For an acquired draft source, correct its public source-row descriptor and reacquire it '
+                  'with acquire-source; do not edit a projected source row.')
+    result = {'cause': 'input-subject-declaration-missing' if missing else 'identity-subject-scope-mismatch',
+              'message': message, 'required_action': repair,
+              'actual_subject_ids': list(report.get('actual_subject_ids', [])),
+              **({'subject_declaration': declaration, 'repair_owner': copy.deepcopy(declaration)}
+                 if declaration else {})}
+    if owner == 'production_spec':
+        import production_document_contracts as contracts
+        result['guidance'] = contracts.guidance('production_spec')
+        result['schema_pointer'] = '/properties/subjects/items'
+        result['schema_action'] = contracts.explain_action('production_spec', result['schema_pointer'])
+        result['next_action'] = result['schema_action']
+    elif owner == 'recording.subject_map':
+        result['guidance'] = {'document_path': 'references/character-identity-contract.md#source-to-input-and-review-coverage',
+                              'schema': 'schemas/authoring/production-task.schema.json'}
+        result['schema_pointer'] = '/properties/recording/properties/subject_map'
+    return result
+
+
 def compile(task: dict, read_source: ReadSource, *, context: dict) -> dict:
     """Verify explicit obligations and retain their complete source context.
 
@@ -581,6 +642,10 @@ A verified binding still needs independent rendition and candidate assessment.
     gaps = {key: report[key] for key in ('missing_carriers', 'missing_subject_sources',
              'missing_whole_reviews', 'unknown_subject_ids', 'requires_identity_source') if report[key]}
     if gaps:
+        if report['unknown_subject_ids']:
+            diagnostic = subject_gap(report)
+            _fail(diagnostic.pop('message'), code='IDENTITY_COVERAGE_INCOMPLETE',
+                  gaps=gaps, **diagnostic)
         _fail('An explicit identity obligation or its independent review basis is incomplete.',
               code='IDENTITY_COVERAGE_INCOMPLETE', gaps=gaps)
     try:

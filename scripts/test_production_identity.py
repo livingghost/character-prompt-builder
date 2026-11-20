@@ -693,6 +693,153 @@ class IdentityAuthoringTests(unittest.TestCase):
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
 
 
+class SubjectDeclarationGuidanceTests(unittest.TestCase):
+    """A public repair reaches the declared input owner without guessing a cast."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix='cpb-subject-guide-')
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.enterContext(authoring_fixtures.scratch_home(self.root / 'home'))
+        self.original = c.encoded({'subject_id': 'A', 'shape': 'A segmented open shell.'})
+        (self.root / 'definition.json').write_bytes(self.original)
+        self.task = {'task_id': 'synthetic-subject-guide', 'route': 'generation', 'artifact': 'image',
+            'execution': 'external', 'features': [], 'direction': {'decisions': []},
+            'sources': [{'id': 'definition', 'path': 'definition.json', 'role': 'identity-contract',
+                'disposition': 'applied', 'locator': 'whole document', 'reason': 'Synthetic adopted definition.',
+                'identity': {'subject_ids': ['A'], 'selectors': ['']}}],
+            'criteria': [{'id': 'whole', 'text': 'Compare the complete selected identity.',
+                'strength': 'hard', 'evidence': 'image', 'identity_review': ['A']}]}
+        self.choices = {'target': None, 'external': None,
+                        'authoring': {'task': self.task, 'documents': {}}}
+        self.path = 'choices.json'
+        self.save()
+
+    def save(self):
+        (self.root / self.path).write_bytes(c.encoded(self.choices))
+
+    def read(self, path):
+        return (self.root / path).read_bytes()
+
+    def report(self, **kwargs):
+        return production_identity.inspect(self.task, self.read, **kwargs)
+
+    def gap(self, report, **kwargs):
+        return next(row for row in production_inputs._identity_gaps(
+            report, root=self.root, choices_path=self.path, **kwargs)
+            if 'unknown_subject_ids' in row.get('gaps', {}))
+
+    def invoke(self, action, *, json_output=True):
+        result = subprocess.run(action['argv'], cwd=self.root, capture_output=True,
+                                text=True, encoding='utf-8')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout) if json_output else result.stdout
+
+    def test_missing_input_subjects_reach_public_explain_and_the_existing_draft_owner(self):
+        # A source's structured subject ID and a name in the real prompt are not
+        # an image-input subject declaration, even when both use the same ID.
+        inputs = {'references': [], 'external_request': {
+            'request': {'prompt': 'Show A, the synthetic segmented shell.'}, 'prompt_field': ['prompt']}}
+        report = self.report(inputs=inputs)
+        self.assertEqual(report['subject_ids'], ['A'])
+        self.assertEqual(report['actual_subject_ids'], [])
+        diagnostic = self.gap(report)
+        self.assertEqual(diagnostic['cause'], 'input-subject-declaration-missing')
+        self.assertEqual((diagnostic['field'], diagnostic['file'], diagnostic['pointer']),
+            ('authoring.documents.production_spec', self.path, '/authoring/documents/production_spec'))
+        self.assertEqual(diagnostic['repair_owner']['pointer'], '/subjects')
+        before = self.read(self.path)
+        public = self.invoke(diagnostic['next_action'])
+        self.assertFalse(public['selected'])
+        scaffold = public['contract']['scaffold']
+        help_text = self.invoke(scaffold['help_action'], json_output=False)
+        for flag in ('--kind', '--subject', '--continuity', '--render-intent'):
+            self.assertIn(flag, help_text)
+        template = self.invoke(scaffold['template_action'])
+        self.assertEqual(template, c.load(production_inputs.ROOT / scaffold['template_path']))
+        shape = self.invoke(diagnostic['schema_action'])['schema_fragment']
+        self.assertIn('id', shape['required'])
+        self.assertIn('robot', shape['properties']['domain']['enum'])
+        self.assertEqual(self.read(self.path), before)
+
+        # Supply independent explicit choices to the original draft command.
+        # The guide contributes no subject, domain, target or appearance value.
+        (self.root / 'render.json').write_bytes(c.encoded({
+            'artifact_type': 'render-intent', 'execution_mode': 'text-to-image'}))
+        create = {'argv': [*scaffold['help_action']['argv'][:-1], 'spec.json',
+            '--root', str(self.root), '--model', 'synthetic-interface',
+            '--brief', 'Depict the selected synthetic shell.', '--subject', 'A',
+            '--kind', 'robot', '--continuity', 'one-off', '--render-intent', 'render.json']}
+        self.invoke(create)
+        self.choices['authoring']['documents']['production_spec'] = {'file': 'spec.json'}
+        self.save()
+        selected = self.invoke(diagnostic['next_action'])
+        self.assertEqual(selected['source'], {'file': 'spec.json'})
+        specification = c.load(self.root / 'spec.json')
+        view = production_identity.context(self.task, self.read, production_spec=specification, inputs=inputs)
+        repaired = identity_coverage.compile(self.task, self.read, context=view)
+        self.assertEqual(repaired['actual_subject_ids'], ['A'])
+        self.assertEqual(repaired['unknown_subject_ids'], [])
+        self.assertEqual(self.read('definition.json'), self.original)
+
+    def test_explicit_specification_scope_and_nested_file_pointer_are_not_missing_declarations(self):
+        for subjects in ([], [{'id': 'B'}]):
+            with self.subTest(subjects=subjects):
+                specification = {'subjects': subjects}
+                (self.root / 'bundle.json').write_bytes(c.encoded({'input/spec': specification}))
+                self.choices['authoring']['documents']['production_spec'] = {
+                    'file': 'bundle.json', 'field': ['input/spec']}
+                self.save()
+                diagnostic = self.gap(self.report(production_spec=specification), locations={
+                    'authoring.documents.production_spec': {'file': 'bundle.json', 'pointer': ['input/spec']}})
+                self.assertEqual(diagnostic['cause'], 'identity-subject-scope-mismatch')
+                self.assertEqual(diagnostic['actual_subject_ids'], [row['id'] for row in subjects])
+                self.assertEqual((diagnostic['file'], diagnostic['pointer']),
+                                 ('bundle.json', '/input~1spec/subjects'))
+                self.assertTrue(diagnostic['subject_declaration']['present'])
+                self.assertEqual(diagnostic['repair_owner']['pointer'], '/input~1spec/subjects')
+                public = self.invoke(diagnostic['next_action'])
+                self.assertEqual(public['source']['field'], ['input/spec'])
+
+    def test_recording_scope_reaches_its_actual_map_and_task_schema(self):
+        import production_input_guide
+        for mapping in ({}, {'B': 'studio-character'}):
+            with self.subTest(mapping=mapping):
+                self.task['recording'] = {'character': 'studio-character', 'slot': 'image',
+                    'subject_map': mapping, 'sheet_panel': False, 'role': 'candidate'}
+                self.save()
+                report = self.report()
+                self.assertEqual(report['subject_declaration']['owner'], 'recording.subject_map')
+                diagnostic = self.gap(report)
+                self.assertEqual(diagnostic['cause'], 'identity-subject-scope-mismatch')
+                self.assertEqual(diagnostic['field'], 'authoring.task.recording.subject_map')
+                self.assertEqual(diagnostic['pointer'], '/authoring/task/recording/subject_map')
+                public = self.invoke(diagnostic['next_action'])['fields'][0]
+                fragment = c.load(production_input_guide.ROOT / public['content_schema'])['properties']['recording']
+                self.assertEqual(public['schema_fragment'], fragment)
+                self.assertEqual(public['subject_declaration']['schema_pointer'],
+                                 '/properties/recording/properties/subject_map')
+                self.assertEqual(c.load(self.root / self.path)['authoring']['task']['recording']['subject_map'], mapping)
+
+    def test_compile_preserves_missing_owner_diagnostic_and_specification_precedence(self):
+        with self.assertRaises(ProductionError) as caught:
+            identity_coverage.compile(self.task, self.read,
+                context=production_identity.context(self.task, self.read))
+        diagnostic = caught.exception.diagnostic.as_dict()
+        self.assertEqual(diagnostic['code'], 'IDENTITY_COVERAGE_INCOMPLETE')
+        self.assertEqual(diagnostic['cause'], 'input-subject-declaration-missing')
+        self.assertEqual(diagnostic['repair_owner']['owner'], 'production_spec')
+        self.assertEqual(diagnostic['gaps'], {'unknown_subject_ids': ['A']})
+        self.assertIn('schema_fragment', self.invoke(diagnostic['next_action']))
+        self.task['recording'] = {'subject_map': {'A': 'studio-character'}}
+        view = production_identity.context(self.task, self.read, production_spec={'subjects': [{'id': 'B'}]})
+        self.assertEqual(view['subject_ids'], ['B'])
+        self.assertEqual(view['subject_declaration']['owner'], 'production_spec')
+        view = production_identity.context(self.task, self.read, production_spec={'subjects': []})
+        self.assertEqual(view['subject_ids'], ['A'])
+        self.assertEqual(view['subject_declaration']['owner'], 'recording.subject_map')
+
+
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()

@@ -106,6 +106,16 @@ existing owner. A short paragraph or table can show:
 
 Shared source and query notes can cover a group of related definitions.
 
+For words that combine age, physique, role or other meanings, distinguish the
+selected visual sense from the character's established facts. Consult the
+target's evidence and actual observations for its effect, rather than deriving
+that effect from dictionary membership. When ambiguity is consequential,
+record the selected sense and any completing phrase in the existing definition
+or authoring note. Use [Interface rendition](prompt-writing-guide.md#choose-terms-for-their-intended-visual-sense)
+to carry it into the prompt. Do not infer canonical age from a keyword,
+automatically prohibit or replace a class of terms, or require annotations
+for every word.
+
 For example, a definition may retain a closed mouth with gently raised corners
 and eyes still open. If the inspected dictionary entry supplies a suitable
 smile term but leaves eye opening unspecified, list that term with its actual

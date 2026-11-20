@@ -10,6 +10,7 @@ import read_context
 import operation_context as _operation_context
 
 from dataclasses import dataclass
+from functools import partial
 import json
 from pathlib import Path
 import shutil
@@ -31,6 +32,7 @@ from production_read_model import DecisionRead, DecisionReader, RunReader, RunSn
 from owned_json import freeze, json_value, mutable
 
 ROOT = Path(__file__).resolve().parents[1]
+REVIEW_CANDIDATE_EVIDENCE = 'candidate'
 EVENTS = {'authorization', 'handoff', 'external-claim', 'dispatch-claim',
           'dispatch-results', 'candidate', 'review', 'selection', 'edit',
           'adoption-claim', 'adoption-authority', 'adoption-result', 'image-edit-claim', 'image-edit-output', 'completion',
@@ -552,22 +554,117 @@ def criteria_predecessor(root: Path, predecessor: str | None, task: dict) -> str
     return selected
 
 
-def validate_protected_criteria(root: Path, prepared: dict, grant: dict, *, revised: dict | None = None) -> None:
-    """Compare protected criteria in one explicit production series."""
+def protected_criteria_comparison(root: Path, prepared: dict, *, revised: dict | None = None) -> dict:
+    """Describe the exact comparison used by the protected-criteria guard."""
     if revised is not None:
         older, newer = prepared['task'], revised
         if older['production_id'] != newer['production_id']:
             raise ValueError('a revision preserves its production_id')
+        comparison_run = prepared['run']
     else:
         expected = criteria_predecessor(root, prepared['predecessor'], prepared['task'])
         if expected != prepared['criteria_predecessor']:
             raise ValueError('criteria predecessor differs from the production series')
-        if expected is None:
-            return
-        older, newer = read_run(root, expected)[1]['task'], prepared['task']
-    before, after = ({x['id']: x for x in t['criteria']} for t in (older, newer))
-    if any(before.get(key) != after.get(key) for key in grant['protected_criteria']):
-        raise ValueError('protected criterion changed; obtain explicit authority for the change')
+        comparison_run = expected
+        older = read_run(root, expected)[1]['task'] if expected is not None else None
+        newer = prepared['task']
+    before = {item['id']: item for item in older['criteria']} if older is not None else {}
+    after = {item['id']: item for item in newer['criteria']}
+    return {'run': prepared['run'], 'production_id': newer['production_id'],
+            'comparison_run': comparison_run, 'comparison': 'revision' if revised is not None else 'production-predecessor',
+            'changes': [{'id': key, 'before': mutable(before.get(key)), 'after': mutable(after.get(key))}
+                        for key in sorted(before.keys() | after.keys())
+                        if older is not None and before.get(key) != after.get(key)]}
+
+
+def protected_criteria_guidance(root: Path, prepared: dict, authority: store.CurrentAuthority | None, *,
+                                comparison: dict | None = None) -> dict:
+    """Expose authored invariants and their public authority owner without choosing any."""
+    compared = comparison if comparison is not None else protected_criteria_comparison(root, prepared)
+    snapshot = store.authority_snapshot(root, prepared['task']['task_id'], authority,
+        source_path=prepared['task'].get('authority'), run=prepared['run'])
+    return {**compared,
+        'meaning': 'A direction grant requires each protected_criteria id to keep the same complete criterion '
+                   'as comparison_run in this production_id. A revision compares against its parent run. '
+                   'An added or removed protected id also differs; the first run has no earlier comparison.',
+        'authoring': 'Choose only the invariants required by the actual instruction in the authority grant. '
+                     'When an actual instruction authorizes changing a criterion, record the corresponding '
+                     'authority through the update action and select that grant. The script does not infer '
+                     'permission from the instruction or change any protected ids. Keep the intended hard '
+                     'criteria in task.criteria: they remain required review checks independently of this list.',
+        'repair_owner': {'kind': 'current-authority', 'task_id': prepared['task']['task_id'],
+                         'event_sha256': snapshot['event_sha256'], 'file': snapshot['source_path'],
+                         'field': 'grants[].protected_criteria'},
+        'repair_action': snapshot['update_action']}
+
+
+def _protected_criteria_owners(authority: store.CurrentAuthority | None) -> dict:
+    """Locate grant fields only in source bytes actually retained by current authority."""
+    owners = {}
+    for source in authority.evidence if authority is not None else []:
+        if source['purpose'] != 'authority-source':
+            continue
+        document = c.decode(source['raw'])
+        for index, item in enumerate(document.get('grants', [])):
+            owners[item['id']] = {'file': source['path'], 'pointer': f'/grants/{index}/protected_criteria'}
+    return owners
+
+
+def _protected_criteria_error(comparison: dict, grant: dict, owners: dict,
+                              guidance: dict) -> ProductionError | None:
+    changed = [item for item in comparison['changes'] if item['id'] in grant['protected_criteria']]
+    if not changed:
+        return None
+    owner = {**guidance['repair_owner'], 'grant': grant['id'], 'file': None, 'pointer': None}
+    # The latest addition need not own an older grant. Never give a pointer to
+    # an unrelated grant in that file; the current event still owns its terms.
+    owner.update(owners.get(grant['id'], {}))
+    return ProductionError('INPUT_CONSISTENCY_ERROR',
+        'The selected grant requires protected criteria that differ from the comparison run.',
+        phase='criteria', file=owner['file'], pointer=owner['pointer'],
+        cause='protected-criteria-changed', run=comparison['run'],
+        production_id=comparison['production_id'], comparison_run=comparison['comparison_run'],
+        comparison=comparison['comparison'], operation='edit' if comparison['comparison'] == 'revision' else 'direction',
+        grant=grant['id'], protected_criteria=list(grant['protected_criteria']), changes=changed,
+        repair_owner=owner, repair_action=guidance['repair_action'],
+        required_action=guidance['authoring'])
+
+
+def authorization_requirements(root: Path, prepared: dict, authority: store.CurrentAuthority | None,
+                               intents: list[dict], *, selections: list[dict] | None = None,
+                               grant: str | None = None) -> dict:
+    """Use the execution guard's series comparison when presenting grant coverage."""
+    document = authority.document if authority is not None else None
+    constraints = {}
+    guidance = None
+    if any(intent['operation'] == 'direction' for intent in intents):
+        comparison = protected_criteria_comparison(root, prepared)
+        guidance = protected_criteria_guidance(root, prepared, authority, comparison=comparison)
+        owners = _protected_criteria_owners(authority)
+        for item in (document or {}).get('grants', []):
+            if 'direction' not in item['operations']:
+                continue
+            problem = _protected_criteria_error(comparison, item, owners, guidance)
+            if problem is not None:
+                constraints.setdefault('direction', {})[item['id']] = [problem.diagnostic.as_dict()]
+    result = permissions.grant_requirements(document, intents, selections=selections, grant=grant,
+                                            constraints=constraints)
+    if guidance is not None:
+        result['protected_criteria'] = guidance
+    return result
+
+
+def validate_protected_criteria(root: Path, prepared: dict, grant: dict, *, revised: dict | None = None,
+                                authority: store.CurrentAuthority | None = None) -> None:
+    """Keep the same exact refusal, with the comparison and actual authority owner."""
+    compared = protected_criteria_comparison(root, prepared, revised=revised)
+    if not any(item['id'] in grant['protected_criteria'] for item in compared['changes']):
+        return
+    held = authority if authority is not None else store.read_authority(root, prepared['task']['task_id'], required=False)
+    guidance = protected_criteria_guidance(root, prepared, held, comparison=compared)
+    error = _protected_criteria_error(compared, grant, _protected_criteria_owners(held), guidance)
+    if error is not None:
+        raise error
 
 
 def _prepare(root: Path, task_path: str, *, parent: dict | None = None, identity: str | None = None) -> dict:
@@ -644,7 +741,7 @@ def _validate_input_records(run: str, prepared: dict, consumer: dict) -> None:
 
 
 def _validate_publication_content(run: str, prepared: dict, consumer: dict, read_object,
-                                  known: dict[str, int]) -> None:
+                                  known: dict[str, int], *, root: Path | None = None) -> None:
     """Check decoded immutable inputs and every saved source dependency."""
     _validate_input_records(run, prepared, consumer)
     for dependency in prepared['dependencies']:
@@ -665,7 +762,19 @@ def _validate_publication_content(run: str, prepared: dict, consumer: dict, read
                                        space=dependency['space'], artifact='objects/' + key)
         known[key] = len(raw)
     from production_authored import validate_publication
-    validate_publication(prepared, consumer, read_object)
+    try:
+        validate_publication(prepared, consumer, read_object)
+    except (KeyError, TypeError):
+        # A sealed historical task can lack a structure that the current
+        # authored-content interpreter reads. Its manifest, registration,
+        # envelope, input and source bytes have already been verified above.
+        # Diagnose that source for new authoring; never migrate the saved run
+        # or impose the current task schema on publications we can still read.
+        if root is not None:
+            from production_input_preflight import TASK_SCHEMA, require_shape
+            require_shape(mutable(prepared['task']), schema_path=TASK_SCHEMA,
+                file=prepared.get('task_path'), root=root, operation='read-saved-run', source_run=run)
+        raise
 
 
 def _validate_event_evidence(run: str, prepared: dict, rows, read_object,
@@ -775,7 +884,8 @@ def read_run(root: Path, run: str, *, force: bool = False) -> RunView:
     A public operation owns its publication and advances its event state across
     committed writes. New operations and forced audits acquire storage again.
     """
-    return RunReader(root, _validate_publication_content, _validate_run_history, _validate_run_append).read(
+    return RunReader(root, partial(_validate_publication_content, root=root),
+                     _validate_run_history, _validate_run_append).read(
         run_identifier(run), force=force)
 
 
@@ -1132,7 +1242,7 @@ def _authorize_value_from(root: Path, loaded: RunView, authority: store.CurrentA
     lifecycle.require_operation(rows, prepared, run, request['operation'], request['targets'], request['payload'])
     grant = permissions.check(grants, request)
     if request['operation'] == 'direction':
-        validate_protected_criteria(root, prepared, grant)
+        validate_protected_criteria(root, prepared, grant, authority=authority)
     return append_record(loaded, 'authorization', data)
 
 
@@ -1150,8 +1260,39 @@ def _permission(root: Path, prepared: dict, rows: list[dict], identifier: str,
                   intent={'operation': operation, 'targets': sorted(targets), 'run': prepared['run'], 'authorization': identifier})
     lifecycle.require_operation(rows, prepared, prepared['run'], operation, targets, payload)
     grant = permissions.check(grants, request)
+    assessed_event = row['data']['authority']['event']
+    if assessed_event != authority.event['sha256']:
+        history = store.read_history(root, 'authority:' + authority.task_id)
+        assessed = find(history.rows, 'authority-updated', assessed_event)['data']['authority']
+        previous_conditions = {item['id']: item['text'] for item in assessed['stop_conditions']}
+        current_conditions = {item['id']: item['text'] for item in grants['stop_conditions']}
+        if c.encoded(previous_conditions) != c.encoded(current_conditions):
+            if operation == 'adopt':
+                # A retained adoption has its own authority reassessment,
+                # preserving the original approval and one effect claim.
+                # Let that owner name its repair before the generic refusal;
+                # an approval without that basis still fails below.
+                from production_adoption import require_approval_authority
+                for claim in (item for item in rows if item['event'] == 'adoption-claim'):
+                    token, reassessed = lifecycle.current_adoption_authorization(rows, claim)
+                    if token != identifier:
+                        continue
+                    evidence = (loaded or read_run(root, prepared['run'])).evidence
+                    approval = evidence.document(claim['data']['files'][0]['sha256'])
+                    require_approval_authority(root, prepared, approval, request,
+                        reassessed=reassessed, claim=claim['sha256'])
+                    break
+            raise ProductionError('AUTHORIZATION_MISMATCH',
+                'The recorded authorization assessed different stop conditions from the current authority.',
+                phase='authorization', run=prepared['run'], operation=operation, authorization=identifier,
+                pointer='$.stop_assessments', expected=current_conditions, actual=previous_conditions,
+                assessed_authority_event=assessed_event, current_authority_event=authority.event['sha256'],
+                required_action='Reassess the current stop definitions from actual evidence. For an unclaimed '
+                                'operation, use draft-execution and record new decisions for this run. An existing '
+                                'claim retains its original authorizations: inspect status and settle that attempt '
+                                'without another send before preparing a newly authorized run.')
     if operation == 'direction':
-        validate_protected_criteria(root, prepared, grant)
+        validate_protected_criteria(root, prepared, grant, authority=authority)
     if operation == 'submit' and prepared['task']['execution'] == 'dispatcher':
         from production_request import check_authorization
         read_object = (loaded or read_run(root, prepared['run'])).evidence.read
@@ -1619,6 +1760,84 @@ def draft_review(root: Path, run: str, candidate: str | None = None) -> dict:
             'repairs': [], 'unresolved': [], 'conclusion': ''}
 
 
+@read_context.operation
+def review_authoring_guide(root: Path, run: str, candidate: str | None = None, *,
+                           review_file: str | None = None, loaded: RunView | None = None,
+                           basis: dict | None = None) -> dict:
+    """Describe citations from the same retained evidence the review owner resolves.
+
+    This is display metadata beside the unanswered form. It supplies identities
+    and field shapes, never observations, interpretations or criterion verdicts.
+    """
+    from cli_invocation import python_argv
+    from production_execution import _draft_action
+    loaded = loaded or read_run(root, run)
+    prepared, rows = loaded.prepared, loaded.rows
+    authored = prepared['task']['execution'] == 'authored'
+    if authored:
+        if candidate is not None:
+            raise ValueError('an authored review assesses its saved revision')
+        from production_authored import _review_context
+        subject, _, _, evidence = _review_context(prepared, loaded.evidence.read)
+        artifact = prepared['authored_revision']['artifact']
+        files = [{**mutable(artifact), 'path': str(loaded.directory / 'objects' / artifact['sha256'])}]
+    else:
+        if candidate is None:
+            raise ValueError('a generated result review requires its candidate')
+        subject = find(rows, 'candidate', candidate)
+        files = [{**mutable(item), 'path': str(loaded.directory / 'objects' / item['sha256'])}
+                 for item in subject['data']['files']]
+        evidence = (basis['evidence'] if basis is not None else
+            _review_reference_evidence(loaded.directory, run, loaded.consumer, prepared,
+                artifacts=loaded.artifacts, read_object=loaded.evidence.read))
+    measured = mutable(subject['data']['media'])
+    automatic = [{'id': REVIEW_CANDIDATE_EVIDENCE, 'role': 'candidate',
+        'candidate': subject['sha256'], 'kind': measured['kind'], 'media': measured,
+        'files': files, 'relation': 'The exact saved artifact being reviewed.'}]
+    automatic.extend({**mutable(item), 'role': 'comparison',
+                      'path': str(c.local(root, item['path']))} for item in evidence)
+    locator = ({'kind': 'time', 'stream': None, 'start_seconds': None, 'end_seconds': None}
+               if measured['kind'] in {'video', 'audio'} else {'kind': 'whole'})
+    reviews = [row for row in rows if row['event'] == 'authored-review'] if authored else [
+        row for row in rows if row['event'] == 'review' and row['data']['candidate'] == candidate]
+    if review_file is None:
+        next_action = _draft_action(root, run, 'review', candidate=candidate,
+            basis=reviews[-1]['sha256'] if reviews else None, prepared=prepared)
+    else:
+        command = 'review-authored' if authored else 'review'
+        next_action = {'command': command,
+            'argv': python_argv(ROOT / 'scripts/production_workflow.py', command, '--root', str(root),
+                '--run', run, '--file', review_file), 'requires_author_input': True,
+            'reason': 'Complete the saved review with your actual observations, judgments and limits, then record it.'}
+    return {'document_path': 'references/runtime/production-review.md',
+        'schema': 'schemas/authoring/production-review.schema.json',
+        'observation_schema_pointer': '/properties/observations/items',
+        'automatic_evidence': automatic,
+        'observation_template': {'evidence': REVIEW_CANDIDATE_EVIDENCE, 'locator': locator,
+            'observation': '', 'interpretation': '', 'limitations': []},
+        'author_fills': ['reviewer', 'observations[].observation', 'observations[].interpretation',
+            'observations[].limitations', 'checks[].verdict', 'checks[].observation_indices',
+            'checks[].reason', 'conclusion'],
+        'criterion_citations': [{'criterion': item['id'], 'required_medium': item['evidence'],
+            'candidate_required_for_pass': bool(item.get('identity_review') or item.get('identity_bindings'))}
+            for item in prepared['task']['criteria']],
+        'instructions': [
+            'Use an automatic_evidence id directly in observations[].evidence. The reserved id '
+            'candidate identifies the selected output; candidate event hashes are a different field.',
+            'The saved review.evidence array is for additional evidence only. Do not copy automatic '
+            'entries into it. Another id for identical image bytes remains supplemental evidence and '
+            'cannot replace a candidate observation.',
+            'The observation_template is unanswered. Write what you actually observed, its interpretation '
+            'and limits. To compare an original source, add an observation naming that comparison entry\'s id.',
+            'checks[].observation_indices are zero-based positions in the complete observations array. '
+            'A passing identity criterion must cite an actual candidate observation in its required medium.',
+            'whole and description locators support text for text/JSON evidence and image for decoded '
+            'images. An image-region uses normalized x, y, width and height. Motion or audio needs a time '
+            'locator with an actual measured stream index and decimal-string start_seconds/end_seconds '
+            'for the interval you inspected; whole-file labels do not establish motion or audio.'
+        ], 'next_action': next_action}
+
+
 def _unresolved_identity_criteria(prepared: dict) -> set[str]:
     """Use effective source coverage, including narrower authored treatments."""
     report = prepared.get('identity_coverage', {})
@@ -1637,11 +1856,12 @@ def _unresolved_identity_criteria(prepared: dict) -> set[str]:
 
 
 def validate_review(data: Any, prepared: dict, candidate: dict, raw: bytes,
-                    evidence: dict[str, tuple[bytes, dict]] | None = None) -> None:
+                    evidence: dict[str, tuple[bytes, dict]] | None = None, *,
+                    review_file: str | None = None) -> None:
     schema_check(data, 'review')
     if data['input_sha256'] != prepared['input_sha256'] or data['candidate'] != candidate['sha256']:
         raise ValueError('review belongs to another input or candidate')
-    material = {'candidate': (raw, candidate['data']['media']), **(evidence or {})}
+    material = {REVIEW_CANDIDATE_EVIDENCE: (raw, candidate['data']['media']), **(evidence or {})}
     supported = []
     for observation in data['observations']:
         key = observation['evidence']
@@ -1652,7 +1872,7 @@ def validate_review(data: Any, prepared: dict, candidate: dict, raw: bytes,
     expected = {x['id']: x for x in prepared['task']['criteria']}
     unresolved_identity = _unresolved_identity_criteria(prepared)
     seen = set()
-    for check in data['checks']:
+    for check_index, check in enumerate(data['checks']):
         if check['criterion'] in seen or check['criterion'] not in expected:
             raise ValueError('unknown or repeated review criterion')
         seen.add(check['criterion'])
@@ -1669,9 +1889,21 @@ def validate_review(data: Any, prepared: dict, candidate: dict, raw: bytes,
                 raise ValueError('an unresolved identity obligation cannot support a passing review criterion')
             criterion = expected[check['criterion']]
             if (criterion.get('identity_review') or criterion.get('identity_bindings')) and not any(
-                    data['observations'][i]['evidence'] == 'candidate' and requirement in supported[i]
+                    data['observations'][i]['evidence'] == REVIEW_CANDIDATE_EVIDENCE and requirement in supported[i]
                     for i in indices):
-                raise ValueError('a passing identity review must cite the actual candidate in the required medium')
+                raise ProductionError('INPUT_CONSISTENCY_ERROR',
+                    'a passing identity review must cite the actual candidate in the required medium',
+                    phase='review', file=review_file, pointer=f'$.checks[{check_index}].observation_indices',
+                    run=prepared['run'], criterion=check['criterion'],
+                    expected={'evidence': REVIEW_CANDIDATE_EVIDENCE, 'medium': requirement},
+                    actual=[{'index': i, 'evidence': data['observations'][i]['evidence'],
+                             'supported_media': sorted(supported[i])} for i in indices],
+                    guidance={'document_path': 'references/runtime/production-review.md',
+                              'schema': 'schemas/authoring/production-review.schema.json'},
+                    required_action='Inspect workspace --phase review for this run and candidate. If an observation '
+                        'was made on the exact saved candidate, cite it with observations[].evidence="candidate" '
+                        'and include its zero-based index in this check. Keep comparisons under their own '
+                        'evidence IDs. Reassess the verdict if the required candidate evidence was not observed.')
     # Omitted criteria remain unassessed. Selection separately requires a
     # supported pass or an explicit owner allowance for each assessed nonpass.
     decisions = {d['id'] for d in prepared['task']['direction']['decisions']}
@@ -1704,14 +1936,14 @@ def review(root: Path, run: str, review_file: str) -> dict:
         supplemental: dict[str, tuple[bytes, dict]] = {}
         records = []
         for spec in data['evidence']:
-            if spec['id'] == 'candidate' or spec['id'] in supplemental:
+            if spec['id'] == REVIEW_CANDIDATE_EVIDENCE or spec['id'] in supplemental:
                 raise ValueError('duplicate or reserved evidence id')
             evidence_file = file_record(root, directory, spec['path'])
             contents = loaded.evidence.read(evidence_file['sha256'])
             supplemental[spec['id']] = (contents, media.inspect(contents, spec['kind']))
             records.append(evidence_file)
         raw = loaded.evidence.read(candidate['data']['files'][0]['sha256'])
-        validate_review(data, prepared, candidate, raw, supplemental)
+        validate_review(data, prepared, candidate, raw, supplemental, review_file=review_file)
         recorded = {'candidate': candidate['sha256'], 'files': [item], 'evidence': records,
                     'media': {k: v[1] for k, v in supplemental.items()}, 'review': data}
         reviews = [r for r in rows if r['event'] == 'review' and r['data']['candidate'] == candidate['sha256']]
@@ -2483,7 +2715,7 @@ def revise(root: Path, run: str, task: str, candidate: str, repair: str, authori
         request = _permission(root, prepared, rows, authorization, **intent, authority=authority)
         grant = next(g for g in authority.document['grants'] if g['id'] == request['grant'])
         new_task = c.load(c.local(root, task))
-        validate_protected_criteria(root, prepared, grant, revised=new_task)
+        validate_protected_criteria(root, prepared, grant, revised=new_task, authority=authority)
         existing = [r for r in rows if r['event'] == 'edit' and authorization in r['data']['authorizations']]
         if existing:
             edit = existing[-1]

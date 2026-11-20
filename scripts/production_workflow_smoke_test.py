@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import tempfile
+import threading
 import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -312,13 +313,76 @@ class ProductionTests(unittest.TestCase):
         finally:
             release.set(); t.join(5)
             if contender.ident is not None: contender.join(5)
+    def concurrent_captures(self, artifacts, authorized):
+        run = self.prepare()
+        fixture.handoff(self.root, run, 'test', 'manual')
+        token = fixture.grant(self.root, run, w.external_intent(self.root, run, authorized))
+        w.claim_external(self.root, run, authorized, token)
+        acquired = threading.Barrier(2)
+        committed = threading.Event()
+        caller = threading.local()
+        tails = [None, None]
+        verify = w.store._verified_history
+
+        def held_history(scope, entries, *, connection=None):
+            history = verify(scope, entries, connection=connection)
+            if scope == run and connection is None and not getattr(caller, 'held', False):
+                caller.held = True
+                tails[caller.index] = history.tail
+                acquired.wait(timeout=10)
+                # Both callers acquired the same history. The second finishes
+                # that read only after the first has committed its candidate.
+                if caller.index == 1 and not committed.wait(timeout=10):
+                    raise AssertionError('the first capture did not finish')
+            return history
+
+        def capture(index):
+            caller.index = index
+            try:
+                return w.capture(self.root, run, artifacts[index], 'test')
+            finally:
+                if index == 0:
+                    committed.set()
+
+        with patch.object(w.store, '_verified_history', held_history), ThreadPoolExecutor(max_workers=2) as pool:
+            results = [pool.submit(capture, index) for index in range(2)]
+        self.assertIsNotNone(tails[0])
+        self.assertEqual(tails[0], tails[1])
+        return run, results
+
     def test_concurrent_capture(self):
-        run=self.prepare(); fixture.handoff(self.root,run,'test','manual'); self.write('output.txt','One lamp.')
-        token=fixture.grant(self.root,run,w.external_intent(self.root,run,1))
-        w.claim_external(self.root,run,1,token)
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            results=list(pool.map(lambda _:w.capture(self.root,run,'output.txt','test'),range(2)))
-        self.assertEqual(results[0],results[1])
+        self.write('output.txt', 'One lamp.')
+        run, pending = self.concurrent_captures(('output.txt', 'output.txt'), authorized=1)
+        results = [item.result() for item in pending]
+        self.assertEqual(results[0], results[1])
+        candidates = [row for row in w.read_run(self.root, run).rows if row['event'] == 'candidate']
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]['sha256'], results[0]['sha256'])
+
+    def test_concurrent_distinct_captures_preserve_both_authorized_outputs(self):
+        self.write('first.txt', 'One brass lamp.')
+        self.write('second.txt', 'One glass lamp.')
+        run, pending = self.concurrent_captures(('first.txt', 'second.txt'), authorized=2)
+        results = [item.result() for item in pending]
+        loaded = w.read_run(self.root, run)
+        candidates = [row for row in loaded.rows if row['event'] == 'candidate']
+        self.assertEqual([row['sha256'] for row in candidates], [row['sha256'] for row in results])
+        self.assertEqual(candidates[1]['previous'], candidates[0]['sha256'])
+        self.assertEqual([row['data']['files'][0]['path'] for row in candidates], ['first.txt', 'second.txt'])
+        for candidate in candidates:
+            item = candidate['data']['files'][0]
+            self.assertEqual((loaded.directory / 'objects' / item['sha256']).read_bytes(),
+                             (self.root / item['path']).read_bytes())
+
+    def test_concurrent_distinct_capture_keeps_the_authorized_output_limit(self):
+        self.write('first.txt', 'One brass lamp.')
+        self.write('second.txt', 'One glass lamp.')
+        run, pending = self.concurrent_captures(('first.txt', 'second.txt'), authorized=1)
+        first = pending[0].result()
+        with self.assertRaisesRegex(ValueError, 'external output count exceeds its authorization'):
+            pending[1].result()
+        candidates = [row for row in w.read_run(self.root, run).rows if row['event'] == 'candidate']
+        self.assertEqual([row['sha256'] for row in candidates], [first['sha256']])
     def test_idempotent_completion(self):
         run,done=self.finish(); self.assertEqual(done,w.complete(self.root,run))
     def test_no_new_artifact_after_completion(self):

@@ -208,11 +208,14 @@ def _raise_diagnostic(diagnostic: dict, **details) -> None:
 
 def grant_requirements(authority: dict | None, intents: list[dict], *,
                        selections: list[dict] | None = None, grant: str | None = None,
-                       now: datetime | None = None) -> dict:
+                       now: datetime | None = None,
+                       constraints: dict[str, dict[str, list[dict]]] | None = None) -> dict:
     """Describe every operation before submission, preserving explicit grant choices.
 
     An unanswered selector can use its sole eligible grant. Coverage does not
     approve the exact request, assess a stop condition or choose a scope case.
+    Operation owners can supply their mechanical grant constraints; the same
+    diagnostics then govern candidate eligibility and an explicit selection.
     """
     instant = now or datetime.now(timezone.utc)
     selected = {item['operation']: item.get('grant') for item in selections or []}
@@ -222,6 +225,7 @@ def grant_requirements(authority: dict | None, intents: list[dict], *,
         candidates = []
         for item in (authority or {}).get('grants', []):
             diagnostics = _grant_diagnostics(authority, operation, targets, item['id'], now=instant)
+            diagnostics += (constraints or {}).get(operation, {}).get(item['id'], [])
             candidates.append({'grant': item['id'], 'actor': item['actor'],
                 'operations': sorted(item['operations']), 'granted': sorted(item['targets']),
                 'missing': sorted(set(targets) - set(item['targets'])),
@@ -232,6 +236,7 @@ def grant_requirements(authority: dict | None, intents: list[dict], *,
             chosen = grant if grant is not None else eligible[0]['grant'] if len(eligible) == 1 else None
         match = next((item for item in candidates if item['grant'] == chosen), None)
         diagnostics = _grant_diagnostics(authority, operation, targets, chosen, now=instant)
+        diagnostics += (constraints or {}).get(operation, {}).get(chosen, [])
         requirements.append({'operation': operation, 'targets': targets, 'selected_grant': chosen,
             'selected_actor': match['actor'] if match else None, 'candidates': candidates,
             'eligible': not diagnostics, 'diagnostics': diagnostics})

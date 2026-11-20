@@ -109,6 +109,14 @@ or colon weights into another parser's operators by guessing the author's intent
 
 ## Weights and conditioning channels
 
+Weights adjust the influence of appearance controls under the selected model
+and parser. They do not numerically change the character's canonical age,
+health, history or body attributes: `1.2` does not mean twenty percent older
+or more muscular. Keep that ownership with
+[the appearance goal and source definition](production-direction.md#translate-established-facts-into-the-current-appearance).
+Observe the effect under the actual combination of terms, references and
+controls; weighting alone determines neither a term's sense nor its subject.
+
 Choose a weight for a concept's intended influence within its channel. A larger
 positive weight, a smaller positive weight and the same term in the negative
 channel are different operations. Reducing the only description of an attribute

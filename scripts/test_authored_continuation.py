@@ -89,9 +89,16 @@ class AuthoredContinuationTests(unittest.TestCase):
         self.assertEqual(workflow.read_run(self.root, saved['run']).consumer['instructions'],
                          'A brass key rests on a wooden table.\n')
 
-    def test_session_exposes_saved_text_once_without_suggesting_external_recovery(self):
+    def test_session_command_exposes_saved_text_without_suggesting_external_recovery(self):
         saved = workflow.save(self.root, self.choices_path)
-        text = '\n'.join(session_entry_points.authoring_lines(self.root))
+        startup = session_entry_points.authoring_lines(self.root)
+        command = next(line.partition(': ')[2] for line in startup if line.startswith('Inspect saved inputs: '))
+        inspected = subprocess.run(command, shell=True, cwd=self.root.parent, capture_output=True,
+                                   text=True, encoding='utf-8', check=False)
+        self.assertEqual(inspected.returncode, 0, inspected.stdout + inspected.stderr)
+        report = json.loads(inspected.stdout)
+        self.assertEqual(report['saved']['run'], saved['run'])
+        text = '\n'.join(authoring.session_lines(self.root, work_ledger.read_current(self.root), report=report))
         self.assertEqual(text.count('Saved input choices:'), 1)
         self.assertEqual(text.count('Saved authored revision: ' + saved['run']), 1)
         self.assertIn('Requested results still pending: delivery', text)

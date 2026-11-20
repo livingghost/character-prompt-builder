@@ -217,7 +217,7 @@ def from_exception(error: BaseException, *, phase: str, file: str | None = None,
 def from_unresolved(item: dict, *, file: str, phase: str = 'authoring') -> dict:
     """The diagnostic of one unresolved entry, keeping the text, repair and guidance its producer gave."""
     return Diagnostic(item['code'], item['message'], phase=item.get('phase', phase),
-                      file=item.get('file', file), pointer=item['field'],
+                      file=item.get('file', file), pointer=item.get('pointer', item['field']),
                       required_action=item['required_action'], guidance=item.get('guidance'),
                       details={key: value for key, value in item.items() if key not in DIAGNOSTIC_FIELDS}).as_dict()
 

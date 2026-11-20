@@ -48,16 +48,14 @@ def draft(root: Path, run: str, grant: str | None = None) -> dict:
     loaded = context(root, run)
     prepared = loaded.prepared
     plan = loaded.artifacts['execution-plan.json']
-    import production_permissions
     import production_request
     held = store.read_authority(root, prepared['task']['task_id'], required=False)
     authority = held.document if held is not None else None
-    requirements = production_permissions.grant_requirements(authority, plan['operations'], grant=grant)
+    requirements = workflow.authorization_requirements(root, prepared, held, plan['operations'], grant=grant)
     decisions = []
     for intent, requirement in zip(plan['operations'], requirements['requirements']):
         choice = {'operation': intent['operation'], 'grant': requirement['selected_grant'],
-            'reason': '', 'stop_assessments': [{'id': item['id'], 'clear': False, 'evidence': ''}
-                for item in (authority or {}).get('stop_conditions', [])]}
+            'reason': '', 'additional_stop_assessments': []}
         if intent['operation'] == 'submit':
             decision = None
             if prepared['task']['execution'] == 'dispatcher':
@@ -68,16 +66,42 @@ def draft(root: Path, run: str, grant: str | None = None) -> dict:
                 choice['request_decision'] = _request_choices({'request_decision': decision})
         decisions.append(choice)
     result = {'choices': {'run': run, 'input_sha256': prepared['input_sha256'],
-            'request_sha256': plan['request_sha256'], 'decisions': decisions},
+            'request_sha256': plan['request_sha256'],
+            'stop_conditions_sha256': c.content_id((authority or {}).get('stop_conditions', [])),
+            'shared_stop_assessments': [{'id': item['id'], 'clear': False, 'evidence': ''}
+                for item in (authority or {}).get('stop_conditions', [])], 'decisions': decisions},
             'authorization_requirements': requirements,
             'authority': store.authority_snapshot(root, prepared['task']['task_id'], held,
-                                                  source_path=prepared['task'].get('authority')),
+                                                  source_path=prepared['task'].get('authority'), run=run),
             'request_scope_template': production_request.delegation_template(prepared, plan['operations'], authority)}
     if prepared['task']['execution'] == 'external' and loaded.consumer.get('image_input') is not None:
         from image_input import external_delivery
         result['host_request'] = external_delivery(loaded.consumer['image_input'],
             run_directory=loaded.directory, read_object=loaded.evidence.read)
     return result
+
+
+def stop_assessments(shared: list[dict], individual: list[dict]) -> list[dict]:
+    """Apply one operation's complete judgment over a shared judgment of the same id.
+
+    Neither list approves a condition by its presence. The ordinary permission
+    check still requires each current condition, a true clear value and actual
+    evidence. Duplicate entries within either authored list are ambiguous.
+    """
+    result = {}
+    for label, assessments in (('shared', shared), ('operation-specific', individual)):
+        seen = set()
+        for assessment in assessments:
+            identifier = assessment['id']
+            if identifier in seen:
+                raise ProductionError('AUTHORIZATION_MISMATCH',
+                    f'A {label} stop assessment repeats the same condition.', phase='authorization',
+                    actual=identifier,
+                    required_action='Keep one judgment per condition in each assessment list. '
+                                    'An operation-specific entry replaces the entire shared judgment of that id.')
+            seen.add(identifier)
+            result[identifier] = copy.deepcopy(assessment)
+    return list(result.values())
 
 
 def _request_decision(root: Path, request: dict, choice: dict, authority: dict) -> dict:
@@ -115,6 +139,14 @@ def expand(root: Path, run: str, choices: dict, loaded, authority) -> list[dict]
         raise ValueError('production execution-decisions: ' + '; '.join(report['errors']))
     compare_exact({'run': run, 'input_sha256': prepared['input_sha256'], 'request_sha256': plan['request_sha256']},
                   {key: choices[key] for key in ('run', 'input_sha256', 'request_sha256')})
+    current_stops = c.content_id(authority.document['stop_conditions'])
+    if choices['stop_conditions_sha256'] != current_stops:
+        raise ProductionError('AUTHORIZATION_MISMATCH',
+            'The current stop conditions differ from the conditions this execution draft names.',
+            phase='authorization', run=run, pointer='$.stop_conditions_sha256',
+            expected=current_stops, actual=choices['stop_conditions_sha256'],
+            required_action='Use draft-execution to inspect the current stop conditions and reassess them '
+                            'from actual evidence. Retain other applicable judgments; do not copy the new digest alone.')
     selected = choices['decisions']
     if [item['operation'] for item in selected] != [item['operation'] for item in plan['operations']]:
         raise ProductionError('AUTHORIZATION_MISMATCH', 'Supply every prepared operation exactly once in its prepared order.',
@@ -122,17 +154,18 @@ def expand(root: Path, run: str, choices: dict, loaded, authority) -> list[dict]
                               required_action='Give $.decisions one entry for each prepared operation, in the order '
                                               'draft-execution writes them.')
     import production_permissions
-    requirements = production_permissions.grant_requirements(authority.document, plan['operations'], selections=selected)
+    requirements = workflow.authorization_requirements(root, prepared, authority, plan['operations'], selections=selected)
     production_permissions.require_grants(requirements)
     result = []
     for intent, choice, requirement in zip(plan['operations'], selected, requirements['requirements']):
         request = workflow.draft_authorization_from(loaded, authority, requirement['selected_grant'], intent)
-        expected = {'operation', 'grant', 'reason', 'stop_assessments'}
+        expected = {'operation', 'grant', 'reason', 'additional_stop_assessments'}
         if 'request_decision' in request:
             expected.add('request_decision')
         c.exact(choice, expected, 'execution decision')
         request['reason'] = choice['reason']
-        request['stop_assessments'] = copy.deepcopy(choice['stop_assessments'])
+        request['stop_assessments'] = stop_assessments(choices['shared_stop_assessments'],
+                                                      choice['additional_stop_assessments'])
         if 'request_decision' in request:
             request['request_decision'] = _request_decision(root, request, choice['request_decision'], authority.document)
         result.append(request)

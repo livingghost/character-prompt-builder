@@ -95,12 +95,94 @@ class AuthoredRevisionTests(unittest.TestCase):
             '--root', str(self.root), '--run', run, '--out', custom],
             capture_output=True, text=True, encoding='utf-8', env=dict(os.environ), check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(json.loads(result.stdout), c.load(self.root / custom))
+        report = json.loads(result.stdout)
+        self.assertEqual(report['choices'], c.load(self.root / custom))
+        self.assertEqual(report['draft_file'], custom)
+        self.assertEqual(report['review_guide']['automatic_evidence'][0]['id'], 'candidate')
+        self.assertEqual(report['next_action']['command'], 'review-authored')
         before = (self.root / custom).read_bytes()
         status = workflow.status(self.root, run)['runs'][0]
         self.assertEqual(status['next_action']['command'], 'review-authored')
         self.assertEqual(status['next_action']['argv'][-2:], ['--file', custom])
         self.assertEqual((self.root / custom).read_bytes(), before)
+
+    def test_public_save_resumes_its_suspended_task_without_rebinding_other_work(self):
+        from reading_fixtures import fixture_reading
+        import production_store
+        a_path, a_choices = self.choices(requirements=['save'])
+        a_id = a_choices['authoring']['task']['task_id']
+        a_folder = self.root / Path(a_path).parent
+        before_a = {path.relative_to(self.root).as_posix(): path.read_bytes()
+                    for path in a_folder.rglob('*') if path.is_file()}
+
+        def invoke(argv, *, code=0, json_output=True):
+            result = subprocess.run(argv, cwd=self.root, capture_output=True,
+                                    text=True, encoding='utf-8', timeout=45)
+            self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+            return json.loads(result.stdout) if json_output else result.stdout
+
+        ledger = [sys.executable, str(Path(work_ledger.__file__))]
+        production = [sys.executable, str(Path(production_workflow_cli.__file__))]
+        invoke([*ledger, 'suspend', '--studio', str(self.root), '--reason',
+                'Create independent synthetic work B.'], json_output=False)
+        invoke([*ledger, 'begin', '--studio', str(self.root), '--goal',
+                'Independent synthetic work B.', '--step', 'Write the harbor description.'], json_output=False)
+        self.write('b-request.txt', 'Write an independent description of a quiet harbor.')
+        draft = invoke([*production, 'draft-inputs', '--root', str(self.root),
+            '--operation', 'compose',
+            '--route', 'development', '--artifact', 'text', '--execution', 'authored',
+            '--focus', 'supporting-setting', '--request-file', 'b-request.txt', '--out-dir', 'work/b'])
+        b_path = draft['choices_file']
+        b_choices = c.load(self.root / b_path)
+        b_task = b_choices['authoring']['task']
+        b_id = b_task['task_id']
+        self.assertNotEqual(a_id, b_id)
+        self.assertNotEqual(a_choices['authoring']['task']['production_id'], b_task['production_id'])
+        b_task['criteria'] = [{'id': 'harbor', 'strength': 'hard', 'evidence': 'artifact',
+                              'text': 'The text describes the independent quiet harbor.'}]
+        b_task['direction'].update(purpose='Describe the independent harbor.',
+            intended_effect='A quiet waterfront scene.', basis=[row['id'] for row in b_task['sources']])
+        self.write(b_choices['authoring']['delivery']['file'], 'A quiet harbor before the first ferry.\n')
+        reading = fixture_reading(route=b_task['route'], execution=b_task['execution'],
+            features=b_task['features'], studio=self.root, operation='author')
+        b_choices['reading']['reading_key'] = reading['reading_key']
+        self.write(b_path, b_choices)
+        invoke([*ledger, 'suspend', '--studio', str(self.root), '--reason',
+                'Retain B while returning to A.'], json_output=False)
+        invoke([*ledger, 'resume-task', '--studio', str(self.root), '--task-id', a_id], json_output=False)
+        current_before = work_ledger.require_open(self.root)
+        b_record_before = work_ledger.task_path(self.root, b_id).read_bytes()
+        b_before = (self.root / b_path).read_bytes()
+
+        refused = invoke([*production, 'save', '--root', str(self.root), '--choices', b_path], code=2)
+        problem = next(row for row in refused['diagnostics'] if row['code'] == 'TASK_CHANGED')
+        self.assertEqual((problem['phase'], problem['expected'], problem['actual']), ('publication', a_id, b_id))
+        self.assertIsNone(problem['file'])
+        self.assertIsNone(problem['pointer'])
+        self.assertEqual(problem['authored_task_owner'],
+                         {'file': b_path, 'pointer': '/authoring/task/task_id'})
+        self.assertEqual(problem['repair_owner']['file'], 'work/current.json')
+        self.assertEqual(problem['task_id_to_preserve'], b_id)
+        self.assertEqual(problem['intended_task']['state'], 'suspended')
+        self.assertEqual(work_ledger.require_open(self.root), current_before)
+        self.assertEqual(work_ledger.task_path(self.root, b_id).read_bytes(), b_record_before)
+        self.assertEqual((self.root / b_path).read_bytes(), b_before)
+        self.assertEqual(production_store.runs(self.root), [])
+        actions = problem['recovery_actions']
+        self.assertEqual([action['command'] for action in actions], ['suspend', 'resume-task', 'save'])
+        self.assertEqual(actions[0]['expected_active_task_id'], a_id)
+        self.assertEqual(actions[1]['argv'][-2:], ['--task-id', b_id])
+        self.assertEqual(actions[2]['argv'][-2:], ['--choices', b_path])
+        for action in actions[:2]:
+            invoke(action['argv'], json_output=False)
+        saved = invoke(actions[2]['argv'])
+        loaded = workflow.read_run(self.root, saved['run'])
+        self.assertEqual(loaded.prepared['task']['task_id'], b_id)
+        self.assertEqual(loaded.consumer['instructions'], 'A quiet harbor before the first ferry.\n')
+        self.assertEqual(work_ledger.require_open(self.root)['task_id'], b_id)
+        self.assertEqual(c.load(work_ledger.task_path(self.root, a_id))['work_state'], 'suspended')
+        self.assertEqual({path: (self.root / path).read_bytes() for path in before_a}, before_a)
+        self.assertEqual((self.root / b_path).read_bytes(), b_before)
 
     def test_finished_save_completes_the_requested_authored_work(self):
         path, _ = self.choices()

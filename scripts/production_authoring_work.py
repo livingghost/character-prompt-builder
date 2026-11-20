@@ -11,6 +11,159 @@ from pathlib import Path
 import authoring_work
 import execution_contract as c
 import production_authoring as authoring
+from production_diagnostics import ProductionError
+
+
+SOURCE_GUIDANCE = {
+    'document_path': 'references/runtime/production-authoring.md#discover-input-structures',
+    'schema': 'schemas/authoring/production-task.schema.json',
+}
+
+
+def source_action(*, root: Path | None, choices_path: str, source_row_path: str) -> dict:
+    """Locate the public source acquisition owner without inventing source scope."""
+    from cli_invocation import python_argv, shown
+    argv = python_argv(Path(__file__).with_name('production_workflow.py'), 'acquire-source',
+        '--root', str(root) if root is not None else 'STUDIO', '--choices', choices_path,
+        '--source-row', source_row_path)
+    return {'command': 'acquire-source', 'argv': argv, 'shown': shown(argv)}
+
+
+def validate_source_row(source: dict, *, file: str | None = None) -> None:
+    """Check the public ProductionTask source shape and its declared identity scope."""
+    from state_protocol import read_schema, validate_against_schema
+    schema = read_schema(Path(__file__).resolve().parents[1] / SOURCE_GUIDANCE['schema'])
+    source_schema = schema['properties']['sources']['items']
+    errors = validate_against_schema(source, source_schema, _root_schema=schema)
+    if errors:
+        missing = [key for key in source_schema['required'] if isinstance(source, dict) and key not in source]
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            'The source descriptor does not satisfy the public ProductionTask source-row contract.',
+            phase='source-acquisition', file=file, pointer='/' + missing[0] if missing else '',
+            cause='source-row-invalid', errors=errors, guidance=SOURCE_GUIDANCE,
+            expected={'required': list(source_schema['required']), 'schema_pointer': '/properties/sources/items'},
+            repair_owner={'file': file, 'pointer': ''},
+            required_action='Correct the named field in the source-row descriptor using the source schema, '
+                'then run acquire-source with that descriptor again.')
+    import identity_coverage
+    try:
+        identity_coverage.validate_task({'sources': [source], 'criteria': []})
+    except ProductionError as error:
+        diagnostic = error.diagnostic
+        raise ProductionError(diagnostic.code, diagnostic.message, phase='source-acquisition',
+            file=file, pointer='/identity', cause='source-identity-invalid',
+            source=source['id'], guidance=SOURCE_GUIDANCE,
+            repair_owner={'file': file, 'pointer': '/identity'},
+            required_action='Correct identity.subject_ids and identity.selectors in the source-row descriptor, '
+                'preserving its actual source authority, then run acquire-source again.') from error
+
+
+def acquire_record(source: dict, raw: bytes, *, file: str | None = None,
+                   kind: str = 'studio-source') -> dict:
+    """Capture one source row and the exact original bytes selected by it."""
+    validate_source_row(source, file=file)
+    path = (source.get('origin') or {}).get('path', source['path'])
+    origin = {'kind': kind, 'source': copy.deepcopy(source)}
+    if file is not None:
+        origin['source_row'] = {'file': file}
+    if source.get('definition_owner') is not None:
+        origin.update(kind='task-subject', subject_id=source['definition_owner']['subject_id'])
+    try:
+        record = authoring_work.acquire_source(raw, format=_format(path, raw), origin=origin)
+    except (UnicodeError, TypeError, ValueError) as error:
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            'The selected source bytes do not satisfy their acquisition format.',
+            phase='source-acquisition', file=file, pointer='/path',
+            cause='source-content-invalid', source=source['id'], source_file=path,
+            detail=str(error), guidance=SOURCE_GUIDANCE,
+            repair_owner={'file': file, 'pointer': '/path'},
+            required_action='Correct the selected source content or choose its intended original file '
+                'in the source-row descriptor, then run acquire-source again.') from error
+    if source.get('origin') is not None and source['origin']['sha256'] != record['sha256']:
+        raise ProductionError('IDENTITY_SOURCE_CHANGED',
+            'The selected original differs from the source-row acquisition digest.',
+            phase='source-acquisition', file=file, pointer='/origin/sha256',
+            source=source['id'], cause='source-origin-changed',
+            expected=source['origin']['sha256'], actual=record['sha256'], guidance=SOURCE_GUIDANCE,
+            repair_owner={'file': file, 'pointer': '/origin'},
+            required_action='Select the intended current original in the source-row descriptor and reassess '
+                'its source scope before acquiring it again. Retain the earlier captured source unchanged.')
+    try:
+        applications, subjects, _ = _applications({source['id']: record}, {source['id']})
+    except (TypeError, ValueError) as error:
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            'The source descriptor cannot form distinct current applications.',
+            phase='source-acquisition', file=file, pointer='/applications',
+            cause='source-applications-invalid', source=source['id'],
+            detail=str(error), guidance=SOURCE_GUIDANCE,
+            repair_owner={'file': file, 'pointer': '/applications'},
+            required_action='Correct application IDs and selections in the source-row descriptor, '
+                'then run acquire-source again.') from error
+    identity = source.get('identity')
+    if identity is not None and (
+            {item['pointer'] for item in applications.values()} != set(identity['selectors'])
+            or set(subjects) != set(identity['subject_ids'])):
+        raise ProductionError('IDENTITY_CONTRACT_INVALID',
+            'Source applications do not match the descriptor identity selectors and subject scope.',
+            phase='source-acquisition', file=file, pointer='/applications',
+            cause='source-applications-mismatch', source=source['id'], guidance=SOURCE_GUIDANCE,
+            expected=copy.deepcopy(identity), actual={'applications': copy.deepcopy(source.get('applications'))},
+            repair_owner={'file': file, 'pointer': '/applications'},
+            required_action='Omit applications to derive them from identity.selectors and identity.subject_ids, '
+                'or correct the descriptor applications to represent that same selection, then acquire it again.')
+    for ident, application in applications.items():
+        try:
+            authoring_work.source_value(record, application['pointer'])
+        except (TypeError, ValueError) as error:
+            raise ProductionError('IDENTITY_SELECTOR_MISSING' if identity is not None else 'INPUT_CONSISTENCY_ERROR',
+                'A source application does not resolve against the acquired original.',
+                phase='source-acquisition', file=file, pointer='/identity/selectors' if identity else '/applications',
+                source=source['id'], application=ident, selector=application['pointer'],
+                cause='source-selector-missing', source_file=path, detail=str(error), guidance=SOURCE_GUIDANCE,
+                repair_owner={'file': file, 'pointer': '/identity/selectors' if identity else '/applications'},
+                required_action='Correct the source-row selector or select the intended original file, '
+                    'then run acquire-source again. The previous acquired source is unchanged.') from error
+    return record
+
+
+def acquire_source_row(basis: dict, source: dict, raw: bytes, *, file: str | None = None) -> dict:
+    """Replace one logical source and its applications while retaining prior acquisitions."""
+    record = acquire_record(source, raw, file=file)
+    ident = source['id']
+    sources = copy.deepcopy(basis['sources'])
+    _retain_acquisition(sources, ident, record)
+    removed = {key for key, row in basis['applications'].items() if row['source'] == ident}
+    applications = {key: copy.deepcopy(row) for key, row in basis['applications'].items() if key not in removed}
+    subjects = {key: [application for application in selected if application not in removed]
+                for key, selected in basis['subjects'].items()}
+    subjects = {key: selected for key, selected in subjects.items() if selected}
+    requirements = [key for key in basis['requirements'] if key not in removed]
+    selected = {ident} if source['disposition'] == 'applied' else set()
+    added, assigned, required = _applications({ident: record}, selected)
+    conflicts = sorted(set(added) & set(applications))
+    if conflicts:
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            'The source applications reuse IDs already owned by another current source.',
+            phase='source-acquisition', file=file, pointer='/applications',
+            source=ident, cause='source-application-id-collision', applications=conflicts,
+            repair_owner={'file': file, 'pointer': '/applications'}, guidance=SOURCE_GUIDANCE,
+            required_action='Choose distinct application IDs in the source-row descriptor, '
+                'or a distinct source ID when deriving applications, then acquire it again.')
+    applications.update(added)
+    for subject, selected_apps in assigned.items():
+        subjects[subject] = [*subjects.get(subject, []), *selected_apps]
+    requirements.extend(required)
+    try:
+        return authoring_work.revise_basis(basis, sources=sources, applications=applications,
+                                          subjects=subjects, requirements=requirements)
+    except authoring_work.AuthoringWorkError as error:
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            'The acquired source cannot form a valid current authoring selection.',
+            phase='source-acquisition', file=file, pointer='', source=ident,
+            cause='source-selection-invalid', errors=error.report['errors'], guidance=SOURCE_GUIDANCE,
+            repair_owner={'file': file, 'pointer': ''},
+            required_action='Correct the descriptor selection using the reported source or subject defect, '
+                'then run acquire-source again. No draft files have been changed.') from error
 
 
 def requires_subject(task: dict) -> bool:
@@ -136,12 +289,8 @@ def begin(choices: dict, *, task: dict, operation: str, request: str | None,
     for source in source_rows:
         path = (source.get('origin') or {}).get('path', source['path'])
         raw = read_source(path)
-        origin = {'kind': 'current-request' if source['id'] in old_request_sources else 'studio-source',
-                  'source': copy.deepcopy(source)}
-        if source.get('definition_owner') is not None:
-            origin.update(kind='task-subject', subject_id=source['definition_owner']['subject_id'])
-        _retain_acquisition(sources, source['id'], authoring_work.acquire_source(raw,
-            format=_format(path, raw), origin=origin))
+        _retain_acquisition(sources, source['id'], acquire_record(source, raw,
+            kind='current-request' if source['id'] in old_request_sources else 'studio-source'))
     if request is None and prior_basis is not None:
         request = prior_basis['request']
     if initial:
@@ -306,6 +455,96 @@ def project(basis: dict, choices: dict, out_dir: str) -> tuple[dict, dict[str, b
     return result, files, request
 
 
+def projection_diagnostics(basis: dict, choices: dict, *, projected: dict | None = None,
+                           root: Path | None = None, choices_path: str | None = None,
+                           basis_path: str | None = None) -> list[dict]:
+    """Explain identity metadata loss at its acquisition owner before compilation.
+
+    Generic acquisitions remain valid for ordinary sources. A Production
+    descriptor is required when an actual criterion binds that source's
+    identity. Unknown source IDs and subject-scope mistakes keep their own
+    identity diagnostics rather than becoming acquisition failures.
+    """
+    choices_path = choices_path or 'choices.json'
+    folder = Path(choices_path).parent
+    basis_path = basis_path or (folder / 'work-basis.json').as_posix()
+    if projected is None:
+        projected, _, _ = project(basis, choices, folder.as_posix())
+    authored_task = choices['authoring']['task']
+    projected_task = projected['authoring']['task']
+    previous = {row['id']: row for row in authored_task.get('sources', [])}
+    selected = {row['id']: (index, row) for index, row in enumerate(projected_task['sources'])}
+    bound = {}
+    for criterion in authored_task.get('criteria', []):
+        for binding in criterion.get('identity_bindings', []):
+            if isinstance(binding, dict) and isinstance(binding.get('source'), str):
+                bound.setdefault(binding['source'], []).append((criterion['id'], binding))
+    diagnostics = []
+    for ident, bindings in bound.items():
+        if ident not in selected or ident not in basis['sources']:
+            continue
+        index, current = selected[ident]
+        if current.get('identity') is not None:
+            continue
+        record = basis['sources'][ident]
+        origin = record.get('origin') or {}
+        original = origin.get('source')
+        if original is None:
+            cause = 'source-metadata-not-acquired'
+            message = ('The selected source has no acquired Production source-row metadata. '
+                       'Its projected source therefore has no identity selection for the declared binding.')
+        elif original.get('identity') is None:
+            cause = 'source-identity-not-declared'
+            message = ('The acquired Production source row does not declare identity. '
+                       'Its projected source cannot resolve the declared identity binding.')
+        else:
+            cause = 'source-applications-mismatch'
+            message = ('The current applications assign no subject to this acquired identity source. '
+                       'Projection therefore has no current identity selection for the declared binding.')
+        applications = copy.deepcopy(current['applications'])
+        subjects = sorted({subject for row in applications for subject in row['subjects']})
+        owner_path = (origin.get('source_row') or {}).get('file')
+        owner_path = owner_path or (folder / ('source-row-' + c.content_id(ident)[:12] + '.json')).as_posix()
+        repair_owner = {'file': owner_path, 'pointer': ''}
+        authored_source = previous.get(ident)
+        template = copy.deepcopy(original or authored_source or {})
+        template.update(id=ident,
+            path=(current.get('origin') or {}).get('path', current['path']),
+            role=template.get('role', 'identity-contract'), disposition='applied',
+            locator=template.get('locator', 'Selected identity from the acquired original'),
+            reason=template.get('reason', 'The declared source scope supplies this identity comparison.'))
+        template.pop('applications', None)
+        template.pop('origin', None)
+        template.pop('definition_owner', None)
+        identity = copy.deepcopy((original or authored_source or {}).get('identity') or {})
+        identity.update(subject_ids=subjects or sorted({subject for _, binding in bindings
+                            for subject in binding.get('subject_ids', [])}),
+                        selectors=list(dict.fromkeys(row['pointer'] for row in applications)))
+        template['identity'] = identity
+        dropped = [field for field in ('identity', 'role', 'disposition', 'locator', 'reason')
+                   if field in (authored_source or {}) and authored_source[field] != current.get(field)]
+        action = source_action(root=root, choices_path=choices_path, source_row_path=owner_path)
+        pointer = '/authoring/task/sources/' + str(index) + '/identity'
+        diagnostics.append({'field': 'authoring.task.sources', 'code': 'IDENTITY_CONTRACT_INVALID',
+            'severity': 'error', 'phase': 'authoring-projection', 'file': choices_path, 'pointer': pointer,
+            'source': ident, 'criteria': sorted({criterion for criterion, _ in bindings}),
+            'cause': cause, 'message': message, 'guidance': dict(SOURCE_GUIDANCE),
+            'required_action': 'Save the proposed source_row in ' + owner_path +
+                ' after choosing its identity scope from the actual source authority, then run the supplied '
+                'acquire-source command. Task sources are regenerated from the acquired descriptor; '
+                'editing their projected identity will not repair the acquisition.',
+            'repair_owner': repair_owner, 'repair_action': action, 'source_row': template,
+            'projection': {'authored_source': copy.deepcopy(authored_source),
+                'acquired_origin_kind': origin.get('kind'),
+                'origin_has_source_metadata': original is not None,
+                'acquired_source': {'file': basis_path,
+                    'pointer': '/sources/' + ident.replace('~', '~0').replace('/', '~1') + '/origin/source'},
+                'applications': applications, 'subjects': subjects,
+                'projected_source_path': current['path'], 'projected_identity': None,
+                'dropped_fields': dropped, 'repair_owner': repair_owner}})
+    return diagnostics
+
+
 def amend_task(basis: dict, *, task: dict, baseline: dict, request: str | None,
                delivery: str, documents: dict, read_source, out_dir: str) -> tuple[dict, dict[str, bytes]]:
     """Acquire a bounded task edit through the same current-application owner.
@@ -324,10 +563,7 @@ def amend_task(basis: dict, *, task: dict, baseline: dict, request: str | None,
             continue
         path = (row.get('origin') or {}).get('path', row['path'])
         raw = read_source(path)
-        origin = {'kind': 'studio-source', 'source': copy.deepcopy(row)}
-        if row.get('definition_owner') is not None:
-            origin.update(kind='task-subject', subject_id=row['definition_owner']['subject_id'])
-        record = authoring_work.acquire_source(raw, format=_format(path, raw), origin=origin)
+        record = acquire_record(row, raw)
         previous = sources.get(ident)
         if previous is not None and previous['sha256'] == record['sha256']:
             # Keep the original acquisition locator while applying the current
@@ -364,7 +600,71 @@ def amend_task(basis: dict, *, task: dict, baseline: dict, request: str | None,
     return projected['authoring']['task'], files
 
 
-def unresolved(basis: dict, choices: dict, *, require_subject: bool = False) -> list[dict]:
+def protected_requirement_diagnostics(basis: dict, task: dict, *, basis_path: str | None = None,
+                                      choices_path: str | None = None, root: Path | None = None,
+                                      criteria_pointer: str | None = None) -> list[dict]:
+    """Compare retained requirements at their actual owner before publication.
+
+    This is the same exact comparison the completed-task reader performs. The
+    author chooses whether a changed request permits different requirements;
+    this view does not remove a selection or infer permission from prose.
+    """
+    from cli_invocation import python_argv, shown
+    basis_path = basis_path or task.get('work_basis')
+    criteria = {item['id']: (index, item) for index, item in enumerate(task.get('criteria') or [])
+                if isinstance(item, dict) and 'id' in item}
+    result = []
+    for index, application in enumerate(basis['requirements']):
+        selection = basis['applications'][application]
+        record = basis['sources'][selection['source']]
+        if (record.get('origin') or {}).get('kind') != 'protected-requirements':
+            continue
+        expected = authoring_work.source_value(record, selection['pointer'])
+        criterion = expected.get('id') if isinstance(expected, dict) else None
+        current_index, actual = criteria.get(criterion, (None, None))
+        if isinstance(expected, dict) and actual == expected:
+            continue
+        current_pointer = criteria_pointer or ('/authoring/task/criteria' if choices_path is not None else '/criteria')
+        if current_index is not None:
+            current_pointer += '/' + str(current_index)
+        application_pointer = '/applications/' + application.replace('~', '~0').replace('/', '~1')
+        help_argv = python_argv(Path(__file__).with_name('authoring_work.py'), 'context', '--help')
+        context_argv = None
+        if basis_path is not None:
+            location = str(root / basis_path) if root is not None else basis_path
+            context_argv = python_argv(Path(__file__).with_name('authoring_work.py'),
+                                       'context', location, '--basis-only')
+        result.append({'field': 'authoring_work.requirements', 'code': 'AUTHORING_WORK_MISMATCH',
+            'phase': 'authoring-work', 'cause': 'protected-requirement-changed',
+            'message': 'A protected requirement differs from its actual task criterion.',
+            'file': basis_path, 'pointer': '/requirements/' + str(index),
+            'application': application, 'criterion': criterion,
+            'expected': copy.deepcopy(expected), 'actual': copy.deepcopy(actual),
+            'repair_owner': {'file': basis_path, 'pointer': '/requirements',
+                'application_pointer': application_pointer,
+                'source': selection['source'], 'source_pointer': selection['pointer']},
+            'current_criterion_owner': {'file': choices_path, 'pointer': current_pointer},
+            'guidance': {'document_path': 'references/runtime/authoring-work.md#apply-sources-to-this-candidate'},
+            'next_action': {'command': 'authoring-work-context-help', 'argv': help_argv,
+                            'shown': shown(help_argv), 'external_effect': False},
+            **({'context_edit': {'argv_prefix': context_argv, 'shown_prefix': shown(context_argv),
+                'requires_author_input': True,
+                'selection_arguments': '--source ID=FILE; --application APP=SOURCE#POINTER; repeated --requirement APP',
+                'meaning': 'Supply the complete intended current requirement selection. The acquired source catalog remains.'}}
+               if context_argv is not None else {}),
+            'required_action': 'Compare the retained requirement with the current criterion at the displayed owners. '
+                'Restore the criterion if the requirement remains binding. If an actual instruction authorizes '
+                'the change, use authoring_work.py context on the editable basis with --basis-only to acquire '
+                'the explicit current requirement sources and select their applications with repeated --requirement. '
+                'Those flags replace the current requirement selection; preserve every other binding requirement '
+                'and retain the original source catalog. Do not rewrite a saved run or silently drop protection. '
+                'Then inspect the same draft again. This selection grants no execution authority.'})
+    return result
+
+
+def unresolved(basis: dict, choices: dict, *, require_subject: bool = False,
+               root: Path | None = None, choices_path: str | None = None,
+               basis_path: str | None = None) -> list[dict]:
     report = authoring_work.validate_work({'basis': basis, 'content': choices}, complete=True,
                                            require_subject=require_subject)
     specification = choices['authoring']['documents'].get('production_spec')
@@ -376,11 +676,20 @@ def unresolved(basis: dict, choices: dict, *, require_subject: bool = False) -> 
         for ident in actual_subjects - set(basis['subjects']):
             report['errors'].append({'path': '/basis/subjects',
                 'message': 'The current subject ' + str(ident) + ' has no applied character definition.'})
-    return [{'field': 'authoring_work' + item['path'], 'code': 'AUTHORING_WORK_INCOMPLETE',
+    result = [{'field': 'authoring_work' + item['path'], 'code': 'AUTHORING_WORK_INCOMPLETE',
              'phase': 'authoring', 'message': item['message'],
              'required_action': 'Complete the named current request or source application in work-basis.json.',
              'guidance': {'document_path': 'references/runtime/authoring-work.md'}}
             for item in report['errors']]
+    # Invalid applications already have their owning core diagnostics. Compare
+    # criteria only after those selections can be resolved without guessing.
+    if not report['errors']:
+        changes = choices.get('task_changes') or {}
+        task = {**choices['authoring']['task'], **changes}
+        result.extend(protected_requirement_diagnostics(basis, task, root=root,
+            choices_path=choices_path, basis_path=basis_path,
+            criteria_pointer='/task_changes/criteria' if 'criteria' in changes else None))
+    return result
 
 
 def publish_sources(root: Path, out_dir: str, files: dict[str, bytes]) -> None:
@@ -483,14 +792,10 @@ def resolve_task_work(task: dict, *, basis: dict, delivery: str, documents: dict
                 mismatch('A task source differs from its selected acquired values.', file=source['path'], source=ident)
         elif source.get('origin') is not None or raw != files[wanted['path']]:
             mismatch('A task source differs from its exact acquired content.', file=source['path'], source=ident)
-    criteria = {item['id']: item for item in task['criteria']}
-    for application in basis['requirements']:
-        selection = basis['applications'][application]
-        record = basis['sources'][selection['source']]
-        if (record.get('origin') or {}).get('kind') == 'protected-requirements':
-            value = authoring_work.source_value(record, selection['pointer'])
-            if not isinstance(value, dict) or criteria.get(value.get('id')) != value:
-                mismatch('A protected requirement differs from its actual task criterion.',
-                         pointer='$.criteria', application=application)
+    protected = protected_requirement_diagnostics(basis, task)
+    if protected:
+        diagnostic = protected[0]
+        raise ProductionError(diagnostic['code'], diagnostic['message'],
+            **{key: value for key, value in diagnostic.items() if key not in {'code', 'message'}})
     return {'basis': task['work_basis'], 'content_sha256': authoring_work.digest(resolved['content']),
             'sources': sorted(actual), 'subjects': sorted(basis['subjects'])}

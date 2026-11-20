@@ -104,7 +104,16 @@ def draft(root: Path, run: str, candidate: str, grant: str | None = None, *, sco
     if scope not in {'delivery-only', 'studio-slot'}:
         raise ValueError('acceptance scope must be delivery-only or studio-slot')
     authority = workflow.current_authority(root, prepared)
-    grant = _grant(authority, grant)
+    try:
+        grant = _grant(authority, grant)
+    except ProductionError as exc:
+        requirements = exc.diagnostic.details.get('authorization_requirements', {}).get('requirements', [])
+        if requirements and not any(item['eligible'] for item in requirements[0]['candidates']):
+            from production_authority_drafts import selection_update_action
+            exc.diagnostic.details['next_action'] = selection_update_action(root, run, candidate, authority)
+            exc.diagnostic.required_action += (' Use next_action to draft selection authority for this reviewed '
+                                               'candidate; fill it only from actual instruction evidence.')
+        raise
     result = {'run': run, 'input_sha256': prepared['input_sha256'], 'candidate': candidate,
             'review': reviewed['sha256'], 'scope': scope,
             'authority_sha256': authority_basis(authority, grant), 'grant': grant, 'reason': '',

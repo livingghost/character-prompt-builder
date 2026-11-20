@@ -60,7 +60,7 @@
         "additionalProperties": false
       },
       "minItems": 0,
-      "description": "The editable draft contains additional reviewer evidence. Recording also resolves prepared references and delivery carriers, or an authored revision's original sources and separate adaptations, from retained run evidence."
+      "description": "Additional reviewer evidence only. The reserved candidate ID and the automatic evidence IDs shown by workspace or draft-review are already available to observations and must not be redeclared here. Recording resolves prepared references and delivery carriers, or an authored revision's original sources and separate adaptations, from retained run evidence."
     },
     "observations": {
       "type": "array",
@@ -69,7 +69,8 @@
         "properties": {
           "evidence": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Use candidate for the actual saved artifact; use an automatic comparison evidence ID from review_guide or an additional ID declared in evidence for other material. A copied file under a new ID does not replace the reserved candidate identity."
           },
           "locator": {
             "oneOf": [
@@ -241,6 +242,7 @@
           },
           "observation_indices": {
             "type": "array",
+            "description": "Zero-based positions in this review's observations array. A passing identity criterion must include a candidate observation supporting its required medium.",
             "items": {
               "type": "integer",
               "minimum": 0

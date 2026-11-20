@@ -22,7 +22,21 @@ uv sync --locked
 uv run --locked python scripts/check_dependencies.py
 ```
 
-The host's session hook uses the same project environment. uv reads the default interpreter selection, installs the locked packages and runs the requested command. `--locked` reports stale project metadata instead of rewriting the lock during execution. Every runtime operation uses this environment.
+Environment setup is an explicit operation. `uv sync --locked` reads the default
+interpreter selection and installs the locked packages; `--locked` reports stale
+project metadata instead of rewriting the lock. Every runtime operation uses
+this selected environment.
+
+The host's session hook uses `uv python find --offline --no-python-downloads`
+to locate the selected environment without changing it. It then invokes that
+environment's Python directly with `-B`. It does not synchronize or create an
+environment, download Python or packages, write bytecode or operation logs, or
+refresh Studio displays. It checks the running Python and installed package
+versions against `pyproject.toml` without importing those packages; full
+functional checks remain with `check_dependencies.py`. A missing interpreter
+or incomplete environment produces a setup instruction and leaves the host
+session open. Run the setup command only as part of the authorized environment
+setup, then repeat the session report.
 
 When the agent is working in a Studio directory, retain that working directory and select the skill by its absolute installed path:
 
@@ -32,7 +46,7 @@ uv run --locked --project /absolute/path/to/character-prompt-builder python /abs
 
 Use that same project and absolute script paths for subsequent commands. `--project` selects the environment while keeping the current Studio directory. Child tools use the parent's `sys.executable`, so they retain the selected Python and packages. Commands documented with `python` assume this interpreter; an agent enters through `uv run --locked --project ...`, or uses the already selected interpreter for a child command.
 
-By default uv creates `.venv` in the project. Set `UV_PROJECT_ENVIRONMENT` to an absolute directory to keep the environment elsewhere, and retain that setting for each `uv sync` and `uv run`. uv's environment and cache are local installation state. The complete skill files stay together beside `SKILL.md`.
+By default uv creates `.venv` in the project. Set `UV_PROJECT_ENVIRONMENT` to an absolute directory to keep the environment elsewhere, and retain that setting for each `uv sync`, `uv run` and host session. The hook asks uv to resolve the environment and its interpreter; a relative selection is resolved from the project directory. uv's environment and cache are local installation state. The complete skill files stay together beside `SKILL.md`.
 
 Tools that install requirements files can use the generated `requirements.txt` with `python -m pip install -r requirements.txt`. It describes the same resolved packages. A Python whose packages the system manages needs a virtual environment; the dependency check reports that condition and supports `--venv DIR`.
 

@@ -149,6 +149,12 @@ class DecisionReader:
     project_candidate: Callable
 
     def read(self, run: str) -> DecisionRead:
+        # Cache publication belongs to the snapshot: its exit must invalidate
+        # these values if another connection committed while they were read.
+        with store.reader(self.root):
+            return self._read_snapshot(run)
+
+    def _read_snapshot(self, run: str) -> DecisionRead:
         from production_compiler import acquire_decision_records
         identity = str(Path(self.root).resolve())
         scope = read_context.check_scope(self.root)
@@ -209,6 +215,23 @@ class RunView:
         """Export an independent graph for a caller that needs editable data."""
         return RunSnapshot(self.directory, mutable(self.prepared),
                            mutable(self.consumer), mutable(self.rows))
+
+    def recording_summary(self) -> dict:
+        """Locate retained outputs and the saved generation destination.
+
+        This projects already verified candidate evidence. The destination is
+        the preparation's original recording choice; later Studio placement
+        remains with its owning read model and is not inferred from this view.
+        No current source file or Studio inventory is acquired here.
+        """
+        return {'destination': mutable(self.prepared['task'].get('recording')),
+            'destination_scope': 'saved-generation',
+            'outputs': [{'candidate': row['sha256'],
+                         'output_index': row['data'].get('output_index'),
+                         'files': [{'path': str(self.directory / 'objects' / item['sha256']),
+                                    'sha256': item['sha256']}
+                                   for item in row['data'].get('files', [])]}
+                        for row in self.rows if row['event'] == 'candidate']}
 
     def append(self, event: str, data: dict) -> dict:
         """Append through the writer that acquired this exact current view."""
@@ -305,6 +328,13 @@ class RunReader:
             scope[('verified-publication', identity, run)] = publication
 
     def read(self, run: str, *, force: bool = False) -> RunView:
+        # Keep acquisition, validation and cache publication in one snapshot.
+        # Otherwise a nested read can observe an external commit on exit and
+        # invalidate its history before this method republishes that old view.
+        with store.reader(self.root):
+            return self._read_snapshot(run, force=force)
+
+    def _read_snapshot(self, run: str, *, force: bool = False) -> RunView:
         from production_compiler import RUN_DOCUMENTS, acquire_publication
         root = self.root
         identity = str(Path(root).resolve())

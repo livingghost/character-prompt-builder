@@ -66,14 +66,19 @@ def _declared(task: dict, read, source: dict) -> bool:
     return False
 
 
-def _specification(task: dict, read, package: dict | None) -> dict | None:
-    if package is not None:
-        return package.get('production_spec')
+def _specification_path(task: dict) -> str | None:
     path = (task.get('generation') or {}).get('production_spec')
     if path is None:
         path = next((source['path'] for source in task.get('sources', [])
                      if source.get('role') == 'production-spec'
                      and source.get('disposition') == 'applied'), None)
+    return path
+
+
+def _specification(task: dict, read, package: dict | None) -> dict | None:
+    if package is not None:
+        return package.get('production_spec')
+    path = _specification_path(task)
     return c.decode(read(path)) if path else None
 
 
@@ -118,11 +123,21 @@ def context(task: dict, read, *, package: dict | None = None,
     source_reader = source_reader or read
     specification = production_spec if production_spec is not None else _specification(task, read, package)
     subjects = [row['id'] for row in specification['subjects']] if specification else []
+    declaration = {'owner': 'production_spec', 'present': specification is not None,
+                   'pointer': '/subjects'}
+    specification_path = _specification_path(task)
+    if specification_path is not None:
+        declaration['file'] = specification_path
     if not subjects:
-        subjects = list((task.get('recording') or {}).get('subject_map', {}))
+        recording = task.get('recording') or {}
+        subjects = list(recording.get('subject_map', {}))
+        if 'subject_map' in recording and (subjects or specification is None):
+            declaration = {'owner': 'recording.subject_map', 'present': True,
+                           'pointer': '/recording/subject_map'}
     if not subjects and task.get('artifact') != 'image':
         subjects = sorted({subject for row in task.get('sources', [])
                            for subject in (row.get('identity') or {}).get('subject_ids', [])})
+        declaration = {'owner': 'source.identity', 'present': True, 'pointer': '/sources'}
     if package is not None:
         reference_set = package.get('prepared_reference_set')
         visual = package.get('visual_continuity')
@@ -279,7 +294,8 @@ def context(task: dict, read, *, package: dict | None = None,
         if not isinstance(value, str):
             raise ValueError('identity text carrier is not a text request surface')
         text[name] = {'text': value, 'field': field, 'sha256': c.digest(value.encode('utf-8'))}
-    return {'subject_ids': subjects, 'required_subject_ids': sorted(required),
+    return {'subject_ids': subjects, 'subject_declaration': declaration,
+            'required_subject_ids': sorted(required),
             'identity_sources': extra, 'text': text, 'references': rows}
 
 

@@ -370,8 +370,25 @@ class RetargetTests(unittest.TestCase):
 
 class ReferenceRetargetTests(unittest.TestCase):
     def assert_identity_retained(self, root, before, after):
-        expected = copy.deepcopy(before)
-        for previous, current in zip(expected['sources'], after['sources'], strict=True):
+        expected = copy.deepcopy(before.prepared['identity_coverage'])
+        actual = after.prepared['identity_coverage']
+        specifications = []
+        for loaded, coverage in ((before, expected), (after, actual)):
+            declaration = coverage['subject_declaration']
+            self.assertEqual((declaration['owner'], declaration['present'], declaration['pointer']),
+                             ('production_spec', True, '/subjects'))
+            selected = loaded.prepared['task']['generation']['production_spec']
+            self.assertEqual(declaration['file'], selected)
+            raw = (root / selected).read_bytes()
+            dependency = next(row for row in loaded.prepared['dependencies'] if row['path'] == selected)
+            self.assertEqual(c.digest(raw), dependency['sha256'])
+            specification = c.decode(raw)
+            self.assertEqual(specification, loaded.artifacts['package.json']['production_spec'])
+            self.assertEqual(sorted(row['id'] for row in specification['subjects']), coverage['actual_subject_ids'])
+            specifications.append(specification)
+        self.assertEqual(specifications[0]['subjects'], specifications[1]['subjects'])
+        expected['subject_declaration']['file'] = actual['subject_declaration']['file']
+        for previous, current in zip(expected['sources'], actual['sources'], strict=True):
             self.assertEqual(c.digest((root / current['path']).read_bytes()), previous['sha256'])
             previous['path'] = current['path']
             origin = (previous.get('authority') or {}).get('source')
@@ -379,7 +396,7 @@ class ReferenceRetargetTests(unittest.TestCase):
                 selected = current['authority']['source']['resolved_path']
                 self.assertEqual(c.digest((root / selected).read_bytes()), origin['sha256'])
                 origin['resolved_path'] = selected
-        self.assertEqual(after, expected)
+        self.assertEqual(actual, expected)
 
     def test_reference_mode_switch_and_plain_prompt_retry_keep_authored_work(self):
         import production_inputs
@@ -421,7 +438,7 @@ class ReferenceRetargetTests(unittest.TestCase):
                     self.assertEqual(old['origin']['sha256'], new['origin']['sha256'])
                     self.assertEqual((root / old['origin']['path']).read_bytes(),
                                      (root / new['origin']['path']).read_bytes())
-            self.assert_identity_retained(root, before.prepared['identity_coverage'], after.prepared['identity_coverage'])
+            self.assert_identity_retained(root, before, after)
             self.assertEqual(after.prepared['parent']['run'], parent['run'])
             self.assertEqual(after.prepared['parent']['kind'], 'retarget')
             self.assertEqual(store.authority_record(root, before.prepared['task']['task_id']), authority)
@@ -445,7 +462,7 @@ class ReferenceRetargetTests(unittest.TestCase):
             revised_view = workflow.read_run(root, revised['run'])
             self.assertEqual(revised['request_preview']['prompt'], prompt + expected_direction)
             self.assertEqual(revised_view.prepared['task']['criteria'], before.prepared['task']['criteria'])
-            self.assert_identity_retained(root, before.prepared['identity_coverage'], revised_view.prepared['identity_coverage'])
+            self.assert_identity_retained(root, before, revised_view)
             expected_validation = copy.deepcopy(new_validation)
             from input_evidence import InputEvidence
             package = revised_view.artifacts['package.json']

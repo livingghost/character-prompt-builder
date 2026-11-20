@@ -1607,6 +1607,93 @@ def validate_execution_documents(prepared: dict, documents: Mapping[str, Any]) -
         validate_execution_artifact(prepared, name, documents[name])
 
 
+def _publication_retry_action(root: Path, prepared: dict) -> dict | None:
+    """Repeat a known public save/prepare selection without changing its task."""
+    operation = current()
+    arguments = operation.metadata.get('arguments', {}) if operation is not None else {}
+    command = arguments.get('command')
+    if command not in {'save', 'prepare'}:
+        return None
+    choices = (prepared.get('authoring') or {}).get('choices')
+    if choices:
+        selector = ['--choices', choices]
+    elif command == 'prepare' and dependency_space(prepared['task_path']) == 'studio':
+        selector = ['--task', prepared['task_path']]
+    else:
+        return None
+    argv = python_argv(ROOT / 'scripts/production_workflow.py', command, '--root', str(root), *selector)
+    if command == 'save' and (prepared.get('authored_revision') or {}).get('state') == 'draft':
+        argv.append('--draft')
+    # These are the existing explicit runtime selectors, never raw argv or
+    # author text. Resolve paths in this invocation before offering the retry.
+    for key in ('state_file', 'cache_dir', 'managed_root', 'pack_root'):
+        selected = arguments.get(key)
+        for value in selected if isinstance(selected, list) else [selected]:
+            if value is not None:
+                argv.extend(('--' + key.replace('_', '-'), str(Path(value).resolve())))
+    return {'command': command, 'argv': argv, 'shown': shown(argv), 'external_effect': False,
+            'task_id': prepared['task']['task_id'],
+            'reason': 'Retry the same selected input after its own work task is active.'}
+
+
+def _publication_task_recovery(root: Path, prepared: dict, active: dict) -> dict:
+    """Describe a verified suspended-task recovery without changing work state."""
+    import work_ledger
+    target_id = prepared['task']['task_id']
+    show = python_argv(ROOT / 'scripts/work_ledger.py', 'show', '--studio', str(root))
+    show_action = {'command': 'show', 'argv': show, 'shown': shown(show), 'external_effect': False}
+    target, target_file = None, None
+    try:
+        path = work_ledger.task_path(root, target_id)
+        target_file = path.relative_to(root).as_posix()
+        observed = c.load(path)
+        if isinstance(observed, dict) and observed.get('task_id') == target_id:
+            target = observed
+    except (OSError, ValueError, TypeError):
+        pass
+    choices = (prepared.get('authoring') or {}).get('choices')
+    result = {'task_id_to_preserve': target_id,
+        'repair_owner': {'kind': 'active-work-selection',
+            'file': work_ledger.WORK_DIR + '/' + work_ledger.CURRENT, 'pointer': '/task_id'},
+        'authored_task_owner': {'file': choices or (prepared['task_path']
+            if dependency_space(prepared['task_path']) == 'studio' else None),
+            'pointer': '/authoring/task/task_id' if choices else '/task_id'},
+        'intended_task': {'task_id': target_id, 'file': target_file,
+                          'state': target.get('work_state') if target else 'unavailable'},
+        'active_task': {'task_id': active['task_id'], 'state': active.get('work_state')},
+        'read_action': show_action, 'next_action': show_action}
+    if target is None or target.get('work_state') != 'suspended':
+        result['required_action'] = ('Keep the input bound to its intended task_id ' + target_id + '. '
+            'Inspect the active work and the intended task record with ' + show_action['shown'] + '. '
+            'The intended task is not a verified suspended task, so no resume sequence is offered. '
+            'Resolve the actual work selection through its existing ledger owner, then retry the same '
+            'save or prepare command. Do not replace this input task_id with the currently active task_id.')
+        return result
+    suspend_argv = python_argv(ROOT / 'scripts/work_ledger.py', 'suspend', '--studio', str(root),
+        '--reason', 'Switch to existing work ' + target_id + ' for its pending publication.')
+    resume_argv = python_argv(ROOT / 'scripts/work_ledger.py', 'resume-task', '--studio', str(root),
+                             '--task-id', target_id)
+    suspend = {'command': 'suspend', 'argv': suspend_argv, 'shown': shown(suspend_argv),
+        'external_effect': False, 'expected_active_task_id': active['task_id'],
+        'reason': 'Suspend the displayed active work while retaining its draft and task identity.'}
+    resume = {'command': 'resume-task', 'argv': resume_argv, 'shown': shown(resume_argv),
+        'external_effect': False, 'task_id': target_id,
+        'reason': 'Resume the verified existing task that owns this input.'}
+    retry = _publication_retry_action(root, prepared)
+    # The public diagnostic preserves next_action in full; generic detail
+    # lists may be bounded. Keep the ordered continuation executable there.
+    if retry is not None:
+        resume['next_action'] = retry
+    suspend['next_action'] = resume
+    result.update(next_action=suspend, recovery_actions=[suspend, resume, *([retry] if retry else [])],
+        required_action='Keep this input task_id ' + target_id + ' and its authored files unchanged. '
+            'While ' + active['task_id'] + ' remains the active task, run ' + suspend['shown'] + ', then ' +
+            resume['shown'] + '. Retry ' + (retry['shown'] if retry else 'the same save or prepare command') +
+            '. Use the read_action to confirm the active work if it has changed. '
+            'These are navigation actions; this diagnostic changes no task state or authority.')
+    return result
+
+
 def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | None=None, current_task: dict | None=None) -> dict:
     """Publish one already compiled staging tree as the single formal run.
 
@@ -1632,8 +1719,7 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
                 raise ProductionError('TASK_CHANGED','The task names another work task than the open one.',
                     phase='publication',file=prepared['task_path'] if live else None,pointer='$.task_id' if live else None,
                     expected=active['task_id'],actual=prepared['task']['task_id'],
-                    required_action='Show the open work task with work_ledger.py show and prepare a task that names its task_id, '
-                                    'given as expected. Reopen a run of other work with draft-inputs --from-run and --task-id or --new-task.')
+                    **_publication_task_recovery(root, prepared, active))
             if active['task_id']!=current_task['task_id']:
                 raise ProductionError('TASK_CHANGED','The open work task changed during preparation.',
                     phase='publication',expected=current_task['task_id'],actual=active['task_id'],

@@ -23,6 +23,7 @@ import production_authoring as authoring
 import production_authoring_work as authoring_work
 import production_edit_inputs
 import production_target
+import production_input_preflight as input_preflight
 from production_diagnostics import ProductionError, choice_required, from_exception, from_unresolved
 from production_diagnostics import guidance as phase_guidance
 
@@ -35,25 +36,27 @@ IDENTITY_GAPS = {
         'it, or give the binding the treatment not-exposed or not-applicable with its reason.'),
     'missing_subject_sources': ('authoring.task.sources',
         'Identity subjects have no identity source.',
-        'Acquire each adopted definition and bind its actual applications to the listed subject in '
-        'work-basis.json using scripts/authoring_work.py context --basis-only. Task sources are derived from those applications.'),
+        'Acquire each adopted definition with scripts/production_workflow.py acquire-source --root STUDIO '
+        '--choices CHOICES --source-row SOURCE_ROW. Declare its actual role, identity.subject_ids and '
+        'identity.selectors in that source row; the builder derives task sources and applications.'),
     'missing_whole_reviews': ('authoring.task.criteria',
         'Identity subjects have no whole-subject review criterion.',
         'Add a hard criterion to authoring.task.criteria whose identity_review names each listed subject and '
         'compares it with its complete applicable source.'),
     'unknown_subject_ids': ('authoring.task.criteria',
-        'Identity sources, bindings or reviews name subjects that the model input does not contain.',
-        'Change each listed subject ID in identity.subject_ids, identity_bindings and identity_review of '
-        'authoring.task to a Production Specification subject ID, or remove it.'),
+        'Identity sources or reviews name subjects outside the declared input subject scope.',
+        'Compare the actual input subject declaration with source and criterion subject scopes, then correct '
+        'the mistaken declaration at its existing owner.'),
     'requires_identity_source': ('authoring.task.sources',
         'The recurring-identity feature is selected, and no identity source is declared.',
-        'Select the adopted identity source and its subject applications in work-basis.json, '
+        'Acquire the adopted identity source with acquire-source using its subject_ids and selectors, '
         'or revise the actual feature selection if this work has no recurring identity.'),
 }
 
 
 def _task(root: Path, path: str | None, reader: InputEvidence, *,
-          from_run: str | None = None, read_run=None) -> tuple[dict, dict, dict, dict | None]:
+          from_run: str | None = None, read_run=None,
+          operation: str = 'inspect-inputs') -> tuple[dict, dict, dict, dict | None]:
     if (path is None) == (from_run is None):
         raise ValueError('select one task file or source run')
     saved = _source_run(root, from_run, read_run=read_run) if from_run is not None else None
@@ -63,8 +66,9 @@ def _task(root: Path, path: str | None, reader: InputEvidence, *,
     else:
         value = copy.deepcopy(saved['task'])
         ref = {'run': from_run, 'input_sha256': saved['input_sha256']}
-    if not isinstance(value, dict):
-        raise ValueError('production task must be an object')
+    input_preflight.require_shape(value, schema_path=input_preflight.TASK_SCHEMA,
+        file=path if saved is None else saved['task_path'], root=root,
+        operation=operation, source_run=from_run)
     for name in ('task_id', 'route'):
         c.text(value.get(name), 'task.' + name)
     features = value.get('features')
@@ -107,13 +111,36 @@ def _source_run(root: Path, selected: str | None, *, read_run=None) -> dict | No
     loaded = read_run(selected) if read_run is not None else workflow.read_run(root, selected)
     prepared = loaded.prepared
     diagnostics, notices = workflow.freshness(root, selected, loaded=loaded)
-    return {'run': selected, 'input_sha256': prepared['input_sha256'],
+    result = {'run': selected, 'input_sha256': prepared['input_sha256'],
             'task_path': prepared['task_path'], 'task': prepared['task'],
             'target_identity': production_target.prepared_identity(prepared['task'], loaded.artifacts.get('execution-plan.json'),
                 loaded.consumer, loaded.artifacts.get('package.json')),
             'route_reading': copy.deepcopy(prepared.get('route_reading')),
             'freshness': {'diagnostics': diagnostics, 'notices': notices},
             'assessment_required': ['Check copied applications against the current task and changed dependencies.']}
+    if prepared['task']['artifact'] == 'image':
+        from cli_invocation import python_argv, shown
+        argv = python_argv(ROOT / 'scripts/production_workflow.py', 'status',
+                           '--root', str(root), '--run', selected, '--view', 'full')
+        result['input_reuse'] = {
+            'meaning': 'Amending with --from-run restores the saved authored inputs, including their input images. '
+                       'It does not replace those images with a captured output of the run. Keep the restored '
+                       'definitions, documents and source applications that remain applicable; they need no re-entry.',
+            'automatic_output_selection': False,
+            'captured_outputs': [{'candidate': row['sha256'], 'artifact': 'image',
+                'files': [{'path': (loaded.directory / 'objects' / item['sha256']).relative_to(root).as_posix(),
+                           'sha256': item['sha256'], 'size': item['size']}
+                          for item in row['data']['files']]}
+                for row in loaded.rows if row['event'] == 'candidate'],
+            'read_action': {'operation': 'status', 'argv': argv, 'shown': shown(argv), 'external_effect': False},
+            'required_action': 'For an edit of a captured output, select its candidate and actual file above. '
+                'In the new draft, authoring_guide.source_acquisition gives the existing source-row schema and '
+                'acquire-source command when that output needs to become a task source. Select its media file '
+                'at external.image_input.references for external execution or authoring.references for dispatcher '
+                'execution; use explain-inputs --field for that owner. Source role, identity uses, change scope, '
+                'preservation and current authority remain author choices. Inspect the saved result and its '
+                'selection with read_action.'}
+    return result
 
 
 def _sources(root: Path, task: dict, reader: InputEvidence) -> list[dict]:
@@ -210,7 +237,48 @@ def _identity_view(root: Path, task: dict, reader: InputEvidence, *, saved: dict
     return None
 
 
-def _identity_gaps(value: dict | None) -> list[dict]:
+def _identity_subject_gap(value: dict, *, root: Path | None, choices_path: str | None,
+                          locations: dict | None) -> dict:
+    import identity_coverage
+    import production_input_guide as guide
+    result = identity_coverage.subject_gap(value)
+    declaration = value.get('subject_declaration') or {}
+    if declaration.get('owner') == 'production_spec':
+        selected_field = 'authoring.documents.production_spec'
+        location = (locations or {}).get(selected_field)
+        result['field'] = selected_field + '.subjects' if declaration['present'] else selected_field
+        if location:
+            path = [*(location.get('pointer') or []), 'subjects']
+            result.update(file=location['file'], pointer='/' + '/'.join(
+                str(part).replace('~', '~0').replace('/', '~1') for part in path))
+        elif declaration.get('file'):
+            result.update(file=declaration['file'], pointer='/subjects')
+        else:
+            result.update(pointer='/authoring/documents/production_spec')
+            if choices_path is not None:
+                result['file'] = choices_path
+        result['repair_owner'] = {'owner': 'production_spec',
+            'file': location['file'] if location else declaration.get('file'),
+            'pointer': result['pointer'] if location else '/subjects',
+            'selection_pointer': '/authoring/documents/production_spec'}
+    elif declaration.get('owner') == 'recording.subject_map':
+        selected_field = 'authoring.task.recording'
+        result.update(field=selected_field + '.subject_map', pointer='/authoring/task/recording/subject_map')
+        if choices_path is not None:
+            result['file'] = choices_path
+        result['repair_owner'] = {'owner': 'recording.subject_map', 'file': choices_path,
+                                  'pointer': result['pointer']}
+    else:
+        selected_field = 'authoring.task'
+    if root is not None and choices_path is not None:
+        result['next_action'] = guide.action(root, choices_path, field=selected_field)
+        result['next_actions'] = [result['next_action']]
+        result['required_action'] += ' Inspect the current owner with ' + result['next_action']['shown'] + '.'
+    return result
+
+
+def _identity_gaps(value: dict | None, *, root: Path | None = None,
+                   choices_path: str | None = None, locations: dict | None = None) -> list[dict]:
     """One IDENTITY_COVERAGE_INCOMPLETE entry per kind of gap, and each failed identity inspection."""
     if value is None:
         return []
@@ -219,7 +287,9 @@ def _identity_gaps(value: dict | None) -> list[dict]:
         if value.get(key):
             result.append({'field': field, 'code': 'IDENTITY_COVERAGE_INCOMPLETE', 'phase': 'identity-coverage',
                            'message': message, 'required_action': required_action,
-                           'guidance': phase_guidance('identity-coverage'), 'gaps': {key: value[key]}})
+                           'guidance': phase_guidance('identity-coverage'), 'gaps': {key: value[key]},
+                           **(_identity_subject_gap(value, root=root, choices_path=choices_path,
+                                                    locations=locations) if key == 'unknown_subject_ids' else {})})
     return result
 
 
@@ -240,7 +310,10 @@ def inspect_inputs(root: Path, task_path: str | None = None, *, from_run: str | 
     identity = _identity_view(root, task, reader, saved=saved)
     return {'state': 'inspection', 'task': ref,
             'route': {'id': task['route'], 'features': route['features'],
-                      'reads': route['reads']},
+                      'reads': route['reads'], 'source_roles': route['source_roles']},
+            'source_requirements': input_preflight.source_roles(root, task, resolved_route=route,
+                task_path=task_path, source_run=from_run),
+            'unresolved': input_preflight.missing_source_roles(root, task, task_path=task_path, source_run=from_run),
             'source_run': saved, 'task_content': task, 'sources': sources,
             'candidates': adapters.inventory(root, task),
             'craft_lookup': craft,
@@ -327,7 +400,8 @@ def _missing(choices: dict, task: dict, root: Path, runtime_arguments: dict | No
     return unresolved
 
 
-def _unresolved(choices: dict, task: dict, *, root: Path, runtime_arguments: dict | None) -> list[dict]:
+def _unresolved(choices: dict, task: dict, *, root: Path, runtime_arguments: dict | None,
+                choices_path: str | None = None) -> list[dict]:
     task = _chosen_task(task, choices)
     unresolved = _missing(choices, task, root, runtime_arguments)
     unresolved.extend(production_target.unresolved(choices['target'], task))
@@ -339,12 +413,16 @@ def _unresolved(choices: dict, task: dict, *, root: Path, runtime_arguments: dic
             'evidence paths for an acquired schema, a bounded probe or an adopted observed profile.',
             adapters.VALIDATION_GUIDE))
     unresolved.extend(authoring.unresolved(choices.get('authoring'), task))
+    unresolved.extend(input_preflight.generation_fields(root, choices, task, choices_path=choices_path))
+    unresolved.extend(input_preflight.missing_source_roles(root, task, choices_path=choices_path))
     if (choices['visual'] is None and task.get('execution') == 'dispatcher'
             and task.get('route') != 'upscale' and choices.get('authoring') is not None):
         unresolved.extend(authoring.continuity_unresolved(choices['authoring']))
     if choices['external'] is not None:
         import production_external_inputs
         unresolved.extend(production_external_inputs.unresolved(choices['external']))
+        unresolved.extend(production_external_inputs.media_location_diagnostics(
+            choices['external'], root=root, choices_path=choices_path))
     if isinstance(task.get('semantic_edit'), str):
         import semantic_edit_plan
         try:
@@ -665,7 +743,7 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                 'Omit --execution or select --execution dispatcher for the upscale draft.')
         source_result = _captured_image_source(root, source_run, source_candidate)
         source_image = Path(source_result['file']['path'])
-    selected_source = _task(root, task_path, reader, from_run=from_run) if not initial else None
+    selected_source = _task(root, task_path, reader, from_run=from_run, operation='draft-inputs') if not initial else None
     import production_authoring_state
     import work_ledger
     # Work this call opens. The draft is built for its reserved ID first; the
@@ -831,10 +909,12 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         identity = _identity_view(root, chosen, reader, saved=saved, files=editable, out_dir=out_dir,
                                   choices=resolved)
         projected = production_target.project(resolved, chosen, root, reader, out_dir)
-        gaps = _unresolved(resolved, task, root=root, runtime_arguments=runtime_arguments) + file_gaps
+        gaps = _unresolved(resolved, task, root=root, runtime_arguments=runtime_arguments,
+            choices_path=(Path(out_dir) / 'choices.json').as_posix()) + file_gaps
     if empty_delivery and not any(row['field'] == 'authoring.delivery.content' for row in gaps):
         gaps.append(authoring.authored_choice('delivery.content'))
-    gaps += _identity_gaps(identity)
+    gaps += _identity_gaps(identity, root=root,
+        choices_path=(Path(out_dir) / 'choices.json').as_posix(), locations=locations)
     gaps.extend(item for item in projected['unresolved'] if item not in gaps)
     gaps.extend(_target_gaps(choices, chosen, projected))
     gaps.extend(_guidance_gap(root, task, choices, projected, runtime_arguments))
@@ -852,7 +932,9 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         'content': (Path(out_dir) / 'choices.json').as_posix()}
     if request is not None:
         result['current_request'] = request
-    gaps.extend(authoring_work.unresolved(work_basis, resolved, require_subject=authoring_work.requires_subject(task)))
+    gaps.extend(authoring_work.unresolved(work_basis, resolved, require_subject=authoring_work.requires_subject(task),
+        root=root, choices_path=(Path(out_dir) / 'choices.json').as_posix(),
+        basis_path=(Path(out_dir) / 'work-basis.json').as_posix()))
     import production_input_guide
     result['authoring_guide'] = production_input_guide.summary(
         root, (Path(out_dir) / 'choices.json').as_posix(), choices)
@@ -1142,12 +1224,15 @@ def _restore_draft(root: Path, run: str, out_dir: str, saved_source: dict, *,
     with _staged_files(root, out_dir, files):
         resolved = copy.deepcopy(choices)
         resolved['authoring'], source_map, file_gaps = authoring.read_editable(authored, reader)
-        unresolved = _unresolved(resolved, task, root=root, runtime_arguments=runtime_arguments) + file_gaps
+        unresolved = _unresolved(resolved, task, root=root, runtime_arguments=runtime_arguments,
+            choices_path=(Path(out_dir) / 'choices.json').as_posix()) + file_gaps
         projected = production_target.project(resolved, _chosen_task(task, choices), root, reader, out_dir)
         unresolved.extend(item for item in projected['unresolved'] if item not in unresolved)
         unresolved.extend(_target_gaps(choices, _chosen_task(task, choices), projected))
         unresolved.extend(_guidance_gap(root, task, choices, projected, runtime_arguments))
-    unresolved.extend(authoring_work.unresolved(basis, resolved, require_subject=authoring_work.requires_subject(task)))
+    unresolved.extend(authoring_work.unresolved(basis, resolved, require_subject=authoring_work.requires_subject(task),
+        root=root, choices_path=(Path(out_dir) / 'choices.json').as_posix(),
+        basis_path=(Path(out_dir) / 'work-basis.json').as_posix()))
     unresolved = authoring.locate_unresolved(unresolved, source_map)
     actions = _draft_actions(root, _chosen_task(task, choices), choices, unresolved, out_dir,
                             runtime_arguments, saved, projected)
@@ -1194,7 +1279,9 @@ def _validate_choices(value: dict, *, file: str | None = None) -> None:
                 'and an optional "field" array for a JSON value.')
 
 
-def read_choices(value: Any, *, file: str | None = None) -> dict:
+def read_choices(value: Any, *, file: str | None = None, root: Path | None = None) -> dict:
+    input_preflight.require_shape(value, schema_path=input_preflight.CHOICES_SCHEMA,
+        file=file, root=root or Path.cwd(), operation='read-choices')
     _validate_choices(value, file=file)
     return value
 
@@ -1355,7 +1442,7 @@ def _choice_source(root: Path, choices_path: str, reader: InputEvidence, *, choi
 def _load_editable(root: Path, choices_path: str, reader: InputEvidence, *, register: bool = True) -> tuple[dict,dict,dict,list,dict]:
     path = c.local(root, choices_path)
     raw = c.read(path)
-    choices = read_choices(c.decode(raw), file=choices_path)
+    choices = read_choices(c.decode(raw), file=choices_path, root=root)
     import production_reference_inputs
     if register and production_reference_inputs.identify_choices(choices):
         if c.read(path) != raw:
@@ -1387,6 +1474,8 @@ def _load_editable(root: Path, choices_path: str, reader: InputEvidence, *, regi
         basis_raw = c.encoded(current_basis)
         c.atomic(basis_path, basis_raw, replace=True)
     reader.read({'path': work['basis'], 'sha256': c.digest(basis_raw)})
+    gaps.extend(authoring_work.projection_diagnostics(current_basis, choices, root=root,
+        choices_path=choices_path, basis_path=work['basis']))
     choices, selected_files, _ = authoring_work.project(current_basis, choices, folder)
     if register:
         authoring_work.publish_sources(root, folder, selected_files)
@@ -1395,7 +1484,8 @@ def _load_editable(root: Path, choices_path: str, reader: InputEvidence, *, regi
     for name in selected_files:
         reader.read(reader.select((Path(folder) / name).as_posix()))
     gaps.extend(authoring_work.unresolved(current_basis, choices,
-        require_subject=authoring_work.requires_subject(choices['authoring']['task'])))
+        require_subject=authoring_work.requires_subject(choices['authoring']['task']),
+        root=root, choices_path=choices_path, basis_path=work['basis']))
     ref = {**ref, 'files': {path: item['sha256'] for path, item in reader.snapshots.items()
                            if path != choices_path and not path.startswith('@')}}
     return choices, ref, locations, gaps, current_basis
@@ -1478,11 +1568,12 @@ def authoring_view(root: Path, choices_path: str, *, register: bool = False,
         except (ValueError,OSError) as exc:
             gaps.append({'field':'authoring.task.sources','file':path,'code':'INPUT_UNREADABLE','cause':str(exc),
                 'phase':'source-read','message':'The task source '+path+' cannot be read.',
-                'required_action':'Restore '+path+' as a readable file, or change or remove its row in '
-                    'authoring.task.sources.','guidance':phase_guidance('source-read')})
+                'required_action':'Restore the selected original or reacquire its complete Production source row '
+                    'with acquire-source. The next projection regenerates '+path+'; task.sources is derived.',
+                'guidance':phase_guidance('source-read')})
     basis = _authored_basis(root, task, base, reader, saved, allow_missing=True,
         current_sources=choices.get('authoring') is not None or 'sources' in choices['task_changes'])
-    unresolved=_unresolved(choices,task,root=root,runtime_arguments=runtime_arguments)+gaps
+    unresolved=_unresolved(choices,task,root=root,runtime_arguments=runtime_arguments,choices_path=choices_path)+gaps
     unresolved.extend(item for item in projected['unresolved'] if item not in unresolved)
     unresolved.extend(_target_gaps(choices, task, projected))
     unresolved.extend(_guidance_gap(root, task, choices, projected, runtime_arguments))
@@ -1542,7 +1633,8 @@ def _assemble_current(root: Path, task_path: str | None, choices_path: str, out_
             task_path=task_path, from_run=from_run, choices_path=choices_path, runtime_arguments=runtime_arguments)
     projected = production_target.project(choices, task, root, reader, out_dir)
     choices['target'] = copy.deepcopy(projected['choices']['target'])
-    missing = _unresolved(choices, task, root=root, runtime_arguments=runtime_arguments)+file_gaps
+    missing = _unresolved(choices, task, root=root, runtime_arguments=runtime_arguments,
+        choices_path=choices_path)+file_gaps
     missing.extend(item for item in projected['unresolved'] if item not in missing)
     missing.extend(_target_gaps(choices, task, projected))
     missing.extend(_guidance_gap(root, task, choices, projected, runtime_arguments))
@@ -1633,7 +1725,7 @@ def _assemble_current(root: Path, task_path: str | None, choices_path: str, out_
     else:
         external_context = None
     identity = _identity_view(root, copied_task, reader, files=encoded, out_dir=out_dir, choices=choices)
-    identity_gaps = _identity_gaps(identity)
+    identity_gaps = _identity_gaps(identity, root=root, choices_path=choices_path, locations=locations)
     def recheck():
         _reading(choices['reading'], root=root, task=task)
         _retained_identity_sources(root, task, choices_path, reader, choices)
@@ -1766,10 +1858,29 @@ def compile_choices(root: Path, choices_path: str, *, persist: bool = False,
         if compiled.prepared is not None:
             compiled.prepared['authoring']=copy.deepcopy(compiled.report['authoring'])
         reverse={item['path']:key for key,item in assembled['inputs'].items()}
+        choices_raw = assembled['_captured'].get(choices_path)
+        source_choices = c.decode(choices_raw) if choices_raw is not None else {}
+        inline_generation = (source_choices.get('authoring') or {}).get('generation') or {}
         for diagnostic in compiled.report.get('diagnostics',[]):
             generated=diagnostic.get('file')
             name=reverse.get(generated)
             field='authoring.delivery' if name=='delivery' else 'authoring.documents.'+name.replace('-','_') if name else None
+            if name == 'production-task':
+                field = 'authoring.task'
+                pointer = diagnostic.get('pointer') or ''
+                key = next((key for key in inline_generation if pointer == '$.generation.' + key or
+                    pointer.startswith(('$.generation.' + key + '.', '$.generation.' + key + '['))), None)
+                if pointer == '$.generation' or key is not None:
+                    field = 'authoring.generation' + ('.' + key if key is not None else '')
+                    diagnostic['generated_pointer'] = pointer
+                    diagnostic['pointer'] = '/authoring/generation' + (
+                        '/' + key.replace('~', '~0').replace('/', '~1') if key is not None else '')
+                    diagnostic['repair_owner'] = {'file': choices_path, 'pointer': diagnostic['pointer']}
+                    from production_input_guide import action
+                    diagnostic['next_action'] = action(root, choices_path, field='authoring.generation')
+                    if diagnostic['code'] != 'CHECK_NOT_PERFORMED':
+                        diagnostic['required_action'] = ('Edit ' + choices_path + ' at ' +
+                            diagnostic['pointer'] + '. ' + diagnostic['required_action'])
             origin=assembled['_source_map'].get(field)
             if origin is not None:
                 diagnostic['generated_file']=generated

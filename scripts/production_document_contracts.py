@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import operation_context
+from cli_invocation import python_argv, shown
 
 ROOT = Path(__file__).resolve().parents[1]
 _PILOT = 'examples/state-aware-pilot/generated/'
@@ -106,6 +107,33 @@ _CONTRACTS = {
         'references/runtime/production-authoring.md#use-the-delivered-knowledge',
         'scripts/production_inputs.py:compile_choices', schema='schemas/authoring/production-input-draft.schema.json',
         scope='task-context', remaining='The choices schema describes selectors. check --choices reads each selected current file and validates the complete task.'),
+    'image_input': _contract(
+        'references/runtime/production-external-inputs.md#edit-the-request-and-media-choices',
+        'scripts/image_input.py:validate', schema='schemas/authoring/image-input-plan.schema.json',
+        example='templates/image-input-plan.template.json', scope='task-context',
+        remaining='This is the complete image-input plan contract. Editable external choices obtain model from '
+                  'choices.target, request text from the delivery and hashes from selected files. '
+                  'check --choices validates their assembled request, references and evidence together.'),
+    'external_choices': _contract(
+        'references/runtime/production-external-inputs.md#edit-the-request-and-media-choices',
+        'scripts/production_external_inputs.py:unresolved',
+        example='examples/input-assembly/README.md', scope='task-context',
+        remaining='The external input owner accepts one existing-plan selector or its complete editable '
+                  'envelope. Native request controls and reference transports need the actual interface evidence; '
+                  'the builder derives repeated fields and exact file bindings.'),
+    'external_target': _contract(
+        'references/runtime/production-external-inputs.md#exact-target-and-provider-schema',
+        'scripts/production_target.py:unresolved', scope='task-context',
+        derived=('$.catalog_status', '$.catalog_model', '$.evidence.sha256'),
+        remaining='The author selects the actual interface and its evidence. The builder derives catalog '
+                  'status and evidence hashes. Include prompt_input only when the acquired model evidence '
+                  'supports it; an unlisted interface can leave it absent. A supplied evidence hash remains '
+                  'a commitment to those exact bytes.'),
+    'model_prompt_input': _contract(
+        'references/runtime/production-external-inputs.md#exact-target-and-provider-schema',
+        'scripts/model_prompt_input.py:validate_prompt_input', schema='schemas/model-prompt-input.schema.json',
+        remaining='This checks an acquired prompt-input declaration. It does not infer a model form, '
+                  'establish provider support or demonstrate a visual effect.'),
     'production_direction': _contract(
         'references/runtime/production-direction.md#record-the-production-direction',
         'scripts/production_plan.py:validate', schema='schemas/authoring/production-direction.schema.json',
@@ -122,6 +150,21 @@ _CONTRACTS = {
         remaining='This local check validates document structure only. draft-execution derives the fields for the selected '
                   'prepared run. The authorized execution boundary separately checks exact run/request bindings, '
                   'operation order, current grants and the recorded judgments; input check --choices does not validate these decisions.'),
+    'principal_approval': _contract(
+        'references/runtime/production-permissions.md#retain-a-direct-instruction-for-one-request',
+        'scripts/production_authority_drafts.py:validate_principal_shape',
+        schema='schemas/authoring/production-principal-approval.schema.json', scope='document-shape',
+        derived=('$.binding', '$.instruction.sha256'),
+        remaining='Drafting retains literal instruction text and derives the exact request binding. Import and '
+                  'execution check that binding, current issuer and the authored approval. The host judges actual authority.'),
+    'authority_update': _contract(
+        'references/runtime/production-permissions.md#add-authority-for-a-prepared-run',
+        'scripts/production_authority_drafts.py:validate_update_shape',
+        schema='schemas/authoring/production-authority-update.schema.json', scope='document-shape',
+        derived=('$.task_id', '$.issuer', '$.run', '$.input_sha256', '$.request_sha256', '$.expected_event',
+                 '$.grants[*].operation', '$.grants[*].targets'),
+        remaining='Import verifies the current issuer, exact predecessor, run, operations, evidence and authored '
+                  'additional grants. This local shape check neither imports authority nor authenticates the instruction.'),
     'render_intent': _contract(
         'references/runtime/render-contract.md#select-the-operation-and-optional-rendering-declaration',
         'scripts/render_contract_lib.py:validate_intent', schema='schemas/render-intent.schema.json',
@@ -162,6 +205,16 @@ def guidance(name: str) -> dict:
     entry = _selected(name)
     return {'document_path': entry['document_path'],
             **({'schema': entry['schema']} if entry['schema'] else {'validator_source': entry['validator_source']})}
+
+
+def explain_action(name: str, pointer: str | None = None) -> dict:
+    """Executable navigation to an existing document owner, without validation."""
+    _selected(name)
+    argv = python_argv(ROOT / 'scripts/production_document_contracts.py', 'explain', name)
+    if pointer is not None:
+        argv.extend(('--pointer', pointer))
+    return {'operation': 'explain-document-contract', 'argv': argv, 'shown': shown(argv),
+            'external_effect': False}
 
 
 def _schema(name: str) -> Mapping | None:
@@ -218,10 +271,25 @@ def metadata(name: str) -> dict:
                   'additional_properties': None, 'structure': []})
     if schema is not None:
         if name == 'production_spec':
-            from production_spec import authored_schema
+            from production_spec import TEMPLATE, authored_schema
             entry['published_required_keys'] = list(schema.get('required', []))
             entry['schema_projection'] = 'Editable specification: only the target_model requirement is supplied by choices.target.'
             schema = authored_schema(schema)
+            draft_help = python_argv(ROOT / 'scripts/production_spec.py', 'draft', '--help')
+            template_read = [draft_help[0], '-m', 'json.tool', str(TEMPLATE)]
+            entry['scaffold'] = {
+                'owner': 'scripts/production_spec.py:draft',
+                'template_path': TEMPLATE.relative_to(ROOT).as_posix(),
+                'help_action': {'operation': 'explain-production-spec-draft', 'argv': draft_help,
+                                'shown': shown(draft_help), 'external_effect': False},
+                'template_action': {'operation': 'read-production-spec-template', 'argv': template_read,
+                                    'shown': shown(template_read), 'external_effect': False},
+                'subject_schema_action': explain_action(name, '/properties/subjects/items'),
+                'meaning': 'The existing draft command creates the smallest valid one-subject specification '
+                           'from explicit arguments. Choose the actual subject, domain, brief, render intent '
+                           'and continuity. The template supports an explicitly subject-free scene. '
+                           'Select the resulting file in authoring.documents.production_spec; choices.target '
+                           'owns the published target_model.'}
         entry['structure'] = _structure(schema)
         entry['required_keys'] = list(schema.get('required', []))
         entry['permitted_keys'] = sorted(schema.get('properties', {}))
@@ -248,6 +316,38 @@ def metadata(name: str) -> dict:
         entry.update(required_keys=sorted(BINDING_FIELDS), permitted_keys=sorted(BINDING_FIELDS), additional_properties=False)
     elif name in {'parameters', 'creative_intent'}:
         entry.update(required_keys=[], additional_properties=True)
+    elif name == 'external_choices':
+        from production_external_inputs import FIELDS, template
+        entry.update(required_keys=sorted(FIELDS), permitted_keys=sorted(FIELDS), additional_properties=False,
+                     template=template(), template_source='scripts/production_external_inputs.py:template')
+        entry['representations'] = [
+            {'kind': 'editable', 'required_keys': sorted(FIELDS), 'template': template()},
+            {'kind': 'existing-plan', 'required_keys': ['image_input'],
+             'example': {'image_input': 'inputs/selected-plan.json'},
+             'source_contract': 'image_input'}]
+        entry['template_scope'] = 'Unanswered editable envelope from its runtime owner; no target, native controls or references are selected.'
+    elif name == 'external_target':
+        from production_target import EXTERNAL_MODEL_FIELDS, EXTERNAL_TARGET_FIELDS
+        from owned_json import mutable
+        image_schema = _schema('image_input')
+        model = mutable(image_schema['properties']['model'])
+        for key in ('catalog_status', 'catalog_model'):
+            model['properties'].pop(key)
+        model['required'] = sorted({*EXTERNAL_MODEL_FIELDS, 'target'})
+        model.pop('allOf', None)
+        model['properties']['target'] = mutable(image_schema['$defs']['target'])
+        evidence = mutable(image_schema['$defs']['evidence'])
+        evidence['required'].remove('sha256')
+        model['properties']['evidence'] = evidence
+        entry.update(required_keys=model['required'], permitted_keys=sorted(model['properties']),
+                     additional_properties=False, structure=_structure(model),
+                     template={**{key: None for key in EXTERNAL_MODEL_FIELDS},
+                         'target': {key: None for key in EXTERNAL_TARGET_FIELDS},
+                         'evidence': {key: None for key in evidence['required']}},
+                     source_schema={'schema': _selected('image_input')['schema'], 'pointer': '/properties/model',
+                         'explain_command': 'python scripts/production_document_contracts.py explain image_input '
+                                            '--pointer /properties/model'})
+        entry['template_scope'] = 'Unanswered required fields from the target owner and image-input schema. Supply the actual interface evidence.'
     entry['validation_command'] = (_CHECK if entry['validation_scope'] == 'task-context' else
         'python scripts/production_document_contracts.py validate ' + name + ' FILE' +
         (' --root STUDIO' if entry['validation_scope'] == 'studio-context' else ''))
@@ -326,9 +426,17 @@ def validate_document(name: str, value: Any, *, root: Path | None = None, render
         elif name == 'execution_decisions':
             from production_decisions import validate_shape
             report = validate_shape(value)
+        elif name in {'principal_approval', 'authority_update'}:
+            from production_authority_drafts import validate_principal_shape, validate_update_shape
+            report = (validate_principal_shape(value) if name == 'principal_approval'
+                      else validate_update_shape(value))
         elif name == 'render_intent':
             from render_contract_lib import validate_intent
             validate_intent(value, render_presets=render_presets)
+            report = {'ok': True, 'errors': []}
+        elif name == 'model_prompt_input':
+            from model_prompt_input import validate_prompt_input
+            validate_prompt_input(value)
             report = {'ok': True, 'errors': []}
         elif name == 'scene_plot':
             from scene_plot import validate_scene_plot

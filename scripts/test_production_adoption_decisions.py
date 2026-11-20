@@ -230,6 +230,7 @@ class AuthoredAdoptionTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 self.apply(value)
         claim = workflow.find(store.event_rows(self.root, self.run), 'adoption-claim')
+        self.changed_condition()
         authority = store.authority(self.root, self.task['task_id'])
         authority['grants'][0]['revoked_at'] = '2000-01-01T00:00:00Z'
         self.import_authority(authority)
@@ -237,6 +238,27 @@ class AuthoredAdoptionTests(unittest.TestCase):
             authored.apply(self.root, self.run, claim_id=claim['sha256'])
         self.assertEqual(caught.exception.diagnostic.code, 'GRANT_REVOKED')
         self.assertFalse(self.journal_path().exists())
+
+    def test_low_level_approval_without_assessment_basis_still_refuses_changed_conditions(self):
+        self.assertNotIn('authority_sha256', self.approval)
+        intent = workflow.adoption_intent(self.root, self.run, self.candidate,
+            'robot', self.row['iteration_id'], self.approval)
+        request = workflow.draft_authorization(self.root, self.run, 'fixture-grant', intent)
+        request['reason'] = 'Explicit synthetic low-level adoption authorization; not user consent.'
+        for assessment in request['stop_assessments']:
+            assessment.update(clear=True, evidence='The synthetic fixture instruction permits the selected canonical use.')
+        authorization = workflow.authorize_value(self.root, self.run, request, evidence_files=[])['sha256']
+        with patch.object(adoption_workflow, 'adopt', side_effect=OSError('Synthetic pause before the local effect')):
+            with self.assertRaises(OSError):
+                baseline.AdoptionTests.adopt(self, authorization)
+        rows = store.event_rows(self.root, self.run)
+        self.changed_condition()
+        with patch.object(adoption_workflow, 'adopt') as effect, self.assertRaises(ProductionError) as caught:
+            baseline.AdoptionTests.adopt(self, authorization)
+        self.assertEqual(caught.exception.diagnostic.code, 'AUTHORIZATION_MISMATCH')
+        self.assertEqual(caught.exception.diagnostic.pointer, '$.stop_assessments')
+        effect.assert_not_called()
+        self.assertEqual(store.event_rows(self.root, self.run), rows)
 
     def test_partial_sheet_effect_keeps_its_claim_and_approval_when_reassessed(self):
         value = self.decide(self.draft())
@@ -253,6 +275,8 @@ class AuthoredAdoptionTests(unittest.TestCase):
             authored.apply(self.root, self.run, claim_id=claim['sha256'])
         self.assertEqual(caught.exception.diagnostic.code, 'ADOPTION_DECISION_CHANGED')
         self.assertIn('--claim ' + claim['sha256'], caught.exception.diagnostic.required_action)
+        self.assertEqual(store.event_rows(self.root, self.run), rows)
+        self.assertEqual(c.load(self.journal_path()), prior)
         path = 'decisions/reassessed-canonical-use.json'
         self.cli('draft-adoption', '--claim', claim['sha256'], '--out', path)
         reassessment = self.assess_retained(c.load(self.root / path))

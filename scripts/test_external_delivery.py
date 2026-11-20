@@ -247,6 +247,80 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
         self.assertEqual([row['role'] for row in binding['references']],
                          [row['role'] for row in original['references']])
 
+    def test_public_reopen_distinguishes_saved_input_images_from_captured_output(self):
+        import subprocess
+        import sys
+        import production_operations as workflow
+        import work_ledger
+
+        def invoke(argv):
+            completed = subprocess.run(argv, cwd=self.root, capture_output=True,
+                text=True, encoding='utf-8', timeout=45)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            return json.loads(completed.stdout)
+
+        def production(command, *arguments):
+            return invoke([sys.executable, str(Path(__file__).with_name('production_workflow.py')),
+                           command, '--root', str(self.root), *arguments])
+
+        run = workflow.prepare(self.root, 'task.json')['run']
+        fixtures.handoff(self.root, run, 'synthetic-host', 'manual')
+        token = fixtures.grant(self.root, run, workflow.external_intent(self.root, run, 1))
+        workflow.claim_external(self.root, run, 1, token)
+        pixels = png((25, 50, 75))
+        write(self.root, 'output.png', pixels)
+        captured = workflow.capture(self.root, run, 'output.png', 'Synthetic local fixture; no provider call.')
+        (self.root / 'output.png').unlink()
+        parent = workflow.read_run(self.root, run)
+        before = copy.deepcopy(parent.rows)
+        expected_inputs = [row['sha256'] for row in parent.consumer['image_input']['references']]
+        inspected = production('inspect-inputs', '--from-run', run, '--view', 'full')
+        reuse = inspected['source_run']['input_reuse']
+        self.assertFalse(reuse['automatic_output_selection'])
+        self.assertIn('saved authored inputs', reuse['meaning'])
+        self.assertIn('no re-entry', reuse['meaning'])
+        [output] = reuse['captured_outputs']
+        self.assertEqual((output['candidate'], output['artifact']), (captured['sha256'], 'image'))
+        [selected_file] = output['files']
+        self.assertEqual(selected_file, {'path': f'production/runs/{run}/objects/{c.digest(pixels)}',
+                                        'sha256': c.digest(pixels), 'size': len(pixels)})
+        self.assertEqual((self.root / selected_file['path']).read_bytes(), pixels)
+        self.assertEqual(invoke(reuse['read_action']['argv'])['runs'][0]['candidates'], [captured['sha256']])
+
+        work_ledger.suspend(self.root, reason='Keep the captured parent while opening explicit follow-up work.')
+        write(self.root, 'follow-up.txt', b'Change only the fixture wall color in the captured output.')
+        draft = production('draft-inputs', '--from-run', run, '--operation', 'amend',
+            '--new-task', 'Synthetic follow-up to the captured result.', '--request-file', 'follow-up.txt',
+            '--out-dir', 'follow-up', '--focus', 'supporting-setting')
+        for key, value in reuse.items():
+            self.assertEqual(draft['derived_from']['source_run']['input_reuse'][key], value, key)
+        choices = c.load(self.root / draft['choices_file'])
+        references = choices['external']['image_input']['references']
+        self.assertEqual([c.sha256_file(self.root / row['file']) for row in references], expected_inputs)
+        self.assertNotIn(selected_file['sha256'], expected_inputs)
+        self.assertEqual(choices['authoring']['task']['criteria'], parent.prepared['task']['criteria'])
+        self.assertIsNone(choices['authoring']['task']['authority'])
+        prompt = self.root / choices['authoring']['delivery']['file']
+        self.assertEqual(prompt.read_bytes(), (parent.directory / 'delivery.txt').read_bytes())
+
+        owner = draft['authoring_guide']['source_acquisition']
+        self.assertEqual(owner['schema_pointer'], '/properties/sources/items')
+        row = {'id': 'captured-output', 'path': selected_file['path'], 'role': 'reference-images',
+               'disposition': 'considered-not-used', 'locator': 'whole image',
+               'reason': 'The fixture author retains this candidate; its current reference use is undecided.'}
+        write(self.root, owner['source_row_file'], row)
+        invoke(owner['argv'])
+        acquired = c.load(self.root / 'follow-up/work-basis.json')['sources']['captured-output']
+        self.assertEqual(acquired['origin']['source'], row)
+        self.assertNotIn('identity', acquired['origin']['source'])
+        after = c.load(self.root / draft['choices_file'])
+        self.assertEqual(after['external'], choices['external'])
+        self.assertIsNone(after['authoring']['task']['authority'])
+        explain = production('explain-inputs', '--choices', draft['choices_file'],
+                             '--field', 'external.image_input.references')
+        self.assertEqual(explain['fields'][0]['field'], 'external.image_input.references')
+        self.assertEqual(workflow.read_run(self.root, run).rows, before)
+
     def test_manual_claim_refuses_an_unusable_native_projection_before_committing(self):
         import production_operations as workflow
         schema = {'type': 'object', 'properties': {'images': {
@@ -354,6 +428,101 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
         self.assertTrue(received['execution_completed'])
         self.assertEqual(received['request_evidence']['status'], 'matched-recorded-call')
         self.assertEqual(received['request_evidence']['submitted_request_sha256'], c.content_id(request))
+
+    def test_public_parallel_external_tasks_receive_reverse_order_without_resending(self):
+        import subprocess
+        import sys
+        import execution_lifecycle as lifecycle
+        import production_case_fixtures as cases
+        import production_operations as workflow
+        import work_ledger
+
+        def invoke(script, arguments, *, code=0, json_output=True):
+            result = subprocess.run([sys.executable, str(Path(__file__).with_name(script)), *arguments],
+                cwd=self.root, capture_output=True, text=True, encoding='utf-8', timeout=45)
+            self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+            return json.loads(result.stdout) if json_output else result.stdout
+
+        def production(command, *arguments, code=0):
+            return invoke('production_workflow.py', [command, '--root', str(self.root), *arguments], code=code)
+
+        task_a = work_ledger.require_open(self.root)['task_id']
+        run_a = production('prepare', '--task', 'task.json')['run']
+        decisions_a = cases.fill_decisions(self.root, run_a, 'decisions-a.json')
+        call_a = production('execute', '--run', run_a, '--decisions-file', decisions_a)
+        self.assertEqual(call_a['state'], 'host-call-required')
+        invoke('work_ledger.py', ['suspend', '--studio', str(self.root), '--reason',
+            'Keep A waiting for its synthetic host result while opening independent B.'], json_output=False)
+        invoke('work_ledger.py', ['begin', '--studio', str(self.root), '--goal',
+            'Independent synthetic image B.', '--step', 'Receive and inspect B.'], json_output=False)
+        task_b = work_ledger.require_open(self.root)['task_id']
+        write(self.root, 'prompt-b.txt', b'A green glass bowl stands on a round table.')
+        spec_b = {'task_id': task_b, 'route': 'generation', 'features': ['generation-package'],
+            'sources': [], 'delivery': {'path': 'prompt-b.txt', 'translation_notes': 'Exact synthetic B request.'},
+            'criteria': [{'id': 'output-b', 'strength': 'hard', 'text': 'Inspect the actual B image.'}],
+            'world_views': []}
+        fixtures.external_image_input(self.root, spec_b)
+        fixtures.task(self.root, spec_b, artifact='image', execution='external', focus='supporting-setting')
+        write(self.root, 'task-b.json', spec_b)
+        run_b = production('prepare', '--task', 'task-b.json')['run']
+        decisions_b = cases.fill_decisions(self.root, run_b, 'decisions-b.json')
+        call_b = production('execute', '--run', run_b, '--decisions-file', decisions_b)
+        self.assertEqual(call_b['state'], 'host-call-required')
+        self.assertNotEqual(task_a, task_b)
+        self.assertNotEqual(run_a, run_b)
+        self.assertNotEqual(call_a['host_request']['claim'], call_b['host_request']['claim'])
+        self.assertNotEqual(call_a['host_request']['request'], call_b['host_request']['request'])
+        active_before = (self.root / 'work/current.json').read_bytes()
+        suspended_before = work_ledger.task_path(self.root, task_a).read_bytes()
+        cases_by_label = {
+            'a': (run_a, task_a, decisions_a, call_a, png((25, 50, 75))),
+            'b': (run_b, task_b, decisions_b, call_b, png((150, 100, 50))),
+        }
+        received = {}
+        # The second claim returns first. A then arrives while B is still active.
+        for label in ('b', 'a'):
+            run, task_id, decisions, call, pixels = cases_by_label[label]
+            write(self.root, label + '-call.json', {'synthetic': True, 'call_id': 'fixture-' + label,
+                                                  'arguments': call['host_request']['request']})
+            write(self.root, label + '-response.json', {'synthetic': True, 'call_id': 'fixture-' + label,
+                                                       'status': 'complete'})
+            write(self.root, label + '-output.png', pixels)
+            arguments = ['--run', run, '--response', label + '-response.json',
+                '--artifact', label + '-output.png', '--call', label + '-call.json',
+                '--request-pointer', '["arguments"]', '--reason', 'Synthetic reverse-order response for ' + label + '.']
+            result = production('receive-external', *arguments)
+            self.assertTrue(result['execution_completed'])
+            self.assertEqual(result['request_evidence']['status'], 'matched-recorded-call')
+            self.assertEqual(result['request_evidence']['submitted_request_sha256'],
+                             c.content_id(call['host_request']['request']))
+            [candidate] = result['candidates']
+            received[run] = candidate
+            loaded = workflow.read_run(self.root, run)
+            self.assertEqual(loaded.prepared['task']['task_id'], task_id)
+            [claim] = [row for row in loaded.rows if row['event'] == 'external-claim']
+            self.assertEqual(claim['sha256'], call['host_request']['claim'])
+            [candidate_row] = [row for row in loaded.rows if row['event'] == 'candidate']
+            self.assertEqual(candidate_row['sha256'], candidate)
+            self.assertEqual(candidate_row['data']['files'][0]['sha256'], c.digest(pixels))
+            observed = production('workspace', '--run', run, '--candidate', candidate, '--phase', 'observe')
+            self.assertEqual(observed['run'], run)
+            self.assertEqual(Path(observed['candidate']['files'][0]['path']).read_bytes(), pixels)
+            state = production('status', '--run', run)['runs'][0]
+            self.assertEqual((state['run'], state['task_id'], state['candidates']), (run, task_id, [candidate]))
+            before_retry = copy.deepcopy(loaded.rows)
+            self.assertEqual(production('receive-external', *arguments)['candidates'], [candidate])
+            refused = production('execute', '--run', run, '--decisions-file', decisions, code=4)
+            self.assertIn('DISPATCH_ALREADY_CLAIMED', [row['code'] for row in refused['diagnostics']])
+            self.assertEqual(workflow.read_run(self.root, run).rows, before_retry)
+            self.assertEqual(lifecycle.summary(self.root, run=run)['submissions'], 1)
+            self.assertEqual(work_ledger.require_open(self.root)['task_id'], task_b)
+        self.assertNotEqual(received[run_a], received[run_b])
+        status = production('status')
+        self.assertEqual({row['run']: row['candidates'] for row in status['runs']},
+                         {run: [candidate] for run, candidate in received.items()})
+        self.assertEqual(lifecycle.summary(self.root)['submissions'], 2)
+        self.assertEqual((self.root / 'work/current.json').read_bytes(), active_before)
+        self.assertEqual(work_ledger.task_path(self.root, task_a).read_bytes(), suspended_before)
 
     def test_manual_claim_command_exposes_the_same_saved_host_instruction(self):
         import production_execution as execution

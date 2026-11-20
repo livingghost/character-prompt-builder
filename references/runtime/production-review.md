@@ -26,8 +26,33 @@ effect boundary; a displayed selection grants no permission to perform those
 actions.
 
 A review names the actual reviewer, observations, the criteria assessed so far, optional supplemental `evidence`, repairs, unresolved matters and a conclusion.
-Each observation names its `evidence` (`candidate` or a supplemental evidence ID), a locator, the observed fact, its interpretation and limitations.
+Each observation names its `evidence` (`candidate`, an automatic comparison evidence ID or a supplemental evidence ID), a locator, the observed fact, its interpretation and limitations.
 Additional evidence entries record path, kind, relation and limitations; their bytes are measured and pinned, not trusted from filenames.
+
+`workspace --phase review` and the `draft-review` report include `review_guide`.
+Its `automatic_evidence` identifies the actual candidate with the reserved ID
+`candidate` and lists the retained comparison sources with their exact IDs,
+media kinds and paths. Use those IDs directly in `observations[].evidence`.
+The candidate event digest in `review.candidate` is a separate identifier.
+Keep `review.evidence` for additional sources: do not redeclare automatic
+evidence there. A copy of the candidate PNG under a new supplemental ID does
+not replace an observation citing `candidate`.
+
+The guide's `observation_template` supplies the entry shape with the observation
+and interpretation unanswered. Write the facts you actually observed, the
+meaning you judge from them, and the limits of that inspection. For a source
+comparison, add a separate observation using that source's displayed evidence
+ID. In each check, `observation_indices` cites zero-based positions in the
+complete `observations` array. `criterion_citations` names each criterion's
+required medium and whether a passing identity check must cite the candidate.
+Use a measured stream and the interval actually inspected for motion or audio;
+a whole-file label does not establish either.
+
+`draft-review --out FILE` still saves only the editable review form to `FILE`.
+Its standard output is a report containing `choices` (the same form),
+`draft_file`, `review_guide` and the concrete `next_action`. Fill the saved form
+from actual observations, then invoke that next action with the same file.
+Guide templates and artifact decoding supply no finding or passing verdict.
 
 `draft-review` remembers the chosen output path and its exact run, candidate
 and preceding review. After interruption, status points to that same file while
@@ -129,6 +154,17 @@ correspondence of construction, and justify consequential changes at the scope
 the actual commission delegates.
 
 ### Apply the prepared review basis
+
+Assess the selected appearance goal and applicable source scope. Keep observed
+facial proportions, physique, posture, clothing and relationships distinct from
+unobserved facts about age, health, psychology or history. A youthful-looking
+result does not establish a canonical age, and an appearance mismatch does not
+pass merely because a background label seems to agree with it. Compare the
+actual forms and permitted variation. Do not infer or rewrite canonical facts
+from image classification, keywords or the success of a control term. Term and
+weight choices are means; their correctness alone cannot pass the image.
+Use the existing observation, interpretation and limitations fields, following
+[Production direction](production-direction.md#translate-established-facts-into-the-current-appearance).
 
 Applied task sources are available at their captured bytes as
 `task-source:SOURCE_ID`, including the actual current request retained by

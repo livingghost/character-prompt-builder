@@ -392,20 +392,55 @@ class StatusViewTests(unittest.TestCase):
         before = copy.deepcopy(full)
         result = production_status_view.summary(self.root, full, run=run)
         workflow.schema_check(result, 'status-summary')
+        original_requirements = full['runs'][0]['authorization_requirements']
+        protected = result['runs'][0]['authorization_requirements']['protected_criteria']
+        self.assertEqual(protected, original_requirements['protected_criteria'])
+        from production_report_view import VALUE_LIMIT, authorization_requirements
+        many = copy.deepcopy(original_requirements)
+        many['protected_criteria']['changes'] = [
+            {'id': 'criterion-' + str(index), 'before': None, 'after': {'text': 'Synthetic criterion.'}}
+            for index in range(VALUE_LIMIT + 2)]
+        many['requirements'].append({'operation': 'submit', 'targets': ['output'],
+            'selected_grant': 'protected-fixture', 'selected_actor': 'assistant', 'eligible': False,
+            'candidates': [{'grant': 'protected-fixture', 'actor': 'assistant', 'operations': ['submit'],
+                'eligible': False, 'granted': ['output'], 'missing': [],
+                'diagnostics': [{'code': 'GRANT_SCOPE_EXCEEDED', 'cause': 'protected-criteria-changed'}]}],
+            'diagnostics': []})
+        bounded = copy.deepcopy(result)
+        bounded['runs'][0]['authorization_requirements'] = authorization_requirements(many)
+        workflow.schema_check(bounded, 'status-summary')
+        changes = bounded['runs'][0]['authorization_requirements']['protected_criteria']['changes']
+        self.assertEqual((len(changes['items']), changes['total'], changes['omitted']),
+                         (VALUE_LIMIT, VALUE_LIMIT + 2, 2))
+        self.assertEqual(bounded['runs'][0]['authorization_requirements']['requirements'][-1]['ineligible_reasons'],
+                         {'protected-criteria': 1})
+        for unknown_owner in (bounded['runs'][0]['authorization_requirements'],
+                              bounded['runs'][0]['authorization_requirements']['protected_criteria']):
+            unknown_owner['unowned_field'] = True
+            with self.assertRaisesRegex(ValueError, 'unexpected properties'):
+                workflow.schema_check(bounded, 'status-summary')
+            del unknown_owner['unowned_field']
         self.assertEqual(full, before)
-        for field in ('diagnostics', 'execution_records', 'staging_details', 'unregistered_publications'):
-            self.assertEqual(result[field], full[field])
+        self.assertEqual(result['diagnostics'], full['diagnostics'])
+        for field in ('submissions', 'captured_outputs', 'usage_complete'):
+            self.assertEqual(result['execution_records'][field], full['execution_records'][field])
+        for field in ('staging_details', 'unregistered_publications'):
+            self.assertEqual(result['inventory'][field]['total'], len(full[field]))
         actual = result['runs'][0]
         original = full['runs'][0]
         for field in ('readiness', 'submission', 'capture', 'task_disposition', 'next_action',
-                      'readiness_diagnostics', 'authorization_requirements'):
+                      'readiness_diagnostics'):
             self.assertEqual(actual[field], original[field])
         self.assertEqual(actual['authority']['event_sha256'], original['authority']['event_sha256'])
         self.assertNotIn('document', actual['authority'])
         self.assertIn('document', original['authority'])
-        self.assertEqual(result['current_task']['authoring']['inputs'], full['current_task']['authoring']['inputs'])
+        self.assertEqual(result['current_task']['authoring']['pending'], full['current_task']['authoring']['pending'])
+        self.assertEqual(result['current_task']['authoring']['next_actions'], full['current_task']['authoring']['next_actions'])
         public = self.cli('status', '--root', str(self.root), '--run', run)
         workflow.schema_check(public, 'status-summary')
+        saved = c.load(self.root / public['full_report'])
+        workflow.schema_check(saved, 'status')
+        self.assertEqual(saved['runs'][0]['authority']['document'], original['authority']['document'])
         action = public['details_action']['argv']
         retrieved = subprocess.run(action, capture_output=True, text=True, encoding='utf-8',
                                    env=dict(os.environ), check=False)

@@ -1,6 +1,6 @@
 # Operation diagnostics
 
-Every public CLI call records one local diagnostic operation, starting before argument parsing.
+Public CLI operations record one local diagnostic operation, starting before argument parsing. The read-only `session_entry_points.py` startup report creates no operation log; its printed follow-up commands record their own operations when explicitly run.
 Nested validation and construction stages share the operation ID of their call.
 A log never establishes approval, source understanding or image review.
 

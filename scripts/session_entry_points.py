@@ -13,11 +13,16 @@ session on it.
 
 The studio the working directory belongs to, and the task it left open, are
 reported first, whether or not a pack runtime exists: text authoring resumes
-from its trail without an image pack. A studio that cannot be read is named in
-one line with its problem, and the report goes on.
+from its trail without an image pack. This reads the saved task trail, not the
+Production database or generated displays; deeper inspection is an explicit
+next command. An unreadable trail is named with its problem, and the report
+goes on.
 
-This writes to standard output and blocks nothing. It does not read standard
-input: a host that sends JSON on the pipe and one that leaves the pipe open look
+This reads existing state and writes only to standard output. It creates no
+operation log, refreshes no Studio projection, and installs no dependency.
+The host selects an already provisioned interpreter; missing package metadata
+is reported with an explicit setup command. Functional checks run separately.
+It does not read standard input: a host that sends JSON on the pipe and one that leaves the pipe open look
 the same from here, and reading would hang on the second. Every command it
 prints runs as printed, with the runtime paths it was given.
 
@@ -25,11 +30,15 @@ Usage:
   python scripts/session_entry_points.py [--state-file FILE] [--cache-dir DIR] [--managed-root DIR] [--pack-root DIR]
 """
 from __future__ import annotations
-import operation_context as _operation_context
+
+import sys
+
+# Keep direct invocations read-only as well as the host hook's `python -B`.
+sys.dont_write_bytecode = True
 
 import argparse
+import importlib.metadata
 import json
-import sys
 from pathlib import Path
 
 from cli_invocation import python_argv, shown
@@ -50,12 +59,38 @@ def one_line(exc: BaseException) -> str:
     return " ".join(str(exc).split()) or type(exc).__name__
 
 
-def authoring_lines(cwd: Path) -> list[str]:
-    """The studio or work trail the working directory belongs to, and where its work stands."""
+def environment_errors() -> list[str]:
+    """Read the selected interpreter's declared package versions without importing them."""
+    from check_dependencies import load_dependencies
 
-    from studio_workspace import init_command, status, studio_root
-    from work_ledger import read_ledger, show
-    import production_authoring_state
+    minimum, declarations = load_dependencies(ROOT / "pyproject.toml")
+    errors = []
+    if sys.version_info[:2] < minimum:
+        errors.append("Python " + ".".join(map(str, minimum)) + " or newer is required")
+    for declaration in declarations:
+        name, expected = declaration["distribution"], declaration["version"]
+        try:
+            actual = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            errors.append(name + " is missing")
+        else:
+            if actual != expected:
+                errors.append(f"{name} requires {expected}; installed {actual}")
+    return errors
+
+
+def setup_lines() -> list[str]:
+    return ["Set up the selected project environment explicitly: " + shown(
+                ["uv", "sync", "--locked", "--project", str(ROOT)]),
+            "Retain UV_PROJECT_ENVIRONMENT if it selects an environment outside the project. "
+            "Then check that environment as described in " + str(ROOT / "DEPENDENCIES.md") + "."]
+
+
+def authoring_lines(cwd: Path) -> list[str]:
+    """Read the saved work trail without opening databases or refreshing displays."""
+
+    from studio_workspace import init_command, manifest, studio_root
+    from work_ledger import read_current, read_ledger, show, suspended_tasks
 
     found = studio_root(cwd)
     root = found or next(
@@ -65,36 +100,42 @@ def authoring_lines(cwd: Path) -> list[str]:
     if root is None:
         return [f"The working directory is not in a studio. Create one with: {init_command()}"]
     try:
-        active = production_authoring_state.current_task(root)
-        lines = [status(root, current_work=active) if found is not None else show(root)]
-        records = read_ledger(root)
+        lines = []
+        if found is not None:
+            document = manifest(root)
+            lines.append(f"studio {document.get('studio_id')}: {document.get('title')} ({root})")
+        else:
+            lines.append(f"work trail at {root}")
+        active = read_current(root)
+        lines.append(show(root))
+        for task in suspended_tasks(root):
+            lines.append("Resume suspended task " + task['task_id'] + ": " + shown(python_argv(
+                ROOT / "scripts/work_ledger.py", "resume-task", "--studio", str(root),
+                "--task-id", task['task_id'])))
         run = (active or {}).get("production_run")
         if not run and not active:
             run = next(
-                (entry["production_run"] for entry in reversed(records)
+                (entry["production_run"] for entry in reversed(read_ledger(root))
                  if entry.get("event") == "finished" and entry.get("production_run")),
                 None,
             )
     except Exception as exc:  # noqa: BLE001 - one damaged studio is reported, never raised
         check = shown(python_argv(ROOT / "scripts" / "validate_studio.py", str(root)))
         return [f"The studio at {root} cannot be read: {one_line(exc)}. Check it with: {check}"]
-    pending = False
-    if active and active.get('authoring') is not None:
-        report = active['authoring']
-        pending = report['pending']
-        if found is None:
-            lines.extend(production_authoring_state.session_lines(root, active, report=report))
-        if not run and not report['inputs']:
-            lines.append("The open task has no saved input choices. Continue its requested authoring operation from the commission and sources.")
+    workflow = ROOT / "scripts/production_workflow.py"
+    lines.append("Inspect current work: " + shown(python_argv(workflow, "status", "--root", str(root))))
+    if active:
+        lines.append("Inspect saved inputs: " + shown(python_argv(workflow, "inspect-inputs", "--root", str(root))))
     if run:
-        command = python_argv(ROOT / "scripts/production_workflow.py", "status", "--root", str(root), "--run", run)
-        label = "Existing saved input, alongside current authoring: " if pending else "Production status: "
-        lines.append(label + shown(command))
+        lines.append("Saved production revision: " + shown(python_argv(workflow, "status", "--root", str(root), "--run", run)))
+    if found is not None:
+        lines.append("Saved task trail only; generated displays were not refreshed. Refresh with: " +
+                     shown(python_argv(ROOT / "scripts/studio.py", "sync", "--studio", str(root))))
     return lines
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = _operation_context.ArgumentParser(description="Announce the pack runtime this session starts from.")
+    parser = argparse.ArgumentParser(description="Read the current Studio and pack state without changing them or installing dependencies.")
     parser.add_argument("--state-file", type=Path)
     parser.add_argument("--cache-dir", type=Path)
     parser.add_argument("--managed-root", type=Path)
@@ -105,6 +146,14 @@ def main(argv: list[str] | None = None) -> int:
     # to their own work, not to this skill, so a bare `scripts/...` names nothing
     # they can open.
     lines = [f"Character Prompt Builder is installed at {ROOT}."]
+    try:
+        problems = environment_errors()
+    except (ImportError, OSError, ValueError, KeyError, TypeError) as exc:
+        problems = ["the selected environment cannot be checked: " + one_line(exc)]
+    if problems:
+        lines.append("Session report unavailable in " + sys.executable + ": " + "; ".join(problems))
+        print("\n".join([*lines, *setup_lines()]))
+        return 0
     try:
         lines.extend(authoring_lines(Path.cwd().resolve()))
     except Exception as exc:  # noqa: BLE001 - the hook blocks nothing
@@ -147,4 +196,4 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     import stdio_utf8
     stdio_utf8.configure()
-    raise SystemExit(_operation_context.run_cli(main))
+    raise SystemExit(main())

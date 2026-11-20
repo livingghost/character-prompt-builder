@@ -28,6 +28,7 @@ performs both operations. Studio saves or executes that work when requested.
 ## Contents
 
 - [Establish the character for this use](#establish-the-character-for-this-use)
+- [Translate established facts into the current appearance](#translate-established-facts-into-the-current-appearance)
 - [Choose the expression](#choose-the-expression)
 - [Choose framing from the intended effect](#choose-framing-from-the-intended-effect)
 - [Record the production direction](#record-the-production-direction)
@@ -113,6 +114,53 @@ inventing a cast merely to finish it. A bounded edit or assessment preserves
 its actual subject and authorized scope. These tasks do not settle an open
 character commission as a landscape; return to the character definition when
 the commissioned work proceeds to its portrayal.
+
+## Translate established facts into the current appearance
+
+Keep four owners distinct while turning the character into a depiction:
+
+| Owner | Content |
+| --- | --- |
+| Canonical definition | Established age, history, disposition, relationships and adopted body design, with their actual authority |
+| Current appearance goal | The forms, proportions, expression, action, clothing and visible relationships this image should show |
+| Model input | Supported terms, phrases, weights and reference instructions chosen to produce that appearance |
+| Returned-image evidence | The shapes, colors, textures, relationships and construction actually visible in the result |
+
+A prompt controls the depicted appearance. Its vocabulary does not establish
+or revise the character's underlying facts. Translate background into the
+visual consequences needed for this image: posture, gaze, contact, object
+placement, clothing fit, color or motion. A diagnosis, profession or biography
+alone does not specify those consequences. Visible relationships include the
+whole image, not only the face or costume. A visible quality can be assessed
+without being reducible to a numerical measurement.
+
+Choose physique directly when physique is the requested change. Relevant
+relationships can include shoulder width relative to the head, torso depth,
+limb thickness, muscle definition, head-to-body ratio and garment ease. An age
+label does not determine these independently. Carry an occluded property into
+the input when it affects silhouette, contact, draping or another required
+visible consequence; enumerating hidden details is not itself coverage.
+
+For example, an established adult character may have a deliberately slight
+build and youthful facial proportions. A synthetic appearance instruction is:
+"Keep the rounded cheeks, short jaw and narrow shoulders. Reduce the chest
+bulk relative to the reference while retaining the head-to-body ratio and
+the established facial markings." This changes the selected appearance within
+its authorized scope; it makes no new assertion about age, health or biography.
+An adopted body design still constrains which changes are available. Apply a
+requested canonical change through its owning definition and adoption decision.
+
+The actual depiction remains subject to the host's content rules. A canonical
+adult age does not independently authorize a sexualized youthful or childlike
+appearance; assess the requested appearance and context, not the biography
+label alone. Preserve permitted appearance choices without using them to
+bypass a content restriction.
+
+Use [Interface rendition](prompt-writing-guide.md#interface-rendition) for
+model-facing terms and [Production review](production-review.md#apply-the-prepared-review-basis)
+for the resulting image. Existing direction, prompt, reference scope and review
+records carry these distinctions. Add a sense note only where an ambiguity
+affects the result; this introduces no per-word checklist or new approval file.
 
 ## Choose the expression
 

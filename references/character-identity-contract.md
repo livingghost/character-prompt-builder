@@ -157,6 +157,16 @@ The growth contract carries that split in its own fields. `identity_lock_fields`
 
 ## Rendered reference transfer boundary
 
+Keep established facts, adopted appearance and model-facing control language
+under their own authority. A prompt term, weight, negative or generated image
+does not establish actual age, health, psychology or biography. It also does
+not silently revise an adopted body design. An appearance change stays within
+its declared scope; canonical changes use the owning definition and actual
+adoption decision. Transfer visible evidence according to the reference's
+selected use, without inferring an internal explanation from its appearance.
+See [Production direction](runtime/production-direction.md#translate-established-facts-into-the-current-appearance)
+for the four owners and the existing records that connect them.
+
 A rendered reference image is evidence for the contract, not the contract itself. It shows permanent identity, scene-specific character state, and source-render context together, so no visible property becomes an identity invariant merely because it appears in the reference.
 
 **Scene-specific character state** is every visible or performance-relevant property resolved for a scene rather than owned by permanent identity. If a property can change while the subject remains the same character, it belongs to this state by default unless an approved Identity, Era, Form, or Appearance Contract explicitly owns it. The definition is open-class and must not be reduced to the examples in `Does not own`.

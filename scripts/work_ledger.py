@@ -559,7 +559,8 @@ def show(root: Path) -> str:
         return "\n".join(lines)
     finished = [entry for entry in read_ledger(root) if entry.get("event") in ("finished", "abandoned")]
     if not finished:
-        lines.append("no task is open, and none has been recorded")
+        lines.append("no task is open; resume a suspended task listed above or begin a new task"
+                     if paused else "no task is open, and none has been recorded")
     else:
         lines.append("no task is open; the last recorded:")
         for entry in finished[-3:]:

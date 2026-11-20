@@ -889,6 +889,17 @@
         "registration": {
           "$ref": "#/$defs/registration"
         },
+        "recording": {
+          "type": "object",
+          "description": "The saved generation destination and retained candidate files, without claiming their later Studio placement.",
+          "properties": {
+            "destination": {"type": ["object", "null"]},
+            "destination_scope": {"const": "saved-generation"},
+            "outputs": {"type": "array", "items": {"type": "object"}}
+          },
+          "required": ["destination", "destination_scope", "outputs"],
+          "additionalProperties": false
+        },
         "review": {
           "$ref": "#/$defs/review"
         },

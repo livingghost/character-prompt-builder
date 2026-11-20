@@ -88,6 +88,143 @@ def unresolved(selection: Any) -> list[dict]:
     return result
 
 
+def media_location_diagnostics(selection: Any, *, root: Path | None = None,
+                               choices_path: str | None = None) -> list[dict]:
+    """Locate undeclared native arrays of direct editable reference rows.
+
+    The request builder can write an object leaf and rebuild a declared media
+    array. It cannot invent the enclosing native array or operation records.
+    Inspect only explicit field mappings; do not infer a provider's interface,
+    assign a missing reference field, or change unrelated native controls.
+    """
+    if not isinstance(selection, dict):
+        return []
+    if selection.get('reference_delivery') is not None:
+        # The canonical source choices own current references. Transport rows
+        # can intentionally outlive a deleted source; their current carriers
+        # and media fields are resolved and checked by the shared materializer.
+        return []
+    plan, request = selection.get('image_input'), selection.get('request')
+    if not isinstance(plan, dict) or not isinstance(request, (dict, list)):
+        return []
+    references = plan.get('references')
+    if not isinstance(references, list):
+        return []
+
+    def pointer(parts):
+        return ''.join('/' + str(part).replace('~', '~0').replace('/', '~1') for part in parts)
+
+    result = []
+    for index, reference in enumerate(references):
+        if not isinstance(reference, dict) or not isinstance(reference.get('transport'), dict):
+            continue
+        path = reference['transport'].get('field')
+        if not isinstance(path, list) or not path:
+            continue
+        try:
+            rc._path(path)
+        except ValueError:
+            # The request contract owns malformed field paths.
+            continue
+        for offset, part in enumerate(path):
+            if type(part) is not int:
+                continue
+            prefix = path[:offset]
+            try:
+                value, present = _at(request, prefix), True
+            except ValueError:
+                value, present = None, False
+            if isinstance(value, list):
+                continue
+            request_pointer = '/external/request' + pointer(prefix)
+            mapping_pointer = f'/external/image_input/references/{index}/transport/field'
+            owner = {'file': choices_path, 'pointer': request_pointer}
+            diagnostic = {
+                'field': request_pointer, 'pointer': request_pointer, 'file': choices_path,
+                'code': 'INPUT_CONSISTENCY_ERROR', 'phase': 'authoring',
+                'cause': 'native-media-array-not-declared',
+                'message': 'The selected reference field needs an explicitly declared native media array.',
+                'reference': reference.get('id'), 'native_field': copy.deepcopy(path),
+                'mapping_owner': {'file': choices_path, 'pointer': mapping_pointer},
+                'repair_owner': owner, 'expected': {'type': 'array'},
+                'actual': {'present': present, 'type': ('missing' if not present else
+                    'null' if value is None else 'object' if isinstance(value, dict) else
+                    'boolean' if isinstance(value, bool) else 'string' if isinstance(value, str) else 'number')},
+                'guidance': REQUEST_GUIDE,
+                'required_action': 'Use the acquired native schema to declare the array at ' + request_pointer +
+                    '. For a new empty media array, supply []; keep any enclosing operation records and '
+                    'independent controls. Keep existing media values only with their explicit '
+                    'external.media_slots declarations, or correct the selected transport.field if it '
+                    'names the wrong native location. Then inspect and prepare the same choices again.',
+            }
+            if root is not None and choices_path is not None:
+                from production_input_guide import action
+                diagnostic['next_action'] = action(root, choices_path, field='external.request')
+            result.append(diagnostic)
+            break
+        else:
+            # A placeholder is still a populated native slot. Report the same
+            # ownership condition enforced by _media, without deleting it or
+            # claiming any unrelated value as a selected reference.
+            external = plan.get('external_request')
+            slots = selection.get('media_slots')
+            if not isinstance(external, dict) or not isinstance(slots, list):
+                continue
+            try:
+                location = _array_position(request, path, _protected(external))
+            except (AttributeError, KeyError, TypeError, ValueError):
+                # Leave malformed native control declarations to their
+                # contract owner; this guide can inspect unfinished inputs.
+                continue
+            if location is None:
+                continue
+            prefix = list(location[0])
+            container = _at(request, prefix)
+            declared = [slot for slot in slots if isinstance(slot, list) and
+                        len(slot) > len(prefix) and slot[:len(prefix)] == prefix and
+                        type(slot[len(prefix)]) is int]
+            if not container or declared:
+                continue
+            # _media updates the leaves of a fixed native record directly
+            # when that array has more than one media shape. Such a record
+            # need not declare removable/reorderable source slots.
+            group_fields = [path]
+            for other in references:
+                transport = other.get('transport') if isinstance(other, dict) else None
+                other_field = transport.get('field') if isinstance(transport, dict) else None
+                try:
+                    rc._path(other_field)
+                    other_location = _array_position(request, other_field, _protected(external))
+                except (AttributeError, KeyError, TypeError, ValueError):
+                    continue
+                if other_location is not None and other_location[0] == location[0]:
+                    group_fields.append(other_field)
+            if len(_media_shapes(group_fields, len(prefix))) > 1:
+                continue
+            request_pointer = '/external/request' + pointer(prefix)
+            diagnostic = {
+                'field': '/external/media_slots', 'pointer': '/external/media_slots', 'file': choices_path,
+                'code': 'INPUT_CONSISTENCY_ERROR', 'phase': 'authoring',
+                'cause': 'native-media-slots-not-declared',
+                'message': 'The selected media array contains existing items with no declared source slots.',
+                'reference': reference.get('id'), 'native_field': copy.deepcopy(path),
+                'mapping_owner': {'file': choices_path,
+                    'pointer': f'/external/image_input/references/{index}/transport/field'},
+                'repair_owner': {'file': choices_path, 'pointer': '/external/media_slots'},
+                'request_owner': {'file': choices_path, 'pointer': request_pointer},
+                'actual': {'items': len(container), 'declared_slots': 0}, 'guidance': REQUEST_GUIDE,
+                'required_action': 'Declare the actual existing media leaf paths in external.media_slots '
+                    'before rebuilding the populated array at ' + request_pointer + '. If this is a new '
+                    'array with no existing media, use [] in external.request instead of null placeholders. '
+                    'Preserve unrelated native values and independent controls, then inspect the same choices again.',
+            }
+            if root is not None and choices_path is not None:
+                from production_input_guide import action
+                diagnostic['next_action'] = action(root, choices_path, field='external.media_slots')
+            result.append(diagnostic)
+    return result
+
+
 def draft(plan: dict, request: Any, *, prepared: dict | None = None,
           package_root: Path | None = None, root: Path | None = None,
           source_archive: Path | None = None) -> dict:
@@ -335,6 +472,11 @@ def _move_field(path: list, prefix: list, positions: dict[int, int]) -> list:
     return path
 
 
+def _media_shapes(paths: list[list], offset: int) -> set[tuple]:
+    """The media leaves owned within one native array item."""
+    return {tuple(path[offset + 1:]) for path in paths}
+
+
 def _media(request: Any, rows: list[dict], slots: list[list], external: dict) -> tuple[Any, list[dict]]:
     """Rebuild declared media items, retaining every unrelated native value."""
     if not isinstance(slots, list):
@@ -378,8 +520,7 @@ def _media(request: Any, rows: list[dict], slots: list[list], external: dict) ->
         group_slots, group_rows = group['slots'], group['rows']
         # Several media leaves in the same item are a fixed native record. Only
         # its declared leaves are editable; remove none of its other fields.
-        shapes = {tuple(path[offset + 1:]) for path in group_slots}
-        shapes.update(tuple(row['field'][offset + 1:]) for row in group_rows)
+        shapes = _media_shapes([*group_slots, *(row['field'] for row in group_rows)], offset)
         if len(shapes) > 1:
             current = {tuple(row['field']) for row in group_rows}
             for path in group_slots:

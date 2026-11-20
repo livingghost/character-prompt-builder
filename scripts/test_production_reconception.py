@@ -44,6 +44,48 @@ def source_row(ident, path, role='design'):
 
 
 class ActualWorkProjectionTests(unittest.TestCase):
+    def test_protected_requirement_comparison_is_shared_by_draft_and_completed_task(self):
+        from production_diagnostics import ProductionError
+        task, choices = plain_choices()
+        criterion = {'id': 'connection', 'strength': 'hard', 'evidence': 'artifact',
+                     'text': 'The two shells remain connected.'}
+        task['criteria'] = [criterion]
+        choices['authoring'] = authoring.blank(task)
+        current, basis, _ = adapter.begin(choices, task=task, operation='compose',
+            request='Describe the connection.', read_source=lambda _: b'',
+            protected_criteria={'connection'}, focus='supporting-setting')
+        current, files, _ = adapter.project(basis, current, 'editing')
+        current['authoring']['delivery']['content'] = 'The two shells are joined.'
+        before = c.encoded(basis)
+        self.assertEqual(adapter.unresolved(basis, current), [])
+        changed = {**criterion, 'text': 'The two shells can separate under the explicit new request.'}
+        current['authoring']['task']['criteria'] = [changed]
+        diagnostic = adapter.unresolved(basis, current, choices_path='editing/choices.json')[0]
+        self.assertEqual((diagnostic['cause'], diagnostic['file'], diagnostic['pointer']),
+                         ('protected-requirement-changed', 'editing/work-basis.json', '/requirements/0'))
+        self.assertEqual(diagnostic['expected'], criterion)
+        self.assertEqual(diagnostic['actual'], changed)
+        self.assertEqual(diagnostic['current_criterion_owner'],
+                         {'file': 'editing/choices.json', 'pointer': '/authoring/task/criteria/0'})
+        material = {'editing/' + path: raw for path, raw in files.items()}
+        with self.assertRaises(ProductionError) as caught:
+            adapter.resolve_task_work(current['authoring']['task'], basis=basis,
+                delivery=current['authoring']['delivery']['content'], documents={},
+                read_source=material.__getitem__)
+        actual = caught.exception.diagnostic.as_dict()
+        for key in ('code', 'cause', 'application', 'criterion', 'expected', 'actual'):
+            self.assertEqual(actual[key], diagnostic[key])
+        self.assertEqual(c.encoded(basis), before)
+        current['authoring']['task']['criteria'] = [criterion]
+        current['task_changes'] = {'criteria': [changed]}
+        overridden = adapter.unresolved(basis, current, choices_path='editing/choices.json')[0]
+        self.assertEqual(overridden['actual'], changed)
+        self.assertEqual(overridden['current_criterion_owner'],
+                         {'file': 'editing/choices.json', 'pointer': '/task_changes/criteria/0'})
+        from validate import markdown_anchor_slugs
+        document, anchor = overridden['guidance']['document_path'].split('#')
+        self.assertIn(anchor, markdown_anchor_slugs(inputs.ROOT / document))
+
     def test_selected_requirement_reaches_current_input_with_complete_original_available(self):
         _, choices = plain_choices()
         original = {'requirement': 'The small shell stays connected.', 'comparison': 'A complete catalog display.'}
@@ -237,6 +279,60 @@ class SavedAuthoringWorkTests(unittest.TestCase):
         source = next(row for row in loaded.prepared['task']['sources'] if row['id'] == ident)
         item = next(row for row in loaded.prepared['dependencies'] if row['path'] == source['path'])
         return loaded.evidence.read(item['sha256'])
+
+    def test_inspect_names_retained_requirement_owners_and_public_context_repair(self):
+        draft = self.start()
+        basis_path = draft['authoring_work']['basis']
+        basis = c.load(self.root / basis_path)
+        choices = c.load(self.root / draft['choices_file'])
+        previous = copy.deepcopy(choices['authoring']['task']['criteria'])
+        old_id = 'retained-requirements'
+        application = 'protected-requirement:1'
+        original = core.acquire_source(c.encoded(previous), format='json',
+            origin={'kind': 'protected-requirements', 'task_id': self.task['task_id']})
+        basis = core.revise_basis(basis, sources={**basis['sources'], old_id: original},
+            applications={**basis['applications'], application: {'source': old_id, 'pointer': '/0'}},
+            requirements=[*basis['requirements'], application])
+        self.write(basis_path, basis)
+        choices['authoring']['task']['criteria'][0]['text'] = 'The explicit new request permits a separated shell.'
+        self.write(draft['choices_file'], choices)
+        before_basis = (self.root / basis_path).read_bytes()
+
+        def inspect():
+            report = inputs.inspect_inputs(self.root, choices_path=draft['choices_file'])
+            entry = next(item for item in report['inputs'] if item['current'])
+            return entry.get('working_copy', entry)['unresolved']
+
+        gap = next(item for item in inspect() if item.get('cause') == 'protected-requirement-changed')
+        self.assertEqual(gap['repair_owner']['file'], basis_path)
+        self.assertEqual(gap['repair_owner']['application_pointer'], '/applications/protected-requirement:1')
+        self.assertEqual(gap['current_criterion_owner'],
+                         {'file': draft['choices_file'], 'pointer': '/authoring/task/criteria/0'})
+        self.assertEqual(gap['expected'], previous[0])
+        self.assertEqual(gap['actual'], choices['authoring']['task']['criteria'][0])
+        help_result = subprocess.run(gap['next_action']['argv'], cwd=self.root,
+            capture_output=True, text=True, encoding='utf-8', timeout=30)
+        self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
+        self.assertIn('--requirement', help_result.stdout)
+        self.assertIn('--basis-only', help_result.stdout)
+        self.assertEqual((self.root / basis_path).read_bytes(), before_basis)
+
+        # The synthetic author supplies the new instruction and every intended
+        # current requirement. The guide neither deletes nor approves anything.
+        self.write('current-request.txt', 'Explicit synthetic instruction: allow the shell to separate.')
+        self.write('current-requirements.json', choices['authoring']['task']['criteria'])
+        argv = [*gap['context_edit']['argv_prefix'], '--request', str(self.root / 'current-request.txt'),
+            '--source', 'current-requirements=' + str(self.root / 'current-requirements.json'),
+            '--application', 'current:1=current-requirements#/0', '--requirement', 'current:1']
+        repaired = subprocess.run(argv, cwd=self.root, capture_output=True,
+            text=True, encoding='utf-8', timeout=30)
+        self.assertEqual(repaired.returncode, 0, repaired.stdout + repaired.stderr)
+        self.assertFalse(any(item.get('cause') == 'protected-requirement-changed' for item in inspect()))
+        retained = c.load(self.root / basis_path)
+        self.assertEqual(retained['sources'][old_id], original)
+        self.assertEqual(retained['requirements'], ['current:1'])
+        self.assertEqual(c.load(self.root / draft['choices_file'])['authoring']['task']['criteria'],
+                         choices['authoring']['task']['criteria'])
 
     def test_inspection_derives_current_definition_bytes_without_publishing_them(self):
         draft = self.start()

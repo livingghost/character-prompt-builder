@@ -138,7 +138,7 @@ def run(out: Path):
     if presented != 'A pauses in the soft light, then gives a brief answer.\n':
         raise ValueError('the local output differs from the authored fixture')
     workflow('workspace','--phase','review')
-    review=workflow('draft-review','--out','review.json')
+    review=workflow('draft-review','--out','review.json')['choices']
     review.update(reviewer='Synthetic moment-text reviewer',observations=[{
         'evidence':'candidate','locator':{'kind':'whole'},
         'observation':'The saved sentence portrays the pause and brief response in the selected soft light.',

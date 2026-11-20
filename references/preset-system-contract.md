@@ -8,7 +8,8 @@ A record is reusable visual production knowledge. It is not a replacement for la
 
 Interpret source roles under
 [Production direction](runtime/production-direction.md#choose-the-expression).
-For applying pack knowledge, the authority order is:
+Within the host's higher-priority instructions and applicable content rules,
+the authority order for applying pack knowledge is:
 
 ```text
 1. explicit user intent
@@ -197,7 +198,7 @@ Do not concatenate these records blindly. Adapt each according to its function.
 
 ## Prompt knowledge and execution boundary
 
-Character Prompt Builder stores and composes prompt knowledge; it does not execute image generation. Canonical records preserve relevant supported content even when it is grotesque, disturbing, violent, medical, adult erotic, sexual, sensual, intimate, nude, body-altering, or otherwise sensitive. Sensitivity alone is not a reason to remove, soften, or hide production knowledge. All content types, including graphic, erotic, sexual, nude, violent, medical, and other intense content, are authored, preserved, retrieved, and composed under the same authority order and evidence standard, without exception. Do not invent detail that the source and brief do not support, applying the same general authoring rule regardless of content type. Unrelated records must not be auto-injected into a prompt. Downstream execution policy belongs to the separate target system. Read `references/prompt-knowledge-boundary.md`.
+Character Prompt Builder stores and composes prompt knowledge; an optional authorized dispatcher can separately execute a verified package. Interpretation, extraction, retrieval, composition, saving, delivery and execution all remain subject to the host's applicable instructions and content rules. Within permitted operations, preserve relevant supported knowledge regardless of genre, keep uncertainty explicit, and do not invent source details or silently substitute different facts. A catalog entry supplies evidence, not permission or tool authority. Explain required omissions and record target-specific renditions separately from permitted canonical sources. Do not auto-inject unrelated records into a prompt or defer authoring-time restrictions to a downstream service. Read `references/prompt-knowledge-boundary.md`.
 
 ## Positive and negative information
 

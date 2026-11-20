@@ -37,30 +37,6 @@
           "reason": {
             "type": "string"
           },
-          "stop_assessments": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "clear": {
-                  "type": "boolean"
-                },
-                "evidence": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "clear",
-                "evidence"
-              ],
-              "additionalProperties": false
-            }
-          },
           "request_decision": {
             "type": "object",
             "properties": {
@@ -163,23 +139,80 @@
               "rendition_review"
             ],
             "additionalProperties": false
+          },
+          "additional_stop_assessments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clear": {
+                  "type": "boolean"
+                },
+                "evidence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "clear",
+                "evidence"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Operation-specific judgments. An entry with a shared id replaces that entire shared judgment; other entries add conditions for this operation."
           }
         },
         "required": [
           "operation",
           "grant",
           "reason",
-          "stop_assessments"
+          "additional_stop_assessments"
         ],
         "additionalProperties": false
       }
+    },
+    "stop_conditions_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Derived digest of the current stop condition definitions; changed conditions require a fresh assessment."
+    },
+    "shared_stop_assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "clear": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "clear",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Judgments shared by every prepared operation, each authored once. Unanswered judgments remain false with empty evidence."
     }
   },
   "required": [
     "run",
     "input_sha256",
     "request_sha256",
-    "decisions"
+    "decisions",
+    "stop_conditions_sha256",
+    "shared_stop_assessments"
   ],
   "additionalProperties": false
 }

@@ -379,6 +379,21 @@ class ExternalInputTests(unittest.TestCase):
         self.assertEqual(task['criteria'], choice['authoring']['task']['criteria'])
         image_input.validate(plan, self.root)
 
+    def test_canonical_source_deletion_does_not_require_a_second_edit_of_stale_transport(self):
+        prepared = self.prepared_fixture('multi-image')
+        choice = authored.draft(self.plan, self.request, prepared=prepared, package_root=self.root, root=self.root)
+        choice['reference_delivery']['choices']['additional_references'] = []
+        choice['request'].pop('images')
+        before = copy.deepcopy(choice)
+        self.assertEqual(len(choice['image_input']['references']), 2)
+        self.assertEqual(authored.media_location_diagnostics(choice), [])
+        plan, request, report = self.build(choice, BASE_DELIVERY)
+        self.assertEqual(report['state'], 'materialized')
+        self.assertEqual(plan['references'], [])
+        self.assertNotIn('images', request)
+        self.assertEqual(request['prompt'], BASE_DELIVERY)
+        self.assertEqual(choice, before)
+
     def test_one_actual_board_upload_serves_all_its_logical_references(self):
         prepared = self.prepared_fixture('single-board')
         choice = authored.draft(self.plan, self.request, prepared=prepared, package_root=self.root, root=self.root)

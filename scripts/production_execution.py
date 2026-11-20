@@ -92,6 +92,22 @@ def draft_execution(root: Path, run: str, grant: str | None = None) -> dict:
     return production_decisions.draft(root, run, grant)
 
 
+@_public_call
+def draft_principal_approval(root: Path, run: str, instruction_file: str, actor: str) -> dict:
+    """Retain the actual instruction and derive its exact prepared request binding."""
+    import production_authority_drafts
+    return production_authority_drafts.draft_principal_approval(root, run, instruction_file, actor)
+
+
+@_public_call
+def draft_authority_update(root: Path, run: str, approval_evidence: str | None = None, *,
+                           phase: str = 'execution', candidate: str | None = None) -> dict:
+    """Draft additional run-scoped grants while keeping current issuer and predecessor."""
+    import production_authority_drafts
+    return production_authority_drafts.draft_authority_update(root, run, approval_evidence,
+                                                             phase=phase, candidate=candidate)
+
+
 def authorize_decisions(root: Path, run: str, path: str, prepared: dict, plan: dict) -> None:
     import production_decisions
     production_decisions.authorize(root, run, path, prepared, plan)
@@ -1690,10 +1706,16 @@ def _acceptance_action(root: Path, run: str, candidate: dict, prepared: dict,
 def _candidate_action(root: Path, run: str, candidate: dict, prepared: dict,
                       rows: list[dict], authority: store.CurrentAuthority | None) -> dict:
     """Expose the current judgment for one candidate without ranking alternatives."""
+    import production_permissions
     if candidate['review'] is None or candidate['selection_requirements']['unassessed_hard_criteria']:
         actions = [_draft_action(root, run, 'review', candidate=candidate['candidate'],
                                  basis=candidate['review'], prepared=prepared)]
         phases = ['observe', 'review']
+    elif authority is not None and not any(not item['missing'] for item in
+            production_permissions.target_coverage(authority.document, 'select', ['delivery'])):
+        from production_authority_drafts import selection_update_action
+        actions = [selection_update_action(root, run, candidate['candidate'], authority)]
+        phases = ['review']
     else:
         scopes = ['delivery-only', 'studio-slot'] if prepared['task'].get('recording') else ['delivery-only']
         previous = [row['data']['selection']['scope'] for row in rows if row['event'] == 'selection'
@@ -2136,7 +2158,8 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         'preparation': 'prepared', 'readiness': readiness, 'readiness_diagnostics': readiness_diagnostics,
         'submission': submission, 'send_started': submission not in {'unclaimed', 'claimed'},
         'effects': effects, 'capture': capture, 'capture_diagnostics': captures[-1]['data'].get('diagnostics', []) if captures else [],
-        'registration': _registration(root, prepared, rows), 'review': review_state, 'task_disposition': task_disposition,
+        'registration': _registration(root, prepared, rows), 'recording': loaded.recording_summary(),
+        'review': review_state, 'task_disposition': task_disposition,
         'candidates': candidates, 'candidate_states': candidate_states, 'freshness_diagnostics': freshness,
         'freshness_notices': notices,
         'selection_diagnostics': selection_diagnostics, 'selection_ready': selection_ready, 'settlement_open': settlement_open,
@@ -2163,7 +2186,7 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         except INSPECTION_ERRORS as exc:
             report['readiness_diagnostics'].append(from_exception(exc, phase='authorization', file=draft_paths[0]['path']))
     report['authority'] = store.authority_snapshot(root, task_id, authority,
-                                                  source_path=prepared['task'].get('authority'))
+                                                  source_path=prepared['task'].get('authority'), run=identifier)
     edited = report['authority']['source_edited']
     if edited is not None and unsent:
         from cli_invocation import shown
@@ -2172,11 +2195,11 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
             f'The authority file {edited["path"]} changed after its import. Execution decisions are checked '
             'against the imported authority, so the edit has no effect yet.', severity='warning',
             phase='authority', file=edited['path'],
-            required_action='Import the edit with ' + shown(report['authority']['update_action']['argv'])
-                            + ' when it records an actual authority change, then draft the execution decisions '
+            required_action='Continue the actual authority change with ' + shown(report['authority']['update_action']['argv'])
+                            + ', following its predecessor and evidence instructions, then draft the execution decisions '
                             'again; otherwise restore the imported content of the file.').as_dict())
-    report['authorization_requirements'] = (production_permissions.grant_requirements(
-        authority.document if authority is not None else None, plan['operations'], selections=selections)
+    report['authorization_requirements'] = (workflow.authorization_requirements(
+        root, prepared, authority, plan['operations'], selections=selections)
         if unsent else None)
     import production_cleanup
     report['cleanup'] = {'state': 'not-needed', 'eligible': False, 'uploaded': 0, 'deleted': 0, 'retained': 0, 'items': []}

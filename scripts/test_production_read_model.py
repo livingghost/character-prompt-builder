@@ -10,6 +10,7 @@ import contextvars
 import os
 import sqlite3
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -767,6 +768,34 @@ class DecisionReadBoundaryTests(unittest.TestCase):
             self.assertEqual(observed.candidate(self.candidate)['evaluation'], 'unreviewed')
         with read_context.public_call(), self.assertRaises(ProductionError):
             workflow.read_decisions(self.root, self.run_id)
+
+    def test_decision_published_during_an_external_commit_is_not_reused(self):
+        disposition = workflow.draft_disposition(self.root, self.run_id, self.candidate)
+        disposition.update(actor='Synthetic author', reason='Concurrent fixture nonselection.')
+        verify = store._verified_history
+        reader_thread = threading.get_ident()
+        committed = False
+
+        def held_history(scope, entries, *, connection=None):
+            nonlocal committed
+            history = verify(scope, entries, connection=connection)
+            if (scope == self.run_id and connection is None
+                    and threading.get_ident() == reader_thread and not committed):
+                committed = True
+                # Commit after the display acquired its old rows, before its
+                # reader closes and publishes the immutable display value.
+                pool.submit(workflow.disposition_value, self.root, self.run_id, disposition).result(timeout=20)
+            return history
+
+        with read_context.public_call(), ThreadPoolExecutor(max_workers=1) as pool:
+            with patch.object(store, '_verified_history', held_history):
+                before = workflow.read_decisions(self.root, self.run_id)
+            self.assertTrue(committed)
+            self.assertEqual(before.candidate(self.candidate)['disposition'], 'pending')
+            after = workflow.read_decisions(self.root, self.run_id)
+            self.assertIsNot(after, before)
+            self.assertEqual(after.candidate(self.candidate)['disposition'], 'not_selected')
+            self.assertEqual(before.candidate(self.candidate)['disposition'], 'pending')
 
     def test_failed_fresh_and_forced_reads_cannot_restore_a_decision_observation(self):
         path = self.directory / 'consumer.json'

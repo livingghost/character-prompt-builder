@@ -16,6 +16,28 @@ python scripts/production_workflow.py resume --root STUDIO --run RUN --outcome-f
 navigation view retains every state, blocker, draft location and next action,
 while complete source text and authority declarations are available through the
 returned `details_action` (`status --view full`) and phase-specific `workspace`.
+The CLI also saves the complete JSON at `full_report`, with its content digest.
+`execute`, `resume`, `draft-execution` and `authority-import` accept the same
+`--view summary`; their ordinary full result remains available with `--view full`.
+The summary of a successful execution identifies submission and captured-output
+counts, candidate IDs, original recording destinations, cleanup state and the
+review continuation. It does not repeat unrelated authority history.
+
+Authorization summaries name each operation, required targets, selected grant
+and missing targets. Eligible alternatives are limited to eight, with total
+and omitted counts. Ineligible candidates become reason counts for actor,
+operation, targets, revocation/expiry, effective time and other failures; one
+candidate can contribute several reasons. Full status retains each diagnostic.
+`missing_targets_basis` distinguishes the selected grant, eligible alternatives
+and targets not covered by current operation grants. Several partial grants
+are not combined into an authorization. `coverage_note` explains that scope.
+Staging inventories and execution histories use counts and bounded previews;
+the complete report preserves individual entries. Display limits never change
+authority evaluation or execution checks.
+
+If report saving fails, `full_report` is null and `complete_report` carries the
+original result with a `report_warning`. Repair the display destination; this
+warning does not ask for another execution of a committed operation.
 The navigation view is not evidence for a submission or review decision.
 `schemas/authoring/production-status-summary.schema.json` defines this view;
 `schemas/authoring/production-status.schema.json` defines full status.

@@ -22,6 +22,9 @@ COMMAND_HELP = {
     'deliver': 'Copy this saved authored revision to a local destination, or record actual external presentation or attachment evidence.',
     'review-authored': 'Record an evidence-backed review of the saved authored artifact against its independent assessment basis.',
     'draft-execution': 'Write the unanswered execution decision file for every operation of a prepared run.',
+    'acquire-source': 'Acquire one complete Production source row and regenerate its applications, subjects and derived task sources.',
+    'draft-principal-approval': 'Retain an actual instruction and bind an unanswered approval draft to this exact run and request.',
+    'draft-authority-update': 'Draft additions to current authority for this run, retaining issuer and expected predecessor.',
     'execute': 'Apply the separate execution decisions, then dispatch or hand the exact request to its external host once.',
     'resume': 'Recover the same execution without sending it again where a send has started; --watch keeps asking '
               'while the provider task is pending.',
@@ -158,7 +161,12 @@ OPTION_HELP = {
 # Arguments that name one JSON input file and accept - for stdin.
 STDIN_INPUTS = ('decisions_file', 'file', 'request', 'intent', 'outcome_file', 'registration_record', 'changes_file')
 # Arguments that name a studio file.
-FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'choices', 'artifact', 'response_file', 'submission_file')
+FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'choices', 'artifact', 'response_file', 'submission_file',
+                               'source_row', 'instruction_file', 'approval_evidence')
+
+SUMMARY_COMMANDS = frozenset({'status', 'check', 'prepare', 'save', 'authority-import', 'draft-execution',
+    'execute', 'resume', 'draft-inputs', 'inspect-inputs', 'build-inputs', 'acquire-source',
+    'draft-principal-approval', 'draft-authority-update'})
 
 
 def build_parser():
@@ -173,7 +181,7 @@ def build_parser():
     for name in COMMAND_HELP:
         p = sub.add_parser(name, help=COMMAND_HELP[name], description=COMMAND_HELP[name])
         p.add_argument('--root', type=Path, required=name not in {'logs', 'logs-export', 'logs-cleanup'})
-        if name not in {'prepare', 'check', 'save', 'authority-import', 'staging-cleanup', 'logs', 'logs-export', 'logs-cleanup', 'status'}:
+        if name not in {'prepare', 'check', 'save', 'authority-import', 'staging-cleanup', 'logs', 'logs-export', 'logs-cleanup', 'status', 'acquire-source'}:
             p.add_argument('--run', required=True)
         if name in {'status', 'logs', 'logs-export'}:
             p.add_argument('--run')
@@ -183,6 +191,19 @@ def build_parser():
                            help='Navigation with complete blockers and next actions, or full current evidence and declarations.')
         if name == 'execute':
             p.add_argument('--decisions-file')
+        if name == 'acquire-source':
+            p.add_argument('--choices', required=True, help='Current Studio-relative editable choices.json.')
+            p.add_argument('--source-row', required=True,
+                help='Studio-relative JSON file containing one public ProductionTask source row: id, path, role, '
+                     'disposition, locator, reason and any identity.subject_ids/selectors. Acquisition derives the task sources.')
+        if name == 'draft-principal-approval':
+            p.add_argument('--instruction-file', required=True, help='Studio-relative UTF-8 file with the actual instruction, retained verbatim.')
+            p.add_argument('--actor', required=True, help='The actual instructing principal; drafting does not assert approval.')
+        if name == 'draft-authority-update':
+            p.add_argument('--approval-evidence', help='Studio-relative file containing actual approval evidence for this run; absent evidence leaves decisions unanswered.')
+            p.add_argument('--phase', choices=['execution', 'selection'], default='execution',
+                help='execution (default) drafts direction/submission grants; selection drafts select/delivery for --candidate.')
+            p.add_argument('--candidate', help='Exact reviewed candidate required for --phase selection; no candidate is inferred.')
         if name == 'resume':
             from execution_watch_options import WATCH_LIMIT_SECONDS
             recovery = p.add_mutually_exclusive_group()
@@ -200,7 +221,8 @@ def build_parser():
                            help='Seconds --watch keeps asking in all, after which it returns the run as a plain resume '
                                 f'leaves it; {WATCH_LIMIT_SECONDS} when left out.')
         if name in {'draft-outcome', 'draft-execution', 'logs-export', 'draft-review', 'draft-selection',
-                    'draft-authorization', 'draft-disposition', 'draft-acceptance', 'draft-adoption'}:
+                    'draft-authorization', 'draft-disposition', 'draft-acceptance', 'draft-adoption',
+                    'draft-principal-approval', 'draft-authority-update'}:
             p.add_argument('--out', required=True)
         if name in {'draft-execution', 'draft-authorization', 'draft-acceptance', 'draft-adoption'}:
             p.add_argument('--grant', required=name == 'draft-authorization')
@@ -249,6 +271,10 @@ def build_parser():
             p.add_argument('--candidate', required=True)
         if name == 'draft-review':
             p.add_argument('--candidate', help='Actual candidate for a generated result; omit for an authored revision.')
+            p.epilog = ('--out contains only the unanswered editable review form. Standard output is a report '
+                        'with choices (that form), draft_file, review_guide and next_action. The guide names the '
+                        'reserved candidate evidence ID, automatic comparison evidence and observation format. '
+                        'Complete the saved form from actual observations; submit that file with review or review-authored.')
         if name == 'deliver':
             delivery = p.add_mutually_exclusive_group(required=True)
             delivery.add_argument('--to', help='Studio-relative local destination; an existing different file is a conflict.')
@@ -296,12 +322,24 @@ def build_parser():
             from pack_runtime_cli import add_pack_runtime_arguments
             add_pack_runtime_arguments(p)
     for command, child in sub.choices.items():
+        if command in SUMMARY_COMMANDS and command != 'status':
+            child.add_argument('--view', choices=['summary', 'full'], default='full',
+                help='Show actionable current results and a saved complete report, or the full JSON result (default).')
         if child.description is None:
             child.description = next(action.help for action in sub._choices_actions if action.dest == command)
         for action in child._actions:
             if action.help is None and action.dest != 'help':
                 action.help = OPTION_HELP.get((command, action.dest), OPTION_HELP.get(action.dest))
     return parser
+
+
+def _print_report(args, result: dict) -> None:
+    """Select presentation without changing the outcome of the actual operation."""
+    if getattr(args, 'view', 'full') == 'summary' and args.root is not None:
+        from production_report_view import present
+        result = present(args.root, result, command=args.command,
+            run=getattr(args, 'run', None), choices=getattr(args, 'choices', None))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 def _studio_arguments(root: Path, args) -> None:
@@ -440,6 +478,29 @@ def main() -> int:
         elif name in INPUT_COMMANDS:
             import production_inputs
             result = production_inputs.command(args, parser)
+        elif name == 'acquire-source':
+            from production_source_acquisition import acquire_source
+            result = acquire_source(root, args.choices, args.source_row)
+        elif name in {'draft-principal-approval', 'draft-authority-update'}:
+            from production_execution import draft_principal_approval, draft_authority_update
+            result = (draft_principal_approval(root, args.run, args.instruction_file, args.actor)
+                if name == 'draft-principal-approval' else
+                draft_authority_update(root, args.run, args.approval_evidence,
+                                       phase=args.phase, candidate=args.candidate))
+            _write_new(root, args.out, result['choices'])
+            result['draft_file'] = args.out
+            if name == 'draft-authority-update':
+                from cli_invocation import python_argv
+                result['next_action'] = {'command': 'authority-import',
+                    'argv': python_argv(Path(__file__), 'authority-import', '--root', str(root),
+                        '--file', args.out, '--expected-event', result['choices']['expected_event']),
+                    'requires_author_input': True,
+                    'reason': 'Complete the actual authority choices in the saved draft, then import with this predecessor.'}
+            else:
+                result['approval_selection'] = {'path': args.out, 'locator': 'whole'}
+                result['required_action'] += (' After recording the actual approval judgment, use approval_selection '
+                    'as principal_approval in the execution decision; the same file can supply --approval-evidence '
+                    'to draft-authority-update when current grants need additions.')
         elif name == 'draft-disposition':
             import production_operations as operations
             result = operations.draft_disposition(root, args.run, args.candidate)
@@ -490,7 +551,7 @@ def main() -> int:
             result = execute(root, args.run, decisions_file=args.decisions_file)
         elif name == 'authority-import':
             import production_store as store
-            result = store.import_authority(root, args.file, expected=args.expected_event)
+            result = store.import_authority(root, args.file, expected=args.expected_event, report_changes=True)
         elif name == 'recover-publication':
             from production_compiler import recover_publication
             result = recover_publication(root, args.run)
@@ -563,8 +624,13 @@ def main() -> int:
             import production_operations as operations
             function = operations.draft_review if name == 'draft-review' else operations.draft_selection
             result = function(root, args.run, args.candidate)
+            guide = (operations.review_authoring_guide(root, args.run, args.candidate, review_file=args.out)
+                     if name == 'draft-review' else None)
             _write_decision_draft(root, args.run, name.removeprefix('draft-'), args.out, result,
                                   candidate=args.candidate)
+            if name == 'draft-review':
+                result = {'choices': result, 'draft_file': args.out, 'review_guide': guide,
+                          'next_action': guide['next_action']}
         elif name == 'review':
             import production_operations as operations
             result = operations.review(root, args.run, args.file)
@@ -616,19 +682,16 @@ def main() -> int:
         else:
             import production_operations as operations
             result = operations.status(root, args.run)
-            if args.view == 'summary':
-                from production_status_view import summary
-                result = summary(root, result, run=args.run)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        if result.get('ok', True):
-            return 0
-        return result_exit(result.get('diagnostics') or [], failure=EXIT_EXECUTION if name in {'execute', 'resume'} else EXIT_INPUT)
+        status = 0 if result.get('ok', True) else result_exit(result.get('diagnostics') or [],
+            failure=EXIT_EXECUTION if name in {'execute', 'resume'} else EXIT_INPUT)
+        _print_report(args, result)
+        return status
     except (ValueError, OSError, UnicodeError, KeyError, TypeError) as exc:
         if isinstance(exc, CompilationError):
-            print(json.dumps(exc.report, ensure_ascii=False))
+            _print_report(args, exc.report)
             return result_exit(exc.report['diagnostics'])
         diagnostic = from_exception(exc, phase='cli')
-        print(json.dumps({'ok': False, 'diagnostics': [diagnostic]}, ensure_ascii=False))
+        _print_report(args, {'ok': False, 'diagnostics': [diagnostic]})
         return exit_code(diagnostic['code'])
 
 

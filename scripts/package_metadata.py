@@ -615,15 +615,23 @@ PACKAGE_DESCRIPTION = _METADATA.description
 
 
 def session_hook(root_variable: str) -> dict[str, Any]:
-    """The session hook, written against one host's plugin-root variable."""
+    """Use uv only to locate an existing environment; startup never provisions it."""
 
-    script = f'"${{{root_variable}}}/scripts/session_entry_points.py"'
-    project = f'"${{{root_variable}}}"'
     command = (
-        "command -v uv >/dev/null 2>&1 || { "
-        "printf '%s\\n' 'Character Prompt Builder requires uv. Install uv, then rerun this command to continue in the current Studio.' >&2; "
-        "exit 1; }; "
-        f"uv run --locked --project {project} python {script}"
+        f'cpb_project="${{{root_variable}}}"; '
+        'cpb_environment="${UV_PROJECT_ENVIRONMENT:-.venv}"; '
+        'if ! command -v uv >/dev/null 2>&1; then '
+        "printf '%s\\n' 'Character Prompt Builder requires uv to locate its existing environment.' "
+        '"From $cpb_project, install uv as described in DEPENDENCIES.md, then run: uv sync --locked"; '
+        'elif cpb_python="$(uv python find --directory "$cpb_project" --offline '
+        '--no-python-downloads "$cpb_environment" 2>/dev/null)"; then '
+        '"$cpb_python" -B "$cpb_project/scripts/session_entry_points.py" || '
+        "printf '%s\\n' 'Character Prompt Builder session report is unavailable. Check the selected environment using DEPENDENCIES.md.'; "
+        "else printf '%s\\n' "
+        '"Character Prompt Builder environment is not provisioned at $cpb_environment." '
+        '"From $cpb_project, run: uv sync --locked" '
+        "'Retain UV_PROJECT_ENVIRONMENT when it selects another environment. Then rerun the session report with its Python; see DEPENDENCIES.md.'; "
+        'fi'
     )
     return {
         "hooks": {

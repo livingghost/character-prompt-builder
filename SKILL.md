@@ -17,7 +17,7 @@ Use English prompts/retrieval and the user's language. Preserve meaning, modifie
 uv run --project <skill-root> --locked python <skill-root>/scripts/check_dependencies.py
 ```
 
-The first invocation synchronizes packages. Add `--capability sheet` for fonts or `--capability temporal-media` for FFprobe. Resolve requirements under [Dependencies](DEPENDENCIES.md).
+Explicit runtime commands synchronize packages; session startup only reports readiness. Add `--capability sheet` for fonts or `--capability temporal-media` for FFprobe. Resolve requirements under [Dependencies](DEPENDENCIES.md).
 
 Run documented `python scripts/<name>.py ...` as `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...` on every route. Keep the Studio working directory; `--project` selects the environment without changing argument paths. Execute returned `argv` as given.
 
@@ -31,7 +31,7 @@ Preserve anchors and adopted definitions. Resolve an individual's concrete expre
 
 Bind inputs, target and count to actual authorization. Distinguish direction, editing, submission, selection and canonical adoption. Continue within delegated scope without repeated approval.
 
-Preserve supported production knowledge at full specificity across every genre and intensity level, from everyday and wholesome subjects to sensitive material such as violent, medical, grotesque, body-altering, or adult knowledge, without exception. Read [Prompt Knowledge and Execution Boundary](references/prompt-knowledge-boundary.md) when relevant.
+Preserve supported production knowledge within applicable host instructions and content rules, including text-only work. A skill, catalog or canonical age label never expands permission. Read [Prompt Knowledge and Execution Boundary](references/prompt-knowledge-boundary.md) for evidence fidelity and permitted authoring, delivery and execution.
 
 Use ASCII punctuation in Studio text, prompts, JSON and examples.
 
