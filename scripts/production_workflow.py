@@ -24,7 +24,7 @@ COMMAND_HELP = {
     'draft-execution': 'Write the unanswered execution decision file for every operation of a prepared run.',
     'acquire-source': 'Acquire one complete Production source row and regenerate its applications, subjects and derived task sources.',
     'draft-principal-approval': 'Retain an actual instruction and bind an unanswered approval draft to this exact run and request.',
-    'draft-authority-update': 'Draft additions to current authority for this run, retaining issuer and expected predecessor.',
+    'draft-authority-update': 'Draft execution, reviewed selection or selected canonical-use authority, deriving run bindings and predecessor.',
     'execute': 'Apply the separate execution decisions, then dispatch or hand the exact request to its external host once.',
     'resume': 'Recover the same execution without sending it again where a send has started; --watch keeps asking '
               'while the provider task is pending.',
@@ -150,8 +150,8 @@ OPTION_HELP = {
     ('accept', 'file'): 'Completed owner decision from draft-acceptance, or - for stdin; omit to resume the recorded selection.',
     ('adopt', 'file'): 'Completed canonical-use decision from draft-adoption, or - for stdin; derives approval and exact authorization.',
     ('adopt', 'claim'): 'Exact adoption claim to recover from retained approval and evidence; no new adoption decision is made.',
-    ('draft-adoption', 'influence'): 'Required with --candidate: intended reusable influence. A --claim keeps its recorded influence.',
-    ('draft-adoption', 'scope'): 'Destination for --candidate (default sheet); catalog also publishes the chosen record in a pack. A --claim keeps its scope.',
+    ('draft-adoption', 'influence'): 'Required for a new adoption: intended reusable influence. A --claim keeps its recorded influence.',
+    ('draft-adoption', 'scope'): 'Destination for the current selection (default sheet); catalog also publishes the chosen record in a pack. A --claim keeps its scope.',
     ('draft-adoption', 'claim'): 'Retained adoption claim to reassess under current authority without changing its approval or destination.',
     ('selection-intent', 'file'): 'Completed selection file from draft-selection, or - for stdin.',
     ('disposition', 'file'): 'Completed disposition file from draft-disposition, or - for stdin.',
@@ -165,8 +165,8 @@ FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'choices', 'artifact', 'response_file',
                                'source_row', 'instruction_file', 'approval_evidence')
 
 SUMMARY_COMMANDS = frozenset({'status', 'check', 'prepare', 'save', 'authority-import', 'draft-execution',
-    'execute', 'resume', 'draft-inputs', 'inspect-inputs', 'build-inputs', 'acquire-source',
-    'draft-principal-approval', 'draft-authority-update'})
+    'execute', 'resume', 'draft-inputs', 'stage-inputs', 'inspect-inputs', 'build-inputs', 'acquire-source',
+    'draft-principal-approval', 'draft-authority-update', 'draft-acceptance', 'draft-adoption'})
 
 
 def build_parser():
@@ -188,7 +188,9 @@ def build_parser():
         if name == 'status':
             p.epilog, p.formatter_class = _status_epilog(), argparse.RawDescriptionHelpFormatter
             p.add_argument('--view', choices=['summary', 'full'], default='summary',
-                           help='Navigation with complete blockers and next actions, or full current evidence and declarations.')
+                           help='Current run, all blocker locations and next actions with bounded history, '
+                                'diagnostic_ids/action_ref links and total/omitted/full_report counts, '
+                                'or full current evidence and declarations.')
         if name == 'execute':
             p.add_argument('--decisions-file')
         if name == 'acquire-source':
@@ -200,10 +202,15 @@ def build_parser():
             p.add_argument('--instruction-file', required=True, help='Studio-relative UTF-8 file with the actual instruction, retained verbatim.')
             p.add_argument('--actor', required=True, help='The actual instructing principal; drafting does not assert approval.')
         if name == 'draft-authority-update':
+            from reference_contract import INTENDED_INFLUENCES
             p.add_argument('--approval-evidence', help='Studio-relative file containing actual approval evidence for this run; absent evidence leaves decisions unanswered.')
-            p.add_argument('--phase', choices=['execution', 'selection'], default='execution',
-                help='execution (default) drafts direction/submission grants; selection drafts select/delivery for --candidate.')
-            p.add_argument('--candidate', help='Exact reviewed candidate required for --phase selection; no candidate is inferred.')
+            p.add_argument('--phase', choices=['execution', 'selection', 'adoption'], default='execution',
+                help='execution drafts direction/submission; selection drafts select/delivery for --candidate; adoption derives adopt/canon from the current selection and intended scope.')
+            p.add_argument('--candidate', help='Required reviewed candidate for selection; adoption derives the current selected candidate, or verifies this explicit one.')
+            p.add_argument('--scope', choices=['sheet', 'catalog'], help='Adoption destination; defaults to sheet for --phase adoption.')
+            p.add_argument('--influence', choices=INTENDED_INFLUENCES, help='Required intended canonical influence for --phase adoption.')
+            p.add_argument('--registration-record')
+            p.add_argument('--pack-dir', type=Path)
         if name == 'resume':
             from execution_watch_options import WATCH_LIMIT_SECONDS
             recovery = p.add_mutually_exclusive_group()
@@ -229,6 +236,10 @@ def build_parser():
         if name == 'draft-acceptance':
             p.add_argument('--scope', choices=['delivery-only', 'studio-slot'], default='delivery-only',
                            help='Requested result scope; delivery-only leaves Studio acceptance unchanged.')
+        if name in {'draft-acceptance', 'draft-adoption'}:
+            p.epilog = ('--out contains only the editable decision form. Standard output is a report with choices, '
+                        'draft_file, schema, reading_action and next_action. Read the scope-specific knowledge and '
+                        'complete the saved file from actual instruction and evidence; use next_action to apply it.')
         if name == 'authority-import':
             p.add_argument('--file', required=True)
             p.add_argument('--expected-event')
@@ -311,8 +322,8 @@ def build_parser():
             p.add_argument('--repair', required=True)
         if name == 'draft-adoption':
             from reference_contract import INTENDED_INFLUENCES
-            chosen = p.add_mutually_exclusive_group(required=True)
-            chosen.add_argument('--candidate')
+            chosen = p.add_mutually_exclusive_group()
+            chosen.add_argument('--candidate', help='Verify an explicit candidate; otherwise derive the current selected candidate.')
             chosen.add_argument('--claim')
             p.add_argument('--scope', choices=['sheet', 'catalog'])
             p.add_argument('--influence', choices=INTENDED_INFLUENCES)
@@ -324,7 +335,8 @@ def build_parser():
     for command, child in sub.choices.items():
         if command in SUMMARY_COMMANDS and command != 'status':
             child.add_argument('--view', choices=['summary', 'full'], default='full',
-                help='Show actionable current results and a saved complete report, or the full JSON result (default).')
+                help='Show current results with bounded history, diagnostic_ids/action_ref links and '
+                     'total/omitted/full_report counts, or the full JSON result (default).')
         if child.description is None:
             child.description = next(action.help for action in sub._choices_actions if action.dest == command)
         for action in child._actions:
@@ -333,12 +345,13 @@ def build_parser():
     return parser
 
 
-def _print_report(args, result: dict) -> None:
+def _print_report(args, result: dict, *, runtime_arguments: dict | None = None) -> None:
     """Select presentation without changing the outcome of the actual operation."""
     if getattr(args, 'view', 'full') == 'summary' and args.root is not None:
         from production_report_view import present
         result = present(args.root, result, command=args.command,
-            run=getattr(args, 'run', None), choices=getattr(args, 'choices', None))
+            run=getattr(args, 'run', None), choices=getattr(args, 'choices', None),
+            runtime_arguments=runtime_arguments)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
@@ -419,6 +432,26 @@ def _write_decision_draft(root: Path, run: str, kind: str, out: str, value: dict
     _write_new(root, out, value)
 
 
+def _curation_draft_report(root: Path, run: str, kind: str, out: str, choices: dict) -> dict:
+    """Keep editable choices separate from the actual scope's reading and apply actions."""
+    import production_operations as workflow
+    from cli_invocation import python_argv
+    from route_reading import curation_action
+    loaded = workflow.read_run(root, run)
+    command = 'accept' if kind == 'acceptance' else 'adopt'
+    reason = ('Complete the selection reason, actual stop judgments and any explicit owner allowance.'
+              if kind == 'acceptance' else
+              'Complete the canonical approval and reason, confirm shared judgments only where their retained '
+              'evidence applies, and author any operation-specific stop replacements.')
+    return {'choices': choices, 'draft_file': out, 'schema': f'schemas/authoring/production-{kind}.schema.json',
+        'reading_action': curation_action(root, execution=loaded.prepared['task']['execution'], scope=choices['scope']),
+        'next_action': {'command': command,
+            'argv': python_argv(Path(__file__), command, '--root', str(root), '--run', run, '--file', out),
+            'draft': out, 'requires_author_input': True, 'reason': reason},
+        'required_action': 'Read the applicable scope through reading_action, then edit only the saved decision '
+            'file and follow next_action. The derived bindings need no manual transcription. ' + reason}
+
+
 def _stdin_inputs(root: Path, args) -> None:
     """Store a JSON input read from stdin as an object of its run, and name it by that object's path.
 
@@ -454,6 +487,7 @@ def main() -> int:
     import execution_contract as c
     from production_diagnostics import ProductionError
     name = args.command
+    runtime_arguments = None
     try:
         # The user's explicit CLI root may be a volume/system alias. Resolve that
         # choice once, then recheck the canonical ancestors at every internal use.
@@ -465,16 +499,21 @@ def main() -> int:
             _studio_arguments(root, args)
             _stdin_inputs(root, args)
         if name in {'prepare', 'check', 'save', 'retarget'}:
-            from pack_runtime_cli import resolve_pack_runtime, has_pack_runtime_arguments
+            from pack_runtime_cli import has_pack_runtime_arguments
             if has_pack_runtime_arguments(args):
-                from catalog_retrieval import runtime
-                runtime.configure_pack_runtime(resolve_pack_runtime(parser, args).settings)
+                from production_input_adapters import configure_runtime
+                runtime_arguments = configure_runtime(args, parser)
+            elif getattr(args, 'choices', None):
+                from production_authoring_state import registered_runtime_arguments
+                runtime_arguments = registered_runtime_arguments(root, args.choices)
         if name in CRAFT_COMMANDS:
             import craft_consultation
             result = craft_consultation.command(args, parser)
         elif name in {'variant', 'repeat', 'retarget'}:
             import production_variation
-            result = production_variation.command(args, parser)
+            from production_input_adapters import using_runtime
+            with using_runtime(runtime_arguments):
+                result = production_variation.command(args, parser)
         elif name in INPUT_COMMANDS:
             import production_inputs
             result = production_inputs.command(args, parser)
@@ -486,7 +525,8 @@ def main() -> int:
             result = (draft_principal_approval(root, args.run, args.instruction_file, args.actor)
                 if name == 'draft-principal-approval' else
                 draft_authority_update(root, args.run, args.approval_evidence,
-                                       phase=args.phase, candidate=args.candidate))
+                    phase=args.phase, candidate=args.candidate, scope=args.scope, influence=args.influence,
+                    registration_file=args.registration_record, pack_dir=args.pack_dir))
             _write_new(root, args.out, result['choices'])
             result['draft_file'] = args.out
             if name == 'draft-authority-update':
@@ -513,21 +553,26 @@ def main() -> int:
             result = operations.candidate_state(root, args.run, args.candidate)
         elif name == 'check':
             from production_compiler import check_task
-            if args.choices:
-                import production_inputs
-                compiled_choices = production_inputs.compile_choices(root, args.choices)
-                try:
-                    result = compiled_choices.report
-                    if result.get('execution_plan') is not None:
-                        result['execution_plan']['run'] = None
-                finally:
-                    if compiled_choices.directory is not None:
-                        shutil.rmtree(compiled_choices.directory)
-            else:
-                result = check_task(root, args.task)
+            from production_input_adapters import using_runtime
+            with using_runtime(runtime_arguments):
+                if args.choices:
+                    import production_inputs
+                    compiled_choices = production_inputs.compile_choices(root, args.choices,
+                                                                          runtime_arguments=runtime_arguments)
+                    try:
+                        result = compiled_choices.report
+                        if result.get('execution_plan') is not None:
+                            result['execution_plan']['run'] = None
+                    finally:
+                        if compiled_choices.directory is not None:
+                            shutil.rmtree(compiled_choices.directory)
+                else:
+                    result = check_task(root, args.task)
         elif name == 'save':
             import production_operations as operations
-            result = operations.save(root, args.choices, draft=args.draft)
+            from production_input_adapters import using_runtime
+            with using_runtime(runtime_arguments):
+                result = operations.save(root, args.choices, draft=args.draft)
         elif name == 'record-save':
             from production_authored import record_save
             result = record_save(root, args.run)
@@ -583,7 +628,9 @@ def main() -> int:
             _write_decision_draft(root, args.run, 'outcome', args.out, result)
         elif name == 'prepare':
             import production_operations as operations
-            result = operations.prepare(root, args.task, choices=args.choices)
+            from production_input_adapters import using_runtime
+            with using_runtime(runtime_arguments):
+                result = operations.prepare(root, args.task, choices=args.choices)
         elif name == 'handoff-intent':
             import production_operations as operations
             result = operations.handoff_intent(root, args.run, args.recipient, args.method)
@@ -644,6 +691,7 @@ def main() -> int:
             from production_acceptance import draft
             result = draft(root, args.run, args.candidate, args.grant, scope=args.scope)
             _write_decision_draft(root, args.run, 'acceptance', args.out, result, candidate=args.candidate)
+            result = _curation_draft_report(root, args.run, 'acceptance', args.out, result)
         elif name == 'accept':
             from production_acceptance import accept
             result = accept(root, args.run, decision_file=args.file)
@@ -666,6 +714,7 @@ def main() -> int:
                     influence=args.influence, grant=args.grant, registration_file=args.registration_record,
                     pack_dir=args.pack_dir)
             _write_decision_draft(root, args.run, 'adoption', args.out, result, candidate=result['candidate'])
+            result = _curation_draft_report(root, args.run, 'adoption', args.out, result)
         elif name == 'adopt':
             import production_adoption
             from pack_runtime_cli import resolve_pack_runtime
@@ -684,14 +733,14 @@ def main() -> int:
             result = operations.status(root, args.run)
         status = 0 if result.get('ok', True) else result_exit(result.get('diagnostics') or [],
             failure=EXIT_EXECUTION if name in {'execute', 'resume'} else EXIT_INPUT)
-        _print_report(args, result)
+        _print_report(args, result, runtime_arguments=runtime_arguments)
         return status
     except (ValueError, OSError, UnicodeError, KeyError, TypeError) as exc:
         if isinstance(exc, CompilationError):
-            _print_report(args, exc.report)
+            _print_report(args, exc.report, runtime_arguments=runtime_arguments)
             return result_exit(exc.report['diagnostics'])
         diagnostic = from_exception(exc, phase='cli')
-        _print_report(args, {'ok': False, 'diagnostics': [diagnostic]})
+        _print_report(args, {'ok': False, 'diagnostics': [diagnostic]}, runtime_arguments=runtime_arguments)
         return exit_code(diagnostic['code'])
 
 

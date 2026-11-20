@@ -44,60 +44,7 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "source_state": {
-          "type": "object",
-          "properties": {
-            "placement": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            },
-            "slot_acceptance": {
-              "anyOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "iteration_id": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "image_sha256": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
-                    },
-                    "acceptance_sha256": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
-                    }
-                  },
-                  "required": [
-                    "iteration_id",
-                    "image_sha256",
-                    "acceptance_sha256"
-                  ],
-                  "additionalProperties": false
-                }
-              ]
-            },
-            "adoption": {
-              "anyOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{64}$"
-                }
-              ]
-            }
-          },
-          "required": [
-            "placement",
-            "slot_acceptance",
-            "adoption"
-          ],
-          "additionalProperties": false
+          "$ref": "#/$defs/source_state"
         },
         "scope": {
           "enum": [
@@ -202,68 +149,13 @@
           ]
         },
         "registration": {
-          "anyOf": [
-            {
-              "type": "null"
-            },
-            {
-              "type": "object",
-              "properties": {
-                "path": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "sha256": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{64}$"
-                },
-                "record_sha256": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{64}$"
-                },
-                "pack_dir": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "path",
-                "sha256",
-                "record_sha256",
-                "pack_dir"
-              ],
-              "additionalProperties": false
-            }
-          ]
+          "$ref": "#/$defs/registration"
         },
-        "stop_assessments": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "clear": {
-                "type": "boolean"
-              },
-              "evidence": {
-                "type": "string"
-              },
-              "condition": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "id",
-              "clear",
-              "evidence",
-              "condition"
-            ],
-            "additionalProperties": false
-          }
+        "shared_stop_assessments": {
+          "$ref": "#/$defs/shared_stop_assessments"
+        },
+        "additional_stop_assessments": {
+          "$ref": "#/$defs/stop_assessments"
         }
       },
       "required": [
@@ -286,7 +178,8 @@
         "license",
         "continuity_decision",
         "registration",
-        "stop_assessments"
+        "shared_stop_assessments",
+        "additional_stop_assessments"
       ],
       "additionalProperties": false,
       "allOf": [
@@ -373,35 +266,6 @@
         "reason": {
           "type": "string"
         },
-        "stop_assessments": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "clear": {
-                "type": "boolean"
-              },
-              "evidence": {
-                "type": "string"
-              },
-              "condition": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "id",
-              "clear",
-              "evidence",
-              "condition"
-            ],
-            "additionalProperties": false
-          }
-        },
         "claim": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
@@ -409,6 +273,13 @@
         "approval": {
           "type": "object",
           "description": "Exact retained approval supplied by the draft owner; not editable."
+        },
+        "shared_stop_assessments": {
+          "type": "null",
+          "description": "Reassessment of a retained claim requires judgments under its current authority; it never replaces the claim approval."
+        },
+        "additional_stop_assessments": {
+          "$ref": "#/$defs/stop_assessments"
         }
       },
       "required": [
@@ -419,11 +290,331 @@
         "grant",
         "authority_sha256",
         "reason",
-        "stop_assessments",
         "claim",
-        "approval"
+        "approval",
+        "shared_stop_assessments",
+        "additional_stop_assessments"
       ],
       "additionalProperties": false
     }
-  ]
+  ],
+  "$defs": {
+    "source_state": {
+      "type": "object",
+      "properties": {
+        "placement": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "slot_acceptance": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "iteration_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "image_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "acceptance_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "iteration_id",
+                "image_sha256",
+                "acceptance_sha256"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "adoption": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          ]
+        }
+      },
+      "required": [
+        "placement",
+        "slot_acceptance",
+        "adoption"
+      ],
+      "additionalProperties": false
+    },
+    "registration": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "record_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "pack_dir": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "record_sha256",
+            "pack_dir"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "stop_assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "clear": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "condition": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "clear",
+          "evidence",
+          "condition"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Actual adoption-only judgments. A complete entry replaces the shared judgment with that id. New or changed conditions remain unanswered until assessed from evidence."
+    },
+    "adoption_binding": {
+      "type": "object",
+      "properties": {
+        "candidate": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "review": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "selection": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "character": {
+          "type": "string",
+          "minLength": 1
+        },
+        "iteration": {
+          "type": "string",
+          "minLength": 1
+        },
+        "slot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "image_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_state": {
+          "$ref": "#/$defs/source_state"
+        },
+        "scope": {
+          "enum": [
+            "sheet",
+            "catalog"
+          ]
+        },
+        "influence": {
+          "enum": [
+            "identity",
+            "pose-camera",
+            "outfit",
+            "surface-finish",
+            "lighting",
+            "environment",
+            "prop-accessory",
+            "local-color"
+          ]
+        },
+        "registration": {
+          "$ref": "#/$defs/registration"
+        }
+      },
+      "required": [
+        "candidate",
+        "review",
+        "selection",
+        "character",
+        "iteration",
+        "slot",
+        "image_sha256",
+        "source_state",
+        "scope",
+        "influence",
+        "registration"
+      ],
+      "additionalProperties": false
+    },
+    "shared_stop_assessments": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "authorization": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "authority_event": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "basis": {
+              "type": "object",
+              "properties": {
+                "candidate": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "review": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "selection": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "character": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "iteration": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "slot": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "image_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "source_state": {
+                  "$ref": "#/$defs/source_state"
+                },
+                "scope": {
+                  "enum": [
+                    "sheet",
+                    "catalog"
+                  ]
+                },
+                "influence": {
+                  "enum": [
+                    "identity",
+                    "pose-camera",
+                    "outfit",
+                    "surface-finish",
+                    "lighting",
+                    "environment",
+                    "prop-accessory",
+                    "local-color"
+                  ]
+                },
+                "registration": {
+                  "$ref": "#/$defs/registration"
+                },
+                "selection_authority": {
+                  "type": "object",
+                  "description": "Complete derived select terms, issuer, captured instruction identities and stop definitions from the retained authorization."
+                },
+                "adoption_authority": {
+                  "type": "object",
+                  "description": "Complete derived adopt terms, issuer, captured instruction identities and stop definitions for this draft."
+                },
+                "instruction_evidence": {
+                  "type": "object",
+                  "description": "The actual retained authority declaration citation. Its captured bytes are checked against the selection authorization."
+                }
+              },
+              "required": [
+                "candidate",
+                "review",
+                "selection",
+                "character",
+                "iteration",
+                "slot",
+                "image_sha256",
+                "source_state",
+                "scope",
+                "influence",
+                "registration",
+                "selection_authority",
+                "adoption_authority",
+                "instruction_evidence"
+              ],
+              "additionalProperties": false
+            },
+            "confirmed": {
+              "enum": [
+                null,
+                true,
+                false
+              ],
+              "description": "The acting author confirms that the retained judgments apply to this exact adoption under the same actual instruction. The draft leaves this unanswered."
+            },
+            "assessments": {
+              "$ref": "#/$defs/stop_assessments"
+            }
+          },
+          "required": [
+            "authorization",
+            "authority_event",
+            "basis",
+            "confirmed",
+            "assessments"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
 }

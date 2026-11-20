@@ -122,11 +122,53 @@ class InputGuideTests(unittest.TestCase):
         self.assertEqual(self.field('external.image_input.references')['selected_source_owner'],
                          'external.reference_delivery.choices')
         summary = guide.summary(self.root, self.path, self.choices)
-        self.assertEqual(set(summary['input_contracts']), {'target', 'external'})
+        self.assertEqual(set(summary['input_contracts']), {'authoring_stage', 'target', 'external'})
         self.assertNotIn('template', json.dumps(summary['input_contracts']))
         self.choices['external']['reference_delivery'] = None
         self.save()
         self.assertEqual((self.root / self.path).read_bytes(), before)
+
+    def test_public_reference_children_reach_exact_schemas_and_source_operations(self):
+        self.choices['authoring']['task']['execution'] = 'dispatcher'
+        self.choices['authoring']['references'] = None
+        self.save()
+        before = (self.root / self.path).read_bytes()
+
+        def public(command):
+            response = subprocess.run(command, capture_output=True, text=True, encoding='utf-8')
+            self.assertEqual(response.returncode, 0, response.stdout + response.stderr)
+            return json.loads(response.stdout)
+
+        parent = public(guide.action(self.root, self.path, field='authoring.references')['argv'])['fields'][0]
+        self.assertEqual(parent['value_state'], 'null')
+        child = parent['child_contracts']['additional_references']
+        row = public(child['explain_action']['argv'])['fields'][0]
+        self.assertEqual(row['choices_pointer'], '/authoring/references/additional_references')
+        self.assertEqual(row['value_state'], 'absent')
+        self.assertTrue(row['required_when_parent_supplied'])
+        self.assertNotIn('required_in_draft', row)
+        schema = public(row['schema_action']['argv'])['schema_fragment']
+        self.assertEqual(schema['items']['required'], row['item_declaration']['required'])
+        self.assertEqual(schema['description'], row['declaration']['description'])
+        self.assertEqual(set(parent['child_contracts']),
+                         set(contracts.schema_fragment('choices',
+                             '/properties/authoring/properties/references/oneOf/1')['properties']))
+        source_help = subprocess.run(row['source_navigation']['studio']['argv'], capture_output=True,
+                                     text=True, encoding='utf-8')
+        self.assertEqual(source_help.returncode, 0, source_help.stdout + source_help.stderr)
+        self.assertIn('accepted-source', source_help.stdout)
+        mirrored = public(row['image_input_action']['argv'])['fields'][0]
+        self.assertEqual(mirrored['field'], 'authoring.references.image_input')
+        self.assertIn('mirrors', mirrored['declaration']['description'])
+        self.assertEqual((self.root / self.path).read_bytes(), before)
+
+        selected = {'additional_references': [{'role': 'identity', 'source': {
+            'kind': 'supplied-file', 'reference_id': 'author-selected', 'resolved_path': 'reference.png'}}]}
+        self.choices['authoring']['references'] = selected
+        self.save()
+        row = public(child['explain_action']['argv'])['fields'][0]
+        self.assertEqual(row['value_state'], 'supplied')
+        self.assertEqual(c.load(self.root / self.path)['authoring']['references'], selected)
 
 
     def test_document_keys_report_the_current_external_generation_schema_scope(self):

@@ -21,6 +21,8 @@ IMAGE_SCHEMA = 'schemas/authoring/image-input-plan.schema.json'
 # These describe responsibilities. Allowed keys and required fields come from
 # the schemas or the document's logical owner, never this navigation map.
 OWNERS = {
+    'authoring_stage': ('Select definition, depiction, rendition or prepare with stage-inputs while keeping the same editable work.',
+                        'references/runtime/production-authoring.md#select-and-read-the-current-knowledge'),
     'target': ('Select the actual model, service and supported native controls once.',
                'references/runtime/production-authoring.md'),
     'reading': ('Select the key issued after the applicable source material was delivered.',
@@ -112,7 +114,8 @@ def summary(root: Path, choices_path: str, choices: dict) -> dict:
         '--root', str(root), '--choices', choices_path, '--source-row', source_row_path)
     import production_input_preflight
     task = (choices.get('authoring') or {}).get('task') or {}
-    input_contracts = {'target': _child(root, choices_path, 'target')}
+    input_contracts = {'target': _child(root, choices_path, 'target'),
+                      'authoring_stage': _child(root, choices_path, 'authoring_stage')}
     if task.get('execution') == 'external' or choices.get('external') is not None:
         input_contracts['external'] = _child(root, choices_path, 'external', contract='external_choices')
     return {'document_path': DOCUMENT, 'schema': SCHEMA, 'example': EXAMPLE,
@@ -402,6 +405,53 @@ def _value(choices: dict, parts: list[str]):
     return True, value
 
 
+def _reference_fields(schema: dict) -> dict[str, tuple[dict, str, bool]]:
+    """Locate declared reference children at their exact published schema paths."""
+    selected = schema['properties']['authoring']['properties']['references']
+    base = '/properties/authoring/properties/references'
+    result = {}
+    for index, branch in enumerate(selected['oneOf']):
+        for key, declaration in branch.get('properties', {}).items():
+            result['authoring.references.' + key] = (
+                declaration, base + '/oneOf/' + str(index) + '/properties/' + key,
+                key in branch.get('required', []))
+    return result
+
+
+def _reference_guide(root: Path, choices_path: str, name: str, row: dict,
+                     declarations: dict) -> None:
+    if name == 'authoring.references':
+        row['child_contracts'] = {child.rsplit('.', 1)[1]: _child(root, choices_path, child,
+            contract='choices', pointer=declaration[1]) for child, declaration in declarations.items()}
+        row['required_action'] = ('Keep null when no references are selected. To add or change references, '
+            'follow the child contracts for the actual source selections and image_input behavior; '
+            'the builder derives file hashes, reference IDs and attachment positions.')
+        return
+    declaration, pointer, required = declarations[name]
+    row.update(declaration=_field_shape(declaration), schema_pointer=pointer,
+               schema_action=_contract_action('choices', pointer),
+               required_when_parent_supplied=required)
+    row.pop('required_in_draft', None)
+    if name.endswith('.additional_references'):
+        row['item_declaration'] = _field_shape(declaration['items'])
+        help_argv = python_argv(ROOT / 'scripts/studio_reference.py', '--help')
+        row['source_navigation'] = {
+            'studio': {'argv': help_argv, 'shown': shown(help_argv), 'external_effect': False,
+                'meaning': 'source pins current canonically adopted artwork; accepted-source pins current '
+                           'slot acceptance without granting canonical identity authority.',
+                'required_inputs': '--studio STUDIO --character CHARACTER --slot SLOT source|accepted-source --out FILE',
+                'current_studio': str(root)},
+            'supplied_file': {'kind': 'supplied-file', 'reference_id': None, 'resolved_path': None},
+            'meaning': 'Use the returned Studio source object unchanged, or select an actual supplied file. '
+                       'Keep its applicable source authority; do not reclassify adopted artwork as an '
+                       'unrestricted file. The source object belongs in each selected row at source.'}
+        row['required_action'] = ('Add or reorder only the requested direct sources. Each row owns role, source '
+            'and any subject_uses. Preparation derives missing use IDs and file hashes; retain existing IDs '
+            'when other authored choices refer to them. A captured output becomes input only when explicitly '
+            'selected for this request. Then inspect image_input to choose how the selected sources are bound.')
+        row['image_input_action'] = action(root, choices_path, field='authoring.references.image_input')
+
+
 def _document_execution_scope(choices: dict) -> dict:
     """Read current generation-document limits from the existing task schema."""
     import production_document_contracts as contracts
@@ -448,9 +498,10 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
         result['execution_input'] = {'permitted_as_generation_document':
             name in scope['permitted_generation_documents'] if scope['execution_selected'] else None, **scope}
         return result
-    if field and field not in OWNERS and field not in CHILD_OWNERS:
+    reference_fields = _reference_fields(schema)
+    if field and field not in OWNERS and field not in CHILD_OWNERS and field not in reference_fields:
         raise ValueError('select one input field: ' + ', '.join((*OWNERS, *CHILD_OWNERS)) +
-                         ', or authoring.documents.<document-name>')
+                         ', ' + ', '.join(reference_fields) + ', or authoring.documents.<document-name>')
     selected_fields = [field] if field else list(OWNERS)
     fields = []
     for name in selected_fields:
@@ -458,7 +509,8 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
         actual = _schema_field(schema, parts)
         parent = _schema_field(schema, parts[:-1]) if len(parts) > 1 else schema
         present, value = _value(choices, parts)
-        purpose, document = (OWNERS | CHILD_OWNERS)[name]
+        purpose, document = ((OWNERS | CHILD_OWNERS)[name] if name not in reference_fields else
+                             OWNERS['authoring.references'])
         row = {'field': name, 'purpose': purpose, 'document_path': document,
                'choices_pointer': '/' + '/'.join(parts),
                'required_in_draft': parts[-1] in parent.get('required', []),
@@ -533,6 +585,8 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
         if name in {'authoring.references', 'external', 'authoring.delivery'}:
             from production_reference_inputs import text_guide
             row['reference_text'] = text_guide(choices)
+        if name == 'authoring.references' or name in reference_fields:
+            _reference_guide(root, choices_path, name, row, reference_fields)
         if name == 'target' or name.startswith('target.model') or name == 'external' or name.startswith('external.'):
             _external_fields(root, choices_path, choices, name, row, detailed=field is not None)
         fields.append(row)

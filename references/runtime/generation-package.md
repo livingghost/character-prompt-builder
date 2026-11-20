@@ -161,6 +161,8 @@ Require all assertions to be true:
 
 Those four true assertions together with the verifier's structured `host_forwarding` object are the complete forwarding contract. The adapter must not supplement them from the sparse brief, chat history, source directories, adjacent files, or remembered model behavior.
 
+### Execute the prepared request
+
 When the model record carries an offering, prepare the task, complete the execution decisions, and execute the run:
 
 ```bash
@@ -170,6 +172,8 @@ python scripts/production_workflow.py execute --root STUDIO --run RUN --decision
 ```
 
 The seed, the output count and the service come from the task. [Prepared request execution](production-request-execution.md) owns the decision file, and [Production permissions](production-permissions.md) owns the authority each operation needs.
+
+### Preview a prepared request
 
 `scripts/dispatch.py` previews the run a package is bound to and sends nothing:
 
@@ -211,6 +215,8 @@ shown, not sent; production_workflow.py execute sends it under the run's authori
 request (sha256 71bece6826a2f6820a6e6ebe206474f9f741159fcc648754c41a1a9de700587f):
 {"count": 1, "height": 32, "model": "synthetic:robot", "operation": "generate", "prompt": "A flat graphic portrait of a simple synthetic robot standing against a plain background.", ...}
 ```
+
+### Capture and recover the provider result
 
 `execute` saves every returned image as a Production candidate with its request, response, answer, package and actual file. When the task declares a `recording` destination, it also records a Studio iteration and rewrites the gallery; a characterless output remains with its work task and run.
 

@@ -299,6 +299,8 @@ shared graphic surface. Neither requires panel borders. Flat diagrams and
 type need visual organization without invented anatomy or physical cameras.
 Use the existing Production Specification for any required local detail.
 
+### Carry the chosen depiction into the input
+
 Write for the renderer's actual task and information. Preserve the situation,
 relationships, qualities and degree in meaningful language as they pass into
 the prompt. State the premises the depiction needs, assign delivered images
@@ -507,6 +509,8 @@ specified combination; do not silently average them. A described sequence of
 rendering phases is not evidence that separate operations actually occurred.
 Translate necessary final-state relationships into the selected target's input;
 use only actual supported operations for any required production sequence.
+
+#### Carry the selected image contribution into the input
 
 Write the resulting depiction for the actual input. State the organizing
 relationship and its degree, then the consequential realization and changes.
@@ -912,6 +916,8 @@ language about a pose or motion leaves open whether a model can realize it.
 Use generation, existing artwork, reference preparation, composition, local
 edits or another supported operation according to the purpose; a longer prompt
 is one repair among several.
+
+### Keep authoring context out of consumer instructions
 
 The bounded consumer and Generation Package receive **the current expression
 and method instructions**. Private source prose, working alternatives, notes

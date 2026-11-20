@@ -673,7 +673,7 @@ SKILL_REQUIRED_ROUTER_PHRASES = (
     "# Character Prompt Builder",
     "## Core contract",
     "## Choose a runtime path",
-    "## Common runtime sequence",
+    "## Start the current work",
     "## Identity and scene-state authority",
     "## Catalog and pack runtime",
     "## Visual Reference Activation Gate",

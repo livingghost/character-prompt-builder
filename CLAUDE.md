@@ -58,6 +58,8 @@ Compose and amend actual candidates through
 saving and execution. Read the complete applicable knowledge. Saved work obtains
 runtime guidance and selected-model knowledge through the route reader under
 [Continue the requested operation](#continue-the-requested-operation-in-its-studio).
+Begin with its structural draft and reading action before following runtime
+links; the reader supplies the selected originals and their delivery evidence.
 Conversational work reads the same applicable documents directly. Reuse complete
 current material delivered in this context; a fresh context reads it again.
 
@@ -92,9 +94,22 @@ Preparation shows the complete request. Dispatcher packages seal resolved contro
 ```sh
 python scripts/studio.py init --out STUDIO --studio-id <id> --title "<title>"
 python scripts/production_workflow.py status --root STUDIO
-python scripts/execution_routes.py read <route> --operation <operation> --execution <execution> --root STUDIO
 python scripts/production_workflow.py draft-inputs --root STUDIO --operation compose --request-file request.txt --route <route> --artifact <artifact> --execution <execution> --out-dir work/draft
+python scripts/execution_routes.py read --root STUDIO --choices work/draft/choices.json
 ```
+
+New character drafts begin at `definition`, enlargement at `prepare`, and
+reopened unfinished work retains its saved stage. `draft-inputs --stage STAGE`
+selects another current scope. Continue the actual files through the current
+stage with
+`production_workflow.py stage-inputs --root STUDIO --choices work/draft/choices.json --stage STAGE`.
+Select `definition` for the character and source applications, `depiction` for
+the constructed candidate and independent criteria, `rendition` for its actual
+text and controls, or `prepare` for finished input binding. Read the returned
+stage's complete original sections before making its decisions. Stages preserve
+all editable files and earlier results; their structural readiness supplies no
+artistic completion or authority. Follow
+[Read the current stage](references/runtime/production-workflow.md#read-the-current-stage).
 
 Open the work task before drafting. Establish the character's concrete definition
 under [Production direction](references/runtime/production-direction.md#establish-the-character-for-this-use),
@@ -102,12 +117,22 @@ using a task-local definition when that is sufficient. Studio registration is
 separate; a one-image definition needs no placeholder character record. Retain
 explicitly scoped setting-only work. During definition authoring, select feature
 `vocabulary` and follow [definition wording](references/runtime/prompt-vocabulary.md#define-a-character-with-usable-wording).
-Select `author`, `save`, `prepare`, `execute`, `review` or `adopt` for the current
+The choices-based reader derives the current scope from its stage, composition,
+sources, references, execution and selected target. Inspect it again when those
+choices change; additional requirements can need delivery within the same stage.
+For operations without editable choices, select `author`, `save`, `prepare`, `execute`, `review`, `adopt` or `withdraw` for the current
 operation and take `authored`, `external` or `dispatcher` from the task's execution
 kind. Add the applicable specialist features. Include `--model MODEL`
 and the selected `--service SERVICE`, `--model-file FILE` for an acquired model,
-or `--dialect ID` for family-only work. The reader indexes the complete operation and execution contract and selected
-knowledge. Inspect that scope, then use actions.all for complete paged delivery
+or `--dialect ID` for family-only work. For adoption, use the draft's reading action with its destination
+`--scope delivery-only|studio-slot|sheet|catalog` and independent
+`--source-kind production-candidate|imported-iteration`. Sheet withdrawal uses
+`--operation withdraw --scope sheet` with the actual source owner. The reader
+indexes every required section and its selection reason for that complete
+operation, execution and destination contract. Whole-source internal headings
+expand with `--snapshot ID --index-source SELECTOR`; this navigation delivers no
+body. `selection_reason_ids` resolve in the shared `selection_reasons` map.
+Inspect that scope, then use actions.all for complete paged delivery
 or select exact sections. Continue until reading.record is issued.
 An earlier source-delivery record alone does not supply knowledge to a new context.
 The reader returns JSON: its initial index contains no delivered source body.
@@ -116,7 +141,11 @@ Read each `body` segment, follow `actions.continue` within a selected section an
 `reading.record`. A null continuation alone does not establish completion. In the same context, supply complete
 prior keys with repeatable `--known-reading` or follow `context_reuse.operations`;
 the reader delivers missing or changed bodies and records their provenance.
-Fresh contexts read the applicable bodies again without discarding production work.
+Fresh contexts use `inspect-inputs --root STUDIO --choices FILE` to find the
+current stage and source files, then read its applicable bodies again without
+discarding production work. No historical receipt supplies knowledge after
+compaction. Earlier completed decisions remain actual source content; revisit
+them when the request or their applicability changes.
 
 Use the draft's `authoring_guide` and `explain-inputs --root STUDIO --choices FILE`
 to locate its editable files, schemas, logical contracts and complete examples.
@@ -129,6 +158,7 @@ python scripts/production_workflow.py save --root STUDIO --choices work/draft/ch
 python scripts/production_workflow.py prepare --root STUDIO --choices work/draft/choices.json
 ```
 
+Select stage `prepare` and complete its current reading for finished input.
 Use the operation requested: `save` records authored text, while `prepare` makes
 an inspectable model request. `save --draft` preserves unfinished choices.
 Completed target-specific text uses the model's grammar and actual dictionary

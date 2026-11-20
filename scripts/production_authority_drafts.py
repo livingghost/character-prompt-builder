@@ -22,6 +22,30 @@ APPROVAL_SCHEMA = 'schemas/authoring/production-principal-approval.schema.json'
 UPDATE_SCHEMA = 'schemas/authoring/production-authority-update.schema.json'
 
 
+def current_update(authority) -> dict | None:
+    """Read the compact source already acquired with the current authority event."""
+    sources = [item for item in authority.evidence if item['purpose'] == 'authority-source']
+    if not sources:
+        return None
+    value = c.decode(sources[-1]['raw'])
+    return value if isinstance(value, dict) and value.get('artifact_type') == UPDATE_TYPE else None
+
+
+def scope_arguments(choices: dict) -> list[str]:
+    """Preserve an imported update's actual operation in later navigation."""
+    if 'selection' in choices:
+        return ['--phase', 'selection', '--candidate', choices['selection']['candidate']]
+    if 'adoption' not in choices:
+        return []
+    basis = choices['adoption']
+    result = ['--phase', 'adoption', '--candidate', basis['candidate'], '--scope', basis['scope'],
+              '--influence', basis['influence']]
+    if basis['registration'] is not None:
+        result += ['--registration-record', basis['registration']['path'],
+                   '--pack-dir', basis['registration']['pack_dir']]
+    return result
+
+
 def validate_shape(document: Any, *, kind: str) -> dict:
     """Inspect a draft's fields without approving its instruction or importing it."""
     from state_protocol import read_schema, validate_against_schema
@@ -177,14 +201,19 @@ def _validation_mode(loaded) -> str:
     return loaded.consumer['image_input']['external_request']['schema_validation']['mode']
 
 
-def _update_scope(root: Path, run: str, phase: str, candidate: str | None):
+def _update_scope(root: Path, run: str, phase: str, candidate: str | None, *, scope: str | None = None,
+                  influence: str | None = None, registration_file: str | None = None,
+                  pack_dir: Path | None = None):
     """Acquire the selected operation from its owner without supplying its judgments."""
     import production_decisions
     import production_operations as workflow
-    if phase not in {'execution', 'selection'}:
+    if phase not in {'execution', 'selection', 'adoption'}:
         raise ProductionError('INPUT_SCHEMA_INVALID', 'Authority drafting needs a known operation phase.',
-            phase='authority-evidence', actual=phase, expected=['execution', 'selection'],
-            required_action='Choose --phase execution for direction/submission, or --phase selection with --candidate ID.')
+            phase='authority-evidence', actual=phase, expected=['execution', 'selection', 'adoption'],
+            required_action='Choose --phase execution, --phase selection with --candidate, or --phase adoption with '
+                            '--scope and the actual --influence for the current selected image.')
+    if phase != 'adoption' and any(value is not None for value in (scope, influence, registration_file, pack_dir)):
+        raise ValueError('scope, influence and registration arguments require --phase adoption')
     if phase == 'execution':
         if candidate is not None:
             raise ProductionError('INPUT_SCHEMA_INVALID', 'A candidate belongs to the explicit selection phase.',
@@ -192,6 +221,16 @@ def _update_scope(root: Path, run: str, phase: str, candidate: str | None):
                 required_action='Use --phase selection --candidate ID for authority to select a reviewed result.')
         loaded = production_decisions.context(root, run)
         return loaded, loaded.artifacts['execution-plan.json']['operations'], None, None
+    if phase == 'adoption':
+        import production_adoption
+        if influence is None:
+            raise ValueError('adoption authority needs the intended --influence')
+        loaded = workflow.read_run(root, run)
+        binding, _, _ = production_adoption.draft_basis(root, loaded, candidate, scope=scope or 'sheet',
+            influence=influence, registration_file=registration_file, pack_dir=pack_dir)
+        reviewed = workflow.find(loaded.rows, 'review', binding['review'])
+        requirements = workflow.selection_requirements(loaded.prepared, reviewed)
+        return loaded, [{'operation': 'adopt', 'targets': ['canon:' + binding['scope']]}], binding, requirements
     if not candidate:
         raise ProductionError('INPUT_SCHEMA_INVALID', 'Selection authority needs an explicitly named candidate.',
             phase='authority-evidence', run=run,
@@ -227,13 +266,57 @@ def selection_update_action(root: Path, run: str, candidate: str, current) -> di
                   'The draft supplies no actor, permission, owner acceptance or selection.'}
 
 
+def adoption_update_action(root: Path, run: str, basis: dict, current) -> dict:
+    """Name an unanswered authority draft for the selected canonical destination."""
+    from cli_invocation import python_argv
+    identity = c.content_id({'adoption': basis, 'authority': current.event['sha256']})[:24]
+    stem = f'production/authority-updates/{run}/adoption-{identity}'
+    out, number = stem + '.json', 2
+    while c.local(root, out, exists=False).exists():
+        out, number = stem + '-' + str(number) + '.json', number + 1
+    arguments = ['--root', str(root), '--run', run, *scope_arguments({'adoption': basis}), '--out', out]
+    return {'command': 'draft-authority-update',
+        'argv': python_argv(Path(__file__).with_name('production_workflow.py'), 'draft-authority-update', *arguments),
+        'draft': out, 'requires_author_input': True,
+        'reason': 'No current grant covers this selected canonical use. Complete the derived adopt/canon:' +
+                  basis['scope'] + ' authority only from the actual instruction, then import it and draft-adoption '
+                  'again for the same intended scope and influence. Selection supplies no adoption permission.'}
+
+
+def update_followup(root: Path, choices: dict) -> dict | None:
+    """Continue the same intended canonical use after its additional grant is imported."""
+    if 'adoption' not in choices:
+        return None
+    from cli_invocation import python_argv
+    basis = choices['adoption']
+    run = choices['run']
+    stem = f'production/decisions/{run}/adoption-' + c.content_id(basis)[:24]
+    out, number = stem + '.json', 2
+    while c.local(root, out, exists=False).exists():
+        out, number = stem + '-' + str(number) + '.json', number + 1
+    arguments = ['--root', str(root), '--run', run, '--candidate', basis['candidate'], '--scope', basis['scope'],
+                 '--influence', basis['influence'], '--grant', choices['grants'][0]['id'], '--out', out]
+    if basis['registration'] is not None:
+        arguments += ['--registration-record', basis['registration']['path'],
+                      '--pack-dir', basis['registration']['pack_dir']]
+    return {'command': 'draft-adoption',
+        'argv': python_argv(Path(__file__).with_name('production_workflow.py'), 'draft-adoption', *arguments),
+        'draft': out, 'requires_author_input': True,
+        'reason': 'Draft the separately approved canonical use under the imported adopt grant. Assess its actual '
+                  'reason and approval, confirm applicable shared selection judgments, and author any adoption-specific replacements.'}
+
+
 @read_context.operation
 def draft_authority_update(root: Path, run: str, approval_evidence: str | None = None, *,
-                           phase: str = 'execution', candidate: str | None = None) -> dict:
+                           phase: str = 'execution', candidate: str | None = None, scope: str | None = None,
+                           influence: str | None = None, registration_file: str | None = None,
+                           pack_dir: Path | None = None) -> dict:
     """Draft independent additional grants; current grants and stop definitions stay owned by authority."""
     import production_operations as workflow
     import production_store as store
-    loaded, operations, selection, selection_requirements = _update_scope(root, run, phase, candidate)
+    from route_reading import curation_action
+    loaded, operations, binding, selection_requirements = _update_scope(root, run, phase, candidate,
+        scope=scope, influence=influence, registration_file=registration_file, pack_dir=pack_dir)
     held = store.read_authority(root, loaded.prepared['task']['task_id'])
     evidence = {'path': None, 'locator': None, 'sha256': None}
     if approval_evidence is not None:
@@ -263,10 +346,12 @@ def draft_authority_update(root: Path, run: str, approval_evidence: str | None =
                        'request_scope': None, 'submission_validation_modes': []})
     choices = {'artifact_type': UPDATE_TYPE, **_update_binding(loaded, held), 'evidence': evidence,
                'grants': grants, 'additional_stop_conditions': []}
-    if selection is not None:
-        choices['selection'] = selection
+    if binding is not None:
+        choices['adoption' if phase == 'adoption' else 'selection'] = binding
     _shape(choices, UPDATE_TYPE)
     return {'choices': choices, 'state': 'unapproved', 'schema': UPDATE_SCHEMA, 'phase': phase,
+            **({'reading_action': curation_action(root, execution=loaded.prepared['task']['execution'],
+                scope=binding['scope'] if phase == 'adoption' else 'delivery-only')} if phase != 'execution' else {}),
             'authorization_requirements': workflow.authorization_requirements(root, loaded.prepared, held, operations),
             **({'required_validation_mode': _validation_mode(loaded)} if phase == 'execution' else
                {'selection_requirements': selection_requirements}),
@@ -280,12 +365,16 @@ def draft_authority_update(root: Path, run: str, approval_evidence: str | None =
                 ('Choose each grant\'s protected_criteria using authorization_requirements.protected_criteria: it '
                  'declares unchanged criteria across runs, while task.criteria retains the hard review requirements. '
                  if phase == 'execution' else
+                 'This draft covers adopt/canon:' + binding['scope'] + ' for the current selected image. Its '
+                 'canonical approval, stop assessments and exact authorization remain separate. '
+                 if phase == 'adoption' else
                  'This draft covers select/delivery for the named reviewed candidate. A selection decision, its '
                  'stop assessments and any explicit owner allowance remain separate. ') + 'Import this file with '
                 'authority-import --expected-event ' + held.event['sha256'] + '. The import checks this same '
                 'predecessor and keeps every existing grant; inspect and reconcile any concurrent update.',
             'limit': 'This is an additional-grant draft, not current authority. Issuer, run, targets and predecessor '
                      'are derived. Selection also pins its candidate, latest review and replaced selection. '
+                     'Adoption pins the current selected image, review, scope, influence and destination. '
                      'Existing grants and stop conditions cannot be edited through this draft.'}
 
 
@@ -293,12 +382,18 @@ def materialize_update(root: Path, choices: dict, current, inputs: EvidenceAcqui
     """Compile authored additions under the transaction's current authority and saved run."""
     import production_permissions
     _shape(choices, UPDATE_TYPE, file=file)
-    chosen = choices.get('selection')
-    loaded, intents, selection, _ = _update_scope(root, choices['run'],
-        'selection' if chosen is not None else 'execution', chosen['candidate'] if chosen is not None else None)
+    phase = 'adoption' if 'adoption' in choices else 'selection' if 'selection' in choices else 'execution'
+    chosen = choices.get(phase)
+    destination = chosen.get('registration') if phase == 'adoption' else None
+    loaded, intents, binding, _ = _update_scope(root, choices['run'], phase,
+        chosen['candidate'] if chosen is not None else None,
+        scope=chosen['scope'] if phase == 'adoption' else None,
+        influence=chosen['influence'] if phase == 'adoption' else None,
+        registration_file=destination['path'] if destination is not None else None,
+        pack_dir=Path(destination['pack_dir']) if destination is not None else None)
     if chosen is not None:
-        _match(selection, chosen, pointer='$.selection', file=file,
-            message='The candidate, latest review or replaced selection changed after this authority draft.')
+        _match(binding, chosen, pointer='$.' + phase, file=file,
+            message='The candidate, latest review, selection or destination changed after this authority draft.')
     expected = _update_binding(loaded, current)
     _match(expected, {key: choices[key] for key in expected}, pointer='$', file=file)
     evidence = choices['evidence']

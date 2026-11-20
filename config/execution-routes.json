@@ -1041,6 +1041,11 @@
       "owner": "scripts/production_acceptance.py:accept",
       "command": "python scripts/production_workflow.py accept --help",
       "effect": "record or recover exact selection, Studio slot acceptance and completion of the original run from authored choices"
+    },
+    "stage-inputs": {
+      "owner": "scripts/production_inputs.py:stage_inputs",
+      "command": "python scripts/production_workflow.py stage-inputs --help",
+      "effect": "select the current authoring stage while retaining editable files, prior results and the current runtime; return its required reading and editing actions"
     }
   },
   "operation_contexts": {
@@ -1049,7 +1054,8 @@
         "references/runtime/authoring-work.md",
         "references/runtime/production-workflow.md",
         "references/runtime/production-direction.md",
-        "references/runtime/production-authoring.md"
+        "references/runtime/production-authoring.md",
+        "references/prompt-knowledge-boundary.md"
       ],
       "executions": {
         "authored": [
@@ -1071,7 +1077,8 @@
         "references/runtime/authoring-work.md",
         "references/runtime/production-workflow.md",
         "references/runtime/production-direction.md",
-        "references/runtime/production-authoring.md"
+        "references/runtime/production-authoring.md",
+        "references/prompt-knowledge-boundary.md"
       ],
       "executions": {
         "authored": [
@@ -1093,7 +1100,8 @@
         "references/runtime/authoring-work.md",
         "references/runtime/production-workflow.md",
         "references/runtime/production-direction.md",
-        "references/runtime/production-authoring.md"
+        "references/runtime/production-authoring.md",
+        "references/prompt-knowledge-boundary.md"
       ],
       "executions": {
         "authored": [
@@ -1116,7 +1124,8 @@
     },
     "execute": {
       "reads": [
-        "references/runtime/production-workflow.md"
+        "references/runtime/production-workflow.md",
+        "references/prompt-knowledge-boundary.md"
       ],
       "executions": {
         "authored": [
@@ -1142,7 +1151,8 @@
       "reads": [
         "references/runtime/authoring-work.md",
         "references/runtime/production-workflow.md",
-        "references/runtime/production-direction.md"
+        "references/runtime/production-direction.md",
+        "references/prompt-knowledge-boundary.md"
       ],
       "executions": {
         "authored": [
@@ -1171,6 +1181,1517 @@
         "dispatcher": [
           "references/runtime/production-permissions.md",
           "references/runtime/production-adoption.md"
+        ]
+      }
+    },
+    "withdraw": {
+      "reads": [
+        "references/runtime/production-workflow.md"
+      ],
+      "executions": {
+        "authored": [],
+        "external": [],
+        "dispatcher": []
+      }
+    }
+  },
+  "reading_scopes": {
+    "adopt": {
+      "documents": {
+        "references/runtime/production-workflow.md": [
+          {
+            "sections": [
+              "production-workflow",
+              "continue-a-retained-result"
+            ],
+            "reason": "Locate the retained-result owner, its exact destination, and the separate completion of the requested decision."
+          }
+        ],
+        "references/runtime/production-permissions.md": [
+          {
+            "sections": [
+              "production-permissions",
+              "current-authority-and-adoption",
+              "stored-decisions-and-current-authority"
+            ],
+            "reason": "Apply actual issuer authority, exact targets, current grant state and retained review evidence to this Production decision.",
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "add-authority-for-a-reviewed-selection",
+              "import-a-run-bound-authority-update"
+            ],
+            "reason": "Draft and import only the actual missing select/delivery authority with its observed predecessor; the grant supplies no review allowance.",
+            "scopes": [
+              "delivery-only",
+              "studio-slot"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "studio-slot-selection-authority"
+            ],
+            "reason": "A Studio slot uses the select operation and delivery target while preserving separate slot and completion records.",
+            "scopes": [
+              "studio-slot"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "add-authority-for-selected-canonical-use",
+              "import-a-run-bound-authority-update",
+              "canonical-adoption-authority",
+              "reuse-stop-judgments-for-the-same-selected-image"
+            ],
+            "reason": "Canonical use requires its own adopt grant and actual approval; any shared stop judgment is explicitly confirmed and rechecked against its exact selection, evidence and destination.",
+            "scopes": [
+              "sheet",
+              "catalog"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          }
+        ],
+        "references/runtime/production-adoption.md": [
+          {
+            "sections": [
+              "production-selection-and-adoption",
+              "resolve-the-retained-source-owner"
+            ],
+            "reason": "Retain separate selection, Studio acceptance and canonical-use owners and preserve the actual source provenance.",
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "select-a-reviewed-result-and-finish",
+              "selection-scope-and-retained-evidence",
+              "acceptance-completion-and-recovery",
+              "keep-the-selection-current",
+              "repair-displays-after-decisions"
+            ],
+            "reason": "Select the exact reviewed candidate with required owner allowances, bind the requested destination, and recover selection/completion without generating or replacing later decisions.",
+            "scopes": [
+              "delivery-only",
+              "studio-slot"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "accept-an-existing-candidate-for-its-studio-slot"
+            ],
+            "reason": "Pin the existing iteration and current Studio slot; check and recover its durable acceptance receipt without creating another image.",
+            "scopes": [
+              "studio-slot"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "adopt-the-selected-image-as-a-reusable-reference",
+              "author-one-canonical-adoption-decision",
+              "resume-a-retained-canonical-adoption",
+              "reassess-current-authority-for-a-retained-adoption",
+              "historical-selection-and-adoption-evidence",
+              "recover-the-recorded-adoption-evidence",
+              "keep-the-selection-current",
+              "repair-displays-after-decisions"
+            ],
+            "reason": "Adopt the current selected Production candidate under an actual canonical decision, preserving exact review, destination, authority, claim and historical recovery semantics.",
+            "scopes": [
+              "sheet",
+              "catalog"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "register-the-selected-candidate-in-the-catalog"
+            ],
+            "reason": "Catalog registration additionally pins the authored registration record and new pack destination and retains exact retry evidence.",
+            "scopes": [
+              "catalog"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          }
+        ],
+        "references/runtime/adoption-workflow.md": [
+          {
+            "sections": [
+              "canonical-image-scope",
+              "inspect-canonical-reference-readiness"
+            ],
+            "reason": "Apply the approved visual influence without changing authored identity or story state, and verify completed reference evidence before reuse.",
+            "scopes": [
+              "sheet",
+              "catalog"
+            ]
+          },
+          {
+            "sections": [
+              "adoption-workflow",
+              "input-and-scope",
+              "adopt-inspect-resume",
+              "failures-and-regression",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "An imported iteration uses its original package, actual approval and durable Studio adoption journal; preserve imported ownership and resume the same approved effect.",
+            "scopes": [
+              "sheet",
+              "catalog"
+            ],
+            "source_kinds": [
+              "imported-iteration"
+            ]
+          },
+          {
+            "sections": [
+              "register-an-image-for-mixed-pack-references",
+              "catalog-publication-and-reuse",
+              "catalog-registration-recovery"
+            ],
+            "reason": "Catalog use requires a canonical module, distinct locked pack, approved influence, actual licensing and exact registration recovery.",
+            "scopes": [
+              "catalog"
+            ]
+          },
+          {
+            "sections": [
+              "register-an-imported-catalog-reference"
+            ],
+            "reason": "Use the imported-iteration catalog draft and adoption commands with the exact approved record and new destination.",
+            "scopes": [
+              "catalog"
+            ],
+            "source_kinds": [
+              "imported-iteration"
+            ]
+          }
+        ],
+        "references/runtime/studio.md": [
+          {
+            "sections": [
+              "repair-a-display-after-a-committed-decision"
+            ],
+            "reason": "A display failure preserves the formal decision; repair projections with sync instead of repeating an external effect."
+          },
+          {
+            "sections": [
+              "slot-acceptance-and-history"
+            ],
+            "reason": "Understand the current Studio slot and retained acceptance/replacement history for this destination.",
+            "scopes": [
+              "studio-slot",
+              "sheet",
+              "catalog"
+            ]
+          },
+          {
+            "sections": [
+              "production-owned-candidates"
+            ],
+            "reason": "The original Production run owns review, disposition and selection; unavailable evidence cannot be converted into an imported image.",
+            "scopes": [
+              "studio-slot",
+              "sheet",
+              "catalog"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "select-a-production-candidate-for-its-studio-slot",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Keep slot selection, acceptance and run completion attached to the original candidate and owning task.",
+            "scopes": [
+              "studio-slot"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "use-a-production-candidate-as-a-canonical-reference",
+              "adoption-and-resumption",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Canonical use is a separate decision over retained Production evidence, including after the source run closes.",
+            "scopes": [
+              "sheet",
+              "catalog"
+            ],
+            "source_kinds": [
+              "production-candidate"
+            ]
+          },
+          {
+            "sections": [
+              "accept-an-imported-iteration-for-its-slot"
+            ],
+            "reason": "Plain Studio acceptance is owned by the imported iteration and preserves earlier images and their acceptance history.",
+            "scopes": [
+              "studio-slot"
+            ],
+            "source_kinds": [
+              "imported-iteration"
+            ]
+          },
+          {
+            "sections": [
+              "record-a-missing-generation-package",
+              "adoption-and-resumption"
+            ],
+            "reason": "Imported canonical reuse requires the original package and actual source evidence; attach missing provenance to the same iteration and resume its owning adoption.",
+            "scopes": [
+              "sheet",
+              "catalog"
+            ],
+            "source_kinds": [
+              "imported-iteration"
+            ]
+          }
+        ]
+      }
+    },
+    "withdraw": {
+      "documents": {
+        "references/runtime/production-workflow.md": [
+          {
+            "sections": [
+              "production-workflow",
+              "continue-a-retained-result"
+            ],
+            "reason": "Locate the separate sheet withdrawal owner while retaining the earlier production result."
+          }
+        ],
+        "references/runtime/production-permissions.md": [],
+        "references/runtime/production-adoption.md": [
+          {
+            "sections": [
+              "historical-selection-and-adoption-evidence",
+              "recover-the-recorded-adoption-evidence"
+            ],
+            "reason": "A Production-backed withdrawal preserves historical completion and depends on intact completed adoption evidence; recover that proof through its retained claim when needed.",
+            "source_kinds": [
+              "production-candidate"
+            ]
+          }
+        ],
+        "references/runtime/adoption-workflow.md": [
+          {
+            "sections": [
+              "withdraw-current-canonical-reuse",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Withdraw only the exact current sheet adoption using actual author evidence, retain all original records, and never reinstate withdrawn use or revoke independent catalog exports."
+          }
+        ],
+        "references/runtime/studio.md": [
+          {
+            "sections": [
+              "slot-acceptance-and-history",
+              "repair-a-display-after-a-committed-decision"
+            ],
+            "reason": "Withdrawal leaves Studio slot acceptance/history intact; repair derived views without repeating adoption or generation."
+          }
+        ]
+      }
+    },
+    "prepare": {
+      "documents": {
+        "references/runtime/production-workflow.md": [
+          {
+            "sections": [
+              "production-workflow",
+              "open-the-current-work",
+              "read-the-current-stage",
+              "read-an-operation-without-editable-choices",
+              "edit-and-produce-the-requested-artifact",
+              "change-direction-without-losing-prior-work",
+              "continue-according-to-the-actual-result"
+            ],
+            "reason": "Open the actual work, author or amend the current input while preserving prior results, compile its exact request and distinguish preparation from later execution, review and curation."
+          }
+        ],
+        "references/runtime/production-direction.md": [
+          {
+            "sections": [
+              "production-direction",
+              "contents",
+              "establish-the-character-for-this-use",
+              "translate-established-facts-into-the-current-appearance",
+              "choose-the-expression",
+              "carry-the-chosen-depiction-into-the-input",
+              "choose-framing-from-the-intended-effect",
+              "form-a-prompt-from-an-image",
+              "carry-the-selected-image-contribution-into-the-input",
+              "form-a-prompt-from-an-idea",
+              "worked-depictions",
+              "record-the-production-direction",
+              "keep-authoring-context-out-of-consumer-instructions",
+              "preserve-accepted-variation-at-its-declared-scope",
+              "an-image-of-an-action-is-not-the-action"
+            ],
+            "reason": "Author and compare the commissioned depiction, source use, framing, appearance and independent criteria before preparation; retain both image- and idea-based construction and accepted variation. Artifact review and result repair have their later operation owner."
+          }
+        ],
+        "references/runtime/production-authoring.md": [
+          {
+            "sections": [
+              "production-authoring",
+              "assemble-authored-choices",
+              "discover-input-structures",
+              "select-a-production-specification",
+              "identify-the-recorded-subjects",
+              "inspect-target-and-external-fields",
+              "select-reference-inputs",
+              "establish-the-editable-definition",
+              "keep-specialist-documents-at-their-owner",
+              "select-execution-specific-inputs",
+              "continue-from-the-prepared-request",
+              "bind-input-work-to-the-open-task",
+              "acquire-a-production-source",
+              "read-an-input-summary",
+              "select-and-read-the-current-knowledge",
+              "read-the-required-source-bodies",
+              "choose-a-source-range",
+              "deliver-every-required-byte",
+              "recover-an-interrupted-source-delivery",
+              "preserve-reading-scope-and-evidence",
+              "reuse-complete-knowledge-in-this-context",
+              "rebuild-knowledge-in-a-fresh-context",
+              "read-an-acquired-model",
+              "use-the-delivered-knowledge",
+              "keep-the-reading-at-its-current-scope",
+              "select-the-delivered-target-knowledge",
+              "create-or-reopen-editable-work",
+              "prepare-an-enlargement",
+              "start-an-existing-image-edit",
+              "edit-the-owning-authored-field",
+              "select-dispatcher-image-inputs",
+              "preserve-authored-authority",
+              "select-and-change-the-target",
+              "keep-branches-and-reopen-completed-work",
+              "resume-input-authoring",
+              "scene-preparation-and-reusable-authoring-input"
+            ],
+            "reason": "Create or reopen the actual editable sources, preserve acquired material, read and apply the current knowledge, change the target and recover authoring. Curation destination procedures belong to the later selected decision."
+          }
+        ],
+        "references/runtime/production-permissions.md": [
+          {
+            "sections": [
+              "production-permissions",
+              "protected-criteria-across-runs",
+              "retain-a-direct-instruction-for-one-request",
+              "stored-decisions-and-current-authority"
+            ],
+            "reason": "Preparation preserves the actual issuer, grant scope, protected criteria and current authority evidence. Submission claims and select/adopt authorizations are read for those operations, not created by preparation."
+          }
+        ],
+        "references/runtime/studio.md": [
+          {
+            "sections": [
+              "studio-runtime",
+              "why-a-studio",
+              "layout",
+              "the-work-trail",
+              "answers-returning-to-an-earlier-step-and-temporary-task-switches",
+              "session-entry",
+              "validation",
+              "what-leaves-a-studio"
+            ],
+            "reason": "Use the Studio and saved work trail, honor defaults and existing answers, resume the current task and validate its records. Image capture, send recovery, slot/canonical decisions and display publication have later operation owners."
+          }
+        ],
+        "references/runtime/generation-package.md": [
+          {
+            "sections": [
+              "generation-package",
+              "generation-package-1",
+              "verification-and-host-forwarding",
+              "preview-a-prepared-request",
+              "failure-policy"
+            ],
+            "reason": "Prepare the complete package and preserve exact prompts, controls, lineage, bounded reference authority, hashes, verification assertions and sealed preview. Execute, provider-result recovery and concurrent dispatch remain later operations."
+          }
+        ],
+        "references/runtime/reference-delivery.md": [
+          {
+            "sections": [
+              "exact-reference-delivery",
+              "selection-and-authority",
+              "resolve-the-attributes-needed-by-this-image",
+              "reference-identities-and-coverage",
+              "author-the-consumed-reference-direction",
+              "bind-the-actual-transport",
+              "bind-a-hosted-carrier-url",
+              "bind-external-media",
+              "retain-source-and-carrier-evidence"
+            ],
+            "reason": "Prepare every selected source with its exact authority, attributes, coverage, authored image directions and actual transport binding. Upload occurs only under the execution contract."
+          }
+        ],
+        "references/runtime/render-contract.md": [
+          {
+            "sections": [
+              "rendering-choices-and-execution-controls",
+              "choose-the-visual-treatment",
+              "represent-the-selected-design",
+              "select-the-operation-and-optional-rendering-declaration",
+              "read-the-models-guidance",
+              "prompt-input",
+              "apply-the-authors-model-selection-preferences",
+              "declare-controls-by-operation",
+              "resolve-and-inspect-the-exact-input",
+              "preserve-an-image-during-enlargement"
+            ],
+            "reason": "Choose the operation and treatment, apply complete target guidance and author preferences, declare controls and inspect the exact input; keep enlargement requirements because the reading has no narrower operation selector."
+          },
+          {
+            "sections": [
+              "external-image-work"
+            ],
+            "reason": "External preparation additionally binds the exact host request and acquired interface evidence.",
+            "executions": [
+              "external"
+            ]
+          }
+        ],
+        "references/runtime/model-evidence.md": [
+          {
+            "sections": [
+              "model-request-evidence",
+              "prompt-input-evidence",
+              "validation-modes",
+              "the-request-validation-record",
+              "editable-selections-and-compiled-evidence",
+              "execution-policy-for-reference-delivery",
+              "keep-kinds-of-evidence-apart",
+              "compare-inputs-and-change-the-target"
+            ],
+            "reason": "Prepare with attributed input evidence, actual validation mode, exact evidence selectors, reference policy and target-change limits. Schema publication, trial execution, observed-profile adoption and failed-generation diagnosis are separate procedures."
+          }
+        ],
+        "references/finishing-layers-specification.md": [
+          {
+            "sections": [
+              "visual-construction-and-finishing",
+              "1-purpose",
+              "2-the-five-finishing-layers",
+              "3-composition-order",
+              "visibility-and-surface-order",
+              "large-form-interval-and-degree",
+              "color-and-value-as-a-shared-construction",
+              "shape-and-mark-as-one-drawing-grammar",
+              "8-resolve-competition-and-choose-a-realizable-method",
+              "9-observation-contract",
+              "10-layer-specific-cautions"
+            ],
+            "reason": "Sparse discovery needs the complete general construction basis: purpose, layers, dependencies, visibility, large form, color/value, drawing grammar, realizable means and evidence limits. Choose finishing when a deeper treatment, designed object, lettering or multiple-region construction is consequential.",
+            "features_any": [
+              "sparse-retrieval"
+            ]
+          },
+          {
+            "whole_source": true,
+            "reason": "The explicitly selected finishing specialist requires its complete construction and application knowledge, including every declared example and limitation.",
+            "features_any": [
+              "finishing"
+            ]
+          }
+        ]
+      }
+    },
+    "authoring": {
+      "documents": {
+        "references/runtime/authoring-work.md": [
+          {
+            "sections": [
+              "authoring-work",
+              "apply-sources-to-this-candidate"
+            ],
+            "reason": "Preserve the actual request, active source applications, subject definitions and their original authority throughout the current editable work."
+          },
+          {
+            "sections": [
+              "begin-from-the-current-request"
+            ],
+            "reason": "Develop the actual character definition and its researched wording from the current commission.",
+            "stages": [
+              "definition"
+            ]
+          },
+          {
+            "sections": [
+              "compose-or-amend-actual-content",
+              "compare-actual-candidates"
+            ],
+            "reason": "Construct or amend the actual candidate and compare consequential alternatives within the retained commission.",
+            "stages": [
+              "depiction"
+            ]
+          },
+          {
+            "sections": [
+              "compose-or-amend-actual-content",
+              "inspect-and-deliver"
+            ],
+            "reason": "Edit the actual rendition and assess its meaning against the whole request and sources.",
+            "stages": [
+              "rendition"
+            ]
+          },
+          {
+            "sections": [
+              "inspect-and-deliver",
+              "save-or-execute-the-same-work"
+            ],
+            "reason": "Complete input checks and preserve the acquired basis, actual content, source projections and requested export or saved result.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "save-or-execute-the-same-work"
+            ],
+            "reason": "Acquire definitions and source applications into the same saved editable basis before constructing the rendition.",
+            "stages": [
+              "definition"
+            ]
+          }
+        ],
+        "references/runtime/production-workflow.md": [
+          {
+            "sections": [
+              "production-workflow",
+              "read-the-current-stage"
+            ],
+            "reason": "Continue the actual editable files at the current stage, read its complete original requirements and rebuild knowledge after context loss."
+          },
+          {
+            "sections": [
+              "open-the-current-work"
+            ],
+            "reason": "Find the current branch, unresolved choices, complete evidence and executable continuation without treating a saved check as present knowledge.",
+            "stages": [
+              "definition",
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "edit-and-produce-the-requested-artifact",
+              "continue-according-to-the-actual-result"
+            ],
+            "reason": "Compile finished input from its actual owners and distinguish saving or preparation from later execution, review and canonical decisions.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "change-direction-without-losing-prior-work"
+            ],
+            "reason": "Retain the selected baseline, independent branches, source meanings and earlier results while changing the requested work.",
+            "compositions": [
+              "amend"
+            ]
+          }
+        ],
+        "references/runtime/production-authoring.md": [
+          {
+            "sections": [
+              "production-authoring",
+              "discover-input-structures",
+              "keep-specialist-documents-at-their-owner",
+              "bind-input-work-to-the-open-task",
+              "select-and-read-the-current-knowledge",
+              "read-the-required-source-bodies",
+              "choose-a-source-range",
+              "deliver-every-required-byte",
+              "recover-an-interrupted-source-delivery",
+              "preserve-reading-scope-and-evidence",
+              "reuse-complete-knowledge-in-this-context",
+              "rebuild-knowledge-in-a-fresh-context",
+              "keep-the-reading-at-its-current-scope",
+              "preserve-authored-authority"
+            ],
+            "reason": "Locate the one editable owner and its field contract, deliver complete current source ranges, retain explicit same-context witnesses and recover without inventing knowledge or authority."
+          },
+          {
+            "sections": [
+              "establish-the-editable-definition",
+              "acquire-a-production-source",
+              "create-or-reopen-editable-work"
+            ],
+            "reason": "Establish concrete source-owned character definitions, retain their Production roles and applications, and develop the actual saved candidate.",
+            "stages": [
+              "definition"
+            ]
+          },
+          {
+            "sections": [
+              "identify-the-recorded-subjects"
+            ],
+            "reason": "Keep subject identities and Studio recording mappings consistent with their actual source applications.",
+            "stages": [
+              "definition",
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "read-an-input-summary",
+              "resume-input-authoring"
+            ],
+            "reason": "Locate current files and source-aware repairs after interruption, retaining each draft's actual runtime and pending edits.",
+            "stages": [
+              "definition",
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "select-a-production-specification"
+            ],
+            "reason": "Use the selected specification's actual schema and editable subject owner without adding unused placeholder documents.",
+            "conditions_any": [
+              "production-spec"
+            ]
+          },
+          {
+            "sections": [
+              "select-reference-inputs",
+              "acquire-a-production-source"
+            ],
+            "reason": "Choose actual reference bytes and their source roles through public source acquisition, preserving adopted authority and source-specific exclusions.",
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "edit-the-owning-authored-field"
+            ],
+            "reason": "Keep the selected depiction, task criteria, delivery, controls and evidence at their responsible editable fields.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "use-the-delivered-knowledge",
+              "select-the-delivered-target-knowledge",
+              "read-an-acquired-model",
+              "inspect-target-and-external-fields",
+              "select-and-change-the-target"
+            ],
+            "reason": "Apply complete current model and writing knowledge and maintain one actual target selection.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "select-execution-specific-inputs",
+              "continue-from-the-prepared-request"
+            ],
+            "reason": "Bind only inputs admitted by the selected execution branch, then inspect the exact prepared run.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "select-dispatcher-image-inputs"
+            ],
+            "reason": "Choose the mirrored prepared set or explicit image-input plan and derive its exact reference order and semantic-edit binding.",
+            "stages": [
+              "rendition",
+              "prepare"
+            ],
+            "executions": [
+              "dispatcher"
+            ],
+            "conditions_any": [
+              "references",
+              "semantic-edit",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "start-an-existing-image-edit"
+            ],
+            "reason": "Preserve the accepted image, exact source use and independently authored change and preservation plan.",
+            "conditions_any": [
+              "semantic-edit"
+            ]
+          },
+          {
+            "sections": [
+              "keep-branches-and-reopen-completed-work"
+            ],
+            "reason": "Carry the actual earlier request, acquired definitions, captured media and branch lineage through a source-based amendment.",
+            "compositions": [
+              "amend"
+            ]
+          },
+          {
+            "sections": [
+              "select-and-change-the-target"
+            ],
+            "reason": "Reassess only the changed target's meaning, controls, evidence and current request without deleting still-applicable content.",
+            "conditions_any": [
+              "target-change"
+            ]
+          },
+          {
+            "sections": [
+              "scene-preparation-and-reusable-authoring-input"
+            ],
+            "reason": "Apply selected scene material as authoring evidence and carry necessary meaning into actual model input.",
+            "features_any": [
+              "scene-persona",
+              "source-material",
+              "agent-evaluation",
+              "repair-analysis"
+            ]
+          }
+        ],
+        "references/runtime/production-direction.md": [
+          {
+            "sections": [
+              "production-direction"
+            ],
+            "reason": "Develop the commissioned character and depiction within the actual source authority, keeping direction, model input and assessment distinct."
+          },
+          {
+            "sections": [
+              "establish-the-character-for-this-use",
+              "translate-established-facts-into-the-current-appearance"
+            ],
+            "reason": "Establish the concrete individual and usable definition while distinguishing adopted facts, current appearance and source authority.",
+            "stages": [
+              "definition"
+            ]
+          },
+          {
+            "sections": [
+              "translate-established-facts-into-the-current-appearance",
+              "choose-the-expression",
+              "choose-framing-from-the-intended-effect",
+              "worked-depictions",
+              "record-the-production-direction"
+            ],
+            "reason": "Construct the intended effect, meaningful situation, appearance and framing, and retain independent criteria with their complete examples.",
+            "stages": [
+              "depiction"
+            ]
+          },
+          {
+            "sections": [
+              "form-a-prompt-from-an-idea"
+            ],
+            "reason": "Develop open commissioned content and actual alternatives through the complete conception procedure.",
+            "stages": [
+              "depiction"
+            ],
+            "compositions": [
+              "compose"
+            ]
+          },
+          {
+            "sections": [
+              "form-a-prompt-from-an-image"
+            ],
+            "reason": "Read the complete selected visual contribution, its assigned scope, permitted changes and whole-picture relationships before choosing its application.",
+            "stages": [
+              "definition",
+              "depiction"
+            ],
+            "conditions_any": [
+              "image-source",
+              "references",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "carry-the-chosen-depiction-into-the-input",
+              "keep-authoring-context-out-of-consumer-instructions"
+            ],
+            "reason": "Carry the chosen construction and necessary premises into actual model input, retaining production history at its owner.",
+            "stages": [
+              "rendition",
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "carry-the-selected-image-contribution-into-the-input"
+            ],
+            "reason": "Preserve the selected image's actual contribution and reference-to-text relationship in the finished input.",
+            "stages": [
+              "rendition",
+              "prepare"
+            ],
+            "conditions_any": [
+              "image-source",
+              "references",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "preserve-accepted-variation-at-its-declared-scope"
+            ],
+            "reason": "Retain an existing accepted allowance at its exact authority and source scope during definition, depiction, rendition and input binding.",
+            "conditions_any": [
+              "accepted-variation",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "an-image-of-an-action-is-not-the-action"
+            ],
+            "reason": "Interpret the selected action slice as a bounded visible realization while preserving its actual state and review conditions.",
+            "conditions_any": [
+              "action-slice",
+              "state",
+              "unknown-sources"
+            ]
+          }
+        ],
+        "references/runtime/production-permissions.md": [
+          {
+            "sections": [
+              "production-permissions",
+              "protected-criteria-across-runs",
+              "retain-a-direct-instruction-for-one-request",
+              "stored-decisions-and-current-authority"
+            ],
+            "reason": "Preserve the actual issuer, scoped instruction, protected requirements and current authority evidence; authoring and preparation grant no submission or curation permission."
+          }
+        ],
+        "references/runtime/studio.md": [
+          {
+            "sections": [
+              "studio-runtime",
+              "the-work-trail",
+              "answers-returning-to-an-earlier-step-and-temporary-task-switches",
+              "session-entry"
+            ],
+            "reason": "Keep the existing Studio work, prior answers, unresolved questions, branch selection and interruption recovery at their task owner."
+          },
+          {
+            "sections": [
+              "why-a-studio",
+              "layout"
+            ],
+            "reason": "Locate saved editing sources and private Studio records before beginning the first draft.",
+            "stages": [
+              "definition"
+            ]
+          },
+          {
+            "sections": [
+              "validation",
+              "what-leaves-a-studio"
+            ],
+            "reason": "Validate the saved input context and distinguish requested exports from private Studio contents.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/prompt-vocabulary.md": [
+          {
+            "sections": [
+              "prompt-vocabulary-runtime",
+              "activation",
+              "resolve-the-active-dictionary",
+              "search",
+              "read-a-finished-prompt",
+              "data-contract"
+            ],
+            "reason": "Use the selected active dictionary, inspect complete meanings and retain actual search evidence without treating lexical matches as creative approval.",
+            "stages": [
+              "definition",
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "define-a-character-with-usable-wording"
+            ],
+            "reason": "Develop concrete definition wording and researched term associations at the definition's actual owner.",
+            "stages": [
+              "definition"
+            ]
+          },
+          {
+            "sections": [
+              "select-wording-for-a-tag-based-model"
+            ],
+            "reason": "Complete the actual selected-model vocabulary search, sense decisions and exact rendition binding.",
+            "stages": [
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/prompt-writing-guide.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete writing contract to the actual selected-model rendition, retaining form, parser, meaning, source scope and failure limits.",
+            "stages": [
+              "rendition"
+            ]
+          },
+          {
+            "sections": [
+              "prompt-writing-guide-runtime",
+              "activation",
+              "resolve-the-active-guide",
+              "read-the-rendition-back-before-it-is-sent",
+              "failure-policy",
+              "final-request-dictionary-evidence"
+            ],
+            "reason": "Read back the whole final rendition under its actual guide and require current exact-request vocabulary evidence before publishing the prepared input.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/prompt-weighting.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected weighting grammar and its scope to the actual written rendition and final request.",
+            "stages": [
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/render-contract.md": [
+          {
+            "sections": [
+              "rendering-choices-and-execution-controls",
+              "read-the-models-guidance"
+            ],
+            "reason": "Keep subject facts distinct from rendering choices and read the selected model's complete current guidance."
+          },
+          {
+            "sections": [
+              "choose-the-visual-treatment",
+              "represent-the-selected-design",
+              "select-the-operation-and-optional-rendering-declaration",
+              "apply-the-authors-model-selection-preferences"
+            ],
+            "reason": "Choose the actual visual treatment, representation, operation and model-dependent means within source authority.",
+            "stages": [
+              "depiction"
+            ]
+          },
+          {
+            "sections": [
+              "select-the-operation-and-optional-rendering-declaration",
+              "prompt-input",
+              "apply-the-authors-model-selection-preferences",
+              "declare-controls-by-operation"
+            ],
+            "reason": "Write the chosen depiction with the target's actual text forms, operation, preferences and supported controls.",
+            "stages": [
+              "rendition"
+            ]
+          },
+          {
+            "sections": [
+              "represent-the-selected-design"
+            ],
+            "reason": "Carry a rendering declaration owned by the current generation or selected Production Specification through the subject's complete required design and actual wording.",
+            "stages": [
+              "rendition"
+            ],
+            "conditions_any": [
+              "render-intent",
+              "production-spec"
+            ]
+          },
+          {
+            "sections": [
+              "select-the-operation-and-optional-rendering-declaration",
+              "prompt-input",
+              "declare-controls-by-operation",
+              "resolve-and-inspect-the-exact-input",
+              "preserve-an-image-during-enlargement"
+            ],
+            "reason": "Resolve exact mode-valid text, controls and request bindings, inspect the complete request and retain applicable source-preserving enlargement requirements.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "external-image-work"
+            ],
+            "reason": "Bind the exact external host request and acquired interface evidence.",
+            "stages": [
+              "prepare"
+            ],
+            "executions": [
+              "external"
+            ]
+          }
+        ],
+        "references/runtime/reference-delivery.md": [
+          {
+            "sections": [
+              "exact-reference-delivery",
+              "selection-and-authority"
+            ],
+            "reason": "Use only selected original media at its exact authoring, source and adopted authority.",
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "resolve-the-attributes-needed-by-this-image",
+              "reference-identities-and-coverage"
+            ],
+            "reason": "Resolve the required source attributes, declared reference identity and subject coverage before depicting them.",
+            "stages": [
+              "definition",
+              "depiction"
+            ],
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "author-the-consumed-reference-direction"
+            ],
+            "reason": "Express each selected image's actual use and bounded contribution in the model-facing input.",
+            "stages": [
+              "rendition",
+              "prepare"
+            ],
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "reference-identities-and-coverage",
+              "bind-the-actual-transport",
+              "retain-source-and-carrier-evidence"
+            ],
+            "reason": "Bind actual reference identity, source coverage, carriers and exact transport while retaining the original evidence.",
+            "stages": [
+              "prepare"
+            ],
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "bind-external-media",
+              "bind-a-hosted-carrier-url"
+            ],
+            "reason": "Verify the exact external attachment mapping and any hosted carrier evidence used in the prepared request.",
+            "stages": [
+              "prepare"
+            ],
+            "executions": [
+              "external"
+            ],
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          }
+        ],
+        "references/runtime/generation-package.md": [
+          {
+            "sections": [
+              "generation-package",
+              "generation-package-1",
+              "verification-and-host-forwarding",
+              "preview-a-prepared-request",
+              "failure-policy"
+            ],
+            "reason": "Prepare and inspect the complete sealed package with exact prompts, controls, lineage, source authority and verification; provider execution and result recovery retain their later owners.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/model-evidence.md": [
+          {
+            "sections": [
+              "model-request-evidence",
+              "prompt-input-evidence",
+              "keep-kinds-of-evidence-apart"
+            ],
+            "reason": "Use attributed model input evidence and preserve the limits of schema, published guidance and observed behavior.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "validation-modes",
+              "the-request-validation-record",
+              "editable-selections-and-compiled-evidence"
+            ],
+            "reason": "Select applicable request-validation evidence and derive its exact binding to this prepared native request.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "execution-policy-for-reference-delivery"
+            ],
+            "reason": "Retain actual reference-execution policy, delivery conditions and acquired evidence for selected media.",
+            "stages": [
+              "prepare"
+            ],
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "compare-inputs-and-change-the-target"
+            ],
+            "reason": "Reassess actual target changes against their attributed evidence while preserving still-applicable authored content.",
+            "conditions_any": [
+              "target-change"
+            ]
+          }
+        ],
+        "references/runtime/production-image-inputs.md": [
+          {
+            "whole_source": true,
+            "reason": "Bind every selected image input, declared use and exact source authority before the native request is prepared.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "whole_source": true,
+            "reason": "Carry the actual selected image inputs and their roles into the model-facing rendition.",
+            "stages": [
+              "rendition"
+            ],
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          }
+        ],
+        "references/runtime/production-external-inputs.md": [
+          {
+            "whole_source": true,
+            "reason": "Author and validate the complete exact external request, source media mappings, provider schema and target evidence without making an external call.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/production-preparation.md": [
+          {
+            "whole_source": true,
+            "reason": "Compile and inspect one complete input, preserve exact publication evidence, and recover interrupted local publication without sending it.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/production-diagnostic-navigation.md": [
+          {
+            "whole_source": true,
+            "reason": "Resolve every reported input or publication failure at its actual editable owner and preserve unresolved evidence.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/production-authored-storage.md": [
+          {
+            "sections": [
+              "authored-revisions",
+              "edit-and-save"
+            ],
+            "reason": "Preserve current unfinished authored choices and their exact revision without claiming a finished target input.",
+            "stages": [
+              "definition",
+              "depiction",
+              "rendition"
+            ]
+          },
+          {
+            "sections": [
+              "authored-revisions",
+              "edit-and-save",
+              "finished-prompt-targets",
+              "complete-and-continue"
+            ],
+            "reason": "Save the complete authored input under its actual model contract and preserve the separate meaning of delivery, review and completion.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/prompt-only-core.md": [
+          {
+            "sections": [
+              "prompt-only-core",
+              "knowledge-and-sources",
+              "record-actual-investigations"
+            ],
+            "reason": "Retain the actual sources and complete inspected knowledge behind definition choices and wording research.",
+            "stages": [
+              "definition"
+            ]
+          },
+          {
+            "sections": [
+              "prompt-only-core",
+              "author-or-assess-the-depiction",
+              "knowledge-and-sources",
+              "record-actual-investigations"
+            ],
+            "reason": "Develop and assess the actual commissioned construction using its source knowledge and actual investigation results.",
+            "stages": [
+              "depiction"
+            ]
+          },
+          {
+            "sections": [
+              "prompt-only-core",
+              "knowledge-and-sources",
+              "rendition-and-delivery",
+              "saved-prompt-artifacts",
+              "record-actual-investigations",
+              "retrieved-wording-checks",
+              "optional-structural-detail"
+            ],
+            "reason": "Write and inspect the actual supported rendition, retain its real research, and use only selected structural detail.",
+            "stages": [
+              "rendition"
+            ]
+          },
+          {
+            "sections": [
+              "prompt-only-core",
+              "rendition-and-delivery",
+              "saved-prompt-artifacts",
+              "specialized-prompt-artifact-export",
+              "target-readiness-and-a-selected-plot",
+              "record-actual-investigations",
+              "retrieved-wording-checks",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Complete the requested prompt input and saved artifact with its selected target, actual vocabulary evidence, optional plot and independent completion scope.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/image-generation.md": [
+          {
+            "sections": [
+              "image-generation-runtime",
+              "choose-execution",
+              "activation-and-dependency-preflight"
+            ],
+            "reason": "Select the actual generation owner and prepared runtime before authoring inputs.",
+            "stages": [
+              "definition"
+            ]
+          },
+          {
+            "sections": [
+              "image-generation-runtime",
+              "model-and-negative-transport",
+              "the-models-family"
+            ],
+            "reason": "Consider the actual model input and negative channel while constructing the commissioned depiction.",
+            "stages": [
+              "depiction"
+            ]
+          },
+          {
+            "sections": [
+              "image-generation-runtime",
+              "prompt-rendition-gate",
+              "model-and-negative-transport",
+              "services-and-offerings",
+              "the-models-family",
+              "explicit-rendering-and-controls"
+            ],
+            "reason": "Write the exact model-facing text and controls for the selected service, offering and prompt family.",
+            "stages": [
+              "rendition"
+            ]
+          },
+          {
+            "sections": [
+              "image-generation-runtime",
+              "choose-execution",
+              "activation-and-dependency-preflight",
+              "prompt-rendition-gate",
+              "model-and-negative-transport",
+              "services-and-offerings",
+              "the-models-family",
+              "delivery-geometry",
+              "explicit-rendering-and-controls"
+            ],
+            "reason": "Prepare the actual selected generation input, including complete current target and rendition requirements, geometry and controls.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "model-facing-reference-transport"
+            ],
+            "reason": "Prepare actual source images through the declared model-facing transport without treating preparation as upload authority.",
+            "stages": [
+              "prepare"
+            ],
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "dispatcher-package"
+            ],
+            "reason": "Use the exact sealed dispatcher package for the selected native input.",
+            "stages": [
+              "prepare"
+            ],
+            "executions": [
+              "dispatcher"
+            ]
+          }
+        ],
+        "references/runtime/sparse-discovery.md": [
+          {
+            "whole_source": true,
+            "reason": "Develop open picture choices through the complete discovery procedure, inspect selected records and retain its runtime failure rules.",
+            "stages": [
+              "depiction"
+            ]
+          }
+        ],
+        "references/creative-core.md": [
+          {
+            "whole_source": true,
+            "reason": "Use complete creative-construction knowledge while developing the open picture.",
+            "stages": [
+              "depiction"
+            ],
+            "features_any": [
+              "sparse-retrieval"
+            ]
+          },
+          {
+            "whole_source": true,
+            "reason": "The explicitly selected finishing specialist keeps its complete creative-construction foundation.",
+            "features_any": [
+              "finishing"
+            ]
+          }
+        ],
+        "references/finishing-layers-specification.md": [
+          {
+            "sections": [
+              "visual-construction-and-finishing",
+              "1-purpose",
+              "2-the-five-finishing-layers",
+              "3-composition-order",
+              "visibility-and-surface-order",
+              "large-form-interval-and-degree",
+              "color-and-value-as-a-shared-construction",
+              "shape-and-mark-as-one-drawing-grammar",
+              "8-resolve-competition-and-choose-a-realizable-method",
+              "9-observation-contract",
+              "10-layer-specific-cautions"
+            ],
+            "reason": "Sparse discovery uses the complete general construction basis during depiction, retaining purpose, layers, dependencies, surface order, large form, color, drawing grammar and evidence limits.",
+            "stages": [
+              "depiction"
+            ],
+            "features_any": [
+              "sparse-retrieval"
+            ]
+          },
+          {
+            "whole_source": true,
+            "reason": "The explicitly selected finishing specialist requires every original section, example and limitation at its declared scope.",
+            "features_any": [
+              "finishing"
+            ]
+          }
         ]
       }
     }

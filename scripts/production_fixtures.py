@@ -25,6 +25,7 @@ def authoring_inputs(root: Path, task_path: str | None, out_dir: str, **choices)
     """Select concrete protocol-fixture input, keeping runtime defaults out of tests."""
     import production_inputs
     choices.setdefault('operation', 'amend' if task_path is not None or choices.get('from_run') else 'compose')
+    choices.setdefault('stage', 'prepare')
     choices.setdefault('request_file', current_request(root))
     route = choices.get('route')
     if route is None and task_path is not None:
@@ -45,6 +46,8 @@ def authoring_arguments(arguments: list[str]) -> list[str]:
     root = Path(result[result.index('--root') + 1])
     if '--operation' not in result:
         result += ['--operation', 'amend' if '--task' in result or '--from-run' in result else 'compose']
+    if '--stage' not in result:
+        result += ['--stage', 'prepare']
     if '--request-file' not in result:
         result += ['--request-file', current_request(root)]
     if '--focus' not in result:

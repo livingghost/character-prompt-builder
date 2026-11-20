@@ -162,9 +162,10 @@ _CONTRACTS = {
         'scripts/production_authority_drafts.py:validate_update_shape',
         schema='schemas/authoring/production-authority-update.schema.json', scope='document-shape',
         derived=('$.task_id', '$.issuer', '$.run', '$.input_sha256', '$.request_sha256', '$.expected_event',
-                 '$.grants[*].operation', '$.grants[*].targets'),
+                 '$.selection', '$.adoption', '$.grants[*].operation', '$.grants[*].targets'),
         remaining='Import verifies the current issuer, exact predecessor, run, operations, evidence and authored '
-                  'additional grants. This local shape check neither imports authority nor authenticates the instruction.'),
+                  'additional grants. Selection and adoption use their current retained candidate, review and destination '
+                  'owners. This local shape check neither imports authority nor authenticates the instruction.'),
     'render_intent': _contract(
         'references/runtime/render-contract.md#select-the-operation-and-optional-rendering-declaration',
         'scripts/render_contract_lib.py:validate_intent', schema='schemas/render-intent.schema.json',

@@ -561,7 +561,9 @@ def main() -> int:
         check("a second task cannot open while one is open", refused(lambda: work_ledger.begin(root, "other", ["x"]), "already open"))
         work_ledger.step_done(root, 1, "it-0001 to it-0003")
         shown = work_ledger.show(root)
-        check("show names the next step after one is done", "next: present and record the choice" in shown and "[done] 1." in shown, shown)
+        check("show names the next step and latest completed checkpoint",
+              "next: present and record the choice" in shown and "1 of 3 steps done" in shown
+              and "latest retained checkpoint (step 1," in shown, shown)
         work_ledger.block(root, "which of the three")
         check("a blocked task shows what it waits on", "blocked on: which of the three" in work_ledger.show(root))
         check("a step cannot be done twice", refused(lambda: work_ledger.step_done(root, 1), "already done"))
@@ -705,7 +707,8 @@ def main() -> int:
         check("a finished task leaves no open task and stays in the ledger", work_ledger.read_current(root) is None and any(e["event"] == "finished" for e in work_ledger.read_ledger(root)))
         shown = work_ledger.show(root)
         check("show reports the trail when nothing is open, and the command that opens the next task",
-              "no task is open; the last recorded" in shown and shown.splitlines()[-1].endswith(work_ledger.begin_command(root)), shown)
+              "no task is open; latest finished task" in shown and work_ledger.begin_command(root) in shown
+              and "Read full Studio work history:" in shown, shown)
         work_ledger.begin(root, "C02 base front", ["one"])
         work_ledger.abandon(root, "the owner changed the brief")
         check("an abandoned task records what was left", any(e["event"] == "abandoned" and e.get("left") == ["one"] for e in work_ledger.read_ledger(root)))

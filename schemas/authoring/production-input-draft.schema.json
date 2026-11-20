@@ -13,6 +13,11 @@
     "authoring"
   ],
   "properties": {
+    "authoring_stage": {
+      "type": "string",
+      "enum": ["definition", "depiction", "rendition", "prepare"],
+      "description": "Current editable work. stage-inputs preserves the actual source files and selects the current complete reading scope. Structural progress is not artistic completion or execution authority."
+    },
     "target": {
       "description": "The single authored target selection. Compilers derive model identities, offering bindings and specification targets from it. Null retains portable authored output.",
       "oneOf": [

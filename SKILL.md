@@ -21,9 +21,15 @@ Explicit runtime commands synchronize packages; session startup only reports rea
 
 Run documented `python scripts/<name>.py ...` as `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...` on every route. Keep the Studio working directory; `--project` selects the environment without changing argument paths. Execute returned `argv` as given.
 
+## Start the current work
+
+Open the Studio task for saved work. Run `production_workflow.py draft-inputs --operation compose|amend --request-file FILE` with the route, artifact, execution, features and target; follow its read action before authoring. Conversational work reads originals.
+
+Use `production_workflow.py stage-inputs --root STUDIO --choices FILE --stage STAGE` for [the current stage](references/runtime/production-workflow.md#read-the-current-stage). After compaction, `inspect-inputs --root STUDIO --choices FILE` locates files and fresh reading; old receipts supply no knowledge.
+
 ## Core contract
 
-Use [Authoring work](references/runtime/authoring-work.md) to compose or amend actual candidates across delivery, saving and generation. Read [Production direction](references/runtime/production-direction.md). Convey actions, states, relationships and designs as meaningful wholes. Preserve exact requirements and purposeful detail. Judge chosen means against the commission; drafts command renderers, not reviewers.
+Use [Authoring work](references/runtime/authoring-work.md) and [Production direction](references/runtime/production-direction.md) to compose or amend actual candidates. Convey actions, states, relationships and designs as meaningful wholes. Preserve exact requirements and purposeful detail. Judge chosen means against the commission; drafts command renderers, not reviewers.
 
 Develop [the character for this use](references/runtime/production-direction.md#establish-the-character-for-this-use) as needed: read existing definitions or propose concrete details, keeping other choices open. Ask only consequential questions. A task-local definition needs no registration or full Persona. Honor scoped supporting work and edits. Develop open choices through [conception](references/runtime/production-direction.md#form-a-prompt-from-an-idea) and craft knowledge. The author constructs, compares and revises the actual input. Use selected-target evidence for model-dependent means.
 
@@ -73,13 +79,13 @@ Before definition vocabulary research, prompt, reference, sheet, generation or v
 
 ## Artifact-bearing production gate
 
-For saving or execution, read through the draft action or `python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO` with applicable features and `--model MODEL [--service SERVICE]`, `--model-file FILE` or `--dialect ID`. Read [operation contracts](references/runtime/production-execution.md) and specialists. Inspect the index; read `body` through `actions.all` or sections, following `actions.continue` and `actions.next` until `reading.record` exists. Null continuation is not completion. `--known-reading` reuses complete current context; fresh contexts reread.
+Use the draft's read action or `python scripts/execution_routes.py read --root STUDIO --choices FILE` for its current scope. Other operations follow [their contracts](references/runtime/production-execution.md). Read `body` pages through `actions.all` and `actions.continue` until `reading.record` exists; null continuation alone is insufficient. `--known-reading` reuses complete current context; fresh contexts reread. Curation drafts supply independent `--scope` and `--source-kind`; sheet withdrawal uses `--operation withdraw`.
 
-`draft-inputs --operation compose|amend --request-file FILE` supplies editable files and `authoring_guide`; `explain-inputs --root STUDIO --choices FILE` locates field contracts. Continue the actual candidate. Use `save --choices FILE` for text (`--draft` if unfinished), or `prepare --choices FILE` for images. `status` locates sources and actions; `build-inputs` exports when needed.
+Use `authoring_guide` and `explain-inputs --root STUDIO --choices FILE` for field contracts. At stage `prepare`, use `save --choices FILE` for text or `prepare --choices FILE` for images; `save --draft` preserves unfinished text. `status` locates sources/actions; `build-inputs` exports when needed.
 
 ## Choose a runtime path
 
-Prompt work uses [Prompt-Only Core](references/runtime/prompt-only-core.md) with the common authoring work. Read applicable knowledge directly for conversational work or through the saved work's route reader. Select routes and features for the actual task:
+Prompt work uses [Prompt-Only Core](references/runtime/prompt-only-core.md) with common authoring work. Select routes and features for the actual task:
 
 - worlds, themes, agents or narratives: route `development`, [Creative Development](references/runtime/narrative-development.md) and [Project Design](templates/narrative/design/design-template.md); for Persona dossiers, feature `persona` and the complete [Persona Template](templates/narrative/personas/persona-template.md);
 - cast admission, a recurring unnamed participant, or how much of a person a scene needs: route `development`;
@@ -117,17 +123,13 @@ Select specialists for consequential construction questions: `geometry` for exac
 
 ## Mandatory studio gate
 
-Use [Studio Runtime](references/runtime/studio.md) for saving or execution. If `python scripts/session_entry_points.py` reports none, run `studio.py init`. Deliver conversational candidates directly.
+[Studio Runtime](references/runtime/studio.md) owns saved work. Run `python scripts/session_entry_points.py`; initialize with `studio.py init` if none exists, then open or resume its work task before drafting. Deliver conversational candidates directly.
 
 For dispatcher API keys, follow [Studio authentication](references/runtime/studio-authentication.md): source choice, preparation, owner input, readiness and recovery. Key availability and submission authority are separate.
 
 Use managed [Sheet fills](references/runtime/sheet-fill-workflow.md) and `sheet_workflow.py apply-edit` for HTML edits. Record answers with `work_ledger.py respond`, reopen its step, and suspend/resume when switching tasks. `studio.py status` or `sync` reconstructs views without regenerating.
 
 After story revisions, update Studio sources and run `studio.py sync` for the automatic Flow and Graph (`narrative-files`). Compare passages for meaning; structural checks do not judge story quality.
-
-## Common runtime sequence
-
-Begin through `authoring_work.py` with the request, sources and `compose` or `amend`. Edit, inspect, compare and export actual candidates. [Production workflow](references/runtime/production-workflow.md) saves or executes the same authoring work, deriving paths, bindings and receipts.
 
 ## Identity and scene-state authority
 
@@ -163,4 +165,4 @@ Reference-free prompt-only work reads no maintenance, pack-release, release-vali
 
 ## Resource handling
 
-Read complete material by default. Follow [Resource handling](references/resource-handling.md).
+Read complete selected contracts and records. Follow [Resource handling](references/resource-handling.md).

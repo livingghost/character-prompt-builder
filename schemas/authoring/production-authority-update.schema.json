@@ -21,7 +21,10 @@
       "pattern": "^[0-9a-f]{64}$"
     },
     "request_sha256": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[0-9a-f]{64}$"
     },
     "expected_event": {
@@ -32,16 +35,31 @@
       "description": "Present only for explicit selection authority. The selection owner derives the exact candidate, its latest recorded review and the selection it would replace; import verifies that basis again.",
       "type": "object",
       "properties": {
-        "candidate": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "review": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "review": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
         "replaces": {
           "anyOf": [
-            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-            {"type": "null"}
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },
-      "required": ["candidate", "review", "replaces"],
+      "required": [
+        "candidate",
+        "review",
+        "replaces"
+      ],
       "additionalProperties": false
     },
     "evidence": {
@@ -157,7 +175,8 @@
             "enum": [
               "direction",
               "submit",
-              "select"
+              "select",
+              "adopt"
             ]
           },
           "reason": {
@@ -200,6 +219,10 @@
         "additionalProperties": false
       },
       "minItems": 0
+    },
+    "adoption": {
+      "$ref": "authoring/production-adoption.schema.json#/$defs/adoption_binding",
+      "description": "Derived current selection, review, source state, intended canonical scope, influence and exact registration destination. Import checks this same basis through the adoption owner."
     }
   },
   "required": [
@@ -215,8 +238,41 @@
     "additional_stop_conditions"
   ],
   "additionalProperties": false,
-  "if": {"required": ["selection"]},
-  "else": {"properties": {"request_sha256": {"type": "string"}}},
   "title": "Run-bound authority additions",
-  "description": "An editable additional-grant draft. By default it covers the prepared direction/submission operations. An explicit selection binding covers select/delivery from that candidate's recorded review. Import derives a complete declaration from current authority while checking its observed predecessor, issuer and operation basis."
+  "description": "An editable additional-grant draft for prepared execution, reviewed selection or the current selected canonical use. Import derives the declaration from current authority and verifies predecessor, issuer, exact retained operation basis and actual instruction evidence. Actor, mode and permission reason remain authored decisions.",
+  "allOf": [
+    {
+      "not": {
+        "required": [
+          "selection",
+          "adoption"
+        ]
+      }
+    },
+    {
+      "if": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "selection"
+              ]
+            },
+            {
+              "required": [
+                "adoption"
+              ]
+            }
+          ]
+        }
+      },
+      "then": {
+        "properties": {
+          "request_sha256": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
 }

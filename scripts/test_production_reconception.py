@@ -449,9 +449,10 @@ class SavedAuthoringWorkTests(unittest.TestCase):
         (self.root / 'definition.json').unlink()
         self.write('current-request.txt', 'Make their connection the point of the image.\n構図は選び直してよい。')
         draft = inputs.draft_inputs(self.root, None, 'recomposed', from_run=parent,
-                                    operation='compose', request_file='current-request.txt')
+                                    operation='compose', request_file='current-request.txt', stage='rendition')
         basis = c.load(self.root / draft['authoring_work']['basis'])
         choices = draft['choices']
+        self.assertEqual(choices['authoring_stage'], 'rendition')
         self.assertEqual((self.root / choices['authoring']['delivery']['file']).read_bytes(), b'')
         self.assertEqual(basis['request'], (self.root / 'current-request.txt').read_text(encoding='utf-8'))
         selected = {row['id'] for row in choices['authoring']['task']['sources']}
@@ -497,19 +498,21 @@ class SavedAuthoringWorkTests(unittest.TestCase):
         with patch.object(inputs, '_publish', side_effect=OSError('Synthetic publication interruption.')):
             with self.assertRaisesRegex(OSError, 'publication interruption'):
                 inputs.draft_inputs(self.root, None, 'interrupted', from_run=parent,
-                                    operation='compose', request_file='current-request.txt')
+                                    operation='compose', request_file='current-request.txt', stage='depiction')
         (self.root / 'current-request.txt').unlink()
         report = inputs.inspect_inputs(self.root)
         pending = next(row for row in report['inputs'] if row['directory'] == 'interrupted')
         action = next(row for row in pending['next_actions'] if row.get('command', row.get('operation')) == 'draft-inputs')
         argv = action['argv']
         self.assertEqual(argv[argv.index('--operation') + 1], 'compose')
+        self.assertEqual(argv[argv.index('--stage') + 1], 'depiction')
         retained_request = self.root / argv[argv.index('--request-file') + 1]
         self.assertEqual(retained_request.read_text(encoding='utf-8'), 'Reconsider the shell connection from the original definition.')
         completed = subprocess.run(argv, cwd=self.root, env=dict(os.environ), capture_output=True, text=True,
                                    encoding='utf-8', timeout=90)
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         recovered = json.loads(completed.stdout)
+        self.assertEqual(recovered['choices']['authoring_stage'], 'depiction')
         self.assertEqual(recovered['current_request']['text'], retained_request.read_text(encoding='utf-8'))
         self.assertEqual(c.load(self.root / recovered['authoring_work']['basis'])['subjects'], {'shell': ['original']})
 

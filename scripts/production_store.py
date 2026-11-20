@@ -863,6 +863,7 @@ def authority_snapshot(root: Path, task_id: str, current: CurrentAuthority | Non
                   'otherwise restore the imported content. ' + reason)
     command = 'authority-import'
     if compact_source is not None:
+        from production_authority_drafts import scope_arguments
         selected_run = run or compact_source['run']
         out = f'production/authority-updates/{selected_run}/{current.event["sha256"][:24]}.json'
         number, stem = 2, out[:-5]
@@ -871,8 +872,14 @@ def authority_snapshot(root: Path, task_id: str, current: CurrentAuthority | Non
             number += 1
         command = 'draft-authority-update'
         arguments = [command, '--root', str(root), '--run', selected_run, '--out', out]
+        if selected_run == compact_source['run']:
+            arguments += scope_arguments(compact_source)
+        continuation = ('The operation and destination of this run\'s imported addition are retained. '
+                        if selected_run == compact_source['run'] else
+                        'The imported addition belongs to another run. Choose the actual phase for this run if '
+                        'the prepared execution is not the requested authority change. ')
         reason = ('The latest authority source is a run-bound addition already imported under its observed predecessor. '
-                  'Draft a new update against the current event, then apply actual instruction evidence. '
+                  'Draft a new update against the current event, then apply actual instruction evidence. ' + continuation +
                   'Existing grants and stop conditions remain current; an edited earlier draft does not replace them.')
     return {'document': mutable(current.document) if current is not None else None,
         'event_sha256': current.event['sha256'] if current is not None else None,
@@ -891,6 +898,7 @@ def import_authority(root: Path, file: str, *, expected: str | None = None, init
     from state_protocol import validate_against_schema
     raw=stable_bytes(root,file); document=c.decode(raw)
     compact = isinstance(document, dict) and document.get('artifact_type') == drafts.UPDATE_TYPE
+    authored_update = document if compact else None
     schema = drafts.UPDATE_SCHEMA if compact else 'schemas/authoring/production-authority.schema.json'
     errors=validate_against_schema(document,c.load(Path(__file__).resolve().parents[1]/schema))
     if errors:
@@ -952,8 +960,13 @@ def import_authority(root: Path, file: str, *, expected: str | None = None, init
         connection.execute('INSERT INTO authority_states VALUES (?,?,?) ON CONFLICT(task_id) DO UPDATE SET content_sha256=excluded.content_sha256,event_sha256=excluded.event_sha256',
                            (document['task_id'],c.content_id(document),row['sha256']))
         read_context.invalidate_studio(root)
-        return ({**row, 'changed_grants': drafts.changed_grants(prior['data']['authority'] if prior else None, document)}
-                if report_changes else row)
+        if not report_changes:
+            return row
+        report = {**row, 'changed_grants': drafts.changed_grants(prior['data']['authority'] if prior else None, document)}
+        following = drafts.update_followup(root, authored_update) if authored_update is not None else None
+        if following is not None:
+            report['next_action'] = following
+        return report
 
 
 def captured_authority_inputs(authority: CurrentAuthority) -> tuple[dict, ...]:

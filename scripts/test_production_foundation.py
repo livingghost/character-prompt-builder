@@ -599,11 +599,9 @@ class PublicationRecoveryTests(ProductionCase):
                 self.assertEqual(resume['argv'][-2:], ['--task-id', target['task_id']])
                 expected = python_argv(compiler.ROOT / 'scripts/production_workflow.py', command,
                     '--root', str(self.root), *selector,
-                    '--state-file', str(Path(runtime['state_file']).resolve()),
-                    '--cache-dir', str(Path(runtime['cache_dir']).resolve()),
-                    '--managed-root', str(Path(runtime['managed_root']).resolve()),
-                    '--pack-root', str(Path(runtime['pack_root'][0]).resolve()),
-                    '--pack-root', str(Path(runtime['pack_root'][1]).resolve()))
+                    '--state-file', runtime['state_file'], '--cache-dir', runtime['cache_dir'],
+                    '--managed-root', runtime['managed_root'],
+                    '--pack-root', runtime['pack_root'][0], '--pack-root', runtime['pack_root'][1])
                 self.assertGreater(len(expected), VALUE_LIMIT)
                 self.assertEqual(retry['argv'], expected)
                 self.assertEqual(retry['task_id'], target['task_id'])

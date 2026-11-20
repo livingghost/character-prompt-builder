@@ -4,8 +4,14 @@ The operation owner compiles authored input, saves revisions, prepares and
 executes requests, records actual results, or evaluates and adopts those results.
 Select the current operation with `execution_routes.py read ROUTE --operation
 OPERATION --execution EXECUTION`, using the task's `authored`, `external` or
-`dispatcher` execution kind. The reader delivers the complete applicable operation documents and selected
-specialist knowledge; this index alone is not their contract.
+`dispatcher` execution kind. The reader delivers every required section of the
+applicable operation and selected specialist knowledge; this index alone is not
+their contract. Curation reads also name the independent destination `--scope`
+and `--source-kind`, preferably through the exact reading action returned by
+`draft-acceptance` or `draft-adoption`. Each indexed section explains why it is
+required. Slot selection, sheet reuse, catalog registration and imported source
+ownership have their own complete section sets. Sheet withdrawal uses
+`--operation withdraw --scope sheet` and its actual source kind.
 
 | Operation | Complete owner |
 | --- | --- |
@@ -19,6 +25,7 @@ specialist knowledge; this index alone is not their contract.
 | Recover an execution | [Production status and recovery](production-recovery.md) with its selected execution contract |
 | Observe and assess | [Production review](production-review.md) |
 | Select and adopt | [Production adoption](production-adoption.md) and [Production permissions](production-permissions.md) |
+| Withdraw current sheet reuse | [Canonical withdrawal](adoption-workflow.md#withdraw-current-canonical-reuse), preserving the original result and independent catalog exports |
 | Interpret a failure | [Production diagnostics](production-diagnostics.md) |
 
 A saved revision, prepared request, actual external result, evaluation and

@@ -290,6 +290,23 @@ class InputToolsTests(unittest.TestCase):
     def build(self, output='built'):
         return tool.build_inputs(self.root, 'task.json', self.choices_path, output)
 
+    def assert_reading_refusal(self, message):
+        before = self.ledger.read_bytes()
+        result = self.build()
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['state'], 'draft')
+        self.assertEqual(result['inputs'], {})
+        [diagnostic] = result['unresolved']
+        self.assertEqual((diagnostic['field'], diagnostic['code']),
+                         ('reading.reading_key', 'TARGET_GUIDANCE_REQUIRED'))
+        self.assertIn(message, diagnostic['message'])
+        action = diagnostic['next_action']
+        self.assertEqual(action['operation'], 'read')
+        self.assertEqual(action['args']['choices'], self.choices_path)
+        self.assertFalse(action['external_effect'])
+        self.assertFalse((self.root / 'built').exists())
+        self.assertEqual(self.ledger.read_bytes(), before)
+
     def test_inspection_is_read_only(self):
         before = self.files()
         result = tool.inspect_inputs(self.root, 'task.json')
@@ -336,18 +353,14 @@ class InputToolsTests(unittest.TestCase):
     def test_unissued_reading_cannot_supply_a_delivery(self):
         self.choices['reading']['reading_key'] = '9' * 32
         self.save_choices()
-        with self.assertRaises(ValueError):
-            self.build()
-        self.assertFalse((self.root / 'built').exists())
+        self.assert_reading_refusal('reading key has no issuance row')
 
     def test_other_operation_reading_does_not_cover_authored_work(self):
         issued = reading.issue('development', operation='execute', studio=self.root,
                                ledger=self.ledger, stream=io.StringIO(), execution=self.task['execution'])
         self.choices['reading']['reading_key'] = issued['reading_key']
         self.save_choices()
-        with self.assertRaises(ValueError):
-            self.build()
-        self.assertFalse((self.root / 'built').exists())
+        self.assert_reading_refusal('reading documents do not cover the current operation and execution')
 
     def test_caller_supplied_document_hashes_are_refused(self):
         self.choices['reading']['documents'] = []
@@ -424,19 +437,16 @@ class InputToolsTests(unittest.TestCase):
         altered = copy.deepcopy(self.issued['row'])
         altered['documents'][0]['sha256'] = 'f' * 64
         self.ledger.write_bytes(self.ledger.read_bytes() + c.encoded(altered))
-        with self.assertRaises(ValueError):
-            self.build()
+        self.assert_reading_refusal('reading delivery body differs from its manifest')
 
     def test_resolving_key_cannot_invent_issuance(self):
         self.choices['reading']['reading_key'] = '2' * 32
         self.save_choices()
-        with self.assertRaises(ValueError):
-            self.build()
+        self.assert_reading_refusal('reading key has no issuance row')
 
     def test_corrupt_ledger_is_not_skipped(self):
         self.ledger.write_bytes(self.ledger.read_bytes() + b'{broken\n')
-        with self.assertRaises(ValueError):
-            self.build()
+        self.assert_reading_refusal('Expecting property name enclosed in double quotes')
 
     def test_unrelated_issuance_keeps_existing_record(self):
         reading.issue('development', studio=self.root, ledger=self.ledger, stream=io.StringIO(), key='3' * 32, execution=self.task['execution'])
@@ -454,7 +464,9 @@ class InputToolsTests(unittest.TestCase):
     def test_edit_file_contains_choices_and_context_is_separate(self):
         draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
         document = c.load(self.root / draft['choices_file'])
-        self.assertEqual(set(document), {'target', 'reading', 'visual', 'validation', 'task_changes', 'external', 'authoring'})
+        self.assertEqual(set(document), {'target', 'reading', 'visual', 'validation', 'task_changes', 'external',
+                                         'authoring', 'authoring_stage'})
+        self.assertEqual(document['authoring_stage'], 'prepare')
         context = c.load(self.root / draft['context_file'])
         self.assertEqual(context['task_content']['task_id'], self.task['task_id'])
         self.assertEqual(context['task_content']['criteria'], self.task['criteria'])
@@ -892,14 +904,18 @@ class AuthoringRecoveryTests(unittest.TestCase):
         self.assertEqual(self.ledger.read_bytes(), before)
 
     def test_reading_actions_follow_the_current_operation_and_features(self):
-        authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
-        selected = reading.read_page(route='development', studio=self.root, ledger=self.ledger,
-                                      page_bytes=128, stream=io.StringIO(), execution=self.task['execution'])
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'draft')
+        action = next(row for row in draft['next_actions'] if row.get('operation') == 'read')
+        run = subprocess.run([*action['argv'], '--reading-ledger', str(self.ledger), '--page-bytes', '128'],
+                             capture_output=True, text=True, encoding='utf-8', check=False)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        selected = json.loads(run.stdout)
         other = reading.read_page(route='development', operation='execute', features=['studio'], studio=self.root,
                                  ledger=self.ledger, page_bytes=128, stream=io.StringIO(), execution=self.task['execution'])
         state = self.inspect()
         current = [row for row in state['readings'] if row['current']]
         self.assertEqual([row['snapshot'] for row in current], [selected['snapshot']])
+        self.assertEqual(current[0]['authoring_scope']['stage'], 'prepare')
         historical = next(row for row in state['readings'] if row['snapshot'] == other['snapshot'])
         self.assertEqual(historical['applicability'], 'historical')
         self.assertNotIn(other['cursor'], json.dumps(state['next_actions']))

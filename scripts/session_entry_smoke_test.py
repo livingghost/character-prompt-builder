@@ -104,6 +104,105 @@ class SessionEntry(unittest.TestCase):
         self.assertIn("Inspect saved inputs:", text)
         self.assertEqual(snapshot(self.root), before)
 
+    def test_long_note_history_keeps_every_open_issue_and_one_bounded_checkpoint(self) -> None:
+        task = work_ledger.read_current(self.studio)
+        task['steps'][0].update(done_at='2026-01-01T00:00:00Z', note='Long completed step detail. ' * 2000)
+        task['notes'] = [f'Checkpoint {number:03d}: ' + 'Retained synthetic detail. ' * 200
+                         for number in range(79)] + ['Latest checkpoint: resume ' + 'Current retained detail. ' * 200]
+        task['questions'] = [{'question_id': f'question-{number}', 'question': f'Open author question {number}.',
+                              'state': 'open'} for number in range(12)]
+        task['blocked_on'] = 'A separate current external prerequisite.'
+        task['next'] = task['steps'][1]['text']
+        work_ledger.write_current(self.studio, task)
+        with (self.studio / 'work/ledger.jsonl').open('a', encoding='utf-8') as stream:
+            for number, note in enumerate(task['notes']):
+                stream.write(json.dumps({'task_id': task['task_id'], 'event': 'note', 'text': note,
+                    'at': f'2026-01-01T00:{number // 60:02d}:{number % 60:02d}Z'}, ensure_ascii=False) + '\n')
+        before = snapshot(self.root)
+        with mock.patch.object(sqlite3, 'connect', side_effect=AssertionError('startup opened SQLite')), \
+                mock.patch.object(socket, 'socket', side_effect=AssertionError('startup opened a socket')), \
+                mock.patch.object(subprocess, 'Popen', side_effect=AssertionError('startup started a process')):
+            text = entry(self.studio, self.missing_state)
+        for question in task['questions']:
+            self.assertIn(question['question'], text)
+            self.assertIn(question['question_id'], text)
+        self.assertIn(task['blocked_on'], text)
+        self.assertIn('unfinished: 2. ' + task['steps'][1]['text'], text)
+        self.assertIn('latest retained checkpoint (note,', text)
+        self.assertEqual(text.count('Latest checkpoint: resume'), 1)
+        self.assertIn('note_count=80, omitted=79', text)
+        self.assertNotIn('Checkpoint 000:', text)
+        self.assertNotIn('Long completed step detail.', text)
+        self.assertIn('[omitted ', text)
+        self.assertLess(len(text.encode('utf-8')), 32 * 1024)
+        self.assertEqual(snapshot(self.root), before)
+        command = next(line.partition(': ')[2] for line in text.splitlines()
+                       if line.startswith('Read full task history: '))
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8', check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        complete = json.loads(result.stdout)
+        self.assertEqual(complete['task'], task)
+        self.assertEqual([row['text'] for row in complete['entries'] if row['event'] == 'note'], task['notes'])
+        self.assertEqual(work_ledger.read_current(self.studio), task)
+
+        summary_command = command.replace('--view full', '--view summary', 1)
+        displayed = subprocess.run(summary_command, shell=True, capture_output=True, text=True, encoding='utf-8', check=False)
+        self.assertEqual(displayed.returncode, 0, displayed.stdout + displayed.stderr)
+        self.assertIn('note_count=80, omitted=79', displayed.stdout)
+        self.assertIn('Read full task history:', displayed.stdout)
+        self.assertEqual(displayed.stdout.count('Latest checkpoint: resume'), 1)
+        self.assertNotIn('Checkpoint 078:', displayed.stdout)
+        self.assertNotIn('Long completed step detail.', displayed.stdout)
+        for question in task['questions']:
+            self.assertIn(question['question_id'], displayed.stdout)
+        self.assertIn(task['blocked_on'], displayed.stdout)
+        self.assertLess(len(displayed.stdout.encode('utf-8')), 4096)
+        self.assertEqual(work_ledger.read_current(self.studio), task)
+        self.assertEqual(work_ledger.read_ledger(self.studio), complete['entries'])
+
+    def test_reopened_step_is_not_reported_as_a_current_checkpoint(self) -> None:
+        work_ledger.note(self.studio, 'Retained current checkpoint and its next safe operation.')
+        work_ledger.step_done(self.studio, 1, 'The earlier completed step checkpoint.')
+        text = entry(self.studio, self.missing_state)
+        self.assertIn('latest retained checkpoint (step 1,', text)
+        work_ledger.reopen(self.studio, 1, reason='An actual synthetic correction reopened this step.', actor='Fixture author')
+        before = snapshot(self.root)
+        text = entry(self.studio, self.missing_state)
+        self.assertIn('latest retained checkpoint (note,', text)
+        self.assertIn('Retained current checkpoint and its next safe operation.', text)
+        self.assertNotIn('The earlier completed step checkpoint.', text)
+        self.assertIn('unfinished: 1. record the brief', text)
+        self.assertEqual(snapshot(self.root), before)
+
+    def test_full_history_can_read_a_suspended_or_closed_task_without_resuming_it(self) -> None:
+        task = work_ledger.read_current(self.studio)
+        work_ledger.note(self.studio, 'The selected task retains its complete note.')
+        work_ledger.suspend(self.studio, reason='Retain the selected task.')
+        other = work_ledger.begin(self.studio, 'Another active task', ['Another step'])
+        work_ledger.note(self.studio, 'The other task note stays with its owner.')
+        before = snapshot(self.root)
+        for state in ('suspended', 'completed'):
+            if state == 'completed':
+                saved = json.loads(work_ledger.task_path(self.studio, task['task_id']).read_text(encoding='utf-8'))
+                saved['work_state'] = state
+                work_ledger.save_task(self.studio, saved)
+                before = snapshot(self.root)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = work_ledger.main(['show', '--studio', str(self.studio), '--task-id', task['task_id'], '--view', 'full'])
+            self.assertEqual(code, 0)
+            complete = json.loads(output.getvalue())
+            self.assertEqual(complete['task']['work_state'], state)
+            self.assertEqual(complete['task']['notes'], ['The selected task retains its complete note.'])
+            self.assertTrue(all(row['task_id'] == task['task_id'] for row in complete['entries']))
+            summary = work_ledger.show(self.studio, task_id=task['task_id'], view='summary')
+            self.assertIn(state + ' task ' + task['task_id'], summary)
+            self.assertIn('The selected task retains its complete note.', summary)
+            self.assertNotIn('The other task note stays with its owner.', summary)
+            self.assertIn('--task-id ' + task['task_id'], summary)
+            self.assertEqual(work_ledger.read_current(self.studio)['task_id'], other['task_id'])
+            self.assertEqual(snapshot(self.root), before)
+
     def test_suspended_and_finished_trails_keep_their_exact_continuation_commands(self) -> None:
         task = work_ledger.read_current(self.studio)
         work_ledger.suspend(self.studio, reason="Synthetic pause.")

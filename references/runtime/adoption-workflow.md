@@ -13,6 +13,14 @@ is abandoned, with the actual current adoption approval and authorization.
 The operator records actual owner consent; the CLI cannot check whether it is
 truthful.
 
+## Canonical image scope
+
+`influence` uses the ordinary reference vocabulary: `identity`, `pose-camera`,
+`outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or
+`local-color`.
+
+Identity-image adoption binds visual evidence only; the authored Identity/Era/Form/Appearance Contracts, story-state transitions and execution permission stay with their own owners. An outfit-only image must use a non-identity slot, leaving `base.*` and `canon.*` as they are. Normal scene clothing stays in the scene. See [Revision Contract](revision-contract.md).
+
 ## Input and scope
 
 Use `python scripts/adoption_workflow.py --help` and `adopt --help`. `adoption_workflow.py adopt` serves imported iterations. For a Production candidate it refuses and names `production_workflow.py adopt`, in the order [Studio Runtime](studio.md#selection-adoption-and-withdrawal) gives (synthetic, trimmed, exit 2):
@@ -51,12 +59,8 @@ The draft contains exact `character`, `iteration_id`, `slot` and `image_sha256`
 from the recorded image. It leaves `by` and `at` null. Fill those fields only from
 the actual approval and its RFC3339 UTC time; the draft grants no permission and
 changes no candidate or canonical state. `scope` is `sheet` or `catalog`.
-`influence` uses the ordinary reference vocabulary: `identity`, `pose-camera`,
-`outfit`, `surface-finish`, `lighting`, `environment`, `prop-accessory`, or
-`local-color`. Optional fields are `note`, `license`, `continuity_decision`, and,
+The [canonical image scope](#canonical-image-scope) owns the selected influence. Optional fields are `note`, `license`, `continuity_decision`, and,
 for catalog scope, the derived `registration_record_sha256`.
-
-Identity-image adoption binds visual evidence only; the authored Identity/Era/Form/Appearance Contracts, story-state transitions and execution permission stay with their own owners. An outfit-only image must use a non-identity slot, leaving `base.*` and `canon.*` as they are. Normal scene clothing stays in the scene. See [Revision Contract](revision-contract.md).
 
 ## Adopt, inspect, resume
 
@@ -83,6 +87,8 @@ including when another iteration retains identical image bytes. `references`
 exports that exact supplied-file selection in the reference preparer's own format.
 
 Adoption progress states are `candidate-accepted`, `sheet-bound`, and `catalog-registered`. The durable `adoptions/<iteration>.json` records `next_action` and a failure when a step cannot finish. Repeat the same command with the same approval and destination to resume; it is idempotent and adds no image iteration. A pending pre-acceptance operation is visible too. The operation owns the character's existing iteration journal and sheet data through OS file locks, which end when their process exits. Resume the approved command after an interruption. A later authored withdrawal stays in the sheet history and does not rewrite that completed adoption record.
+
+## Inspect canonical reference readiness
 
 `status` uses the same source checks as adoption preflight. Each binding's
 `adoption` view names its owner, Production origin when present, `source_ready`
@@ -198,6 +204,8 @@ Write one canonical module record conforming to the module branch of `schemas/pa
 }
 ```
 
+### Register an imported catalog reference
+
 Select the authored record when drafting catalog approval:
 
 ```bash
@@ -219,6 +227,8 @@ python scripts/adoption_workflow.py --studio ./studio --character C01 \
   --registration-record ./registration-record.json --pack-dir ./adopted-c01-pack
 ```
 
+### Catalog publication and reuse
+
 Output is a new UUID-identified pack with the canonical record, a linked raster asset, a `studio-adoption-receipt`, and a release lock. Its technical role is `adopted-reference`, not a falsely labeled archival vector. Both plan construction and active plan validation enforce the receipt-approved influence stored on the locked asset; other visual dimensions are excluded. New image registration defaults to `UNLICENSED`; an explicit license must be part of the approval, not inferred from the project's software license.
 
 The operation adds and enables that pack in the selected runtime; it never rewrites an existing pack. A completed sheet adoption can be promoted to catalog scope with a new record-bound approval. After catalog activation:
@@ -232,7 +242,13 @@ The local `studio-adoption-receipt` is distinct from the story-state `adoption-r
 
 ## Failures and regression
 
-Unknown characters/iterations, wrong hashes, altered sources, symlinks, invalid module records, mismatched approval, unsupported influence, competing pack IDs, incomplete registration and stale identity sources block the operation. An existing registration destination is accepted only when its locked pack and approval belong to this exact adoption: its adoption receipt names this approval, this Studio and the pack's own ID. Otherwise it is never overwritten. A failed registration retains the completed sheet binding and reports the remaining step, not complete adoption.
+Unknown characters/iterations, wrong hashes, altered sources, symlinks, invalid module records, mismatched approval, unsupported influence, competing pack IDs, incomplete registration and stale identity sources block the operation.
+
+### Catalog registration recovery
+
+An existing registration destination is accepted only when its locked pack and approval belong to this exact adoption: its adoption receipt names this approval, this Studio and the pack's own ID. Otherwise it is never overwritten. A failed registration retains the completed sheet binding and reports the remaining step, not complete adoption.
+
+### Regression coverage
 
 Run `python scripts/feature_workflow_smoke_test.py`. It covers:
 

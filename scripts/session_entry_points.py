@@ -90,7 +90,7 @@ def authoring_lines(cwd: Path) -> list[str]:
     """Read the saved work trail without opening databases or refreshing displays."""
 
     from studio_workspace import init_command, manifest, studio_root
-    from work_ledger import read_current, read_ledger, show, suspended_tasks
+    from work_ledger import read_current, read_ledger, session_summary, suspended_tasks
 
     found = studio_root(cwd)
     root = found or next(
@@ -107,15 +107,12 @@ def authoring_lines(cwd: Path) -> list[str]:
         else:
             lines.append(f"work trail at {root}")
         active = read_current(root)
-        lines.append(show(root))
-        for task in suspended_tasks(root):
-            lines.append("Resume suspended task " + task['task_id'] + ": " + shown(python_argv(
-                ROOT / "scripts/work_ledger.py", "resume-task", "--studio", str(root),
-                "--task-id", task['task_id'])))
+        entries = read_ledger(root)
+        lines.extend(session_summary(root, active, entries, suspended_tasks(root)))
         run = (active or {}).get("production_run")
         if not run and not active:
             run = next(
-                (entry["production_run"] for entry in reversed(read_ledger(root))
+                (entry["production_run"] for entry in reversed(entries)
                  if entry.get("event") == "finished" and entry.get("production_run")),
                 None,
             )

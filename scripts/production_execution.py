@@ -101,11 +101,14 @@ def draft_principal_approval(root: Path, run: str, instruction_file: str, actor:
 
 @_public_call
 def draft_authority_update(root: Path, run: str, approval_evidence: str | None = None, *,
-                           phase: str = 'execution', candidate: str | None = None) -> dict:
+                           phase: str = 'execution', candidate: str | None = None, scope: str | None = None,
+                           influence: str | None = None, registration_file: str | None = None,
+                           pack_dir: Path | None = None) -> dict:
     """Draft additional run-scoped grants while keeping current issuer and predecessor."""
     import production_authority_drafts
     return production_authority_drafts.draft_authority_update(root, run, approval_evidence,
-                                                             phase=phase, candidate=candidate)
+        phase=phase, candidate=candidate, scope=scope, influence=influence,
+        registration_file=registration_file, pack_dir=pack_dir)
 
 
 def authorize_decisions(root: Path, run: str, path: str, prepared: dict, plan: dict) -> None:
@@ -1903,6 +1906,16 @@ def _next_action(root: Path, report: dict, prepared: dict, rows: list[dict], *, 
     cleanup = report['cleanup']
     if mode == 'dispatcher' and cleanup['eligible'] and cleanup['state'] in {'pending', 'outcome_unknown'}:
         return _cleanup_action(root, run, cleanup)
+    if not (mode == 'external' and 'external-claim' in events and report['settlement_open']):
+        canonical = [item for item in report.get('adoption_actions', [])
+                     if item['command'] == 'draft-adoption' and not item['diagnostics']]
+        if len(canonical) == 1:
+            # This action exists only for this run's explicit current authority
+            # addition before a matching draft or retained claim owns its use.
+            # Drafting remains unanswered; generation completion does not hide
+            # the separately requested canonical-use work.
+            return {key: copy.deepcopy(canonical[0][key]) for key in
+                    ('command', 'argv', 'draft', 'requires_author_input', 'reason')}
     if report['task_disposition'] == 'completed':
         return None
     if report['task_disposition'] == 'abandoned':
@@ -2168,7 +2181,7 @@ def _run_status(root: Path, item: dict, logs: dict[str, list[str]], authorities:
         'logs': logs.get(identifier, [])}
     if selected_by_id:
         from production_adoption import saved_actions
-        report['adoption_actions'] = saved_actions(root, loaded)
+        report['adoption_actions'] = saved_actions(root, loaded, authority=authority)
     import production_permissions
     plan = loaded.artifacts['execution-plan.json']
     selections = None
@@ -2302,12 +2315,16 @@ def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime
         result['diagnostics'].append(from_exception(exc, phase='logs'))
     authorities: dict = {}
     work_states: dict = {}
+    current_run_read = None
+    current_run = (result['current_task'] or {}).get('production_run')
     execution_states = []
     execution_diagnostics = []
     for item in items or []:
         identifier = item['run_id']
         try:
             observed = loaded if loaded is not None and loaded.prepared['run'] == identifier else workflow.read_run(root, identifier)
+            if identifier == current_run:
+                current_run_read = observed
             execution_states.extend(accounting.derive(observed.rows, observed.prepared, identifier).values())
         except INSPECTION_ERRORS as exc:
             result['runs'].append(_blocked_run(root, identifier, exc, logs))
@@ -2321,8 +2338,24 @@ def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime
         except INSPECTION_ERRORS as exc:
             result['runs'].append(_blocked_run(root, identifier, exc, logs))
     current = result['current_task']
+    selected = (next((item for item in result['runs'] if item['run'] == current.get('production_run')), None)
+                if current is not None else None)
+    if (selected is not None and selected.get('integrity') == 'intact'
+            and selected.get('preparation') == 'prepared' and selected.get('task_disposition') == 'open'):
+        import work_ledger
+        try:
+            preparation = work_ledger.finish_state(root, selected['run'], scope='prepared-input',
+                                                 loaded=current_run_read)
+        except INSPECTION_ERRORS as exc:
+            current.setdefault('diagnostics', []).append(from_exception(exc, phase='work-finish',
+                file='work/tasks/' + current['task_id'] + '/task.json',
+                required_action='Inspect the exact owning work record before choosing a completion scope.'))
+        else:
+            preparation['reason'] = ('Choose this separate completion scope only when the actual request ends at '
+                'the complete prepared input. It closes the work task, grants no authority and leaves the run '
+                'available for later authorized execution.')
+            current['preparation_completion'] = preparation
     if current is not None and current.get('focus') == 'execution':
-        selected = next((item for item in result['runs'] if item['run'] == current['production_run']), None)
         if selected is None:
             current['next_actions'] = [_action('status', root, ['--run', current['production_run']],
                 'Inspect the existing run for the current work task and follow its saved execution state.')]
@@ -2332,7 +2365,7 @@ def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime
                 import work_ledger
                 from cli_invocation import python_argv
                 try:
-                    current['work_completion'] = work_ledger.finish_state(root, selected['run'])
+                    current['work_completion'] = work_ledger.finish_state(root, selected['run'], loaded=current_run_read)
                 except INSPECTION_ERRORS as exc:
                     diagnostic = from_exception(exc, phase='work-finish',
                         file='work/tasks/' + current['task_id'] + '/task.json')

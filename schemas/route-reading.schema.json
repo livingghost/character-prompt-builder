@@ -10,7 +10,9 @@
     "reading_key",
     "documents",
     "resources",
-    "model"
+    "model",
+    "scope",
+    "source_kind"
   ],
   "properties": {
     "route": {
@@ -36,7 +38,9 @@
         "type": "object",
         "required": [
           "path",
-          "sha256"
+          "sha256",
+          "size",
+          "ranges"
         ],
         "properties": {
           "path": {
@@ -46,6 +50,38 @@
             "type": "string",
             "minLength": 64,
             "maxLength": 64
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ranges": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "start",
+                "end",
+                "sha256"
+              ],
+              "properties": {
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Exact complete required source ranges, in source order, with their delivered-byte digests."
           }
         },
         "additionalProperties": false
@@ -62,7 +98,8 @@
         "prepare",
         "execute",
         "review",
-        "adopt"
+        "adopt",
+        "withdraw"
       ]
     },
     "execution": {
@@ -109,7 +146,208 @@
           "additionalProperties": false
         }
       ]
+    },
+    "scope": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "delivery-only",
+        "studio-slot",
+        "sheet",
+        "catalog"
+      ],
+      "description": "The selected destination; independent of source ownership. Null outside curation."
+    },
+    "source_kind": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "production-candidate",
+        "imported-iteration"
+      ],
+      "description": "The retained artifact owner; independent of destination scope. Null outside curation."
+    },
+    "authoring_scope": {
+      "description": "The selected editable stage and structural source conditions. Omitted for whole-operation readings.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stage",
+            "composition",
+            "source_formats",
+            "documents",
+            "render_operation",
+            "conditions"
+          ],
+          "properties": {
+            "stage": {
+              "type": "string",
+              "enum": [
+                "definition",
+                "depiction",
+                "rendition",
+                "prepare"
+              ]
+            },
+            "composition": {
+              "type": "string",
+              "enum": [
+                "compose",
+                "amend"
+              ]
+            },
+            "source_formats": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "text",
+                  "json",
+                  "image",
+                  "binary",
+                  "unknown"
+                ]
+              }
+            },
+            "documents": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "render_operation": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "conditions": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "image-source",
+                  "unknown-sources",
+                  "references",
+                  "accepted-variation",
+                  "state",
+                  "action-slice",
+                  "multiple-results",
+                  "target-change",
+                  "semantic-edit",
+                  "render-intent",
+                  "production-spec",
+                  "plot"
+                ]
+              }
+            }
+          }
+        }
+      ]
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "adopt",
+              "withdraw"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "source_kind": {
+            "type": "string"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "scope": {
+            "type": "null"
+          },
+          "source_kind": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "withdraw"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "scope": {
+            "const": "sheet"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "delivery-only"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source_kind": {
+            "const": "production-candidate"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "authoring_scope"
+        ],
+        "properties": {
+          "authoring_scope": {
+            "type": "object"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "author",
+              "save",
+              "prepare"
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

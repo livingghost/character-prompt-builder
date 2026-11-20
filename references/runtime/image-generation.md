@@ -202,6 +202,8 @@ A ratio the record declares in `size_hints` uses the recorded size and label. A 
 
 Output is JSON on stdout: the width, the height, the pixel count, the ratio, where the answer came from, the offering it was checked against with the `size_fields` it put to the schema (null where the offering records no size key), and `refused_by_the_observed_schema`. The exit status is 1 when a size is refused, and the command exits with a message when the model is unknown, the ratio is not written as width and height, or the record declares no size and none was given. `scripts/generation_geometry_smoke_test.py` is its regression test.
 
+### Upscale preparation
+
 An upscale goes the same way, from one image rather than a package. Write its input declaration and prepare the upscale task as [Upscale Adapter](../adapters/upscale.md) shows, then execute the run like a generation. The dispatcher previews the upscale run of the studio's open task and refuses any input that differs from the sealed declaration:
 
 ```bash
@@ -216,6 +218,8 @@ Preparation checks the upscale request:
 - the whole request against the selected parameter schema.
 
 After the service answers, `execute` builds an Upscale Package from the source and each returned image in the send's journal. It records the package as an iteration with the request and the answer. A generative or creative upscaler leaves the package's identity audit pending until [Upscale Adapter](../adapters/upscale.md) review passes.
+
+### Review returned artwork
 
 After generation, apply
 [Production direction's judgment](production-direction.md#observe-and-repair)

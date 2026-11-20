@@ -56,14 +56,21 @@ the subject or activity does not settle its design or visual treatment.
 A directed picture or bounded edit retains its fixed choices; investigate only
 what remains open or needs construction knowledge.
 
-Read [Creative core](../creative-core.md) and
+Read [Creative core](../creative-core.md) and the general basis in
 [Visual construction](../finishing-layers-specification.md) while developing
-an open picture. They connect intended effects to presentation, attention,
-form, material, light, type and relationships between regions. Start from the
+an open picture: purpose, the five layers, composition and visibility, large
+form, color and value, shape and mark, realizable methods, observation and
+layer cautions. The `sparse-retrieval` preparation read supplies those complete
+sections. They connect intended effects to presentation, attention, form,
+material, light and relationships between regions. Start from the
 requester's ordinary description and actual use; an expert technique name is
 not a prerequisite for consulting this knowledge. Consider which relationships
 could carry the request before looking up a preferred scene or finish. Select
 deeper specialist material for a consequential question those sources expose.
+Select `finishing` to read the complete reference before applying its further
+portrayal constructions, designed objects, lettering or multiple-region forms.
+Adding that feature delivers every still-unread section; a common foundation
+does not stand in for the selected specialist's complete contract.
 
 After the entry runtime check, use the discovery operations while developing
 the candidate through [Authoring work](authoring-work.md). When authoring a visual treatment is part

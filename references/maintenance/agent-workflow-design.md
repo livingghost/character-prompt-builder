@@ -149,6 +149,16 @@ facts. Do not make the agent reconstruct these relationships by inspecting a
 set of internal JSON files. Do not omit necessary knowledge solely to produce
 a smaller response.
 
+The route manifest selects complete source sections for the actual operation,
+execution and declared features. A feature condition refines only a selected
+document; it activates no unrelated specialist. An explicit full-specialist
+requirement includes its general foundation and all its remaining sections.
+Keep whole-source and delivered-range hashes, exact coverage and original reuse
+witnesses. Source indexes show explicit requirements with shared reason IDs;
+internal headings of a whole-source requirement can expand separately without
+counting as delivery. Start saved work through that reader so required direct
+reading and evidenced route delivery do not repeat the same original text.
+
 Navigation views prioritize current identities, all available branches,
 unanswered choices, blockers and executable next actions. Supply complete
 decision evidence through explicit phase views; do not repeat the full
@@ -420,15 +430,20 @@ refine that positive procedure at their applicable scope. Carry useful choices
 into the work, with reasons or qualifications where they affect its use.
 Keep ordinary operation specifications and their applicable prerequisites,
 authority, constraints, exceptions and recovery instructions together in the
-complete documents delivered through the route reader. Owning references
-retain their full bodies. A link, search hit or available source
+complete required sections delivered through the route reader. The route
+manifest owns explicit operation, destination and source-kind section sets,
+with a reason for every selected section; an ad hoc navigation choice never
+changes that required coverage. Owning references retain their full bodies.
+A link, search hit or available source
 file alone does not deliver its context, and the agent must not have to search
 backward for a caller's restrictions. Page large reads without omitting sources,
 return an executable continuation and issue a reading record only after the
 required bodies have complete delivery evidence. Explicit same-context reuse
 can combine earlier complete deliveries with new complete bodies, matching
-content and current resource/model scope and retaining per-body provenance.
-Changed or missing bodies require full delivery. A fresh context never gains
+content, exact source ranges and current resource/model scope and retaining
+the complete issuance witness for each reused range. Complete earlier source
+ranges can cover their selected subranges, but an unread gap remains required.
+Changed or missing required ranges need full delivery. A fresh context never gains
 knowledge from a historical receipt alone. Keep body text, progress and actions
 in separate structured fields, including an explicit terminal continuation.
 Implementation-only maintenance details can remain

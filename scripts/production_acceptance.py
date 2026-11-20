@@ -12,6 +12,7 @@ import copy
 from pathlib import Path
 
 import execution_contract as c
+import production_curation_assessments as assessments
 import production_permissions as permissions
 import production_store as store
 from production_diagnostics import ProductionError, compare_exact
@@ -72,17 +73,7 @@ def validate_slot(root: Path, run: str, candidate: str, slot: dict, *, loaded: t
 
 def authority_basis(authority: store.CurrentAuthority, grant: str) -> str:
     """Bind only this grant's terms, source authority and current stop definitions."""
-    document = authority.document
-    selected = next(item for item in document['grants'] if item['id'] == grant)
-    terms = {key: selected.get(key) for key in
-             ('id', 'actor', 'mode', 'effective_at', 'expires_at', 'revoked_at')}
-    terms.update(operation='select', operation_granted='select' in selected['operations'],
-                 targets=['delivery'], delivery_granted='delivery' in selected['targets'])
-    declaration = [{key: item[key] for key in ('path', 'locator', 'sha256')}
-                   for item in authority.evidence if item['purpose'] == 'authority-declaration']
-    return c.content_id({'task_id': authority.task_id, 'issuer': document['issuer'],
-                         'grant': terms, 'declaration': declaration,
-                         'stop_conditions': sorted(document['stop_conditions'], key=lambda item: item['id'])})
+    return c.content_id(assessments.authority_terms(authority, grant, 'select'))
 
 
 def _grant(authority: store.CurrentAuthority, grant: str | None) -> str:
@@ -117,8 +108,7 @@ def draft(root: Path, run: str, candidate: str, grant: str | None = None, *, sco
     result = {'run': run, 'input_sha256': prepared['input_sha256'], 'candidate': candidate,
             'review': reviewed['sha256'], 'scope': scope,
             'authority_sha256': authority_basis(authority, grant), 'grant': grant, 'reason': '',
-            'stop_assessments': [{'id': item['id'], 'clear': False, 'evidence': ''}
-                                 for item in authority.document['stop_conditions']],
+            'stop_assessments': assessments.unanswered(authority),
             'owner_acceptance': None}
     if scope == 'studio-slot':
         target, row = _target(root, run, candidate, loaded=loaded)
@@ -184,7 +174,7 @@ def _expand(root: Path, run: str, decisions: dict, loaded: tuple) -> tuple[dict,
                  'replaces': workflow.replaced_selection(rows)}
     request = workflow.draft_authorization_from(loaded, authority, decisions['grant'], workflow.selection_intent(selection))
     request['reason'] = decisions['reason']
-    request['stop_assessments'] = copy.deepcopy(decisions['stop_assessments'])
+    request['stop_assessments'] = assessments.selection_assessments(authority, decisions['stop_assessments'])
     return selection, request
 
 

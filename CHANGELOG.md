@@ -1,5 +1,61 @@
 # Changelog
 
+## 2026.11.20.3
+
+- Continue editable work through definition, depiction, rendition and prepare
+  stages. Read each stage's complete applicable source sections, keep the same
+  source files across transitions and expose later omissions separately from
+  the current work. Resume from the current choices and reread its stage after
+  a context reset; a retained reading receipt supplies no inherited knowledge.
+- Check completed-input reading against the actual task and captured sources,
+  including direct task preparation. Earlier authoring stages cannot supply
+  their own final sufficiency, and newly selected sources retain their required
+  knowledge.
+- Finish preparation-only work explicitly against its verified saved input.
+  Keep that work outcome distinct from generation completion and preserve the
+  run for later authorized execution.
+- Keep run summaries focused on the selected work, current blockers and next
+  actions. Bound history lists, count omitted entries and retain complete
+  evidence in the full report. Report repeated input diagnostics once and link
+  their affected inputs through explicit diagnostic identifiers.
+- Keep unchanged prepared-input summaries concise. Retain authoring-stage and
+  fresh-reading detail in the full report, and expose it again when editing
+  resumes.
+- Show the current goal, unfinished steps, open questions, blockers and a short
+  valid checkpoint at session entry. Read active, suspended or closed task
+  history through `work_ledger.py show --task-id ID --view full`. Preserve the
+  offline environment resolver and the read-only startup contract.
+- Use the same bounded task navigation for explicit work-ledger summaries.
+  Keep every diagnostic referenced by an input-inspection summary available in
+  that summary, including findings on branches omitted from its history lists.
+- Honor explicit inspection runtime paths for inputs without a registered
+  producer runtime, retaining those paths in continuation actions. Acquire model
+  guidance once per selected pack runtime so simultaneous drafts cannot inherit
+  another runtime's model while their saved source-run observations stay shared.
+- Navigate reference choices through their exact child field schemas and source
+  commands. Distinguish adopted artwork, accepted iterations and supplied files,
+  and show the existing image-input binding owner when adding a reference.
+- Draft canonical adoption authority from the selected candidate, review and
+  destination. Derive the exact bindings and import predecessor, leaving actual
+  instruction evidence and permission judgments with their author.
+- Propose applicable selection stop assessments once for adoption. Confirm
+  their current applicability and author operation-specific changes while
+  retaining separate selection and adoption grants, approvals and complete
+  formal authorizations. Reject reuse after a relevant basis changes.
+- Return editable acceptance and adoption forms with their owning files,
+  applicable reading actions and next commands. Keep the saved form separate
+  from its navigation report.
+- Deliver complete reading sections for the selected destination and source
+  kind. Keep slot acceptance, sheet adoption, catalog registration and canonical
+  withdrawal within their applicable scopes, with exact source coverage and
+  explicit same-context reuse. A fresh context still reads every required range.
+- Route initial preparation through the script-delivered operation contract.
+  Keep later execution and curation instructions with their own operations,
+  retain the complete selected model and resource guidance, and expand finishing
+  knowledge when that specialist feature is selected. Index sources first and
+  expose their headings through a read-only index action. Bind each record to
+  the actual execution-route manifest and complete selected source ranges.
+
 ## 2026.11.20.2
 
 - Apply the host's instructions and content rules during source interpretation,

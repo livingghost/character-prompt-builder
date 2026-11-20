@@ -32,7 +32,8 @@ class ReadingTests(unittest.TestCase):
             for name in r.execution_routes.OPERATIONS}, 'routes': {
             'development': {'default_operation':'author', 'features': [], 'reads': ['notes/work.md'], 'stages': []},
             'generation': {'default_operation':'prepare', 'features': [], 'reads': ['notes/work.md'], 'stages': []}},
-            'features': {'extra': {'reads': ['notes/extra.md'], 'source_roles': []}}}
+            'features': {'extra': {'reads': ['notes/extra.md'], 'source_roles': []}},
+            'reading_scopes': {operation: {'documents': {}} for operation in ('adopt', 'withdraw')}}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         # Bytes, not text: the read delivers exact bytes on every platform.
         (self.root/'SKILL.md').write_bytes(('# Skill\n\n'+PARAGRAPH+'\n').encode())
@@ -47,6 +48,14 @@ class ReadingTests(unittest.TestCase):
         return r.build_record(self.issued(route, features), root=self.root, ledgers=[self.ledger])
     def verify(self, record):
         return r.require_route_reading(record,root=self.root,ledgers=[self.ledger],routes={'generation'})
+    def expanded_index(self, indexed):
+        rows = []
+        for source in indexed['index']:
+            detail = r.read_page(snapshot_id=indexed['snapshot'], index_source=source['selector'],
+                navigation=True, root=self.root, ledger=self.ledger, stream=io.StringIO())
+            self.assertEqual((detail['body'], detail['reading']), ([], None))
+            rows.extend(detail['index'])
+        return {**indexed, 'index': rows}
     def test_full_text_and_key(self):
         stream=io.StringIO()
         issued=r.issue('generation',root=self.root,ledger=self.ledger,stream=stream, execution='dispatcher')
@@ -157,7 +166,8 @@ class ReadingTests(unittest.TestCase):
         self.assertIn('references/runtime/production-diagnostic-navigation.md', paths)
         self.assertNotIn('references/runtime/production-diagnostics.md', paths)
         self.assertNotIn('references/runtime/studio-placement.md', paths)
-        placement = r.execution_routes.resolve('generation', ['studio-placement'], execution='external', operation='adopt')
+        placement = r.execution_routes.resolve('generation', ['studio-placement'], execution='external', operation='adopt',
+                                              scope='studio-slot', source_kind='production-candidate')
         self.assertIn('references/runtime/studio-placement.md', {row['path'] for row in placement['reads']})
         self.assertEqual(placement['read_owners']['references/runtime/studio-placement.md'], ['feature:studio-placement'])
     def test_package_reading_requires_its_complete_artifact_contract(self):
@@ -263,17 +273,24 @@ class ReadingTests(unittest.TestCase):
                                      'references/runtime/production-request-execution.md', 'references/runtime/production-recovery.md'},
             ('review', 'external'): {'references/runtime/authoring-work.md', 'references/runtime/production-review.md'},
             ('review', 'authored'): {'references/runtime/authoring-work.md', 'references/runtime/production-authored-storage.md'},
-            ('adopt', 'dispatcher'): {'references/runtime/production-adoption.md', 'references/runtime/production-permissions.md'},
         }
         for (operation, execution), names in required.items():
             with self.subTest(operation=operation, execution=execution):
                 manifest, bodies = r.capture('development', operation=operation, execution=execution)
-                received = {meta['path']: raw for meta, raw in bodies if meta['kind'] == 'document'}
+                received = {}
+                for meta, body in bodies:
+                    if meta['kind'] == 'document':
+                        received.setdefault(meta['path'], []).append((meta, body))
                 self.assertEqual(manifest['execution'], execution)
                 for name in names:
-                    self.assertEqual(received[name], (r.ROOT/name).read_bytes())
-                for name, body in received.items():
-                    self.assertEqual(body, (r.ROOT/name).read_bytes())
+                    self.assertEqual(b''.join(body for _, body in received[name]), (r.ROOT/name).read_bytes())
+                for document in manifest['documents']:
+                    source = (r.ROOT/document['path']).read_bytes()
+                    expected = b''.join(source[part['start']:part['end']] for part in document['ranges'])
+                    self.assertEqual(b''.join(body for _, body in received[document['path']]), expected)
+                    for meta, body in received[document['path']]:
+                        self.assertEqual(body, source[meta['source_start']:meta['source_end']])
+                        self.assertEqual(meta['source_sha256'], c.digest(source))
                 if execution != 'dispatcher':
                     self.assertNotIn('references/runtime/production-dispatch.md', received)
         _, bodies = r.capture('prompt-only', operation='author', execution='authored')
@@ -381,7 +398,7 @@ class ReadingTests(unittest.TestCase):
         snapshot_bytes = snapshot_path.read_bytes()
         snapshot = json.loads(snapshot_bytes)
         self.assertEqual(set(snapshot), {'manifest', 'root', 'runtime', 'task_id', 'model_file', 'nonce', 'bodies',
-                                         'required_bodies', 'reused_bodies', 'known_readings', 'context_keys', 'read_owners'})
+                                         'required_bodies', 'reused_bodies', 'known_readings', 'context_keys', 'read_owners', 'section_owners'})
         self.assertIsNone(snapshot['task_id'])
         self.assertEqual(snapshot['runtime'], {
             'state_file': runtime['--state-file'], 'cache_dir': runtime['--cache-dir'],
@@ -706,7 +723,7 @@ class ReadingTests(unittest.TestCase):
         result = r.read_page(route='development', studio=studio_root, root=self.root, ledger=self.ledger,
                              page_bytes=100, stream=io.StringIO(), execution='authored')
         rendered = studio.status(studio_root)
-        self.assertIn('Resume route reading:', rendered)
+        self.assertIn('Resume route reading in the same context:', rendered)
         self.assertIn('--continue', rendered)
         while 'issued' not in result:
             result = r.read_page(cursor=result['cursor'], studio=studio_root, root=self.root, ledger=self.ledger,
@@ -821,7 +838,8 @@ class ReadingTests(unittest.TestCase):
         for operation in ('prepare', 'execute', 'review', 'adopt'):
             output = io.StringIO()
             result = r.read_page(route='generation', operation=operation, execution='dispatcher',
-                                 root=self.root, ledger=self.ledger, stream=output, known_reading_keys=keys)
+                                 root=self.root, ledger=self.ledger, stream=output, known_reading_keys=keys,
+                                 **({'scope': 'studio-slot', 'source_kind': 'production-candidate'} if operation == 'adopt' else {}))
             response = json.loads(output.getvalue())
             paths = [item['metadata']['path'] for item in response['body']]
             self.assertTrue(paths)
@@ -1104,6 +1122,12 @@ class ReadingTests(unittest.TestCase):
         work=next(row for row in indexed['index'] if row['path']=='notes/work.md')
         self.assertEqual(work['sha256'],c.digest(raw))
         self.assertEqual(work['selected_by'],['route:generation'])
+        self.assertEqual(work['sections'], [])
+        self.assertEqual(work['section_count'], 4)
+        self.assertFalse(work['sections_expanded'])
+        self.assertTrue(all(key in indexed['selection_reasons'] for key in work['selection_reason_ids']))
+        expanded = self.expanded_index(indexed)
+        work=next(row for row in expanded['index'] if row['path']=='notes/work.md')
         self.assertEqual([row['heading'] for row in work['sections']],
                          ['Source opening','Work','Required detail','Final condition'])
         self.assertEqual(sum(row['bytes'] for row in work['sections']),len(raw))
@@ -1117,6 +1141,7 @@ class ReadingTests(unittest.TestCase):
         (self.root/'notes/work.md').write_bytes(raw)
         indexed=r.read_page(route='generation',execution='dispatcher',navigation=True,
                             root=self.root,ledger=self.ledger,stream=io.StringIO())
+        indexed=self.expanded_index(indexed)
         selector=indexed['index'][-1]['sections'][-1]['selector']
         result=r.read_page(snapshot_id=indexed['snapshot'],section=selector,root=self.root,
                            ledger=self.ledger,stream=io.StringIO())
@@ -1176,6 +1201,7 @@ class ReadingTests(unittest.TestCase):
         with catalog:
             indexed=r.read_page(route='generation',features=['prompt-dialect'],execution='dispatcher',
                 navigation=True,model_file=model_file,root=self.root,ledger=self.ledger,stream=io.StringIO())
+            indexed=self.expanded_index(indexed)
             manifest,bodies=r.capture('generation',['prompt-dialect'],execution='dispatcher',
                                       model_file=model_file,root=self.root)
             expected={meta['sha256']:raw for meta,raw in bodies}
@@ -1208,6 +1234,7 @@ class ReadingTests(unittest.TestCase):
         (self.root/'notes/work.md').write_bytes(('# Work\n\n## Detail\n'+PARAGRAPH*3+'\n').encode())
         indexed=r.read_page(route='generation',execution='dispatcher',navigation=True,
                             studio=studio_root,root=self.root,ledger=self.ledger,stream=io.StringIO())
+        indexed=self.expanded_index(indexed)
         r.read_page(snapshot_id=indexed['snapshot'],section=indexed['index'][-1]['sections'][-1]['selector'],
                     page_bytes=8192,studio=studio_root,root=self.root,ledger=self.ledger,stream=io.StringIO())
         result=r.read_page(snapshot_id=indexed['snapshot'],section=indexed['index'][0]['sections'][0]['selector'],
@@ -1307,6 +1334,560 @@ class ReadingTests(unittest.TestCase):
         self.assertFalse(self.ledger.exists())
     def test_invalid_page_budget(self):
         with self.assertRaises(ValueError):r.read_page(route='generation',page_bytes=0,root=self.root,ledger=self.ledger, execution='dispatcher')
+
+    def test_manifest_digest_binds_manifest_bytes_not_the_last_source(self):
+        manifest_path = self.root / r.execution_routes.MANIFEST
+        first = r.execution_routes.resolve('generation', execution='dispatcher', root=self.root)
+        expected = c.digest(manifest_path.read_bytes())
+        self.assertEqual(first['manifest_sha256'], expected)
+        (self.root / 'notes/work.md').write_bytes(b'# Changed document\nIts independent source edition.\n')
+        changed_document = r.execution_routes.resolve('generation', execution='dispatcher', root=self.root)
+        self.assertEqual(changed_document['manifest_sha256'], expected)
+        self.assertNotEqual(first['reads'][-1]['sha256'], changed_document['reads'][-1]['sha256'])
+        self.manifest['features']['extra']['source_roles'] = ['declared-role']
+        manifest_path.write_bytes(c.encoded(self.manifest))
+        changed_manifest = r.execution_routes.resolve('generation', execution='dispatcher', root=self.root)
+        self.assertNotEqual(changed_manifest['manifest_sha256'], expected)
+        self.assertEqual(changed_manifest['manifest_sha256'], c.digest(manifest_path.read_bytes()))
+
+    def test_operation_profiles_refine_selected_features_and_execution_without_new_scope(self):
+        raw = b'# Work\nSource opening.\n\n## Common\nCommon authority.\n\n## Prepare\nExact input and recovery.\n\n## Execute\nPerform the actual send.\n'
+        (self.root / 'notes/work.md').write_bytes(raw)
+        self.manifest['features']['complete'] = {'reads': ['notes/work.md'], 'source_roles': []}
+        self.manifest['reading_scopes']['prepare'] = {'documents': {
+            'notes/work.md': [
+                {'sections': ['common'], 'reason': 'Preserve the common authority.'},
+                {'sections': ['prepare'], 'reason': 'Prepare the exact input.', 'executions': ['dispatcher']},
+                {'whole_source': True, 'reason': 'The complete specialist was explicitly selected.',
+                 'features_any': ['complete']}],
+            'notes/extra.md': [{'whole_source': True, 'reason': 'Only when extra is actually selected.'}]}}
+        (self.root / r.execution_routes.MANIFEST).write_bytes(c.encoded(self.manifest))
+        record, bodies = r.capture('generation', execution='dispatcher', root=self.root)
+        self.assertIsNone(record['scope']); self.assertIsNone(record['source_kind'])
+        self.assertNotIn('notes/extra.md', [item['path'] for item in record['documents']])
+        selected = [(meta, body) for meta, body in bodies if meta.get('path') == 'notes/work.md']
+        self.assertEqual(len(selected), 1)  # Adjacent complete sections form one exact interval.
+        self.assertEqual(selected[0][1], raw[raw.index(b'## Common'):raw.index(b'## Execute')])
+        external, external_bodies = r.capture('generation', execution='external', root=self.root)
+        self.assertNotIn(b'## Prepare', b''.join(body for _, body in external_bodies))
+        complete, complete_bodies = r.capture('generation', ['complete'], execution='dispatcher', root=self.root)
+        self.assertEqual(next(body for meta, body in complete_bodies if meta.get('path') == 'notes/work.md'), raw)
+        self.assertEqual(complete['documents'][-1]['ranges'], [{'start': 0, 'end': len(raw), 'sha256': c.digest(raw)}])
+        ordinary, ordinary_bodies = r.capture('generation', operation='execute', execution='dispatcher', root=self.root)
+        self.assertIn(raw, [body for _, body in ordinary_bodies])
+
+    def test_actual_prepare_profile_retains_complete_boundaries_and_excludes_later_procedures(self):
+        resolved = r.execution_routes.resolve('generation',
+            ['vocabulary', 'sparse-retrieval', 'performance-language', 'unlisted-interface'],
+            operation='prepare', execution='dispatcher')
+        by_path = {path: {row['anchor'] for row in sections}
+                   for path, sections in resolved['section_owners'].items()}
+        self.assertTrue({'form-a-prompt-from-an-image', 'form-a-prompt-from-an-idea',
+                         'preserve-accepted-variation-at-its-declared-scope', 'worked-depictions',
+                         'an-image-of-an-action-is-not-the-action'} <= by_path['references/runtime/production-direction.md'])
+        self.assertFalse({'observe-and-repair', 'a-failure-must-leave-an-actionable-record'}
+                         & by_path['references/runtime/production-direction.md'])
+        self.assertTrue({'verification-and-host-forwarding', 'preview-a-prepared-request', 'failure-policy'}
+                        <= by_path['references/runtime/generation-package.md'])
+        self.assertNotIn('capture-and-recover-the-provider-result', by_path['references/runtime/generation-package.md'])
+        self.assertFalse({'authorization-and-execution-records', 'add-authority-for-selected-canonical-use',
+                          'reuse-stop-judgments-for-the-same-selected-image'}
+                         & by_path['references/runtime/production-permissions.md'])
+        self.assertNotIn('display-publication-ownership', by_path['references/runtime/studio.md'])
+        self.assertNotIn('upload-the-selected-media-for-one-generation', by_path['references/runtime/reference-delivery.md'])
+        self.assertNotIn('external-image-work', by_path['references/runtime/render-contract.md'])
+        self.assertNotIn('design-a-trial', by_path['references/runtime/model-evidence.md'])
+        for path in ('references/prompt-knowledge-boundary.md',
+                     'references/performance-language-specification.md', 'references/runtime/prompt-vocabulary.md'):
+            source = (r.ROOT / path).read_bytes()
+            selected = next(item for item in resolved['reads'] if item['path'] == path)
+            self.assertEqual(selected['ranges'], [{'start': 0, 'end': len(source), 'sha256': c.digest(source)}])
+        external = r.execution_routes.resolve('generation', operation='prepare', execution='external')
+        self.assertIn('external-image-work',
+                      {row['anchor'] for row in external['section_owners']['references/runtime/render-contract.md']})
+
+    def test_sparse_foundation_expands_to_complete_finishing_with_only_missing_bytes(self):
+        path = 'references/finishing-layers-specification.md'
+        raw = (r.ROOT / path).read_bytes()
+        with patch.object(r, '_live_resource_reader', return_value=lambda name: None):
+            first = r.read_page(route='generation', features=['sparse-retrieval'], execution='dispatcher',
+                root=r.ROOT, ledger=self.ledger, stream=io.StringIO(), page_bytes=1000000)
+            chosen = next(item for item in first['issued']['row']['documents'] if item['path'] == path)
+            foundation = sum(row['end'] - row['start'] for row in chosen['ranges'])
+            sections = r.execution_routes.document_sections(raw)
+            selected_ranges = {(row['start'], row['end']) for row in chosen['ranges']}
+            self.assertEqual({row['anchor'] for row in sections if (row['start'], row['end']) in selected_ranges}, {
+                'visual-construction-and-finishing', '1-purpose', '2-the-five-finishing-layers',
+                '3-composition-order', 'visibility-and-surface-order', 'large-form-interval-and-degree',
+                'color-and-value-as-a-shared-construction', 'shape-and-mark-as-one-drawing-grammar',
+                '8-resolve-competition-and-choose-a-realizable-method', '9-observation-contract',
+                '10-layer-specific-cautions'})
+            self.assertGreater(foundation, 0)
+            self.assertLess(foundation, len(raw))
+            self.assertEqual(chosen['sha256'], c.digest(raw))
+            indexed = r.read_page(route='generation', features=['sparse-retrieval', 'finishing'],
+                execution='dispatcher', root=r.ROOT, ledger=self.ledger, stream=io.StringIO(), navigation=True,
+                known_reading_keys=[first['reading']['key']])
+            self.assertIsNone(indexed['reading'])
+            self.assertEqual(indexed['remaining_bytes'], len(raw) - foundation)
+            current = r.read_page(snapshot_id=indexed['snapshot'], root=r.ROOT, ledger=self.ledger,
+                stream=io.StringIO(), page_bytes=1000000)
+            self.assertEqual({item['metadata']['path'] for item in current['body']}, {path})
+            self.assertEqual(sum(len(item['text'].encode()) for item in current['body']), len(raw) - foundation)
+            r.require_route_reading(r.draft_record(current['issued']), root=r.ROOT, ledgers=[self.ledger],
+                                   features=['sparse-retrieval', 'finishing'], execution='dispatcher', operation='prepare')
+            fresh = r.read_page(route='generation', features=['sparse-retrieval', 'finishing'],
+                execution='dispatcher', root=r.ROOT, ledger=self.ledger, stream=io.StringIO(), navigation=True)
+            self.assertEqual(fresh['progress']['reused_bytes'], 0)
+            self.assertEqual(fresh['remaining_bytes'], fresh['progress']['required_bytes'])
+
+    def test_public_source_index_expands_navigation_without_issuing_or_counting_delivery(self):
+        import argparse
+        import contextlib
+        with patch.object(r, '_live_resource_reader', return_value=lambda name: None):
+            indexed = r.read_page(route='generation', execution='dispatcher', root=r.ROOT,
+                ledger=self.ledger, stream=io.StringIO(), navigation=True)
+            source = next(row for row in indexed['index'] if row['path'] == 'references/runtime/authoring-work.md')
+            self.assertFalse(source['sections_expanded'])
+            self.assertEqual(source['sections'], [])
+            arguments = [*indexed['actions']['index']['argv'][3:], '--index-source', source['selector']]
+            parser = argparse.ArgumentParser(); r.add_read_arguments(parser)
+            with contextlib.redirect_stdout(io.StringIO()), patch.object(r, '_configure_runtime', return_value=None):
+                detailed = r.read_command(parser.parse_args(arguments), parser)
+            self.assertEqual(detailed['index_source'], source['selector'])
+            self.assertEqual((detailed['body'], detailed['reading']), ([], None))
+            self.assertEqual(detailed['progress']['delivered_bytes'], 0)
+            self.assertEqual(detailed['progress']['required_bytes'], indexed['progress']['required_bytes'])
+            self.assertTrue(detailed['index'][0]['sections_expanded'])
+            self.assertEqual(len(detailed['index'][0]['sections']), source['section_count'])
+            self.assertEqual(len(detailed['selection_reasons']), 1)
+            for section in detailed['index'][0]['sections']:
+                self.assertEqual(section['selection_reason_ids'], ['1'])
+            self.assertFalse(self.ledger.exists())
+            with self.assertRaisesRegex(ValueError, 'unknown source index selector'):
+                r.read_page(snapshot_id=indexed['snapshot'], index_source='not-a-source', navigation=True,
+                    root=r.ROOT, ledger=self.ledger, stream=io.StringIO())
+
+
+
+class AuthoringScopeTests(unittest.TestCase):
+    """Keep current staged work separate from historical delivery evidence."""
+
+    def setUp(self):
+        ReadingTests.setUp(self)
+        self.raw = (b'# Work\n\nShared authoring contract.\n\n'
+            b'## Definition\n\nEstablish the requested subject.\n\n'
+            b'## Depiction\n\nDevelop the intended depiction.\n\n'
+            b'## Image source\n\nPreserve selected source authority and exclusions.\n\n'
+            b'## Wording\n\nWrite the actual selected prompt.\n\n'
+            b'## Native request\n\nBind carriers without rewriting the chosen content.\n')
+        (self.root / 'notes/work.md').write_bytes(self.raw)
+        self.manifest['reading_scopes']['authoring'] = {'documents': {
+            'notes/work.md': [
+                {'sections': ['work'], 'reason': 'The common contract applies at every stage.'},
+                {'stages': ['definition'], 'sections': ['definition'], 'reason': 'Define the subject now.'},
+                {'stages': ['depiction'], 'sections': ['depiction'], 'reason': 'Develop the picture now.'},
+                {'stages': ['depiction'], 'conditions_any': ['image-source'], 'sections': ['image-source'],
+                 'reason': 'A selected image retains its scoped source authority.'},
+                {'stages': ['rendition'], 'sections': ['wording'], 'reason': 'Write the selected depiction now.'},
+                {'stages': ['prepare'], 'sections': ['native-request'], 'reason': 'Bind the prepared request now.'}],
+            'notes/always.md': [{'stages': ['definition', 'depiction'], 'whole_source': True,
+                                 'reason': 'Resolve source meanings while defining and depicting.'}],
+            'notes/unselected.md': [{'whole_source': True, 'reason': 'Only the selected specialist owns this source.'}]}}
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+
+    def scope(self, stage='definition', conditions=None):
+        return {'stage': stage, 'composition': 'compose', 'source_formats': ['text'],
+                'documents': [], 'render_operation': 'generation', 'conditions': sorted(conditions or [])}
+
+    def start(self, stage='definition', **kwargs):
+        return r.read_page(route='generation', execution='external', root=self.root, ledger=self.ledger,
+            stream=io.StringIO(), page_bytes=1000000, authoring_scope=self.scope(stage), **kwargs)
+
+    def test_selected_stage_preserves_exact_text_and_unmanaged_specialist(self):
+        result = self.start(features=['extra'])
+        bodies = {item['metadata']['path']: item['text'] for item in result['body']}
+        text = ''.join(bodies.values())
+        self.assertIn('Establish the requested subject.', text)
+        self.assertNotIn('Develop the intended depiction.', text)
+        self.assertNotIn('Bind carriers without rewriting', text)
+        self.assertEqual(bodies['notes/extra.md'], (self.root / 'notes/extra.md').read_text(encoding='utf-8'))
+        self.assertNotIn('notes/unselected.md', bodies)
+        record = r.draft_record(result['issued'])
+        self.assertEqual(record['authoring_scope'], self.scope())
+        for document in record['documents']:
+            source = (self.root / document['path']).read_bytes()
+            self.assertEqual(document['sha256'], c.digest(source))
+            for part in document['ranges']:
+                self.assertEqual(part['sha256'], c.digest(source[part['start']:part['end']]))
+        r.require_route_reading(record, root=self.root, ledgers=[self.ledger])
+
+    def test_source_conditions_add_selected_image_contract_only_when_applicable(self):
+        for conditions, expected in (([], False), (['image-source'], True), (['unknown-sources'], True)):
+            with self.subTest(conditions=conditions):
+                scope = self.scope('depiction', conditions)
+                manifest, bodies = r.capture('generation', execution='external', root=self.root, authoring_scope=scope)
+                self.assertEqual(b'Preserve selected source authority' in b''.join(raw for _, raw in bodies), expected)
+                self.assertEqual(manifest['authoring_scope'], scope)
+        prepared = self.start('prepare')
+        self.assertEqual(prepared['metadata']['operation'], 'prepare')
+        self.assertNotIn('notes/always.md', {item['metadata']['path'] for item in prepared['body']})
+
+    def test_current_stage_requires_its_ranges_and_whole_source_read_can_cover_them(self):
+        definition = r.draft_record(self.start()['issued'])
+        with self.assertRaises(r.ReadingSourcesChanged):
+            r.require_route_reading(definition, root=self.root, ledgers=[self.ledger],
+                authoring_scope=self.scope('prepare'), operation='prepare')
+        whole = r.issue('generation', execution='external', root=self.root, ledger=self.ledger, stream=io.StringIO())
+        r.require_route_reading(r.draft_record(whole), root=self.root, ledgers=[self.ledger],
+            authoring_scope=self.scope('prepare'), operation='prepare')
+        changed = copy.deepcopy(definition)
+        changed['authoring_scope']['stage'] = 'depiction'
+        with self.assertRaisesRegex(ValueError, 'issuance differs'):
+            r.require_route_reading(changed, root=self.root, ledgers=[self.ledger])
+        for operation in ('execute', 'review'):
+            with self.assertRaisesRegex(ValueError, 'own reading action'):
+                r.capture('generation', execution='external', operation=operation, root=self.root,
+                    authoring_scope=self.scope())
+
+    def test_stage_change_reuses_only_explicit_current_context_ranges(self):
+        first = self.start()
+        second = self.start('depiction', known_reading_keys=[first['reading']['key']])
+        self.assertGreater(second['progress']['reused_bytes'], 0)
+        self.assertGreater(second['progress']['delivered_bytes'], 0)
+        text = ''.join(item['text'] for item in second['body'])
+        self.assertIn('Develop the intended depiction.', text)
+        self.assertNotIn('Establish the requested subject.', text)
+        self.assertNotIn('Shared authoring contract.', text)
+        fresh = self.start('depiction', navigation=True)
+        self.assertEqual(fresh['progress']['reused_bytes'], 0)
+        self.assertEqual(fresh['remaining_bytes'], second['progress']['required_bytes'])
+        self.assertFalse(fresh['same_context_required'])
+
+    def test_public_choices_and_restart_keep_current_stage_without_inheriting_knowledge(self):
+        import argparse
+        import contextlib
+        import production_reading_scope
+        import studio_workspace
+        studio = self.root / 'studio'
+        studio_workspace.init(studio, 'stage-reading', 'Synthetic authoring stages')
+        task = {'route': 'generation', 'execution': 'external', 'features': []}
+        choices = {'target': None}
+        def command(words):
+            parser = argparse.ArgumentParser(); r.add_read_arguments(parser)
+            args = parser.parse_args(words)
+            with contextlib.redirect_stdout(io.StringIO()), patch.object(r, 'ROOT', self.root), \
+                 patch.object(r, '_configure_runtime', return_value=None):
+                return r.read_command(args, parser)
+        with patch.object(production_reading_scope, 'from_choices', return_value=(self.scope(), task, choices)) as acquire:
+            indexed = command(['--root', str(studio), '--choices', 'work/input/choices.json',
+                               '--reading-ledger', str(self.ledger)])
+        acquire.assert_called_once_with(studio, 'work/input/choices.json', include_choices=True)
+        self.assertEqual(indexed['metadata']['authoring_scope'], self.scope())
+        first = command(indexed['actions']['all']['argv'][3:])
+        self.assertIn('--choices', first['context_reuse']['operations']['author']['argv'])
+        record = c.load(Path(first['reading']['record_absolute']))
+        self.assertEqual(record['authoring_scope'], self.scope())
+        fresh = command(first['actions']['restart']['argv'][3:])
+        self.assertEqual(fresh['metadata']['authoring_scope'], self.scope())
+        self.assertEqual(fresh['progress']['reused_bytes'], 0)
+        self.assertEqual(fresh['remaining_bytes'], first['progress']['required_bytes'])
+        self.assertFalse(fresh['same_context_required'])
+        self.assertIsNone(fresh['reading'])
+        snapshot = c.load(self.ledger.parent / 'reading-snapshots' / fresh['snapshot'] / 'snapshot.json')
+        self.assertEqual(snapshot['choices'], 'work/input/choices.json')
+
+
+class ScopedReadingTests(unittest.TestCase):
+    """Prove destination/source contracts and exact same-context range reuse."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        (self.root / 'config').mkdir()
+        (self.root / 'notes').mkdir()
+        self.ledger = self.root / 'work/reads.jsonl'
+        self.document = 'notes/contract.md'
+        self.raw = b'# Contract\nOriginal source opening.\n\n## Common\nThe common condition.\n\n## Slot\nThe complete slot decision and recovery.\n\n## Sheet\nThe complete canonical approval and recovery.\n\n## Catalog\nThe exact new catalog destination and retry.\n\n## Imported\nThe imported source approval and recovery.\n\n## Withdrawal\nThe actual ending decision and historical proof.\n'
+        (self.root / self.document).write_bytes(self.raw)
+        base = {'reads': [self.document], 'executions': {mode: [] for mode in r.execution_routes.EXECUTIONS}}
+        def selection(heading, *, scopes=None, sources=None):
+            value = {'sections': [heading], 'reason': 'Complete ' + heading + ' contract, including its authority and recovery.'}
+            if scopes is not None:
+                value['scopes'] = scopes
+            if sources is not None:
+                value['source_kinds'] = sources
+            return value
+        self.manifest = {
+            'operation_contexts': {name: copy.deepcopy(base) for name in r.execution_routes.OPERATIONS},
+            'routes': {'development': {'default_operation': 'author', 'reads': [], 'features': [], 'stages': []},
+                       'adoption': {'default_operation': 'adopt', 'reads': [], 'features': [], 'stages': []}},
+            'features': {},
+            'reading_scopes': {
+                'adopt': {'documents': {self.document: [selection('common'),
+                    selection('slot', scopes=['delivery-only', 'studio-slot']),
+                    selection('sheet', scopes=['sheet', 'catalog'], sources=['production-candidate']),
+                    selection('imported', scopes=['sheet', 'catalog'], sources=['imported-iteration']),
+                    selection('catalog', scopes=['catalog'])]}},
+                'withdraw': {'documents': {self.document: [selection('common'), selection('withdrawal')]}}}}
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+
+    def start(self, scope='studio-slot', source_kind='production-candidate', **kwargs):
+        return r.read_page(route='adoption', operation='adopt', execution='dispatcher',
+                          scope=scope, source_kind=source_kind, root=self.root, ledger=self.ledger,
+                          stream=io.StringIO(), **kwargs)
+
+    def finish(self, indexed, *, root=None, ledger=None, page_bytes=16384, publish_record=False):
+        pages, total, response = [], 0, indexed
+        while True:
+            response = r.read_page(snapshot_id=indexed['snapshot'] if not pages else None,
+                cursor=response['cursor'] if pages else None, root=root or self.root,
+                ledger=ledger or self.ledger, stream=io.StringIO(), page_bytes=page_bytes,
+                publish_record=publish_record)
+            pages.append(response)
+            for item in response['body']:
+                meta = item['metadata']; raw = item['text'].encode('utf-8')
+                source = ((root or self.root) / meta['path']).read_bytes()
+                self.assertEqual(source[meta['source_start'] + meta['start']:meta['source_start'] + meta['end']], raw)
+                self.assertEqual(c.digest(source), meta['source_sha256'])
+                total += len(raw)
+            if response['reading'] is not None:
+                break
+            self.assertNotIn('issued', response)
+            self.assertIsNotNone(response['actions']['continue'])
+            self.assertLess(len(pages), 100)
+        return response, pages, total
+
+    def test_operation_destinations_and_source_owners_are_independent(self):
+        for source_kind in r.execution_routes.SOURCE_KINDS:
+            for scope in ('studio-slot', 'sheet', 'catalog'):
+                with self.subTest(scope=scope, source_kind=source_kind):
+                    record, bodies = r.capture('adoption', operation='adopt', execution='dispatcher',
+                        scope=scope, source_kind=source_kind, root=self.root)
+                    self.assertEqual((record['scope'], record['source_kind']), (scope, source_kind))
+                    text = b''.join(raw for _, raw in bodies)
+                    self.assertNotIn(b'## Withdrawal', text)
+                    self.assertEqual(b'## Catalog' in text, scope == 'catalog')
+                    self.assertEqual(b'## Imported' in text, scope != 'studio-slot' and source_kind == 'imported-iteration')
+        with self.assertRaisesRegex(ValueError, '--scope.*--source-kind'):
+            r.capture('adoption', execution='dispatcher', root=self.root)
+        with self.assertRaisesRegex(ValueError, 'withdraw reading uses --scope sheet'):
+            r.capture('adoption', operation='withdraw', execution='dispatcher', scope='catalog',
+                      source_kind='production-candidate', root=self.root)
+        record, bodies = r.capture('adoption', operation='withdraw', execution='dispatcher', scope='sheet',
+                                  source_kind='production-candidate', root=self.root)
+        self.assertIn(b'## Withdrawal', b''.join(raw for _, raw in bodies))
+        self.assertEqual(record['operation'], 'withdraw')
+
+    def test_complete_selected_ranges_issue_only_after_every_required_byte(self):
+        indexed = self.start(navigation=True)
+        self.assertIsNone(indexed['reading'])
+        self.assertFalse(self.ledger.exists())
+        for source in indexed['index']:
+            self.assertTrue(source['sections'])
+            for section in source['sections']:
+                self.assertTrue(section['selection_reason_ids'])
+                self.assertTrue(all(key in indexed['selection_reasons'] for key in section['selection_reason_ids']))
+                self.assertGreater(section['source_end'], section['source_start'])
+        result, pages, total = self.finish(indexed, page_bytes=13, publish_record=True)
+        self.assertGreater(len(pages), 1)
+        record = c.load(Path(result['reading']['record_absolute']))
+        self.assertEqual((record['scope'], record['source_kind']), ('studio-slot', 'production-candidate'))
+        document = record['documents'][0]
+        self.assertEqual(document['sha256'], c.digest(self.raw))
+        self.assertEqual(document['size'], len(self.raw))
+        self.assertEqual(total, sum(item['end'] - item['start'] for item in document['ranges']))
+        for selected in document['ranges']:
+            self.assertEqual(selected['sha256'], c.digest(self.raw[selected['start']:selected['end']]))
+        r.require_route_reading(record, root=self.root, ledgers=[self.ledger], scope='studio-slot',
+                              source_kind='production-candidate')
+        changed = copy.deepcopy(record)
+        changed['documents'][0]['ranges'] = changed['documents'][0]['ranges'][:1]
+        with self.assertRaisesRegex(ValueError, 'issuance differs'):
+            r.require_route_reading(changed, root=self.root, ledgers=[self.ledger])
+        row = copy.deepcopy(result['issued']['row'])
+        row['delivery']['bodies'].pop()
+        with self.assertRaisesRegex(ValueError, 'does not cover'):
+            r._validate_delivery(row)
+
+    def test_known_whole_source_covers_selected_sections_with_original_witness(self):
+        whole = r.issue('development', execution='dispatcher', root=self.root, ledger=self.ledger, stream=io.StringIO())
+        indexed = self.start(scope='sheet', navigation=True, known_reading_keys=[whole['reading_key']])
+        self.assertIsNone(indexed['reading'])
+        self.assertEqual(indexed['progress']['remaining_bytes'], 0)
+        result, pages, delivered = self.finish(indexed)
+        self.assertEqual(delivered, 0)
+        for part in result['issued']['row']['delivery']['bodies']:
+            self.assertEqual(part['origin']['key_sha256'], whole['row']['key_sha256'])
+            self.assertEqual(part['source_body']['source_start'], 0)
+            self.assertEqual(part['source_body']['source_end'], len(self.raw))
+            self.assertGreater(part['body']['source_start'], 0)
+        r.require_route_reading(r.draft_record(whole), root=self.root, ledgers=[self.ledger],
+                              operation='adopt', scope='sheet', source_kind='production-candidate')
+
+    def test_scope_expansion_delivers_only_missing_ranges_and_never_a_gap(self):
+        slot = self.start()
+        slot_record = r.draft_record(slot['issued'])
+        with self.assertRaises(r.ReadingSourcesChanged) as missing:
+            r.require_route_reading(slot_record, root=self.root, ledgers=[self.ledger],
+                                  scope='sheet', source_kind='production-candidate')
+        self.assertEqual(missing.exception.changes[0]['change'], 'scope-expanded')
+        self.assertTrue(missing.exception.changes[0]['missing_ranges'])
+        sheet = self.start(scope='sheet', known_reading_keys=[slot['reading']['key']])
+        self.assertEqual(len(sheet['body']), 1)
+        self.assertTrue(sheet['body'][0]['text'].startswith('## Sheet'))
+        catalog = self.start(scope='catalog', known_reading_keys=[slot['reading']['key'], sheet['reading']['key']])
+        self.assertEqual(len(catalog['body']), 1)
+        self.assertTrue(catalog['body'][0]['text'].startswith('## Catalog'))
+        # A broader whole-source requirement reuses all complete known intervals,
+        # while the opening, imported contract and withdrawal remain unread gaps.
+        indexed = r.read_page(route='development', execution='dispatcher', navigation=True,
+            root=self.root, ledger=self.ledger, stream=io.StringIO(),
+            known_reading_keys=[slot['reading']['key'], sheet['reading']['key'], catalog['reading']['key']])
+        self.assertGreater(indexed['progress']['reused_bytes'], 0)
+        self.assertGreater(indexed['progress']['remaining_bytes'], 0)
+        result, pages, total = self.finish(indexed, page_bytes=17)
+        text = ''.join(item['text'] for page in pages for item in page['body'])
+        self.assertIn('# Contract', text)
+        self.assertIn('## Imported', text)
+        self.assertIn('## Withdrawal', text)
+        self.assertNotIn('## Common', text)
+        self.assertNotIn('## Slot', text)
+        self.assertEqual(total + result['progress']['reused_bytes'], len(self.raw))
+        self.assertEqual(result['context_reuse']['curation_scopes'], [])
+        self.assertIn('reading_action', result['context_reuse']['curation_guidance'])
+        r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
+
+    def test_fresh_context_rereads_selected_ranges_and_changed_source_is_not_known(self):
+        first = self.start(scope='sheet')
+        indexed = self.start(scope='sheet', navigation=True)
+        self.assertEqual(indexed['progress']['reused_bytes'], 0)
+        self.assertEqual(indexed['remaining_bytes'], first['progress']['required_bytes'])
+        fresh, pages, total = self.finish(indexed)
+        self.assertEqual(total, first['progress']['required_bytes'])
+        # Even an edit outside the selected ranges changes the complete source edition.
+        (self.root / self.document).write_bytes(self.raw + b'Changed retained source edition.\n')
+        changed = self.start(scope='sheet', known_reading_keys=[fresh['reading']['key']])
+        self.assertEqual(changed['progress']['reused_bytes'], 0)
+        self.assertEqual(changed['progress']['delivered_bytes'], changed['progress']['required_bytes'])
+        partial = self.start(scope='sheet', page_bytes=11)
+        (self.root / self.document).write_bytes(self.raw)
+        before = self.ledger.read_bytes()
+        with self.assertRaises(r.ReadingSourcesChanged):
+            r.read_page(cursor=partial['cursor'], root=self.root, ledger=self.ledger,
+                        stream=io.StringIO(), page_bytes=10000)
+        self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_actual_curation_contracts_exclude_other_procedures_and_keep_recovery(self):
+        expected = {
+            'studio-slot': {'select-a-reviewed-result-and-finish', 'acceptance-completion-and-recovery',
+                           'accept-an-existing-candidate-for-its-studio-slot', 'studio-slot-selection-authority'},
+            'sheet': {'adopt-the-selected-image-as-a-reusable-reference', 'canonical-adoption-authority',
+                      'reuse-stop-judgments-for-the-same-selected-image', 'resume-a-retained-canonical-adoption',
+                      'recover-the-recorded-adoption-evidence', 'canonical-image-scope'},
+            'catalog': {'register-the-selected-candidate-in-the-catalog', 'catalog-publication-and-reuse',
+                        'catalog-registration-recovery'},
+        }
+        for scope, needed in expected.items():
+            resolved = r.execution_routes.resolve('adoption', execution='dispatcher', scope=scope,
+                                                 source_kind='production-candidate')
+            anchors = {part['anchor'] for values in resolved['section_owners'].values() for part in values}
+            self.assertTrue(needed <= anchors, (scope, needed - anchors))
+            self.assertFalse({'service-authentication', 'display-publication-ownership',
+                'story-timeline-projection', 'input-and-scope', 'register-an-imported-catalog-reference',
+                'withdraw-current-canonical-reuse'} & anchors)
+            if scope == 'studio-slot':
+                self.assertNotIn('author-one-canonical-adoption-decision', anchors)
+                self.assertNotIn('canonical-image-scope', anchors)
+            if scope == 'sheet':
+                self.assertNotIn('register-the-selected-candidate-in-the-catalog', anchors)
+                self.assertNotIn('catalog-publication-and-reuse', anchors)
+        imported = r.execution_routes.resolve('adoption', execution='external', scope='sheet', source_kind='imported-iteration')
+        anchors = {part['anchor'] for values in imported['section_owners'].values() for part in values}
+        self.assertIn('input-and-scope', anchors)
+        self.assertIn('record-a-missing-generation-package', anchors)
+        self.assertNotIn('author-one-canonical-adoption-decision', anchors)
+
+    def test_actual_fresh_contract_pages_and_explicit_scope_transition(self):
+        ledgers = {}
+        readings = {}
+        measured = {}
+        for scope in ('studio-slot', 'sheet', 'catalog'):
+            ledger = self.root / scope / 'reads.jsonl'; ledgers[scope] = ledger
+            indexed = r.read_page(route='adoption', operation='adopt', execution='dispatcher', scope=scope,
+                source_kind='production-candidate', root=r.ROOT, ledger=ledger, stream=io.StringIO(), navigation=True)
+            result, pages, delivered = self.finish(indexed, root=r.ROOT, ledger=ledger, publish_record=True)
+            measured[scope] = {'bytes': delivered, 'pages': len(pages)}
+            self.assertLess(delivered, 112905 // 2)
+            self.assertLessEqual(len(pages), 3)
+            readings[scope] = result
+            r.require_route_reading(c.load(Path(result['reading']['record_absolute'])), ledgers=[ledger],
+                                  scope=scope, source_kind='production-candidate')
+        slot = readings['studio-slot']
+        self.assertEqual(set(slot['context_reuse']['operations']), {'adopt'})
+        self.assertTrue(all(item['source_kind'] == 'production-candidate'
+                            for item in slot['context_reuse']['curation_scopes']))
+        self.assertFalse(any(item['operation'] == 'adopt' and item['scope'] == 'studio-slot'
+                             for item in slot['context_reuse']['curation_scopes']))
+        action = next(item['action'] for item in slot['context_reuse']['curation_scopes']
+                      if item['operation'] == 'adopt' and item['scope'] == 'sheet'
+                      and item['source_kind'] == 'production-candidate')
+        self.assertIn('--known-reading', action['argv'])
+        self.assertEqual(action['argv'][action['argv'].index('--scope') + 1], 'sheet')
+        indexed = r.read_page(route='adoption', operation='adopt', execution='dispatcher', scope='sheet',
+            source_kind='production-candidate', root=r.ROOT, ledger=ledgers['studio-slot'], stream=io.StringIO(),
+            known_reading_keys=[slot['reading']['key']], navigation=True)
+        self.assertGreater(indexed['progress']['reused_bytes'], 0)
+        self.assertGreater(indexed['remaining_bytes'], 0)
+        result, pages, delivered = self.finish(indexed, root=r.ROOT, ledger=ledgers['studio-slot'])
+        self.assertLess(delivered, measured['sheet']['bytes'])
+        self.assertEqual(delivered + result['progress']['reused_bytes'], measured['sheet']['bytes'])
+
+    def test_public_draft_read_action_and_fresh_restart_preserve_both_axes(self):
+        import argparse
+        import contextlib
+        import studio_workspace
+        studio_root = self.root / 'studio'
+        studio_workspace.init(studio_root, 'scoped-reading', 'Synthetic scoped reading')
+        action = r.curation_action(studio_root, execution='dispatcher', scope='sheet')
+        self.assertNotIn('--known-reading', action['argv'])
+        self.assertEqual(action['argv'][action['argv'].index('--source-kind') + 1], 'production-candidate')
+        def command(words):
+            parser = argparse.ArgumentParser(); r.add_read_arguments(parser)
+            args = parser.parse_args(words)
+            with contextlib.redirect_stdout(io.StringIO()), patch.object(r, '_configure_runtime', return_value=None):
+                return r.read_command(args, parser)
+        indexed = command(action['argv'][3:])
+        self.assertEqual((indexed['metadata']['scope'], indexed['metadata']['source_kind']), ('sheet', 'production-candidate'))
+        first = command(indexed['actions']['all']['argv'][3:])
+        fresh = command(first['actions']['restart']['argv'][3:])
+        self.assertEqual((fresh['metadata']['scope'], fresh['metadata']['source_kind']), ('sheet', 'production-candidate'))
+        self.assertEqual(fresh['progress']['reused_bytes'], 0)
+        self.assertEqual(fresh['progress']['remaining_bytes'], fresh['progress']['required_bytes'])
+        self.assertIsNone(fresh['reading'])
+
+    def test_interrupted_snapshot_reconstruction_keeps_scope_and_source_kind(self):
+        import production_authoring_state
+        import studio_workspace
+        import work_ledger
+        studio_root = self.root / 'studio'
+        studio_workspace.init(studio_root, 'scoped-recovery', 'Synthetic scoped recovery')
+        work_ledger.begin(studio_root, 'Choose the retained image.', ['Read and decide'])
+        before = (studio_root / 'work/current.json').read_bytes()
+        indexed = r.read_page(route='adoption', operation='adopt', execution='dispatcher', scope='sheet',
+            source_kind='production-candidate', root=self.root, studio=studio_root, ledger=self.ledger,
+            stream=io.StringIO(), navigation=True)
+        snapshot = self.ledger.parent / 'reading-snapshots' / indexed['snapshot'] / 'snapshot.json'
+        snapshot.unlink()
+        state = production_authoring_state.inspect(studio_root)
+        row = next(item for item in state['readings'] if item['current'])
+        action = row['next_actions'][0]['argv']
+        self.assertEqual(action[action.index('--scope') + 1], 'sheet')
+        self.assertEqual(action[action.index('--source-kind') + 1], 'production-candidate')
+        self.assertNotIn('--known-reading', action)
+        self.assertEqual((studio_root / 'work/current.json').read_bytes(), before)
+
 
 if __name__=='__main__':
     import stdio_utf8

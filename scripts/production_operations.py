@@ -411,9 +411,8 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
     if 'route-reading' in checked:
         issuance = checked['route-reading']
     else:
-        issuance = route_reading.require_route_reading(reading, studio=root, routes={task['route']},
-            features=task['features'], execution=task['execution'],
-            operation='author' if task['execution'] == 'authored' else 'prepare')
+        issuance = route_reading.require_task_reading(reading, studio=root, task=task,
+                                                     read_input=lambda path: add(root, path))
     source_hashes = {}
     for source in task['sources']:
         selected = add(root, source['path'])

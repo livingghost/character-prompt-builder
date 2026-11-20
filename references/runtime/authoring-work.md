@@ -289,6 +289,16 @@ to inspect their combined current work. `draft-inputs --apply-source ID` can
 apply an already acquired source when starting a saved branch. Use this same
 acquisition and application operation for a separately authored adaptation.
 
+The saved choices also retain the current authoring stage. Use
+`production_workflow.py stage-inputs --root STUDIO --choices work/draft/choices.json --stage STAGE`
+to select `definition`, `depiction`, `rendition` or `prepare` as described in
+[Read the current stage](production-workflow.md#read-the-current-stage).
+Continue these same source files and actual candidate at every stage. A new
+stage changes required knowledge and current editing guidance; it neither
+replaces the acquired basis nor grants a completed judgment. After compaction,
+inspect the saved choices and read the current stage's originals again before
+continuing its decisions.
+
 Use the Studio's [current-work comparison](production-authoring.md#keep-branches-and-reopen-completed-work)
 to read several saved editable candidates through this same owner:
 

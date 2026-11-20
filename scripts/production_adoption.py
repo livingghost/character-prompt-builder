@@ -6,6 +6,7 @@ import copy
 from pathlib import Path
 
 import execution_contract as c
+import production_curation_assessments as assessments
 import production_permissions as permissions
 import production_store as store
 from production_diagnostics import ProductionError, compare_exact
@@ -20,17 +21,7 @@ def _grant(authority, scope: str, selected: str | None) -> str:
 
 def authority_basis(authority, grant: str, scope: str) -> str:
     """Only the selected adoption terms and their actual source bind this decision."""
-    document = authority.document
-    selected = next(item for item in document['grants'] if item['id'] == grant)
-    terms = {key: selected.get(key) for key in
-             ('id', 'actor', 'mode', 'effective_at', 'expires_at', 'revoked_at')}
-    terms.update(operation='adopt', operation_granted='adopt' in selected['operations'],
-                 target='canon:' + scope, target_granted='canon:' + scope in selected['targets'])
-    declaration = [{key: item[key] for key in ('path', 'locator', 'sha256')}
-                   for item in authority.evidence if item['purpose'] == 'authority-declaration']
-    return c.content_id({'task_id': authority.task_id, 'issuer': document['issuer'], 'grant': terms,
-                         'declaration': declaration,
-                         'stop_conditions': sorted(document['stop_conditions'], key=lambda item: item['id'])})
+    return c.content_id(assessments.authority_terms(authority, grant, 'adopt', scope))
 
 
 def require_approval_authority(root: Path, prepared: dict, approval: dict, request: dict,
@@ -52,12 +43,13 @@ def require_approval_authority(root: Path, prepared: dict, approval: dict, reque
                 'Inspect the current authority and draft-adoption again; earlier assessments do not clear a changed stop condition.'))
 
 
-def _source(root: Path, loaded, candidate: str) -> tuple[dict, dict, object]:
+def _source(root: Path, loaded, candidate: str | None) -> tuple[dict, dict, object]:
     import adoption_workflow as adoption
     import production_acceptance as acceptance
     import production_operations as workflow
     import studio_workspace as studio
     selected, choice, _ = workflow.current_selection(loaded.prepared, loaded.rows)
+    candidate = candidate or choice['candidate']
     workflow.require_selected(loaded.prepared, loaded.rows, candidate, run=loaded.prepared['run'])
     target, raw = acceptance._target(root, loaded.prepared['run'], candidate, loaded=loaded)
     read = studio.StudioRead(root)
@@ -71,26 +63,20 @@ def _source(root: Path, loaded, candidate: str) -> tuple[dict, dict, object]:
     state = {'placement': raw['placement']['sha256'],
              'slot_acceptance': studio.acceptance_state(root, target['character'], target['slot'], read=read),
              'adoption': None if current is None else c.content_id(current)}
-    return {'character': target['character'], 'iteration': target['iteration_id'], 'slot': target['slot'],
+    return {'candidate': candidate, 'character': target['character'], 'iteration': target['iteration_id'], 'slot': target['slot'],
             'image_sha256': raw['result']['sha256'], 'selection': selected['sha256'],
             'review': choice['review'], 'source_state': state}, row, read
 
 
-@read_context.operation
-def draft(root: Path, run: str, candidate: str, *, scope: str, influence: str,
-          grant: str | None = None, registration_file: str | None = None,
-          pack_dir: Path | None = None) -> dict:
-    """Pin the selected image and destination, leaving actual judgments unanswered."""
+def draft_basis(root: Path, loaded, candidate: str | None, *, scope: str, influence: str,
+                registration_file: str | None = None, pack_dir: Path | None = None) -> tuple[dict, dict, object]:
+    """Derive the selected source and intended destination independently of missing grants."""
     import adoption_workflow as adoption
-    import production_operations as workflow
     if scope not in adoption.SCOPES or influence not in adoption.INFLUENCES:
         raise ValueError('select the intended adoption scope and influence')
-    loaded = workflow.read_run(root, run)
     source, row, read = _source(root, loaded, candidate)
     if influence != 'identity' and source['slot'].startswith(('base.', 'canon.')):
         raise ValueError('base/canon identity slots require identity influence')
-    authority = workflow.current_authority(root, loaded.prepared)
-    grant = _grant(authority, scope, grant)
     registration = None
     if scope == 'catalog':
         if registration_file is None or pack_dir is None:
@@ -101,6 +87,33 @@ def draft(root: Path, run: str, candidate: str, *, scope: str, influence: str,
                         'record_sha256': adoption.digest(record), 'pack_dir': str(pack_dir.resolve())}
     elif registration_file is not None or pack_dir is not None:
         raise ValueError('registration arguments require catalog scope')
+    return {**source, 'scope': scope, 'influence': influence, 'registration': registration}, row, read
+
+
+def _draft_grant(root: Path, run: str, authority, basis: dict, grant: str | None) -> str:
+    try:
+        return _grant(authority, basis['scope'], grant)
+    except ProductionError as exc:
+        requirements = exc.diagnostic.details.get('authorization_requirements', {}).get('requirements', [])
+        if requirements and not any(item['eligible'] for item in requirements[0]['candidates']):
+            from production_authority_drafts import adoption_update_action
+            exc.diagnostic.details['next_action'] = adoption_update_action(root, run, basis, authority)
+            exc.diagnostic.required_action += (' Use next_action to draft authority for this selected canonical use; '
+                                               'complete it only from actual instruction evidence.')
+        raise
+
+
+@read_context.operation
+def draft(root: Path, run: str, candidate: str | None = None, *, scope: str, influence: str,
+          grant: str | None = None, registration_file: str | None = None,
+          pack_dir: Path | None = None) -> dict:
+    """Pin the current selected image and propose evidenced judgments without approving reuse."""
+    import production_operations as workflow
+    loaded = workflow.read_run(root, run)
+    source, row, read = draft_basis(root, loaded, candidate, scope=scope, influence=influence,
+                                    registration_file=registration_file, pack_dir=pack_dir)
+    authority = workflow.current_authority(root, loaded.prepared)
+    grant = _draft_grant(root, run, authority, source, grant)
     continuity = None
     if influence == 'identity':
         _, package = read._package(row['package'])
@@ -113,13 +126,10 @@ def draft(root: Path, run: str, candidate: str, *, scope: str, influence: str,
         if subject['continuity'] == 'undecided' or subject['character_id'] is None:
             continuity = {'character_id': subject['character_id'], 'continuity': None,
                           'basis': {'path': '', 'locator': ''}}
-    return {'run': run, 'input_sha256': loaded.prepared['input_sha256'], 'candidate': candidate,
-            **source, 'scope': scope, 'influence': influence, 'grant': grant,
+    value = {'run': run, 'input_sha256': loaded.prepared['input_sha256'], **source, 'grant': grant,
             'authority_sha256': authority_basis(authority, grant, scope),
-            'at': None, 'reason': '', 'license': None, 'continuity_decision': continuity,
-            'registration': registration,
-            'stop_assessments': [{'id': item['id'], 'condition': item['text'], 'clear': False, 'evidence': ''}
-                                 for item in authority.document['stop_conditions']]}
+            'at': None, 'reason': '', 'license': None, 'continuity_decision': continuity}
+    return {**value, **assessments.adoption_draft(root, loaded, authority, value)}
 
 
 def decision_basis(value: dict) -> dict:
@@ -151,8 +161,7 @@ def _expand(root: Path, loaded, value: dict) -> tuple[dict, dict, dict | None, P
             expected=value['authority_sha256'], actual=actual,
             required_action='Read the changed authority and draft-adoption again; keep assessments only where the '
                             'current evidence supports them.')
-    compare_exact({item['id']: item['text'] for item in authority.document['stop_conditions']},
-                  {item['id']: item['condition'] for item in value['stop_assessments']}, phase='adoption')
+    stop_assessments = assessments.adoption_assessments(root, loaded, authority, value)
     actor = next(item['actor'] for item in authority.document['grants'] if item['id'] == grant)
     approval = {key: value[key] for key in ('scope', 'influence', 'character', 'slot', 'image_sha256', 'at')}
     approval.update(iteration_id=value['iteration'], by=actor, note=value['reason'],
@@ -188,8 +197,7 @@ def _expand(root: Path, loaded, value: dict) -> tuple[dict, dict, dict | None, P
     intent = workflow._adoption_operation(value['review'], value['candidate'], value['character'],
         value['iteration'], approval, registration_record=registration, pack_dir=target)
     request = workflow.draft_authorization_from(loaded, authority, grant, intent)
-    request.update(reason=value['reason'], stop_assessments=[
-        {key: item[key] for key in ('id', 'clear', 'evidence')} for item in value['stop_assessments']])
+    request.update(reason=value['reason'], stop_assessments=stop_assessments)
     permissions.check(authority.document, request)
     return approval, request, registration, target
 
@@ -214,8 +222,8 @@ def draft_reassessment(root: Path, run: str, claim_id: str, *, grant: str | None
     return {'run': run, 'input_sha256': loaded.prepared['input_sha256'], 'claim': claim_id,
             'candidate': claim['data']['intent']['payload']['candidate'], 'scope': approval['scope'],
             'approval': approval, 'grant': grant, 'authority_sha256': authority_basis(authority, grant, approval['scope']),
-            'reason': '', 'stop_assessments': [{'id': item['id'], 'condition': item['text'], 'clear': False, 'evidence': ''}
-                                               for item in authority.document['stop_conditions']]}
+            'reason': '', 'shared_stop_assessments': None,
+            'additional_stop_assessments': assessments.unanswered(authority, describe=True)}
 
 
 def _reassessment(root: Path, loaded, value: dict) -> tuple[dict, dict]:
@@ -234,11 +242,9 @@ def _reassessment(root: Path, loaded, value: dict) -> tuple[dict, dict]:
         raise ProductionError('ADOPTION_DECISION_CHANGED', 'The reassessment authority changed after drafting.',
             phase='adoption', expected=value['authority_sha256'], actual=actual,
             required_action='Read the changed authority and draft-adoption --claim for this exact claim again.')
-    compare_exact({item['id']: item['text'] for item in authority.document['stop_conditions']},
-                  {item['id']: item['condition'] for item in value['stop_assessments']}, phase='adoption')
+    stop_assessments = assessments.adoption_assessments(root, loaded, authority, value)
     request = workflow.draft_authorization_from(loaded, authority, grant, claim['data']['intent'])
-    request.update(reason=value['reason'], stop_assessments=[
-        {key: item[key] for key in ('id', 'clear', 'evidence')} for item in value['stop_assessments']])
+    request.update(reason=value['reason'], stop_assessments=stop_assessments)
     permissions.check(authority.document, request)
     if not any(row['event'] == 'adoption-result' and row['data']['claim'] == claim['sha256'] for row in loaded.rows):
         payload = claim['data']['intent']['payload']
@@ -364,14 +370,73 @@ def scope(root: Path, run: str, *, decision_file: str | None, claim_id: str | No
     return claim['data']['intent']['targets'][0].removeprefix('canon:')
 
 
-def saved_actions(root: Path, loaded) -> list[dict]:
-    """Inspect only this explicitly selected run's registered adoption branches."""
+def _authority_continuation(root: Path, loaded, authority, values: list[dict]) -> dict | None:
+    """Recover an imported canonical-use intent that has not yet reached its decision draft."""
+    import production_authority_drafts as drafts
+    import production_operations as workflow
+    from cli_invocation import python_argv
+    from production_diagnostics import from_exception
+    update = drafts.current_update(authority)
+    if update is None or update['run'] != loaded.prepared['run'] or 'adoption' not in update:
+        return None
+    basis = update['adoption']
+    grant = update['grants'][0]['id']
+
+    def matches(value):
+        return (isinstance(value, dict) and value.get('grant') == grant
+                and all(value.get(key) == item for key, item in basis.items()))
+
+    if any(matches(value) for value in values):
+        return None
+    # A committed claim already owns this use even when its editable file was
+    # removed. Its authorization retains the complete authored decision bytes.
+    claimed_authorizations = {token for row in loaded.rows if row['event'] == 'adoption-claim'
+                              for token in row['data']['authorizations']}
+    claimed_authorizations.update(row['data']['authorization'] for row in loaded.rows
+                                  if row['event'] == 'adoption-authority')
+    for row in loaded.rows:
+        if row['event'] != 'authorization' or row['data']['request']['operation'] != 'adopt' \
+                or row['data']['request']['grant'] != grant or row['sha256'] not in claimed_authorizations:
+            continue
+        for item in row['data']['files']:
+            try:
+                if matches(c.decode(loaded.evidence.read(item['sha256']))):
+                    return None
+            except (UnicodeDecodeError, ValueError):
+                continue
+    action = {**drafts.update_followup(root, update), 'diagnostics': []}
+    try:
+        registration = basis['registration']
+        current, _, _ = draft_basis(root, loaded, basis['candidate'], scope=basis['scope'], influence=basis['influence'],
+            registration_file=registration['path'] if registration is not None else None,
+            pack_dir=Path(registration['pack_dir']) if registration is not None else None)
+        if c.encoded(current) != c.encoded(basis):
+            raise ProductionError('ADOPTION_DECISION_CHANGED',
+                'The selected source or destination changed after this canonical-use authority was imported.', phase='adoption',
+                required_action='Inspect the current selection and destination. Use draft-adoption with the actual '
+                    'intended scope and influence when the instruction still permits it; keep the imported authority evidence intact.')
+        _draft_grant(root, loaded.prepared['run'], authority, basis, grant)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        action['diagnostics'] = [from_exception(exc, phase='adoption')]
+        action.update(command='status', argv=python_argv(workflow.ROOT / 'scripts/production_workflow.py',
+            'status', '--root', str(root), '--run', loaded.prepared['run']),
+            reason='Inspect the changed basis of this imported canonical-use intent and follow its diagnostic.')
+    return action
+
+
+def saved_actions(root: Path, loaded, *, authority: store.CurrentAuthority | None) -> list[dict]:
+    """Inspect this run's branches under the status owner's current authority observation.
+
+    An absent or unreadable authority stays with the outer readiness diagnostic;
+    this navigation does not acquire it again or hide retained run evidence.
+    """
     import production_authoring_state as authored
     import production_operations as workflow
     from cli_invocation import python_argv
     from production_diagnostics import from_exception
     run = loaded.prepared['run']
     result = []
+    values = []
     covered_claims = set()
     for item in authored.decision_drafts(root, loaded.prepared['task']['task_id'], kind='adoption', run=run):
         if not item['available']:
@@ -385,6 +450,7 @@ def saved_actions(root: Path, loaded) -> list[dict]:
             raw = store.stable_bytes(root, item['path'])
             value = c.decode(raw)
             workflow.schema_check(value, 'adoption')
+            values.append(value)
             context = item['context']
             if (value['run'] != run or value['input_sha256'] != loaded.prepared['input_sha256']
                     or decision_basis(value) != context['basis'] or value['candidate'] != context['candidate']
@@ -403,10 +469,11 @@ def saved_actions(root: Path, loaded) -> list[dict]:
                     source = {'approval': approval}
                 else:
                     source, _, _ = _source(root, loaded, value['candidate'])
-                authority = workflow.current_authority(root, loaded.prepared)
-                grant = _grant(authority, value['scope'], value['grant'])
-                if (any(value[key] != actual for key, actual in source.items())
-                        or value['authority_sha256'] != authority_basis(authority, grant, value['scope'])):
+                changed = any(value[key] != actual for key, actual in source.items())
+                if authority is not None:
+                    grant = _grant(authority, value['scope'], value['grant'])
+                    changed = changed or value['authority_sha256'] != authority_basis(authority, grant, value['scope'])
+                if changed:
                     raise ProductionError('ADOPTION_DECISION_CHANGED', 'The saved adoption basis is no longer current.',
                         phase='adoption', file=item['path'], required_action='Keep this draft as history and run '
                         'draft-adoption against the current selection, placement and authority; do not overwrite it.')
@@ -428,4 +495,7 @@ def saved_actions(root: Path, loaded) -> list[dict]:
                        'or replaced canonical use.' if claim['sha256'] in completed else
                        'Recover this committed adoption from its retained decision and evidence. The current '
                        'selection, authority and destination are checked again before an effect.')})
+    continuation = _authority_continuation(root, loaded, authority, values) if authority is not None else None
+    if continuation is not None:
+        result.insert(0, continuation)
     return result

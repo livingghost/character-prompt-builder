@@ -10,7 +10,8 @@ finished ones and asks what to do.
 
 Use the task ledger to plan and continue multi-step Production work, including
 the drafts and decisions that lead to its run. Mark each step as it is done.
-Finish names the exact run and requires all steps and its verified production completion.
+Finish names the exact run and requires all steps and the evidence for its
+explicit completion scope: a production result or a complete prepared input.
 Otherwise block or abandon it with the reason. Studio administration records
 its results through the commands' operation records. A planned step that is
 not written down is a step the next session does again or skips.
@@ -24,8 +25,10 @@ not written down is a step the next session does again or skips.
     python scripts/work_ledger.py suspend --studio DIR --reason "..."
     python scripts/work_ledger.py resume-task --studio DIR --task-id ID
     python scripts/work_ledger.py finish --studio DIR --run RUN
+    python scripts/work_ledger.py finish --studio DIR --run RUN --scope prepared-input
     python scripts/work_ledger.py abandon --studio DIR --reason "..." [--actor "..."]
     python scripts/work_ledger.py show --studio DIR
+    python scripts/work_ledger.py show --studio DIR --task-id ID --view full
 """
 from __future__ import annotations
 import operation_context as _operation_context
@@ -43,6 +46,7 @@ SCRIPT = Path(__file__).resolve()
 WORK_DIR = "work"
 CURRENT = "current.json"
 LEDGER = "ledger.jsonl"
+FINISH_SCOPES = ('production-result', 'prepared-input')
 
 
 def begin_command(root: Path) -> str:
@@ -379,16 +383,25 @@ def suspended_tasks(root: Path) -> list[dict]:
     return sorted(rows, key=lambda row: row['suspended_at'], reverse=True)
 
 
+def finish_argv(root: Path, run: str, *, scope: str = 'production-result') -> list[str]:
+    """An explicit completion choice; the command verifies its evidence when run."""
+    if scope not in FINISH_SCOPES:
+        raise ValueError('completion scope must be production-result or prepared-input')
+    return python_argv(SCRIPT, 'finish', '--studio', str(root.resolve()), '--run', run,
+                       '--scope', scope)
+
+
 @mutation
-def finish(root: Path, run: str) -> dict[str, Any]:
+def finish(root: Path, run: str, *, scope: str = 'production-result') -> dict[str, Any]:
     """Close the run's owning task, preserving any unrelated active task.
 
-    The explicit run identifies a completed task even after its current pointer
-    was removed. A suspended task can finish on its own verified completion;
-    another task's completion and progress flags never substitute for it.
+    The author selects prepared-input only when the completed goal is the
+    input itself. That closure records no execution, result or authority and
+    leaves the sealed run available for later authorized execution. A suspended
+    task can finish on its own evidence; another task's evidence never substitutes.
     """
     with ledger_lock(root):
-        return _finish_verified(root, run)
+        return _finish_verified(root, run, scope=scope)
 
 
 def _clear_finished_pointer(root: Path, task_id: str) -> None:
@@ -411,24 +424,54 @@ def _require_finished_steps(task: dict[str, Any]) -> None:
 def _require_finishable_work(task: dict[str, Any]) -> None:
     """The shared work gate for status and the eventual owning-task mutation."""
     if task.get('work_state') not in {'active', 'suspended'}:
-        raise ValueError('only active or suspended work can finish on its own production completion')
+        raise ValueError('only active or suspended work can finish on its own verified evidence')
     if task.get('blocked_on') or any(question['state'] == 'open' for question in task.get('questions', [])):
         raise ValueError('resolve the open author questions before finishing')
     _require_finished_steps(task)
 
 
-def _finish_journal(root: Path, run: str, task: dict[str, Any], completion: dict) -> list[dict]:
+def _prepared_input_evidence(loaded) -> dict[str, Any]:
+    """Identify a complete input from the acquired immutable publication."""
+    prepared = loaded.prepared
+    if prepared['task']['execution'] == 'authored':
+        from production_authored import completion_data
+        revision = prepared['authored_revision']
+        if revision['state'] != 'finished' or not revision['input_verified']:
+            raise ValueError('prepared-input completion requires a finished, verified input; continue the saved draft first')
+        completion_data(prepared, loaded.rows)
+    plan = loaded.artifacts['execution-plan.json']
+    members = {item['path']: item for item in loaded.manifest['files']}
+    # An external image plan's request_sha256 names the image-input binding;
+    # prepared_request_sha256 names its exact host request. Manual and authored
+    # inputs have no transport request and retain their sealed consumer instead.
+    request = (plan['prepared_request_sha256'] if plan['execution'] == 'external' and 'request' in plan
+               else plan['request_sha256'])
+    return {'input_sha256': prepared['input_sha256'],
+            'manifest_sha256': loaded.registered['manifest_sha256'],
+            'consumer_sha256': members['consumer.json']['sha256'], 'request_sha256': request}
+
+
+def _finish_identity(run: str, scope: str, completion: dict) -> dict[str, Any]:
+    if scope == 'prepared-input':
+        return {'production_run': run, 'completion_scope': scope, 'prepared_input': completion}
+    return {'production_run': run, 'completion_sha256': completion['sha256']}
+
+
+def _finish_journal(root: Path, run: str, task: dict[str, Any], completion: dict, *,
+                    scope: str = 'production-result') -> list[dict]:
+    expected = _finish_identity(run, scope, completion)
     matching = [entry for entry in read_ledger(root) if entry.get('event') == 'finished'
                 and entry.get('task_id') == task['task_id']]
-    if matching and (len(matching) != 1 or matching[0].get('production_run') != run
-                     or matching[0].get('completion_sha256') != completion['sha256']):
+    fields = ('production_run', 'completion_scope', 'completion_sha256', 'prepared_input')
+    if matching and (len(matching) != 1 or any(matching[0].get(key) != expected.get(key) for key in fields)):
         raise ValueError('task completion journal conflicts with the exact run evidence')
-    if task.get('work_state') == 'completed' and (not matching or task.get('production_run') != run):
+    if task.get('work_state') == 'completed' and (not matching or any(
+            task.get(key) != expected.get(key) for key in ('production_run', 'completion_scope', 'prepared_input'))):
         raise ValueError('closed task completion journal conflicts with its saved completion')
     return matching
 
 
-def finish_state(root: Path, run: str) -> dict[str, Any]:
+def finish_state(root: Path, run: str, *, scope: str = 'production-result', loaded=None) -> dict[str, Any]:
     """Expose actual remaining work and the same completion gate that finish enforces.
 
     Reading this view records no progress, answers no question and closes no task.
@@ -437,7 +480,10 @@ def finish_state(root: Path, run: str) -> dict[str, Any]:
     from production_operations import read_run, verify_completion
     from execution_contract import load
     from production_diagnostics import from_exception
-    loaded = read_run(root, run)
+    argv = finish_argv(root, run, scope=scope)
+    loaded = read_run(root, run) if loaded is None else loaded
+    if loaded.prepared['run'] != run:
+        raise ValueError('the acquired input differs from the selected run')
     task_id = loaded.prepared['task']['task_id']
     task = load(task_path(root, task_id))
     if task.get('task_id') != task_id:
@@ -445,11 +491,18 @@ def finish_state(root: Path, run: str) -> dict[str, Any]:
     result = {'task_id': task_id, 'run': run, 'work_state': task.get('work_state'),
         'incomplete_steps': [step for step in task.get('steps', []) if not step.get('done_at')],
         'open_questions': [question for question in task.get('questions', []) if question['state'] == 'open'],
-        'blocked_on': task.get('blocked_on'), 'completion': None,
+        'blocked_on': task.get('blocked_on'), 'completion': None, 'completion_scope': scope,
         'ready_to_finish': False, 'finished': False, 'diagnostics': [],
-        'finish_command': shown(python_argv(SCRIPT, 'finish', '--studio', str(root.resolve()), '--run', run))}
+        'argv': argv, 'finish_command': shown(argv)}
     try:
-        if any(row['event'] == 'completion' for row in loaded.rows):
+        if scope == 'prepared-input':
+            completion = _prepared_input_evidence(loaded)
+            result['prepared_input'] = completion
+            _finish_journal(root, run, task, completion, scope=scope)
+            if task.get('work_state') == 'completed':
+                result['finished'] = True
+                return result
+        elif any(row['event'] == 'completion' for row in loaded.rows):
             completion = verify_completion(root, run, task_id)
             result['completion'] = completion['sha256']
             _finish_journal(root, run, task, completion)
@@ -465,37 +518,45 @@ def finish_state(root: Path, run: str) -> dict[str, Any]:
         result['ready_to_finish'] = True
     except (ValueError, OSError, KeyError, TypeError) as exc:
         result['diagnostics'].append(from_exception(exc, phase='work-finish',
-            required_action='Complete the actual remaining work or resolve its recorded question, then finish this run.'))
+            required_action=('Continue the listed unfinished input or work, resolve its recorded questions, and inspect the exact saved run. '
+                'Choose prepared-input only when preparing that input fulfills the actual request; it grants no execution authority.'
+                if scope == 'prepared-input' else
+                'Complete the actual remaining result or resolve its recorded question, then finish this run. '
+                'If the actual request ends at a complete prepared input, choose finish --run RUN --scope prepared-input explicitly.')))
     return result
 
 
-def _finish_verified(root: Path, run: str) -> dict[str, Any]:
+def _finish_verified(root: Path, run: str, *, scope: str) -> dict[str, Any]:
     from production_operations import complete, read_run, verify_completion
     from execution_contract import load
+    finish_argv(root, run, scope=scope)
     loaded = read_run(root, run)
     task_id = loaded.prepared['task']['task_id']
     task = load(task_path(root, task_id))
     if task.get('task_id') != task_id:
         raise ValueError('the saved task differs from the run owner')
-    if (loaded.prepared['task']['execution'] == 'authored'
+    if (scope == 'production-result' and loaded.prepared['task']['execution'] == 'authored'
             and not any(row['event'] == 'completion' for row in loaded.rows)):
         _require_finishable_work(task)
         # The authored owner records the actual outcomes through its ordinary
         # completion event. Finishing work need not repeat that bookkeeping.
         complete(root, run)
-    completion = verify_completion(root, run, task_id)
-    matching = _finish_journal(root, run, task, completion)
+    completion = (_prepared_input_evidence(loaded) if scope == 'prepared-input' else
+                  verify_completion(root, run, task_id))
+    matching = _finish_journal(root, run, task, completion, scope=scope)
     if task.get('work_state') == 'completed':
         _clear_finished_pointer(root, task_id)
         return task
     _require_finishable_work(task)
     if not matching:
         finished = {"at": now(), "task_id": task_id, "event": "finished", "text": task["goal"],
-                    "production_run": run, "completion_sha256": completion['sha256']}
+                    **_finish_identity(run, scope, completion)}
         append(root, finished)
     else:
         finished = matching[0]
     task.update(work_state='completed', closed_at=finished['at'], production_run=run)
+    if scope == 'prepared-input':
+        task.update(completion_scope=scope, prepared_input=completion)
     save_task(root, task)
     _clear_finished_pointer(root, task_id)
     return task
@@ -532,41 +593,113 @@ def _abandon_locked(root: Path, reason: str, actor: str | None) -> dict[str, Any
     return task
 
 
-def show(root: Path) -> str:
-    """What a session reads first: the open task and where it stands, or the trail."""
-    task = read_current(root)
-    lines: list[str] = []
-    paused = suspended_tasks(root)
-    if paused:
-        lines.append(f'{len(paused)} suspended task(s):')
-        for row in paused[:10]:
-            lines.append(f"  {row['task_id']}: {row['goal']} (resume-task --task-id {row['task_id']})")
+def history(root: Path, task_id: str | None = None) -> dict:
+    """Read complete saved task and ledger values without refreshing a Studio."""
+    task = (json.loads(task_path(root, task_id).read_text(encoding='utf-8'))
+            if task_id is not None else read_current(root))
+    entries = read_ledger(root)
+    return {'task': task, 'entries': [row for row in entries if task_id is None or row.get('task_id') == task_id],
+            'suspended_tasks': suspended_tasks(root) if task_id is None else [],
+            'scope': 'studio-history' if task_id is None else 'selected-task',
+            'external_effect': False}
+
+
+def latest_checkpoint(task: dict, entries: list[dict]) -> dict | None:
+    """Find a retained note or a step still completed in the current revision.
+
+    Ledger order owns recency. Reopened steps cease to be current checkpoints;
+    retained notes remain authored history without a new semantic judgment.
+    """
+    steps = {row['n']: row for row in task.get('steps', [])}
+    notes = set(task.get('notes') or [])
+    for entry in reversed(entries):
+        if entry.get('task_id') != task['task_id']:
+            continue
+        if entry.get('event') == 'note' and entry.get('text') in notes:
+            return entry
+        step = steps.get(entry.get('n')) if entry.get('event') == 'step' else None
+        if step is not None and step.get('done_at') is not None and (
+                step['done_at'] == entry.get('at') and step['text'] == entry.get('text') and
+                step.get('note') == entry.get('note')):
+            return entry
+    return None
+
+
+def session_summary(root: Path, task: dict | None, entries: list[dict], paused: list[dict]) -> list[str]:
+    """Project acquired work for startup and task navigation; keep every open issue."""
+    lines = []
+    limit = 640
+
+    def excerpt(text):
+        text = ' '.join(str(text).split())
+        return text if len(text) <= limit else text[:limit] + f' [omitted {len(text) - limit} characters]'
+
     if task is not None:
-        steps = task.get("steps") or []
-        done = sum(1 for step in steps if step.get("done_at"))
-        lines.append(f"open task {task['task_id']}: {task['goal']} ({done} of {len(steps)} steps done, opened {task.get('opened_at')})")
-        for step in steps:
-            mark = "done" if step.get("done_at") else "    "
-            lines.append(f"  [{mark}] {step['n']}. {step['text']}" + (f"  ({step['note']})" if step.get("note") else ""))
-        if task.get("blocked_on"):
-            for question in task.get('questions', []):
-                if question['state'] == 'open':
-                    lines.append(f"  blocked on: {question['question']} (question {question['question_id']})")
-        elif task.get("next"):
-            lines.append(f"  next: {task['next']}")
-        for text in (task.get("notes") or [])[-5:]:
-            lines.append(f"  note: {text}")
-        return "\n".join(lines)
-    finished = [entry for entry in read_ledger(root) if entry.get("event") in ("finished", "abandoned")]
-    if not finished:
-        lines.append("no task is open; resume a suspended task listed above or begin a new task"
-                     if paused else "no task is open, and none has been recorded")
+        steps = task.get('steps') or []
+        pending = [step for step in steps if not step.get('done_at')]
+        label = 'open' if task.get('work_state') == 'active' else task.get('work_state', 'saved')
+        lines.append(f"{label} task {task['task_id']}: {task['goal']} "
+                     f"({len(steps) - len(pending)} of {len(steps)} steps done)")
+        for step in pending:
+            lines.append(f"  unfinished: {step['n']}. {step['text']}")
+        questions = [row for row in task.get('questions', []) if row['state'] == 'open']
+        for question in questions:
+            lines.append(f"  blocked on: {question['question']} (question {question['question_id']})")
+        if task.get('blocked_on') and task['blocked_on'] not in {row['question'] for row in questions}:
+            lines.append('  blocked on: ' + task['blocked_on'])
+        if task.get('next'):
+            lines.append('  next: ' + task['next'])
+        if task.get('production_run') and task.get('work_state') in {'active', 'suspended'}:
+            lines.append('  If the requested goal ends at complete input preparation: ' + shown(finish_argv(
+                root, task['production_run'], scope='prepared-input')))
+            lines.append('  If the requested goal includes the production result: ' + shown(finish_argv(
+                root, task['production_run'])))
+        if task.get('completion_scope') == 'prepared-input':
+            lines.append('  completed scope: prepared-input; execution and production-result completion remain separate.')
+        checkpoint = latest_checkpoint(task, entries)
+        notes = task.get('notes') or []
+        if checkpoint is not None:
+            label = checkpoint['event'] + (f" {checkpoint['n']}" if checkpoint['event'] == 'step' else '')
+            lines.append(f"  latest retained checkpoint ({label}, {checkpoint.get('at')}): " +
+                         excerpt(checkpoint.get('note') or checkpoint['text']))
+        if notes and not (checkpoint and checkpoint['event'] == 'note' and checkpoint['text'] == notes[-1]):
+            lines.append('  latest note: ' + excerpt(notes[-1]))
+        lines.append(f'  notes: note_count={len(notes)}, omitted={max(0, len(notes) - 1)}; '
+                     'complete text is in the full task history.')
+        lines.append('Read full task history: ' + shown(python_argv(
+            SCRIPT, 'show', '--studio', str(root), '--task-id', task['task_id'], '--view', 'full')))
     else:
-        lines.append("no task is open; the last recorded:")
-        for entry in finished[-3:]:
-            lines.append(f"  {entry.get('at')} {entry.get('event')} {entry.get('task_id')}: {entry.get('text')}")
-    lines.append(f"plan the steps of a Production task with: {begin_command(root)}")
-    return "\n".join(lines)
+        finished = [row for row in entries if row.get('event') in {'finished', 'abandoned'}]
+        if finished:
+            latest = finished[-1]
+            lines.append(f"no task is open; latest {latest['event']} task {latest.get('task_id')}: " +
+                         excerpt(latest.get('text', '')))
+            if latest.get('completion_scope') == 'prepared-input':
+                lines.append('  completed scope: prepared-input; the sealed run remains available for authorized execution.')
+            lines.append(f'  closed task history: total={len(finished)}, omitted={len(finished) - 1}')
+        else:
+            lines.append('no task is open; resume a suspended task or begin a new task' if paused else
+                         'no task is open, and none has been recorded')
+        lines.append('plan the steps of a Production task with: ' + begin_command(root))
+        lines.append('Read full Studio work history: ' + shown(python_argv(
+            SCRIPT, 'show', '--studio', str(root), '--view', 'full')))
+    if paused:
+        lines.append(f'{len(paused)} suspended task(s): total={len(paused)}, omitted={max(0, len(paused) - 8)}')
+        for row in paused[:8]:
+            lines.append('Resume suspended task ' + row['task_id'] + ': ' + shown(python_argv(
+                SCRIPT, 'resume-task', '--studio', str(root), '--task-id', row['task_id'])))
+        if task is not None:
+            lines.append('Read all suspended tasks: ' + shown(python_argv(
+                SCRIPT, 'show', '--studio', str(root), '--view', 'full')))
+    return lines
+
+
+def show(root: Path, *, task_id: str | None = None, view: str = 'summary') -> str:
+    """Print task navigation or the complete selected task and its saved history."""
+    saved = history(root, task_id)
+    if view == 'full':
+        return json.dumps(saved, ensure_ascii=False, indent=2)
+    return "\n".join(session_summary(root, saved['task'], saved['entries'], saved['suspended_tasks']))
 
 
 def check(root: Path) -> list[str]:
@@ -634,12 +767,17 @@ def main(argv: list[str] | None = None) -> int:
     suspend_parser.add_argument('--reason', required=True)
     resume_parser = commands.add_parser('resume-task', help='restore a suspended task with its questions and exact next step', parents=[after])
     resume_parser.add_argument('--task-id', required=True)
-    finish_parser = commands.add_parser("finish", help="close the exact run's owning task with completed steps and verified completion", parents=[after])
-    finish_parser.add_argument('--run', required=True, help='The completed run whose own work task is being finished')
+    finish_parser = commands.add_parser("finish", help="close the exact run's owning task at the explicitly selected completion scope", parents=[after])
+    finish_parser.add_argument('--run', required=True, help='The exact run whose own work task is being finished')
+    finish_parser.add_argument('--scope', choices=FINISH_SCOPES, default='production-result',
+        help='production-result (default) requires actual result completion; prepared-input verifies a complete saved input and closes only its work task, without executing, authorizing or completing the production run')
     abandon_parser = commands.add_parser("abandon", help="close the open task without finishing it", parents=[after])
     abandon_parser.add_argument("--reason", required=True)
     abandon_parser.add_argument("--actor", help="Who abandons the task; required once it has a prepared production run")
-    commands.add_parser("show", help="print the open task, or the trail", parents=[after])
+    show_parser = commands.add_parser('show', help='print task navigation or complete saved task history', parents=[after])
+    show_parser.add_argument('--task-id', help='Select an active, suspended or closed saved task by its exact ID.')
+    show_parser.add_argument('--view', choices=['summary', 'full'], default='summary',
+        help='summary prints task navigation; full returns complete task and ledger entries as JSON without refreshing Studio views.')
     args = parser.parse_args(argv)
     root = args.studio.resolve()
     try:
@@ -660,11 +798,14 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == 'resume-task':
             resume_task(root, args.task_id)
         elif args.command == "finish":
-            finish(root, args.run)
+            finish(root, args.run, scope=args.scope)
         elif args.command == "abandon":
             abandon(root, args.reason, actor=args.actor)
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        elif args.command == 'show':
+            print(show(root, task_id=args.task_id, view=args.view))
+            return 0
+    except (ValueError, OSError) as exc:
+        print(f'error: {exc}', file=sys.stderr)
         return 1
     print(show(root))
     return 0

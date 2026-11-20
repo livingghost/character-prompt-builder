@@ -318,19 +318,23 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             self.assertIn(command, run.stdout)
 
         gate = skill.partition("## Artifact-bearing production gate")[2].partition("\n## ")[0]
-        route_command = "`python scripts/execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO`"
+        route_command = "`python scripts/execution_routes.py read --root STUDIO --choices FILE`"
         self.assertIn(route_command, gate)
         self.assertEqual(1, skill.count(route_command))
-        for marker in ("--operation", "actions.continue", "reading.record", "--model-file", "--request-file"):
+        for marker in ("--choices", "actions.continue", "reading.record", "--known-reading", "fresh contexts reread"):
             self.assertIn(marker, gate)
 
-        sequence = skill.partition("## Common runtime sequence")[2].partition("\n## ")[0]
+        sequence = skill.partition("## Start the current work")[2].partition("\n## ")[0]
         workflow_path = "references/runtime/production-workflow.md"
-        self.assertIn(f"]({workflow_path})", sequence)
-        self.assertIn("authoring_work.py", sequence)
+        self.assertIn(f"]({workflow_path}#read-the-current-stage)", sequence)
+        for marker in ("draft-inputs", "stage-inputs", "inspect-inputs", "--request-file", "compose|amend"):
+            self.assertIn(marker, sequence)
         workflow = (ROOT / workflow_path).read_text(encoding="utf-8")
         self.assertIn("](authoring-work.md)", workflow)
         self.assertIn("complete contract for the current operation", workflow)
+        self.assertIn("execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO", workflow)
+        production_authoring = (ROOT / "references/runtime/production-authoring.md").read_text(encoding="utf-8")
+        self.assertIn("--model-file FILE", production_authoring)
 
     def test_indexed_reading_guidance_matches_the_delivery_cli(self) -> None:
         document = (ROOT / "references/runtime/production-authoring.md").read_text(encoding="utf-8")

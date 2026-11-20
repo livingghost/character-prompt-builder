@@ -405,9 +405,8 @@ def inspect_dependencies(root: Path, task: dict, task_path: str, captured: dict[
         checks.check('recording-validation', lambda: validate_recording(root, task, {}), requires=whole,
                      file=task_path, pointer='$.recording')
     import route_reading
-    checks.check('route-reading', lambda: route_reading.require_route_reading(
-        c.decode(captured[task['route_reading']]), studio=root, routes={task['route']}, features=task['features'], execution=task['execution'],
-        operation='author' if task.get('execution')=='authored' else 'prepare'),
+    checks.check('route-reading', lambda: route_reading.require_task_reading(
+        c.decode(captured[task['route_reading']]), studio=root, task=task, read_input=cached),
         requires=[dependency('$.route_reading'),'task-contract'] + (['runtime-resolution'] if dispatcher else []),
         file=files.get('$.route_reading'), pointer='$.route_reading',
         required_action='Read the complete contract for this operation and selected target, then use its issued reading.')

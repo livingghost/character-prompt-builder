@@ -48,6 +48,16 @@ It publishes the package, request preview and execution plan (`schemas/authoring
 A complete run that waits for authority is a normal prepared result.
 Invalid input remains an unpublished staging attempt.
 
+When the actual request ends at preparing this input, mark its completed work
+steps and explicitly close that scope with
+`python scripts/work_ledger.py finish --studio STUDIO --run RUN --scope prepared-input`.
+The command verifies the complete saved input and its exact owning task, refuses
+unfinished work or open questions, and records only work completion. It grants no
+authority and records no generated result. The sealed run retains its execution
+state and remains available for later authorized execution. A saved unfinished
+draft does not qualify. If the request includes the production result, continue
+that work and use the ordinary `finish --run RUN` after its verified completion.
+
 Each row of `checks` names a `phase`, its `state` (`passed`, `failed` or `not-performed`) and the checks it `requires`.
 A check whose prerequisite did not pass gives `CHECK_NOT_PERFORMED`: `blocked_by` names that prerequisite, and `required_action` names the failed check to resolve first by its own diagnostic. None of those states is a pass.
 A task schema error blocks only the checks that need the whole task.

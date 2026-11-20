@@ -146,8 +146,27 @@ def configure_runtime(args, parser) -> dict:
     from catalog_retrieval.runtime import configure_pack_runtime
     runtime = resolve_pack_runtime(parser, args)
     configure_pack_runtime(runtime.settings)
-    return {'state-file': str(runtime.settings.state_file), 'cache-dir': str(runtime.settings.cache_dir),
-            'managed-root': str(runtime.settings.managed_root), 'pack-root': [str(path) for path in runtime.pack_roots]}
+    return runtime_arguments(runtime.settings, pack_roots=runtime.pack_roots)
+
+
+def runtime_arguments(settings, *, pack_roots=None) -> dict:
+    """Reproduce one acquired runtime in a continuation command."""
+    roots = settings.roots if pack_roots is None else pack_roots
+    return {'state-file': str(settings.state_file), 'cache-dir': str(settings.cache_dir),
+            'managed-root': str(settings.managed_root),
+            'pack-root': [str(path) for path in roots]}
+
+
+def using_runtime(values: dict | None):
+    """Observe inputs within their selected runtime and restore the caller."""
+    from contextlib import nullcontext
+    if not values:
+        return nullcontext()
+    from catalog_retrieval.runtime import using_pack_runtime
+    from pack_manager import default_settings
+    settings = default_settings(state_file=Path(values['state-file']), cache_dir=Path(values['cache-dir']),
+        managed_root=Path(values['managed-root']), extra_roots=[Path(path) for path in values.get('pack-root', [])])
+    return using_pack_runtime(settings)
 
 
 def visual_template(task: dict) -> dict | None:

@@ -643,7 +643,10 @@ class DeliveryAcceptanceTests(review_cases.ReviewCase):
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
             return json.loads(completed.stdout)
         draft = call('draft-acceptance', '--candidate', self.candidate, '--out', 'cli-choice.json')
-        self.assertEqual(draft['scope'], 'delivery-only')
+        self.assertEqual(draft['choices']['scope'], 'delivery-only')
+        self.assertEqual(draft['draft_file'], 'cli-choice.json')
+        self.assertEqual(draft['reading_action']['argv'][draft['reading_action']['argv'].index('--scope') + 1], 'delivery-only')
+        self.assertEqual(draft['next_action']['argv'][-2:], ['--file', 'cli-choice.json'])
         value = c.load(self.root / 'cli-choice.json')
         value['reason'] = 'Synthetic explicit choice through the public delivery command.'
         fixtures.write(self.root / 'cli-choice.json', value)

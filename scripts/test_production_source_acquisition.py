@@ -416,7 +416,7 @@ class SourceAcquisitionTests(unittest.TestCase):
 
         def fail_once(path, raw, **kwargs):
             nonlocal failed
-            if Path(path).resolve() == (self.root / self.choices_path).resolve() and not failed:
+            if path == self.root / self.choices_path and not failed:
                 failed = True
                 raise OSError('synthetic choices publication interruption')
             return atomic(path, raw, **kwargs)

@@ -274,6 +274,8 @@ request needs and the current stop definitions; select that mode only where the
 instruction allows it. An optional request scope retains its ordinary delegated
 scope contract. The drafting operation never imports or activates these grants.
 
+### Add authority for a reviewed selection
+
 For authority to select an already reviewed candidate, name that operation and
 candidate explicitly:
 
@@ -298,7 +300,50 @@ instruction evidence, actor, direct/delegated mode and reason, follow its
 grant covers the selection operation and `delivery` target within its work task;
 the actual selection authorization still binds the exact reviewed candidate and
 decision. The draft's candidate binding does not create a new candidate-limited
-grant format. General authority declarations remain the owner for other scopes.
+grant format. Authority to adopt the selected image has its own draft below.
+
+### Add authority for selected canonical use
+
+When the actual instruction approves canonical reuse but no current grant covers
+it, draft that operation from the run's current selection:
+
+```text
+python scripts/production_workflow.py draft-authority-update --root STUDIO --run RUN --phase adoption --scope sheet --influence identity --out adoption-authority-update.json
+```
+
+The adoption owner derives the candidate, latest selected review, selection,
+character, iteration, image, effective slot and destination state. Scope and
+influence state the intended reuse. Sheet scope derives `adopt` and
+`canon:sheet`; catalog scope derives `adopt` and `canon:catalog` and also takes
+`--registration-record RECORD --pack-dir DESTINATION`. The existing catalog
+owner checks the record and binds its exact content and destination. An optional
+`--candidate` verifies the explicitly selected image; it never selects another
+candidate. The current issuer, run, input/request and authority predecessor are
+derived in the same way as other authority updates.
+
+Actor, direct/delegated mode, actual instruction evidence and the new grant's
+reason remain unanswered. Complete those choices from the actual instruction.
+The resulting grant does not supply canonical approval, selection, an owner
+allowance or a stop assessment. Import rechecks the retained candidate, review,
+current selection and complete destination state through the adoption owner and
+compares both authority predecessors. A changed basis needs a fresh draft.
+
+`draft-adoption` reports this exact drafting action when the required grant is
+missing. Follow its `authority-import` action after authoring the actual
+permission; the import returns the matching `draft-adoption` action with the new
+grant and destination already selected. These operations create no generation,
+upload, send, candidate or iteration. An instruction covering both slot selection
+and sheet reuse can be cited for both grants, while each operation retains its
+own grant, reason, authorization and decision evidence.
+
+After interruption, `status --run RUN` recovers the matching `draft-adoption`
+action from this run's current imported authority source when no matching draft
+or retained claim owns that use yet. Existing drafts and claims keep their own
+recovery actions. The authority's update action also retains the imported phase,
+candidate, scope, influence and catalog destination for this run; it does not
+silently return a canonical-use update to execution authority.
+
+### Import a run-bound authority update
 
 `--approval-evidence` may select the completed structured approval above or an
 existing actual instruction file. Omitting it leaves evidence unanswered and
@@ -341,6 +386,8 @@ A review repair binds its changed creative scopes and revised input hash. An
 authority-only update is separate from a creative variant, and a revoked grant
 stops consumption of an edit receipt as `GRANT_REVOKED`.
 
+### Stored decisions and current authority
+
 A new selection of a captured candidate uses its retained preparation, review
 and artifact evidence together with current authority. Completion and recovery
 verify that saved selection, its authorization and required destination evidence.
@@ -362,6 +409,8 @@ and the complete selection payload, including its candidate, exact review,
 acceptance, destination and the selection it replaces. Later changes to the live
 evidence file cannot rewrite that saved decision.
 
+### Studio slot selection authority
+
 A `studio-slot` selection uses the `select` operation and `delivery` target to
 authorize acceptance of the exact recorded iteration for its slot. Its compact
 `draft-acceptance` and `accept` operations derive the formal identifiers and
@@ -369,6 +418,8 @@ record the selection, Studio acceptance and completion separately. The criterion
 definitions remain unchanged, so accepting an assessed departure needs no
 criterion-target amendment. The authority to change criteria or submit another
 request remains separate.
+
+### Canonical adoption authority
 
 Canonical adoption requires the owner's explicit approval plus its own `adopt`
 authorization. The operation can use the existing selected candidate of a
@@ -380,7 +431,56 @@ selection, adoption and completion in
 The sheet stores the selected immutable image and provenance together; candidates
 and historical selections cannot silently replace the current image.
 
+### Reuse stop judgments for the same selected image
+
+The compact acceptance decision authors each stop judgment once. Its exact
+selection authorization retains the complete `stop_assessments` under its own
+grant and actual instruction. A later adoption draft can propose those judgments
+in `shared_stop_assessments` when the current selection has the same reviewed
+candidate and exact Studio slot, the select terms and stop definitions are
+unchanged, and the retained instruction evidence is identical. A delivery-only
+selection has no prior slot judgment to reuse. When these conditions do not
+match, the draft leaves `shared_stop_assessments` null and gives every current
+condition as an unanswered `additional_stop_assessments` entry.
+
+A shared proposal shows its source `authorization`, `authority_event`, full
+`basis` and original `assessments`. Its `confirmed` value starts at null. The
+acting author reads that evidence and the intended canonical use and sets
+`confirmed` to true only when the judgments apply. This is the author's existing
+evidence assessment; the command requires no additional conversation with the
+owner when the actual instruction already settles it. The proposal supplies no
+adopt permission or canonical approval. Fill the adoption's own `reason`, `at`
+and any required continuity decision separately.
+
+Use `additional_stop_assessments` for an adoption-specific judgment. Each entry
+contains the actual `id`, `condition`, `clear` and `evidence`, and replaces the
+complete shared judgment with the same id. For example, the following synthetic
+entry keeps an adoption blocked even when the selection's judgment was clear:
+
+```json
+{"id":"actual-scope","condition":"Stop if the instruction does not cover this use.","clear":false,"evidence":"The synthetic operator has not settled canonical reuse."}
+```
+
+Keep the condition text supplied by the actual draft. Duplicate ids in either
+list are refused. Missing, false or unanswered judgments remain unresolved. The
+shared proposal's source judgments are derived values; author a complete
+operation-specific replacement in the additional list instead of editing the
+retained source evidence. Setting `shared_stop_assessments` to null removes those
+judgments and requires complete current assessments in the additional list.
+
+The single owner, `scripts/production_curation_assessments.py`, checks the saved
+selection authorization, its captured instruction bytes, current stop text,
+selection terms, adoption terms, candidate, review, selection, destination,
+scope, influence and catalog registration before expanding the proposal. Its
+full basis remains bound to those observations. Updating only a digest cannot
+rebase old judgments. The formal adoption authorization stores the resulting
+complete stop assessments and passes the ordinary permission checks; the earlier
+selection authorization and its evidence stay unchanged. A later authority
+reassessment of an existing adoption claim asks for current judgments of that
+claim and preserves its original canonical approval.
+
 Protocol tests use independent synthetic packs and authored fixture approvals:
 `scripts/execution_lifecycle_smoke_test.py`, `scripts/test_production_execution.py`
-and `scripts/test_production_adoption.py`. Synthetic usage proves accounting
+and `scripts/test_production_adoption.py`, with authored reuse and refusal cases in
+`scripts/test_production_adoption_decisions.py`. Synthetic usage proves accounting
 mechanics, not provider prices or real user approval.

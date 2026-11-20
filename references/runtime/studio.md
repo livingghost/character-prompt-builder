@@ -2,6 +2,11 @@
 
 Activate this document when character work will outlive one session: a character whose sheet is filled over days, images generated again and again until one is accepted, and decisions that get reversed. A studio is the directory where that work lives: the sheet, the runs, the gallery and the trail. Authoring that accumulates decisions a later draft reuses is such work, with or without an image: it gets its studio before the first draft that will be revised, and a narrative series can live inside it. Ordinary one-off prompt work and a one-off answer need no studio.
 
+Saved work obtains the complete Studio sections for its current operation from
+the route reader. Initialize or locate the Studio and open its work task, then
+follow the structural draft's reading action before authoring. Later capture,
+recovery, display and curation operations read their own complete contracts.
+
 ## Contents
 
 - [Why a studio](#why-a-studio)
@@ -121,12 +126,28 @@ completed run:
 python scripts/work_ledger.py finish --studio STUDIO --run RUN
 ```
 
-`finish` requires the run explicitly and identifies its owning task. It refuses
-while that task has an unfinished step, an unanswered author question or lacks
-verified completion for the named run. It can close the suspended owning task
-while leaving another active task in place. It marks no unfinished step as done
-and supplies no missing answer. Repeating an already recorded closure returns
-that closure. If work remains, resolve it through the owning task's ordinary
+`finish` requires the run explicitly and identifies its owning task. The default
+scope, `production-result`, requires verified completion for that run. If the
+actual request ends at preparing the input, choose that completion scope explicitly:
+
+```bash
+python scripts/work_ledger.py finish --studio STUDIO --run RUN --scope prepared-input
+```
+
+`prepared-input` verifies the complete immutable input and records its input,
+publication, consumer and actual request digests in the work trail. A saved
+unfinished draft cannot satisfy it. A manual input without a transport request
+records that absence and retains its sealed consumer. The command closes only
+the work task: it records no generation, production-result completion or
+authorization. The same prepared run remains available for later execution
+under actual authority. Status presents this scope as a separate choice beside
+the execution action; the author decides which scope fulfills the request.
+
+Both scopes refuse while the owning task has an unfinished step or an unanswered
+author question. They can close the suspended owning task
+while leaving another active task in place. Neither marks an unfinished step as done
+or supplies a missing answer. Repeating an already recorded closure returns
+that closure under the same scope and exact evidence. If work remains, resolve it through the owning task's ordinary
 workflow.
 
 `abandon --reason` closes a task that will not be finished; once the task has a
@@ -187,12 +208,23 @@ python scripts/studio.py iterate --studio <dir> --character C02 --slot base.fron
 
 The iteration keeps a copy of the result, the Generation Package it was built from, the request exactly as it was sent (model identifier, every parameter, the seed, the media by id), and what the service answered: the image's response, and the whole answer, kept once for every image it returned. Each copy is hashed. The service and the seed are read from those files, so an iteration says how to make its image again.
 
-A slot is what an image is for: `base.front`, `outfit.back`, `expression.calm`. The iteration retains its original recording slot; [placement corrections](studio-placement.md) determine its current slot through separate append-only author decisions. Select feature `studio-placement` when making such a correction so its complete constraints and recovery contract are delivered. Accepting an iteration for its current slot copies the image to `accepted/` and marks the previously accepted one superseded, never deleted. Each acceptance keeps its actual slot, time and replaced iteration, so accepting an earlier image again is one more entry and the slot's history stays readable:
+### Slot acceptance and history
+
+A slot is what an image is for: `base.front`, `outfit.back`, `expression.calm`. The iteration retains its original recording slot; [placement corrections](studio-placement.md) determine its current slot through separate append-only author decisions. Select feature `studio-placement` when making such a correction so its complete constraints and recovery contract are delivered. Accepting an iteration for its current slot copies the image to `accepted/` and marks the previously accepted one superseded, never deleted. Each acceptance keeps its actual slot, time and replaced iteration, so accepting an earlier image again is one more entry and the slot's history stays readable.
+
+### Accept an imported iteration for its slot
+
+The following plain Studio commands serve imported iterations. A Production
+candidate retains its run-owned review, selection and authorization; use
+[Production slot acceptance](production-adoption.md#accept-an-existing-candidate-for-its-studio-slot)
+for that source. A source owner does not change merely because image bytes match.
 
 ```bash
 python scripts/studio.py accept --studio <dir> --character C02 --iteration it-0006
 python scripts/studio.py reject --studio <dir> --character C02 --iteration it-0005 --reason "jaw too narrow" --actor "ACTUAL_DECISION_MAKER"
 ```
+
+### Read a retained recipe
 
 `recipe` reads the accepted iteration's recorded request and verifies its retained files.
 The `settings` omit the run's own identifiers and seed, which the layout recorded with the request names; `request` retains the exact original input.
@@ -206,6 +238,8 @@ Use `--iteration` with an exact iteration ID to inspect an iteration without acc
 The result identifies its current status, source files and verified hashes.
 See the [candidate recipe example](../../examples/candidate-recipe/README.md) for synthetic output.
 The next request needs current validation and authorization; a retained recipe records evidence rather than permission.
+
+### Browse recorded artwork
 
 `gallery.html` and `gallery.json` are generated projections of recorded Studio iterations **and** the sheet's current, candidate and historical artifacts. Imported artwork, local crops, model upscales, shared panels and local scale diagrams therefore remain visible; a file merely lying in an arbitrary folder is not treated as a recorded result. Matching iteration/slot artifacts are shown once, not duplicated when the sheet registers the same generated image.
 
@@ -225,7 +259,11 @@ python scripts/studio.py sync --studio STUDIO
 python scripts/studio.py gallery --studio STUDIO
 ```
 
-A display failure does not roll back a committed image or decision. A warning and `work/activity/projections-pending.json` mark repair work; inspect saved results and run `sync`, never resubmit to fix a gallery. A complete refresh marks a broken historical image, request or run unavailable on its own entry rather than hiding other images. Routine status reports its current-source scope; it does not certify unseen historical files. Actual use of any selected source still acquires and verifies its exact hashes and approval, including when that source appeared in a previous display.
+### Repair a display after a committed decision
+
+A display failure does not roll back a committed image or decision. A warning and `work/activity/projections-pending.json` mark repair work; inspect saved results and run `python scripts/studio.py sync --studio STUDIO`, never resubmit to fix a gallery. A complete refresh marks a broken historical image, request or run unavailable on its own entry rather than hiding other images. Routine status reports its current-source scope; it does not certify unseen historical files. Actual use of any selected source still acquires and verifies its exact hashes and approval, including when that source appeared in a previous display.
+
+### Display publication ownership
 
 One owner operation records its durable changes first and publishes the affected views at its outer completion boundary. Nested candidate registration, slot acceptance and sheet adoption therefore share one refresh; Production adoption publishes after its `adoption-result` is committed. The owner supplies the exact character scope, either through its character file path or an explicit scope for a Studio-root mutation. Artwork refresh reads that character's sources and retains the other characters' generated entries. A root-wide change requests all characters. Work notes, questions and task revisions update the activity timeline without rebuilding artwork or reference views. A deferred display failure remains attached to the successful operation receipt as a projection warning, and pending activity receipts remain repairable by `sync`. Each event emission creates independent dirty receipts carrying its scope, including a retry of an existing event. A publisher observes its receipts before reading the source records and acknowledges only that observed work after successful publication. Receipts that arrive during publication retain their exact scopes for the next refresh.
 
@@ -315,6 +353,13 @@ The journal does not promise recovery from loss of the storage device.
 ## Session entry
 
 `scripts/session_entry_points.py` finds the studio the working directory belongs to and prints the open task first: goal, steps done, the next step, and what it is blocked on. It prints them whether or not a pack runtime exists; text authoring resumes without one. A studio it cannot read is named with the problem in one line, and the report goes on. Read that before doing anything else; if a task is open, continue from `next`; if none is open, inspect suspended tasks before the last finished tasks and resolve the intended continuation. Do not reconstruct the state of the work from chat history when the trail is there.
+
+Session entry prioritizes the current goal, unfinished steps, every open
+question and blocker, and a short excerpt of the latest valid checkpoint for
+the current task revision. `note_count` and `omitted` make the retained history
+visible without repeating every note. Its full-history action is
+`work_ledger.py show --studio STUDIO --task-id TASK --view full`; that explicit
+view can inspect active, suspended and closed tasks.
 
 Session entry reads the saved task trail and pack settings without opening the
 Production database, creating operation logs or rebuilding gallery, reference
@@ -430,12 +475,19 @@ A missing or corrupt run marks a candidate row `unavailable` and adds `productio
 
 ### Selection, adoption and withdrawal
 
+The source owner and requested destination select the decision procedure below.
+Canonical withdrawal has its own explicit operation and retained evidence.
+
+#### Select a Production candidate for its Studio slot
+
 Use Production `draft-acceptance` and `accept` when the owner chooses an existing
 reviewed candidate for its Studio slot. The operation reuses the original run,
 candidate and iteration, records the exact slot decision and completes the run.
 Its `studio-slot` selection and Studio acceptance receipt identify the same
 candidate and destination. Accepted departures remain visible in the review and
 evaluation. No image is imported again, and no new work task is needed.
+
+#### Use a Production candidate as a canonical reference
 
 When the requested result includes sheet or catalog reuse, use Production
 `draft-adoption`, author the actual approval and stop assessments in that draft,
@@ -444,7 +496,7 @@ approval and authorization. The same
 procedure can use the selected candidate after the source run completes or is
 abandoned. It appends its own adoption evidence and preserves the original
 production decision and closure. For imported iterations, the Studio
-owns plain slot acceptance and [Adoption Workflow](adoption-workflow.md) owns
+owns [plain slot acceptance](#accept-an-imported-iteration-for-its-slot) and [Adoption Workflow](adoption-workflow.md) owns
 sheet or catalog binding.
 [Production execution](production-adoption.md#select-a-reviewed-result-and-finish)
 gives the procedures and the rules that withdraw a selection.

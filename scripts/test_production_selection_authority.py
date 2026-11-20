@@ -134,7 +134,7 @@ class SelectionAuthorityTests(ReviewCase):
         self.assertEqual(store.event_rows(self.root, self.run), events)
         following = self.invoke(imported['next_action']['argv'] + ['--view', 'summary'])
         acceptance = self.candidate_action(following, 'draft-acceptance')
-        choices = self.invoke(acceptance['argv'])
+        choices = self.invoke(acceptance['argv'])['choices']
         self.assertEqual(choices['grant'], value['grants'][0]['id'])
         self.assertEqual(choices['reason'], '')
         self.assertIsNone(choices['owner_acceptance'])
@@ -247,7 +247,7 @@ class SelectionAuthorityTests(ReviewCase):
         value = self.authored_update()
         self.import_update(value)
         decisions = self.cli('draft-acceptance', '--run', self.run, '--candidate', self.candidate,
-                             '--out', 'acceptance.json')
+                             '--out', 'acceptance.json')['choices']
         self.assertIsNone(decisions['owner_acceptance'])
         decisions['reason'] = 'An explicit synthetic choice without the required discrepancy allowance.'
         for assessment in decisions['stop_assessments']:
@@ -304,7 +304,7 @@ class TextSelectionAuthorityTests(unittest.TestCase):
         following = self.invoke(imported['next_action']['argv'] + ['--view', 'summary'])
         action = following['runs'][0]['next_action']
         self.assertEqual(action['command'], 'draft-acceptance')
-        choices = self.invoke(action['argv'])
+        choices = self.invoke(action['argv'])['choices']
         self.assertEqual(choices['candidate'], self.candidate)
         self.assertEqual(choices['grant'], value['grants'][0]['id'])
         self.assertEqual(choices['reason'], '')

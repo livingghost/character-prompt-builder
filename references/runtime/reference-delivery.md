@@ -282,6 +282,8 @@ HTTP upload interface, and records the actual provider response and returned
 media identifier before sending the generation request. The service definition
 and transport own the upload fields and response shape.
 
+#### Bind a hosted carrier URL
+
 A transport declares whether its HTTP interface receives file bytes or imports
 an existing media URL. For a URL-import interface, `task.upload_sources` binds
 the actual prepared carrier file to its remotely readable URL. This synthetic
@@ -318,6 +320,8 @@ type. The URL-import transport verifies the provider's stored bytes against
 that carrier before accepting its issued identifier. Byte-upload interfaces
 receive the sealed content directly.
 
+#### Recover uploads and cleanup
+
 Each generation owns fresh uploads. Recovery of the same unfinished execution
 can continue from its completed uploads; a new generation uploads again.
 After the generation reaches a known terminal result and its returned images
@@ -332,6 +336,8 @@ upload responses and deletion records remain available for review after the
 provider's temporary input is removed. An upload without its saved response
 stays unknown.
 
+#### Bind external media
+
 External host interfaces follow their actual upload and deletion contracts.
 Pass a local file only when the available host interface explicitly accepts
 one, selecting `transport: {"local_file": true}` in the external input choices;
@@ -342,6 +348,8 @@ for this generation and its upload evidence in the image-input plan's
 after capturing the output. A provider response and an arbitrary local image
 do not establish which bytes were uploaded. A host that lacks a required
 operation needs an explicitly available interface; do not assume one exists.
+
+#### Retain source and carrier evidence
 
 Production preparation preserves the original source images and the actual
 prepared carriers in the run. The review draft exposes both, with their

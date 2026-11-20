@@ -110,6 +110,42 @@ class StatusViewTests(unittest.TestCase):
         self.assertEqual((self.root / custom).read_bytes(), before)
         self.assertIn(custom, [item['path'] for item in report['current_task']['authoring']['decision_drafts']])
 
+    def test_explicit_run_keeps_unrelated_decision_history_in_the_complete_report(self):
+        import production_authoring_state
+        import production_report_view
+        run = workflow.prepare(self.root, 'task.json')['run']
+        other = workflow.prepare(self.root, 'task.json')['run']
+        task_id = workflow.read_run(self.root, run).prepared['task']['task_id']
+        paths = []
+        for number in range(64):
+            path = f'work/retained-review-{number:03d}.json'
+            fixtures.write(self.root / path, {'synthetic': 'Retained unfinished review decisions.'})
+            production_authoring_state.remember_decision_draft(self.root, task_id,
+                run if number < 12 else other, 'review', path)
+            paths.append(path)
+        ledger_before = (self.root / 'work/ledger.jsonl').read_bytes()
+        events_before = workflow.read_run(self.root, run).rows
+        drafts_before = {path: (self.root / path).read_bytes() for path in paths}
+        complete = execution.status(self.root, run)
+        workflow.schema_check(complete, 'status')
+        found = complete['current_task']['authoring']['decision_drafts']
+        self.assertEqual(len(found), 64)
+        self.assertEqual({row['relation'] for row in found if row['run'] == other}, {'task-history'})
+        result = production_report_view.present(self.root, complete, command='status', run=run)
+        workflow.schema_check(result, 'status-summary')
+        authoring = result['current_task']['authoring']
+        self.assertEqual(len(authoring['decision_drafts']), 8)
+        self.assertTrue(all(row['run'] == run and row['relation'] == 'selected-run'
+                            for row in authoring['decision_drafts']))
+        self.assertEqual(authoring['decision_drafts_summary'], {'total': 64, 'omitted': 56,
+            'matching': 12, 'unrelated': 52,
+            'full_report': result['full_report'] + '#/current_task/authoring/decision_drafts'})
+        self.assertEqual(c.load(self.root / result['full_report']), complete)
+        self.assertEqual((self.root / 'work/ledger.jsonl').read_bytes(), ledger_before)
+        self.assertEqual(workflow.read_run(self.root, run).rows, events_before)
+        self.assertEqual({path: (self.root / path).read_bytes() for path in paths}, drafts_before)
+        self.assertLessEqual(len(json.dumps(result, ensure_ascii=False, indent=2).encode('utf-8')), 32 * 1024)
+
     def test_unregistered_canonical_review_remains_available(self):
         run, candidate = self.captured()
         identity = c.content_id({'run': run, 'candidate': candidate, 'basis': None,
@@ -307,6 +343,95 @@ class StatusViewTests(unittest.TestCase):
         self.assertEqual([(row['directory'], row['state']) for row in report['inputs']], [('work/second', 'choices')])
         authoring = execution.status(self.root)['current_task']['authoring']
         self.assertEqual([row['directory'] for row in authoring['inputs']], ['work/second'])
+
+    def test_changed_guidance_stays_future_work_until_the_saved_source_is_selected_or_edited(self):
+        import production_authoring_state
+        import production_report_view
+        import route_reading
+        import work_ledger
+        draft = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'work/saved-input')
+        path = draft['choices_file']
+        run = workflow.prepare(self.root, choices=path)['run']
+        loaded = workflow.read_run(self.root, run)
+        before = execution.status(self.root, run)
+        self.assertEqual(before['current_task']['focus'], 'execution')
+        kept = {file.relative_to(loaded.directory).as_posix(): file.read_bytes()
+                for file in loaded.directory.rglob('*') if file.is_file()}
+        task_path = work_ledger.task_path(self.root, loaded.prepared['task']['task_id'])
+        task_bytes = task_path.read_bytes()
+        choices_bytes = (self.root / path).read_bytes()
+        reading_bytes = (self.root / 'work/reads.jsonl').read_bytes()
+        document = next(item for item in loaded.prepared['route_reading']['documents']
+                        if item['path'] == 'references/runtime/production-preparation.md')
+        original = (route_reading.ROOT / document['path']).read_bytes()
+        offset = original.index(b'\n', document['ranges'][0]['start']) + 1
+        changed = self.base / 'changed-current-guidance.md'
+        changed.write_bytes(original[:offset] + b'\nCurrent synthetic preparation guidance changed.\n' + original[offset:])
+        require = route_reading.require_route_reading
+
+        def current_source(name):
+            return (changed if name == document['path'] else route_reading.ROOT / name).read_bytes()
+
+        def verify_current(record, **arguments):
+            return require(record, **{**arguments, 'read_source': current_source})
+
+        with patch.object(route_reading, 'require_route_reading', side_effect=verify_current):
+            full = execution.status(self.root, run)
+            workflow.schema_check(full, 'status')
+            current = full['current_task']
+            self.assertEqual(current['focus'], 'execution')
+            self.assertFalse(current['authoring']['pending'])
+            row = next(item for item in current['authoring']['inputs'] if item['current'])
+            self.assertFalse(row['changed_since_save'])
+            self.assertEqual(row['prepared_run'], run)
+            future = row['future_authoring']
+            self.assertEqual([item['code'] for item in future['unresolved']], ['TARGET_GUIDANCE_REQUIRED'])
+            self.assertEqual([item['path'] for item in future['unresolved'][0]['source_changes']['changes']],
+                             [document['path']])
+            self.assertEqual(future['authoring_stage']['stage'], 'prepare')
+            self.assertIn(path, future['fresh_context_action']['argv'])
+            self.assertEqual(full['runs'][0]['readiness'], before['runs'][0]['readiness'])
+            self.assertEqual(full['runs'][0]['readiness_diagnostics'], before['runs'][0]['readiness_diagnostics'])
+            self.assertEqual(full['runs'][0]['next_action'], before['runs'][0]['next_action'])
+            result = production_report_view.present(self.root, full, command='status', run=run)
+            workflow.schema_check(result, 'status-summary')
+            self.assertFalse(any(item.get('code') == 'TARGET_GUIDANCE_REQUIRED' for item in result['blockers']))
+            self.assertTrue(any(item.get('code') == 'AUTHORIZATION_REQUIRED' for item in result['blockers']))
+            self.assertEqual(result['current_task']['preparation_completion']['argv'],
+                             current['preparation_completion']['argv'])
+            self.assertIn('/future_authoring', result['current_task']['authoring']['inputs'][0]['future_authoring']['full_report'])
+            self.assertEqual(c.load(self.root / result['full_report']), full)
+            self.assertEqual(task_path.read_bytes(), task_bytes)
+            self.assertEqual((self.root / path).read_bytes(), choices_bytes)
+            self.assertEqual((self.root / 'work/reads.jsonl').read_bytes(), reading_bytes)
+
+            selected = production_authoring_state.inspect(self.root, choices=path, run=run)
+            self.assertTrue(selected['pending'])
+            self.assertIn(path, selected['fresh_context_action']['argv'])
+            self.assertEqual([item['code'] for item in selected['authoring_stage']['unresolved']],
+                             ['TARGET_GUIDANCE_REQUIRED'])
+            self.assertNotIn('future_authoring', next(item for item in selected['inputs'] if item['current']))
+            self.assertTrue(selected['stage_actions'])
+
+            source = self.root / loaded.prepared['authoring']['source_map']['authoring.delivery']['file']
+            source.write_bytes(source.read_bytes() + b'\nA later synthetic source edit.\n')
+            edited = execution.status(self.root, run)
+            self.assertEqual(edited['current_task']['focus'], 'authoring')
+            authoring = edited['current_task']['authoring']
+            self.assertTrue(authoring['pending'])
+            self.assertIn(path, authoring['fresh_context_action']['argv'])
+            self.assertTrue(authoring['stage_actions'])
+            row = next(item for item in authoring['inputs'] if item['current'])
+            self.assertTrue(row['changed_since_save'])
+            self.assertNotIn('future_authoring', row)
+            edited_summary = production_status_view.summary(self.root, edited, run=run)
+            self.assertTrue(any(item.get('code') == 'TARGET_GUIDANCE_REQUIRED'
+                                for item in edited_summary['blockers']))
+            self.assertEqual(edited['runs'][0]['next_action'], before['runs'][0]['next_action'])
+            self.assertEqual({file.relative_to(loaded.directory).as_posix(): file.read_bytes()
+                              for file in loaded.directory.rglob('*') if file.is_file()}, kept)
+            self.assertEqual(task_path.read_bytes(), task_bytes)
+            self.assertEqual((self.root / 'work/reads.jsonl').read_bytes(), reading_bytes)
 
     def test_preparation_reading_that_no_longer_verifies_is_a_notice(self):
         run = workflow.prepare(self.root, 'task.json')['run']

@@ -976,6 +976,8 @@ will not make it inhabitable. Local anatomy, spelling and material corrections
 remain necessary when those are the actual problems; their success does not
 establish a different whole-picture claim.
 
+### Carry the construction through the selected interface
+
 Carry the construction through [interface rendition](runtime/prompt-writing-guide.md#interface-rendition).
 A descriptive model can receive explicit relationships in prose. A tag rendition
 uses its own evidenced vocabulary and syntax to approach the whole construction

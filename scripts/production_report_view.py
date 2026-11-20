@@ -37,10 +37,73 @@ def fields(value: Mapping, names) -> dict:
 def _summary_order(value: dict) -> dict:
     """Put the outcome, executable continuation and full report before detail."""
     leading = ('view', 'command', 'ok', 'state', 'run', 'task_id', 'required_action',
-               'next_action', 'full_report', 'full_report_sha256', 'full_report_action',
-               'diagnostics', 'unresolved')
+               'blockers', 'next_action', 'full_report', 'full_report_sha256', 'full_report_action',
+               'diagnostics', 'unresolved', 'runs')
     return {**{name: value[name] for name in leading if name in value},
             **{name: item for name, item in value.items() if name not in leading}}
+
+
+def collection(result: dict, name: str, values, *, pointer: str, selected=None,
+               project=copy.deepcopy) -> None:
+    """Bound a display list and name the exact complete list in its report.
+
+    Selection affects presentation only. The complete count includes unrelated
+    history, so total minus the displayed item count always equals omitted.
+    """
+    rows = values if selected is None else selected
+    displayed = [project(row) for row in rows[:DETAIL_LIMIT]]
+    result[name] = displayed
+    result[name + '_summary'] = {'total': len(values), 'omitted': len(values) - len(displayed),
+                                'full_report': 'full_report#' + pointer}
+    if selected is not None:
+        result[name + '_summary']['matching'] = len(rows)
+
+
+def action_view(value: dict | None, *, pointer: str) -> dict | None:
+    """Retain the actual command while bounding its explicit alternatives."""
+    if value is None:
+        return None
+    result = fields(value, (name for name in value if name != 'alternatives'))
+    if 'alternatives' in value:
+        indexed = list(enumerate(value['alternatives']))
+        collection(result, 'alternatives', indexed, pointer=pointer + '/alternatives',
+            project=lambda pair: action_view(pair[1], pointer=pointer + '/alternatives/' + str(pair[0])))
+        if len(indexed) <= DETAIL_LIMIT and 'alternatives_summary' not in value:
+            result.pop('alternatives_summary')
+        elif 'alternatives_summary' in value:
+            result['alternatives_summary'] = copy.deepcopy(value['alternatives_summary'])
+    return result
+
+
+def reading_actions_once(value: dict) -> dict:
+    """Point repeated route-reading actions at their first executable command."""
+    owners = {}
+
+    def visit(item, pointer):
+        if isinstance(item, dict):
+            argv = item.get('argv')
+            if isinstance(argv, list) and len(argv) >= 3 and (
+                    str(argv[1]).endswith('/execution_routes.py') or
+                    str(argv[1]).endswith('\\execution_routes.py')) and argv[2] == 'read':
+                identity = tuple(argv)
+                if identity in owners:
+                    return {'action_ref': owners[identity]}
+                owners[identity] = '#' + pointer
+            for name, child in list(item.items()):
+                item[name] = visit(child, pointer + '/' + name.replace('~', '~0').replace('/', '~1'))
+        elif isinstance(item, list):
+            for number, child in enumerate(item):
+                item[number] = visit(child, pointer + '/' + str(number))
+        return item
+
+    return visit(_summary_order(value), '')
+
+
+def _reading_change(value: Mapping) -> Mapping | None:
+    if value.get('code') == 'READING_SOURCES_CHANGED':
+        return value
+    changed = value.get('source_changes')
+    return changed if isinstance(changed, Mapping) and changed.get('code') == 'READING_SOURCES_CHANGED' else None
 
 
 def brief(value: Any, *, depth: int = 0) -> Any:
@@ -61,7 +124,8 @@ def brief(value: Any, *, depth: int = 0) -> Any:
     if isinstance(value, (list, tuple)):
         values = [brief(item, depth=depth + 1) for item in value[:VALUE_LIMIT]]
         if len(value) > VALUE_LIMIT:
-            return {'items': values, 'total': len(value), 'omitted': len(value) - VALUE_LIMIT}
+            return {'items': values, 'total': len(value), 'omitted': len(value) - VALUE_LIMIT,
+                    'full_report': 'full_report'}
         return values
     if isinstance(value, str) and len(value) > 1600:
         return {'excerpt': value[:1600], 'characters': len(value), 'details': 'full_report'}
@@ -70,19 +134,94 @@ def brief(value: Any, *, depth: int = 0) -> Any:
 
 def diagnostic(value: dict) -> dict:
     """Keep a diagnostic's cause, source owner and executable repair in reach."""
+    changed = _reading_change(value)
+    implementation = value.get('code') == 'IMPLEMENTATION_CHANGED' and isinstance(value.get('changed_files'), list)
     result = fields(value, ('code', 'severity', 'phase', 'message', 'file', 'pointer',
         'run', 'source', 'operation', 'grant', 'field', 'path', 'required_action',
         'repair_owner', 'repair_action', 'next_action', 'guidance', 'blocked_checks'))
     for name, item in value.items():
-        if name not in result and name != 'authorization_requirements':
+        if name not in result and name != 'authorization_requirements' and not (
+                changed is not None and name in {'source_changes', 'changes', 'actions', 'next_actions'}) and not (
+                implementation and name in {'expected', 'actual', 'changed_files'}):
             result[name] = brief(item)
+    if implementation:
+        changes = value['changed_files']
+        visible = changes[:DETAIL_LIMIT]
+        result['changed_files'] = [row['path'] for row in visible]
+        for name, key in (('unavailable_files', 'actual'), ('added_files', 'expected')):
+            paths = [row['path'] for row in visible if row.get(key) is None]
+            if paths:
+                result[name] = paths
+        result['changed_files_summary'] = {'total': len(changes),
+            'omitted': max(0, len(changes) - DETAIL_LIMIT), 'full_report': 'full_report'}
+    if changed is not None:
+        # The exception's message repeats the entire path inventory. Its
+        # structured change rows own those names, and full_report owns hashes.
+        result['message'] = 'The current route sources differ from the saved reading.'
+        changes = changed.get('changes', [])
+        result['changed_sources'] = [fields(row, ('kind', 'path', 'resource', 'id', 'change'))
+                                     for row in changes[:DETAIL_LIMIT]]
+        result['changed_sources_summary'] = {'total': len(changes),
+            'omitted': max(0, len(changes) - DETAIL_LIMIT), 'full_report': 'full_report'}
+        continuation = value.get('next_action') or next(iter(value.get('next_actions') or []), None)
+        if continuation is None:
+            continuation = next((item for item in changed.get('actions', {}).values() if item), None)
+        if continuation is not None:
+            result['next_action'] = action_view(continuation, pointer='')
     if 'authorization_requirements' in value:
         result['authorization_requirements'] = authorization_requirements(value['authorization_requirements'])
     return result
 
 
 def diagnostics(values) -> list[dict]:
-    return [diagnostic(value) for value in values or []]
+    seen = set()
+    result = []
+    for value in values or []:
+        key = _diagnostic_key(value)
+        if key not in seen:
+            seen.add(key)
+            result.append(diagnostic(value))
+    return result
+
+
+def _diagnostic_key(value: dict) -> str:
+    changed = _reading_change(value)
+    if changed is None:
+        return c.content_id(value)
+    # Different historical digests can require the same current source read.
+    # Keep every changed identity in this comparison, including omitted rows.
+    current = diagnostic(value)
+    current['changed_sources'] = [fields(row, ('kind', 'path', 'resource', 'id', 'change'))
+                                  for row in changed.get('changes', [])]
+    return c.content_id(current)
+
+
+class DiagnosticIndex:
+    """One display owner for unresolved choices repeated by authoring views."""
+
+    def __init__(self):
+        self.rows: list[dict] = []
+        self._identities: dict[str, str] = {}
+
+    def add(self, values, *, pointer: str) -> list[str]:
+        identifiers = []
+        for number, value in enumerate(values or []):
+            key = _diagnostic_key(value)
+            identifier = self._identities.get(key)
+            if identifier is None:
+                identifier = 'diagnostic-' + key[:16]
+                self._identities[key] = identifier
+                item = {'id': identifier, **diagnostic(value),
+                        'full_report': 'full_report#' + pointer + '/' + str(number)}
+                if 'changed_sources_summary' in item:
+                    suffix = '/source_changes/changes' if 'source_changes' in value else '/changes'
+                    item['changed_sources_summary']['full_report'] = item['full_report'] + suffix
+                if 'changed_files_summary' in item:
+                    item['changed_files_summary']['full_report'] = item['full_report'] + '/changed_files'
+                self.rows.append(item)
+            if identifier not in identifiers:
+                identifiers.append(identifier)
+        return identifiers
 
 
 def _candidate_reasons(candidate: dict, requirement: dict) -> set[str]:
@@ -140,6 +279,8 @@ def authorization_requirements(value: dict | None) -> dict | None:
                                       for candidate in eligible[:ELIGIBLE_GRANT_LIMIT]]
         current['eligible_grant_count'] = len(eligible)
         current['eligible_grants_omitted'] = max(0, len(eligible) - ELIGIBLE_GRANT_LIMIT)
+        current['eligible_grants_summary'] = {'total': len(eligible),
+            'omitted': max(0, len(eligible) - ELIGIBLE_GRANT_LIMIT), 'full_report': 'full_report'}
         current['selection_required'] = requirement.get('selected_grant') is None and bool(eligible)
         current['ineligible_grant_count'] = len(rejected)
         current['ineligible_reasons'] = dict(sorted(counts.items()))
@@ -246,57 +387,213 @@ def _unanswered(choices: dict) -> list[dict]:
     return result
 
 
-def _input_row(value: dict) -> dict:
+def _prepared_unchanged(value: dict) -> bool:
+    """Recognize saved input with no current authoring work to resume."""
+    changed = value.get('changed_since_save', value.get('changed_since_build'))
+    return (bool(value.get('prepared_run')) and changed is False
+            and value.get('source_available') is not False
+            and not value.get('working_copy') and not value.get('unresolved')
+            and not value.get('diagnostics')
+            and not (value.get('authoring_stage') or {}).get('unresolved'))
+
+
+def _input_row(value: dict, *, index: DiagnosticIndex, pointer: str) -> dict:
     result = fields(value, ('state', 'kind', 'directory', 'choices', 'context', 'source_task',
         'source_run', 'prepared_run', 'current', 'task', 'source_available', 'changed_since_save',
-        'editable_locations', 'selection_required', 'assessment_required', 'next_actions',
+        'editable_locations', 'selection_required', 'assessment_required',
         'source_requirements'))
     if value.get('route_scope') is not None:
         scope = value['route_scope']
-        result['route_scope'] = fields(scope, ('route', 'operation', 'execution', 'features', 'model', 'service'))
+        result['route_scope'] = fields(scope, ('route', 'operation', 'execution', 'scope', 'source_kind',
+                                             'features', 'model', 'service', 'authoring_scope'))
         result['route_scope']['document_count'] = len(scope.get('documents', []))
-    result['unresolved'] = diagnostics(value.get('unresolved'))
+    stage = value.get('authoring_stage')
+    if stage is not None:
+        result['authoring_stage'] = fields(stage, ('stage', 'purpose', 'structural_ready',
+                                                   'final_inputs_ready', 'meaning'))
+        result['authoring_stage']['pending_summary'] = {'total': len(stage.get('pending', [])),
+            'full_report': 'full_report#' + pointer + '/authoring_stage/pending'}
+        result['diagnostic_ids'] = index.add(stage.get('unresolved'),
+            pointer=pointer + '/authoring_stage/unresolved')
+        result['authoring_stage']['diagnostic_ids'] = list(result['diagnostic_ids'])
+    else:
+        result['diagnostic_ids'] = index.add(value.get('unresolved'), pointer=pointer + '/unresolved')
+    result['diagnostic_ids'].extend(identifier for identifier in index.add(
+        value.get('diagnostics'), pointer=pointer + '/diagnostics') if identifier not in result['diagnostic_ids'])
+    collection(result, 'next_actions', list(enumerate(value.get('next_actions', []))),
+        pointer=pointer + '/next_actions',
+        project=lambda pair: action_view(pair[1], pointer=pointer + '/next_actions/' + str(pair[0])))
+    if not result['next_actions_summary']['omitted']:
+        result.pop('next_actions_summary')
+    if value.get('fresh_context_action') is not None and not _prepared_unchanged(value):
+        result['fresh_context_action'] = action_view(value['fresh_context_action'],
+            pointer=pointer + '/fresh_context_action')
+    if value.get('stage_actions') is not None:
+        result['stage_actions_summary'] = {'total': len(value['stage_actions']),
+            'full_report': 'full_report#' + pointer + '/stage_actions'}
+    if value.get('future_authoring') is not None:
+        future = value['future_authoring']
+        result['future_authoring'] = {'reason': future['reason'],
+            'unresolved_count': len(future.get('unresolved', [])),
+            'full_report': 'full_report#' + pointer + '/future_authoring'}
     if value.get('working_copy'):
-        result['working_copy'] = _input_row(value['working_copy'])
-    if value.get('diagnostics'):
-        result['diagnostics'] = diagnostics(value['diagnostics'])
+        result['working_copy'] = _input_row(value['working_copy'], index=index, pointer=pointer + '/working_copy')
     return result
 
 
-def authoring_state(root: Path, value: dict, *, choices: str | None = None) -> dict:
-    result = fields(value, ('state', 'task_id', 'pending', 'selection_required', 'external_effect', 'next_actions'))
-    result['diagnostics'] = diagnostics(value.get('diagnostics'))
+def authoring_state(root: Path, value: dict, *, choices: str | None = None,
+                    run: str | None = None, pointer: str = '') -> dict:
+    result = fields(value, ('state', 'task_id', 'pending', 'selection_required', 'external_effect'))
+    index = DiagnosticIndex()
+    index.add(value.get('diagnostics'), pointer=pointer + '/diagnostics')
+    def stage_view(owner, at):
+        stage = owner.get('authoring_stage')
+        if stage is None:
+            return None
+        return {**fields(stage, ('stage', 'purpose', 'structural_ready', 'final_inputs_ready', 'meaning')),
+            'diagnostic_ids': index.add(stage.get('unresolved'), pointer=at + '/authoring_stage/unresolved'),
+            'pending_summary': {'total': len(stage.get('pending', [])),
+                'full_report': 'full_report#' + at + '/authoring_stage/pending'}}
+
     inputs = value.get('inputs', [])
-    result['inputs'] = [_input_row(row) for row in inputs if row.get('current') or row.get('working_copy')
-                        or row.get('changed_since_save') or row.get('unresolved') or not row.get('prepared_run')]
+    current_inputs = [row for row in inputs if row.get('current')]
+    prepared_unchanged = (not value.get('pending') and not value.get('selection_required')
+                          and len(current_inputs) == 1 and _prepared_unchanged(current_inputs[0]))
+    stage = stage_view(value, pointer)
+    if stage is not None:
+        result['authoring_stage'] = stage
+    if value.get('fresh_context_action') is not None and not prepared_unchanged:
+        result['fresh_context_action'] = action_view(value['fresh_context_action'],
+            pointer=pointer + '/fresh_context_action')
+    if value.get('stage_actions') is not None:
+        if prepared_unchanged:
+            result['stage_actions_summary'] = {'total': len(value['stage_actions']),
+                'omitted': len(value['stage_actions']), 'full_report': 'full_report#' + pointer + '/stage_actions'}
+        else:
+            result['stage_actions'] = [action_view(row, pointer=pointer + '/stage_actions/' + str(number))
+                                       for number, row in enumerate(value['stage_actions'])]
+    collection(result, 'next_actions', list(enumerate(value.get('next_actions', []))),
+        pointer=pointer + '/next_actions',
+        project=lambda pair: action_view(pair[1], pointer=pointer + '/next_actions/' + str(pair[0])))
+    # Acquire every current finding before applying the list's display limit.
+    # A branch outside the shown prefix must not lose its unresolved choices.
+    projected = [_input_row(row, index=index, pointer=pointer + '/inputs/' + str(number))
+                 for number, row in enumerate(inputs)]
+    if prepared_unchanged:
+        for source, row in zip(inputs, projected):
+            if source.get('current'):
+                if source.get('authoring_stage') == value.get('authoring_stage'):
+                    row.pop('authoring_stage', None)
+                if source.get('stage_actions') == value.get('stage_actions'):
+                    row.pop('stage_actions_summary', None)
+    shown = [row for row in projected if row.get('current') or row.get('working_copy')
+             or row.get('changed_since_save') or row.get('diagnostic_ids') or not row.get('prepared_run')]
+    shown.sort(key=lambda row: not row.get('current', False))
+    collection(result, 'inputs', inputs, selected=shown, pointer=pointer + '/inputs')
     result['input_count'] = len(inputs)
     result['historical_inputs_omitted'] = len(inputs) - len(result['inputs'])
-    result['input_options'] = [{**fields(row, ('choices', 'directory', 'source_run', 'action')),
-                               'unresolved': diagnostics(row.get('unresolved'))}
-                              for row in value.get('input_options', [])]
-    result['readings'] = [fields(row, ('state', 'route', 'operation', 'execution', 'current', 'snapshot',
-        'reading', 'remaining', 'next_actions', 'applicability', 'progress'))
-        for row in value.get('readings', []) if row.get('current')]
-    result['reading_count'] = len(value.get('readings', []))
-    result['decision_drafts'] = [fields(row, ('kind', 'run', 'candidate', 'path', 'available', 'ownership'))
-                               for row in value.get('decision_drafts', []) if row.get('available')]
+    options = []
+    for number, row in enumerate(value.get('input_options', [])):
+        option_pointer = pointer + '/input_options/' + str(number)
+        option = {**fields(row, ('choices', 'directory', 'source_run')),
+            'action': action_view(row.get('action'), pointer=option_pointer + '/action')}
+        stage = stage_view(row, option_pointer)
+        if stage is not None:
+            option.update(authoring_stage=stage, diagnostic_ids=list(stage['diagnostic_ids']))
+        else:
+            option['diagnostic_ids'] = index.add(row.get('unresolved'), pointer=option_pointer + '/unresolved')
+        if row.get('fresh_context_action') is not None and not prepared_unchanged:
+            option['fresh_context_action'] = action_view(row['fresh_context_action'],
+                pointer=option_pointer + '/fresh_context_action')
+        options.append(option)
+    collection(result, 'input_options', options, pointer=pointer + '/input_options')
+    readings = value.get('readings', [])
+    current_readings = [(number, row) for number, row in enumerate(readings) if row.get('current')]
+    def reading(pair):
+        number, row = pair
+        current = fields(row, ('state', 'route', 'operation', 'execution', 'current', 'snapshot',
+            'reading', 'remaining', 'applicability', 'progress', 'source_freshness',
+            'scope', 'source_kind', 'delivered_bytes', 'remaining_bytes', 'required_bytes',
+            'reused_bytes', 'same_context_required', 'authoring_scope', 'choices'))
+        collection(current, 'next_actions', list(enumerate(row.get('next_actions', []))),
+            selected=[] if row.get('applicability') == 'future-authoring' else None,
+            pointer=pointer + '/readings/' + str(number) + '/next_actions',
+            project=lambda item: action_view(item[1], pointer=pointer + '/readings/' + str(number) +
+                                            '/next_actions/' + str(item[0])))
+        if row.get('fresh_context_action') is not None and not prepared_unchanged:
+            current['fresh_context_action'] = action_view(row['fresh_context_action'],
+                pointer=pointer + '/readings/' + str(number) + '/fresh_context_action')
+        return current
+    collection(result, 'readings', readings, selected=current_readings,
+               pointer=pointer + '/readings', project=reading)
+    result['reading_count'] = len(readings)
+    drafts = value.get('decision_drafts', [])
+    available = [row for row in drafts if row.get('available') and
+                 (run is None or row.get('run') == run or row.get('relation') in {'source-run', 'reopened-run'})]
+    available.sort(key=lambda row: (run is not None and row.get('run') == run, row.get('created_at', '')),
+                   reverse=True)
+    collection(result, 'decision_drafts', drafts, selected=available, pointer=pointer + '/decision_drafts',
+        project=lambda row: {**fields(row, ('kind', 'run', 'candidate', 'path', 'available', 'ownership', 'relation')),
+                             **({'relation': 'selected-run'} if run is not None and row.get('run') == run else {})})
+    if run is not None:
+        result['decision_drafts_summary']['unrelated'] = sum(row.get('run') != run and
+            row.get('relation') not in {'source-run', 'reopened-run'} for row in drafts)
     selected = (value.get('context') or {}).get('input')
+    work = (value.get('context') or {}).get('work') or {}
+    work_view = fields(work, ('task_id', 'goal', 'next', 'blocked_on', 'production_run'))
+    questions = work.get('questions', [])
+    work_view['questions'] = [copy.deepcopy(row) for row in questions if row.get('state') == 'open']
+    work_view['questions_summary'] = {'total': len(questions),
+        'omitted': len(questions) - len(work_view['questions']),
+        'full_report': 'full_report#' + pointer + '/context/work/questions'}
     result['context'] = {'work_file': (value.get('context') or {}).get('work_file'),
-        'work': fields((value.get('context') or {}).get('work') or {},
-            ('task_id', 'goal', 'next', 'questions', 'blocked_on', 'production_run')),
+        'work': work_view,
         'input': (fields(selected, ('state', 'directory', 'source_task', 'source_run', 'choices_file',
             'published_task', 'prepared_run', 'changed_since_build', 'editable_locations',
             'assessment_required', 'instruction', 'source_requirements')) if selected is not None else None),
         'read_action': action(root, 'inspect-inputs', ['--choices', choices] if choices else [],
             'Read the complete authoring context and editable source for the selected branch.')}
     if selected is not None:
-        result['context']['input']['unresolved'] = diagnostics(selected.get('unresolved'))
+        stage = stage_view(selected, pointer + '/context/input')
+        if stage is not None:
+            result['context']['input'].update(authoring_stage=stage,
+                diagnostic_ids=list(stage['diagnostic_ids']))
+        else:
+            result['context']['input']['diagnostic_ids'] = index.add(selected.get('unresolved'),
+                pointer=pointer + '/context/input/unresolved')
+        if selected.get('fresh_context_action') is not None and not _prepared_unchanged(selected):
+            result['context']['input']['fresh_context_action'] = action_view(selected['fresh_context_action'],
+                pointer=pointer + '/context/input/fresh_context_action')
+        result['context']['input']['input_ref'] = next(('#' + pointer + '/inputs/' + str(number)
+            for number, row in enumerate(result['inputs']) if row.get('current')), None)
+        selected_path = selected.get('choices_file')
+        matching = next((row for row in result['inputs'] if row.get('current') and row.get('choices')
+            and selected_path is not None
+            and Path(selected_path) in {Path(row['choices']), root / row['choices']}), None)
+        if matching is not None:
+            current_input = result['context']['input']
+            for name in ('state', 'source_task', 'source_run', 'prepared_run', 'editable_locations',
+                         'assessment_required', 'source_requirements'):
+                if name in matching and current_input.get(name) == matching[name]:
+                    current_input.pop(name, None)
+            for name, field in (('choices_file', 'choices'), ('directory', 'directory')):
+                if name in current_input and field in matching and Path(current_input[name]) in {
+                        Path(matching[field]), root / matching[field]}:
+                    current_input.pop(name)
+            if (current_input.get('changed_since_build') is not None
+                    and current_input['changed_since_build'] == matching.get('changed_since_save')):
+                current_input.pop('changed_since_build')
+            owner = next((row for row in current_inputs if row.get('choices') == matching['choices']), None)
+            if owner is not None and selected.get('authoring_stage') == owner.get('authoring_stage'):
+                current_input.pop('authoring_stage', None)
     if value.get('last_check'):
         check = value['last_check']
         result['last_check'] = fields(check, ('task', 'operation_id', 'created_at', 'ok', 'path', 'state'))
-        result['last_check']['diagnostics'] = diagnostics(check.get('diagnostics'))
+        result['last_check']['diagnostic_ids'] = index.add(check.get('diagnostics'),
+            pointer=pointer + '/last_check/diagnostics')
     if value.get('saved'):
         result['saved'] = fields(value['saved'], ('run', 'state', 'working_changes', 'next_action', 'artifact', 'delivery'))
+    result['diagnostics'] = index.rows
     return result
 
 
@@ -314,6 +611,8 @@ def _source_run(root: Path, value: Any) -> Any:
             outputs = reuse['captured_outputs']
             result['input_reuse'].update(captured_outputs=copy.deepcopy(outputs[:DETAIL_LIMIT]),
                 captured_output_count=len(outputs), captured_outputs_omitted=max(0, len(outputs) - DETAIL_LIMIT))
+            result['input_reuse']['captured_outputs_summary'] = {'total': len(outputs),
+                'omitted': max(0, len(outputs) - DETAIL_LIMIT), 'full_report': 'full_report'}
     if value.get('run') and not result.get('read_action'):
         result['read_action'] = action(root, 'inspect-inputs', ['--from-run', value['run'], '--view', 'full'],
             'Read this saved source run\'s complete task, source selections and remaining assessments.')
@@ -322,13 +621,18 @@ def _source_run(root: Path, value: Any) -> Any:
 
 def _draft_inputs(root: Path, report: dict, choices: str | None) -> dict:
     result = fields(report, ('state', 'choices_file', 'context_file', 'authoring_work',
-        'external_effect', 'next_actions', 'required_source_roles', 'source_requirements'))
+        'external_effect', 'next_actions', 'required_source_roles', 'source_requirements', 'authoring_scope'))
     if 'derived_from' in report:
         result['derived_from'] = fields(report['derived_from'],
                                       (name for name in report['derived_from'] if name != 'source_run'))
         if 'source_run' in report['derived_from']:
             result['derived_from']['source_run'] = _source_run(root, report['derived_from']['source_run'])
-    result['unresolved'] = diagnostics(report.get('unresolved'))
+    stage = report.get('authoring_stage')
+    result['unresolved'] = diagnostics(stage['unresolved'] if stage else report.get('unresolved'))
+    if stage:
+        result['authoring_stage'] = fields(stage, ('stage', 'purpose', 'structural_ready', 'final_inputs_ready', 'meaning'))
+        result['authoring_stage']['pending_count'] = len(stage['pending'])
+        result['authoring_stage']['pending_details'] = 'full_report#/authoring_stage/pending'
     guide = report.get('authoring_guide')
     if guide:
         result['authoring_guide'] = fields(guide, ('document_path', 'schema', 'example', 'explain_action',
@@ -352,12 +656,12 @@ def _draft_inputs(root: Path, report: dict, choices: str | None) -> dict:
 
 
 def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
-              choices: str | None = None) -> dict:
+              choices: str | None = None, runtime_arguments: dict | None = None) -> dict:
     """Project one acquired command result without reading or writing any input."""
     if 'runs' in report:
         from production_status_view import summary
         result = summary(root, report, run=run)
-    elif command == 'inspect-inputs' and report.get('state') == 'authoring-state':
+    elif command in {'inspect-inputs', 'stage-inputs'} and report.get('state') == 'authoring-state':
         result = authoring_state(root, report, choices=choices)
     elif command == 'draft-inputs' and report.get('state') == 'draft':
         result = _draft_inputs(root, report, choices)
@@ -372,7 +676,7 @@ def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
             'selection_requirements'))
         authored = report['choices']
         result['binding'] = fields(authored.get('binding', authored),
-            ('task_id', 'issuer', 'run', 'input_sha256', 'request_sha256', 'expected_event', 'selection'))
+            ('task_id', 'issuer', 'run', 'input_sha256', 'request_sha256', 'expected_event', 'selection', 'adoption'))
         if command == 'draft-authority-update':
             result['grants'] = [fields(row, ('id', 'operation', 'targets', 'actor', 'mode'))
                                 for row in authored.get('grants', [])]
@@ -397,12 +701,16 @@ def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
                       previous_event=report['data'].get('previous_state'), grant_count=len(document['grants']))
         if 'changed_grants' in report:
             result['changed_grants'] = {key: {'ids': identifiers[:DETAIL_LIMIT], 'total': len(identifiers),
-                                            'omitted': max(0, len(identifiers) - DETAIL_LIMIT)}
+                                            'omitted': max(0, len(identifiers) - DETAIL_LIMIT),
+                                            'full_report': 'full_report#/changed_grants/' + key}
                                        for key, identifiers in report['changed_grants'].items()}
         else:
             result['grant_ids'] = [row['id'] for row in document['grants'][:DETAIL_LIMIT]]
             result['grant_ids_omitted'] = max(0, len(document['grants']) - DETAIL_LIMIT)
-        result['next_action'] = action(root, 'status', ['--run', run] if run else [],
+            result['grant_ids_summary'] = {'total': len(document['grants']),
+                'omitted': result['grant_ids_omitted'], 'full_report': 'full_report#/data/authority/grants'}
+        result['next_action'] = action_view(report.get('next_action'), pointer='/next_action') or action(
+            root, 'status', ['--run', run] if run else [],
             'Inspect current requirements and continue the saved work under the imported authority.')
     elif command == 'draft-execution' and 'choices' in report:
         result = fields(report, ('decisions_file', 'next_action'))
@@ -410,6 +718,33 @@ def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
                       unresolved=_unanswered(report['choices']),
                       authority=authority(report.get('authority')),
                       authorization_requirements=authorization_requirements(report.get('authorization_requirements')))
+    elif command in {'draft-acceptance', 'draft-adoption'} and 'choices' in report:
+        result = fields(report, ('state', 'draft_file', 'schema', 'reading_action', 'next_action', 'required_action'))
+        authored = report['choices']
+        result['binding'] = fields(authored, ('run', 'candidate', 'review', 'selection', 'character',
+            'iteration', 'slot', 'scope', 'influence', 'grant', 'claim'))
+        result['unresolved'] = []
+        for name in ('grant', 'reason'):
+            if not authored.get(name):
+                result['unresolved'].append({'pointer': '/' + name, 'file': report.get('draft_file'), 'state': 'unanswered',
+                    'required_action': 'Record the actual ' + name + ' for this operation in the saved draft.'})
+        shared = authored.get('shared_stop_assessments')
+        if isinstance(shared, Mapping):
+            result['shared_stop_assessments'] = fields(shared, ('authorization', 'authority_event', 'confirmed'))
+            result['shared_stop_assessments'].update(assessment_count=len(shared.get('assessments', [])),
+                full_report='full_report#/choices/shared_stop_assessments')
+            if shared.get('confirmed') is None:
+                result['unresolved'].append({'pointer': '/shared_stop_assessments/confirmed', 'file': report.get('draft_file'),
+                    'state': 'unanswered', 'required_action': 'Confirm whether the proposed assessments still apply '
+                    'to this candidate, review, destination and actual instruction; the operation rechecks that basis.'})
+        for name in ('stop_assessments', 'additional_stop_assessments'):
+            for number, assessment in enumerate(authored.get(name, [])):
+                if assessment.get('clear') is not True or not assessment.get('evidence'):
+                    result['unresolved'].append({'pointer': '/' + name + '/' + str(number), 'file': report.get('draft_file'),
+                        'stop': assessment.get('id'), 'state': 'unanswered',
+                        'required_action': 'Assess this stop condition from actual evidence.'})
+        if authored.get('owner_acceptance') is not None:
+            result['owner_acceptance'] = brief(authored['owner_acceptance'])
     elif report.get('artifact_type') == 'external-execution-instruction':
         result = fields(report, ('artifact_type', 'run', 'state', 'external_effect', 'instruction'))
         result['host_request'] = fields(report['host_request'], ('claim', 'service', 'model', 'count', 'request_sha256'))
@@ -432,17 +767,20 @@ def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
     result.update(view='summary', command=command)
     if 'ok' in report:
         result['ok'] = report['ok']
-    if report.get('diagnostics') is not None:
+    if report.get('diagnostics') is not None and 'diagnostics' not in result:
         result['diagnostics'] = diagnostics(report['diagnostics'])
     for name in ('warnings', 'runtime_warnings'):
         if name in report:
             result[name] = diagnostics(report[name])
     if 'next_action' not in result:
-        result['next_action'] = _next_action(report)
+        result['next_action'] = action_view(_next_action(report), pointer='/next_action')
     if result['next_action'] is None and report.get('selection_required'):
         result['next_action'] = {**action(root, 'inspect-inputs', [],
             'Choose an explicitly named editable branch; no branch was selected by this summary.'),
-            'requires_author_input': True, 'alternatives': copy.deepcopy(report.get('next_actions', []))}
+            'requires_author_input': True}
+        collection(result['next_action'], 'alternatives', report.get('next_actions', []), pointer='/next_actions')
+        if not result['next_action']['alternatives_summary']['omitted']:
+            result['next_action'].pop('alternatives_summary')
     identifier = run or report.get('run')
     if result['next_action'] is None and identifier and command in {'prepare', 'check'} and report.get('ok', True):
         result['next_action'] = action(root, 'status', ['--run', identifier],
@@ -454,13 +792,16 @@ def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
     if result['next_action'] is None and command == 'check' and report.get('ok'):
         selected = ['--choices', choices] if choices else ['--task', report['task']] if report.get('task') else None
         if selected is not None:
+            for name, value in (runtime_arguments or {}).items():
+                for item in value if isinstance(value, list) else [value]:
+                    selected.extend(('--' + name, str(item)))
             result['next_action'] = action(root, 'prepare', selected,
                 'Prepare this checked source when its authored choices are complete; execution remains separate.')
-    return _summary_order(result)
+    return reading_actions_once(result)
 
 
 def present(root: Path, report: dict, *, command: str, run: str | None = None,
-            choices: str | None = None) -> dict:
+            choices: str | None = None, runtime_arguments: dict | None = None) -> dict:
     """Retain a complete report outside formal run history, then show its summary.
 
     Content-addressed snapshots are exclusive publications. Repeated identical
@@ -468,7 +809,8 @@ def present(root: Path, report: dict, *, command: str, run: str | None = None,
     turn a committed operation into a retry: include its full result inline and
     leave the caller's original outcome and exit-code calculation unchanged.
     """
-    result = summarize(root, report, command=command, run=run, choices=choices)
+    result = summarize(root, report, command=command, run=run, choices=choices,
+                       runtime_arguments=runtime_arguments)
     try:
         if not command or any(character not in 'abcdefghijklmnopqrstuvwxyz0123456789-' for character in command):
             raise ValueError('report command must be a lowercase command name')
@@ -497,4 +839,18 @@ def present(root: Path, report: dict, *, command: str, run: str | None = None,
             result['next_action'] = {**result['full_report_action'],
                 'reason': 'Read the exact host_request and invoke it once as instructed; after interruption recover '
                           'that same host call without executing the run again.'}
+    def locate(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key == 'complete_report':
+                    continue
+                if key == 'full_report' and isinstance(item, str) and (
+                        item == 'full_report' or item.startswith('full_report#')):
+                    value[key] = (result['full_report'] or 'complete_report') + item[len('full_report'):]
+                else:
+                    locate(item)
+        elif isinstance(value, list):
+            for item in value:
+                locate(item)
+    locate(result)
     return _summary_order(result)

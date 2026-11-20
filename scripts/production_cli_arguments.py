@@ -5,7 +5,7 @@ from pack_runtime_cli import add_pack_runtime_arguments
 from craft_consultation_contract import LAYERS
 
 
-INPUT_COMMANDS = frozenset({'inspect-inputs', 'compare-inputs', 'explain-inputs', 'draft-inputs', 'build-inputs'})
+INPUT_COMMANDS = frozenset({'inspect-inputs', 'compare-inputs', 'explain-inputs', 'draft-inputs', 'stage-inputs', 'build-inputs'})
 
 def add_input_arguments(subparsers) -> None:
     for name in sorted(INPUT_COMMANDS):
@@ -14,8 +14,20 @@ def add_input_arguments(subparsers) -> None:
             'compare-inputs': 'Read actual editable candidates together through the common comparison owner.',
             'explain-inputs': 'Describe editable fields, source files, schemas, validators and completed examples.',
             'draft-inputs': 'Start a concrete compose or amend operation in a new authoring directory.',
+            'stage-inputs': 'Continue definition, depiction, rendition or prepare while retaining the editable files.',
             'build-inputs': 'Resolve authored choices into complete inputs without running production.'}[name])
         parser.add_argument('--root', type=Path, required=True)
+        if name == 'stage-inputs':
+            from production_reading_scope import STAGES
+            parser.add_argument('--choices', required=True, help='Studio-relative choices.json to continue.')
+            parser.add_argument('--stage', required=True, choices=STAGES,
+                help='Select the actual work: definition establishes sources and character; depiction develops the picture; '
+                     'rendition writes its prompt; prepare binds the completed input for saving or generation preparation.')
+            parser.epilog = ('Selected source files and earlier results remain intact. Read the returned current-stage '
+                'action before changing its content. After a context reset, inspect this same choices file and reread '
+                'the current stage; an earlier delivery receipt does not carry knowledge into a new context.')
+            add_pack_runtime_arguments(parser)
+            continue
         if name == 'compare-inputs':
             parser.add_argument('--choices', action='append', required=True,
                 help='Studio-relative choices.json to compare; repeat for the actual candidates.')
@@ -23,15 +35,23 @@ def add_input_arguments(subparsers) -> None:
             continue
         if name == 'explain-inputs':
             parser.add_argument('--choices', required=True, help='Studio-relative choices.json to explain without compiling.')
-            parser.add_argument('--field', help='One choices field, such as authoring.documents.production_spec; '
-                                'omit for the field and source index.')
+            parser.add_argument('--field', help='One choices field, such as authoring.documents.production_spec '
+                                'or authoring.references.additional_references; follow returned child contracts '
+                                'for exact schemas, or omit for the field and source index.')
             continue
         source = parser.add_mutually_exclusive_group()
         source.add_argument('--task', help='Studio-relative authored production task JSON.')
         source.add_argument('--from-run', help='Use the saved task and delivery of this existing run.')
         if name == 'inspect-inputs':
             parser.add_argument('--choices', help='Select this registered editable draft when several are pending.')
+            parser.epilog = ('Saved inputs use their registered producer runtime. An explicit pack runtime '
+                'supplies inputs with no registered runtime and is retained in their continuation actions; '
+                'inspection does not change the saved inputs or registration.')
         if name == 'draft-inputs':
+            from production_reading_scope import STAGES
+            parser.add_argument('--stage', choices=STAGES,
+                help='Current authored work; new character drafts start with definition. A saved unfinished draft '
+                     'retains its stage. Select prepare for binding already authored content.')
             image_source = parser.add_mutually_exclusive_group()
             image_source.add_argument('--source-image', type=Path,
                 help='Upscale only (--route upscale): the raster image to enlarge, Studio-relative or an absolute '

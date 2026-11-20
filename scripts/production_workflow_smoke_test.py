@@ -401,6 +401,115 @@ class ProductionTests(unittest.TestCase):
     def test_unfinished_steps_still_block_finish(self):
         run,_=self.finish()
         with self.assertRaises(ValueError): ledger.finish(self.root,run)
+    def test_prepared_input_finish_requires_actual_finished_steps_and_answers(self):
+        run=self.prepare()
+        ledger.step_done(self.root,1)
+        state=ledger.finish_state(self.root,run,scope='prepared-input')
+        self.assertFalse(state['ready_to_finish'])
+        self.assertEqual([step['n'] for step in state['incomplete_steps']],[2])
+        with self.assertRaisesRegex(ValueError,'not done'):
+            ledger.finish(self.root,run,scope='prepared-input')
+        ledger.step_done(self.root,2)
+        question=ledger.block(self.root,'Which prepared input fulfills the synthetic request?')['questions'][-1]
+        with self.assertRaisesRegex(ValueError,'open author questions'):
+            ledger.finish(self.root,run,scope='prepared-input')
+        self.assertEqual(len(ledger.finish_state(self.root,run,scope='prepared-input')['open_questions']),1)
+        ledger.respond(self.root,question['question_id'],'The inspected synthetic input.',actor=fixture.ACTOR)
+        self.assertTrue(ledger.finish_state(self.root,run,scope='prepared-input')['ready_to_finish'])
+        with self.assertRaises(ValueError):ledger.finish(self.root,run)
+        self.assertIsNotNone(ledger.read_current(self.root))
+        self.assertFalse(any(row['event']=='finished' for row in ledger.read_ledger(self.root)))
+
+    def test_prepared_input_finish_uses_exact_saved_owner_and_preserves_other_work(self):
+        run=self.prepare()
+        for n in (1,2):ledger.step_done(self.root,n)
+        owning=ledger.read_current(self.root)
+        ledger.suspend(self.root,reason='Continue separate synthetic work.')
+        other=ledger.begin(self.root,'Unrelated synthetic task',['Still unfinished.'])
+        saved_path=ledger.task_path(self.root,owning['task_id'])
+        raw=saved_path.read_bytes()
+        altered=c.load(saved_path);altered['task_id']=other['task_id']
+        saved_path.write_bytes(c.encoded(altered))
+        with self.assertRaisesRegex(ValueError,'saved task differs from the run owner'):
+            ledger.finish(self.root,run,scope='prepared-input')
+        saved_path.write_bytes(raw)
+        closed=ledger.finish(self.root,run,scope='prepared-input')
+        self.assertEqual(closed['task_id'],owning['task_id'])
+        self.assertEqual(ledger.read_current(self.root),other)
+        self.assertEqual(ledger.finish(self.root,run,scope='prepared-input'),closed)
+        self.assertEqual(ledger.read_current(self.root),other)
+
+    def test_prepared_input_finish_recovers_after_durable_journal(self):
+        run=self.prepare()
+        for n in (1,2):ledger.step_done(self.root,n)
+        original=ledger.save_task
+        def crash(root,task):
+            if task.get('work_state')=='completed':raise OSError('Synthetic crash before task save')
+            return original(root,task)
+        with patch.object(ledger,'save_task',side_effect=crash),self.assertRaises(OSError):
+            ledger.finish(self.root,run,scope='prepared-input')
+        self.assertEqual(ledger.read_current(self.root)['work_state'],'active')
+        [entry]=[row for row in ledger.read_ledger(self.root) if row['event']=='finished']
+        closed=ledger.finish(self.root,run,scope='prepared-input')
+        self.assertEqual(closed['closed_at'],entry['at'])
+        self.assertEqual(closed['prepared_input'],entry['prepared_input'])
+        self.assertEqual(ledger.finish(self.root,run,scope='prepared-input'),closed)
+        self.assertEqual(len([row for row in ledger.read_ledger(self.root) if row['event']=='finished']),1)
+
+    def test_prepared_input_finish_recovers_after_durable_task(self):
+        run=self.prepare()
+        for n in (1,2):ledger.step_done(self.root,n)
+        original=ledger.write_current
+        def crash(root,value):
+            if value is None:raise OSError('Synthetic crash before current removal')
+            return original(root,value)
+        with patch.object(ledger,'write_current',side_effect=crash),self.assertRaises(OSError):
+            ledger.finish(self.root,run,scope='prepared-input')
+        self.assertTrue((self.root/'work/current.json').exists())
+        closed=ledger.finish(self.root,run,scope='prepared-input')
+        self.assertFalse((self.root/'work/current.json').exists())
+        self.assertEqual(ledger.finish(self.root,run,scope='prepared-input'),closed)
+        self.assertEqual(len([row for row in ledger.read_ledger(self.root) if row['event']=='finished']),1)
+
+    def test_prepared_input_finish_refuses_conflicting_journal_or_saved_evidence(self):
+        run=self.prepare()
+        for n in (1,2):ledger.step_done(self.root,n)
+        closed=ledger.finish(self.root,run,scope='prepared-input')
+        task_path=ledger.task_path(self.root,closed['task_id']);task_bytes=task_path.read_bytes()
+        journal=self.root/'work/ledger.jsonl';journal_bytes=journal.read_bytes()
+        for damage in ('request','manifest','duplicate','saved-input','saved-scope'):
+            with self.subTest(damage=damage):
+                task_path.write_bytes(task_bytes);journal.write_bytes(journal_bytes)
+                if damage.startswith('saved-'):
+                    task=c.load(task_path)
+                    if damage=='saved-input':task['prepared_input']['input_sha256']='a'*64
+                    else:task['completion_scope']='production-result'
+                    task_path.write_bytes(c.encoded(task))
+                else:
+                    rows=ledger.read_ledger(self.root)
+                    finished=next(row for row in rows if row['event']=='finished')
+                    if damage=='duplicate':rows.append(copy.deepcopy(finished))
+                    else:finished['prepared_input'][damage+'_sha256']='a'*64
+                    journal.write_text(''.join(json.dumps(row)+'\n' for row in rows),encoding='utf-8')
+                with self.assertRaisesRegex(ValueError,'completion journal conflicts'):
+                    ledger.finish(self.root,run,scope='prepared-input')
+                state=ledger.finish_state(self.root,run,scope='prepared-input')
+                self.assertFalse(state['finished']);self.assertFalse(state['ready_to_finish'])
+        task_path.write_bytes(task_bytes);journal.write_bytes(journal_bytes)
+        self.assertEqual(ledger.finish(self.root,run,scope='prepared-input'),closed)
+
+    def test_prepared_input_finish_does_not_promote_saved_unfinished_draft(self):
+        draft=fixture.authoring_inputs(self.root,None,'unfinished',route='development',execution='authored',artifact='text')
+        choices=c.load(self.root/draft['choices_file'])
+        self.write(choices['authoring']['delivery']['file'],'An unfinished synthetic opening.\n')
+        run=w.save(self.root,draft['choices_file'],draft=True)['run']
+        for n in (1,2):ledger.step_done(self.root,n)
+        before=w.read_run(self.root,run).rows
+        with self.assertRaisesRegex(ValueError,'finished, verified input'):
+            ledger.finish(self.root,run,scope='prepared-input')
+        self.assertFalse(ledger.finish_state(self.root,run,scope='prepared-input')['ready_to_finish'])
+        self.assertEqual(w.read_run(self.root,run).rows,before)
+        self.assertIsNotNone(ledger.read_current(self.root))
     def test_unpublished_staging_has_no_phase_authority(self):
         run=self.prepare()
         pending=self.root/'production/staging/incomplete-operation'
@@ -740,6 +849,83 @@ class PackageIntegrationTests(unittest.TestCase):
 
     def test_cross_run_binding(self):
         with self.assertRaises(ValueError):binding.validate_live(self.root,w.prepare(self.root,'task.json')['run'],self.package)
+
+    def test_public_prepared_input_finish_preserves_sealed_run_and_authority(self):
+        import subprocess,sys
+        import production_store as store
+        import production_status_view
+        for step in ledger.read_current(self.root)['steps']:ledger.step_done(self.root,step['n'])
+        before=w.status(self.root,self.run)
+        option=before['current_task']['preparation_completion']
+        self.assertEqual(option['completion_scope'],'prepared-input')
+        self.assertTrue(option['ready_to_finish'])
+        self.assertNotEqual(before['current_task']['next_actions'][0]['command'],'finish')
+        summary=production_status_view.summary(self.root,before,run=self.run)
+        self.assertEqual(summary['current_task']['preparation_completion']['argv'],option['argv'])
+        directory=w.run_dir(self.root,self.run)
+        files={path.relative_to(directory).as_posix():path.read_bytes() for path in directory.rglob('*') if path.is_file()}
+        events=store.event_rows(self.root,self.run)
+        authority=c.encoded(store.authority(self.root,self.spec['task_id']))
+        command=[sys.executable,str(ROOT/'scripts/work_ledger.py'),'finish','--studio',str(self.root),
+                 '--run',self.run,'--scope','prepared-input']
+        for _ in range(2):
+            result=subprocess.run(command,capture_output=True,text=True,encoding='utf-8',timeout=45)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertIn('completed scope: prepared-input',result.stdout)
+        self.assertIsNone(ledger.read_current(self.root))
+        self.assertEqual(store.event_rows(self.root,self.run),events)
+        self.assertEqual(c.encoded(store.authority(self.root,self.spec['task_id'])),authority)
+        self.assertEqual({path.relative_to(directory).as_posix():path.read_bytes()
+                          for path in directory.rglob('*') if path.is_file()},files)
+        after=w.status(self.root,self.run)['runs'][0]
+        self.assertEqual(before['runs'][0]['readiness'],'authorization_required')
+        self.assertEqual(after['readiness'],'authorization_required')
+        self.assertEqual(after['task_disposition'],'open')
+        self.assertFalse(any(row['event'] in {'completion','abandoned','authorization','dispatch-claim'} for row in events))
+        closed=c.load(ledger.task_path(self.root,self.spec['task_id']))
+        self.assertEqual(closed['completion_scope'],'prepared-input')
+        self.assertEqual(closed['prepared_input']['request_sha256'],self.data[6]['request_sha256'])
+        contract=c.decode(files['request-contract.json'])
+        self.assertEqual(closed['prepared_input']['request_sha256'],c.content_id(contract['sealed']))
+        self.assertEqual(c.decode(files['request-preview.json']),contract['request'])
+        state=ledger.finish_state(self.root,self.run,scope='prepared-input')
+        self.assertTrue(state['finished']);self.assertIsNone(state['completion'])
+        self.assertEqual(len([row for row in ledger.read_ledger(self.root) if row['event']=='finished']),1)
+        with self.assertRaises(ValueError):ledger.finish(self.root,self.run)
+
+    def test_prepared_input_finish_leaves_same_run_executable_under_actual_fixture_authority(self):
+        for step in ledger.read_current(self.root)['steps']:ledger.step_done(self.root,step['n'])
+        closed=ledger.finish(self.root,self.run,scope='prepared-input')
+        output=self.execute()
+        self.assertEqual(len(output['runs'][0]['candidates']),2)
+        rows=w.read_run(self.root,self.run).rows
+        self.assertEqual(sum(row['event']=='dispatch-claim' for row in rows),1)
+        self.assertFalse(any(row['event']=='completion' for row in rows))
+        self.assertEqual(ledger.finish(self.root,self.run,scope='prepared-input'),closed)
+        self.assertEqual(c.load(ledger.task_path(self.root,self.spec['task_id'])),closed)
+
+    def test_prepared_input_finish_remains_an_option_beside_pending_authoring(self):
+        fixture.authoring_inputs(self.root,None,'reopened',from_run=self.run)
+        for step in ledger.read_current(self.root)['steps']:ledger.step_done(self.root,step['n'])
+        report=w.status(self.root,self.run)
+        current=report['current_task']
+        self.assertEqual(current['focus'],'authoring')
+        self.assertTrue(current['authoring']['pending'])
+        self.assertTrue(current['next_actions'])
+        self.assertFalse(any(item.get('command')=='finish' for item in current['next_actions']))
+        choice=current['preparation_completion']
+        self.assertEqual(choice['run'],self.run)
+        self.assertEqual(choice['completion_scope'],'prepared-input')
+        self.assertTrue(choice['ready_to_finish'])
+        self.assertEqual(report['runs'][0]['task_disposition'],'open')
+
+    def test_prepared_input_finish_rechecks_saved_request_bytes(self):
+        for step in ledger.read_current(self.root)['steps']:ledger.step_done(self.root,step['n'])
+        path=w.run_dir(self.root,self.run)/'request-preview.json'
+        path.write_bytes(path.read_bytes()+b'\n')
+        with self.assertRaises(ValueError):ledger.finish(self.root,self.run,scope='prepared-input')
+        self.assertFalse(any(row['event']=='finished' for row in ledger.read_ledger(self.root)))
+        self.assertIsNotNone(ledger.read_current(self.root))
 
     def test_bound_dispatch_cannot_omit_context(self):
         with self.assertRaises(ValueError):binding.validate_live(None,None,self.package)

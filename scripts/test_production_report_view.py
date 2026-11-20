@@ -52,6 +52,100 @@ def status(requirements_value, document=None):
         'staging': [], 'staging_details': [], 'unclaimed_journals': [], 'unregistered_publications': []}
 
 
+def long_authoring_status():
+    """A synthetic long-lived task with many branches, decisions and readings."""
+    read = {'command': 'read', 'argv': ['python', '/skill/scripts/execution_routes.py', 'read',
+            'generation', '--operation', 'prepare', '--execution', 'dispatcher'],
+            'reason': 'Read the applicable current source bodies.'}
+    changes = [{'kind': 'document', 'path': f'references/runtime/changed-source-{number:03d}.md',
+                'change': 'modified', 'before': 'a' * 64, 'after': 'b' * 64} for number in range(80)]
+    issue = {'field': 'reading.reading_key', 'code': 'TARGET_GUIDANCE_REQUIRED',
+        'message': 'reading sources changed: ' + ', '.join(row['path'] for row in changes),
+        'required_action': 'Read the applicable current guidance and select its issued reading key.',
+        'source_changes': {'code': 'READING_SOURCES_CHANGED', 'changes': changes, 'actions': {'restart': read}},
+        'next_action': read, 'next_actions': [read]}
+    inputs = [{'state': 'choices', 'kind': 'draft-inputs', 'directory': f'work/branch-{number:03d}',
+        'choices': f'work/branch-{number:03d}/choices.json', 'source_run': 'synthetic-run',
+        'current': number == 63, 'unresolved': [copy.deepcopy(issue)], 'next_actions': [copy.deepcopy(read)]}
+        for number in range(64)]
+    draft_rows = [{'kind': 'review', 'run': 'synthetic-run' if number < 12 else 'unrelated-run',
+        'path': f'work/decisions/{number:03d}.json', 'available': True, 'created_at': f'2026-01-{number:03d}',
+        'relation': 'selected-run' if number < 12 else 'task-history'} for number in range(72)]
+    report = status(None)
+    report['current_task'] = {'task_id': 'synthetic-task', 'goal': 'Continue the current synthetic commission.',
+        'production_run': 'synthetic-run', 'focus': 'authoring', 'next_actions': [copy.deepcopy(read)],
+        'authoring': {'state': 'authoring-state', 'task_id': 'synthetic-task', 'pending': True,
+            'selection_required': False, 'external_effect': False, 'diagnostics': [],
+            'inputs': inputs, 'decision_drafts': draft_rows, 'last_check': None,
+            'input_options': [{'choices': row['choices'], 'directory': row['directory'],
+                'source_run': row['source_run'], 'action': copy.deepcopy(read), 'unresolved': [copy.deepcopy(issue)]}
+                for row in inputs],
+            'readings': [{'state': 'partial', 'route': 'generation', 'operation': 'prepare',
+                'execution': 'dispatcher', 'current': True, 'snapshot': str(number),
+                'next_actions': [copy.deepcopy(read)], 'remaining_bytes': 500}
+                for number in range(64)],
+            'next_actions': [copy.deepcopy(read)],
+            'context': {'work': {'task_id': 'synthetic-task', 'goal': 'Current synthetic goal: 現在の作業',
+                'notes': ['Historical production note.' * 100 for _ in range(80)], 'questions': [],
+                'blocked_on': None}, 'input': {'state': 'choices', 'directory': inputs[-1]['directory'],
+                'choices_file': inputs[-1]['choices'], 'unresolved': [copy.deepcopy(issue)]}}}}
+    return report
+
+
+def prepared_authoring_status(root):
+    """A prepared draft keeps editable files and the former stage navigation."""
+    from production_reading_scope import actions
+    import production_inputs
+    path = 'work/one-character/choices.json'
+    runtime = {'state-file': str(root / 'isolated-runtime/pack-state.json'),
+        'cache-dir': str(root / 'isolated-runtime/cache'),
+        'managed-root': str(root / 'isolated-runtime/packs'),
+        'pack-root': str(views.SCRIPT.parents[1] / 'packs/commons')}
+    task = {'route': 'generation', 'execution': 'dispatcher',
+        'features': ['vocabulary', 'render-contract', 'production-spec', 'reference-delivery']}
+    choices = {'authoring_stage': 'prepare', 'target': {'kind': 'catalog',
+        'model': 'synthetic-image', 'service': 'synthetic-service'}}
+    scope = {'stage': 'prepare', 'composition': 'compose', 'source_formats': ['text'],
+        'documents': ['production_spec', 'parameters', 'retrieval_record'],
+        'render_operation': 'generation', 'conditions': ['production-spec']}
+    read = production_inputs._reading_action(root, task, choices, runtime,
+        choices_path=path, authoring_scope=scope)
+    stages = actions(root, path, 'prepare', runtime)
+    stage = {'stage': 'prepare', 'purpose': 'Bind the saved content to its exact request.',
+        'structural_ready': True, 'final_inputs_ready': True, 'unresolved': [], 'pending': [],
+        'meaning': 'Structural readiness supplies no artistic judgment or authority.'}
+    locations = {name: {'file': 'work/one-character/' + file, 'pointer': None,
+        'guidance': {'document_path': 'references/runtime/production-authoring.md#use-the-delivered-knowledge',
+                     'schema': 'schemas/authoring/production-input-draft.schema.json'}}
+        for name, file in [('authoring.delivery', 'prompt.txt'),
+                          ('authoring.documents.parameters', 'parameters.json'),
+                          ('authoring.documents.production_spec', 'production-spec.json'),
+                          ('authoring.documents.retrieval_record', 'retrieval.json')]}
+    row = {'state': 'choices', 'kind': 'draft-inputs', 'directory': 'work/one-character',
+        'choices': path, 'current': True, 'prepared_run': 'synthetic-run',
+        'source_available': True, 'changed_since_save': False, 'editable_locations': locations,
+        'unresolved': [], 'diagnostics': [], 'next_actions': [], 'authoring_stage': stage,
+        'fresh_context_action': read, 'stage_actions': stages}
+    selected = {'state': 'choices', 'directory': str(root / row['directory']),
+        'choices_file': str(root / path), 'prepared_run': row['prepared_run'],
+        'changed_since_build': False, 'editable_locations': locations,
+        'unresolved': [], 'authoring_stage': stage, 'fresh_context_action': read}
+    report = status(requirements([]), authority([]))
+    report['current_task'] = {'task_id': 'synthetic-task', 'production_run': 'synthetic-run',
+        'focus': 'execution', 'next_actions': [copy.deepcopy(report['runs'][0]['next_action'])],
+        'authoring': {'state': 'authoring-state', 'task_id': 'synthetic-task', 'pending': False,
+            'selection_required': False, 'external_effect': False, 'inputs': [row],
+            'authoring_stage': stage, 'fresh_context_action': read, 'stage_actions': stages,
+            'next_actions': [], 'readings': [{'state': 'recorded', 'current': True,
+                'route': 'generation', 'operation': 'prepare', 'execution': 'dispatcher',
+                'choices': path, 'remaining_bytes': 0, 'next_actions': [], 'fresh_context_action': read}],
+            'context': {'work': {'task_id': 'synthetic-task', 'goal': 'Prepare an inspectable image input.',
+                'questions': [{'question_id': 'open-a', 'question': 'Retain the current framing?', 'state': 'open'},
+                              {'question_id': 'open-b', 'question': 'Which output format is requested?', 'state': 'open'}],
+                'blocked_on': 'A separate current prerequisite.'}, 'input': selected}}}
+    return report
+
+
 class ReportViewTests(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
@@ -234,7 +328,8 @@ class ReportViewTests(unittest.TestCase):
         result = views.present(self.root, report, command='authority-import')
         self.assertEqual(result['sequence'], 4)
         self.assertEqual(result['sha256'], 'e' * 64)
-        self.assertEqual(result['changed_grants']['added'], {'ids': ['new'], 'total': 1, 'omitted': 0})
+        self.assertEqual(result['changed_grants']['added'], {'ids': ['new'], 'total': 1, 'omitted': 0,
+            'full_report': result['full_report'] + '#/changed_grants/added'})
         self.assertNotIn('grant-1599', json.dumps(result))
         self.assertEqual(c.load(self.root / result['full_report']), report)
 
@@ -434,10 +529,225 @@ class ReportViewTests(unittest.TestCase):
         self.assertIn('\n  "next_action"', rendered[:2000])
         self.assertEqual(result['next_action'], report['runs'][0]['next_action'])
         self.assertEqual(result['runs'][0]['next_action'], report['runs'][0]['next_action'])
-        self.assertEqual(result['current_task']['authoring']['inputs'][0]['unresolved'][0]['required_action'],
+        authoring = result['current_task']['authoring']
+        [identifier] = authoring['inputs'][0]['diagnostic_ids']
+        self.assertEqual(next(row for row in authoring['diagnostics'] if row['id'] == identifier)['required_action'],
                          'Complete this actual authored choice.')
         self.assertEqual(c.load(self.root / result['full_report']), before)
         self.assertEqual(report, before)
+
+    def test_long_studio_summary_bounds_history_and_keeps_exact_full_report(self):
+        import production_operations as workflow
+        report = long_authoring_status()
+        # The same current read can replace several older source digests.
+        for change in report['current_task']['authoring']['inputs'][1]['unresolved'][0]['source_changes']['changes']:
+            change['before'] = 'c' * 64
+        before = copy.deepcopy(report)
+        result = views.present(self.root, report, command='status', run='synthetic-run')
+        workflow.schema_check(result, 'status-summary')
+        authoring = result['current_task']['authoring']
+        for name in ('inputs', 'input_options', 'readings', 'decision_drafts'):
+            displayed, counts = authoring[name], authoring[name + '_summary']
+            self.assertLessEqual(len(displayed), views.DETAIL_LIMIT)
+            self.assertEqual(counts['total'], len(report['current_task']['authoring'][name]))
+            self.assertEqual(counts['omitted'], counts['total'] - len(displayed))
+            self.assertEqual(counts['full_report'], result['full_report'] + '#/current_task/authoring/' + name)
+        self.assertEqual(authoring['inputs'][0]['choices'], 'work/branch-063/choices.json')
+        self.assertEqual(authoring['decision_drafts_summary']['unrelated'], 60)
+        self.assertTrue(all(row['run'] == 'synthetic-run' and row['relation'] == 'selected-run'
+                            for row in authoring['decision_drafts']))
+        self.assertEqual(len(authoring['diagnostics']), 1)
+        [issue] = authoring['diagnostics']
+        self.assertEqual(authoring['context']['input']['diagnostic_ids'], [issue['id']])
+        self.assertNotIn('unresolved', authoring['context']['input'])
+        self.assertEqual(issue['changed_sources_summary']['total'], 80)
+        self.assertEqual(issue['changed_sources_summary']['omitted'], 72)
+        self.assertEqual(len(result['blockers']), 1)
+        rendered = json.dumps(result, ensure_ascii=False, indent=2)
+        self.assertNotIn('a' * 64, json.dumps(authoring))
+        self.assertNotIn('b' * 64, json.dumps(authoring))
+        self.assertNotIn('unrelated-run', rendered)
+        self.assertEqual(rendered.count('/skill/scripts/execution_routes.py'), 1)
+        self.assertEqual(rendered.count('references/runtime/changed-source-000.md'), 1)
+        self.assertLess(rendered.index('\n  "blockers"'), rendered.index('\n  "current_task"'))
+        self.assertLess(rendered.index('\n  "run"'), rendered.index('\n  "current_task"'))
+        self.assertLessEqual(len(rendered.encode('utf-8')), 32 * 1024)
+        self.assertEqual(c.load(self.root / result['full_report']), before)
+        self.assertEqual(report, before)
+
+    def test_prepared_input_summary_keeps_current_work_without_repeating_authoring_navigation(self):
+        import production_operations as workflow
+        report = prepared_authoring_status(self.root)
+        before = copy.deepcopy(report)
+        result = views.present(self.root, report, command='status', run='synthetic-run')
+        workflow.schema_check(result, 'status-summary')
+        authored = result['current_task']['authoring']
+        self.assertFalse(authored['pending'])
+        self.assertNotIn('stage_actions', authored)
+        self.assertNotIn('fresh_context_action', json.dumps(authored))
+        self.assertEqual(authored['stage_actions_summary']['total'], 3)
+        self.assertEqual(authored['stage_actions_summary']['full_report'],
+                         result['full_report'] + '#/current_task/authoring/stage_actions')
+        selected = authored['context']['input']
+        self.assertEqual(selected['input_ref'], '#/current_task/authoring/inputs/0')
+        self.assertNotIn('editable_locations', selected)
+        self.assertNotIn('authoring_stage', selected)
+        self.assertEqual(authored['inputs'][0]['editable_locations'],
+                         report['current_task']['authoring']['inputs'][0]['editable_locations'])
+        self.assertEqual(result['next_action'], report['runs'][0]['next_action'])
+        self.assertEqual({row['question_id'] for row in result['blockers'] if 'question_id' in row},
+                         {'open-a', 'open-b'})
+        self.assertTrue(any(row.get('kind') == 'work-blocker' for row in result['blockers']))
+        self.assertLessEqual(len(json.dumps(result, ensure_ascii=False, indent=2).encode('utf-8')), 32 * 1024)
+        self.assertEqual(c.load(self.root / result['full_report']), before)
+        self.assertEqual(report, before)
+
+    def test_changed_prepared_input_keeps_its_current_read_and_stage_actions(self):
+        report = prepared_authoring_status(self.root)
+        authored = report['current_task']['authoring']
+        authored['pending'] = True
+        authored['inputs'][0]['changed_since_save'] = True
+        authored['context']['input']['changed_since_build'] = True
+        problem = {'code': 'AUTHOR_INPUT_REQUIRED', 'field': 'authoring.delivery',
+            'message': 'Assess the actual edited source.', 'required_action': 'Read and assess the current prompt.'}
+        authored['authoring_stage']['unresolved'] = [problem]
+        result = views.present(self.root, report, command='status', run='synthetic-run')
+        displayed = result['current_task']['authoring']
+        self.assertEqual(displayed['fresh_context_action']['argv'], authored['fresh_context_action']['argv'])
+        self.assertEqual([row['argv'] for row in displayed['stage_actions']],
+                         [row['argv'] for row in authored['stage_actions']])
+        self.assertIn('authoring.delivery', {row.get('field') for row in result['blockers']})
+        self.assertEqual(displayed['inputs'][0]['changed_since_save'], True)
+        self.assertEqual(c.load(self.root / result['full_report']), report)
+
+    def test_implementation_notice_keeps_changed_locations_and_complete_hash_evidence(self):
+        report = prepared_authoring_status(self.root)
+        changes = [{'path': f'scripts/changed-{number}.py', 'expected': 'a' * 64, 'actual': 'b' * 64}
+                   for number in range(11)]
+        changes[0]['actual'] = None
+        changes[1]['expected'] = None
+        notice = {'code': 'IMPLEMENTATION_CHANGED', 'severity': 'warning', 'phase': 'implementation',
+            'message': '11 implementation files changed after preparation.',
+            'required_action': 'No action is needed to continue this saved run. Read current material before preparing again.',
+            'expected': 'a' * 64, 'actual': 'b' * 64, 'changed_files': changes}
+        report['runs'][0]['freshness_notices'] = [notice]
+        result = views.present(self.root, report, command='status', run='synthetic-run')
+        projected = result['runs'][0]['freshness_notices'][0]
+        for name in ('code', 'severity', 'phase', 'message', 'required_action'):
+            self.assertEqual(projected[name], notice[name])
+        self.assertNotIn('expected', projected)
+        self.assertNotIn('actual', projected)
+        self.assertEqual(projected['changed_files'],
+                         [item['path'] for item in changes[:8]])
+        self.assertEqual(projected['unavailable_files'], [changes[0]['path']])
+        self.assertEqual(projected['added_files'], [changes[1]['path']])
+        self.assertEqual(projected['changed_files_summary'],
+                         {'total': 11, 'omitted': 3, 'full_report': result['full_report']})
+        self.assertEqual(c.load(self.root / result['full_report'])['runs'][0]['freshness_notices'], [notice])
+        self.assertEqual(result['next_action'], report['runs'][0]['next_action'])
+        self.assertEqual({row['question_id'] for row in result['blockers'] if 'question_id' in row},
+                         {'open-a', 'open-b'})
+        self.assertLessEqual(len(json.dumps(result, ensure_ascii=False, indent=2).encode('utf-8')), 32 * 1024)
+
+    def test_omitted_input_branches_keep_every_distinct_unresolved_finding(self):
+        report = long_authoring_status()
+        authored = report['current_task']['authoring']
+        for number, row in enumerate(authored['inputs']):
+            row['unresolved'] = [{'code': 'AUTHOR_INPUT_REQUIRED', 'field': 'criterion-' + str(number),
+                'file': row['choices'], 'message': 'The criterion needs its actual authored answer.',
+                'required_action': 'Complete this criterion at its owning editable input.'}]
+        authored['input_options'] = []
+        authored['context']['input'] = None
+        result = views.present(self.root, report, command='status', run='synthetic-run')
+        projected = result['current_task']['authoring']
+        self.assertEqual(len(projected['inputs']), 8)
+        self.assertEqual(len(projected['diagnostics']), 64)
+        self.assertEqual(len(result['blockers']), 64)
+        self.assertEqual({row['field'] for row in result['blockers']}, {'criterion-' + str(number) for number in range(64)})
+        self.assertEqual(c.load(self.root / result['full_report']), report)
+
+    def test_input_inspection_keeps_every_referenced_diagnostic_in_its_summary(self):
+        report = long_authoring_status()['current_task']['authoring']
+        report['diagnostics'] = [{'code': 'AUTHOR_INPUT_REQUIRED',
+            'field': 'selected-branch', 'message': 'Choose the branch to continue.',
+            'required_action': 'Inspect the current editable branch.'}]
+        before = copy.deepcopy(report)
+        result = views.present(self.root, report, command='inspect-inputs',
+                               choices='work/branch-063/choices.json')
+        index = {row['id']: row for row in result['diagnostics']}
+        self.assertEqual(len(index), 2)
+        for row in [*result['inputs'], *result['input_options'], result['context']['input']]:
+            self.assertTrue(set(row['diagnostic_ids']).issubset(index))
+        self.assertEqual({row['code'] for row in index.values()},
+                         {'AUTHOR_INPUT_REQUIRED', 'TARGET_GUIDANCE_REQUIRED'})
+        self.assertEqual(c.load(self.root / result['full_report']), before)
+        self.assertEqual(report, before)
+
+        report['diagnostics'] = []
+        result = views.present(self.root, report, command='inspect-inputs',
+                               choices='work/branch-063/choices.json')
+        [issue] = result['diagnostics']
+        self.assertEqual(issue['code'], 'TARGET_GUIDANCE_REQUIRED')
+        self.assertEqual(result['context']['input']['diagnostic_ids'], [issue['id']])
+        self.assertEqual(c.load(self.root / result['full_report']), report)
+
+    def test_large_action_alternatives_keep_counts_and_their_complete_report_owner(self):
+        report = status(None)
+        next_action = report['runs'][0]['next_action']
+        next_action['alternatives'] = [{**copy.deepcopy(next_action), 'draft': f'work/choice-{number}.json'}
+                                       for number in range(54)]
+        result = views.present(self.root, report, command='status', run='synthetic-run')
+        for displayed in (result['next_action'], result['runs'][0]['next_action']):
+            self.assertEqual(len(displayed['alternatives']), 8)
+            self.assertEqual(displayed['alternatives_summary'], {'total': 54, 'omitted': 46,
+                'full_report': result['full_report'] + '#/runs/0/next_action/alternatives'})
+        self.assertEqual(c.load(self.root / result['full_report']), report)
+
+    def test_answered_question_history_does_not_hide_any_open_question_or_blocker(self):
+        report = long_authoring_status()
+        work = report['current_task']['authoring']['context']['work']
+        work['questions'] = [{'question_id': str(number), 'question': f'Answered historical question {number}.',
+                             'answer': 'Long saved answer. ' * 100, 'state': 'answered'} for number in range(60)] + [
+            {'question_id': f'open-{number}', 'question': f'Current open question {number}.', 'state': 'open'}
+            for number in range(12)]
+        work['blocked_on'] = 'An independent current prerequisite.'
+        result = views.present(self.root, report, command='status', run='synthetic-run')
+        current = result['current_task']['authoring']['context']['work']
+        self.assertEqual(len(current['questions']), 12)
+        self.assertEqual(current['questions_summary']['total'], 72)
+        self.assertEqual(current['questions_summary']['omitted'], 60)
+        self.assertEqual({row['question_id'] for row in result['blockers'] if 'question_id' in row},
+                         {f'open-{number}' for number in range(12)})
+        self.assertTrue(any(row.get('kind') == 'work-blocker' for row in result['blockers']))
+        self.assertNotIn('Answered historical question', json.dumps(result))
+        self.assertEqual(c.load(self.root / result['full_report']), report)
+
+    def test_curation_summary_retains_unconfirmed_assessments_and_their_saved_owner(self):
+        report = {'draft_file': 'work/adoption.json', 'schema': 'adoption.schema.json',
+            'required_action': 'Complete actual adoption decisions.',
+            'choices': {'run': 'synthetic-run', 'candidate': 'candidate', 'review': 'review',
+                'selection': 'selection', 'scope': 'sheet', 'influence': 'identity', 'grant': None, 'reason': '',
+                'shared_stop_assessments': {'authorization': 'selection-authority', 'authority_event': 'event',
+                    'confirmed': None, 'basis': {'instruction_evidence': 'Retained actual evidence. ' * 200},
+                    'assessments': [{'id': 'stop', 'condition': 'Actual stop definition.', 'clear': True,
+                                     'evidence': 'Actual retained evidence.'}]}, 'additional_stop_assessments': []},
+            'reading_action': {'command': 'read', 'argv': ['python', '/skill/scripts/execution_routes.py', 'read',
+                'adoption', '--operation', 'adopt', '--scope', 'sheet'], 'reason': 'Read this operation.'},
+            'next_action': {'command': 'adopt', 'argv': ['python', 'production_workflow.py', 'adopt'],
+                            'requires_author_input': True, 'reason': 'Complete the actual decisions first.'}}
+        original = copy.deepcopy(report)
+        result = views.present(self.root, report, command='draft-adoption')
+        self.assertIsNone(result['shared_stop_assessments']['confirmed'])
+        self.assertEqual(result['shared_stop_assessments']['assessment_count'], 1)
+        self.assertEqual(result['shared_stop_assessments']['full_report'],
+                         result['full_report'] + '#/choices/shared_stop_assessments')
+        self.assertIn('/shared_stop_assessments/confirmed', [row['pointer'] for row in result['unresolved']])
+        self.assertTrue(all(row['file'] == 'work/adoption.json' for row in result['unresolved']))
+        self.assertEqual(result['binding']['selection'], 'selection')
+        self.assertEqual(result['reading_action'], report['reading_action'])
+        self.assertEqual(result['next_action'], report['next_action'])
+        self.assertEqual(c.load(self.root / result['full_report']), original)
+        self.assertEqual(report, original)
 
 
 if __name__ == '__main__':
