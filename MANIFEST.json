@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1174,
-  "total_bytes_excluding_manifest": 23379724,
+  "total_bytes_excluding_manifest": 23380080,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -5221,8 +5221,8 @@
     },
     {
       "path": "scripts/test_authored_continuation.py",
-      "bytes": 28220,
-      "sha256": "114814412656a18f8b03a21fde2f909b849bf092922066ced8e47a60a302664c"
+      "bytes": 28576,
+      "sha256": "547d4d78c44c96bb9976c902a46362bb2e6fc127c04b9917621b781dfc3e601d"
     },
     {
       "path": "scripts/test_authored_prompt.py",
