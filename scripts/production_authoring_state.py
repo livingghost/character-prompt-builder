@@ -85,7 +85,7 @@ def remember_inputs(root: Path, task: dict, kind: str, out_dir: str, *,
                     task_path: str | None, from_run: str | None, choices_path: str | None = None,
                     runtime_arguments: dict | None = None, context_sha256: str | None = None,
                     input_arguments: dict | None = None, publication: dict | None = None,
-                    request: str | None = None) -> None:
+                    request: str | None = None, source_choices_path: str | None = None) -> None:
     if active_task_id(root) != task['task_id']:
         return
     if kind not in {'draft-inputs', 'build-inputs'}:
@@ -93,6 +93,8 @@ def remember_inputs(root: Path, task: dict, kind: str, out_dir: str, *,
     c.local(root, out_dir, exists=False)
     details = {'directory': out_dir, 'source_task': task_path, 'source_run': from_run,
                'choices': choices_path, 'runtime_arguments': runtime_arguments}
+    if source_choices_path is not None:
+        details['source_choices'] = source_choices_path
     if context_sha256 is not None:
         details['context_sha256'] = c.sha(context_sha256)
     if publication is not None:
@@ -267,6 +269,60 @@ def input_context_error(root: Path, task_id: str, out_dir: str, *, code: str,
         next_action=action, next_actions=[action], **details)
 
 
+def identity_repairable(error) -> bool:
+    """A compose can continue acquired content, but cannot restore missing evidence."""
+    details = error.diagnostic.details
+    if details.get('cause') == 'retained-identity-source-changed':
+        return True
+    if details.get('cause') != 'retained-identity-source-unresolved':
+        return False
+    rows = details.get('unresolved') or []
+    return bool(rows) and all(row.get('comparison_side') == 'retained_identity_sources'
+        and row.get('reason') not in {'retained-source-run-unavailable', 'retained-source-run-revision-mismatch'}
+        for row in rows)
+
+
+def attach_identity_repair(root: Path, choices_path: str, error, *,
+                           proposal_choices_path: str | None = None) -> None:
+    """Give a retained-source mismatch one executable candidate-owned repair.
+
+    A mutation supplies the immutable proposed candidate. Compilation supplies
+    the currently edited choices. In both cases the source is explicit and the
+    destination never selects a hidden pending edit.
+    """
+    if not identity_repairable(error):
+        return
+    folder = Path(choices_path).parent
+    task_id = c.load(c.local(root, choices_path))['authoring']['task']['task_id']
+    registration = _input_registration(root, task_id, folder.as_posix()) if task_id else None
+    runtime = (registration or {}).get('details', {}).get('runtime_arguments') or {}
+    stem = (folder.name or 'draft') + '-compose'
+    destination = folder.parent / stem
+    number = 2
+    while c.local(root, destination.as_posix(), exists=False).exists():
+        destination = folder.parent / (stem + '-' + str(number))
+        number += 1
+    selected = proposal_choices_path or choices_path
+    repair = _action(root, 'draft-inputs', '--choices', selected, '--out-dir', destination.as_posix(),
+        *_arguments(runtime),
+        reason='Create a compose draft from this candidate and its current source selection; '
+               'continue the preserved authored content in that new draft.')
+    inspect = _action(root, 'inspect-inputs', '--choices', choices_path,
+        reason='Inspect the retained source evidence and its owning amend draft.')
+    error.diagnostic.required_action = repair['reason']
+    context_path = (folder / 'context.json').as_posix()
+    context = c.load(c.local(root, context_path))
+    evidence_pointer = ('/retained_identity_sources' if 'retained_identity_sources' in context
+                        else '/identity_coverage')
+    error.diagnostic.details.update(
+        draft_operation='amend',
+        evidence_owner={'file': context_path, 'pointer': evidence_pointer},
+        repair_owner={'file': (destination / 'choices.json').as_posix(), 'operation': 'compose'},
+        repair_action=repair, inspect_action=inspect, next_action=repair, next_actions=[repair, inspect])
+    if proposal_choices_path is not None:
+        error.diagnostic.details['proposed_candidate'] = {'choices': proposal_choices_path}
+
+
 def require_input_context(root: Path, task_id: str, out_dir: str, raw: bytes, *,
                           required: bool = True) -> dict | None:
     """Check the registered location and exact context independently of identity judgment."""
@@ -403,6 +459,8 @@ def _scope(task: dict, *, root: Path, choices: dict | None = None,
 
 
 def _source_arguments(details: dict, *, initial_task: dict | None = None) -> list[str]:
+    if details.get('source_choices'):
+        return ['--choices', details['source_choices'], *_arguments(details.get('input_arguments') or {})]
     if details['source_task']:
         return ['--task', details['source_task'], *_arguments(details.get('input_arguments') or {})]
     if details['source_run']:
@@ -438,7 +496,7 @@ def _records(root: Path, task_id: str, diagnostics: list) -> list[dict]:
                     'authoring pointer')
             if value['artifact_type'] != 'production-authoring-pointer' or value['task_id'] != task_id:
                 raise ValueError('authoring pointer belongs to another work task')
-            if value['kind'] not in ({'draft-inputs', 'build-inputs', 'route-reading', 'reading-record'}
+            if value['kind'] not in ({'draft-inputs', 'build-inputs', 'route-reading', 'reading-record', 'candidate-snapshot'}
                                      | {kind + '-draft' for kind in DECISION_KINDS}):
                 raise ValueError('unknown authoring pointer kind')
             c.text(value['created_at'], 'authoring pointer time')

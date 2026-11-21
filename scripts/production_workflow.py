@@ -23,6 +23,7 @@ COMMAND_HELP = {
     'review-authored': 'Record an evidence-backed review of the saved authored artifact against its independent assessment basis.',
     'draft-execution': 'Write the unanswered execution decision file for every operation of a prepared run.',
     'acquire-source': 'Acquire one complete Production source row and regenerate its applications, subjects and derived task sources.',
+    'edit-choices': 'Edit one authored choices owner with a JSON Pointer, then publish the checked draft and basis together.',
     'draft-principal-approval': 'Retain an actual instruction and bind an unanswered approval draft to this exact run and request.',
     'draft-authority-update': 'Draft execution, reviewed selection or selected canonical-use authority, deriving run bindings and predecessor.',
     'execute': 'Apply the separate execution decisions, then dispatch or hand the exact request to its external host once.',
@@ -162,10 +163,10 @@ OPTION_HELP = {
 STDIN_INPUTS = ('decisions_file', 'file', 'request', 'intent', 'outcome_file', 'registration_record', 'changes_file')
 # Arguments that name a studio file.
 FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'choices', 'artifact', 'response_file', 'submission_file',
-                               'source_row', 'instruction_file', 'approval_evidence')
+                               'source_row', 'instruction_file', 'approval_evidence', 'value_file')
 
 SUMMARY_COMMANDS = frozenset({'status', 'check', 'prepare', 'save', 'authority-import', 'draft-execution',
-    'execute', 'resume', 'draft-inputs', 'stage-inputs', 'inspect-inputs', 'build-inputs', 'acquire-source',
+    'execute', 'resume', 'draft-inputs', 'stage-inputs', 'inspect-inputs', 'build-inputs', 'acquire-source', 'edit-choices',
     'draft-principal-approval', 'draft-authority-update', 'draft-acceptance', 'draft-adoption'})
 
 
@@ -181,7 +182,7 @@ def build_parser():
     for name in COMMAND_HELP:
         p = sub.add_parser(name, help=COMMAND_HELP[name], description=COMMAND_HELP[name])
         p.add_argument('--root', type=Path, required=name not in {'logs', 'logs-export', 'logs-cleanup'})
-        if name not in {'prepare', 'check', 'save', 'authority-import', 'staging-cleanup', 'logs', 'logs-export', 'logs-cleanup', 'status', 'acquire-source'}:
+        if name not in {'prepare', 'check', 'save', 'authority-import', 'staging-cleanup', 'logs', 'logs-export', 'logs-cleanup', 'status', 'acquire-source', 'edit-choices'}:
             p.add_argument('--run', required=True)
         if name in {'status', 'logs', 'logs-export'}:
             p.add_argument('--run')
@@ -198,6 +199,18 @@ def build_parser():
             p.add_argument('--source-row', required=True,
                 help='Studio-relative JSON file containing one public ProductionTask source row: id, path, role, '
                      'disposition, locator, reason and any identity.subject_ids/selectors. Acquisition derives the task sources.')
+        if name == 'edit-choices':
+            p.add_argument('--choices', required=True, help='Current Studio-relative editable choices.json.')
+            p.add_argument('--pointer', required=True,
+                help='JSON Pointer of one authored owner or its child; use explain-inputs to locate editable fields.')
+            p.add_argument('--operation', choices=('add', 'replace', 'remove'), default='replace',
+                help='Apply the JSON Pointer operation; replace by default. Array add inserts and a final - appends.')
+            p.add_argument('--value-file',
+                help='Studio-relative JSON file containing the exact new value; required for add or replace and omitted for remove.')
+            p.epilog = ('Edits retain unfinished authoring judgments and check the registered identity-source boundary before '
+                'publishing. Selected delivery and document files own their content; generated bindings and measurements '
+                'remain with their builders. A refused identity-source change returns the retained actual proposal and '
+                'an explicit draft-inputs --choices action to continue it as compose.')
         if name == 'draft-principal-approval':
             p.add_argument('--instruction-file', required=True, help='Studio-relative UTF-8 file with the actual instruction, retained verbatim.')
             p.add_argument('--actor', required=True, help='The actual instructing principal; drafting does not assert approval.')
@@ -520,6 +533,10 @@ def main() -> int:
         elif name == 'acquire-source':
             from production_source_acquisition import acquire_source
             result = acquire_source(root, args.choices, args.source_row)
+        elif name == 'edit-choices':
+            from production_choice_edits import edit_choices
+            result = edit_choices(root, args.choices, args.pointer,
+                operation=args.operation, value_file=args.value_file)
         elif name in {'draft-principal-approval', 'draft-authority-update'}:
             from production_execution import draft_principal_approval, draft_authority_update
             result = (draft_principal_approval(root, args.run, args.instruction_file, args.actor)

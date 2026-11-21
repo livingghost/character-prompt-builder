@@ -961,24 +961,52 @@ class IdentityDeclaredSvgReviewTests(IdentityMediaReviewCase):
 
     def test_direct_declared_image_remains_region_observable_at_saved_bytes(self):
         prepared = workflow.load_run(self.root, self.run)[1]
-        sources = prepared['identity_coverage']['sources']
-        self.assertEqual([row['id'] for row in sources], [self.source_id])
-        self.assertFalse(sources[0]['derived'])
-        self.assertEqual(sources[0]['format'], 'text' if self.image_format == 'SVG' else 'media')
+        sources = {row['id']: row for row in prepared['identity_coverage']['sources']}
+        reference = 'original-identity'
+        reference_source = 'reference:' + reference
+        self.assertEqual(set(sources), {self.source_id, reference_source})
+        direct, derived = sources[self.source_id], sources[reference_source]
+        self.assertFalse(direct['derived'])
+        self.assertEqual(direct['format'], 'text' if self.image_format == 'SVG' else 'media')
+        self.assertNotIn('authority', direct)
+        self.assertTrue(derived['derived'])
+        self.assertEqual(derived['format'], 'image')
+        for source in sources.values():
+            self.assertEqual(source['sha256'], c.digest(self.original_bytes))
+            self.assertEqual(source['subject_ids'], ['robot'])
+            self.assertEqual(source['selectors'], [''])
+        selected = c.load(self.root / 'identity-references.json')['selected_references'][0]
+        controls = selected['authority']['controls']
+        self.assertEqual(derived['authority'], {
+            'reference': reference, 'controls': controls,
+            'use_for': sorted(set(controls) | {'identity'}), 'intended_influence': ['identity'],
+            'do_not_transfer': selected['authority']['must_not_control'],
+            'subject_uses': [{'subject_id': 'robot', 'use': 'identity', 'priority': 0}],
+            'source': selected['source']})
+        carrier = prepared['identity_coverage']['bindings'][0]['carriers'][0]
+        self.assertEqual(carrier['reference_source_sha256'], derived['sha256'])
+        self.assertNotEqual(carrier['carrier_sha256'], derived['sha256'])
         value = self.review_data([('output', 'pass'), ('palette', 'pass'), ('identity-media', 'pass')])
-        evidence_id = 'identity-source:' + self.source_id
-        value['observations'].append({'evidence': evidence_id,
-            'locator': {'kind': 'image-region', 'x': 0, 'y': 0, 'width': 0.5, 'height': 1},
-            'observation': 'The selected original region is a locally decoded synthetic image.',
-            'interpretation': 'This is source provenance and access evidence, not generated fidelity.',
-            'limitations': ['Only the declared synthetic region is inspected.']})
-        value['checks'][-1]['observation_indices'].append(1)
+        evidence_ids = ['identity-source:' + ident for ident in (self.source_id, reference_source)]
+        for evidence_id in evidence_ids:
+            value['observations'].append({'evidence': evidence_id,
+                'locator': {'kind': 'image-region', 'x': 0, 'y': 0, 'width': 0.5, 'height': 1},
+                'observation': 'The selected original region is a locally decoded synthetic image.',
+                'interpretation': 'This is source provenance and access evidence, not generated fidelity.',
+                'limitations': ['Only the declared synthetic region is inspected.']})
+            value['checks'][-1]['observation_indices'].append(len(value['observations']) - 1)
         fixtures.write(self.root / 'review.json', value)
         self.original.unlink()
         (self.root / self.declared_path).unlink()
+        retained = workspace.workspace(self.root, self.run, phase='review', candidate=self.candidate)
+        originals = {row['id']: row for row in retained['sources'] if row['id'] in sources}
+        self.assertEqual(set(originals), set(sources))
+        for source in originals.values():
+            self.assertEqual(Path(source['saved_path']).read_bytes(), self.original_bytes)
         recorded = workflow.review(self.root, self.run, 'review.json')
-        self.assertEqual(recorded['data']['media'][evidence_id]['kind'], 'image')
-        self.assertEqual(recorded['data']['media'][evidence_id]['format'], self.image_format)
+        for evidence_id in evidence_ids:
+            self.assertEqual(recorded['data']['media'][evidence_id]['kind'], 'image')
+            self.assertEqual(recorded['data']['media'][evidence_id]['format'], self.image_format)
 
 
 class IdentityDeclaredPngReviewTests(IdentityDeclaredSvgReviewTests):

@@ -170,37 +170,9 @@ def _sources(root: Path, task: dict, reader: InputEvidence) -> list[dict]:
     return output
 
 
-def _draft_context(root: Path, task: dict, choices: dict | None) -> dict:
-    """What a draft's identity view reads from its choices before the inputs are built.
-
-    A task without a built image input or prepared set takes its reference rows
-    from the selected reference choices, and its subjects from the resolved
-    editable Production Specification. Building the inputs derives their
-    compiled files.
-    """
-    if choices is None:
-        return {}
-    import production_reference_inputs
-    result = {}
-    authored = choices.get('authoring') or {}
-    if not task.get('image_input') and not (task.get('generation') or {}).get('references'):
-        external = choices.get('external') or {}
-        for selection in (authored.get('references'), (external.get('reference_delivery') or {}).get('choices')):
-            if isinstance(selection, dict):
-                provisional = production_reference_inputs.provisional_inputs(selection, root=root)
-                if provisional is not None and provisional['references']:
-                    result['inputs'] = provisional
-                    break
-    specification = (authored.get('documents') or {}).get('production_spec')
-    if (isinstance(specification, dict)
-            and not (task.get('generation') or {}).get('production_spec')):
-        result['production_spec'] = specification
-    return result
-
-
 def _identity_view(root: Path, task: dict, reader: InputEvidence, *, saved: dict | None = None,
                    files: dict[str, bytes] | None = None, out_dir: str | None = None,
-                   choices: dict | None = None) -> dict | None:
+                   choices: dict | None = None, basis: dict | None = None) -> dict | None:
     """Expose original identity evidence beside choices, including saved runs.
 
     Authoring can be incomplete. Return its precise gaps without certifying
@@ -235,12 +207,12 @@ def _identity_view(root: Path, task: dict, reader: InputEvidence, *, saved: dict
         captured[path] = raw
         return raw
     try:
-        value = production_identity.inspect(task, read, **_draft_context(root, task, choices))
+        value = production_identity.inspect(task, read, choices=choices, basis=basis)
     except (ValueError, OSError, KeyError, TypeError) as exc:
         return {'status': 'unresolved', 'request_verified': False,
                 'diagnostics': [from_exception(exc, phase='identity-coverage')]}
     if (value['sources'] or value['required_subject_ids'] or value['requires_identity_source']
-            or value['whole_reviews']):
+            or value['whole_reviews'] or value.get('diagnostics')):
         return value
     return None
 
@@ -305,6 +277,11 @@ def inspect_inputs(root: Path, task_path: str | None = None, *, from_run: str | 
                    choices_path: str | None = None, runtime_arguments: dict | None = None) -> dict:
     """Read declarations and saved records without issuing keys or permissions."""
     if task_path is None and from_run is None:
+        if choices_path is not None:
+            import production_candidate_snapshot
+            proposal = production_candidate_snapshot.inspect(root, choices_path)
+            if proposal is not None:
+                return proposal
         import production_authoring_state
         return production_authoring_state.inspect(root, choices=choices_path, runtime_arguments=runtime_arguments)
     if choices_path is not None:
@@ -728,6 +705,7 @@ def _upscale_refusal(message: str, required_action: str) -> ProductionError:
 
 
 def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: str | None = None,
+                 source_choices: str | None = None,
                  runtime_arguments: dict | None = None, route: str | None = None,
                  artifact: str | None = None, execution: str | None = None,
                  task_id: str | None = None, features: list[str] | None = None,
@@ -736,16 +714,42 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                  purpose: str | None = None, new_task: str | None = None,
                  source_run: str | None = None, source_candidate: str | None = None,
                  edit_character: str | None = None, edit_slot: str | None = None,
-                 operation: str, request_file: str | None = None,
+                 operation: str | None = None, request_file: str | None = None,
                  apply_sources: list[str] | None = None, focus: str | None = None,
                  stage: str | None = None) -> dict:
     _destination(root, out_dir)
+    if source_choices is not None and (task_path is not None or from_run is not None):
+        raise ValueError('select choices, a task or a source run as the candidate input')
+    operation = operation or ('compose' if source_choices is not None else None)
+    if source_choices is not None and operation != 'compose':
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            'A choices input begins a fresh compose from that candidate.',
+            phase='authoring', file=source_choices, pointer='/operation',
+            cause='candidate-source-operation',
+            required_action='Use draft-inputs --choices with operation compose, or omit --operation. '
+                'Continue an existing amend by editing its current choices.')
     if operation not in {'compose', 'amend'}:
         raise ValueError('select the authoring operation: compose or amend')
     if stage is not None and stage not in reading_scope.STAGES:
         raise ValueError('select an authoring stage: ' + ', '.join(reading_scope.STAGES))
+    constructor_actions = _constructor_identity_actions(root, out_dir, {
+        'task': task_path, 'from-run': from_run, 'choices': source_choices,
+        'request-file': request_file, 'apply-source': apply_sources, 'focus': focus,
+        'task-id': task_id, 'new-task': new_task, 'route': route, 'artifact': artifact,
+        'execution': execution, 'feature': features, 'model': model, 'service': service,
+        'source-image': source_image, 'scale': scale, 'purpose': purpose,
+        'source-run': source_run, 'source-candidate': source_candidate,
+        'edit-character': edit_character, 'edit-slot': edit_slot, 'stage': stage,
+    }, runtime_arguments)
     reader = InputEvidence(root)
-    initial = task_path is None and from_run is None
+    initial = task_path is None and from_run is None and source_choices is None
+    candidate = None
+    if source_choices is not None:
+        import production_candidate_snapshot
+        candidate = production_candidate_snapshot.acquire(root, source_choices)
+        source_choices = candidate['source_choices']
+        if runtime_arguments is None:
+            runtime_arguments = candidate['runtime_arguments']
     source_result = None
     edit = None
     if edit_character is not None or edit_slot is not None:
@@ -769,7 +773,14 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                 'Omit --execution or select --execution dispatcher for the upscale draft.')
         source_result = _captured_image_source(root, source_run, source_candidate)
         source_image = Path(source_result['file']['path'])
-    selected_source = _task(root, task_path, reader, from_run=from_run, operation='draft-inputs') if not initial else None
+    if candidate is not None:
+        candidate_task = _chosen_task(candidate['context']['task_content'], candidate['choices'])
+        candidate_run = (candidate['context'].get('derived_from') or {}).get('source_run')
+        candidate_ref = ({'run': candidate_run['run'], 'input_sha256': candidate_run['input_sha256']}
+                         if candidate_run is not None else {'initial': True, 'task_id': candidate_task['task_id']})
+        selected_source = (candidate_task, None, candidate_ref, candidate_run)
+    else:
+        selected_source = _task(root, task_path, reader, from_run=from_run, operation='draft-inputs') if not initial else None
     import production_authoring_state
     import work_ledger
     # Work this call opens. The draft is built for its reserved ID first; the
@@ -811,16 +822,19 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         task_ref, saved = {'initial': True, 'task_id': task['task_id']}, None
     else:
         task, _, task_ref, saved = selected_source
-    if from_run is not None and task_id is None:
+    if (from_run is not None or source_choices is not None) and task_id is None:
         active = production_authoring_state.active_task_id(root)
         if active != task['task_id']:
             from cli_invocation import python_argv, shown
-            arguments = ['--root', str(root), *(['--from-run', from_run] if from_run else ['--task', task_path]),
+            arguments = ['--root', str(root), *(['--choices', source_choices] if source_choices else
+                         ['--from-run', from_run] if from_run else ['--task', task_path]),
                          '--out-dir', out_dir, '--operation', operation]
             if request_file is not None:
                 arguments += ['--request-file', request_file]
             for source in apply_sources or []:
                 arguments += ['--apply-source', source]
+            for feature in features or []:
+                arguments += ['--feature', feature]
             arguments += ['--task-id', active] if active else ['--new-task', '<revision-goal>']
             for key, value in {'model': model, 'service': service, 'focus': focus, 'route': route,
                                'artifact': artifact, 'execution': execution, 'source-image': source_image,
@@ -848,11 +862,26 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                 task_id=task_id, runtime_arguments=runtime_arguments, model=model, service=service,
                 source_image=source_image, scale=scale, purpose=purpose, open_work=open_work,
                 operation=operation, request_file=request_file, apply_sources=apply_sources, focus=focus,
-                route=route, artifact=artifact, execution=execution, features=features, stage=stage)
+                route=route, artifact=artifact, execution=execution, features=features, stage=stage,
+                constructor_actions=constructor_actions)
+    if candidate is not None:
+        return _draft_candidate(root, candidate, out_dir, task_id=task_id,
+            runtime_arguments=runtime_arguments, operation=operation, request_file=request_file,
+            apply_sources=apply_sources, focus=focus, model=model, service=service,
+            source_image=source_image, scale=scale, purpose=purpose, open_work=open_work,
+            route=route, artifact=artifact, execution=execution, features=features, stage=stage,
+            constructor_actions=constructor_actions)
     choices = draft_choices(task)
     choices['authoring_stage'] = stage or ('prepare' if task.get('route') == 'upscale' else 'definition')
     captured = _captured_inputs(root, saved)
+    retained_identity = None
     with captured if captured is not None else nullcontext():
+        if operation == 'amend':
+            if captured is not None:
+                retained_identity = captured.identity_sources()
+            else:
+                original_basis = reader.json(reader.select(task['work_basis'])) if task.get('work_basis') else None
+                retained_identity = _current_identity_sources(task, None, original_basis, reader)
         choices['authoring'] = authoring.draft(root, task, reader, saved=saved, initial=initial,
             captured=captured, retained_prefix=out_dir + '/retained' if captured is not None else None)
         if not initial and task_id is not None:
@@ -893,13 +922,17 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         if choices['external'] is not None and retained_paths:
             import production_external_inputs
             choices['external'] = production_external_inputs.relocate_sources(choices['external'], retained_paths)
-        _retain_identity_context(choices['authoring'], captured, retained_paths, retained_files, out_dir)
+        retained_owners = _retained_source_owners(captured)
+        if operation == 'amend':
+            _retain_identity_context(choices['authoring'], captured, retained_paths, retained_files, out_dir)
+        prior_basis = _saved_work_basis(captured)
+        _select_identity_owners(choices, prior_basis, retained_owners, operation=operation)
         task, choices, work_basis, request = _begin_work(root, task, choices, retained_files, out_dir, reader,
             operation=operation, request_file=request_file, apply_sources=apply_sources,
-            prior_basis=_saved_work_basis(captured), initial=initial, focus=focus,
+            prior_basis=prior_basis, initial=initial, focus=focus,
             route=route, artifact=artifact, execution=execution, features=features)
-        if operation == 'compose' and not initial:
-            edit_files = {}
+        _mark_identity_owners(work_basis, retained_owners)
+        retained_files['work-basis.json'] = c.encoded(work_basis)
         imported, selected_image = authoring.select_upscale(root, choices['authoring'], out_dir,
             source_image=source_image, scale=scale, purpose=purpose)
         if source_result is not None:
@@ -934,7 +967,11 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         resolved = copy.deepcopy(choices)
         resolved['authoring'], locations, file_gaps = authoring.read_editable(choices['authoring'], reader)
         identity = _identity_view(root, chosen, reader, saved=saved, files=editable, out_dir=out_dir,
-                                  choices=resolved)
+                                  choices=choices, basis=work_basis)
+        boundary = _current_identity_sources(chosen, choices, work_basis, reader)
+        _require_constructor_identity(retained_identity, boundary, work_basis,
+            file=task_path or (saved or {}).get('task_path'), out_dir=out_dir,
+            actions=constructor_actions)
         projected = production_target.project(resolved, chosen, root, reader, out_dir)
         gaps = _unresolved(resolved, task, root=root, runtime_arguments=runtime_arguments,
             choices_path=(Path(out_dir) / 'choices.json').as_posix()) + file_gaps
@@ -955,6 +992,8 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
               'selected_image': selected_image,
               **({'edit_source': production_edit_inputs.report(edit)} if edit is not None else {}),
               **({'identity_coverage': identity} if identity is not None else {}),
+              'retained_identity_sources': retained_identity if operation == 'amend' else boundary,
+              'identity_owners': retained_owners,
               'derived_from': {'task': task_ref, 'source_run': saved},
               'external_effect': False}
     result['authoring_work'] = {'operation': operation,
@@ -993,7 +1032,7 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
             _authoring_arguments(task, operation=operation, request_file=request_file,
                 apply_sources=apply_sources, focus=focus, route=route, artifact=artifact,
                 execution=execution, features=features, model=model, service=service,
-                stage=choices['authoring_stage'])))
+                stage=choices['authoring_stage'], source_image=source_image, scale=scale, purpose=purpose)))
     _publish(root, out_dir, {**editable,'choices.json': c.encoded(choices),
                             'context.json': context_raw}, reader=reader)
     production_authoring_state.published_draft(root, task, out_dir)
@@ -1001,7 +1040,7 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
             'context_file': (Path(out_dir) / 'context.json').as_posix()}
 
 
-def _request_text(root: Path, path: str | None, reader: InputEvidence) -> str | None:
+def _request_text(path: str | None, reader: InputEvidence) -> str | None:
     """Acquire the actual current instruction; a work-ledger title is navigation."""
     if path is None:
         return None
@@ -1029,6 +1068,7 @@ def _begin_work(root: Path, task: dict, choices: dict, files: dict, out_dir: str
                 execution: str | None = None, features: list[str] | None = None) -> tuple[dict, dict, dict, dict | None]:
     """Apply the shared content operation after either acquisition adapter."""
     import production_store
+    choices = normalize_task_choices(choices)
     task = _chosen_task(task, choices)
     held = production_store.read_authority(root, task['task_id'], required=False)
     protected = {key for grant in held.document['grants'] for key in grant['protected_criteria']} if held else set()
@@ -1043,7 +1083,7 @@ def _begin_work(root: Path, task: dict, choices: dict, files: dict, out_dir: str
             resolved['authoring'], _, _ = authoring.read_editable(resolved['authoring'], reader)
     selected_stage = choices.get('authoring_stage')
     choices, basis, task = authoring_work.begin(resolved, task=task, operation=operation,
-        request=_request_text(root, request_file, reader), read_source=read, prior_basis=prior_basis,
+        request=_request_text(request_file, reader), read_source=read, prior_basis=prior_basis,
         applied_sources=apply_sources, protected_criteria=protected, initial=initial,
         route=route, artifact=artifact, execution=execution, features=features, focus=focus)
     if selected_stage is not None:
@@ -1055,15 +1095,233 @@ def _begin_work(root: Path, task: dict, choices: dict, files: dict, out_dir: str
     return task, choices, basis, request
 
 
+def _retained_source_owners(captured) -> dict:
+    """Identify promoted witnesses from their actual source ownership, not wording."""
+    if captured is None:
+        return {}
+    basis = _saved_work_basis(captured) or {}
+    owners = {ident: copy.deepcopy(record['origin'].get('identity_owner', {}))
+              for ident, record in basis.get('sources', {}).items()
+              if (record.get('origin') or {}).get('kind') == 'retained-identity'}
+    direct = {row['id'] for row in captured.prepared['task'].get('sources', [])}
+    for source in (captured.prepared.get('identity_coverage') or {}).get('sources', []):
+        if not source.get('derived') or source['id'] in direct:
+            continue
+        authority = source.get('authority') or {}
+        if 'reference' in authority:
+            owners[source['id']] = {'kind': 'reference-use', 'reference': authority['reference']}
+        elif 'owner' in authority and 'character_id' in authority:
+            owners[source['id']] = {'kind': 'state-node', 'owner': authority['owner'],
+                                   'character_id': authority['character_id']}
+    return owners
+
+
+def _mark_identity_owners(basis: dict, owners: dict) -> None:
+    for ident, owner in owners.items():
+        if ident in basis['sources']:
+            origin = basis['sources'][ident].setdefault('origin', {})
+            origin.update(kind='retained-identity', identity_owner=copy.deepcopy(owner))
+
+
+def _select_identity_owners(choices: dict, basis: dict | None, owners: dict, *, operation: str) -> None:
+    """A compose selects current owners, while old implicit witnesses remain comparison."""
+    if basis is not None:
+        owners.update({ident: copy.deepcopy(record['origin'].get('identity_owner', {}))
+            for ident, record in basis.get('sources', {}).items()
+            if (record.get('origin') or {}).get('kind') == 'retained-identity'})
+    if operation != 'compose' or not owners:
+        return
+    authored = choices['authoring']
+    removed_paths = {row['path'] for row in authored['task'].get('sources', []) if row['id'] in owners}
+    authored['task']['sources'] = [row for row in authored['task'].get('sources', []) if row['id'] not in owners]
+    authored['source_files'] = {path: value for path, value in authored['source_files'].items() if path not in removed_paths}
+    if basis is not None:
+        removed = {key for key, row in basis['applications'].items() if row['source'] in owners}
+        basis['applications'] = {key: row for key, row in basis['applications'].items() if key not in removed}
+        basis['subjects'] = {key: [item for item in values if item not in removed]
+                             for key, values in basis['subjects'].items()}
+        basis['subjects'] = {key: values for key, values in basis['subjects'].items() if values}
+        basis['requirements'] = [key for key in basis['requirements'] if key not in removed]
+
+
+def _current_identity_sources(task: dict, choices: dict | None, basis: dict | None,
+                              reader: InputEvidence) -> dict:
+    import production_identity
+    def read(path):
+        if Path(path).is_absolute():
+            return c.read(Path(path))
+        return reader.read(reader.select(path))
+    return production_identity.source_snapshot(task, read, choices=choices, basis=basis)
+
+
+def _constructor_identity_actions(root: Path, out_dir: str, selections: dict,
+                                  runtime_arguments: dict | None) -> dict:
+    """Inspect the acquired owner or repeat its selected content as a new compose."""
+    from cli_invocation import python_argv, shown
+    arguments = ['--root', str(root), '--out-dir', out_dir, '--operation', 'compose']
+    for key, value in {**selections, **(runtime_arguments or {})}.items():
+        if value is not None:
+            for item in value if isinstance(value, list) else [value]:
+                arguments.extend(('--' + key, str(item)))
+    argv = python_argv(ROOT / 'scripts/production_workflow.py', 'draft-inputs', *arguments)
+    repair = {'command': 'draft-inputs', 'operation': 'draft-inputs', 'argv': argv, 'shown': shown(argv),
+              'external_effect': False,
+              'reason': 'Compose the same selected content and current request with the proposed source selection.'}
+    source = {key: selections[key] for key in ('task', 'from-run', 'choices') if selections.get(key) is not None}
+    arguments = ['--root', str(root)]
+    for key, value in {**source, **(runtime_arguments or {})}.items():
+        if value is not None:
+            for item in value if isinstance(value, list) else [value]:
+                arguments.extend(('--' + key, str(item)))
+    argv = python_argv(ROOT / 'scripts/production_workflow.py', 'inspect-inputs', *arguments)
+    inspect = {'command': 'inspect-inputs', 'operation': 'inspect-inputs', 'argv': argv, 'shown': shown(argv),
+               'external_effect': False,
+               'reason': 'Inspect the selected input and the source owners it acquired.'}
+    if 'from-run' in source:
+        owner = {'run': source['from-run'], 'pointer': '/task'}
+    elif 'task' in source:
+        owner = {'file': source['task'], 'pointer': ''}
+    elif 'choices' in source:
+        owner = {'file': source['choices'], 'pointer': '/authoring'}
+    else:
+        owner = {'owner': 'initial-constructor-input'}
+    return {'repair': repair, 'inspect': inspect, 'evidence_owner': owner}
+
+
+def _require_constructor_identity(retained: dict | None, current: dict, basis: dict, *,
+                                  file: str | None, out_dir: str, actions: dict) -> None:
+    """Compare against the acquired input before new constructor selections are applied."""
+    import production_identity_boundary
+    import production_authoring_state
+    context = {'authoring_work': {'operation': basis['operation']},
+               'retained_identity_sources': retained}
+    try:
+        production_identity_boundary.require_unchanged(context, basis, current, file=file)
+    except ProductionError as error:
+        if production_authoring_state.identity_repairable(error):
+            repair, inspect = copy.deepcopy(actions['repair']), copy.deepcopy(actions['inspect'])
+            error.diagnostic.details.update(repair_action=repair, inspect_action=inspect, next_action=repair,
+                next_actions=[repair, inspect], evidence_owner=copy.deepcopy(actions['evidence_owner']),
+                repair_owner={'file': (Path(out_dir) / 'choices.json').as_posix(), 'operation': 'compose'})
+            error.diagnostic.required_action = repair['shown']
+        raise
+
+
+def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str | None,
+                     runtime_arguments: dict | None, operation: str, request_file: str | None,
+                     apply_sources: list[str] | None, focus: str | None, model: str | None,
+                     service: str | None, source_image: Path | None, scale: float | None,
+                     purpose: str | None, open_work, route: str | None, artifact: str | None,
+                     execution: str | None, features: list[str] | None, stage: str | None,
+                     constructor_actions: dict) -> dict:
+    """Compose an acquired actual candidate without replaying a refused mutation."""
+    import production_candidate_snapshot as snapshots
+    import production_authoring_state as state
+    choices, prior_basis, files, candidate_inputs = snapshots.materialize(candidate, out_dir)
+    choices = normalize_task_choices(choices)
+    original_context = candidate['context']
+    task = _chosen_task(original_context['task_content'], choices)
+    if task_id is not None:
+        task = _bind_task(task, task_id)
+        choices['authoring']['task'] = _bind_task(choices['authoring']['task'], task_id)
+    choices['authoring_stage'] = stage or choices.get('authoring_stage') or 'definition'
+    owners = copy.deepcopy(candidate['identity_owners'])
+    _select_identity_owners(choices, prior_basis, owners, operation=operation)
+    # Preserve actual file selectors and aliases while the work owner examines
+    # their resolved content. This avoids normalizing literal prompt newlines or
+    # splitting several JSON field selections into independently editable copies.
+    selected_delivery = copy.deepcopy(choices['authoring']['delivery'])
+    selected_documents = copy.deepcopy(choices['authoring']['documents'])
+    reader = InputEvidence(root, named_roots={'@skill': ROOT})
+    task, choices, work_basis, request = _begin_work(root, task, choices, files, out_dir, reader,
+        operation=operation, request_file=request_file, apply_sources=apply_sources,
+        prior_basis=prior_basis, editable=True, focus=focus,
+        route=route, artifact=artifact, execution=execution, features=features)
+    choices['authoring']['delivery'] = selected_delivery
+    choices['authoring']['documents'] = selected_documents
+    _mark_identity_owners(work_basis, owners)
+    files['work-basis.json'] = c.encoded(work_basis)
+    _select_target(choices, model=model, service=service)
+    imported, selected_image = authoring.select_upscale(root, choices['authoring'], out_dir,
+        source_image=source_image, scale=scale, purpose=purpose)
+    files.update(imported)
+    import production_reference_inputs
+    production_reference_inputs.identify_choices(choices)
+    _validate_choices(choices)
+    task = _chosen_task(task, choices)
+    saved = (original_context.get('derived_from') or {}).get('source_run')
+    reference = ({'run': saved['run'], 'input_sha256': saved['input_sha256']}
+                 if saved is not None else {'initial': True, 'task_id': task['task_id']})
+    origin = {'task': reference, 'source_run': saved, 'source_choices': copy.deepcopy(candidate['origin'])}
+    with _staged_files(root, out_dir, files):
+        resolved = copy.deepcopy(choices)
+        resolved['authoring'], locations, file_gaps = authoring.read_editable(resolved['authoring'], reader)
+        held = _current_identity_sources(task, choices, work_basis, reader)
+        _require_constructor_identity(candidate.get('identity_baseline'), held, work_basis,
+            file=(saved or {}).get('task_path') or candidate.get('source_choices'),
+            out_dir=out_dir, actions=constructor_actions)
+        identity = _identity_view(root, task, reader, saved=saved, choices=choices, basis=work_basis)
+        projected = production_target.project(resolved, task, root, reader, out_dir)
+        scope = reading_scope.selection(root, choices, task, basis=work_basis, context={'derived_from': origin})
+        gaps = _unresolved(resolved, task, root=root, runtime_arguments=runtime_arguments,
+            choices_path=(Path(out_dir) / 'choices.json').as_posix()) + file_gaps
+        gaps.extend(projected['unresolved'])
+        gaps.extend(_target_gaps(choices, task, projected))
+        gaps.extend(_identity_gaps(identity, root=root, choices_path=(Path(out_dir) / 'choices.json').as_posix(), locations=locations))
+        gaps.extend(authoring_work.unresolved(work_basis, resolved,
+            require_subject=authoring_work.requires_subject(task), root=root,
+            choices_path=(Path(out_dir) / 'choices.json').as_posix(),
+            basis_path=(Path(out_dir) / 'work-basis.json').as_posix()))
+        gaps.extend(_guidance_gap(root, task, choices, projected, runtime_arguments,
+            choices_path=(Path(out_dir) / 'choices.json').as_posix(), authoring_scope=scope))
+    gaps = authoring.locate_unresolved(gaps, locations)
+    choice_path = (Path(out_dir) / 'choices.json').as_posix()
+    result = {'state': 'draft', 'choices': choices, 'unresolved': gaps,
+        'derived_from': origin, 'external_effect': False, 'selected_image': selected_image,
+        'authoring_work': {'operation': operation, 'basis': (Path(out_dir) / 'work-basis.json').as_posix(),
+                          'content': choice_path}, 'identity_owners': owners,
+        'retained_identity_sources': candidate.get('identity_baseline') if operation == 'amend' else held,
+        'identity_coverage': identity,
+        'candidate_inputs': candidate_inputs,
+        'target_knowledge': projected['knowledge'], 'authoring_scope': scope,
+        'authoring_stage': reading_scope.projection(choices, task, gaps),
+        'stage_actions': reading_scope.actions(root, choice_path, choices['authoring_stage'], runtime_arguments),
+        'next_actions': _draft_actions(root, task, choices, gaps, out_dir, runtime_arguments, saved, projected)}
+    if request is not None:
+        result['current_request'] = request
+    import production_input_guide
+    result['authoring_guide'] = production_input_guide.summary(root, choice_path, choices)
+    context = {key: value for key, value in result.items() if key != 'choices'}
+    context['task_content'] = task
+    if task_id is not None:
+        context['task_binding'] = {'task_id': task_id}
+    raw = c.encoded(context)
+    open_work()
+    state.remember_inputs(root, task, 'draft-inputs', out_dir, task_path=None,
+        from_run=saved['run'] if saved else None, source_choices_path=candidate.get('source_choices'),
+        runtime_arguments=runtime_arguments, context_sha256=c.digest(raw),
+        request=request['text'] if request is not None else None,
+        input_arguments=_authoring_arguments(task, operation=operation, request_file=request_file,
+            apply_sources=apply_sources, focus=focus, route=route, artifact=artifact,
+            execution=execution, features=features, model=model, service=service,
+            stage=choices['authoring_stage'], source_image=source_image, scale=scale, purpose=purpose))
+    _publish(root, out_dir, {**files, 'choices.json': c.encoded(choices), 'context.json': raw}, reader=reader)
+    state.published_draft(root, task, out_dir)
+    return {**result, 'choices_file': choice_path, 'context_file': (Path(out_dir) / 'context.json').as_posix()}
+
+
 def _authoring_arguments(task: dict, *, operation: str, request_file: str | None,
                         apply_sources: list[str] | None, focus: str | None, route: str | None, artifact: str | None,
                         execution: str | None, features: list[str] | None,
-                        model: str | None, service: str | None, stage: str | None = None) -> dict:
+                        model: str | None, service: str | None, stage: str | None = None,
+                        source_image: Path | None = None, scale: float | None = None,
+                        purpose: str | None = None) -> dict:
     """Recover the actual operation, request and source selections after interruption."""
     return {key: value for key, value in {
         'operation': operation, 'request-file': request_file, 'apply-source': apply_sources, 'focus': focus,
         'task-id': task['task_id'], 'route': route, 'artifact': artifact,
         'execution': execution, 'feature': features, 'model': model, 'service': service, 'stage': stage,
+        'source-image': str(source_image) if source_image is not None else None, 'scale': scale, 'purpose': purpose,
     }.items() if value is not None}
 
 
@@ -1201,6 +1459,7 @@ def _restore_selected_sources(choices: dict, captured, out_dir: str) -> tuple[di
 def _restore_draft(root: Path, run: str, out_dir: str, saved_source: dict, *,
                    task_id: str | None, runtime_arguments: dict | None,
                    operation: str, request_file: str | None, apply_sources: list[str] | None, focus: str | None,
+                   constructor_actions: dict,
                    model: str | None = None, service: str | None = None,
                    source_image: Path | None = None, scale: float | None = None,
                    purpose: str | None = None, open_work=lambda: None,
@@ -1208,108 +1467,35 @@ def _restore_draft(root: Path, run: str, out_dir: str, saved_source: dict, *,
                    execution: str | None = None, features: list[str] | None = None,
                    stage: str | None = None) -> dict:
     """Acquire an unfinished saved candidate, then use the common authoring operation."""
-    import production_authoring_state
-    choices = copy.deepcopy(saved_source['choices'])
-    choices['authoring_stage'] = stage or choices.get('authoring_stage') or 'definition'
-    task = copy.deepcopy(saved_source['task'])
-    authored = choices['authoring']
-    if task_id is not None:
-        task = _bind_task(task, task_id)
-        authored['task'] = _bind_task(authored['task'], task_id)
+    choices = normalize_task_choices(saved_source['choices'])
     saved = _source_run(root, run)
-    reader = InputEvidence(root, named_roots={'@skill': ROOT})
     with _captured_inputs(root, saved) as captured:
-        files, retained_paths = _restore_selected_sources(choices, captured, out_dir)
-        _retain_identity_context(authored, captured, retained_paths, files, out_dir)
+        identity_baseline = captured.identity_sources() if operation == 'amend' else None
+        restored, paths = _restore_selected_sources(choices, captured, out_dir)
+        if choices.get('external') is not None:
+            import production_external_inputs
+            choices['external'] = production_external_inputs.relocate_sources(choices['external'], paths)
+        owners = _retained_source_owners(captured)
+        if operation == 'amend':
+            _retain_identity_context(choices['authoring'], captured, paths, restored, out_dir)
         prior_basis = _saved_work_basis(captured)
-    if choices.get('external') is not None:
-        import production_external_inputs
-        choices['external'] = production_external_inputs.relocate_sources(choices['external'], retained_paths)
-    locations = {}
-    def restore(item, key):
-        old = item.get(key)
-        if old not in saved_source['files']:
-            return
-        if old not in locations:
-            name = 'editable/' + str(len(locations) + 1) + '-' + Path(old).name
-            files[name] = saved_source['files'][old]
-            locations[old] = (Path(out_dir) / name).as_posix()
-        item[key] = locations[old]
-    restore(authored['delivery'], 'file')
-    for item in authored.get('documents', {}).values():
-        if isinstance(item, dict) and set(item) <= {'file', 'field'}:
-            restore(item, 'file')
-    target = choices.get('target') or {}
-    restore(target, 'model_file')
-    restore(target, 'vocabulary_record')
-    negative = (authored['task'].get('authored') or {}).get('negative')
-    if negative is not None:
-        restore(negative, 'path')
-    task, choices, basis, current_request = _begin_work(root, task, choices, files, out_dir, reader,
-        operation=operation, request_file=request_file, apply_sources=apply_sources,
-        prior_basis=prior_basis, editable=True, focus=focus,
-        route=route, artifact=artifact, execution=execution, features=features)
-    authored = choices['authoring']
-    _select_target(choices, model=model, service=service)
-    imported, selected_image = authoring.select_upscale(root, authored, out_dir,
-        source_image=source_image, scale=scale, purpose=purpose)
-    files.update(imported)
-    if authored.get('upscale') is None:
-        value = authored['delivery'].pop('content', None)
-        authored['delivery']['file'] = (Path(out_dir) / 'prompt.txt').as_posix()
-        files['prompt.txt'] = b'' if value is None else value.encode('utf-8') if isinstance(value, str) else c.encoded(value)
-    files.update(authoring.export_documents(authored, out_dir))
-    _validate_choices(choices)
-    reference = {'run': run, 'input_sha256': saved['input_sha256']}
-    with _staged_files(root, out_dir, files):
-        resolved = copy.deepcopy(choices)
-        resolved['authoring'], source_map, file_gaps = authoring.read_editable(authored, reader)
-        unresolved = _unresolved(resolved, task, root=root, runtime_arguments=runtime_arguments,
-            choices_path=(Path(out_dir) / 'choices.json').as_posix()) + file_gaps
-        projected = production_target.project(resolved, _chosen_task(task, choices), root, reader, out_dir)
-        unresolved.extend(item for item in projected['unresolved'] if item not in unresolved)
-        unresolved.extend(_target_gaps(choices, _chosen_task(task, choices), projected))
-        current_scope = reading_scope.selection(root, choices, _chosen_task(task, choices), basis=basis,
-            context={'derived_from': {'source_run': saved}})
-        unresolved.extend(_guidance_gap(root, task, choices, projected, runtime_arguments,
-            choices_path=(Path(out_dir) / 'choices.json').as_posix(), authoring_scope=current_scope))
-    unresolved.extend(authoring_work.unresolved(basis, resolved, require_subject=authoring_work.requires_subject(task),
-        root=root, choices_path=(Path(out_dir) / 'choices.json').as_posix(),
-        basis_path=(Path(out_dir) / 'work-basis.json').as_posix()))
-    unresolved = authoring.locate_unresolved(unresolved, source_map)
-    actions = _draft_actions(root, _chosen_task(task, choices), choices, unresolved, out_dir,
-                            runtime_arguments, saved, projected)
-    result = {'state': 'draft', 'choices': choices, 'unresolved': unresolved,
-        'target_knowledge': projected['knowledge'], 'next_actions': actions, 'selected_image': selected_image,
-        'derived_from': {'task': reference, 'source_run': saved}, 'external_effect': False,
-        'authoring_work': {'operation': operation, 'basis': (Path(out_dir) / 'work-basis.json').as_posix(),
-                          'content': (Path(out_dir) / 'choices.json').as_posix()}}
-    result.update(authoring_scope=current_scope,
-        authoring_stage=reading_scope.projection(choices, _chosen_task(task, choices), unresolved),
-        stage_actions=reading_scope.actions(root, (Path(out_dir) / 'choices.json').as_posix(),
-                                            choices['authoring_stage'], runtime_arguments))
-    if current_request is not None:
-        result['current_request'] = current_request
-    import production_input_guide
-    result['authoring_guide'] = production_input_guide.summary(
-        root, (Path(out_dir) / 'choices.json').as_posix(), choices)
-    context = {key: value for key, value in result.items() if key != 'choices'}
-    context['task_content'] = task
-    if task_id is not None:
-        context['task_binding'] = {'task_id': task_id}
-    raw = c.encoded(context)
-    _destination(root, out_dir)
-    open_work()
-    production_authoring_state.remember_inputs(root, task, 'draft-inputs', out_dir,
-        task_path=None, from_run=run, runtime_arguments=runtime_arguments, context_sha256=c.digest(raw),
-        request=current_request['text'] if current_request is not None else None,
-        input_arguments=_authoring_arguments(task, operation=operation, request_file=request_file,
-            apply_sources=apply_sources, focus=focus, route=route, artifact=artifact, execution=execution,
-            features=features, model=model, service=service, stage=choices['authoring_stage']))
-    _publish(root, out_dir, {**files, 'choices.json': c.encoded(choices), 'context.json': raw}, reader=reader)
-    production_authoring_state.published_draft(root, task, out_dir)
-    return {**result, 'choices_file': (Path(out_dir) / 'choices.json').as_posix(),
-            'context_file': (Path(out_dir) / 'context.json').as_posix()}
+        files = {**saved_source['files'], **{(Path(out_dir) / name).as_posix(): raw
+                  for name, raw in restored.items()}}
+    candidate = {'choices': choices, 'basis': prior_basis, 'files': files,
+        'context': {'task_content': saved_source['task'],
+                    'derived_from': {'source_run': saved}},
+        'source_choices': None, 'origin': {'run': run, 'input_sha256': saved['input_sha256']},
+        'runtime_arguments': runtime_arguments, 'identity_owners': owners,
+        'identity_baseline': identity_baseline}
+    import production_candidate_snapshot
+    candidate['bounded'] = production_candidate_snapshot._bounded_inputs(root, choices,
+        InputEvidence(root), candidate['context'])
+    return _draft_candidate(root, candidate, out_dir, task_id=task_id,
+        runtime_arguments=runtime_arguments, operation=operation, request_file=request_file,
+        apply_sources=apply_sources, focus=focus, model=model, service=service,
+        source_image=source_image, scale=scale, purpose=purpose, open_work=open_work,
+        route=route, artifact=artifact, execution=execution, features=features, stage=stage,
+        constructor_actions=constructor_actions)
 
 
 def _validate_choices(value: dict, *, file: str | None = None) -> None:
@@ -1336,6 +1522,28 @@ def read_choices(value: Any, *, file: str | None = None, root: Path | None = Non
 TASK_CHOICES = frozenset({'route', 'features', 'criteria', 'direction', 'delivery',
                           'world_views', 'moment_views', 'scene_materials', 'semantic_edit', 'generation',
                           'upload_sources'})
+AUTHORED_TASK_CHOICES = frozenset({'route', 'features', 'criteria', 'direction',
+                                  'world_views', 'moment_views', 'scene_materials', 'upload_sources'})
+
+
+def normalize_task_choices(choices: dict) -> dict:
+    """Keep each authored task value at its current editable owner."""
+    result = copy.deepcopy(choices)
+    changes = result.get('task_changes', {})
+    if not isinstance(changes, dict) or set(changes) - TASK_CHOICES:
+        raise ValueError('task_changes names authored route, depiction or review fields; source applications belong to work-basis.json')
+    task = result['authoring']['task']
+    for key in tuple(changes):
+        if key in AUTHORED_TASK_CHOICES:
+            task[key] = changes.pop(key)
+    # Existing-image edits expose their plan at this selector. Keep its public
+    # owner and remove an imported task copy that could shadow later edits.
+    if 'semantic_edit' in task:
+        if 'semantic_edit' not in changes and task['semantic_edit'] is not None:
+            changes['semantic_edit'] = task['semantic_edit']
+        task.pop('semantic_edit')
+    result['task_changes'] = changes
+    return result
 
 
 def _chosen_task(task: dict, choices: dict) -> dict:
@@ -1343,6 +1551,8 @@ def _chosen_task(task: dict, choices: dict) -> dict:
     if not isinstance(changes, dict) or set(changes) - TASK_CHOICES:
         raise ValueError('task_changes names authored route, depiction or review fields; source applications belong to work-basis.json')
     result = authoring.chosen_task(task, choices['authoring'])
+    if 'semantic_edit' not in choices['authoring']['task']:
+        result.pop('semantic_edit', None)
     result.update(copy.deepcopy(changes))
     if choices['external'] is not None:
         if task.get('execution') == 'dispatcher':
@@ -1370,82 +1580,27 @@ def _saved_delivery(root: Path, saved: dict, task: dict) -> bytes | None:
 
 def _retained_identity_sources(root: Path, task: dict, choices_path: str, reader: InputEvidence,
                                choices: dict) -> None:
-    """A mutable choices witness cannot erase a draft's original source evidence."""
+    """Check the registered operation boundary from the actual current owners."""
     folder = Path(choices_path).parent.as_posix()
     path = (Path(folder) / 'context.json').as_posix()
     import production_authoring_state
-    current_identity = any(source.get('identity') for source in task.get('sources', []))
-    if not c.local(root, path, exists=False).is_file():
-        production_authoring_state.require_input_context(root, task['task_id'], folder, b'', required=current_identity)
-        return
-    raw = reader.read(reader.select(path))
-    registration = production_authoring_state.require_input_context(root, task['task_id'], folder, raw,
-                                                                     required=current_identity)
-    value = c.decode(raw)
-    prior = (value.get('identity_coverage') or {}).get('sources', [])
-    if prior and registration is None:
-        production_authoring_state.require_input_context(root, task['task_id'], folder, raw, required=True)
-    selected_sources = {source['id']: source for source in task.get('sources', [])}
-    selected = {source['path'] for source in selected_sources.values()}
-    selected.update(item for item in (task.get('generation') or {}).values() if isinstance(item, str))
-    from production_reference_inputs import _authored_rows
-    reference_choices = (choices.get('authoring') or {}).get('references')
-    external = choices.get('external') or {}
-    for refs in (reference_choices, (external.get('reference_delivery') or {}).get('choices')):
-        if refs is not None:
-            for reference in _authored_rows(refs):
-                original = reference.get('source') or {}
-                if original.get('resolved_path'):
-                    selected.add(original['resolved_path'])
-                if reference.get('file'):
-                    selected.add(reference['file'])
-    external_input = external.get('image_input')
-    if isinstance(external_input, dict):
-        selected.update(row['file'] for row in external_input.get('references', []) if row.get('file'))
-    for source in prior:
-        chosen = selected_sources.get(source['id'])
-        if chosen is not None or not source.get('derived', False):
-            prefix = source.get('source_pointer', '')
-            expected = {'subject_ids': sorted(source['subject_ids']),
-                        'selectors': sorted(prefix + point for point in source['selectors'])}
-            if 'authority' in source:
-                expected['authority'] = source['authority']
-            actual_scope = copy.deepcopy((chosen or {}).get('identity'))
-            if isinstance(actual_scope, dict):
-                for field in ('subject_ids', 'selectors'):
-                    if isinstance(actual_scope.get(field), list):
-                        actual_scope[field] = sorted(actual_scope[field])
-            if actual_scope != expected:
-                raise production_authoring_state.input_context_error(root, task['task_id'], folder,
-                    code='IDENTITY_SOURCE_CHANGED',
-                    message='A retained identity source was removed or its subject, selected scope or authority changed. '
-                            'Restore this original context; a newly authorized source selection belongs in a fresh draft.',
-                    source=source['id'], expected_identity=expected, actual_identity=actual_scope)
-        candidates = {source['path']}
-        if chosen is not None:
-            candidates.add(chosen['path'])
-        original = (source.get('authority') or {}).get('source') or {}
-        if original.get('resolved_path'):
-            candidates.add(original['resolved_path'])
-        for selected_path in candidates & selected:
-            try:
-                if Path(selected_path).is_absolute():
-                    import production_store
-                    local = Path(selected_path)
-                    current = production_store.stable_bytes(local.parent, local.name)
-                else:
-                    current = reader._live(selected_path)
-            except (ValueError, OSError) as exc:
-                raise production_authoring_state.input_context_error(root, task['task_id'], folder,
-                    code='IDENTITY_SOURCE_UNAVAILABLE', message='The selected identity source is unavailable.',
-                    file=selected_path, expected_sha256=source['sha256'], cause=str(exc)) from exc
-            actual = c.digest(current)
-            if actual != source['sha256']:
-                raise production_authoring_state.input_context_error(root, task['task_id'], folder,
-                    code='IDENTITY_SOURCE_CHANGED', message='The selected identity source differs from the draft evidence.',
-                    file=selected_path, expected_sha256=source['sha256'], actual_sha256=actual)
-            if not Path(selected_path).is_absolute():
-                reader.read({'path': selected_path, 'sha256': source['sha256']})
+    raw = reader.read(reader.select(path)) if c.local(root, path, exists=False).is_file() else b''
+    production_authoring_state.require_input_context(root, task['task_id'], folder, raw)
+    context = c.decode(raw)
+    from production_saved_inputs import identity_context
+    context = identity_context(root, context)
+    basis = reader.json(reader.select(context['authoring_work']['basis']))
+    current = InputEvidence(root, named_roots=reader.named_roots, read_source=reader.read_source,
+        retained_snapshots=copy.deepcopy(reader.retained_snapshots), derived_inputs=dict(reader.derived_inputs))
+    proposed = _current_identity_sources(task, choices, basis, current)
+    import production_identity_boundary
+    try:
+        production_identity_boundary.require_unchanged(context, basis, proposed, file=path)
+    except ProductionError as error:
+        production_authoring_state.attach_identity_repair(root, choices_path, error)
+        raise
+    for selected, snapshot in current.snapshots.items():
+        reader.read({'path': selected, 'sha256': snapshot['sha256']})
 
 
 def _choice_source(root: Path, choices_path: str, reader: InputEvidence, *, choices: dict | None = None,
@@ -1489,15 +1644,16 @@ def _choice_source(root: Path, choices_path: str, reader: InputEvidence, *, choi
 def _load_editable(root: Path, choices_path: str, reader: InputEvidence, *, register: bool = True) -> tuple[dict,dict,dict,list,dict]:
     path = c.local(root, choices_path)
     raw = c.read(path)
-    choices = read_choices(c.decode(raw), file=choices_path, root=root)
+    acquired = reader
+    reader = InputEvidence(root, snapshots=copy.deepcopy(acquired.snapshots), live=acquired.live,
+        named_roots=acquired.named_roots, space=acquired.space, read_source=acquired.read_source,
+        retained_snapshots=copy.deepcopy(acquired.retained_snapshots),
+        derived_inputs=dict(acquired.derived_inputs))
+    reader.read({'path': choices_path, 'sha256': c.digest(raw)})
+    selected = normalize_task_choices(read_choices(c.decode(raw), file=choices_path, root=root))
     import production_reference_inputs
-    if register and production_reference_inputs.identify_choices(choices):
-        if c.read(path) != raw:
-            raise ValueError('editable choices changed while assigning reference uses')
-        raw = c.encoded(choices)
-        c.atomic(path, raw, replace=True)
-    ref = {'path': choices_path, 'sha256': c.digest(raw)}
-    reader.read(ref)
+    production_reference_inputs.identify_choices(selected)
+    choices = copy.deepcopy(selected)
     locations, gaps = {}, []
     choices['authoring'], locations, gaps = authoring.read_editable(choices['authoring'], reader)
     folder = Path(choices_path).parent.as_posix()
@@ -1508,13 +1664,42 @@ def _load_editable(root: Path, choices_path: str, reader: InputEvidence, *, regi
     context_raw = reader.read(reader.select(context_path)) if c.local(root, context_path, exists=False).is_file() else b''
     production_authoring_state.require_input_context(root, task_id, folder, context_raw)
     context = c.decode(context_raw)
+    from production_saved_inputs import identity_context
+    context = identity_context(root, context)
     work = context['authoring_work']
     if work['content'] != choices_path:
         raise ValueError('the authoring work identifies a different actual candidate')
     basis_path = c.local(root, work['basis'])
     basis_raw = c.read(basis_path)
     basis = c.decode(basis_raw)
-    current_basis = authoring_work.bind_task_subjects(basis, choices)
+    current_basis = (basis if any(row['field'] == 'authoring.documents.production_spec' for row in gaps)
+                     else authoring_work.bind_task_subjects(basis, choices))
+    projected, selected_files, _ = authoring_work.project(current_basis, selected, folder)
+    reader.add_derived({(Path(folder) / name).as_posix(): content for name, content in selected_files.items()})
+    task = _chosen_task(context['task_content'], projected)
+    proposed = _current_identity_sources(task, projected, current_basis, reader)
+    import production_identity_boundary
+    try:
+        if selected['authoring']['task'].get('sources') != projected['authoring']['task'].get('sources'):
+            production_identity_boundary.require_unchanged(context, current_basis,
+                _current_identity_sources(_chosen_task(context['task_content'], selected),
+                                          selected, current_basis, reader), file=context_path)
+        production_identity_boundary.require_unchanged(context, current_basis, proposed, file=context_path)
+    except ProductionError as error:
+        production_authoring_state.attach_identity_repair(root, choices_path, error)
+        raise
+    # Registration happens only after the complete operation boundary. In
+    # particular, changed task-local identity cannot first become a new basis.
+    if register and selected != c.decode(raw):
+        if c.read(path) != raw:
+            raise ValueError('editable choices changed while acquiring the candidate')
+        raw = c.encoded(selected)
+        c.atomic(path, raw, replace=True)
+        # The owner assigned derived IDs after checking the author revision.
+        # Capture its new bytes only after its own replacement has succeeded.
+        reader.snapshots.pop(choices_path, None)
+    ref = {'path': choices_path, 'sha256': c.digest(raw)}
+    reader.read(ref)
     if register and current_basis != basis:
         if c.read(basis_path) != basis_raw:
             raise ValueError('authoring applications changed while acquiring the task subject definition')
@@ -1535,6 +1720,11 @@ def _load_editable(root: Path, choices_path: str, reader: InputEvidence, *, regi
         root=root, choices_path=choices_path, basis_path=work['basis']))
     ref = {**ref, 'files': {path: item['sha256'] for path, item in reader.snapshots.items()
                            if path != choices_path and not path.startswith('@')}}
+    acquired.snapshots.update(reader.snapshots)
+    acquired.retained_snapshots.update(reader.retained_snapshots)
+    acquired.derived_inputs.update(reader.derived_inputs)
+    acquired.read_paths.update(reader.read_paths)
+    acquired.locators.update(reader.locators)
     return choices, ref, locations, gaps, current_basis
 
 
@@ -1637,6 +1827,14 @@ def authoring_view(root: Path, choices_path: str, *, register: bool = False,
         content=((choices.get('authoring') or {}).get('delivery') or {}).get('content')
         delivery=b'' if content is None else content.encode('utf-8') if isinstance(content,str) else c.encoded(content)
         captured={path:reader._decode(value) for path,value in reader.snapshots.items() if not path.startswith('@')}
+        if context.get('candidate_inputs'):
+            from production_candidate_snapshot import CapturedCandidate
+            bounded = CapturedCandidate(root, context['candidate_inputs'])
+            for path in context['candidate_inputs']['files']:
+                raw = bounded.bytes(path)
+                if path in captured and captured[path] != raw:
+                    raise ValueError('One authoring input selects different acquired revisions: ' + path)
+                captured[path] = raw
         work_basis = c.decode(captured[(Path(choices_path).parent / 'context.json').as_posix()])['authoring_work']['basis']
         return {'task':task,'choices':c.decode(captured[choices_path]),'resolved_choices':choices,
             'files':{},'delivery':delivery,'unresolved':unresolved,'source_map':locations,'captured':captured,
@@ -1801,7 +1999,8 @@ def _assemble_current(root: Path, task_path: str | None, choices_path: str, out_
             authoring_scope=final_scope)
     else:
         external_context = None
-    identity = _identity_view(root, copied_task, reader, files=encoded, out_dir=out_dir, choices=choices)
+    identity = _identity_view(root, copied_task, reader, files=encoded, out_dir=out_dir,
+                              choices=choices, basis=current_basis)
     identity_gaps = _identity_gaps(identity, root=root, choices_path=choices_path, locations=locations)
     def recheck():
         _reading(choices['reading'], root=root, task=task, authoring_scope=final_scope)
@@ -1863,6 +2062,8 @@ def _assemble_current(root: Path, task_path: str | None, choices_path: str, out_
     context = c.decode(reader._decode(context_snapshot)) if context_snapshot is not None else {}
     if context.get('source_result') is not None:
         result['derived_from']['source_result'] = context['source_result']
+    if context.get('candidate_inputs'):
+        result['derived_from']['candidate_inputs'] = context['candidate_inputs']
     if choices.get('authoring') is not None and context and (saved is not None or context.get('source_result')):
         result['next_actions'][0] = continuation_action(root, copied_task, choices_path,
             runtime_arguments, saved, production_target.projected_identity(projected))
@@ -1913,7 +2114,9 @@ def compile_choices(root: Path, choices_path: str, *, persist: bool = False,
         path=(Path(output)/'production-task.json').as_posix()
         source = assembled['derived_from'].get('source_run')
         captured = _captured_inputs(root, source)
-        retained = captured.selected(assembled['_task']) if captured is not None else None
+        from production_candidate_snapshot import retained as retained_candidate
+        retained = retained_candidate(root, assembled['_task'],
+            assembled['derived_from'].get('candidate_inputs'), captured)
         compiled=compiler.compile_task(root,path,persist=persist,identity=identity,
             derived=assembled['_files'],source_inputs=assembled['_captured'],retained_inputs=retained)
         compiled.report['authoring']={'choices':choices_path,
@@ -2044,7 +2247,8 @@ def retained_export_inputs(root: Path, task_path: str, task_id: str, *, acquired
         return None
     task, report = exported
     captured = _captured_inputs(root, report['derived_from'].get('source_run'))
-    return captured.selected(task) if captured is not None else None
+    from production_candidate_snapshot import retained as retained_candidate
+    return retained_candidate(root, task, report['derived_from'].get('candidate_inputs'), captured)
 
 
 def export_parent(root: Path, task_path: str, compiled) -> dict | None:
@@ -2112,6 +2316,7 @@ def command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
         return result
     if args.command == 'draft-inputs':
         return draft_inputs(root, args.task, args.out_dir, from_run=args.from_run,
+                            source_choices=getattr(args, 'choices', None),
                             runtime_arguments=runtime_arguments, route=args.route, artifact=args.artifact_kind,
                             execution=args.execution, task_id=args.task_id, features=args.features,
                             model=args.model,service=args.service,source_image=args.source_image,

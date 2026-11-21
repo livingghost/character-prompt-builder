@@ -49,6 +49,9 @@ def add_input_arguments(subparsers) -> None:
                 'inspection does not change the saved inputs or registration.')
         if name == 'draft-inputs':
             from production_reading_scope import STAGES
+            source.add_argument('--choices',
+                help='Use this actual editable candidate as the content of a new compose operation, including '
+                     'an explicitly retained proposal from a refused edit. The earlier candidate remains comparison evidence.')
             parser.add_argument('--stage', choices=STAGES,
                 help='Current authored work; new character drafts start with definition. A saved unfinished draft '
                      'retains its stage. Select prepare for binding already authored content.')
@@ -72,21 +75,23 @@ def add_input_arguments(subparsers) -> None:
                      'Choose the result destination independently in authoring.task.recording.slot.')
             parser.add_argument('--model',help='Select the canonical model in a new or reopened draft.')
             parser.add_argument('--service',help='Select the offering service in a new or reopened draft.')
-            parser.add_argument('--route', help='Initial production route; no prebuilt task is needed.')
+            parser.add_argument('--route', help='Select the production route in a new or reopened draft; no prebuilt task is needed.')
             parser.add_argument('--artifact', dest='artifact_kind',
                 choices=('text', 'json', 'image', 'video', 'audio', 'binary'),
-                help='Initial output kind; defaults to image for upscale and for an edit of an accepted image, otherwise '
-                     'text. Existing tasks retain their kind.')
+                help='Select the output kind. A new task defaults to image for upscale or an accepted-image edit, '
+                     'otherwise text; an existing task retains its kind when this option is omitted.')
             parser.add_argument('--execution', choices=('authored', 'external', 'dispatcher'),
-                help='Initial execution method; defaults to dispatcher for upscale, otherwise authored. An edit of an '
-                     'accepted image selects dispatcher or external. Existing tasks retain their method.')
+                help='Select the execution method. A new task defaults to dispatcher for upscale, otherwise authored. '
+                     'An accepted-image edit selects dispatcher or external; an existing task retains its method '
+                     'when this option is omitted.')
             parser.add_argument('--task-id', help='Existing work task ID; defaults to the open work task.')
             parser.add_argument('--new-task', metavar='GOAL',
                 help='Open a new work task for this selected saved source, captured upscale image or accepted image to '
                      'edit; this goal names the work. Give its current actual instruction with --request-file.')
-            parser.add_argument('--operation', choices=('compose', 'amend'), required=True,
-                help='Compose starts actual content from the current sources and requirements; amend starts from '
-                     'the exact selected candidate. Both retain the earlier candidate as comparison evidence.')
+            parser.add_argument('--operation', choices=('compose', 'amend'),
+                help='Both operations seed actual selected content. Compose opens identity-source selection; amend '
+                     'retains the selected identity-source boundary. Required except with --choices, which selects compose. '
+                     'Both retain the earlier candidate as comparison evidence.')
             parser.add_argument('--request-file',
                 help='UTF-8 file containing the current actual request. A saved work can resume its acquired request; '
                      'an unfinished draft may leave it unanswered. The work-task goal is separate navigation.')
@@ -96,7 +101,7 @@ def add_input_arguments(subparsers) -> None:
                 help='Apply this acquired source ID to the current work; repeat for several sources. '
                      'Other acquired sources remain available in work-basis.json for comparison and selection.')
             parser.add_argument('--feature', action='append', dest='features',
-                help='Feature applied to an initial task; repeat for several features.')
+                help='Select the task features in a new or reopened draft; repeat for several features.')
         if name != 'inspect-inputs':
             parser.add_argument('--out-dir', required=True, help='New studio-relative directory; existing files are preserved.')
         if name == 'build-inputs':

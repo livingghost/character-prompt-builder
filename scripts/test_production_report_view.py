@@ -152,6 +152,39 @@ class ReportViewTests(unittest.TestCase):
         self.addCleanup(folder.cleanup)
         self.root = Path(folder.name)
 
+    def test_retained_source_repair_keeps_complete_arguments_and_precedes_navigation(self):
+        repair = {'command': 'draft-inputs', 'argv': ['python', 'production_workflow.py',
+            'draft-inputs', '--root', str(self.root), '--choices', 'work/proposal/choices.json',
+            '--out-dir', 'work/compose', '--state-file', 'state.json', '--cache-dir', 'cache',
+            '--managed-root', 'packs'], 'reason': 'Continue the captured current candidate.'}
+        inspect = {'command': 'inspect-inputs', 'argv': ['python', 'production_workflow.py',
+            'inspect-inputs', '--root', str(self.root), '--choices', 'work/amend/choices.json']}
+        problem = {'code': 'IDENTITY_SOURCE_CHANGED', 'cause': 'retained-identity-source-changed',
+            'draft_operation': 'amend', 'change_kind': 'content', 'source': 'design',
+            'evidence_owner': {'file': 'work/amend/context.json', 'pointer': '/retained_identity_sources'},
+            'repair_owner': {'file': 'work/compose/choices.json', 'operation': 'compose'},
+            'repair_action': repair, 'inspect_action': inspect, 'next_actions': [repair, inspect]}
+        presented = views.diagnostic(problem)
+        for name in ('cause', 'draft_operation', 'change_kind', 'source', 'evidence_owner',
+                     'repair_owner', 'repair_action', 'inspect_action', 'next_actions'):
+            self.assertEqual(presented[name], problem[name])
+        self.assertEqual(views._next_action({'diagnostics': [problem], 'next_actions': [inspect]}), repair)
+
+    def test_compose_repair_requires_available_current_inputs_and_saved_run(self):
+        import production_authoring_state as state
+        from production_diagnostics import ProductionError
+        baseline = {'comparison_side': 'retained_identity_sources',
+                    'reason': 'retained-source-owner-unavailable'}
+        current = {'comparison_side': 'current_identity_sources', 'owner': 'authoring.references'}
+        cases = [([baseline], True), ([baseline, current], False), ([current], False),
+            ([{**baseline, 'reason': 'retained-source-run-unavailable'}], False),
+            ([{**baseline, 'reason': 'retained-source-run-revision-mismatch'}], False)]
+        for unresolved, expected in cases:
+            with self.subTest(unresolved=unresolved):
+                error = ProductionError('IDENTITY_SOURCE_UNAVAILABLE', 'Synthetic unresolved evidence.',
+                    cause='retained-identity-source-unresolved', unresolved=unresolved)
+                self.assertEqual(state.identity_repairable(error), expected)
+
     def test_ineligible_history_changes_counts_without_repeating_individual_diagnostics(self):
         old = [grant(f'old-{index:04d}', operations=['adopt'], targets=['elsewhere']) for index in range(1600)]
         before = status(requirements(old[:12]), authority(old[:12]))
@@ -347,17 +380,21 @@ class ReportViewTests(unittest.TestCase):
     def test_source_summary_retains_metadata_locations_and_acquisition_repair(self):
         acquire = {'operation': 'acquire-source', 'argv': ['python', 'production_workflow.py', 'acquire-source'],
                    'source_row_file': 'work/input/source-row.json', 'schema_pointer': '/properties/sources/items'}
+        edit = {'operation': 'edit-choices', 'choices_file': 'work/input/choices.json',
+                'argv': ['python', 'production_workflow.py', 'edit-choices', '--help']}
         missing = {'required': ['identity-contract'], 'applied': [], 'missing': ['identity-contract'],
                    'source_rows': [{'role': 'identity-contract'}]}
         draft = {'state': 'draft', 'choices_file': 'work/input/choices.json',
             'choices': {'authoring': {'delivery': {'file': 'work/input/prompt.txt'},
                                      'task': {'sources': [{'id': 'source', 'bytes': 'large body'}]}}},
-            'authoring_guide': {'schema': 'schema.json', 'source_acquisition': acquire, 'source_requirements': missing},
+            'authoring_guide': {'schema': 'schema.json', 'source_acquisition': acquire,
+                                'structured_edit': edit, 'source_requirements': missing},
             'unresolved': [{'field': 'authoring.task.sources', 'message': 'Acquire the required source.',
                             'source_roles': ['identity-contract'], 'repair_action': acquire}],
             'next_actions': []}
         view = views.summarize(self.root, draft, command='draft-inputs')
         self.assertEqual(view['authoring_guide']['source_acquisition'], acquire)
+        self.assertEqual(view['authoring_guide']['structured_edit'], edit)
         self.assertEqual(view['authoring_guide']['source_requirements'], missing)
         self.assertEqual(view['unresolved'][0]['source_roles'], ['identity-contract'])
         self.assertEqual(view['editable_locations'], [{'pointer': '/authoring/delivery', 'file': 'work/input/prompt.txt'}])

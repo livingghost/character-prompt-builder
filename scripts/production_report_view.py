@@ -138,7 +138,11 @@ def diagnostic(value: dict) -> dict:
     implementation = value.get('code') == 'IMPLEMENTATION_CHANGED' and isinstance(value.get('changed_files'), list)
     result = fields(value, ('code', 'severity', 'phase', 'message', 'file', 'pointer',
         'run', 'source', 'operation', 'grant', 'field', 'path', 'required_action',
-        'repair_owner', 'repair_action', 'next_action', 'guidance', 'blocked_checks'))
+        'cause', 'draft_operation', 'change_kind', 'evidence_owner', 'repair_owner',
+        'repair_action', 'inspect_action', 'next_action', 'guidance', 'blocked_checks'))
+    if 'next_actions' in value and changed is None:
+        result['next_actions'] = [action_view(item, pointer='/next_actions/' + str(index))
+                                  for index, item in enumerate(value['next_actions'])]
     for name, item in value.items():
         if name not in result and name != 'authorization_requirements' and not (
                 changed is not None and name in {'source_changes', 'changes', 'actions', 'next_actions'}) and not (
@@ -319,6 +323,9 @@ def _next_action(report: dict) -> dict | None:
     """Use the producer's actual continuation before offering any navigation."""
     if report.get('next_action') is not None:
         return copy.deepcopy(report['next_action'])
+    for problem in report.get('diagnostics', []):
+        if problem.get('repair_action'):
+            return copy.deepcopy(problem['repair_action'])
     if report.get('next_actions') and not report.get('selection_required'):
         return copy.deepcopy(report['next_actions'][0])
     for problem in report.get('diagnostics', []):
@@ -619,7 +626,7 @@ def _source_run(root: Path, value: Any) -> Any:
     return result
 
 
-def _draft_inputs(root: Path, report: dict, choices: str | None) -> dict:
+def _draft_inputs(root: Path, report: dict) -> dict:
     result = fields(report, ('state', 'choices_file', 'context_file', 'authoring_work',
         'external_effect', 'next_actions', 'required_source_roles', 'source_requirements', 'authoring_scope'))
     if 'derived_from' in report:
@@ -636,7 +643,8 @@ def _draft_inputs(root: Path, report: dict, choices: str | None) -> dict:
     guide = report.get('authoring_guide')
     if guide:
         result['authoring_guide'] = fields(guide, ('document_path', 'schema', 'example', 'explain_action',
-                                                  'meaning', 'source_acquisition', 'source_requirements', 'input_contracts'))
+                                                  'meaning', 'source_acquisition', 'structured_edit',
+                                                  'source_requirements', 'input_contracts'))
         result['authoring_guide']['documents'] = {key: fields(value, ('source', 'schema', 'document_path', 'explain_action'))
                                                  for key, value in guide.get('documents', {}).items()}
     authored = (report.get('choices') or {}).get('authoring', {})
@@ -664,7 +672,7 @@ def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
     elif command in {'inspect-inputs', 'stage-inputs'} and report.get('state') == 'authoring-state':
         result = authoring_state(root, report, choices=choices)
     elif command == 'draft-inputs' and report.get('state') == 'draft':
-        result = _draft_inputs(root, report, choices)
+        result = _draft_inputs(root, report)
     elif command == 'acquire-source' and report.get('state') == 'source-acquired':
         result = fields(report, ('ok', 'state', 'changed', 'source', 'source_row', 'acquired',
             'choices_file', 'basis_file', 'projected_source', 'applications', 'subjects',

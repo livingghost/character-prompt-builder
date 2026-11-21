@@ -317,6 +317,46 @@ def _authored_rows(choices: dict) -> list[dict]:
     return result
 
 
+def identity_selection(choices: dict) -> list[dict]:
+    """Resolve selected reference authority without building its delivery media.
+
+    State eligibility and permitted influence use the same owners as reference
+    preparation. Source bytes and proofs are acquired by the caller. This view
+    does not validate unrelated lighting, prompt wording or transport settings.
+    """
+    from reference_contract import authority_for, state_authority_for
+    from reference_delivery import reference_id
+    plan = (choices.get('reference_use_plan') or {}).get('items', [])
+    selected, direct_state = references.reference_plan_state_rows(plan, choices.get('reference_selection'))
+    result = []
+    for item, state in zip(plan, selected, strict=True):
+        influence = item['intended_influence']
+        row = {'reference_id': item.get('id') or reference_id(item),
+            'source': copy.deepcopy(item['source']),
+            'authority': authority_for(item['technical_role'], influence,
+                selected_controls=item.get('selected_controls'), control_expressions=item.get('control_expressions')),
+            'intended_influence': [influence],
+            'subject_uses': copy.deepcopy(item.get('subject_uses', []))}
+        if state is not None:
+            row['subject_id'] = state['subject_id']
+            row['intended_influence'] = sorted(set(state['intended_influence']) | {influence})
+            row['subject_uses'] = references._plan_subject_uses(item, state)
+        result.append(row)
+    for item in direct_state:
+        result.append({'reference_id': item.get('id') or reference_id(item),
+            'source': copy.deepcopy(item['source']),
+            'authority': state_authority_for(item['intended_influence']),
+            'intended_influence': list(item['intended_influence']),
+            'subject_id': item['subject_id'], 'subject_uses': copy.deepcopy(item.get('subject_uses', []))})
+    for item in choices.get('additional_references') or []:
+        uses = item.get('subject_uses', [])
+        result.append({'reference_id': item.get('id') or reference_id(item),
+            'source': copy.deepcopy(item['source']),
+            'authority': references.direct_reference_authority(item['role'], uses),
+            'subject_uses': copy.deepcopy(uses)})
+    return result
+
+
 def relocate_sources(choices: dict, paths: dict[str, str]) -> dict:
     """Redirect declared editable media locators to a restored source revision."""
     result = copy.deepcopy(choices)

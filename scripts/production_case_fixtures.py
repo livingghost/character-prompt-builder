@@ -329,8 +329,12 @@ def reference_retarget_case(case: dict) -> dict:
         model=MODEL_ID, service='synthetic', execution='dispatcher'))
     write(root / 'task.json', task)
     c.atomic(root / 'reference.png', _png(32, 32, b'\x20\x50\x90'))
-    authored = production_fixtures.authoring_inputs(root, 'task.json', 'reference-parent')
+    authored = production_fixtures.authoring_inputs(root, 'task.json', 'reference-parent', operation='compose')
     choices = authored['choices']
+    # This fixture constructs the first identity-reference selection. Its
+    # explicit synthetic authority belongs to that construction, independently
+    # of the later saved-run retarget operation.
+    choices['authoring']['task']['authority'] = copy.deepcopy(task.get('authority'))
     choices['validation'] = {'mode': 'target-schema', 'contract': None, 'evidence': None,
         'execution_policy': policies[MODEL_ID]}
     choices['authoring']['references']['additional_references'] = [{'role': 'identity',

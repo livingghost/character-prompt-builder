@@ -27,7 +27,6 @@ UPSCALE_GUIDE = {'document_path': 'references/adapters/upscale.md#prepare-the-ex
 RENDER_GUIDE = {'document_path': 'references/runtime/render-contract.md#select-the-operation-and-optional-rendering-declaration'}
 PLOT_GUIDE = {'document_path': 'references/runtime/prompt-only-core.md#specialized-prompt-artifact-export'}
 IDENTITY_GUIDE = {'document_path': 'references/character-identity-contract.md#source-to-input-and-review-coverage'}
-GRAPH_GUIDE = {'document_path': 'references/runtime/state-aware-series.md#authority-graph'}
 UPLOAD_GUIDE = {'document_path': 'references/runtime/reference-delivery.md#upload-the-selected-media-for-one-generation'}
 APPROVAL = '{"by": APPROVER, "at": RFC3339_UTC_TIME}'
 
@@ -648,21 +647,9 @@ def materialize(root: Path, task: dict, authored: dict | None, reader, out_dir: 
         with _document_context('state_graphs', locations):
             documents['state_graphs']=acquire_subject_state_graphs(documents['state_graphs'],
                 lambda path:reader.read(reader.select(path)),production_spec=documents.get('production_spec'))
-    if documents.get('state_graphs') is not None and old_generation.get('state_graphs'):
-        from production_identity import IDENTITY_NODES
-        previous_graphs = c.decode(source_bytes(root, old_generation['state_graphs'], reader, saved))
-        previous = {graph['identity_contract']['character_id']: graph for graph in previous_graphs}
-        for graph in documents['state_graphs']:
-            subject = graph['identity_contract']['character_id']
-            before = previous.get(subject)
-            changed = [node for node in IDENTITY_NODES if before is not None and before.get(node) != graph.get(node)]
-            if changed:
-                raise UnresolvedChoice('authoring.documents.state_graphs',
-                    'The owner nodes ' + ', '.join(changed) + ' of subject ' + str(subject) + ' changed inside an '
-                    'editable scene graph; scene authoring cannot adopt a replacement identity.',
-                    required_action='Restore ' + ', '.join(changed) + ' of subject ' + str(subject) + ' in '
-                        'authoring.documents.state_graphs to the selected graph, or select the current approved '
-                        'graph from its owning workflow and draft again.', guidance=GRAPH_GUIDE)
+    # The registered candidate boundary checks identity selection before this
+    # materializer runs. Its compose/amend contract owns source retention;
+    # materialization must not turn a compose back into an implicit amend.
     plot = documents.get('plot')
     if plot is not None:
         original = old_generation.get('plot')

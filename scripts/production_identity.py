@@ -33,36 +33,31 @@ def _pointer(value, pointer: str):
 
 def _declared(task: dict, read, source: dict) -> bool:
     """Reuse an explicitly selected whole owner instead of duplicating its data."""
+    import identity_coverage
+    import production_identity_boundary as boundary
     wanted = set(source['subject_ids'])
+    candidate = None
     for item in task.get('sources', []):
         identity = item.get('identity')
-        if not identity or not wanted <= set(identity['subject_ids']):
+        if not identity or wanted != set(identity['subject_ids']):
             continue
-        if 'authority' in identity and identity['authority'] != source.get('authority'):
+        if boundary._authority(identity.get('authority')) != boundary._authority(source.get('authority')):
             # Identical pixels or graph bytes do not make two scoped uses the
             # same source owner. Keep the current scope independently visible.
             continue
-        raw = read(item['path'])
-        selectors = identity['selectors']
-        if source['format'] == 'image':
-            if '' in selectors and c.digest(raw) == source['sha256']:
-                return True
-            continue
         try:
-            value = c.decode(raw)
-        except (ValueError, UnicodeDecodeError):
-            continue
-        if item['path'] == source['path']:
-            point = source.get('source_pointer', '')
-            if any(point == chosen or point.startswith(chosen + '/') for chosen in selectors):
+            if candidate is None:
+                candidate = boundary.normalize_source(identity_coverage._source_record(source, read, derived=True))
+            direct = boundary.normalize_source(identity_coverage._source_record(item, read))
+            # The declared source can name the same owner under its own source
+            # ID. Authority, original content, subjects and full scope must all
+            # agree before one representation can stand for both.
+            direct['id'] = candidate['id']
+            if boundary._comparison_key(direct) == boundary._comparison_key(candidate):
                 return True
-        for chosen in selectors:
-            try:
-                if c.content_id(_pointer(value, chosen)) == c.content_id(source['value']):
-                    return True
-            except (KeyError, IndexError, TypeError, ValueError):
-                # The engine reports the invalid selection at its owning field.
-                continue
+        except (OSError, ValueError, KeyError, IndexError, TypeError):
+            # Its source owner reports unresolved acquisition or invalid scope.
+            continue
     return False
 
 
@@ -299,11 +294,353 @@ def context(task: dict, read, *, package: dict | None = None,
             'identity_sources': extra, 'text': text, 'references': rows}
 
 
-def inspect(task: dict, read, **kwargs) -> dict:
+def inspect(task: dict, read, *, choices: dict | None = None,
+            basis: dict | None = None, **kwargs) -> dict:
     """Show retained identity and declared bindings without claiming delivery."""
     import identity_coverage
-    view = context(task, read, **kwargs)
-    result = identity_coverage.inventory(task, read, context=view)
+    if choices is None:
+        view = context(task, read, **kwargs)
+        result = identity_coverage.inventory(task, read, context=view)
+    else:
+        selected, captured, current_task, view = _source_selection(task, read, choices=choices, basis=basis)
+        def acquired(path):
+            return captured[path] if path in captured else read(path)
+        try:
+            result = identity_coverage.inventory(current_task, acquired, context=view)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            from production_diagnostics import from_exception
+            result = {'status': 'unresolved', 'sources': copy.deepcopy(selected['sources']),
+                'required_subject_ids': view['required_subject_ids'],
+                'requires_identity_source': 'recurring-identity' in task.get('features', []),
+                'whole_reviews': [{'criterion': row['id'], 'subject_ids': row['identity_review']}
+                                  for row in task.get('criteria', []) if 'identity_review' in row],
+                'diagnostics': [from_exception(error, phase='identity-coverage')]}
+        if selected['unresolved']:
+            from production_diagnostics import ProductionError, from_exception
+            result['status'] = 'unresolved'
+            result.setdefault('diagnostics', []).extend(from_exception(ProductionError(
+                'IDENTITY_SOURCE_UNAVAILABLE', row['message'], phase='identity-coverage',
+                **{key: copy.deepcopy(value) for key, value in row.items() if key != 'message'},
+                required_action='Resolve the named source selection in its existing editable owner. '
+                    'Keep its acquired source bytes and assign an explicit identity use to its actual subject.'),
+                phase='identity-coverage') for row in selected['unresolved'])
     result['request_verified'] = False
     result['reference_choices'] = view['references']
     return result
+
+
+def source_snapshot(task: dict, read, *, choices: dict | None = None,
+                    basis: dict | None = None) -> dict:
+    """Acquire the current identity selection before delivery or scene coverage.
+
+    The caller supplies one acquired read view, including unpublished projected
+    bytes. Editable document and reference selections override their compiled
+    copies. A retained witness is not an independently active reference. Missing
+    owners remain explicit so an unfinished draft never acquires an empty
+    identity selection merely because its input binding has not been built.
+    """
+    return _source_selection(task, read, choices=choices, basis=basis)[0]
+
+
+def _source_selection(task: dict, read, *, choices: dict | None, basis: dict | None):
+    """Share one current owner acquisition between retention and draft coverage."""
+    import identity_coverage
+    import production_identity_boundary as boundary
+
+    result = {'sources': [], 'unresolved': []}
+    reference_choices = []
+    captured = {}
+    failed = {}
+    basis_sources = (basis or {}).get('sources') or {}
+    active_task = {**task, 'sources': [source for source in task.get('sources', [])
+        if (basis_sources.get(source.get('id'), {}).get('origin') or {}).get('kind')
+        != 'retained-identity']}
+
+    def acquire(path):
+        if path in failed:
+            raise failed[path]
+        if path not in captured:
+            try:
+                raw = read(path)
+                if not isinstance(raw, bytes):
+                    raise ValueError('The source reader must return original bytes.')
+                captured[path] = raw
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                failed[path] = error
+                raise
+        return captured[path]
+
+    def gap(owner, error, *, source=None, pointer=None):
+        result['unresolved'].append(boundary.unknown(owner=owner, source=source,
+            pointer=pointer, message=str(error)))
+
+    def record(source, *, derived=False, owner='task.sources'):
+        identity = source if derived else source.get('identity') or {}
+        known = {key: copy.deepcopy(source[key]) for key in ('id', 'path', 'source_pointer') if key in source}
+        known.update({key: copy.deepcopy(identity[key]) for key in
+                      ('subject_ids', 'selectors', 'authority') if key in identity})
+        known['derived'] = derived
+        if derived and 'format' in source:
+            known['format'] = source['format']
+        try:
+            raw = acquire(source['path'])
+            known['sha256'] = c.digest(raw)
+            # Keep certain byte changes even when a stale authority witness or
+            # invalid selector prevents the full source record from resolving.
+            kind, value = identity_coverage._source_value(raw, source['path'], source if derived else None)
+            known['format'] = kind
+            known['value_sha256'] = c.content_id(value)
+            known['scopes'] = [{'pointer': selector, 'value_sha256': c.content_id(_pointer(value, selector))}
+                               for selector in identity.get('selectors', [])]
+            row = identity_coverage._source_record(source, acquire, derived=derived)
+            if derived and _declared(active_task, acquire, source):
+                return
+            known = {key: copy.deepcopy(row[key]) for key in boundary.SOURCE_FIELDS if key in row}
+        except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
+            gap(owner, error, source=source.get('id'))
+        result['sources'].append(known)
+
+    for source in task.get('sources', []):
+        if 'identity' not in source:
+            continue
+        acquired = ((basis or {}).get('sources') or {}).get(source.get('id'), {})
+        if (acquired.get('origin') or {}).get('kind') == 'retained-identity':
+            continue
+        record(source)
+
+    authored = (choices or {}).get('authoring') or {}
+    documents = authored.get('documents') or {}
+
+    def document(name, fallback):
+        if name in documents:
+            value = documents[name]
+            if isinstance(value, dict) and 'file' in value:
+                loaded = c.decode(acquire(value['file']))
+                selected = request.get(loaded, value['field']) if value.get('field') else loaded
+                return selected, value['file']
+            return value, 'authoring.documents.' + name
+        if choices is not None and 'authoring' in choices:
+            return None, None
+        if fallback:
+            return c.decode(acquire(fallback)), fallback
+        return None, None
+
+    generation = task.get('generation') or {}
+    specification = None
+    specification_path = None
+    try:
+        specification, specification_path = document('production_spec', _specification_path(task))
+        subjects = [row['id'] for row in specification['subjects']] if specification else []
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        subjects = []
+        gap('authoring.documents.production_spec', error)
+    declaration = {'owner': 'production_spec', 'present': specification is not None, 'pointer': '/subjects'}
+    if specification_path:
+        declaration['file'] = specification_path
+    if not subjects:
+        recording = task.get('recording') or {}
+        subjects = list(recording.get('subject_map', {}))
+        if 'subject_map' in recording and (subjects or specification is None):
+            declaration = {'owner': 'recording.subject_map', 'present': True, 'pointer': '/recording/subject_map'}
+    if not subjects and task.get('artifact') != 'image':
+        subjects = sorted({subject for row in task.get('sources', [])
+                           for subject in (row.get('identity') or {}).get('subject_ids', [])})
+        declaration = {'owner': 'source.identity', 'present': True, 'pointer': '/sources'}
+
+    try:
+        graphs, graph_path = document('state_graphs', generation.get('state_graphs'))
+        if isinstance(graphs, dict):
+            from state_protocol import acquire_subject_state_graphs
+            graphs = acquire_subject_state_graphs(graphs, acquire, production_spec=specification)
+        if graphs is not None:
+            if not isinstance(graphs, list):
+                raise ValueError('The selected state graphs must be an array or an explicit lineage selection.')
+            if graph_path not in captured or c.decode(captured[graph_path]) != graphs:
+                graph_path = 'authoring.documents.state_graphs'
+                captured[graph_path] = c.encoded(graphs)
+            graph_raw = acquire(graph_path)
+            for index, graph in enumerate(graphs):
+                try:
+                    subject = graph['identity_contract']['character_id']
+                    for node in IDENTITY_NODES:
+                        value = graph.get(node)
+                        if value is None:
+                            continue
+                        record({'id': 'state:' + subject + ':' + node,
+                            'path': graph_path, 'source_pointer': '/' + str(index) + '/' + node,
+                            'subject_ids': [subject], 'selectors': [''], 'format': 'json',
+                            'sha256': c.digest(graph_raw), 'value': copy.deepcopy(value),
+                            'authority': {'owner': node, 'character_id': subject,
+                                          'canon_status': value.get('canon_status')}},
+                            derived=True, owner='authoring.documents.state_graphs')
+                except (KeyError, TypeError, ValueError) as error:
+                    gap('authoring.documents.state_graphs', error, pointer='/' + str(index))
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        gap('authoring.documents.state_graphs', error)
+
+    def source_proof(source, witnesses, raw):
+        proof = copy.deepcopy(source)
+        path = proof['resolved_path']
+        if proof.get('kind') == 'supplied-file':
+            # These fields describe acquired bytes. A Studio adoption proof has
+            # its own authority and is never rewritten by this measurement.
+            proof['sha256'] = c.digest(raw)
+            witness = witnesses.get(path) or {}
+            if 'media_type' not in proof:
+                if raw.startswith(b'\x89PNG\r\n\x1a\n'):
+                    proof['media_type'] = 'image/png'
+                elif raw.startswith(b'\xff\xd8\xff'):
+                    proof['media_type'] = 'image/jpeg'
+                elif len(raw) >= 12 and raw[:4] == b'RIFF' and raw[8:12] == b'WEBP':
+                    proof['media_type'] = 'image/webp'
+                elif witness.get('media_type'):
+                    proof['media_type'] = witness['media_type']
+                else:
+                    from xml.etree import ElementTree
+                    try:
+                        element = ElementTree.fromstring(raw)
+                        if element.tag in {'svg', '{http://www.w3.org/2000/svg}svg'}:
+                            proof['media_type'] = 'image/svg+xml'
+                    except ElementTree.ParseError:
+                        pass
+        return proof
+
+    def reference(row, original=None, *, influences=(), witnesses=None, owner):
+        ident = row.get('id')
+        source_id = 'reference:' + ident if isinstance(ident, str) else None
+        known = None
+        try:
+            controls = boundary._strings(row.get('use_for', []), 'reference use_for')
+            selected = set(influences) | {use['use'] for use in row.get('subject_uses', [])}
+            use = copy.deepcopy(row)
+            use['use_for'] = sorted(set(controls) | selected)
+            use.setdefault('do_not_transfer', [])
+            boundary._strings(use['do_not_transfer'], 'reference do_not_transfer')
+            assigned, identity_subjects = _reference_subjects(use, subjects)
+            display = {'id': ident, 'subject_ids': assigned, 'use_for': list(use['use_for']),
+                'do_not_transfer': list(use['do_not_transfer']), 'controls': controls,
+                'intended_influence': sorted(selected), 'subject_uses': copy.deepcopy(row.get('subject_uses', [])),
+                'source_sha256': None, 'carrier_sha256': None, 'request_fields': [], 'region_pixels': None}
+            reference_choices.append(display)
+            if 'identity' not in set(controls) | selected:
+                # An unfinished role alone selects no identity authority. If
+                # identity is explicitly selected later it is an added owner.
+                return
+            c.text(ident, 'reference use id')
+            if selected & set(use['do_not_transfer']):
+                raise ValueError('A selected reference influence is excluded by its authority.')
+            if 'identity' not in use['use_for'] or 'identity' in use['do_not_transfer']:
+                return
+            if not identity_subjects:
+                raise ValueError('The identity reference needs its actual subject assignment.')
+            known = {'id': source_id, 'path': row['file'], 'subject_ids': identity_subjects,
+                'selectors': [''], 'format': 'image', 'derived': True,
+                'authority': {'reference': ident, 'use_for': use['use_for'], 'controls': controls,
+                    'intended_influence': sorted(selected), 'do_not_transfer': copy.deepcopy(use['do_not_transfer']),
+                    'subject_uses': copy.deepcopy(row.get('subject_uses', []))}}
+            raw = acquire(row['file'])
+            known['sha256'] = c.digest(raw)
+            display['source_sha256'] = known['sha256']
+            if original is not None:
+                known['authority']['source'] = source_proof(original, witnesses or {}, raw)
+            record({**known, 'value': None}, derived=True, owner=owner)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            if known is not None:
+                result['sources'].append(known)
+            gap(owner, error, source=source_id)
+
+    def prepared(prepared_set, inputs, *, owner):
+        native = (prepared_set or {}).get('selected_references', [])
+        declared = (inputs or {}).get('references')
+        originals = {reference_id(row): row for row in native}
+        plan = iter(((prepared_set or {}).get('reference_use_plan') or {}).get('reference_items', []))
+        plan_influences = {}
+        for original in native:
+            if original['source']['kind'] == 'pack-artifact':
+                item = next(plan, None)
+                if item is None:
+                    raise ValueError('The selected pack reference needs its Reference Use Plan.')
+                plan_influences[reference_id(original)] = [item['intended_influence']]
+        rows = declared if declared is not None else [
+            {'id': reference_id(row), 'file': row['source']['resolved_path'],
+             'use_for': row['authority']['controls'], 'do_not_transfer': row['authority']['must_not_control'],
+             'subject_uses': copy.deepcopy(row.get('subject_uses', []))} for row in native]
+        for row in rows:
+            original = originals.get(row.get('id'))
+            selected = list(plan_influences.get(row.get('id'), []))
+            current = copy.deepcopy(row)
+            if original is not None:
+                selected += original.get('intended_influence', [])
+                if original.get('subject_id'):
+                    current['subject_id'] = original['subject_id']
+            reference(current, (original or {}).get('source'), influences=selected, owner=owner)
+
+    def editable(selection, *, owner, portable=True):
+        from production_reference_inputs import identity_selection
+        native = selection.get('image_input')
+        if isinstance(native, dict) and 'references' in native:
+            existing = native.get('prepared_reference_set')
+            if existing is None and native.get('prepared_references'):
+                existing = c.decode(acquire(native['prepared_references']))
+            if existing is not None:
+                prepared(existing, native, owner=owner)
+                return
+            for row in native['references']:
+                proof = ({'kind': 'supplied-file', 'reference_id': row.get('id'), 'resolved_path': row.get('file')}
+                         if portable else None)
+                reference(row, proof, witnesses=selection.get('source_files'), owner=owner)
+            return
+        for row in identity_selection(selection):
+            reference({'id': row['reference_id'], 'file': row['source']['resolved_path'],
+                'use_for': row['authority']['controls'], 'do_not_transfer': row['authority']['must_not_control'],
+                'subject_uses': row.get('subject_uses', []),
+                **({'subject_id': row['subject_id']} if row.get('subject_id') else {})},
+                row['source'], influences=row.get('intended_influence', []),
+                witnesses=selection.get('source_files'), owner=owner)
+
+    external = (choices or {}).get('external') or {}
+    selections = []
+    if isinstance(authored.get('references'), dict):
+        selections.append(('authoring.references', authored['references'], True))
+    delivery = external.get('reference_delivery') or {}
+    if isinstance(delivery.get('choices'), dict):
+        selections.append(('external.reference_delivery.choices', delivery['choices'], True))
+    elif isinstance(external.get('image_input'), dict):
+        selections.append(('external.image_input', {'image_input': external['image_input']}, False))
+    elif isinstance(external.get('image_input'), str):
+        try:
+            selected_input = c.decode(acquire(external['image_input']))
+            if not isinstance(selected_input, dict):
+                raise ValueError('The selected external image input must be an object.')
+            selections.append(('external.image_input', {'image_input': selected_input}, False))
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            gap('external.image_input', error)
+    if selections:
+        for owner, selection, portable in selections:
+            try:
+                editable(selection, owner=owner, portable=portable)
+            except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
+                gap(owner, error)
+    elif choices is None or 'authoring' not in choices:
+        try:
+            inputs = c.decode(acquire(task['image_input'])) if task.get('image_input') else None
+            selected = (inputs or {}).get('prepared_reference_set')
+            path = (inputs or {}).get('prepared_references') or generation.get('references')
+            if selected is None and path:
+                selected = c.decode(acquire(path))
+            prepared(selected, inputs, owner='task.references')
+        except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
+            gap('task.references', error)
+    current_generation = authored.get('generation') if choices is not None and 'authoring' in choices else generation
+    required = {subject for subject, continuity in (current_generation or {}).get('continuity', {}).items()
+                if continuity == 'recurring'}
+    required.update(subject for source in result['sources'] if source.get('derived')
+                    for subject in source.get('subject_ids', []))
+    visual = documents.get('visual_continuity')
+    if isinstance(visual, dict) and isinstance(visual.get('subjects'), dict):
+        required.update(subject for subject, value in visual['subjects'].items()
+                        if value.get('continuity') == 'recurring' or value.get('identity_refs'))
+    view = {'subject_ids': subjects, 'subject_declaration': declaration,
+        'required_subject_ids': sorted(required), 'text': {}, 'references': reference_choices,
+        'identity_sources': [copy.deepcopy(source) for source in result['sources'] if source.get('derived')]}
+    return result, captured, active_task, view

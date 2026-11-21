@@ -159,6 +159,12 @@ current request and, when selected, a saved task or run. Supply the actual new
 request with `--request-file FILE`. Continuing the same request can use the
 saved authoring work. `compose` builds a candidate from the current sources and
 retained requirements; `amend` applies scoped changes to the actual baseline.
+Both seed meaningful current content from the selected source. An amend retains
+the complete identity source set, including its bytes, subjects, scope and
+authority; a compose owns a new current selection. Use
+`draft-inputs --choices CURRENT_CHOICES --out-dir NEW_DIRECTORY` to carry the
+current edits into that compose. The selected choices supply the request and
+content, so no separate reuse or edit-replay arguments are needed.
 The registered work goal locates the task, while the supplied request establishes
 what the user commissioned. Edit the directly accessible text files and selected
 structured documents. Keep one meaningful choice at one owner. Preserve
@@ -183,6 +189,13 @@ problems there, preserving unsupported or unresolved meaning as such. The
 compiler regenerates paths, reference positions, content hashes and dependent
 inputs. Reassess only the choices whose meaning or applicability changed;
 keep all other valid choices and history.
+
+`acquire-source` and `edit-choices` check retained identity before publishing
+their changes. A mismatch returns an executable compose repair from a captured
+candidate and keeps the original draft intact. The returned source path names
+that specific candidate; the output directory names only its new destination.
+Follow [source changes and structured editing](production-authoring.md#acquire-a-production-source)
+for the source descriptor, field edit and complete A-to-B continuation example.
 
 ## Change direction without losing prior work
 

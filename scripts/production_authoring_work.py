@@ -293,40 +293,32 @@ def begin(choices: dict, *, task: dict, operation: str, request: str | None,
             kind='current-request' if source['id'] in old_request_sources else 'studio-source'))
     if request is None and prior_basis is not None:
         request = prior_basis['request']
-    if initial:
-        selected = {item['id'] for item in source_rows if item['disposition'] == 'applied'} - old_request_sources
-    elif operation == 'amend':
-        selected = {item['id'] for item in source_rows if item['disposition'] == 'applied'} - old_request_sources
-    else:
-        selected = {item['id'] for item in source_rows if item.get('identity')}
+    selected = {item['id'] for item in source_rows if item['disposition'] == 'applied'} - old_request_sources
     selected.update(applied_sources or [])
     unknown = selected - set(sources)
     if unknown:
         raise ValueError('selected authoring sources were not acquired: ' + ', '.join(sorted(unknown)))
-    if operation == 'compose' and not initial:
-        criteria, allowances, required_sources = _protected(task, protected_criteria)
-        selected.update(required_sources)
-        current_task = authoring.seed(route=route or task['route'], artifact=artifact or task['artifact'],
-            execution=execution or task['execution'], task_id=task['task_id'], features=features)
-        current_task['production_id'] = task['production_id']
-        current_task['criteria'] = criteria
-        current_task['direction']['source_allowances'] = allowances
-        current_task['direction']['basis'] = sorted(required_sources)
-        current = {'target': None, 'reading': {'reading_key': None}, 'visual': None,
-                   'validation': None, 'task_changes': {}, 'external': None,
-                   'authoring': authoring.blank(current_task)}
-        if current_task['execution'] == 'external':
-            import production_external_inputs
-            current['external'] = production_external_inputs.template()
+    # The selected candidate supplies meaningful authored content for either
+    # operation. Compose gives its source selection a new owner; it does not
+    # discard the prompt, controls or independently authored review criteria.
+    current, current_task = copy.deepcopy(choices), copy.deepcopy(task)
+    for key, value in {'route': route, 'artifact': artifact, 'execution': execution,
+                       'features': features}.items():
+        if value is not None:
+            current_task[key] = copy.deepcopy(value)
+            current['authoring']['task'][key] = copy.deepcopy(value)
+    current_task.pop('execution_decisions', None)
+    current['authoring']['task'].pop('execution_decisions', None)
+    if current_task.get('route') == 'upscale' and current_task.get('execution') == 'dispatcher':
+        if current['authoring'].get('upscale') is None:
+            current['authoring']['upscale'] = authoring.blank(current_task)['upscale']
     else:
-        current, current_task = copy.deepcopy(choices), copy.deepcopy(task)
-        for key, value in {'route': route, 'artifact': artifact, 'execution': execution,
-                           'features': features}.items():
-            if value is not None:
-                current_task[key] = copy.deepcopy(value)
-                current['authoring']['task'][key] = copy.deepcopy(value)
+        current['authoring']['upscale'] = None
+    if operation == 'compose' and not initial:
+        current_task['authority'] = None
+        current['authoring']['task']['authority'] = None
     applications, subjects, selected_requirements = _applications(sources, selected)
-    if prior_basis is not None and operation == 'amend':
+    if prior_basis is not None and not initial:
         # Preserve explicit scopes, including task-local subjects, from the one
         # application owner. The current request is selected separately below.
         applications = copy.deepcopy(prior_basis['applications'])
@@ -340,36 +332,35 @@ def begin(choices: dict, *, task: dict, operation: str, request: str | None,
         raw = request.encode('utf-8')
         ident = 'request:' + c.digest(raw)
         _retain_acquisition(sources, ident, authoring_work.acquire_source(raw, origin={'kind': 'current-request'}))
-    requirements = list(dict.fromkeys(selected_requirements))
-    if operation == 'compose' and not initial and current_task['criteria']:
-        source = 'protected-requirements:' + c.content_id(current_task['criteria'])
-        _retain_acquisition(sources, source, authoring_work.acquire_source(c.encoded(current_task['criteria']),
+    retained_requirements = prior_basis['requirements'] if prior_basis is not None and not initial else []
+    requirements = list(dict.fromkeys([*retained_requirements, *selected_requirements]))
+    # Preserve the actual protected source, rather than stamping edited criteria
+    # as a new historical requirement when a live candidate is composed again.
+    protected_ids = set()
+    for application in requirements:
+        selection = applications[application]
+        record = sources[selection['source']]
+        if (record.get('origin') or {}).get('kind') == 'protected-requirements':
+            value = authoring_work.source_value(record, selection['pointer'])
+            if isinstance(value, dict):
+                protected_ids.add(value.get('id'))
+    newly_protected = set(protected_criteria) - protected_ids
+    criteria, _, _ = _protected(task, newly_protected)
+    if criteria:
+        source = 'protected-requirements:' + c.content_id(criteria)
+        _retain_acquisition(sources, source, authoring_work.acquire_source(c.encoded(criteria),
             format='json', origin={'kind': 'protected-requirements', 'task_id': task['task_id']}))
-        for index in range(len(current_task['criteria'])):
-            ident = 'protected-requirement:' + str(index + 1)
+        for index, criterion in enumerate(criteria):
+            ident = 'protected-requirement:' + criterion['id']
             applications[ident] = {'source': source, 'pointer': '/' + str(index)}
-            requirements.append(ident)
-    elif prior_basis is not None and operation == 'amend':
-        requirements = list(dict.fromkeys([*prior_basis['requirements'], *requirements]))
+            if ident not in requirements:
+                requirements.append(ident)
     work = authoring_work.begin_work(operation=operation, request=request, sources=sources,
         applications=applications, subjects=subjects, requirements=requirements,
         baseline=None if initial else previous, content=current if operation == 'compose' else None,
         focus=focus or (prior_basis or {}).get('focus', 'character'))
     if operation == 'amend':
         work = authoring_work.replace_content(work, current)
-    if operation == 'compose' and not initial and prior_basis is not None:
-        applications = copy.deepcopy(work['basis']['applications'])
-        subjects = copy.deepcopy(work['basis']['subjects'])
-        sources = copy.deepcopy(work['basis']['sources'])
-        for subject, selected_apps in prior_basis['subjects'].items():
-            for key in selected_apps:
-                applications[key] = copy.deepcopy(prior_basis['applications'][key])
-                record = sources[applications[key]['source']]
-                if (record.get('origin') or {}).get('kind') == 'task-subject':
-                    record['origin']['kind'] = 'retained-definition'
-            subjects[subject] = list(selected_apps)
-        work['basis'] = authoring_work.revise_basis(work['basis'], sources=sources,
-                                                  applications=applications, subjects=subjects)
     work['basis'] = bind_task_subjects(work['basis'], work['content'])
     return work['content'], work['basis'], current_task
 

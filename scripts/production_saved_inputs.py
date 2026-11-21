@@ -15,6 +15,85 @@ import execution_contract as c
 from production_diagnostics import ProductionError
 
 
+def identity_context(root: Path, context: dict, *, read_run=None) -> dict:
+    """Project a registered retained boundary from its immutable saved revision.
+
+    A context which already records the boundary needs no source-run access.
+    An older context can obtain missing owner evidence from its exact saved
+    input. Current editable choices, files and basis never redefine that input.
+    This function returns a reading projection; it does not rewrite registration.
+    """
+    if ('retained_identity_sources' in context
+            or (context.get('authoring_work') or {}).get('operation') != 'amend'):
+        return context
+    import production_identity_boundary as boundary
+    retained = boundary.from_coverage(context.get('identity_coverage'))
+    source = (context.get('derived_from') or {}).get('source_run')
+    projected = copy.deepcopy(context)
+
+    def missing(message, reason, *, owner='derived_from.source_run', **details):
+        retained['unresolved'].append(boundary.unknown(owner=owner, message=message,
+            reason=reason, comparison_side='retained_identity_sources',
+            **({'run': source.get('run'), 'input_sha256': source.get('input_sha256')}
+               if isinstance(source, dict) else {}), **details))
+        projected['retained_identity_sources'] = retained
+        return projected
+
+    if source is None:
+        # A complete acquired inventory remains meaningful without a saved
+        # run. Earlier coverage could, however, omit a reference owner when a
+        # direct source happened to contain the same bytes. Do not invent that
+        # omitted authority from the candidate which is being compared.
+        coverage = context.get('identity_coverage') or {}
+        recorded = {(row.get('authority') or {}).get('reference') for row in retained['sources']}
+        for row in coverage.get('reference_choices', []):
+            if 'identity' not in row.get('use_for', []) or row.get('id') in recorded:
+                continue
+            missing('The retained reference use has no acquired original authority proof.',
+                'retained-source-owner-unavailable', owner='identity_coverage.reference_choices',
+                source='reference:' + str(row.get('id')))
+        task = context.get('task_content') or {}
+        graph_path = (task.get('generation') or {}).get('state_graphs')
+        if graph_path and not any((row.get('authority') or {}).get('owner') for row in retained['sources']):
+            missing('The retained graph owner inventory has no acquired source revision.',
+                'retained-source-owner-unavailable', owner='task_content.generation.state_graphs', file=graph_path)
+        projected['retained_identity_sources'] = retained
+        return projected
+    if not isinstance(source, dict) or not isinstance(source.get('run'), str) or not source.get('input_sha256'):
+        return missing('The registered context has no exact saved input revision.',
+            'retained-source-run-revision-mismatch')
+    try:
+        if read_run is None:
+            import production_operations as workflow
+            loaded = workflow.read_run(root, source['run'])
+        else:
+            loaded = read_run(source['run'])
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        return missing(str(error), 'retained-source-run-unavailable')
+    if (loaded.prepared.get('run') != source['run']
+            or loaded.prepared.get('input_sha256') != source['input_sha256']):
+        return missing('The saved run differs from the exact input revision recorded by this context.',
+            'retained-source-run-revision-mismatch',
+            actual_input_sha256=loaded.prepared.get('input_sha256'))
+    try:
+        with CapturedInputs(root, loaded) as captured:
+            restored = captured.identity_sources()
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        return missing(str(error), 'retained-source-owner-unavailable')
+    # The saved source inventory supplies missing owners; meaningful evidence
+    # already registered by this draft remains independently available. A
+    # conflict remains visible for the common comparator to resolve explicitly.
+    combined = copy.deepcopy(restored)
+    for row in retained['sources']:
+        if row not in combined['sources']:
+            combined['sources'].append(copy.deepcopy(row))
+    for row in combined['unresolved']:
+        row.update(comparison_side='retained_identity_sources',
+            reason='retained-source-owner-unavailable', run=source['run'], input_sha256=source['input_sha256'])
+    projected['retained_identity_sources'] = combined
+    return projected
+
+
 def read_named(root: Path, path: str) -> bytes:
     """Acquire one explicit captured source revision in its owning Studio."""
     import production_operations as production_workflow
@@ -79,6 +158,84 @@ class CapturedInputs:
         if path not in self._bytes:
             self._bytes[path] = self.loaded.evidence.read(self.paths[path]['sha256'])
         return self._bytes[path]
+
+    def identity_sources(self) -> dict:
+        """Read saved source owners with the same inventory used by a new draft.
+
+        Finished inputs use their resolved reference set and binding. Unfinished
+        inputs use their exact saved editable choices. All locators resolve in
+        this publication's acquired bytes and source archive, never live files.
+        """
+        import production_identity
+        import production_identity_boundary as boundary
+        task = copy.deepcopy(self.prepared['task'])
+        overlay = {}
+        retained = self.references()
+        if retained is not None:
+            for path, raw in retained['files'].items():
+                overlay[path] = raw
+                overlay[str(retained['root'] / path)] = raw
+            for row in retained['prepared']['selected_references']:
+                proof = row['source']
+                key = str(proof['resolved_path'])
+                original = retained['companion'] + '/sources/' + proof['sha256']
+                raw = retained['files'].get(original)
+                if raw is None:
+                    raw = self.loaded.evidence.read(proof['sha256'])
+                if c.digest(raw) != proof['sha256']:
+                    raise ValueError('saved identity media differs from its acquired proof: ' + key)
+                if key in overlay and overlay[key] != raw:
+                    raise ValueError('one retained identity locator has conflicting acquired bytes: ' + key)
+                overlay[key] = raw
+                if not Path(key).is_absolute():
+                    overlay[str(self.root / key)] = raw
+            path = '@retained-identity/prepared-references.json'
+            overlay[path] = c.encoded(retained['prepared'])
+            task.setdefault('generation', {})['references'] = path
+        binding = self.loaded.consumer.get('image_input')
+        if binding is not None:
+            value = copy.deepcopy(binding)
+            if retained is not None:
+                value['prepared_reference_set'] = copy.deepcopy(retained['prepared'])
+                from reference_delivery import reference_id
+                originals = {reference_id(row): row['source'] for row in retained['prepared']['selected_references']}
+                for row in value.get('references', []):
+                    original = originals.get(row['id'])
+                    if original is None:
+                        raise ValueError('the saved binding has no exact original reference owner: ' + row['id'])
+                    # A delivered carrier can be resized, converted or placed
+                    # on a board. Retention compares the original source owner,
+                    # just as reference_choices does when opening a new draft.
+                    row['file'] = original['resolved_path']
+                    row['sha256'] = original['sha256']
+            path = '@retained-identity/image-input.json'
+            overlay[path] = c.encoded(value)
+            task['image_input'] = path
+
+        def read(path):
+            if path in overlay:
+                return overlay[path]
+            selected = path
+            if Path(path).is_absolute():
+                try:
+                    selected = Path(path).relative_to(self.root).as_posix()
+                except ValueError:
+                    raise ValueError('the saved input has no acquired original for identity source: ' + path) from None
+            return self.bytes(selected)
+
+        choices = None
+        revision = self.prepared.get('authored_revision') or {}
+        if revision.get('state') == 'draft':
+            descriptor = revision.get('choices')
+            if not isinstance(descriptor, dict):
+                return {'sources': [], 'unresolved': [boundary.unknown(owner='authored_revision.choices',
+                    message='The unfinished saved input has no exact editable choices revision.')]}
+            raw = read(descriptor['path'])
+            if c.digest(raw) != descriptor['sha256']:
+                raise ValueError('the saved unfinished choices differ from their retained descriptor')
+            choices = c.decode(raw)
+        basis = c.decode(read(task['work_basis'])) if task.get('work_basis') else None
+        return production_identity.source_snapshot(task, read, choices=choices, basis=basis)
 
     def export(self, prefix: str, *, selected_paths=None) -> tuple[dict[str, bytes], dict[str, str]]:
         """Return the source tree and its explicit destinations for a new draft.

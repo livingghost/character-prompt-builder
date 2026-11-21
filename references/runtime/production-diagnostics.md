@@ -175,7 +175,7 @@ A drift diagnostic adds `affected_runs` and `actions`.
 | `AUTHORING_CONTEXT_MISSING` | A registered draft lacks its source context. The returned action uses trusted registration to reopen it. |
 | `AUTHORING_CONTEXT_MISMATCH` | Source context bytes differ from the registered publication. Reopen the registered source in the offered unused directory. |
 | `AUTHORING_STATE_UNREADABLE` | `inspect-inputs`, `status` and session entry could not read one part of the open work task's saved authoring state: a saved draft or reading pointer, the decision drafts, the last check, a run of the task or the current authoring context. `file` names that part and `message` the cause. The rest of the state is still reported and the command succeeds. Inspect or restore the named part, then run `inspect-inputs` again. |
-| `IDENTITY_SOURCE_CHANGED` | An original identity source was removed, replaced, or its retained subject, selector or authority scope differs from the registered draft witness. Restore that context, or make the authorized change through the owning source and start a fresh draft. No per-value scene binding is required to retain the original. |
+| `IDENTITY_SOURCE_CHANGED` | `cause: retained-identity-source-changed` reports a changed amend identity boundary before a draft constructor, source acquisition or structured edit is published, and again during final compilation. `draft_operation`, `changes`, `change_kind`, source IDs and before/after values identify additions, removals, content, subjects, scope or authority changes. `evidence_owner` names the retained input, `repair_owner` the new compose, `inspect_action` the evidence and `repair_action` the executable compose continuation. For a registered draft, `draft-inputs --choices` selects the explicitly captured proposed bytes and content; the original draft stays intact. A refused constructor retains its selected task or run, request file and supplied arguments with operation compose. Other causes keep their source-specific repairs: for example, `source-origin-changed` requires correcting the descriptor's original selection and digest, and does not select a compose merely because it shares this code. |
 | `IDENTITY_SOURCE_UNAVAILABLE` | A selected identity source cannot be read. The action names the source inspection needed before reconstruction. |
 | `TARGET_GUIDANCE_REQUIRED` | The selected reading does not cover the current target or source editions. Complete the returned reading action and select its issued key. |
 | `READING_SOURCES_CHANGED` | The documents, resources or model guidance that a route reading delivered differ from the current ones, or its exact source ranges do not cover the operation, execution, destination, source kind or features in use. `changes` names changed sources and the required or missing ranges of expanded scope. Use the current draft reading action or the matching `context_reuse.curation_scopes` action to index and deliver every missing current section, then select its issued reading key. Same-context reuse requires explicit still-known complete readings; a fresh context reads every required range again. A prepared run reports it as a warning in `freshness_notices` and continues. |
@@ -189,6 +189,16 @@ Source-context errors retain `code`, `file`, `pointer`, hashes when measured and
 `next_action` / `next_actions`. Execute the supplied `argv` to inspect or reopen
 the actual registered source. Recovery keeps existing editor files and does not
 select a new source, grant permission or certify artistic judgment.
+
+For the retained-identity mismatch, the primary action uses the candidate's
+current selection to create a compose. The separate inspection action explains
+the old evidence. Follow the complete returned `argv`; it already selects the
+captured result of a refused source or field edit and preserves the current
+request and meaningful content. No second edit or source reacquisition is needed
+to express that same change. Current source applicability, reading, criteria and
+authorization remain checked by their ordinary owners. The
+[source-change table and worked example](production-authoring.md#continue-a-proposed-identity-replacement)
+show the full continuation.
 
 **Identity coverage**
 

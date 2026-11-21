@@ -126,6 +126,8 @@ class IdentityAdapterTests(unittest.TestCase):
         view = self.context()
         self.assertEqual([row['id'] for row in view['identity_sources']], ['state:A:identity_contract'])
         self.task['sources'][0]['identity']['selectors'] = ['/0/identity_contract']
+        self.assertEqual([row['id'] for row in self.context()['identity_sources']], ['state:A:identity_contract'])
+        self.task['sources'][0]['identity']['authority'] = copy.deepcopy(view['identity_sources'][0]['authority'])
         self.assertEqual(self.context()['identity_sources'], [])
 
     def test_retained_scoped_reference_does_not_replace_a_distinct_current_use(self):
@@ -592,16 +594,20 @@ class IdentityAuthoringTests(unittest.TestCase):
         report = self.compile_identity(result, choices)
         self.assertFalse(report['ok'])
         self.assertEqual(report['diagnostics'][0]['code'], 'IDENTITY_SOURCE_CHANGED')
-        self.assertEqual(report['diagnostics'][0]['expected_sha256'], c.digest(self.raw))
-        self.assertEqual(report['diagnostics'][0]['actual_sha256'], c.digest(replacement))
+        diagnostic = report['diagnostics'][0]
+        self.assertEqual(diagnostic['cause'], 'retained-identity-source-changed')
+        changed = next(row for row in diagnostic['changes']
+                       if (row['source'], row['change_kind']) == ('canon', 'content'))
+        self.assertEqual(changed['before']['sha256'], c.digest(self.raw))
+        self.assertEqual(changed['after']['sha256'], c.digest(replacement))
 
     def test_retained_identity_scope_cannot_be_silently_changed_in_choices(self):
         result, original = self.draft_identity(graph=True, retained_authority=True)
         path, original_basis = self.work_basis(result)
-        for change in [lambda value: value['sources']['canon']['origin']['source']['identity'].pop('authority'),
-                       lambda value: value['sources']['canon']['origin']['source']['identity']['authority'].update(canon_status='proposed'),
-                       lambda value: value['applications']['canon'].update(pointer=''),
-                       lambda value: value['subjects'].update(B=['canon'])]:
+        for kind, change in [('authority', lambda value: value['sources']['canon']['origin']['source']['identity'].pop('authority')),
+                       ('authority', lambda value: value['sources']['canon']['origin']['source']['identity']['authority'].update(canon_status='proposed')),
+                       ('scope', lambda value: value['applications']['canon'].update(pointer='')),
+                       ('subjects', lambda value: value['subjects'].update(B=['canon']))]:
             with self.subTest(change=change):
                 choices = copy.deepcopy(original)
                 basis = copy.deepcopy(original_basis)
@@ -611,7 +617,9 @@ class IdentityAuthoringTests(unittest.TestCase):
                 self.assertFalse(report['ok'])
                 diagnostic = report['diagnostics'][0]
                 self.assertEqual(diagnostic['code'], 'IDENTITY_SOURCE_CHANGED')
-                self.assertEqual(diagnostic['source'], 'canon')
+                self.assertEqual(diagnostic['cause'], 'retained-identity-source-changed')
+                self.assertTrue(any((row['source'], row['change_kind']) == ('canon', kind)
+                                    for row in diagnostic['changes']), diagnostic)
                 self.assertEqual(diagnostic['next_action']['command'], 'draft-inputs')
 
     def test_removing_derived_context_evidence_cannot_bypass_registered_originals(self):
@@ -660,9 +668,11 @@ class IdentityAuthoringTests(unittest.TestCase):
         built = self.build_identity(result, choices)
         self.assertFalse(built['ok'])
         gap = built['unresolved'][0]
-        self.assertEqual((gap['code'], gap['reason'], gap['field']),
-                         ('AUTHORED_CHOICE_REQUIRED', 'current-judgment-required', 'authoring.documents.state_graphs'))
-        self.assertIn(choices['authoring']['documents']['state_graphs']['file'], gap['required_action'])
+        self.assertEqual((gap['code'], gap['cause']), ('IDENTITY_SOURCE_CHANGED', 'retained-identity-source-changed'))
+        changed = next(row for row in gap['changes']
+                       if (row['source'], row['change_kind']) == ('state:A:identity_contract', 'content'))
+        self.assertNotEqual(changed['before']['value_sha256'], changed['after']['value_sha256'])
+        self.assertEqual(gap['next_action']['command'], 'draft-inputs')
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
 
     def test_scene_snapshot_edit_preserves_original_graph_identity_source(self):
@@ -688,8 +698,10 @@ class IdentityAuthoringTests(unittest.TestCase):
         built = self.build_identity(result, choices)
         self.assertFalse(built['ok'])
         gap = built['unresolved'][0]
-        self.assertEqual((gap['code'], gap['reason'], gap['field']),
-                         ('AUTHORED_CHOICE_REQUIRED', 'current-judgment-required', 'authoring.documents.state_graphs'))
+        self.assertEqual((gap['code'], gap['cause']), ('IDENTITY_SOURCE_CHANGED', 'retained-identity-source-changed'))
+        changed = {(row['source'], row['change_kind']) for row in gap['changes']}
+        self.assertTrue({('state:A:visual_authority', 'content'), ('state:A:visual_evidence_bundle', 'content')} <= changed)
+        self.assertEqual(gap['next_action']['command'], 'draft-inputs')
         self.assertEqual((self.root / 'canon.json').read_bytes(), self.raw)
 
 

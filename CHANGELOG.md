@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026.11.21.1
+
+- Keep the complete retained identity selection of an amend draft consistent at
+  construction, source acquisition, structured editing and final compilation. Report added,
+  removed or changed content, scope, subjects and authority before publishing
+  the change, while allowing a compose to own its current source selection.
+- Continue a refused identity change from its captured proposed candidate.
+  Reuse `draft-inputs --choices` for the actual edited content, acquired sources,
+  selected documents and current request. Keep the original draft and saved
+  runs intact, with no edit-replay or digest arguments to reconstruct by hand.
+- Seed compose consistently from selected current content across task, run and
+  choices inputs. Preserve exact editable bytes and shared document selectors,
+  rebuild current source bindings and retain earlier runs for comparison.
+- Edit authored choices through `edit-choices` with one JSON Pointer and value.
+  Share source acquisition's locks and publication boundary, validate unfinished
+  structure and identify the actual owner of generated fields.
+- Retain executable repair arguments in diagnostic summaries. Keep source
+  inspection separate from the primary compose continuation, and preserve
+  explicit drafting choices through task selection and interruption recovery.
+- Apply route, artifact, execution and feature selections when reopening inputs,
+  retain current reading for its applicability checks and remove unused helper
+  arguments from the changed input and reporting paths.
+
 ## 2026.11.20.3
 
 - Continue editable work through definition, depiction, rendition and prepare

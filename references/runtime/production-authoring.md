@@ -206,6 +206,16 @@ owned selection without silently dropping unrelated applications or subjects.
 A refused acquisition leaves the prior draft usable. Saved runs and their
 evidence remain unchanged.
 
+For an `amend` draft, acquisition compares the complete proposed identity
+selection with the retained evidence before publishing. Adding or removing an
+identity source, replacing its bytes, or changing its subjects, selectors or
+authority requires a new `compose` draft. The diagnostic preserves the proposed
+candidate, including the newly acquired bytes, outside the original draft. Its
+`repair_action.argv` starts a compose from that exact candidate through
+`draft-inputs --choices`; execute that action once to continue the change.
+The original draft stays available for its existing source selection. An
+excluded acquired source uses its retained bytes and needs no live original.
+
 A source without identity coverage uses the same row without `identity`.
 Select its actual role, locator, disposition and reason. Use
 `source_requirements` in the draft or input guide to see required, applied and
@@ -223,6 +233,37 @@ next projection replaces.
 The complete current ProductionTask path remains available through
 `draft-inputs --task FILE`. Initial `draft-inputs --route ROUTE --operation compose`
 creates the current editable scaffold without requiring an earlier run.
+
+### Edit an authored choices field
+
+Use `edit-choices` for one structural JSON edit. Save the intended JSON value
+in a file, then name the authored field with a JSON Pointer:
+
+```bash
+python scripts/production_workflow.py edit-choices --root STUDIO \
+  --choices work/input/choices.json --pointer /authoring/task/direction/purpose \
+  --operation replace --value-file work/input/purpose.json
+```
+
+For example, `purpose.json` can contain the JSON string
+`"Show the connection between the two synthetic shell segments."`.
+Use `add` for a new member or array entry, `replace` for an existing value and
+`remove` without `--value-file` to remove the selected member. A JSON Pointer
+escapes a literal slash as `~1` and a tilde as `~0`.
+
+This operation checks the draft's structure while allowing unfinished authored
+values. It owns the same choices/basis locks and source boundary as
+`acquire-source`. Direction, criteria, recording choices, references, reading,
+validation selections and generation choices remain at their authored owners.
+Edit the selected text or document file for its contents. Source catalogs,
+projected task sources, captured hashes and immutable draft context belong to
+their producers; the diagnostic gives the owning operation for those fields.
+The compiler derives request fields and bindings when the candidate is checked
+or prepared. Structural editing supplies no artistic or source-authority judgment.
+
+An identity-changing edit in an `amend` draft returns the same captured-candidate
+compose repair as acquisition. The snapshot contains the result of the requested
+edit, so the repair does not ask the agent to repeat a pointer, digest or edit.
 Before extracting a selected task or saved run, the input reader reports
 missing structure with a public JSON Pointer, schema, expected shape, input
 file/run and repair owner. Its rebuild action creates a new scaffold; carry
@@ -754,13 +795,81 @@ selectors and scoped authority available, including information acquired through
 a reference or state graph. The agent applies the sources relevant to this
 candidate and retains the requirements the current request relies on.
 
-`amend` starts from the actual selected baseline and retains the choices outside
-the declared change. `compose` builds a candidate from the current request and
-source applications, with the previous candidate available for comparison. The
+Both operations seed the draft with the selected candidate's meaningful authored
+content, editable documents and current source applications. `amend` starts from
+the actual selected baseline and retains its identity source boundary and the
+choices outside the declared change. `compose` owns a fresh current source
+selection, with the previous candidate available for comparison. The
 request determines which relationships to retain or reconsider; a property name
 does not determine the operation. Follow [Authoring work](authoring-work.md) for
 the candidate and its exact change contract. Resolve the proposed construction
 within delegated authority and ask only for necessary authorial decisions.
+
+The same boundary applies while opening a draft. If constructor choices such
+as `--apply-source` would add an identity source to an `amend`, drafting refuses
+before publishing the directory or opening new work. Its compose action retains
+the selected task or run and the supplied request, source, target, stage and
+runtime arguments. The saved source defines the retained boundary; constructor
+arguments cannot redefine it.
+
+To continue the current edits in a new compose, select their choices directly:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO \
+  --choices work/amend/choices.json --out-dir work/new-compose
+```
+
+`--choices` selects this compose operation; it needs no content-reuse switch.
+The current request, prompt bytes, parameters, document field selectors,
+direction, criteria, recording choices and target carry into independent
+editable files. The selected reading and authoring stage remain visible for
+their current applicability checks. The original saved run remains comparison
+evidence. Current source owners produce the new identity inventory and dependent
+bindings; a historical derived witness alone never activates an old reference.
+Current grants are checked against their actual operation and scope. Execution
+claims and run-specific decisions remain with the runs that own them.
+
+| Intended change | Operation |
+| --- | --- |
+| Change prompt wording, pose, expression or controls while retaining identity evidence | `amend` |
+| Reorder the same reference uses with the same bytes, subjects, scope and authority | `amend` |
+| Add, remove or replace an identity source | New `compose` |
+| Change identity selectors, subjects, reference authority or accepted proof | New `compose` |
+| Add or remove an environment or prop source with no identity effect | `amend` |
+| Generate another result from the exact prepared input | `repeat` |
+
+#### Continue a proposed identity replacement
+
+Suppose a saved synthetic shell candidate uses source `design` at revision A,
+and the current request selects revision B. Open an amend to retain its other
+content, edit the prompt as requested, and acquire a descriptor whose `id` is
+`design` and whose `path` selects B:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO \
+  --from-run RUN --operation amend --out-dir work/amend
+python scripts/production_workflow.py acquire-source --root STUDIO \
+  --choices work/amend/choices.json --source-row inputs/design-b.json
+```
+
+The second command returns `IDENTITY_SOURCE_CHANGED` with
+`cause: retained-identity-source-changed`, `draft_operation: amend` and a
+`content` change for `design`. Its `evidence_owner` names the retained context;
+`inspect_action` opens that evidence. The primary `repair_action` names the
+unique captured candidate choices and an unused output directory. Run that
+complete returned command. The new compose contains B and the edited prompt,
+including when the original B file is no longer present. The original amend
+and saved run still contain A. Inspect the new choices, resolve any changed
+source applications and criteria, complete their applicable reading, then run:
+
+```bash
+python scripts/production_workflow.py check --root STUDIO --choices work/amend-compose/choices.json
+python scripts/production_workflow.py prepare --root STUDIO --choices work/amend-compose/choices.json
+```
+
+Use the output directory actually returned by the repair when that name already
+exists. `check` and `prepare` still validate the final current source selection;
+creating or checking a compose performs no external generation.
 
 For an image run, `--from-run` restores its authored inputs, including the images
 that the run consumed. It does not select a captured output as the next edit's
@@ -937,7 +1046,8 @@ authoring state; it identifies the owning file and necessary correction.
 | `AUTHORING_DRAFT_UNREGISTERED` | Inspect the task's registered inputs and continue the source draft. A copied context cannot establish a new registration by itself. |
 | `AUTHORING_DRAFT_REGISTRATION_INVALID` | Inspect and repair the registration that identifies the task and draft location. |
 | `AUTHORING_CONTEXT_MISSING` or `AUTHORING_CONTEXT_MISMATCH` | Draft from the registered source using the returned unused output location. Existing editable content remains available for continuation. |
-| `IDENTITY_SOURCE_CHANGED` | Inspect the current identity source and reassess its application and criteria. A live task can supply a new draft; a saved run exposes its retained evidence for explicit source selection. |
+| `IDENTITY_SOURCE_CHANGED` with `retained-identity-source-changed` | Run the returned compose repair. For an existing draft, its `--choices` selects the captured current candidate; its separate inspection action opens the retained amend evidence. |
+| Other `IDENTITY_SOURCE_CHANGED` causes | Correct the named source origin, selector or authority evidence at its owner. The specific cause determines the repair. |
 | `IDENTITY_SOURCE_UNAVAILABLE` | Inspect the named source and restore or explicitly replace it before drafting its application. |
 
 These diagnostics distinguish provenance and file-state failures from creative

@@ -229,7 +229,16 @@ class SourceAcquisitionTests(unittest.TestCase):
     files = fixtures.InputToolsTests.files
 
     def setUp(self):
-        fixtures.InputToolsTests.setUp(self)
+        fixtures.InputToolsTests.setUp(self, draft=False)
+        import work_ledger
+        self.work = work_ledger.begin(self.root, 'Inspect synthetic source acquisition.', ['Acquire sources'])
+        self.task['task_id'] = self.work['task_id']
+        (self.root / 'task.json').write_bytes(c.encoded(self.task))
+        result = fixtures.authoring_fixtures.authoring_inputs(self.root, 'task.json', 'inputs', operation='compose')
+        self.choices_path = result['choices_file']
+        self.choices = c.load(self.root / self.choices_path)
+        self.choices['reading']['reading_key'] = self.issued['reading_key']
+        self.save_choices()
         self.row = source_row()
         self.row_path = 'inputs/design-source.json'
         (self.root / 'design.json').write_bytes(c.encoded(DEFINITION))
@@ -472,6 +481,83 @@ class SourceAcquisitionTests(unittest.TestCase):
         after = inputs.authoring_view(self.root, self.choices_path)
         self.assertFalse(any(row.get('phase') == 'authoring-projection' for row in after['unresolved']))
         identity_coverage.validate_task(after['task'])
+
+
+class RetainedSourceMutationTests(unittest.TestCase):
+    """The public repair resumes the proposed candidate, including acquired bytes."""
+    files = fixtures.InputToolsTests.files
+
+    def setUp(self):
+        from test_production_identity import IdentityAuthoringTests
+        IdentityAuthoringTests.setUp(self)
+        result, choices = IdentityAuthoringTests.draft_identity(self)
+        self.choices_path = result['choices_file']
+        self.folder = Path(self.choices_path).parent
+        self.choices = choices
+        (self.root / self.choices_path).write_bytes(c.encoded(choices))
+        self.row = {'id': 'canon', 'path': 'replacement.json', 'role': 'identity',
+            'disposition': 'applied', 'locator': 'whole original',
+            'reason': 'The current synthetic source selection.',
+            'identity': {'subject_ids': ['A'], 'selectors': ['']}}
+        self.replacement = c.encoded({'identity': {'outline': 'A closed loop with two attached hinges.'}})
+        (self.root / 'replacement.json').write_bytes(self.replacement)
+        (self.root / 'source-row.json').write_bytes(c.encoded(self.row))
+
+    def reject(self, row=None):
+        if row is not None:
+            (self.root / 'source-row.json').write_bytes(c.encoded(row))
+        before = self.files()
+        with self.assertRaises(ProductionError) as raised:
+            acquisition.acquire_source(self.root, self.choices_path, 'source-row.json')
+        problem = raised.exception.diagnostic.as_dict()
+        self.assertEqual(problem['code'], 'IDENTITY_SOURCE_CHANGED')
+        self.assertEqual(problem['cause'], 'retained-identity-source-changed')
+        after = self.files()
+        for path, raw in before.items():
+            self.assertEqual(after[path], raw, path)
+        original_files = {name for name in before if name.startswith(self.folder.as_posix() + '/')}
+        self.assertEqual({name for name in after if name.startswith(self.folder.as_posix() + '/')}, original_files)
+        self.assertEqual(problem['next_action'], problem['repair_action'])
+        self.assertEqual(problem['repair_action']['command'], 'draft-inputs')
+        self.assertEqual(problem['inspect_action']['command'], 'inspect-inputs')
+        return problem
+
+    def test_changed_source_is_rejected_before_publication_and_its_repair_consumes_captured_content(self):
+        edited = b'Current authored candidate remains available.\r\n'
+        delivery = self.choices['authoring']['delivery']['file']
+        (self.root / delivery).write_bytes(edited)
+        problem = self.reject()
+        self.assertIn('content', {row['change_kind'] for row in problem['changes']})
+        proposal = problem['proposed_candidate']['choices']
+        self.assertIn(proposal, problem['repair_action']['argv'])
+        (self.root / 'replacement.json').unlink()
+        (self.root / 'source-row.json').unlink()
+        (self.root / delivery).unlink()
+        completed = subprocess.run(problem['repair_action']['argv'], cwd=self.root,
+            capture_output=True, text=True, encoding='utf-8', timeout=60)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        result = json.loads(completed.stdout)
+        argv = problem['repair_action']['argv']
+        output = argv[argv.index('--out-dir') + 1]
+        selected = c.load(self.root / output / 'choices.json')
+        self.assertEqual((self.root / selected['authoring']['delivery']['file']).read_bytes(), edited)
+        basis = c.load(self.root / output / 'work-basis.json')
+        self.assertEqual(basis['operation'], 'compose')
+        self.assertEqual(core.source_bytes(basis['sources']['canon']), self.replacement)
+        self.assertEqual(result['choices_file'], (Path(output) / 'choices.json').as_posix())
+
+    def test_exclusion_uses_retained_bytes_when_original_is_unavailable(self):
+        original = next(row for row in self.choices['authoring']['task']['sources'] if row['id'] == 'canon')
+        excluded = {key: copy.deepcopy(value) for key, value in original.items()
+                    if key not in {'identity', 'applications', 'origin'}}
+        excluded.update(disposition='considered-not-used', path='missing-original.json')
+        problem = self.reject(excluded)
+        self.assertIn('removed', {row['change_kind'] for row in problem['changes']})
+
+    def test_addition_to_retained_identity_set_is_rejected(self):
+        added = {**self.row, 'id': 'new-identity'}
+        problem = self.reject(added)
+        self.assertIn('added', {row['change_kind'] for row in problem['changes']})
 
 
 if __name__ == '__main__':

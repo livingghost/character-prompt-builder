@@ -112,6 +112,7 @@ def summary(root: Path, choices_path: str, choices: dict) -> dict:
     source_row_path = (Path(choices_path).parent / 'source-row.json').as_posix()
     source_argv = python_argv(ROOT / 'scripts/production_workflow.py', 'acquire-source',
         '--root', str(root), '--choices', choices_path, '--source-row', source_row_path)
+    edit_help = python_argv(ROOT / 'scripts/production_workflow.py', 'edit-choices', '--help')
     import production_input_preflight
     task = (choices.get('authoring') or {}).get('task') or {}
     input_contracts = {'target': _child(root, choices_path, 'target'),
@@ -123,6 +124,11 @@ def summary(root: Path, choices_path: str, choices: dict) -> dict:
             'input_contracts': input_contracts,
             'documents': selected,
             'reference_text': text_guide(choices),
+            'structured_edit': {'operation': 'edit-choices', 'choices_file': choices_path,
+                'document_path': 'references/runtime/production-authoring.md#edit-an-authored-choices-field',
+                'help_action': {'argv': edit_help, 'shown': shown(edit_help)},
+                'meaning': 'Edit one authored JSON Pointer with add, replace or remove. The current draft may '
+                           'remain unfinished. Source acquisition and generated bindings keep their own owners.'},
             'source_acquisition': {'operation': 'acquire-source', 'argv': source_argv, 'shown': shown(source_argv),
                 'source_row_file': source_row_path, 'schema': production_input_preflight.TASK_SCHEMA,
                 'schema_pointer': '/properties/sources/items',

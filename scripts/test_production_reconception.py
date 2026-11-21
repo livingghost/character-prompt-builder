@@ -44,6 +44,105 @@ def source_row(ident, path, role='design'):
 
 
 class ActualWorkProjectionTests(unittest.TestCase):
+    def test_initial_compose_keeps_declared_authority_and_rebinds_current_sources(self):
+        task, choices = plain_choices()
+        task.update(authority='explicit-authority.json', execution_decisions='previous-decisions.json')
+        task['sources'] = [source_row('definition', 'definition.json')]
+        choices['authoring'] = authoring.blank(task)
+        material = {'definition.json': c.encoded(DEFINITION), 'mask.png': b'Synthetic mask input.'}
+        current, prior, current_task = adapter.begin(choices, task=task, operation='compose',
+            request='Use the declared synthetic inputs.', read_source=material.__getitem__, initial=True)
+        self.assertEqual(current_task['authority'], 'explicit-authority.json')
+        self.assertEqual(current['authoring']['task']['authority'], 'explicit-authority.json')
+        self.assertNotIn('execution_decisions', current_task)
+        self.assertNotIn('execution_decisions', current['authoring']['task'])
+        current_task['sources'].append(source_row('mask', 'mask.png'))
+        current['authoring']['task'] = copy.deepcopy(current_task)
+        repeated, basis, repeated_task = adapter.begin(current, task=current_task,
+            operation='compose', request=prior['request'], read_source=material.__getitem__,
+            prior_basis=prior, initial=True)
+        projected, _, _ = adapter.project(basis, repeated, 'editing')
+        self.assertEqual(repeated_task['authority'], 'explicit-authority.json')
+        self.assertEqual({row['id'] for row in projected['authoring']['task']['sources']}
+                         - {'request:' + c.digest(prior['request'].encode('utf-8'))}, {'definition', 'mask'})
+        self.assertEqual(basis['applications']['mask'], {'source': 'mask', 'pointer': ''})
+        reopened, _, reopened_task = adapter.begin(current, task=current_task,
+            operation='compose', request=prior['request'], read_source=material.__getitem__, prior_basis=prior)
+        self.assertIsNone(reopened_task['authority'])
+        self.assertIsNone(reopened['authoring']['task']['authority'])
+
+    def test_initial_declared_grant_reaches_preparation_and_execution_decisions(self):
+        import production_execution
+        import production_store
+        from catalog_retrieval import runtime
+        with tempfile.TemporaryDirectory(prefix='cpb-initial-authority-') as temporary:
+            base = Path(temporary)
+            with fixtures.scratch_home(base / 'home'), patch.dict(os.environ):
+                self.addCleanup(runtime.configure_pack_runtime, None)
+                case = cases.create(base / 'studio', base / 'runtime')
+                self.assertEqual(case['task']['authority'], 'fixture-authority.json')
+                prepared = workflow.prepare(case['root'], 'task.json')
+                held = production_store.authority(case['root'], case['task']['task_id'])
+                self.assertEqual(held['grants'][0]['id'], 'fixture-grant')
+                decisions = production_execution.draft_execution(case['root'], prepared['run'], 'fixture-grant')
+                self.assertTrue(decisions['choices']['decisions'])
+
+    def test_constructor_recovery_does_not_offer_compose_for_missing_current_evidence(self):
+        from production_diagnostics import ProductionError
+        actions = inputs._constructor_identity_actions(Path('/synthetic-studio'), 'new-compose',
+            {'task': 'task.json'}, None)
+        with self.assertRaises(ProductionError) as raised:
+            inputs._require_constructor_identity({'sources': [], 'unresolved': []},
+                {'sources': [], 'unresolved': [{'owner': 'authoring.references',
+                    'message': 'The selected current source is unavailable.'}]},
+                {'operation': 'amend'}, file='task.json', out_dir='new-compose', actions=actions)
+        diagnostic = raised.exception.diagnostic.as_dict()
+        self.assertEqual(diagnostic['code'], 'IDENTITY_SOURCE_UNAVAILABLE')
+        self.assertNotIn('repair_action', diagnostic)
+        self.assertNotIn('next_action', diagnostic)
+
+    def test_task_normalization_preserves_each_specialist_selection_owner(self):
+        task, choices = plain_choices()
+        task['semantic_edit'] = 'original-plan.json'
+        choices['authoring']['task']['semantic_edit'] = 'imported-plan.json'
+        selected = {'world_views': [{'plan': 'world-plan.json', 'bundle': 'world-bundle'}],
+            'moment_views': [{'query': 'moment-query.json', 'bundle': 'moment-bundle'}],
+            'scene_materials': [{'plan': 'scene-plan.json', 'bundle': 'scene-bundle'}],
+            'upload_sources': [{'file': 'carrier.png', 'url': 'https://example.test/carrier.png'}],
+            'direction': {**task['direction'], 'purpose': 'The current purpose.'}}
+        changes = {'semantic_edit': 'current-plan.json', 'delivery': {'path': 'derived-delivery.json'},
+                   'generation': {'references': 'derived-references.json'}}
+        choices['task_changes'] = {**selected, **changes}
+        normalized = inputs.normalize_task_choices(choices)
+        self.assertEqual(normalized['task_changes'], changes)
+        self.assertNotIn('semantic_edit', normalized['authoring']['task'])
+        for key, value in selected.items():
+            self.assertEqual(normalized['authoring']['task'][key], value)
+        self.assertEqual(inputs._chosen_task(task, normalized)['semantic_edit'], 'current-plan.json')
+        del normalized['task_changes']['semantic_edit']
+        self.assertNotIn('semantic_edit', inputs._chosen_task(task, normalized))
+
+    def test_recomposition_keeps_the_original_protected_requirement_evidence(self):
+        task, choices = plain_choices()
+        original = {'id': 'connection', 'strength': 'hard', 'evidence': 'artifact',
+                    'text': 'The shells remain connected.'}
+        task['criteria'] = [original]
+        choices['authoring'] = authoring.blank(task)
+        current, basis, _ = adapter.begin(choices, task=task, operation='compose',
+            request='Describe the connection.', read_source=lambda _: b'',
+            protected_criteria={'connection'}, focus='supporting-setting')
+        current, files, _ = adapter.project(basis, current, 'first')
+        current['authoring']['task']['criteria'][0]['text'] = 'The shells can separate.'
+        revised, retained, _ = adapter.begin(current, task=current['authoring']['task'],
+            operation='compose', request='Select a fresh depiction.', prior_basis=basis,
+            read_source=lambda path: files[path.removeprefix('first/')],
+            protected_criteria={'connection'}, focus='supporting-setting')
+        report = adapter.unresolved(retained, revised)
+        gap = next(item for item in report if item.get('cause') == 'protected-requirement-changed')
+        self.assertEqual(gap['expected'], original)
+        self.assertEqual(gap['actual']['text'], 'The shells can separate.')
+        self.assertEqual(retained['requirements'], basis['requirements'])
+
     def test_protected_requirement_comparison_is_shared_by_draft_and_completed_task(self):
         from production_diagnostics import ProductionError
         task, choices = plain_choices()
@@ -112,7 +211,7 @@ class ActualWorkProjectionTests(unittest.TestCase):
         self.assertEqual(brief['id'], 'request:' + basis['request_sha256'])
         self.assertEqual(request['source'], brief['id'])
 
-    def test_compose_keeps_definition_and_scoped_allowance_without_selected_method(self):
+    def test_compose_seeds_selected_content_and_keeps_the_comparison_baseline(self):
         task, choices = plain_choices()
         raw = c.encoded(DEFINITION)
         task['sources'] = [source_row('definition', 'definition.json'), source_row('method', 'method.txt'),
@@ -137,12 +236,12 @@ class ActualWorkProjectionTests(unittest.TestCase):
         current, basis, _ = adapter.begin(choices, task=task, operation='compose', request='Show the connection.',
             read_source=material.__getitem__, protected_criteria={'connection'})
         current, files, _ = adapter.project(basis, current, 'editing')
-        self.assertEqual(current['authoring']['task']['direction']['decisions'], [])
+        self.assertEqual(current['authoring']['task']['direction']['decisions'], task['direction']['decisions'])
         self.assertEqual(current['authoring']['task']['direction']['source_allowances'], [allowance])
-        self.assertEqual([row['id'] for row in current['authoring']['task']['criteria']], ['connection'])
-        self.assertIsNone(current['target'])
-        self.assertIsNone(current['authoring']['delivery']['content'])
-        self.assertNotIn('method', {row['id'] for row in current['authoring']['task']['sources']})
+        self.assertEqual(current['authoring']['task']['criteria'], task['criteria'])
+        self.assertEqual(current['target'], choices['target'])
+        self.assertEqual(current['authoring']['delivery']['content'], 'The old display text.')
+        self.assertIn('method', {row['id'] for row in current['authoring']['task']['sources']})
         self.assertEqual(core.source_bytes(basis['sources']['method']), b'Old display method.')
         self.assertEqual(basis['baseline']['authoring']['delivery']['content'], 'The old display text.')
 
@@ -205,7 +304,7 @@ class ActualWorkProjectionTests(unittest.TestCase):
         self.assertIn('task-subject:shell', acquired['sources'])
         self.assertTrue(adapter.unresolved(acquired, reopened, require_subject=True))
 
-    def test_composed_definition_is_an_independent_selected_source_after_publication(self):
+    def test_composed_definition_keeps_its_current_document_owner_after_publication(self):
         task, choices = plain_choices()
         choices['authoring']['documents']['production_spec'] = {
             'subjects': [{'id': 'shell', 'identity': [DEFINITION['body']]}]}
@@ -218,11 +317,17 @@ class ActualWorkProjectionTests(unittest.TestCase):
         current, current_files, _ = adapter.project(retained, composed, 'composed')
         source = next(row for row in current['authoring']['task']['sources']
                       if row['id'] == 'task-subject:shell')
-        self.assertNotIn('definition_owner', source)
+        self.assertEqual(source['definition_owner'], {'document': 'production_spec', 'subject_id': 'shell'})
         reopened, acquired, _ = adapter.begin(current, task=current['authoring']['task'], operation='amend',
             request=retained['request'], read_source=lambda path: current_files[path.removeprefix('composed/')])
         selected = core.resolve_work({'basis': acquired, 'content': reopened}, require_subject=True)['context']
         self.assertEqual(selected['applications']['task-subject:shell']['value'], [DEFINITION['body']])
+        current['authoring']['documents']['production_spec']['subjects'][0]['identity'] = ['Changed current definition.']
+        changed_basis = adapter.bind_task_subjects(retained, current)
+        selected = core.resolve_work({'basis': changed_basis, 'content': current}, require_subject=True)['context']
+        self.assertEqual(selected['applications']['task-subject:shell']['value'], ['Changed current definition.'])
+        self.assertEqual(retained['baseline']['authoring']['documents']['production_spec']['subjects'][0]['identity'],
+                         [DEFINITION['body']])
 
 
 class SavedAuthoringWorkTests(unittest.TestCase):
@@ -279,6 +384,352 @@ class SavedAuthoringWorkTests(unittest.TestCase):
         source = next(row for row in loaded.prepared['task']['sources'] if row['id'] == ident)
         item = next(row for row in loaded.prepared['dependencies'] if row['path'] == source['path'])
         return loaded.evidence.read(item['sha256'])
+
+    def identity_candidate_with_inactive_alternate(self):
+        original = next(row for row in self.task['sources'] if row['id'] == 'original')
+        original['identity'] = {'subject_ids': ['shell'], 'selectors': ['/body']}
+        original.pop('applications', None)
+        alternate = source_row('alternate', 'alternate.json', role='identity-contract')
+        alternate['identity'] = {'subject_ids': ['shell'], 'selectors': ['/body']}
+        self.task['sources'].append(alternate)
+        self.task['criteria'][0].update(identity_review=['shell'], identity_bindings=[{
+            'source': 'original', 'subject_ids': ['shell'], 'selectors': ['/body'],
+            'treatment': 'not-exposed', 'reason': 'The synthetic text does not depict the physical identity.',
+            'carriers': [], 'variation': None}])
+        self.write('alternate.json', {'body': 'An independently acquired triangular shell.'})
+        basis = fixtures.bind_work_basis(self.root, self.task)
+        removed = {key for key, row in basis['applications'].items() if row['source'] == 'alternate'}
+        basis = core.revise_basis(basis,
+            applications={key: row for key, row in basis['applications'].items() if key not in removed},
+            subjects={key: [item for item in rows if item not in removed]
+                      for key, rows in basis['subjects'].items()})
+        selected, files, _ = adapter.project(basis, {'authoring': authoring.blank(self.task)},
+                                             'fixture-authoring/inactive-alternate')
+        files['work-basis.json'] = c.encoded(basis)
+        adapter.publish_sources(self.root, 'fixture-authoring/inactive-alternate', files)
+        self.task.update(selected['authoring']['task'])
+        self.write('task.json', self.task)
+        return self.task
+
+    def assert_constructor_preserves_retained_selection(self, *, task_path=None, from_run=None):
+        from production_diagnostics import ProductionError
+        import production_authoring_state as state
+        self.write('revised-request.txt', 'Use the independently selected triangular shell.\r\n')
+        work_ledger.suspend(self.root, reason='Retain the original while opening independent synthetic work.')
+        def current_files():
+            # Read-only SQLite connections may create empty WAL/shared-memory
+            # sidecars. The database and every authored/registered record stay.
+            return {path.relative_to(self.root).as_posix(): path.read_bytes()
+                    for path in self.root.rglob('*') if path.is_file()
+                    and not path.name.endswith(('.sqlite3-wal', '.sqlite3-shm'))}
+        before = current_files()
+        old_task = state.active_task_id(self.root)
+        with self.assertRaises(ProductionError) as raised:
+            inputs.draft_inputs(self.root, task_path, 'proposed-amend', from_run=from_run,
+                operation='amend', request_file='revised-request.txt', apply_sources=['alternate'],
+                focus='character', route='development', artifact='text', execution='authored',
+                features=['vocabulary'], stage='depiction', new_task='Compose the selected new shell.')
+        diagnostic = raised.exception.diagnostic.as_dict()
+        self.assertEqual(diagnostic['code'], 'IDENTITY_SOURCE_CHANGED')
+        self.assertEqual(diagnostic['cause'], 'retained-identity-source-changed')
+        self.assertIn(('alternate', 'added'),
+                      {(row['source'], row['change_kind']) for row in diagnostic['changes']})
+        self.assertFalse((self.root / 'proposed-amend').exists())
+        self.assertEqual(state.active_task_id(self.root), old_task)
+        self.assertEqual(current_files(), before)
+        action = diagnostic['next_actions'][0]
+        self.assertEqual(diagnostic['next_action'], action)
+        self.assertEqual(diagnostic['repair_action'], action)
+        self.assertEqual(diagnostic['repair_owner'],
+                         {'file': 'proposed-amend/choices.json', 'operation': 'compose'})
+        self.assertEqual(diagnostic['next_actions'][1], diagnostic['inspect_action'])
+        self.assertEqual(diagnostic['evidence_owner'],
+                         {'run': from_run, 'pointer': '/task'} if from_run is not None
+                         else {'file': task_path, 'pointer': ''})
+        inspect_argv = diagnostic['inspect_action']['argv']
+        source_flag = '--from-run' if from_run is not None else '--task'
+        self.assertEqual(inspect_argv[inspect_argv.index(source_flag) + 1], from_run or task_path)
+        self.assertNotIn('--operation', inspect_argv)
+        self.assertEqual(diagnostic['required_action'], action['shown'])
+        arguments = action['argv']
+        expected = {'operation': 'compose', 'out-dir': 'proposed-amend',
+            'request-file': 'revised-request.txt', 'apply-source': 'alternate', 'focus': 'character',
+            'route': 'development', 'artifact': 'text', 'execution': 'authored',
+            'feature': 'vocabulary', 'stage': 'depiction', 'new-task': 'Compose the selected new shell.',
+            **({'from-run': from_run} if from_run is not None else {'task': task_path})}
+        for key, value in expected.items():
+            self.assertEqual(arguments[arguments.index('--' + key) + 1], value, key)
+        completed = subprocess.run(arguments, cwd=self.root, env=dict(os.environ), capture_output=True,
+                                   text=True, encoding='utf-8', timeout=90)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertEqual(result['authoring_work']['operation'], 'compose')
+        self.assertEqual(result['current_request']['text'], 'Use the independently selected triangular shell.\r\n')
+        self.assertEqual({row['id'] for row in result['retained_identity_sources']['sources']}, {'original', 'alternate'})
+        self.assertNotEqual(state.active_task_id(self.root), old_task)
+        return result
+
+    def test_task_amend_constructor_checks_before_applying_additional_identity(self):
+        self.identity_candidate_with_inactive_alternate()
+        self.assert_constructor_preserves_retained_selection(task_path='task.json')
+
+    def test_unfinished_amend_constructor_compares_the_saved_identity_selection(self):
+        self.identity_candidate_with_inactive_alternate()
+        saved = workflow.save(self.root, self.start()['choices_file'], draft=True)['run']
+        self.assert_constructor_preserves_retained_selection(from_run=saved)
+
+    def test_finished_amend_constructor_compares_the_saved_identity_selection(self):
+        self.identity_candidate_with_inactive_alternate()
+        saved = self.finish(self.start())
+        self.assert_constructor_preserves_retained_selection(from_run=saved)
+
+    def test_current_choices_compose_preserves_shared_field_files_and_task_values(self):
+        draft = self.start()
+        choices = c.load(self.root / draft['choices_file'])
+        shared = {'prompt': 'A shell beside a narrow ledge.\r\nA second literal line.\r\n',
+                  'parameters': {'steps': 17}, 'untouched': 'first/prompt.txt'}
+        shared_raw = (json.dumps(shared, indent=2) + '\r\n').encode('utf-8')
+        (self.root / 'context.json').write_bytes(shared_raw)
+        choices['authoring']['delivery'] = {'file': 'context.json', 'field': ['prompt'],
+                                            'translation_notes': 'Keep the source wording.'}
+        choices['authoring']['documents']['parameters'] = {'file': 'context.json', 'field': ['parameters']}
+        choices['authoring']['generation'].update(count=2, seed=41)
+        choices['authoring']['task']['recording'] = {'subject_map': {'shell': 'synthetic-shell'}}
+        direction = copy.deepcopy(choices['authoring']['task']['direction'])
+        direction['purpose'] = 'Current unsaved purpose.'
+        choices['task_changes']['direction'] = direction
+        choices['authoring_stage'] = 'rendition'
+        self.write(draft['choices_file'], choices)
+        before = (self.root / draft['choices_file']).read_bytes()
+        result = inputs.draft_inputs(self.root, None, 'fresh', source_choices=draft['choices_file'])
+        selected = result['choices']
+        prompt = selected['authoring']['delivery']
+        parameters = selected['authoring']['documents']['parameters']
+        self.assertEqual(prompt['file'], parameters['file'])
+        self.assertEqual(prompt['field'], ['prompt'])
+        self.assertEqual(parameters['field'], ['parameters'])
+        self.assertEqual((self.root / prompt['file']).read_bytes(), shared_raw)
+        self.assertEqual(selected['authoring']['generation'], choices['authoring']['generation'])
+        self.assertEqual(selected['authoring']['task']['recording'], choices['authoring']['task']['recording'])
+        self.assertEqual(selected['authoring']['task']['direction']['purpose'], direction['purpose'])
+        self.assertNotIn('direction', selected['task_changes'])
+        self.assertEqual(selected['authoring']['task']['criteria'], choices['authoring']['task']['criteria'])
+        self.assertEqual(selected['authoring_stage'], 'rendition')
+        self.assertEqual(selected['reading'], choices['reading'])
+        self.assertEqual((self.root / draft['choices_file']).read_bytes(), before)
+        (self.root / 'context.json').unlink()
+        view = inputs.authoring_view(self.root, result['choices_file'])
+        self.assertEqual(view['delivery'], shared['prompt'].encode('utf-8'))
+
+    def test_semantic_plan_edits_and_candidate_capture_keep_the_public_selector(self):
+        import production_edit_inputs
+        draft = self.start()
+        plan = production_edit_inputs.plan_template()
+        for name, target in (('edit-a.json', 'First synthetic target.'),
+                             ('edit-b.json', 'Second synthetic target.')):
+            plan['edit']['target'] = target
+            self.write(name, plan)
+        def edit(operation, selected=None):
+            argv = [sys.executable, str(inputs.ROOT / 'scripts/production_workflow.py'),
+                'edit-choices', '--root', str(self.root), '--choices', draft['choices_file'],
+                '--pointer', '/task_changes/semantic_edit', '--operation', operation]
+            if selected is not None:
+                (self.root / 'selected-plan.json').write_bytes(c.encoded(selected))
+                argv.extend(('--value-file', 'selected-plan.json'))
+            completed = subprocess.run(argv, cwd=self.root, env=dict(os.environ), capture_output=True,
+                                       text=True, encoding='utf-8', timeout=90)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            result = json.loads(completed.stdout)
+            self.assertTrue(result['ok'], result)
+            self.assertEqual(result['edit']['owner'],
+                             {'file': draft['choices_file'], 'pointer': '/task_changes/semantic_edit'})
+            return c.load(self.root / draft['choices_file'])
+        added = edit('add', 'edit-a.json')
+        self.assertEqual(added['task_changes']['semantic_edit'], 'edit-a.json')
+        replaced = edit('replace', 'edit-b.json')
+        self.assertNotIn('semantic_edit', replaced['authoring']['task'])
+        self.assertEqual(inputs.authoring_view(self.root, draft['choices_file'])['task']['semantic_edit'], 'edit-b.json')
+        expected = (self.root / 'edit-b.json').read_bytes()
+        composed = inputs.draft_inputs(self.root, None, 'plan-compose', source_choices=draft['choices_file'])
+        path = composed['choices']['task_changes']['semantic_edit']
+        self.assertTrue(path.startswith('plan-compose/'))
+        self.assertEqual((self.root / path).read_bytes(), expected)
+        (self.root / 'edit-a.json').unlink()
+        (self.root / 'edit-b.json').unlink()
+        view = inputs.authoring_view(self.root, composed['choices_file'])
+        self.assertEqual(view['task']['semantic_edit'], path)
+        self.assertEqual((self.root / path).read_bytes(), expected)
+        removed = edit('remove')
+        self.assertNotIn('semantic_edit', removed['task_changes'])
+        self.assertNotIn('semantic_edit', inputs.authoring_view(self.root, draft['choices_file'])['task'])
+
+    def test_proposed_candidate_survives_missing_originals_and_rejects_tampering(self):
+        import production_candidate_snapshot as snapshots
+        import shutil
+        draft = self.start()
+        choices = c.load(self.root / draft['choices_file'])
+        basis = c.load(self.root / draft['authoring_work']['basis'])
+        choices['authoring']['task']['direction']['purpose'] = 'The fully proposed candidate.'
+        prompt_path = choices['authoring']['delivery']['file']
+        proposed = b'The proposed shell is already edited.\r\n'
+        before_choices = (self.root / draft['choices_file']).read_bytes()
+        before_basis = (self.root / draft['authoring_work']['basis']).read_bytes()
+        saved = snapshots.preserve_proposal(self.root, draft['choices_file'],
+            choices=choices, basis=basis, files={prompt_path: proposed}, details={'operation': 'synthetic-edit'})
+        self.assertEqual((self.root / draft['choices_file']).read_bytes(), before_choices)
+        self.assertEqual((self.root / draft['authoring_work']['basis']).read_bytes(), before_basis)
+        self.assertEqual(snapshots.inspect(self.root, saved['choices_file'])['state'], 'proposed-input')
+        shutil.rmtree(self.root / 'first')
+        result = inputs.draft_inputs(self.root, None, 'fresh', source_choices=saved['choices_file'])
+        self.assertEqual((self.root / result['choices']['authoring']['delivery']['file']).read_bytes(), proposed)
+        self.assertEqual(result['choices']['authoring']['task']['direction']['purpose'],
+                         'The fully proposed candidate.')
+        snapshot_path = self.root / saved['choices_file']
+        shutil.copytree(snapshot_path.parent, self.root / 'unregistered-copy')
+        with self.assertRaises((ValueError, OSError)):
+            snapshots.acquire(self.root, 'unregistered-copy/choices.json')
+        snapshot_path.write_bytes(snapshot_path.read_bytes() + b'\n')
+        with self.assertRaisesRegex(ValueError, 'snapshot member changed'):
+            snapshots.acquire(self.root, saved['choices_file'])
+
+    def test_choices_source_has_one_compose_operation(self):
+        from production_diagnostics import ProductionError
+        first = self.start()
+        with self.assertRaises(ProductionError) as caught:
+            inputs.draft_inputs(self.root, None, 'wrong-operation',
+                source_choices=first['choices_file'], operation='amend')
+        self.assertEqual(caught.exception.diagnostic.details['cause'], 'candidate-source-operation')
+        self.assertFalse((self.root / 'wrong-operation').exists())
+
+    def test_proposal_publication_failure_leaves_no_registered_candidate(self):
+        import production_candidate_snapshot as snapshots
+        import production_authoring_state as state
+        draft = self.start()
+        choices = c.load(self.root / draft['choices_file'])
+        basis = c.load(self.root / draft['authoring_work']['basis'])
+        before = {path.relative_to(self.root).as_posix(): path.read_bytes()
+                  for path in self.root.rglob('*') if path.is_file()}
+        for owner, method in ((inputs, '_publish'), (state, '_remember')):
+            with self.subTest(failure=method):
+                with patch.object(owner, method, side_effect=OSError('Synthetic snapshot publication failure.')):
+                    with self.assertRaisesRegex(OSError, 'snapshot publication failure'):
+                        snapshots.preserve_proposal(self.root, draft['choices_file'], choices=choices, basis=basis)
+                after = {path.relative_to(self.root).as_posix(): path.read_bytes()
+                         for path in self.root.rglob('*') if path.is_file()}
+                self.assertEqual(after, before)
+
+    def test_all_candidate_sources_apply_current_route_and_feature_arguments(self):
+        first = self.start()
+        saved = workflow.save(self.root, first['choices_file'], draft=True)['run']
+        sources = ({'task_path': 'task.json'}, {'task_path': None, 'from_run': saved},
+                   {'task_path': None, 'source_choices': first['choices_file']})
+        for index, source in enumerate(sources):
+            with self.subTest(source=source):
+                drafted = inputs.draft_inputs(self.root, out_dir='selected-' + str(index),
+                    operation='compose', route='prompt-only', artifact='json', execution='authored',
+                    features=['vocabulary'], **source)
+                current = drafted['choices']['authoring']['task']
+                self.assertEqual((current['route'], current['artifact'], current['execution'], current['features']),
+                                 ('prompt-only', 'json', 'authored', ['vocabulary']))
+                self.assertEqual(drafted['choices']['reading'], first['choices']['reading'])
+                self.assertTrue(any(row.get('code') == 'TARGET_GUIDANCE_REQUIRED'
+                                    for row in drafted['unresolved']), drafted['unresolved'])
+
+    def test_bounded_domain_inputs_keep_their_exact_graph_and_consumers_after_relocation(self):
+        import shutil
+        import world_realization as world
+        import world_realization_smoke_test as world_fixture
+        import story_context as moment
+        import story_context_smoke_test as moment_fixture
+        import scene_persona as scene
+        import scene_material_smoke_test as scene_fixture
+        import production_candidate_snapshot as snapshots
+        first = self.start()
+        choices = c.load(self.root / first['choices_file'])
+        world_plan = world_fixture.make_fixture(self.root / 'world')
+        for row in world_plan['sources']:
+            row['path'] = 'world/' + row['path']
+        self.write('world/plan.json', world_plan)
+        world.publish(world.compile_plan(self.root, 'world/plan.json'), self.root / 'world/bundle')
+        query = moment_fixture.fixture.write_inputs(self.root / 'moment')
+        moment_fixture.fixture.pin(self.root / 'moment', query)
+        for row in query['sources']:
+            row['path'] = 'moment/' + row['path']
+        self.write('moment/query.json', query)
+        moment.publish(moment.materialize(self.root, 'moment/query.json'), self.root / 'moment/bundle')
+        (self.root / 'scene').mkdir()
+        scene_plan = scene_fixture.fixture(self.root / 'scene')
+        for row in scene_plan['sources']:
+            row['path'] = 'scene/' + row['path']
+        self.write('scene/plan.json', scene_plan)
+        scene.build(self.root, 'scene/plan.json', 'scene/material')
+        material = c.load(self.root / 'scene/material/material.json')
+        selections = {
+            'world_views': [{'plan': 'world/plan.json', 'bundle': 'world/bundle',
+                             'unit_id': 'AFTER', 'view_id': 'WRITER'}],
+            'moment_views': [{'query': 'moment/query.json', 'bundle': 'moment/bundle',
+                              'view_id': query['views'][0]['view_id']}],
+            'scene_materials': [{'plan': 'scene/plan.json', 'bundle': 'scene/material'},
+                                {'artifact': 'scene/material/material.json',
+                                 'accepted_content_sha256': material['content_sha256'],
+                                 'accepted_by': fixtures.ACTOR, 'acceptance_basis': 'Exact synthetic material.'}],
+        }
+        choices['authoring']['task'].update(selections)
+        self.write(first['choices_file'], choices)
+        composed = inputs.draft_inputs(self.root, None, 'bounded-compose', source_choices=first['choices_file'])
+        for directory in ('world', 'moment', 'scene'):
+            shutil.rmtree(self.root / directory)
+        task = composed['choices']['authoring']['task']
+        self.assertEqual({field: task[field] for field in selections}, selections)
+        held = snapshots.retained(self.root, task, composed['candidate_inputs'])
+        with held.staging():
+            for field, owner in (('world_views', workflow.world_views), ('moment_views', workflow.moment_views),
+                                 ('scene_materials', workflow.authoring_materials)):
+                with self.subTest(field=field), held.scope(field):
+                    consumed = owner(held.source_root(field), task,
+                                     lambda base, path, space='studio': held.read(path))
+                    self.assertTrue(consumed)
+        saved = workflow.save(self.root, composed['choices_file'], draft=True)['run']
+        shutil.rmtree(self.root / 'bounded-compose')
+        reopened = inputs.draft_inputs(self.root, None, 'bounded-resumed', from_run=saved, operation='amend')
+        self.assertEqual(reopened['choices']['authoring']['task']['moment_views'], selections['moment_views'])
+        held = snapshots.retained(self.root, reopened['choices']['authoring']['task'], reopened['candidate_inputs'])
+        with held.staging(), held.scope('world_views'):
+            self.assertTrue(workflow.world_views(held.source_root('world_views'), reopened['choices']['authoring']['task'],
+                lambda base, path, space='studio': held.read(path)))
+
+    def test_rejected_state_owner_change_can_complete_as_a_new_compose(self):
+        from test_production_identity import IdentityAuthoringTests
+        from production_diagnostics import ProductionError
+        from production_source_acquisition import acquire_source
+        helper = IdentityAuthoringTests()
+        helper.setUp()
+        self.addCleanup(helper.doCleanups)
+        first, choices = helper.draft_identity(graph=True)
+        graph_file = choices['authoring']['documents']['state_graphs']['file']
+        graphs = c.load(helper.root / graph_file)
+        graphs[0]['identity_contract']['identity']['outline'] = 'A closed solid disc.'
+        (helper.root / graph_file).write_bytes(c.encoded(graphs))
+        (helper.root / first['choices_file']).write_bytes(c.encoded(choices))
+        descriptor = copy.deepcopy(helper.task['sources'][0])
+        descriptor['path'] = graph_file
+        (helper.root / 'replacement-source.json').write_bytes(c.encoded(descriptor))
+        with self.assertRaises(ProductionError) as caught:
+            acquire_source(helper.root, first['choices_file'], 'replacement-source.json')
+        diagnostic = caught.exception.diagnostic.as_dict()
+        action = diagnostic['next_action']['argv']
+        snapshot_path = action[action.index('--choices') + 1]
+        composed = inputs.draft_inputs(helper.root, None, 'fresh-state', source_choices=snapshot_path)
+        current = composed['choices']
+        current['reading'] = copy.deepcopy(choices['reading'])
+        built = helper.build_identity(composed, current, 'fresh-state-built')
+        self.assertTrue(built['ok'], built.get('unresolved'))
+        task = c.load(helper.root / built['inputs']['production-task']['path'])
+        restored = c.load(helper.root / task['generation']['state_graphs'])
+        self.assertEqual(restored[0]['identity_contract']['identity']['outline'], 'A closed solid disc.')
+        self.assertEqual((helper.root / 'canon.json').read_bytes(), helper.raw)
+        self.assertEqual({row['id'] for row in composed['retained_identity_sources']['sources']},
+                         {'canon', 'state:A:identity_contract'})
 
     def test_inspect_names_retained_requirement_owners_and_public_context_repair(self):
         draft = self.start()
@@ -442,7 +893,7 @@ class SavedAuthoringWorkTests(unittest.TestCase):
         self.assertEqual({path.relative_to(self.root).as_posix(): path.read_bytes()
                           for path in self.root.rglob('*') if path.is_file()}, before)
 
-    def test_saved_compose_retains_original_and_current_request_without_prior_method(self):
+    def test_saved_compose_seeds_content_and_retains_original_and_current_request(self):
         parent = self.finish(self.start())
         prior = workflow.read_run(self.root, parent)
         parent_digest = prior.prepared['input_sha256']
@@ -453,11 +904,12 @@ class SavedAuthoringWorkTests(unittest.TestCase):
         basis = c.load(self.root / draft['authoring_work']['basis'])
         choices = draft['choices']
         self.assertEqual(choices['authoring_stage'], 'rendition')
-        self.assertEqual((self.root / choices['authoring']['delivery']['file']).read_bytes(), b'')
+        self.assertEqual((self.root / choices['authoring']['delivery']['file']).read_bytes(),
+                         prior.consumer['instructions'].encode('utf-8'))
         self.assertEqual(basis['request'], (self.root / 'current-request.txt').read_text(encoding='utf-8'))
         selected = {row['id'] for row in choices['authoring']['task']['sources']}
         self.assertIn('original', selected)
-        self.assertNotIn('method', selected)
+        self.assertIn('method', selected)
         self.assertEqual(c.decode(core.source_bytes(basis['sources']['original'])), DEFINITION)
         self.assertEqual(core.source_bytes(basis['sources']['method']), b'An earlier catalog display convention.')
         self.assertEqual(basis['baseline']['authoring']['delivery']['content'], prior.consumer['instructions'])

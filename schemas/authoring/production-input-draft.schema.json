@@ -15,7 +15,12 @@
   "properties": {
     "authoring_stage": {
       "type": "string",
-      "enum": ["definition", "depiction", "rendition", "prepare"],
+      "enum": [
+        "definition",
+        "depiction",
+        "rendition",
+        "prepare"
+      ],
       "description": "Current editable work. stage-inputs preserves the actual source files and selects the current complete reading scope. Structural progress is not artistic completion or execution authority."
     },
     "target": {
@@ -252,7 +257,60 @@
       "type": [
         "object",
         "null"
-      ]
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "locator": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "A retained evidence witness. The visual-continuity owner validates source evidence; structured editing selects its path and locator."
+            }
+          }
+        },
+        "subjects": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "production_spec": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prepared_reference_set": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     },
     "validation": {
       "description": "Authored validation mode and source selections. Target identifiers, hashes and validation results are derived during compilation. A null target-schema contract/evidence selects the current offering schema.",
@@ -317,11 +375,78 @@
       }
     },
     "external": {
+      "description": "One editable external input plan or its authored native request. Source files and upload measurements remain generated witnesses.",
       "type": [
         "object",
         "null"
       ],
-      "description": "Editable native external request and image input choices, or a selected existing input plan."
+      "additionalProperties": false,
+      "properties": {
+        "image_input": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "$ref": "#/$defs/draftExternalImage"
+            }
+          ]
+        },
+        "request": {
+          "type": [
+            "object",
+            "array",
+            "null"
+          ]
+        },
+        "media_slots": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          }
+        },
+        "source_files": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "source_uploads": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "reference_delivery": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "target_model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "choices": {
+              "$ref": "#/$defs/externalReferenceChoices"
+            }
+          }
+        }
+      }
     },
     "authoring": {
       "type": "object",
@@ -338,7 +463,134 @@
       ],
       "properties": {
         "task": {
-          "type": "object"
+          "type": "object",
+          "description": "Current authored task choices. Unanswered judgments remain null or empty during authoring. Task identity, source applications, authority and generated delivery bindings retain their separate owners.",
+          "properties": {
+            "route": {
+              "type": "string",
+              "minLength": 1
+            },
+            "features": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "artifact": {
+              "enum": [
+                "text",
+                "json",
+                "image",
+                "video",
+                "audio",
+                "binary"
+              ]
+            },
+            "execution": {
+              "enum": [
+                "authored",
+                "external",
+                "dispatcher"
+              ]
+            },
+            "criteria": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/draftCriterion"
+              }
+            },
+            "direction": {
+              "$ref": "#/$defs/draftDirection"
+            },
+            "recording": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "character": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "slot": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "subject_map": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "sheet_panel": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "role": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "world_views": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "moment_views": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "scene_materials": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "semantic_edit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "upload_sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "file": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
         },
         "delivery": {
           "type": "object",
@@ -633,7 +885,45 @@
           "type": [
             "object",
             "null"
-          ]
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Derived from choices.target during input projection. Select the model through the target owner."
+            },
+            "scale_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "exclusiveMinimum": 0
+            },
+            "settings": {
+              "type": "object"
+            },
+            "guidance_prompt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "render_intent": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
         },
         "source_files": {
           "type": "object",
@@ -668,6 +958,203 @@
             ]
           },
           "description": "Optional sequence of object keys or array indexes selecting the document inside its JSON file."
+        }
+      }
+    },
+    "draftCriterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "strength": {
+          "enum": [
+            "hard",
+            "advisory",
+            null
+          ]
+        },
+        "evidence": {
+          "enum": [
+            "artifact",
+            "text",
+            "image",
+            "motion",
+            "audio",
+            null
+          ]
+        },
+        "identity_bindings": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "identity_review": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "draftDirection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "intended_effect": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "source_allowances": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "action_slice": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "draftExternalImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifact_type": {
+          "const": "image-input-plan"
+        },
+        "model": {
+          "type": "object"
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "prepared_references": {
+          "type": "string",
+          "minLength": 1
+        },
+        "external_request": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    },
+    "externalReferenceChoices": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transport_mode",
+        "max_side",
+        "reference_use_plan",
+        "reference_selection",
+        "additional_references",
+        "image_input",
+        "zero_reference_reason",
+        "source_files"
+      ],
+      "properties": {
+        "transport_mode": {
+          "$ref": "#/properties/authoring/properties/references/oneOf/1/properties/transport_mode"
+        },
+        "max_side": {
+          "$ref": "#/properties/authoring/properties/references/oneOf/1/properties/max_side"
+        },
+        "reference_use_plan": {
+          "$ref": "#/properties/authoring/properties/references/oneOf/1/properties/reference_use_plan"
+        },
+        "reference_selection": {
+          "$ref": "#/properties/authoring/properties/references/oneOf/1/properties/reference_selection"
+        },
+        "additional_references": {
+          "type": "array",
+          "description": "Direct sources in delivery order. A source is a supplied-file selector, a studio-artifact source for current adopted artwork, or a studio-accepted-image source for the slot's current accepted iteration. Preparation verifies the exact adoption or acceptance; an accepted image grants no canonical identity authority.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role",
+              "source"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The use ID that identity bindings and an edit plan name; assigned when the selection is first saved."
+              },
+              "role": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "type": "object"
+              },
+              "subject_uses": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "delivery_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The external transport use corresponding to this canonical source selection."
+              }
+            }
+          }
+        },
+        "image_input": {
+          "$ref": "#/properties/authoring/properties/references/oneOf/1/properties/image_input"
+        },
+        "zero_reference_reason": {
+          "$ref": "#/properties/authoring/properties/references/oneOf/1/properties/zero_reference_reason"
+        },
+        "source_files": {
+          "$ref": "#/properties/authoring/properties/references/oneOf/1/properties/source_files"
         }
       }
     }
