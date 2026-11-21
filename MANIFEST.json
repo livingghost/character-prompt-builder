@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1191,
-  "total_bytes_excluding_manifest": 24028319,
+  "total_bytes_excluding_manifest": 24028339,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 37292,
-      "sha256": "c244d5454838ed59a75dfee30de1b618b7359636e549939d355b5b49711ce734"
+      "sha256": "e56b368bb77453d2604f5f5c5b9aacf23c0c76d06d4d878f4c44f0b8622e8efb"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -4541,8 +4541,8 @@
     },
     {
       "path": "scripts/production_work_plan.py",
-      "bytes": 60127,
-      "sha256": "f935e2d23e8a16ebd4482a409f96ef11a8a596c9b2315a61ce7710a30d28764a"
+      "bytes": 60147,
+      "sha256": "8db254178cc1f15a92a3e6aab7e278daa0e386fbead397fd55afcb32c7d07fe0"
     },
     {
       "path": "scripts/production_work_review.py",

@@ -78,7 +78,7 @@ def request_from_arguments(root: Path, args) -> dict | None:
         for name in names:
             if name in owner:
                 path = studio_file(root, owner[name], option='--' + name.replace('_', '-'), exists=name != 'path')
-                owner[name] = path.relative_to(root).as_posix()
+                owner[name] = path.resolve().relative_to(root.resolve()).as_posix()
     request = {'source': source, 'result': result}
     if args.goal is not None:
         request['goal'] = args.goal
