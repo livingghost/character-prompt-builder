@@ -58,7 +58,8 @@ def build():
         choices = authored
         choices['reading']['reading_key'] = reading['reading_key']
         (root / draft['choices_file']).write_bytes(c.encoded(authored))
-        result = command(root, 'build-inputs', '--choices', draft['choices_file'], '--out-dir', 'built')
+        # This contract check verifies every published file and its exact hash.
+        result = command(root, 'build-inputs', '--choices', draft['choices_file'], '--out-dir', 'built', '--view', 'full')
         correct = all(c.digest((root / ref['path']).read_bytes()) == ref['sha256'] for ref in result['inputs'].values())
         if not correct or (root / 'task.json').read_bytes() != original:
             raise ValueError('Formal file integrity or the authored task changed.')

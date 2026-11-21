@@ -240,7 +240,7 @@ class ReviewTests(ReviewCase):
         self.assertEqual(view['prepared_input']['target'], rendered['sealed']['target'])
         self.assertEqual(view['prepared_input']['request_sha256'], rendered['request_sha256'])
         self.assertEqual(view['input_sha256'], prepared['input_sha256'])
-        self.assertEqual(set(view), {'phase', 'run', 'input_sha256', 'reading', 'prepared_input', 'instruction'})
+        self.assertEqual(set(view), {'phase', 'run', 'input_sha256', 'reading', 'saved_knowledge', 'prepared_input', 'instruction'})
         self.assertTrue(view['reading']['documents'])
         self.assertTrue(all(Path(item['path']).is_file() for item in view['reading']['documents']))
         self.assertEqual(store.event_rows(self.root, self.run), before)
@@ -364,7 +364,7 @@ class ReviewTests(ReviewCase):
             shown = next(item for item in view['sources'] if item['id'] == source['id'])
             self.assertEqual(shown['path'], source['path'])
             self.assertEqual(shown['sha256'], dependency['sha256'])
-            self.assertEqual(shown['text'], expected.decode('utf-8'))
+            self.assertNotIn('text', shown)
             self.assertEqual(Path(shown['saved_path']).read_bytes(), expected)
 
     def test_unassessed_check_needs_no_authored_reason_but_judgment_does(self):
@@ -623,9 +623,9 @@ class IdentityReviewTests(IdentityReviewCase):
         script = workflow.ROOT / 'scripts/production_workflow.py'
         before = store.event_rows(self.root, self.run)
         view = self.public_command([sys.executable, str(script), 'workspace', '--root', str(self.root),
-            '--run', self.run, '--phase', 'review', '--candidate', self.candidate])
+            '--run', self.run, '--phase', 'review', '--candidate', self.candidate, '--view', 'full'])
         self.assertEqual(view['next_action']['command'], 'draft-review')
-        drafted = self.public_command(view['next_action']['argv'])
+        drafted = self.public_command([*view['next_action']['argv'], '--view', 'full'])
         form = c.load(self.root / drafted['draft_file'])
         self.assertEqual(drafted['choices'], form)
         self.assertNotIn('review_guide', form)
@@ -674,7 +674,7 @@ class IdentityReviewTests(IdentityReviewCase):
         script = workflow.ROOT / 'scripts/production_workflow.py'
         drafted = self.public_command([sys.executable, str(script), 'draft-review', '--root', str(self.root),
             '--run', self.run, '--candidate', self.candidate, '--out', 'work/alias-review.json'])
-        form, guide = drafted['choices'], drafted['review_guide']
+        form, guide = c.load(self.root / drafted['draft_file']), drafted['review_guide']
         candidate = next(item for item in guide['automatic_evidence'] if item['role'] == 'candidate')
         observation = copy.deepcopy(guide['observation_template'])
         observation.update(evidence='returned-image', observation='The same synthetic PNG was inspected.',
@@ -714,7 +714,7 @@ class IdentityReviewTests(IdentityReviewCase):
         observation = workspace.workspace(self.root, self.run, phase='observe', candidate=self.candidate)
         self.assertEqual(set(observation), {'phase', 'run', 'candidate', 'instruction'})
         blind_input = workspace.workspace(self.root, self.run, phase='input')
-        self.assertEqual(set(blind_input), {'phase', 'run', 'input_sha256', 'reading', 'prepared_input', 'instruction'})
+        self.assertEqual(set(blind_input), {'phase', 'run', 'input_sha256', 'reading', 'saved_knowledge', 'prepared_input', 'instruction'})
         self.assertNotIn(detail, json.dumps(blind_input))
         draft = workflow.draft_review(self.root, self.run, self.candidate)
         self.assertTrue(all(row['verdict'] == 'not-assessed' and row['reason'] == '' for row in draft['checks']))
@@ -822,12 +822,12 @@ class SharedIdentitySourceReviewTests(IdentityReviewCase):
         bindings.append({**copy.deepcopy(bindings[0]), 'source': source['id'],
                          'selectors': ['/identity/unfamiliar']})
 
-    def test_same_saved_original_is_inlined_once_while_both_identity_scopes_remain(self):
+    def test_same_saved_original_has_one_location_while_both_identity_scopes_remain(self):
         view = workspace.workspace(self.root, self.run, phase='review', candidate=self.candidate)
         sources = {row['id']: row for row in view['sources'] if row['id'].startswith('adopted')}
         self.assertEqual(set(sources), {'adopted', 'adopted-condition'})
-        self.assertEqual(sum('text' in row for row in sources.values()), 1)
-        self.assertEqual(c.decode(sources['adopted']['text'].encode('utf-8')), self.original_identity)
+        self.assertFalse(any('text' in row for row in sources.values()))
+        self.assertEqual(sources['adopted']['saved_path'], sources['adopted-condition']['saved_path'])
         self.assertEqual(sources['adopted-condition']['content_ref'], 'adopted')
         for source in sources.values():
             self.assertEqual(c.decode(Path(source['saved_path']).read_bytes()), self.original_identity)

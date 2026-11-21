@@ -284,6 +284,14 @@ Results are lexical candidates rather than adopted prompt text.
 
 ## Read a finished prompt
 
+Use this dictionary readback for literal comma-separated term renditions or a
+temporary phrase list. For a natural prose prompt, read the complete text to
+assess its meaning, modifier scope, relationships and omissions. Use targeted
+phrase lookup for an actual wording question. Splitting prose at commas does
+not establish its meaning or provide a semantic quality check. A selected
+model's required vocabulary work still follows the exact-model procedure above,
+including when its rendition contains both terms and prose.
+
 ```bash
 python scripts/search_prompt_vocabulary.py   --dictionary DICTIONARY_JSON   --read prompt.txt   --negative negative.txt
 ```

@@ -16,6 +16,7 @@ import production_document_contracts as contracts
 import production_external_inputs as external
 import production_input_guide as guide
 import production_fixtures as fixtures
+from test_production_report_view import resolved_action
 
 
 class InputGuideTests(unittest.TestCase):
@@ -71,6 +72,48 @@ class InputGuideTests(unittest.TestCase):
         self.assertNotIn('prompt_input', model['template'])
         self.assertNotIn('catalog_status', model['template'])
         self.assertIn('optional', self.field('target.model.prompt_input')['required_action'])
+
+    def test_nested_task_direction_field_reaches_its_choices_shape_and_contract(self):
+        self.choices['authoring']['task']['direction'] = {
+            'purpose': 'Retain the declared purpose.',
+            'intended_effect': None,
+        }
+        self.save()
+        before = (self.root / self.path).read_bytes()
+
+        command = guide.action(self.root, self.path, field='authoring.task.direction')['argv']
+        response = subprocess.run(command, capture_output=True, text=True, encoding='utf-8')
+        self.assertEqual(response.returncode, 0, response.stdout + response.stderr)
+        report = json.loads(response.stdout)
+        [row] = report['fields']
+        self.assertEqual(row['field'], 'authoring.task.direction')
+        self.assertEqual(row['choices_pointer'], '/authoring/task/direction')
+        self.assertEqual(row['schema_pointer'], '/$defs/draftDirection')
+        self.assertEqual(row['choices_schema_pointer'],
+                         '/properties/authoring/properties/task/properties/direction')
+        self.assertEqual(row['value_state'], 'supplied')
+        self.assertEqual(row['declaration']['permitted_keys'], [
+            'action_slice', 'basis', 'decisions', 'intended_effect', 'limitations',
+            'purpose', 'source_allowances'])
+        self.assertEqual(row['declaration']['fields']['purpose']['type'], ['string', 'null'])
+        self.assertEqual(row['declaration']['fields']['intended_effect']['type'], ['string', 'null'])
+        self.assertEqual(row['declaration']['fields']['basis']['type'], 'array')
+        self.assertNotIn('required', row['declaration'])
+        self.assertEqual(row['contract']['name'], 'production_direction')
+        self.assertEqual(row['contract']['document_path'],
+                         'references/runtime/production-direction.md#record-the-production-direction')
+        self.assertEqual(row['contract']['schema'], 'schemas/authoring/production-direction.schema.json')
+        self.assertIn('remaining_checks', row['contract'])
+        self.assertEqual(row['contract_action']['argv'][-2:], ['explain', 'production_direction'])
+        self.assertIn('actual authority remain separate', row['required_action'])
+        self.assertFalse(report['external_effect'])
+
+        parent = self.field('authoring.task')
+        direction = parent['child_contracts']['direction']
+        self.assertEqual(direction['explain_action']['argv'][-2:],
+                         ['--field', 'authoring.task.direction'])
+        self.assertEqual(direction['schema_action']['argv'][-2:], ['explain', 'production_direction'])
+        self.assertEqual((self.root / self.path).read_bytes(), before)
 
     def test_editable_request_distinguishes_derived_fields_and_reaches_exact_schema_fragments(self):
         self.choices['target'] = {'kind': 'external', 'model': None}
@@ -330,7 +373,7 @@ class PublicExternalAuthoringTests(unittest.TestCase):
                 before = {name: (root / name).read_bytes() for name in (path, 'request.txt', 'draft/work-basis.json')}
                 for command, code in (('inspect-inputs', 0), ('check', 2)):
                     response = subprocess.run([sys.executable, str(guide.ROOT / 'scripts/production_workflow.py'),
-                        command, '--root', str(root), '--choices', path], capture_output=True,
+                        command, '--root', str(root), '--choices', path, '--view', 'full'], capture_output=True,
                         text=True, encoding='utf-8')
                     self.assertEqual(response.returncode, code, response.stdout + response.stderr)
                     report = json.loads(response.stdout)
@@ -341,7 +384,8 @@ class PublicExternalAuthoringTests(unittest.TestCase):
                                      ('INPUT_SCHEMA_INVALID', path, '/authoring/generation/brief'))
                     self.assertEqual(issue['repair_owner'], {'file': path, 'pointer': '/authoring/generation/brief'})
                     self.assertEqual(issue['expected']['permitted_keys'], ['production_spec', 'state_graphs'])
-                    self.assertEqual(issue['next_action']['argv'][-2:], ['--field', 'authoring.generation'])
+                    self.assertEqual(resolved_action(report, issue['next_action'])['argv'][-2:],
+                                     ['--field', 'authoring.generation'])
                     self.assertNotIn('authoring.documents.production_task', json.dumps(diagnostics))
                     self.assertFalse(report['external_effect'])
                 self.assertEqual({name: (root / name).read_bytes() for name in before}, before)
@@ -421,7 +465,7 @@ class PublicExternalAuthoringTests(unittest.TestCase):
                 response = subprocess.run(command, capture_output=True, text=True, encoding='utf-8')
                 self.assertEqual(response.returncode, 0, response.stdout + response.stderr)
                 report = json.loads(response.stdout)
-                issues = [item for row in report['inputs'] for item in row['unresolved']
+                issues = [item for item in report['diagnostics']
                           if item.get('cause') == 'native-media-array-not-declared']
                 self.assertEqual(len(issues), 1, report)
                 self.assertEqual(issues[0]['file'], path)
@@ -431,7 +475,7 @@ class PublicExternalAuthoringTests(unittest.TestCase):
                 (root / path).write_bytes(c.encoded(choices))
                 response = subprocess.run(command, capture_output=True, text=True, encoding='utf-8')
                 self.assertEqual(response.returncode, 0, response.stdout + response.stderr)
-                issues = [item for row in json.loads(response.stdout)['inputs'] for item in row['unresolved']
+                issues = [item for item in json.loads(response.stdout)['diagnostics']
                           if item.get('cause') == 'native-media-slots-not-declared']
                 self.assertEqual(len(issues), 1)
                 self.assertEqual(issues[0]['repair_owner'], {'file': path, 'pointer': '/external/media_slots'})
@@ -442,7 +486,7 @@ class PublicExternalAuthoringTests(unittest.TestCase):
                 response = subprocess.run(command, capture_output=True, text=True, encoding='utf-8')
                 self.assertEqual(response.returncode, 0, response.stdout + response.stderr)
                 self.assertFalse(any(item.get('cause', '').startswith('native-media-')
-                    for row in json.loads(response.stdout)['inputs'] for item in row['unresolved']))
+                    for item in json.loads(response.stdout)['diagnostics']))
                 self.assertEqual(c.load(root / path), choices)
 
     def test_public_field_output_completes_a_new_draft_and_materializes_the_evidenced_native_request(self):

@@ -148,6 +148,17 @@ def next_step(task: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def plan_action(root: Path, task: dict, *, command: str = 'advance') -> dict | None:
+    """Name the task's bound continuation without inspecting or advancing it."""
+    path = task.get('production_plan')
+    if path is None:
+        return None
+    from production_work_plan import action
+    return action(root, path, command=command,
+        reason='Continue the commissioned result from its saved plan and actual current answers.'
+        if command == 'advance' else 'Inspect the selected work plan and its current judgment without advancing it.')
+
+
 def refreshed(task: dict[str, Any]) -> dict[str, Any]:
     step = next_step(task)
     task["next"] = step["text"] if step else None
@@ -248,6 +259,93 @@ def _step_done_locked(root: Path, number: int, note: str | None = None) -> dict[
     return task
 
 
+def _write_owned_task(root: Path, task: dict) -> None:
+    """Update the named owner without replacing another active work pointer."""
+    current = read_current(root)
+    task = refreshed(task)
+    if current is not None and current['task_id'] == task['task_id']:
+        write_current(root, task)
+    else:
+        save_task(root, task)
+
+
+@mutation
+def bind_plan(root: Path, task_id: str, plan: str, steps: dict[str, str]) -> dict:
+    """Bind explicitly matched ledger steps to the plan's evidenced milestones."""
+    import execution_contract as c
+    with ledger_lock(root):
+        task = c.load(task_path(root, task_id))
+        available = {str(row['n']) for row in task['steps']}
+        if set(steps) - available or any(stage not in {'prepared', 'results', 'verified'} for stage in steps.values()):
+            raise ValueError('Plan step bindings name existing step numbers and prepared, results or verified.')
+        if task.get('production_plan') not in {None, plan}:
+            previous = c.load(c.local(root, task['production_plan']))
+            if previous.get('status') != 'complete':
+                raise ValueError('This work already owns an unfinished production plan.')
+        task['production_plan'] = plan
+        task['plan_steps'] = dict(steps)
+        _write_owned_task(root, task)
+        return task
+
+
+@mutation
+def record_plan_stage(root: Path, task_id: str, stage: str, plan_id: str, evidence: dict) -> dict:
+    """Record only steps explicitly bound to the verified production milestone."""
+    import execution_contract as c
+    with ledger_lock(root):
+        task = c.load(task_path(root, task_id))
+        if stage not in {'prepared', 'results', 'verified'}:
+            raise ValueError('Unknown production milestone.')
+        if not evidence:
+            raise ValueError('A production milestone needs its retained result evidence.')
+        plan = c.load(c.local(root, task['production_plan']))
+        if plan['plan_id'] != plan_id or plan['task_id'] != task_id:
+            raise ValueError('The plan belongs to another work task.')
+        for step in task['steps']:
+            if task.get('plan_steps', {}).get(str(step['n'])) != stage or step.get('done_at'):
+                continue
+            proof = {'plan_id': plan_id, 'stage': stage, 'evidence': evidence}
+            recorded = [row for row in read_ledger(root) if row.get('event') == 'step'
+                and row.get('task_id') == task_id and row.get('n') == step['n']
+                and row.get('production') == proof]
+            stamp = recorded[0]['at'] if recorded else now()
+            step.update(done_at=stamp, note='Completed from recorded production evidence.', production=proof)
+            if not recorded:
+                append(root, {'at': stamp, 'task_id': task_id, 'event': 'step', 'n': step['n'],
+                              'text': step['text'], 'note': step['note'], 'production': proof})
+        _write_owned_task(root, task)
+        return task
+
+
+@mutation
+def finish_plan(root: Path, task_id: str, plan_id: str, results: dict, verification: dict) -> dict:
+    """Close the exact plan owner after its results and independently planned work."""
+    import execution_contract as c
+    with ledger_lock(root):
+        task = c.load(task_path(root, task_id))
+        if not verification.get('ok') or not results:
+            raise ValueError('Plan completion needs verified results and consistent Studio views.')
+        plan = c.load(c.local(root, task['production_plan']))
+        if plan['plan_id'] != plan_id or plan['task_id'] != task_id:
+            raise ValueError('The plan belongs to another work task.')
+        proof = {'plan_id': plan_id, 'results_sha256': c.content_id(results), 'verified': True}
+        matching = [row for row in read_ledger(root) if row.get('event') == 'finished'
+                    and row.get('task_id') == task_id]
+        if matching:
+            if len(matching) != 1 or matching[0].get('plan_completion') != proof:
+                raise ValueError('Work completion already names different exact results.')
+            stamp = matching[0]['at']
+        else:
+            _require_finishable_work(task)
+            stamp = now()
+            append(root, {'at': stamp, 'task_id': task_id, 'event': 'finished', 'text': task['goal'],
+                          'plan_completion': proof})
+        task.update(work_state='completed', closed_at=stamp, plan_completion=proof)
+        save_task(root, task)
+        _clear_finished_pointer(root, task_id)
+        return task
+
+
 @mutation
 def note(root: Path, text: str) -> dict[str, Any]:
     with ledger_lock(root):
@@ -329,13 +427,17 @@ def reopen(root: Path, from_step: int, *, reason: str, actor: str) -> dict:
         task['revisions'].append({'revision': revision, 'at': now(), 'from_step': from_step,
                                   'reason': reason, 'actor': actor,
                                   'snapshot': archive.relative_to(root).as_posix(),
-                                  'production_run': task.get('production_run')})
+                                  'production_run': task.get('production_run'),
+                                  'production_plan': task.get('production_plan')})
         task['revision'] += 1
         for step in task['steps']:
             if step['n'] >= from_step:
                 step['done_at'] = None
                 step.pop('note', None)
+                step.pop('production', None)
         task.pop('production_run', None)
+        task.pop('production_plan', None)
+        task.pop('plan_steps', None)
         write_current(root, refreshed(task))
         append(root, {'at': now(), 'task_id': task['task_id'], 'event': 'reopened',
                       'from_step': from_step, 'revision': task['revision'], 'actor': actor, 'text': reason})
@@ -649,11 +751,21 @@ def session_summary(root: Path, task: dict | None, entries: list[dict], paused: 
             lines.append('  blocked on: ' + task['blocked_on'])
         if task.get('next'):
             lines.append('  next: ' + task['next'])
-        if task.get('production_run') and task.get('work_state') in {'active', 'suspended'}:
-            lines.append('  If the requested goal ends at complete input preparation: ' + shown(finish_argv(
-                root, task['production_run'], scope='prepared-input')))
-            lines.append('  If the requested goal includes the production result: ' + shown(finish_argv(
-                root, task['production_run'])))
+        if task.get('production_plan'):
+            if task.get('work_state') == 'active':
+                lines.append('Continue saved plan: ' + shown(plan_action(root, task)['argv']))
+            lines.append('Inspect saved plan: ' + shown(plan_action(root, task, command='plan')['argv']))
+        else:
+            lines.append('Choose the remaining requested result with a production plan: ' + shown(python_argv(
+                SCRIPT.parent / 'production_workflow.py', 'plan', '--root', str(root))))
+            lines.append('  For one result, plan accepts --run, --choices, --request-file or --batch with --scope; '
+                         'continue its current judgments with advance.')
+            if task.get('production_run') and task.get('work_state') in {'active', 'suspended'}:
+                lines.append('  Direct completion is for a goal whose selected scope is already fulfilled; '
+                             'use a plan while further review, selection or adoption is requested.')
+                lines.append('  Completed input preparation only: ' + shown(finish_argv(
+                    root, task['production_run'], scope='prepared-input')))
+                lines.append('  Completed production result: ' + shown(finish_argv(root, task['production_run'])))
         if task.get('completion_scope') == 'prepared-input':
             lines.append('  completed scope: prepared-input; execution and production-result completion remain separate.')
         checkpoint = latest_checkpoint(task, entries)
@@ -680,7 +792,8 @@ def session_summary(root: Path, task: dict | None, entries: list[dict], paused: 
         else:
             lines.append('no task is open; resume a suspended task or begin a new task' if paused else
                          'no task is open, and none has been recorded')
-        lines.append('plan the steps of a Production task with: ' + begin_command(root))
+        lines.append('Choose the source and requested result with: ' + shown(python_argv(
+            SCRIPT.parent / 'production_workflow.py', 'plan', '--root', str(root))))
         lines.append('Read full Studio work history: ' + shown(python_argv(
             SCRIPT, 'show', '--studio', str(root), '--view', 'full')))
     if paused:

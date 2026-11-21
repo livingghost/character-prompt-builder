@@ -1,0 +1,81 @@
+{
+  "type": "object",
+  "description": "The commissioned result and its selected source. Generated bindings and individual phase answers belong to the saved work plan.",
+  "properties": {
+    "goal": {"type": "string", "minLength": 1},
+    "source": {"$ref": "#/$defs/source"},
+    "result": {"$ref": "#/$defs/result"},
+    "items": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/item"}},
+    "work_steps": {
+      "type": "object",
+      "description": "An explicit meaning-based mapping for a previously planned task. Keys are its existing step numbers. New work derives these bindings.",
+      "additionalProperties": {"enum": ["prepared", "results", "verified"]}
+    }
+  },
+  "additionalProperties": false,
+  "oneOf": [
+    {"required": ["source", "result"], "not": {"required": ["items"]}},
+    {"required": ["items"], "not": {"anyOf": [{"required": ["source"]}, {"required": ["result"]}]}}
+  ],
+  "$defs": {
+    "source": {
+      "type": "object",
+      "properties": {
+        "choices": {"type": "string", "minLength": 1},
+        "run": {"type": "string", "minLength": 1},
+        "candidate": {"type": "string", "minLength": 1},
+        "batch": {"type": "string", "minLength": 1},
+        "request": {"type": "string", "minLength": 1},
+        "route": {"type": "string", "minLength": 1},
+        "execution": {"enum": ["authored", "dispatcher", "external"]},
+        "artifact": {"type": "string", "minLength": 1},
+        "model": {"type": "string", "minLength": 1},
+        "service": {"type": "string", "minLength": 1},
+        "features": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "operation": {"enum": ["compose", "amend"]},
+        "from_run": {"type": "string", "minLength": 1},
+        "source_image": {"type": "string", "minLength": 1},
+        "scale": {"type": "number", "exclusiveMinimum": 0},
+        "purpose": {"type": "string", "minLength": 1},
+        "focus": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["imported", "sheet"]},
+        "character": {"type": "string", "minLength": 1},
+        "iteration": {"type": "string", "minLength": 1},
+        "sheet": {"type": "string", "minLength": 1},
+        "slot": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        {"required": ["choices"]}, {"required": ["run"]}, {"required": ["batch"]},
+        {"required": ["request"], "anyOf": [{"required": ["route"]}, {"required": ["from_run"]}]},
+        {"required": ["kind", "character", "iteration"], "properties": {"kind": {"const": "imported"}}},
+        {"required": ["kind", "sheet", "slot"], "properties": {"kind": {"const": "sheet"}}}
+      ]
+    },
+    "result": {
+      "type": "object",
+      "properties": {
+        "scope": {"enum": ["save", "prepared-input", "delivery-only", "studio-slot", "sheet", "catalog", "withdraw"]},
+        "influence": {"type": "string", "minLength": 1},
+        "registration_file": {"type": "string", "minLength": 1},
+        "pack_dir": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1}
+      },
+      "required": ["scope"], "additionalProperties": false,
+      "allOf": [
+        {"if": {"properties": {"scope": {"enum": ["sheet", "catalog"]}}}, "then": {"required": ["influence"]}},
+        {"if": {"properties": {"scope": {"const": "catalog"}}}, "then": {"required": ["registration_file", "pack_dir"]}}
+      ]
+    },
+    "item": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"},
+        "source": {"$ref": "#/$defs/source"},
+        "result": {"$ref": "#/$defs/result"},
+        "after": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "required": ["source", "result"], "additionalProperties": false
+    }
+  }
+}

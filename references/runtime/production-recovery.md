@@ -17,8 +17,11 @@ navigation view retains every state, blocker, draft location and next action,
 while complete source text and authority declarations are available through the
 returned `details_action` (`status --view full`) and phase-specific `workspace`.
 The CLI also saves the complete JSON at `full_report`, with its content digest.
-`execute`, `resume`, `draft-execution` and `authority-import` accept the same
-`--view summary`; their ordinary full result remains available with `--view full`.
+`execute`, `resume`, preparation, editable-input and decision-draft operations
+use the same summary by default; `--view full` returns their complete report.
+`workspace` keeps the exact input or observation material for those phases.
+Its decision and review summaries retain all criteria, scoped source locations
+and evidence IDs, with complete relationships available through their read actions.
 The summary of a successful execution identifies submission and captured-output
 counts, candidate IDs, original recording destinations, cleanup state and the
 review continuation. It does not repeat unrelated authority history.
@@ -45,6 +48,11 @@ One unreadable run does not hide the others.
 `current_task` names the open work task: `task_id`, `goal`, `next` and `production_run`.
 Its `authoring` state covers every draft of the work task, its readings and its last check.
 `status --run RUN`, and the result of `execute` or `resume`, inspect only the drafts of that run: those reopened from it and the draft or export whose choices or task prepared it. They leave out the last check and give `current_task.authoring_action`, the `status` command that inspects the whole work task.
+When the task has a bound `production_plan`, its continuation is that plan's
+`advance` action. Startup and work summaries expose the same saved plan.
+An explicit `status --run` keeps the run's own next operation and the task's
+plan continuation separately, so execution recovery does not redirect the
+commission into an unrelated authoring branch or another completion scope.
 Each run reports these state axes:
 
 | Axis | Values |

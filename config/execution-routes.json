@@ -1265,6 +1265,12 @@
         "references/runtime/production-adoption.md": [
           {
             "sections": [
+              "continue-the-intended-use-through-a-saved-plan"
+            ],
+            "reason": "Continue the explicitly selected use through its saved plan, including independent authorization and recovery of the recorded result."
+          },
+          {
+            "sections": [
               "production-selection-and-adoption",
               "resolve-the-retained-source-owner"
             ],
@@ -1490,6 +1496,12 @@
         ],
         "references/runtime/production-permissions.md": [],
         "references/runtime/production-adoption.md": [
+          {
+            "sections": [
+              "continue-the-intended-use-through-a-saved-plan"
+            ],
+            "reason": "Keep the requested withdrawal bound to its current use and preserve the existing plan's separate decision and history owners."
+          },
           {
             "sections": [
               "historical-selection-and-adoption-evidence",
@@ -2693,6 +2705,374 @@
             ]
           }
         ]
+      }
+    },
+    "execute": {
+      "documents": {
+        "references/runtime/production-workflow.md": [
+          {
+            "sections": [
+              "production-workflow",
+              "read-an-operation-without-editable-choices",
+              "continue-according-to-the-actual-result",
+              "continue-a-retained-result"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/production-permissions.md": [
+          {
+            "sections": [
+              "production-permissions",
+              "protected-criteria-across-runs",
+              "authorization-and-execution-records",
+              "result-capture-and-recovery",
+              "retain-a-direct-instruction-for-one-request",
+              "add-authority-for-a-prepared-run",
+              "import-a-run-bound-authority-update",
+              "stored-decisions-and-current-authority"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/image-generation.md": [
+          {
+            "sections": [
+              "image-generation-runtime",
+              "choose-execution",
+              "model-and-negative-transport",
+              "services-and-offerings",
+              "model-facing-reference-transport",
+              "dispatcher-package",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/generation-package.md": [
+          {
+            "sections": [
+              "generation-package",
+              "verification-and-host-forwarding",
+              "execute-the-prepared-request",
+              "preview-a-prepared-request",
+              "capture-and-recover-the-provider-result",
+              "forward-the-exact-verified-input",
+              "failure-policy",
+              "concurrent-batch-dispatch"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/prompt-writing-guide.md": [
+          {
+            "sections": [
+              "prompt-writing-guide-runtime",
+              "interface-rendition",
+              "read-the-rendition-back-before-it-is-sent",
+              "failure-policy",
+              "final-request-dictionary-evidence"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/prompt-weighting.md": [
+          {
+            "sections": [
+              "explicit-prompt-weighting",
+              "choose-the-interface-before-writing-parser-syntax",
+              "inspect-the-complete-request-not-a-flattened-tag-list",
+              "approval-recording-and-recovery"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/reference-delivery.md": [
+          {
+            "sections": [
+              "exact-reference-delivery",
+              "selection-and-authority",
+              "reference-identities-and-coverage",
+              "bind-the-actual-transport",
+              "upload-the-selected-media-for-one-generation",
+              "bind-a-hosted-carrier-url",
+              "recover-uploads-and-cleanup",
+              "bind-external-media",
+              "retain-source-and-carrier-evidence"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/render-contract.md": [
+          {
+            "sections": [
+              "rendering-choices-and-execution-controls",
+              "resolve-and-inspect-the-exact-input",
+              "preserve-an-image-during-enlargement"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          },
+          {
+            "sections": [
+              "external-image-work"
+            ],
+            "executions": [
+              "external"
+            ],
+            "reason": "Keep the exact provider request, media binding and external-host contract for this execution branch."
+          }
+        ],
+        "references/runtime/studio.md": [
+          {
+            "sections": [
+              "studio-runtime",
+              "service-authentication",
+              "the-work-trail",
+              "answers-returning-to-an-earlier-step-and-temporary-task-switches",
+              "every-image-with-what-produced-it",
+              "record-a-missing-generation-package",
+              "failed-send-recovery",
+              "session-entry",
+              "validation",
+              "what-leaves-a-studio"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/character-sheet-discipline.md": [
+          {
+            "sections": [
+              "character-sheet-discipline",
+              "provenance-and-consumption",
+              "using-the-sheet-downstream",
+              "non-anatomical-reference-coverage",
+              "operational-sequence-from-the-skill-entrypoint"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/sheet-fill-workflow.md": [
+          {
+            "sections": [
+              "sheet-fills-evidence-and-adoption",
+              "one-artifact-and-one-selection-contract",
+              "sequential-panel-execution",
+              "automatic-folders-and-discovery",
+              "large-histories-and-local-diagnostics"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/model-evidence.md": [
+          {
+            "sections": [
+              "model-request-evidence",
+              "validation-modes",
+              "the-request-validation-record",
+              "execution-policy-for-reference-delivery"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ],
+        "references/runtime/batch-generation.md": [
+          {
+            "sections": [
+              "batch-generation-runtime",
+              "batch-scope-and-authority",
+              "managed-child-runs",
+              "dispatch-and-results",
+              "failure-policy",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
+          }
+        ]
+      },
+      "deferred_documents": {
+        "templates/narrative/design/design-template.md": "The design template is an authoring form. Execution and review consume the selected saved design as source evidence; reopening that design reads the complete form.",
+        "references/runtime/authorial-intent.md": "Authoring establishes the portrayal choices. Execution consumes their saved source scope and exact request; review reads the complete applicable portrayal obligations."
+      }
+    },
+    "review": {
+      "documents": {
+        "references/runtime/authoring-work.md": [
+          {
+            "sections": [
+              "authoring-work",
+              "begin-from-the-current-request",
+              "apply-sources-to-this-candidate",
+              "compare-actual-candidates",
+              "inspect-and-deliver"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/production-workflow.md": [
+          {
+            "sections": [
+              "production-workflow",
+              "read-an-operation-without-editable-choices",
+              "continue-according-to-the-actual-result",
+              "continue-a-retained-result"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/production-direction.md": [
+          {
+            "sections": [
+              "production-direction",
+              "preserve-accepted-variation-at-its-declared-scope",
+              "an-image-of-an-action-is-not-the-action",
+              "observe-and-repair",
+              "a-failure-must-leave-an-actionable-record"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/image-generation.md": [
+          {
+            "sections": [
+              "image-generation-runtime",
+              "model-facing-reference-transport",
+              "review-returned-artwork",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/generation-package.md": [
+          {
+            "sections": [
+              "generation-package",
+              "capture-and-recover-the-provider-result",
+              "failure-policy"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/prompt-writing-guide.md": [
+          {
+            "sections": [
+              "prompt-writing-guide-runtime",
+              "read-the-rendition-back-before-it-is-sent",
+              "failure-policy"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/prompt-weighting.md": [
+          {
+            "sections": [
+              "explicit-prompt-weighting",
+              "inspect-the-complete-request-not-a-flattened-tag-list"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/reference-delivery.md": [
+          {
+            "sections": [
+              "exact-reference-delivery",
+              "selection-and-authority",
+              "reference-identities-and-coverage",
+              "retain-source-and-carrier-evidence"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/render-contract.md": [
+          {
+            "sections": [
+              "rendering-choices-and-execution-controls",
+              "represent-the-selected-design",
+              "preserve-an-image-during-enlargement"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/studio.md": [
+          {
+            "sections": [
+              "studio-runtime",
+              "every-image-with-what-produced-it",
+              "browse-recorded-artwork",
+              "repair-a-display-after-a-committed-decision",
+              "session-entry",
+              "validation",
+              "production-owned-candidates",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/character-sheet-discipline.md": [
+          {
+            "sections": [
+              "character-sheet-discipline",
+              "the-character-layer-the-inner-canon-that-drives-the-form",
+              "the-kind-layer-and-binding-levels",
+              "forms-and-transformations",
+              "the-identity-ledger-fixed-versus-rule-governed",
+              "provenance-and-consumption",
+              "using-the-sheet-downstream",
+              "maintaining-the-canon",
+              "non-anatomical-reference-coverage"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/sheet-fill-workflow.md": [
+          {
+            "sections": [
+              "sheet-fills-evidence-and-adoption",
+              "one-artifact-and-one-selection-contract",
+              "review-evidence",
+              "local-derivatives-model-upscales-and-sharing",
+              "large-histories-and-local-diagnostics"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/authorial-intent.md": [
+          {
+            "sections": [
+              "authorial-intent-portrayal-identity-and-deliberate-change",
+              "1-distinguish-four-kinds-of-claim",
+              "2-define-an-identity-by-scope-and-selection-criteria",
+              "5-distinguish-variation-from-a-deliberate-departure",
+              "6-review-the-pattern-across-the-requested-span",
+              "7-keep-author-knowledge-and-downstream-access-separate"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/model-evidence.md": [
+          {
+            "sections": [
+              "model-request-evidence",
+              "keep-kinds-of-evidence-apart",
+              "diagnose-a-failed-generation-before-changing-models"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ],
+        "references/runtime/batch-generation.md": [
+          {
+            "sections": [
+              "batch-generation-runtime",
+              "batch-scope-and-authority",
+              "managed-child-runs",
+              "dispatch-and-results",
+              "failure-policy",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
+          }
+        ]
+      },
+      "deferred_documents": {
+        "templates/narrative/design/design-template.md": "The design template is an authoring form. Execution and review consume the selected saved design as source evidence; reopening that design reads the complete form."
       }
     }
   }

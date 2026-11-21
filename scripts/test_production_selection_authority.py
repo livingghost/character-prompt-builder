@@ -15,6 +15,7 @@ import production_operations as workflow
 import production_store as store
 import test_production_acceptance as acceptance_cases
 from test_production_review import ReviewCase
+from test_production_report_view import resolved_action
 
 
 class SelectionAuthorityTests(ReviewCase):
@@ -56,14 +57,15 @@ class SelectionAuthorityTests(ReviewCase):
         return self.record_review([('output', 'pass'), ('palette', 'pass')], candidate)
 
     @staticmethod
-    def actions(value):
+    def actions(report, value):
+        value = resolved_action(report, value)
         yield value
         for alternative in value.get('alternatives', []):
-            yield from SelectionAuthorityTests.actions(alternative)
+            yield from SelectionAuthorityTests.actions(report, alternative)
 
     def candidate_action(self, report, command, candidate=None):
         candidate = candidate or self.candidate
-        choices = [action for action in self.actions(report['runs'][0]['next_action'])
+        choices = [action for action in self.actions(report, report['runs'][0]['next_action'])
                    if action['command'] == command and '--candidate' in action['argv']
                    and action['argv'][action['argv'].index('--candidate') + 1] == candidate
                    and (command != 'draft-acceptance' or
@@ -103,7 +105,7 @@ class SelectionAuthorityTests(ReviewCase):
                            '--out', 'blocked-acceptance.json', expected=3)
         problem = blocked['diagnostics'][0]
         self.assertEqual(problem['code'], 'AUTHORIZATION_REQUIRED')
-        self.assertEqual(problem['next_action']['argv'], action['argv'])
+        self.assertEqual(resolved_action(blocked, problem['next_action'])['argv'], action['argv'])
         self.assertFalse((self.root / 'blocked-acceptance.json').exists())
         report = self.invoke(action['argv'] + ['--view', 'summary'])
         value = c.load(self.root / report['draft_file'])
@@ -134,7 +136,8 @@ class SelectionAuthorityTests(ReviewCase):
         self.assertEqual(store.event_rows(self.root, self.run), events)
         following = self.invoke(imported['next_action']['argv'] + ['--view', 'summary'])
         acceptance = self.candidate_action(following, 'draft-acceptance')
-        choices = self.invoke(acceptance['argv'])['choices']
+        drafted = self.invoke(acceptance['argv'])
+        choices = c.load(self.root / drafted['draft_file'])
         self.assertEqual(choices['grant'], value['grants'][0]['id'])
         self.assertEqual(choices['reason'], '')
         self.assertIsNone(choices['owner_acceptance'])
@@ -246,8 +249,9 @@ class SelectionAuthorityTests(ReviewCase):
         self.limit_to_execution()
         value = self.authored_update()
         self.import_update(value)
-        decisions = self.cli('draft-acceptance', '--run', self.run, '--candidate', self.candidate,
-                             '--out', 'acceptance.json')['choices']
+        drafted = self.cli('draft-acceptance', '--run', self.run, '--candidate', self.candidate,
+                           '--out', 'acceptance.json')
+        decisions = c.load(self.root / drafted['draft_file'])
         self.assertIsNone(decisions['owner_acceptance'])
         decisions['reason'] = 'An explicit synthetic choice without the required discrepancy allowance.'
         for assessment in decisions['stop_assessments']:
@@ -278,7 +282,7 @@ class TextSelectionAuthorityTests(unittest.TestCase):
         held = self.limit_to_execution()
         events = store.event_rows(self.root, self.run)
         status = self.cli('status', '--run', self.run, '--view', 'summary')
-        action = status['runs'][0]['next_action']
+        action = resolved_action(status, status['runs'][0]['next_action'])
         self.assertEqual(action['command'], 'draft-authority-update')
         self.assertEqual(action['argv'][action['argv'].index('--candidate') + 1], self.candidate)
         drafted = self.invoke(action['argv'] + ['--view', 'full'])
@@ -302,9 +306,10 @@ class TextSelectionAuthorityTests(unittest.TestCase):
         self.assertEqual(current.document['grants'][:-1], held.document['grants'])
         self.assertEqual(current.document['stop_conditions'], held.document['stop_conditions'])
         following = self.invoke(imported['next_action']['argv'] + ['--view', 'summary'])
-        action = following['runs'][0]['next_action']
+        action = resolved_action(following, following['runs'][0]['next_action'])
         self.assertEqual(action['command'], 'draft-acceptance')
-        choices = self.invoke(action['argv'])['choices']
+        drafted = self.invoke(action['argv'])
+        choices = c.load(self.root / drafted['draft_file'])
         self.assertEqual(choices['candidate'], self.candidate)
         self.assertEqual(choices['grant'], value['grants'][0]['id'])
         self.assertEqual(choices['reason'], '')

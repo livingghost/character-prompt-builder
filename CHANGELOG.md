@@ -1,5 +1,77 @@
 # Changelog
 
+## 2026.11.21.5
+
+- Distinguish saved authored amendments from generated-candidate repairs in the
+  shared review guide. Link directly to the authored amend/save path, retain
+  each path's owning plan or standalone continuation, and explain which digest
+  identifies a generated candidate without adding an approval or validation gate.
+
+## 2026.11.21.4
+
+- Begin authoring and fresh-context reading with the current stage's complete
+  bounded delivery. Continue a partial page first, then read the remaining
+  required scope without visiting each heading separately. Keep explicit
+  source indexes, section selection, replay and exact coverage available.
+- Keep an early input check on its incomplete authored choices. Recommend the
+  prepare stage when only final binding knowledge remains, while retaining
+  the same publication requirements and explicit stage choices.
+- Give both host guides a shared maintenance workflow for retained work,
+  independent operator and peer trials, actual effort measurement and causal
+  repair decisions. Document source, sample, metadata and package verification
+  so future changes preserve the evidence and necessary authored knowledge.
+
+## 2026.11.21.3
+
+- Preserve the author's separate continuity instruction through selection,
+  adoption, interruption and final verification. Explain that evidence in the
+  current answer instead of silently substituting the permission source.
+  A shared instruction retains one proof; valid retained records remain
+  verifiable without rewriting their history or reading later source edits.
+- Start an ordinary saved result with typed source and result options. The
+  runtime writes its plan request; multiple dependent results retain their
+  explicit declaration. Scope selection still requires the actual authored
+  approval before effects.
+- Explain the current curation fields and their path owners beside the answer.
+  Begin saved work with the current route before loading broad runtime guides,
+  and return the exact observation action for a candidate given to an input
+  or execution-decision view.
+- Keep prior authority instructions in read-only context. A fresh curation
+  answer leaves its current instruction for the author to choose once, and
+  shares it with continuity unless a distinct source is selected.
+- Begin curation knowledge delivery with its first complete page. Present one
+  normal continuation at a time while retaining exact source coverage, replay
+  and fresh-context restart.
+- Reach the task direction's editable shape and owning contract directly from
+  `explain-inputs`. Source-basis and criterion errors name the invalid and available IDs;
+  vocabulary readback guidance distinguishes literal term lists from prose.
+- Keep ready input inspection on its owning plan's continuation, so following
+  the published action saves one revision and completes its work milestones.
+  Standalone inputs retain their own save and prepare actions.
+
+## 2026.11.21.2
+
+- Continue commissioned work with `plan` and `advance`, retaining its selected
+  source, intended result, current answers, preparation and effect recovery.
+  Derive explicitly bound work milestones from independently verified records
+  and refresh Studio views before closing the owning task.
+- Bind one real approval and stop assessment to independent execution,
+  selection and adoption records. Add only missing grants and expose numbered
+  choices only when current grants are ambiguous. Preserve prior decisions
+  when current authority or placement requires reassessment.
+- Record candidate-only first observations before criterion assessment. Use
+  named observation citations, deriving indices and exact artifact bindings.
+  Continue partial reviews through their saved answers.
+- Make ordinary production reports concise, retain exact original sources at
+  their owned locations and show repeated actions once. Scope execution and
+  review reading to the current operation and saved model knowledge.
+- Extend sheet batches through each candidate's review and adopted use,
+  unlocking dependent anchor references while independent panels continue.
+  Retain partial external results and the same receipt form across recovery.
+- Resolve retained sheet projections through their actual Production or
+  imported owners. Verify historical completion without restoring a later
+  replaced or withdrawn use; keep reopened tasks separate from prior plans.
+
 ## 2026.11.21.1
 
 - Keep the complete retained identity selection of an amend draft consistent at

@@ -77,6 +77,24 @@ class PublicCLITests(unittest.TestCase):
         self.assertEqual(len({commands[name].description for name in ('variant', 'repeat', 'retarget')}), 3)
         self.assertTrue(all(child.description for child in commands.values()))
 
+    def test_single_request_plan_from_another_cwd_needs_no_json_envelope(self):
+        studio = self.base / 'typed plan studio'
+        initialized = subprocess.run([sys.executable, str(ROOT / 'scripts/studio.py'), 'init', '--out', str(studio),
+                   '--studio-id', 'typed-plan', '--title', 'Synthetic typed plan'],
+                   cwd=self.base, env=self.env, capture_output=True, text=True, encoding='utf-8', timeout=60)
+        self.assertEqual(initialized.returncode, 0, initialized.stdout + initialized.stderr)
+        brief = 'Save a descriptive prompt for the explicit synthetic fixture.\n'
+        (studio / 'request.txt').write_text(brief, encoding='utf-8')
+        report = self.call(CLI + ['plan', '--root', str(studio), '--request-file', str(studio / 'request.txt'),
+                                 '--route', 'prompt-only', '--scope', 'save'])
+        plan = studio / report['plan']
+        request = json.loads((plan.parent / 'request.json').read_text(encoding='utf-8'))
+        self.assertEqual(request, {'source': {'request': 'request.txt', 'route': 'prompt-only'},
+                                   'result': {'scope': 'save'}})
+        self.assertFalse((studio / 'work/plan-request.json').exists())
+        self.assertEqual((studio / 'request.txt').read_text(encoding='utf-8'), brief)
+        self.assertEqual(report['items'][0]['phase'], 'source')
+
     def test_status_help_explains_every_readiness_and_disposition_value(self):
         sys.path.insert(0, str(ROOT / 'scripts'))
         import production_workflow

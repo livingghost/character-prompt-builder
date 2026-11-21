@@ -174,7 +174,7 @@ python scripts/work_ledger.py suspend --studio STUDIO --reason "Return to the ea
 python scripts/work_ledger.py resume-task --studio STUDIO --task-id PREVIOUS_TASK_ID
 ```
 
-`respond` may additionally bind `--evidence STUDIO_RELATIVE_FILE` and repeated `--candidate ID` values. It records an answer, not generation or adoption approval. `reopen` snapshots the previous revision, including completed steps and linked run, before resetting the chosen and later steps. It neither deletes results nor changes any accepted artwork. `suspend` preserves questions, notes and the next step; only one task is active, and `resume-task` does not implicitly suspend a different task. `show` includes suspended task IDs and open question IDs so the next session need not reconstruct these from chat. Terminal tasks cannot be resumed as active work.
+`respond` may additionally bind `--evidence STUDIO_RELATIVE_FILE` and repeated `--candidate ID` values. It records an answer, not generation or adoption approval. `reopen` snapshots the previous revision, including completed steps, linked run and bound production plan, before resetting the chosen and later steps. It detaches that earlier plan and its milestone bindings from the active revision; the archived plan and results remain available. `suspend` preserves questions, notes and the next step; only one task is active, and `resume-task` does not implicitly suspend a different task. `show` includes suspended task IDs and open question IDs so the next session need not reconstruct these from chat. Terminal tasks cannot be resumed as active work.
 
 For characters with independent commissions, criteria and authority, keep
 separate work tasks, `production_id` values and editable draft directories.

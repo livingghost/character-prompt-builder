@@ -489,11 +489,19 @@ def regressions(tmp: Path, source: Path, check) -> None:
     code, _, err = cli("init", "--out", str(tmp / "plain.txt" / "studio"), "--studio-id", "plain", "--title", "Plain")
     check("init below a file says so in one sentence", code == 1 and "is a file" in err and "Error" not in err, err)
     code, out, _ = cli("init", "--out", str(tmp / "opened"), "--studio-id", "opened", "--title", "Opened")
-    printed = next((line for line in out.splitlines() if "work_ledger.py" in line), "")
-    command = printed.partition(": ")[2].replace("<goal>", "Synthetic-goal").replace("<step>", "Synthetic-step")
-    opened = subprocess.run(command, shell=True, cwd=tmp, capture_output=True, text=True, encoding="utf-8")
-    check("init prints the command that opens a task in the new studio, and that command opens one",
-          code == 0 and opened.returncode == 0
+    printed = next((line for line in out.splitlines() if "production_workflow.py" in line), "")
+    command = printed.partition(": ")[2]
+    drafted = subprocess.run(command, shell=True, cwd=tmp, capture_output=True, text=True, encoding="utf-8")
+    report = json.loads(drafted.stdout)
+    request_path = tmp / 'opened' / report['request_file']
+    request = json.loads(request_path.read_text(encoding='utf-8'))
+    request['result']['scope'] = 'save'
+    (tmp / 'opened' / request['source']['request']).write_text('Synthetic-goal', encoding='utf-8')
+    request_path.write_text(json.dumps(request), encoding='utf-8')
+    opened = subprocess.run(report['next_action']['argv'], cwd=tmp,
+                            capture_output=True, text=True, encoding='utf-8')
+    check("init prints a working plan entry and its selected request opens the task",
+          code == 0 and drafted.returncode == 0 and opened.returncode == 0
           and (work_ledger.read_current(tmp / "opened") or {}).get("goal") == "Synthetic-goal", {"out": out, "command": command})
     check("validate_studio names a directory that does not exist",
           validate_studio.validate(missing) == [f"the directory {missing} does not exist"], validate_studio.validate(missing))
@@ -707,7 +715,7 @@ def main() -> int:
         check("a finished task leaves no open task and stays in the ledger", work_ledger.read_current(root) is None and any(e["event"] == "finished" for e in work_ledger.read_ledger(root)))
         shown = work_ledger.show(root)
         check("show reports the trail when nothing is open, and the command that opens the next task",
-              "no task is open; latest finished task" in shown and work_ledger.begin_command(root) in shown
+              "no task is open; latest finished task" in shown and "production_workflow.py plan --root" in shown
               and "Read full Studio work history:" in shown, shown)
         work_ledger.begin(root, "C02 base front", ["one"])
         work_ledger.abandon(root, "the owner changed the brief")

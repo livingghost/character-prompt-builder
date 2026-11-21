@@ -26,7 +26,8 @@ INDEX_SOURCE_STATES = {
     'known': 'An explicitly selected complete reading supplies the unchanged source in this context.',
 }
 _NO_MODEL = object()
-# A reading made without a model holds every family's guide sections.
+# An authoring reading made without a model holds every family's guide sections.
+SAVED_INPUT_OPERATIONS = {'execute', 'review'}
 
 
 def _hex(value: Any, length: int, label: str) -> str:
@@ -53,7 +54,7 @@ def same_manifest(left: dict, right: dict) -> bool:
 
 def curation_action(studio: Path, *, execution: str, scope: str,
                     source_kind: str = 'production-candidate', operation: str = 'adopt') -> dict:
-    """Index the complete contract derived by the actual retained-result owner.
+    """Begin complete paged delivery derived by the actual retained-result owner.
 
     This action makes no assertion of retained knowledge. A current context may
     explicitly append its complete --known-reading keys; a fresh context reads
@@ -62,10 +63,35 @@ def curation_action(studio: Path, *, execution: str, scope: str,
     execution_routes.require_scope(operation, execution, scope, source_kind)
     argv = python_argv(ROOT / 'scripts/execution_routes.py', 'read', 'adoption',
                        '--root', str(studio.absolute()), '--operation', operation,
-                       '--execution', execution, '--scope', scope, '--source-kind', source_kind)
-    return {'argv': argv, 'command': shown(argv),
+                       '--execution', execution, '--scope', scope, '--source-kind', source_kind, '--all')
+    return {'argv': argv, 'command': 'read',
             'reason': 'Read the complete ' + scope + ' ' + operation + ' contract for the '
                       + source_kind + ', including its authority and recovery conditions.'}
+
+
+def operation_reading_action(studio: Path, run: str, *, operation: str, loaded=None) -> dict:
+    """Select the current execute/review contract from one retained request.
+
+    Its model and writing guidance remain the exact saved workspace evidence.
+    This action resolves neither a live model edition nor a different input;
+    it makes no claim that a new context knows earlier authoring material.
+    """
+    if operation not in SAVED_INPUT_OPERATIONS:
+        raise ValueError('A retained request reading selects execute or review.')
+    if loaded is None:
+        import production_operations
+        loaded = production_operations.read_run(studio, run)
+    if loaded.prepared['run'] != run:
+        raise ValueError('The retained reading source belongs to another run.')
+    task = loaded.prepared['task']
+    argv = python_argv(ROOT / 'scripts/execution_routes.py', 'read', task['route'],
+                       '--root', str(studio.absolute()), '--operation', operation,
+                       '--execution', task['execution'])
+    for feature in task.get('features', []):
+        argv.extend(('--feature', feature))
+    return {'argv': argv, 'command': 'read',
+            'reason': 'Read the current ' + operation + ' contract for this saved request. '
+                      'Use workspace.saved_knowledge for its exact retained model and source guidance.'}
 
 
 class ReadingSourcesChanged(ValueError):
@@ -217,6 +243,11 @@ def _capture_resources(manifest: dict, bodies: list, dialect: Any, resource_read
         if dialect is not None:
             raise ValueError('a model or prompt family selects writing guide sections; add --feature prompt-dialect')
         return
+    # A saved-request operation interprets its captured input. With no new
+    # family selected, do not reacquire every family's authoring material.
+    # An explicit family/model inspection still delivers its requested guide.
+    if manifest.get('operation') in SAVED_INPUT_OPERATIONS and dialect is None:
+        return
     selected={name:resource_reader(name) for name in ('prompt-writing-guide','prompt-dialects')}
     for name,resource in selected.items():
         if resource is None:
@@ -245,6 +276,8 @@ def _capture_resources(manifest: dict, bodies: list, dialect: Any, resource_read
 
 def _validate_resources(value: dict) -> None:
     resources = value.get('resources')
+    if value.get('operation') in SAVED_INPUT_OPERATIONS and resources == {}:
+        return
     expected = {'prompt-writing-guide', 'prompt-dialects'} if 'prompt-dialect' in value['features'] else set()
     if not isinstance(resources, dict) or set(resources) != expected:
         raise ValueError('reading resource set differs from its feature requirements')
@@ -309,7 +342,7 @@ def require_model_reading(record: dict, *, dialect: Any = _NO_MODEL, resource_re
     """
     _validate_resources(record)
     _validate_model(record['model'])
-    manifest = {'features': record['features']}
+    manifest = {'features': record['features'], 'operation': record.get('operation')}
     bodies = []
     _capture_resources(manifest, bodies, bound_dialect(record), resource_reader)
     if manifest['resources'] != record['resources']:
@@ -700,7 +733,8 @@ def capture(route: str, features: list[str] | None = None, *, execution: str, ro
                 'scope': resolved['scope'], 'source_kind': resolved['source_kind'], 'features': resolved['features'],
                 **({'authoring_scope': resolved['authoring_scope']} if 'authoring_scope' in resolved else {}),
                 'documents': resolved['reads'], 'model': None}
-    if resource_reader is None and 'prompt-dialect' in resolved['features']:
+    if resource_reader is None and 'prompt-dialect' in resolved['features'] and not (
+            resolved['operation'] in SAVED_INPUT_OPERATIONS and dialect is None):
         resource_reader = _live_resource_reader()
     _capture_resources(manifest, bodies, dialect, resource_reader)
     if model_record is not None:
@@ -1501,17 +1535,17 @@ def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_by
     folder, snapshot, page = acquired or _cursor(ledger, result['cursor'])
     coverage = coverage if coverage is not None else snapshot_coverage(folder, snapshot)
     sections = sections if sections is not None else _sections(folder, snapshot)
-    context = _runtime_context(snapshot['runtime'])
     base = python_argv(ROOT / 'scripts' / 'execution_routes.py', 'read',
                        '--reading-ledger', str(ledger.absolute()), '--page-bytes', str(page_bytes))
     if studio is not None:
         base.extend(('--root', str(studio.absolute())))
-    if context is not None:
-        base.extend(context.command_arguments())
+    # The snapshot owns its exact runtime. A continuation restores that value
+    # before acquiring any resources; repeating every runtime selector in six
+    # commands merely makes navigation grow with the installation's paths.
 
     def action(*arguments: str, reason: str) -> dict:
         argv = [*base, *arguments]
-        return {'argv': argv, 'command': shown(argv), 'reason': reason}
+        return {'argv': argv, 'command': 'read', 'reason': reason}
 
     sid = c.content_id(snapshot)
     actions = {'continue': None, 'next': None, 'replay': None}
@@ -1525,7 +1559,7 @@ def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_by
                 reason=f'Read the remaining {remaining} bytes of this selected delivery.')
         actions['replay'] = action('--replay', result['cursor'],
             reason='Read this delivered page again; reduce --page-bytes if the host truncated it.')
-    if coverage['missing']:
+    if coverage['missing'] and actions['continue'] is None:
         position = coverage['missing'][0][0]
         selected = next(row for row in sections if row['low'] <= position < row['high'])
         actions['next'] = action('--snapshot', sid, '--section', selected['selector'],
@@ -1566,7 +1600,10 @@ def _context_reuse(result: dict, *, snapshot: dict, ledger: Path,
     operations, curations = {}, []
     curation = manifest['operation'] in {'adopt', 'withdraw'}
     authoring_scope = manifest.get('authoring_scope')
-    for operation in execution_routes.OPERATIONS:
+    # A later draft owns the next operation's actual scope. Offer current
+    # inspection plus reusable knowledge keys, rather than manufacture one
+    # command for every possible next operation and destination.
+    for operation in (manifest['operation'],):
         if authoring_scope is not None:
             if operation != manifest['operation'] or snapshot.get('choices') is None:
                 continue
@@ -1578,17 +1615,17 @@ def _context_reuse(result: dict, *, snapshot: dict, ledger: Path,
             if runtime is not None:
                 argv.extend(runtime.command_arguments())
             argv.extend(arguments)
-            operations[operation] = {'argv': argv, 'command': shown(argv),
+            operations[operation] = {'argv': argv, 'command': 'read',
                 'reason': 'Read the current editable stage, reusing only complete material still known in this context.'}
             continue
         if operation in {'adopt', 'withdraw'}:
             if not curation:
                 continue
-            for scope, source_kind in execution_routes.curation_selections(operation):
+            for scope, source_kind in [(manifest['scope'], manifest['source_kind'])]:
                 if source_kind != manifest['source_kind']:
                     continue
                 argv = [*base, '--operation', operation, '--scope', scope, '--source-kind', source_kind, *arguments]
-                action = {'argv': argv, 'command': shown(argv),
+                action = {'argv': argv, 'command': 'read',
                     'reason': 'Read the current ' + scope + ' ' + operation + ' contract for ' + source_kind
                               + ', adding only missing or changed sections still needed in this context.'}
                 if operation == manifest['operation'] and scope == manifest['scope']:
@@ -1599,7 +1636,7 @@ def _context_reuse(result: dict, *, snapshot: dict, ledger: Path,
         if curation:
             continue
         argv = [*base, '--operation', operation, *arguments]
-        operations[operation] = {'argv': argv, 'command': shown(argv),
+        operations[operation] = {'argv': argv, 'command': 'read',
             'reason': 'Read the current ' + operation + ' contract, reusing only complete material still known in this context.'}
     return {'same_context_required': True, 'known_reading_keys': keys,
             'arguments': arguments, 'operations': operations, 'curation_scopes': curations,
@@ -1608,8 +1645,8 @@ def _context_reuse(result: dict, *, snapshot: dict, ledger: Path,
                     'these reuse arguments only while the earlier complete material remains in this context.'}
                if authoring_scope is not None else {}),
             'curation_guidance': "Use the actual next draft's reading_action and append these reuse arguments; "
-                'its destination and source kind determine the required sections. Curation alternatives keep the current source kind.',
-            'fresh_context': result['actions']['restart']}
+                'its operation, destination and source kind determine the required sections.',
+            'fresh_context': {'action_ref': '#/actions/restart'}}
 
 
 def _choice_selection(args: argparse.Namespace) -> tuple[dict | None, str | None]:
@@ -1667,7 +1704,10 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
     authoring_scope, choices_path = _choice_selection(args) if not continuation else (None, None)
     if not continuation and args.execution is None:
         raise ValueError('a new reading requires --execution authored, external or dispatcher from the task')
-    runtime = _configure_runtime(args, parser)
+    # A cursor or snapshot is a complete retained selection, including the
+    # pack runtime. Avoid consulting a different cwd's defaults before that
+    # selection is restored. A new read still resolves its actual selectors.
+    runtime = None if continuation else _configure_runtime(args, parser)
     ledger = ledger_candidates(studio=args.root, ledger=args.reading_ledger)[0]
     studio = args.root.absolute() if args.root is not None else (_studio(Path.cwd()) or _studio(ledger.parent))
     dialect = args.dialect

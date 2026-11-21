@@ -17,6 +17,7 @@ import production_store as store
 import production_operations as workflow
 import test_production_authored as authored_cases
 import work_ledger
+from test_production_report_view import resolved_action
 
 SCRIPTS = Path(__file__).resolve().parent
 
@@ -75,8 +76,9 @@ class CompletedSourceCLITests(PublicCLI, unittest.TestCase):
         self.assertEqual(state['diagnostics'], [])
         self.assertFalse(state['selection_required'])
         current = next(item for item in state['inputs'] if item['current'])
-        self.assertEqual(current['unresolved'], [])
-        child = self.run_action(next(item for item in current['next_actions'] if item['operation'] == 'save'))
+        self.assertEqual(current['diagnostic_ids'], [])
+        actions = [resolved_action(state, item) for item in current['next_actions']]
+        child = self.run_action(next(item for item in actions if item['operation'] == 'save'))
         loaded = workflow.read_run(self.root, child['run'])
         self.assertEqual(loaded.prepared['parent']['run'], run)
         self.assertEqual(loaded.consumer['instructions'].encode('utf-8'), revised.encode('utf-8'))
@@ -85,8 +87,8 @@ class CompletedSourceCLITests(PublicCLI, unittest.TestCase):
         self.assertEqual(work_ledger.task_path(self.root, self.task['task_id']).read_bytes(), old_work)
         self.assertEqual(workflow.read_run(self.root, run).consumer['instructions'].encode('utf-8'), old_bytes)
         exported = self.invoke('build-inputs', '--root', self.root, '--from-run', run,
-            '--choices', draft['choices_file'], '--out-dir', 'revision-export')
-        self.assertEqual(exported['next_actions'][0]['args']['choices'], draft['choices_file'])
+            '--choices', draft['choices_file'], '--out-dir', 'revision-export', '--view', 'full')
+        self.assertEqual(resolved_action(exported, exported['next_actions'][0])['args']['choices'], draft['choices_file'])
         exported_run = self.invoke('prepare', '--root', self.root,
             '--task', exported['inputs']['production-task']['path'])['run']
         published = workflow.read_run(self.root, exported_run)
@@ -156,8 +158,9 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
         report = self.invoke('inspect-inputs', '--root', self.root, '--choices', choices, *self.runtime)
         self.assertEqual(report['diagnostics'], [])
         current = next(item for item in report['inputs'] if item['current'])
-        self.assertEqual(current['unresolved'], [], current)
-        return next(item for item in current['next_actions'] if item.get('operation', item.get('command')) in {'prepare', 'retarget'})
+        self.assertEqual(current['diagnostic_ids'], [], current)
+        actions = [resolved_action(report, item) for item in current['next_actions']]
+        return next(item for item in actions if item.get('operation', item.get('command')) in {'prepare', 'retarget'})
 
     def test_reopened_scope_applies_to_the_actual_candidate_and_retains_its_baseline(self):
         prior = workflow.read_run(self.root, self.run)
@@ -303,7 +306,7 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
         cases.write(self.root / draft['choices_file'], choices)
         exported = self.invoke('build-inputs', '--root', self.root, '--from-run', self.run,
             '--choices', draft['choices_file'], '--out-dir', 'target-export', *self.runtime)
-        self.assertEqual(exported['next_actions'][0]['operation'], 'retarget')
+        self.assertEqual(resolved_action(exported, exported['next_actions'][0])['operation'], 'retarget')
         action = self.current_action(draft['choices_file'])
         self.assertEqual(action.get('operation', action.get('command')), 'retarget')
         run = self.run_action(action, reason='Explicit synthetic comparison in the newly selected work task.')['run']
@@ -355,7 +358,7 @@ class ImageBranchCLITests(PublicCLI, unittest.TestCase):
             '--source-run', self.run, '--source-candidate', candidate, '--scale', '2',
             '--purpose', 'Enlarge this selected image while retaining its content.',
             '--new-task', 'Create and assess the requested enlargement.', '--model', cases.UPSCALE_MODEL_ID,
-            '--service', 'synthetic', '--out-dir', 'enlargement', *self.runtime)
+            '--service', 'synthetic', '--out-dir', 'enlargement', '--view', 'full', *self.runtime)
         choices = c.load(self.root / draft['choices_file'])
         self.assertEqual(draft['selected_image']['source_candidate'], candidate)
         self.assertEqual(draft['selected_image']['sha256'], image['sha256'])

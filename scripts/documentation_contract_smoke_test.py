@@ -318,7 +318,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             self.assertIn(command, run.stdout)
 
         gate = skill.partition("## Artifact-bearing production gate")[2].partition("\n## ")[0]
-        route_command = "`python scripts/execution_routes.py read --root STUDIO --choices FILE`"
+        route_command = "`python scripts/execution_routes.py read --root STUDIO --choices FILE --all`"
         self.assertIn(route_command, gate)
         self.assertEqual(1, skill.count(route_command))
         for marker in ("--choices", "actions.continue", "reading.record", "--known-reading", "fresh contexts reread"):
@@ -327,7 +327,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         sequence = skill.partition("## Start the current work")[2].partition("\n## ")[0]
         workflow_path = "references/runtime/production-workflow.md"
         self.assertIn(f"]({workflow_path}#read-the-current-stage)", sequence)
-        for marker in ("draft-inputs", "stage-inputs", "inspect-inputs", "--request-file", "compose|amend"):
+        for marker in ("production-work-plan.md", "plan --root STUDIO", "advance", "answer file", "compaction"):
             self.assertIn(marker, sequence)
         workflow = (ROOT / workflow_path).read_text(encoding="utf-8")
         self.assertIn("](authoring-work.md)", workflow)
@@ -339,7 +339,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
     def test_indexed_reading_guidance_matches_the_delivery_cli(self) -> None:
         document = (ROOT / "references/runtime/production-authoring.md").read_text(encoding="utf-8")
         reading = document.partition("### Select and read the current knowledge")[2].partition("\n## ")[0]
-        for marker in ("actions.continue", "`argv`", "`command`", "`reason`", "`body`", "`null`",
+        for marker in ("actions.continue", "`argv`", "`command: read`", "`reason`", "`body`", "`null`",
                        "--reading-ledger", "CPB_READS_LEDGER", "reading.record", "--known-reading",
                        "actions.next", "actions.all", "--snapshot", "--section", "--all", "non-null"):
             self.assertIn(marker, reading)

@@ -91,6 +91,28 @@ Preparation shows the complete request. Dispatcher packages seal resolved contro
 
 ## Continue the requested operation in its Studio
 
+Use [a production plan](references/runtime/production-work-plan.md) for saved
+work. Select its actual source and intended result directly,
+then follow the same continuation across preparation, execution, observation,
+review, selection and adoption:
+
+```sh
+python scripts/production_workflow.py plan --root STUDIO --request-file request.txt --route prompt-only --scope save
+python scripts/production_workflow.py advance --root STUDIO
+```
+
+Retained results use `plan --root STUDIO --run RUN --scope sheet --influence identity`
+for actual sheet use, or their intended result scope. Multi-item declarations
+use `--file work-request.json`. Begin saved work here before directly reading
+the linked runtime documents; the plan's route supplies the complete current
+sections without a second broad preload.
+
+The plan opens work when needed and retains each current answer file. Fill only
+the current authored choices; bindings and separate formal records are derived.
+After interruption, use the task's saved plan action. With its plan file,
+`plan` inspects historical results or refreshes changed pending judgments.
+Existing phase commands below inspect and repair their specific owners.
+
 ```sh
 python scripts/studio.py init --out STUDIO --studio-id <id> --title "<title>"
 python scripts/production_workflow.py status --root STUDIO
@@ -111,7 +133,7 @@ all editable files and earlier results; their structural readiness supplies no
 artistic completion or authority. Follow
 [Read the current stage](references/runtime/production-workflow.md#read-the-current-stage).
 
-Open the work task before drafting. Establish the character's concrete definition
+For direct phase commands, open the work task before drafting. Establish the character's concrete definition
 under [Production direction](references/runtime/production-direction.md#establish-the-character-for-this-use),
 using a task-local definition when that is sufficient. Studio registration is
 separate; a one-image definition needs no placeholder character record. Retain
@@ -132,10 +154,10 @@ indexes every required section and its selection reason for that complete
 operation, execution and destination contract. Whole-source internal headings
 expand with `--snapshot ID --index-source SELECTOR`; this navigation delivers no
 body. `selection_reason_ids` resolve in the shared `selection_reasons` map.
-Inspect that scope, then use actions.all for complete paged delivery
-or select exact sections. Continue until reading.record is issued.
+Generated stage reads begin complete paged delivery. Use actions.index to inspect
+the scope or select exact sections. Continue until reading.record is issued.
 An earlier source-delivery record alone does not supply knowledge to a new context.
-The reader returns JSON: its initial index contains no delivered source body.
+The reader returns JSON; an explicitly requested index delivers no source body.
 Read each `body` segment, follow `actions.continue` within a selected section and
 `actions.next` for remaining required material, and retain the issued
 `reading.record`. A null continuation alone does not establish completion. In the same context, supply complete
@@ -387,6 +409,39 @@ independently authored packs have their own release gates.
 closure of the production modules, with the digest of each module. A
 preparation refuses an index whose modules changed since it was written. Edit
 the metadata and the templates, never the generated files.
+
+### Resume and evaluate a Skill change
+
+1. Resume from retained source, intermediate work, raw logs and pending findings.
+   Identify their revisions and hashes; a previous passing report covers its
+   recorded snapshot. Preserve the original user material and failed attempts.
+2. Give independent operators the fixed Skill, realistic requests and separate
+   Studios and runtimes. Use the user's requested model and reasoning effort,
+   recording the settings actually selected. Keep expected answers and the
+   diagnosis out of an unaided trial; record later assistance separately.
+3. Have operators review each other's raw actions and artifacts. Measure commands,
+   reading and search, edits, retries and recovery through the declared outcome.
+   Compare the actual result, cited source bytes and ledger, beyond exit codes.
+4. Trace mistakes to their preceding instructions, choices and recovery. Judge
+   recurrence, recovery cost and result impact before choosing a fix, no change
+   or further investigation. A recovered typo alone does not justify a new gate;
+   a demonstrably incorrect committed result can justify repair on its first occurrence.
+5. Repair the responsible source owner, exercise the affected task and verify the
+   resulting package. Keep required knowledge and judgment while reducing effort.
+   Distinguish fresh trials, assisted recovery, automated checks, synthetic cases,
+   environment skips and incomplete work in the report.
+
+[Evaluation](references/maintenance/agent-workflow-design.md#workflow-trial-records)
+defines the evidence and comparison boundaries. These are maintenance procedures;
+ordinary creative work follows its own runtime path.
+
+`AGENTS.md` and `CLAUDE.md` share this template. Regenerate them together. After
+implementation edits, refresh metadata before commands that enforce the module
+index. Rebuild affected canonical examples with their owning builders, then
+refresh metadata again after generated outputs change. Freeze the tested source
+and package hashes; later edits require the affected checks and required gates
+for the new revision. Keep source versions, lock metadata and the canonical ZIP
+filename consistent under [Release Validation](references/release/validation.md).
 
 Follow [Maintenance testing](references/maintenance/testing.md) for check execution
 and subsystem coverage. [Release Validation](references/release/validation.md)

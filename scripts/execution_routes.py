@@ -179,12 +179,15 @@ def resolve(route: str, features: list[str] | None = None, *, execution: str,
     if operation in {'adopt', 'withdraw'} and profile is None:
         raise ValueError('the route manifest has no scoped reading owner for ' + operation)
     managed = profile['documents'] if profile is not None else {}
+    deferred = profile.get('deferred_documents', {}) if profile is not None else {}
     documents, owners, section_owners = [], {}, {}
     # Curation declares its source owners independently of the route defaults.
     # Other operations refine only documents the actual route/features selected;
     # a profile must never activate an otherwise unselected specialist.
     paths = [*selections, *managed] if operation in {'adopt', 'withdraw'} else selections
     for path in dict.fromkeys(paths):
+        if path in deferred:
+            continue
         selected_by = selections.get(path, [])
         rules = [rule for rule in managed.get(path, [])
                  if ('scopes' not in rule or scope in rule['scopes'])
@@ -266,6 +269,17 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
     for operation, profile in d.get('reading_scopes', {}).items():
         if operation not in (*OPERATIONS, 'authoring'):
             errors.append('unknown reading profile operation: ' + operation)
+        deferred = profile.get('deferred_documents', {})
+        if not isinstance(deferred, dict):
+            errors.append(operation + ': deferred_documents must name documents and their other-phase ownership')
+            deferred = {}
+        for path, reason in deferred.items():
+            if path in profile['documents'] or not isinstance(reason, str) or not reason.strip():
+                errors.append(operation + ': a deferred document needs one reason and no selected section rules: ' + path)
+            try:
+                read(local(root, path)).decode('utf-8')
+            except (ValueError, OSError, TypeError) as exc:
+                errors.append(f'{operation}: {path}: {exc}')
         for path, rules in profile['documents'].items():
             try:
                 available = {row['anchor'] for row in document_sections(read(local(root, path)))}

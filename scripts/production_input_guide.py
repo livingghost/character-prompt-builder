@@ -53,6 +53,8 @@ OWNERS = {
 # authoring fields or validation rules. The selected target kind remains an
 # explicit choice even when the task uses an external execution branch.
 CHILD_OWNERS = {
+    'authoring.task.direction': ('Own the task direction at this existing choices field; its production contract keeps its contextual checks.',
+                                 'references/runtime/production-direction.md#record-the-production-direction'),
     'authoring.task.recording': ('Own explicit subject IDs and their Studio character assignments for recording.',
                                 'references/character-identity-contract.md#source-to-input-and-review-coverage'),
     'target.model': ('Select the actual model name or acquired external interface.', EXTERNAL_DOCUMENT),
@@ -394,11 +396,48 @@ def _external_fields(root: Path, choices_path: str, choices: dict, name: str, ro
 def _schema_field(schema: dict, parts: list[str]) -> dict:
     selected = schema
     for part in parts:
+        selected = _resolve_schema_reference(schema, selected)
         found = [variant['properties'][part] for variant in _variants(selected)
                  if part in variant.get('properties', {})]
         if not found:
             return {}
         selected = found[0] if len(found) == 1 else {'anyOf': found}
+    return _resolve_schema_reference(schema, selected)
+
+
+def _schema_reference(schema: dict, parts: list[str]) -> str | None:
+    """Return the declared local reference for an exact choices path, if any."""
+    selected = schema
+    for part in parts:
+        selected = _resolve_schema_reference(schema, selected)
+        found = [variant['properties'][part] for variant in _variants(selected)
+                 if part in variant.get('properties', {})]
+        if len(found) != 1:
+            return None
+        selected = found[0]
+    reference = selected.get('$ref') if isinstance(selected, dict) else None
+    return reference if isinstance(reference, str) else None
+
+
+def _resolve_schema_reference(schema: dict, selected: dict) -> dict:
+    """Follow local JSON Schema references so a public field shows its real shape."""
+    seen = set()
+    while isinstance(selected, dict):
+        reference = selected.get('$ref')
+        if not isinstance(reference, str) or not reference.startswith('#/') or reference in seen:
+            return selected
+        seen.add(reference)
+        target = schema
+        try:
+            for part in reference[2:].split('/'):
+                part = part.replace('~1', '/').replace('~0', '~')
+                target = target[int(part)] if isinstance(target, list) else target[part]
+        except (ValueError, IndexError, KeyError, TypeError):
+            return selected
+        siblings = {key: value for key, value in selected.items() if key != '$ref'}
+        if siblings:
+            return {'allOf': [target, siblings]}
+        selected = target
     return selected
 
 
@@ -530,9 +569,10 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
             row['content_schema'] = 'schemas/authoring/production-task.schema.json'
             row['schema_scope'] = ('This is the compiled task contract. The draft owns authored task fields; '
                 'delivery, generation, route_reading, image_input and authored_basis are derived by their builders.')
+            direction = _child(root, choices_path, 'authoring.task.direction', contract='production_direction')
+            direction['explain_command'] = 'python scripts/production_document_contracts.py explain production_direction'
             row['child_contracts'] = {
-                'direction': {'explain_command': 'python scripts/production_document_contracts.py explain production_direction',
-                              **contracts.guidance('production_direction')},
+                'direction': direction,
                 'authority': {'source': value.get('authority') if isinstance(value, dict) else None,
                               'explain_command': 'python scripts/production_document_contracts.py explain authority',
                               **contracts.guidance('authority')},
@@ -541,6 +581,19 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
             }
             row['child_contracts']['recording']['explain_action'] = action(
                 root, choices_path, field='authoring.task.recording')
+        if name == 'authoring.task.direction':
+            row['declaration'] = _field_shape(actual)
+            contract = contracts.metadata('production_direction')
+            row['contract'] = {key: value for key, value in contract.items() if key != 'structure'}
+            row['contract_action'] = contracts.explain_action('production_direction')
+            reference = _schema_reference(schema, parts)
+            if reference is not None:
+                row['referenced_schema_pointer'] = reference[1:]
+                row['schema_pointer'] = reference[1:]
+                row['choices_schema_pointer'] = '/properties/' + '/properties/'.join(parts)
+            row['required_action'] = ('Edit this declared direction in the current choices file. Follow contract_action '
+                'for its production-direction schema and contextual checks; task sources, independent criteria and '
+                'actual authority remain separate inputs.')
         if name == 'authoring.task.recording':
             row['content_schema'] = 'schemas/authoring/production-task.schema.json'
             row['schema_pointer'] = '/properties/recording'

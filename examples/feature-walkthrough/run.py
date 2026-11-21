@@ -240,7 +240,7 @@ def run(out: Path) -> dict:
             import production_fixtures
             production_fixtures.bind_work_basis(root,task,request=BRIEF)
             write(root/'task.json',task)
-            prepared=json.loads(walk.run('production_workflow','prepare','--root',str(root),'--task','task.json',*runtime))
+            prepared=json.loads(walk.run('production_workflow','prepare','--root',str(root),'--task','task.json','--view','full',*runtime))
             run_id=prepared['run'];directory=Path(prepared['package']).parent
             shown=c.load(directory/'request-contract.json');built=c.load(directory/'package.json')
             # Exports are projections, not independently edited requests.

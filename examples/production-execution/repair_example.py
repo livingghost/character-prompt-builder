@@ -106,7 +106,8 @@ def run(out: Path) -> dict:
                  '--cost-pointer', '["cost"]', '--reason',
                  'The local fixture host produced this PNG from its exact recorded input; no provider or billing claim.')
         rp = filename + '.review.json'
-        review = workflow(rid, 'draft-review', '--candidate', candidate['sha256'], '--out', rp)['choices']
+        workflow(rid, 'draft-review', '--candidate', candidate['sha256'], '--out', rp)
+        review = json.loads((out / rp).read_text(encoding='utf-8'))
         with Image.open(out / filename) as actual:
             center, corner = actual.getpixel((16, 12)), actual.getpixel((0, 0))
         verdict = 'pass' if center != corner else 'fail'

@@ -125,6 +125,38 @@ class ReadingTests(unittest.TestCase):
         with patch('catalog_retrieval.runtime.load_pack_catalog', return_value=catalog(other, failed)):
             with self.assertRaisesRegex(ValueError, '^warning: pack pack-b is invalid'):
                 r.capture('generation', ['prompt-dialect'], root=self.root, execution='dispatcher')
+
+    def test_saved_request_operations_deliver_their_contract_without_all_authoring_families(self):
+        self.manifest['features']['prompt-dialect'] = {'reads': [], 'source_roles': []}
+        (self.root / r.execution_routes.MANIFEST).write_bytes(c.encoded(self.manifest))
+        for operation in ('execute', 'review'):
+            with self.subTest(operation=operation), patch.object(r, '_live_resource_reader',
+                    side_effect=AssertionError('A saved request must not resolve live authoring resources')):
+                issued = r.issue('generation', ['prompt-dialect'], root=self.root,
+                    operation=operation, execution='external', ledger=self.ledger, stream=io.StringIO())
+                record = r.draft_record(issued)
+                self.assertEqual(record['resources'], {})
+                self.assertIsNone(record['model'])
+                verified = r.require_route_reading(record, root=self.root, ledgers=[self.ledger],
+                    operation=operation, execution='external')
+                self.assertEqual(sum(item['body']['source_end'] - item['body']['source_start']
+                                     for item in verified['delivery']['bodies']),
+                    sum(end['end'] - end['start'] for document in record['documents'] for end in document['ranges']))
+
+    def test_saved_request_reading_action_uses_saved_task_without_live_model_selection(self):
+        from types import SimpleNamespace
+        loaded = SimpleNamespace(prepared={'run': 'saved-run', 'task': {
+            'route': 'generation', 'execution': 'external', 'features': ['body-plan', 'prompt-dialect']}})
+        for operation in ('execute', 'review'):
+            action = r.operation_reading_action(self.root, 'saved-run', operation=operation, loaded=loaded)
+            self.assertEqual(action['command'], 'read')
+            self.assertEqual(action['argv'][action['argv'].index('--operation') + 1], operation)
+            self.assertEqual(action['argv'][action['argv'].index('--execution') + 1], 'external')
+            self.assertNotIn('--model', action['argv'])
+            self.assertNotIn('--model-file', action['argv'])
+            self.assertEqual(action['argv'][-4:], ['--feature', 'body-plan', '--feature', 'prompt-dialect'])
+        with self.assertRaisesRegex(ValueError, 'another run'):
+            r.operation_reading_action(self.root, 'different-run', operation='review', loaded=loaded)
     def test_skill_names_every_route_and_feature(self):
         # The agent picks ROUTE and --feature from the list SKILL.md carries.
         self.assertEqual(r.execution_routes.unnamed(self.manifest,'route `generation`, feature `extra`'),['development'])
@@ -283,7 +315,10 @@ class ReadingTests(unittest.TestCase):
                         received.setdefault(meta['path'], []).append((meta, body))
                 self.assertEqual(manifest['execution'], execution)
                 for name in names:
-                    self.assertEqual(b''.join(body for _, body in received[name]), (r.ROOT/name).read_bytes())
+                    self.assertIn(name, received)
+                    if not ((operation == 'execute' and name == 'references/runtime/production-permissions.md')
+                            or (operation == 'review' and name == 'references/runtime/authoring-work.md')):
+                        self.assertEqual(b''.join(body for _, body in received[name]), (r.ROOT/name).read_bytes())
                 for document in manifest['documents']:
                     source = (r.ROOT/document['path']).read_bytes()
                     expected = b''.join(source[part['start']:part['end']] for part in document['ranges'])
@@ -319,16 +354,14 @@ class ReadingTests(unittest.TestCase):
             self.assertEqual(argv[:3], [os.path.abspath(sys.executable),
                                        str(r.ROOT / 'scripts/execution_routes.py'), 'read'])
             self.assertTrue(action['reason'].strip())
-            self.assertTrue(action['command'].strip())
-            if os.name != 'nt':
-                self.assertEqual(shlex.split(action['command']), argv)
+            self.assertEqual(action['command'], 'read')
             expected = {'--root': str(studio), '--reading-ledger': str(ledger),
-                        '--page-bytes': str(page_bytes), **runtime}
+                        '--page-bytes': str(page_bytes)}
             for option, value in expected.items():
                 self.assertEqual(argv.count(option), 1, argv)
                 self.assertEqual(argv[argv.index(option) + 1], value, argv)
-            self.assertEqual([argv[i + 1] for i, word in enumerate(argv) if word == '--pack-root'],
-                             [str(path) for path in roots])
+            for option in [*runtime, '--pack-root']:
+                self.assertNotIn(option, argv)
             option = '--snapshot' if name in {'next', 'index', 'all'} else '--' + name
             self.assertEqual(argv.count(option), 1, argv)
             if name == 'next':
@@ -511,7 +544,8 @@ class ReadingTests(unittest.TestCase):
             result = r.read_command(args, parser)
         self.assertTrue(ledger.is_file())
         self.assertEqual(result['issued']['row']['route'], 'development')
-        self.assertIn(str(ledger), result['context_reuse']['operations']['save']['argv'])
+        self.assertEqual(set(result['context_reuse']['operations']), {'author'})
+        self.assertIn(str(ledger), result['context_reuse']['operations']['author']['argv'])
 
     def family_catalog(self):
         pack=self.root/'pack';(pack/'resources').mkdir(parents=True)
@@ -1406,6 +1440,46 @@ class ReadingTests(unittest.TestCase):
         self.assertIn('external-image-work',
                       {row['anchor'] for row in external['section_owners']['references/runtime/render-contract.md']})
 
+    def test_saved_operation_profiles_read_execution_and_review_without_reopening_authoring(self):
+        executed = r.execution_routes.resolve('character-sheet', operation='execute', execution='dispatcher')
+        owners = executed['section_owners']
+        self.assertNotIn('references/runtime/authorial-intent.md', owners)
+        self.assertNotIn('templates/narrative/design/design-template.md', owners)
+        self.assertNotIn('generation-package-1',
+                         {row['anchor'] for row in owners['references/runtime/generation-package.md']})
+        self.assertTrue({'execute-the-prepared-request', 'capture-and-recover-the-provider-result',
+                         'forward-the-exact-verified-input', 'failure-policy'} <=
+                        {row['anchor'] for row in owners['references/runtime/generation-package.md']})
+        for path in ('references/runtime/production-request-execution.md',
+                     'references/runtime/production-dispatch.md', 'references/runtime/production-recovery.md'):
+            raw = (r.ROOT / path).read_bytes()
+            selected = next(item for item in executed['reads'] if item['path'] == path)
+            self.assertEqual(selected['ranges'], [{'start': 0, 'end': len(raw), 'sha256': c.digest(raw)}])
+        reviewed = r.execution_routes.resolve('character-sheet', operation='review', execution='dispatcher')
+        self.assertIn('references/runtime/authorial-intent.md', reviewed['section_owners'])
+        self.assertNotIn('templates/narrative/design/design-template.md', reviewed['section_owners'])
+        raw = (r.ROOT / 'references/runtime/production-review.md').read_bytes()
+        selected = next(item for item in reviewed['reads'] if item['path'] == 'references/runtime/production-review.md')
+        self.assertEqual(selected['ranges'], [{'start': 0, 'end': len(raw), 'sha256': c.digest(raw)}])
+        self.assertTrue({'observe-and-repair', 'preserve-accepted-variation-at-its-declared-scope'} <=
+                        {row['anchor'] for row in reviewed['section_owners']['references/runtime/production-direction.md']})
+
+    def test_saved_operation_scope_covers_all_routes_and_preserves_unmanaged_specialists(self):
+        manifest = c.load(r.ROOT / r.execution_routes.MANIFEST)
+        for route in manifest['routes']:
+            for execution in r.execution_routes.EXECUTIONS:
+                for operation in ('execute', 'review'):
+                    with self.subTest(route=route, execution=execution, operation=operation):
+                        resolved = r.execution_routes.resolve(route, operation=operation, execution=execution)
+                        self.assertTrue(resolved['reads'])
+                        self.assertTrue(all(row['ranges'] for row in resolved['reads']))
+                        self.assertEqual(set(resolved['section_owners']), {row['path'] for row in resolved['reads']})
+        ordinary = r.execution_routes.resolve('generation', ['body-plan'], operation='review', execution='external')
+        specialist = manifest['features']['body-plan']['reads'][0]
+        raw = (r.ROOT / specialist).read_bytes()
+        selected = next(item for item in ordinary['reads'] if item['path'] == specialist)
+        self.assertEqual(selected['ranges'], [{'start': 0, 'end': len(raw), 'sha256': c.digest(raw)}])
+
     def test_sparse_foundation_expands_to_complete_finishing_with_only_missing_bytes(self):
         path = 'references/finishing-layers-specification.md'
         raw = (r.ROOT / path).read_bytes()
@@ -1830,11 +1904,8 @@ class ScopedReadingTests(unittest.TestCase):
                             for item in slot['context_reuse']['curation_scopes']))
         self.assertFalse(any(item['operation'] == 'adopt' and item['scope'] == 'studio-slot'
                              for item in slot['context_reuse']['curation_scopes']))
-        action = next(item['action'] for item in slot['context_reuse']['curation_scopes']
-                      if item['operation'] == 'adopt' and item['scope'] == 'sheet'
-                      and item['source_kind'] == 'production-candidate')
-        self.assertIn('--known-reading', action['argv'])
-        self.assertEqual(action['argv'][action['argv'].index('--scope') + 1], 'sheet')
+        self.assertEqual(slot['context_reuse']['curation_scopes'], [])
+        self.assertEqual(slot['context_reuse']['arguments'], ['--known-reading', slot['reading']['key']])
         indexed = r.read_page(route='adoption', operation='adopt', execution='dispatcher', scope='sheet',
             source_kind='production-candidate', root=r.ROOT, ledger=ledgers['studio-slot'], stream=io.StringIO(),
             known_reading_keys=[slot['reading']['key']], navigation=True)
@@ -1860,7 +1931,10 @@ class ScopedReadingTests(unittest.TestCase):
                 return r.read_command(args, parser)
         indexed = command(action['argv'][3:])
         self.assertEqual((indexed['metadata']['scope'], indexed['metadata']['source_kind']), ('sheet', 'production-candidate'))
-        first = command(indexed['actions']['all']['argv'][3:])
+        self.assertEqual(indexed['mode'], 'all')
+        self.assertTrue(indexed['body'])
+        self.assertIsNone(indexed['actions']['next'])
+        first = indexed
         fresh = command(first['actions']['restart']['argv'][3:])
         self.assertEqual((fresh['metadata']['scope'], fresh['metadata']['source_kind']), ('sheet', 'production-candidate'))
         self.assertEqual(fresh['progress']['reused_bytes'], 0)

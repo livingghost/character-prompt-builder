@@ -38,6 +38,32 @@ python scripts/run_checks.py
 
 In a source checkout, check the changed files with `git diff --check`.
 
+### Keep the tested revision reproducible
+
+Regenerate host guides, manifests and implementation indexes from their declared
+source owners. After changing implementation, run `scripts/rebuild_metadata.py`
+before checks or sample builders that enforce the installed module index.
+An `IMPLEMENTATION_CHANGED` refusal identifies stale installation metadata; retain
+that failed attempt and correct the source/index relationship before assessing
+the behavior. Do not patch captured hashes or relax the refusal to make it pass.
+
+Executable examples can retain exact routed documents and reading evidence.
+When those inputs change, rebuild the affected canonical example with its own
+builder, such as `examples/state-aware-pilot/build_example.py`, and regenerate
+metadata again after its outputs change. Preserve user Studios and historical
+trial artifacts separately from these product-owned synthetic examples.
+
+Record the source inventory and hashes used for the focused checks, full required
+gates and package. Verify the final archive against that source, including its
+generated metadata, release identity and extracted contents. Reuse completed
+checks for an unchanged snapshot; later edits are a new verification boundary.
+Keep incomplete runs and their logs, and state whether a result is an executed
+pass, a skipped environment-specific case, synthetic coverage or unverified
+behavior. A successful package check does not replace the test suites, an agent
+trial or a platform that was not exercised. Follow
+[workflow trial records](agent-workflow-design.md#workflow-trial-records) for
+operator effort, independent review and causal assessment of mistakes.
+
 Read-boundary and concurrency changes also exercise
 `python -m unittest test_production_read_model test_execution_replay test_reference_read_model` from
 `scripts/`. These tests use product-owned synthetic data, concurrent SQLite
@@ -336,6 +362,7 @@ The full runner above covers the public contracts through these developer checks
 | Input variants and explicit target changes | [test_production_variation.py](../../scripts/test_production_variation.py), [test_production_retarget.py](../../scripts/test_production_retarget.py) |
 | Public commands, JSON files and standard input | [test_production_cli.py](../../scripts/test_production_cli.py), [test_production_file_input.py](../../scripts/test_production_file_input.py) |
 | Candidate evaluation and canonical adoption | [test_production_review.py](../../scripts/test_production_review.py), [test_production_adoption.py](../../scripts/test_production_adoption.py) |
+| One instruction across selection and canonical use, numbered grant choice, retained partial claims, imported provenance and historical retry | [test_production_curation.py](../../scripts/test_production_curation.py) |
 | Current placement, historical acceptance and interrupted reassignment | [test_studio_placement.py](../../scripts/test_studio_placement.py), [test_production_acceptance.py](../../scripts/test_production_acceptance.py), [test_scene_slot_workflow.py](../../scripts/test_scene_slot_workflow.py) |
 | Accepted scene edits, subject continuity and canonical withdrawal | [test_production_edit_inputs.py](../../scripts/test_production_edit_inputs.py), [visual_continuity_smoke_test.py](../../scripts/visual_continuity_smoke_test.py), [sheet_artifacts_smoke_test.py](../../scripts/sheet_artifacts_smoke_test.py) |
 | Imported package attribution, adoption recovery and current reference evidence | [studio_smoke_test.py](../../scripts/studio_smoke_test.py), [feature_workflow_smoke_test.py](../../scripts/feature_workflow_smoke_test.py), [studio_reference_smoke_test.py](../../scripts/studio_reference_smoke_test.py) |

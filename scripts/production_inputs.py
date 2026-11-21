@@ -346,9 +346,9 @@ def _reading_required(field: str, root: Path, task: dict, choices: dict,
         message = 'reading.reading_key is empty, so these choices select no completed route reading.'
         value = 'reading.reading_key to the issued reading.key'
     return choice_required(field, 'reading-required', message,
-        'Open the route index with ' + action['shown'] + '. Use actions.all for a complete paged read, or '
-        'read each required section through actions.next and actions.continue. Continue until reading is '
-        'non-null; a null actions.continue ends only the selected section. Then set ' + value + '.',
+        'Read the complete current scope with ' + action['shown'] + '. Follow actions.continue through '
+        'its bounded pages until reading is non-null. actions.index exposes the exact source scope '
+        'and optional section selection. Then set ' + value + '.',
         {'document_path': 'references/runtime/production-authoring.md#select-and-read-the-current-knowledge'},
         next_action=action, next_actions=[action])
 
@@ -502,13 +502,13 @@ def _validation_choices(root: Path, task: dict, reader: InputEvidence, saved: di
 
 def _reading_action(root: Path, task: dict, choices: dict, runtime_arguments: dict | None = None, *,
                     choices_path: str | None = None, authoring_scope: dict | None = None) -> dict:
-    """Offer the real route reader; inspecting a target never fabricates delivery."""
+    """Begin bounded delivery of the current scope through the real route reader."""
     root = c._root(root)
     from cli_invocation import python_argv, shown
     operation = (reading_scope.operation((authoring_scope or {}).get('stage') or reading_scope.stage(choices, task),
                                         task['execution']) if 'authoring_stage' in choices or authoring_scope is not None
                  else 'author' if task['execution'] == 'authored' else 'prepare')
-    args = {'root': str(root), 'operation': operation, 'execution': task['execution'],
+    args = {'root': str(root), 'operation': operation, 'execution': task['execution'], 'all': True,
             'feature': task['features'], **(runtime_arguments or {})}
     if choices_path is not None and 'authoring_stage' in choices:
         args['choices'] = choices_path
@@ -523,6 +523,10 @@ def _reading_action(root: Path, task: dict, choices: dict, runtime_arguments: di
         args['dialect'] = selected['model']['prompt_dialect']
     argv = python_argv(ROOT / 'scripts/execution_routes.py', 'read', task['route'])
     for name, value in args.items():
+        if isinstance(value, bool):
+            if value:
+                argv.append('--' + name)
+            continue
         for item in value if isinstance(value, list) else [value]:
             argv.extend(('--' + name, str(item)))
     return {'operation': 'read', 'script': 'scripts/execution_routes.py', 'args': args,
@@ -1907,14 +1911,22 @@ def _assemble_current(root: Path, task_path: str | None, choices_path: str, out_
                                    authoring_scope=final_scope)] if any(
             item['field'].startswith('reading') for item in missing) else []
         if actions and final_scope is not None and reading_scope.stage(choices, task) != 'prepare':
-            advance = next(item for item in reading_scope.actions(root, choices_path,
-                reading_scope.stage(choices, task), runtime_arguments) if item['stage'] == 'prepare')
+            if any(not item['field'].startswith('reading') for item in missing):
+                advance = production_authoring_state._action(root, 'inspect-inputs',
+                    '--choices', choices_path, *production_authoring_state._arguments(runtime_arguments or {}),
+                    reason='Resolve the named authored choices in their current stage before final input binding.')
+                instruction = ('Continue the named incomplete choices in their current stage with ' + advance['shown'] +
+                    '. Final input-binding guidance is still required after the content is complete.')
+            else:
+                advance = next(item for item in reading_scope.actions(root, choices_path,
+                    reading_scope.stage(choices, task), runtime_arguments) if item['stage'] == 'prepare')
+                instruction = ('Continue the completed authored content at prepare with ' + advance['shown'] +
+                    ', then read its current input-binding contract and select the issued reading key.')
             actions = [advance]
             for item in missing:
                 if item['field'].startswith('reading'):
                     item.update(next_action=advance, next_actions=[advance],
-                        required_action='Continue the completed authored content at prepare with ' + advance['shown'] +
-                            ', then read its current input-binding contract and select the issued reading key.')
+                        required_action=instruction)
         return {'state': 'draft', 'ok': False, 'inputs': {}, 'unresolved': missing,
                 'target_knowledge': projected['knowledge'],
                 'derived_from': {'task': task_ref, 'choices': choices_ref},

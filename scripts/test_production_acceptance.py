@@ -191,6 +191,12 @@ class AcceptanceTests(review_cases.ReviewCase):
                      'accept --run ' + self.run + ' --file FILE'):
             self.assertIn(part, diagnostic.required_action)
         self.assertEqual(self.row(self.candidate)['acceptances'], [])
+        with self.assertRaises(ProductionError) as stale:
+            self.accept()
+        self.assertEqual(stale.exception.diagnostic.code, 'SELECTION_REPLACED')
+        value = acceptance.draft(self.root, self.run, self.candidate, scope='studio-slot')
+        value['reason'] = 'The synthetic owner now selects this reviewed result for its Studio slot.'
+        fixtures.write(self.root / 'acceptance.json', value)
         result = self.accept()
         selections = [row for row in self.events() if row['event'] == 'selection']
         self.assertEqual([row['data']['selection']['replaces'] for row in selections],
@@ -533,18 +539,24 @@ class DeliveryAcceptanceTests(review_cases.ReviewCase):
             with self.assertRaises(OSError):
                 acceptance.accept(self.root, self.run, decision_file=path)
 
-    def test_earlier_decision_applied_again_replaces_the_current_selection(self):
+    def test_earlier_decision_retry_preserves_the_current_selection(self):
         self.record_review([('output', 'pass'), ('palette', 'pass')])
         first = self.decided('first-choice.json', 'The synthetic owner selects this reviewed result for delivery.')
         self.interrupted(first)
         self.interrupted(self.decided('second-choice.json', 'The synthetic owner selects it for another stated reason.'))
-        result = acceptance.accept(self.root, self.run, decision_file=first)
+        before = store.event_rows(self.root, self.run)
+        self.assertCode('SELECTION_REPLACED', lambda: acceptance.accept(self.root, self.run, decision_file=first))
+        self.assertEqual(store.event_rows(self.root, self.run), before)
+        # The same semantic reason can be used for a newly intended choice:
+        # its generated current-selection binding supplies the new identity.
+        fresh = self.decided('fresh-choice.json', 'The synthetic owner selects this reviewed result for delivery.')
+        result = acceptance.accept(self.root, self.run, decision_file=fresh)
         rows = store.event_rows(self.root, self.run)
         selections = [row for row in rows if row['event'] == 'selection']
         self.assertEqual([row['data']['selection']['replaces'] for row in selections],
                          [None, selections[0]['sha256'], selections[1]['sha256']])
         self.assertEqual(result['selection'], selections[2]['sha256'])
-        self.assertEqual(selections[2]['data']['files'], selections[0]['data']['files'])
+        self.assertNotEqual(selections[2]['data']['files'], selections[0]['data']['files'])
         self.assertEqual(workflow.candidate_state(self.root, self.run, self.candidate)['decision'], result['selection'])
         authorizations = [workflow.find(rows, 'authorization', row['data']['selection']['authorization'])
                           for row in selections]
@@ -552,10 +564,10 @@ class DeliveryAcceptanceTests(review_cases.ReviewCase):
         self.assertEqual(authorizations[2]['data']['request']['payload']['replaces'], selections[1]['sha256'])
         self.assertEqual(workflow.verify_completion(self.root, self.run, result['task_id'])['data']['selection'],
                          result['selection'])
-        self.assertEqual(acceptance.accept(self.root, self.run, decision_file=first), result)
+        self.assertEqual(acceptance.accept(self.root, self.run, decision_file=fresh), result)
         self.assertEqual(store.event_rows(self.root, self.run), rows)
 
-    def test_decision_applied_again_after_its_withdrawal_records_a_new_selection(self):
+    def test_decision_retry_after_withdrawal_requires_a_fresh_decision(self):
         self.record_review([('output', 'pass'), ('palette', 'pass')])
         choice = self.decided('withdrawn-choice.json', 'The synthetic owner selects this reviewed result for delivery.')
         self.interrupted(choice)
@@ -565,7 +577,11 @@ class DeliveryAcceptanceTests(review_cases.ReviewCase):
         fixtures.write(self.root / 'disposition.json', value)
         workflow.disposition(self.root, self.run, 'disposition.json')
         self.assertCode('SELECTION_WITHDRAWN', lambda: self.apply(supplied=False))
-        result = acceptance.accept(self.root, self.run, decision_file=choice)
+        before = store.event_rows(self.root, self.run)
+        self.assertCode('SELECTION_REPLACED', lambda: acceptance.accept(self.root, self.run, decision_file=choice))
+        self.assertEqual(store.event_rows(self.root, self.run), before)
+        fresh = self.decided('renewed-choice.json', 'The synthetic owner selects this reviewed result for delivery.')
+        result = acceptance.accept(self.root, self.run, decision_file=fresh)
         selections = [row for row in store.event_rows(self.root, self.run) if row['event'] == 'selection']
         self.assertEqual([row['data']['selection']['replaces'] for row in selections], [None, selections[0]['sha256']])
         self.assertEqual(result['selection'], selections[1]['sha256'])
@@ -643,8 +659,8 @@ class DeliveryAcceptanceTests(review_cases.ReviewCase):
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
             return json.loads(completed.stdout)
         draft = call('draft-acceptance', '--candidate', self.candidate, '--out', 'cli-choice.json')
-        self.assertEqual(draft['choices']['scope'], 'delivery-only')
         self.assertEqual(draft['draft_file'], 'cli-choice.json')
+        self.assertEqual(c.load(self.root / draft['draft_file'])['scope'], 'delivery-only')
         self.assertEqual(draft['reading_action']['argv'][draft['reading_action']['argv'].index('--scope') + 1], 'delivery-only')
         self.assertEqual(draft['next_action']['argv'][-2:], ['--file', 'cli-choice.json'])
         value = c.load(self.root / 'cli-choice.json')
@@ -690,7 +706,7 @@ class RepeatedDecisionStatusTests(review_cases.ReviewCase):
         fixtures.write(self.root / 'disposition.json', value)
         workflow.disposition(self.root, self.run, 'disposition.json')
 
-    def test_status_action_for_the_first_candidate_records_a_new_selection(self):
+    def test_status_action_for_earlier_candidate_drafts_a_fresh_selection(self):
         first, second = self.candidates
         for candidate in self.candidates:
             self.record_review([('output', 'pass'), ('palette', 'pass')], candidate)
@@ -699,8 +715,13 @@ class RepeatedDecisionStatusTests(review_cases.ReviewCase):
         self.decide(second)
         self.withdraw(second, 'not_selected')
         action = self.options()[first]
-        self.assertEqual((action['command'], action['draft']), ('accept', earlier))
-        result = self.cli(action['argv'])
+        self.assertEqual(action['command'], 'draft-acceptance')
+        self.assertNotEqual(action['draft'], earlier)
+        self.cli(action['argv'])
+        choice = c.load(self.root / action['draft'])
+        choice['reason'] = 'The synthetic owner makes a fresh selection after reconsidering both candidates.'
+        fixtures.write(self.root / action['draft'], choice)
+        result = self.cli(self.options()[first]['argv'])
         rows = store.event_rows(self.root, self.run)
         selections = [row for row in rows if row['event'] == 'selection']
         self.assertEqual([row['data']['selection']['candidate'] for row in selections], [first, second, first])

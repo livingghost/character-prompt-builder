@@ -124,6 +124,9 @@ class RetargetTests(unittest.TestCase):
             'CPB_HOME': str(production_fixtures.scratch_home_dir(self.base / 'continuation-home'))}
 
         def invoke(argv):
+            import production_workflow
+            if len(argv) > 2 and argv[2] in production_workflow.SUMMARY_COMMANDS:
+                argv = [*argv, '--view', 'full']
             result = subprocess.run(authoring_fixtures.authoring_arguments(argv), cwd=self.base, env=environment, capture_output=True,
                                     text=True, encoding='utf-8', timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

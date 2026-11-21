@@ -1174,10 +1174,12 @@ def attach_package(root: Path, character: str, iteration_id: str, *, package: Pa
 
 
 @mutation
-def accept(root: Path, character: str, iteration_id: str, *, production_selection: str | None = None) -> dict[str, Any]:
+def accept(root: Path, character: str, iteration_id: str, *, production_selection: str | None = None,
+           curation_authorization: dict | None = None) -> dict[str, Any]:
     """Accept an explicitly chosen iteration, or recover one exact Production effect."""
     with recording_lock(root, character=character):
-        return _record_accept(root, character, iteration_id, production_selection=production_selection)
+        return _record_accept(root, character, iteration_id, production_selection=production_selection,
+                              curation_authorization=curation_authorization)
 
 
 def acceptance_state(root: Path, character: str, slot: str, *, read: StudioRead | None = None) -> dict[str, Any] | None:
@@ -1205,12 +1207,18 @@ def verify_accepted_file(root: Path, row: dict[str, Any]) -> None:
 
 
 def _record_accept(root: Path, character: str, iteration_id: str, *,
-                   production_selection: str | None = None, read: StudioRead | None = None) -> dict[str, Any]:
+                   production_selection: str | None = None, read: StudioRead | None = None,
+                   curation_authorization: dict | None = None) -> dict[str, Any]:
     root = root.resolve()
     read = read or StudioRead(root)
     home = read.home(character)
     rows = mutable(read.adoption_rows(character))
     row = mutable(read.iteration(character, iteration_id))
+    if curation_authorization is not None:
+        if production_selection is not None:
+            raise ValueError('A slot use belongs to one exact selection or curation authorization.')
+        from production_curation import validate_slot_authorization
+        validate_slot_authorization(root, character, iteration_id, curation_authorization)
     rows = [row if item['iteration_id'] == iteration_id else item for item in rows]
     target_slot = placement_slot(row)
     if row.get("production_diagnostic"):
@@ -1240,9 +1248,8 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
                 'Another selection of the candidate was recorded while this acceptance was applied.',
                 phase='acceptance', run=run, expected=production_selection, actual=selection['sha256'],
                 required_action=(f'Read the current selection with production_workflow.py status --run {run}. Run '
-                    f'accept --run {run} to resume that selection in its own scope, or apply the decision file of '
-                    f'this acceptance again with accept --run {run} --file FILE, which records it as a new selection '
-                    'that replaces the current one.'))
+                    f'accept --run {run} to resume that selection in its own scope. Use draft-acceptance for a '
+                    f'newly intended replacement and apply the new file with accept --run {run} --file FILE.'))
         saved = [entry for entry in row.get('acceptances', [])
                  if entry.get('production_selection') == selection['sha256']]
         if saved:
@@ -1271,7 +1278,7 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
                     required_action='Inspect the current slot and record a new explicit selection if replacement is still intended.')
     if row.get("status") == "accepted":
         verify_accepted_file(root, row)
-        if production_selection is None:
+        if production_selection is None and curation_authorization is None:
             return row
     if row.get("status") == "rejected":
         raise ValueError(f"{iteration_id} was rejected; record a new iteration instead")
@@ -1300,6 +1307,8 @@ def _record_accept(root: Path, character: str, iteration_id: str, *,
     receipt = {"at": now(), "supersedes": replaced, "slot": target_slot}
     if production_selection is not None:
         receipt['production_selection'] = production_selection
+    if curation_authorization is not None:
+        receipt['curation_authorization'] = curation_authorization
     row["acceptances"] = [*(row.get("acceptances") or []), receipt]
     target = home / "accepted" / f"{target_slot}{source.suffix}"
     # The new copy is in place before a stale one is removed, so the slot is

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from production_report_view import action, authority, authorization_requirements, authoring_state
 from production_report_view import action_view, brief, collection, diagnostics, execution_records, fields
-from production_report_view import reading_actions_once, DETAIL_LIMIT
+from production_report_view import actions_once, DETAIL_LIMIT
 
 
 def _blockers(report: dict) -> list[dict]:
@@ -67,7 +67,7 @@ def summary(root: Path, report: dict, *, run: str | None = None) -> dict:
         'Inspect complete current status, including authority declarations and authored source content.')
     current = report.get('current_task')
     if current is not None:
-        shown = fields(current, ('task_id', 'goal', 'next', 'production_run', 'focus', 'authoring_action'))
+        shown = fields(current, ('task_id', 'goal', 'next', 'production_run', 'production_plan', 'focus', 'authoring_action'))
         collection(shown, 'next_actions', list(enumerate(current.get('next_actions', []))),
             pointer='/current_task/next_actions', project=lambda pair: action_view(pair[1],
                 pointer='/current_task/next_actions/' + str(pair[0])))
@@ -146,7 +146,8 @@ def summary(root: Path, report: dict, *, run: str | None = None) -> dict:
         result['warnings'] = diagnostics(report['warnings'])
     continuations = ([item.get('next_action') for item in result['runs']] if run is not None else
                      (report.get('current_task') or {}).get('next_actions', []))
-    if run is None and ((result.get('current_task') or {}).get('authoring') or {}).get('selection_required'):
+    if (run is None and not (result.get('current_task') or {}).get('production_plan')
+            and ((result.get('current_task') or {}).get('authoring') or {}).get('selection_required')):
         result['next_action'] = {**action(root, 'inspect-inputs', [],
             'Choose an explicitly named editable branch; no branch was selected by this summary.'),
             'requires_author_input': True}
@@ -158,4 +159,4 @@ def summary(root: Path, report: dict, *, run: str | None = None) -> dict:
         result['next_action'] = action_view(next((item for item in continuations if item is not None), None),
                                            pointer='/current_task/next_actions/0')
     result['blockers'] = _blockers(result)
-    return reading_actions_once(result)
+    return actions_once(result)

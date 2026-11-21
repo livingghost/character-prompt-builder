@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Production status navigation view",
-  "description": "Current run, complete blocker locations and executable continuations. Historical arrays have bounded items plus total, omitted and full_report metadata. Diagnostic IDs and action_ref pointers avoid repeating current authoring findings and route-reading commands; the full report retains every original value.",
+  "description": "Current run, complete blocker locations and executable continuations. Historical arrays have bounded items plus total, omitted and full_report metadata. Diagnostic IDs and action_ref pointers avoid repeating current authoring findings and identical executable actions; distinct judgments retain their own actions. The full report retains every original value.",
   "type": "object",
   "properties": {
     "view": {"const": "summary"},
@@ -206,7 +206,7 @@
           "required": ["kind", "task_id", "event_sha256", "file", "field"],
           "additionalProperties": false
         },
-        "repair_action": {"$ref": "authoring/production-status.schema.json#/$defs/next_action"},
+        "repair_action": {"$ref": "#/$defs/next_action"},
         "changes": {"anyOf": [
           {"type": "array", "maxItems": 12, "items": {"$ref": "#/$defs/criterion_change"}},
           {

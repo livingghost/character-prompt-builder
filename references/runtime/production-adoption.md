@@ -2,6 +2,72 @@
 
 Select and adopt actual reviewed artifacts under the requested scope and current authority. Selection, Studio acceptance and canonical reuse remain distinct acts owned by their existing records.
 
+## Continue the intended use through a saved plan
+
+For ordinary work, select the existing source and intended result once in a
+[work plan](production-work-plan.md). A request for a reviewed Production
+image's sheet use contains only its source and meaningful destination:
+
+```json
+{
+  "source": {"run": "RUN", "candidate": "CANDIDATE"},
+  "result": {"scope": "sheet", "influence": "identity"}
+}
+```
+
+```sh
+python scripts/production_workflow.py plan --root STUDIO --file use-request.json
+python scripts/production_workflow.py advance --root STUDIO
+```
+
+`advance` returns the actual artifact, retained review findings, applicable
+reading action and one editable answer file. Record the intended use's reason,
+actual instruction evidence and any current stop judgments there. The owner
+derives actor and mode from a unique applicable grant; if several grants cover
+an operation, the same answer asks for its displayed grant number. If no grant
+covers an operation, the actual instruction must establish that operation and
+destination before the owner derives its additional grant. A select grant
+continues to cover delivery; canonical adoption separately needs `canon:sheet`
+or `canon:catalog`. One instruction can authorize both operations at those
+explicit scopes, without a second transcription of the instruction or judgments.
+When the selected grants name different actors or modes, the draft displays
+each operation's acting authority and derives each formal record independently.
+The shared answer then contains no impossible common actor or mode. Authored
+actor/mode fields are needed for an additional grant or a local imported use.
+
+The answer includes only the additional decisions its source needs. A new
+identity use may need a continuity decision. A retained nonpassing review may
+need explicit acceptance of named criteria and exact unresolved findings.
+An imported source needs actual observation and a conclusion; canonical use
+also retains its original package provenance. A catalog destination names the
+authored registration record and selected pack directory. The runtime captures
+their bytes and derives hashes, owner approval, operation authorizations,
+selection, adoption claim and receipts. The recorded timestamp is the time
+the decision was captured; authors enter no machine timestamps or event digests.
+
+`delivery-only`, `studio-slot`, `sheet`, `catalog` and `withdraw` share this
+continuation. Imported iterations name their original character and iteration;
+Production images keep their original run and candidate. A later Studio-slot
+use of an already completed delivery records its own exact slot receipt and
+preserves the completed run's scope. The relevant owner always verifies the
+actual image and current placement.
+Selecting a sheet projection resolves its retained provenance to that same
+Production or imported iteration owner. A historical projection of that
+iteration can be selected for a new adoption without importing its pixels again.
+
+Repeat `advance` after interruption. It recovers the existing selection, claim
+and owner effect. If authority or a stop definition changed during a pending
+adoption, refresh the saved plan with `plan --file PLAN`: the new answer names
+the change, retains the committed selection and claim, and asks for current
+judgments. A removed or revoked grant is never silently recreated from the old
+answer. Completed receipts report historical completion separately from current
+use, so a later replacement or withdrawal stays effective when an earlier plan
+is inspected or retried. The plan then verifies the formal result, updates its
+explicitly mapped work steps and refreshes the Studio views.
+
+The granular commands below remain useful for inspecting or independently
+recording each owner operation.
+
 ## Select a reviewed result and finish
 
 Use one decision document to select an existing reviewed candidate for delivery:
@@ -15,8 +81,9 @@ python scripts/work_ledger.py finish --studio STUDIO --run RUN
 The draft's default scope is `delivery-only`, for an image, text or other
 captured artifact. The command returns `choices`, the saved
 `draft_file`, a scope-specific `reading_action` and the apply `next_action`.
-Follow the reading action before deciding: it indexes the complete applicable
-selection, authority, Studio and recovery sections for this source and destination.
+Follow the reading action before deciding: it delivers bounded pages of the
+complete applicable selection, authority, Studio and recovery sections for this
+source and destination. `actions.index` exposes their exact scope and navigation.
 Its source text must be delivered before `reading.record` is issued.
 A fresh context follows it without an earlier reading key; the same context may
 explicitly supply its still-known complete keys with `--known-reading`. Use `--scope studio-slot` when the requested result also
@@ -124,13 +191,13 @@ completion or completes the same pending selection; it creates no new run,
 candidate, review or iteration and records no replacement decision. Supplying
 the decision file of that selection again does the same.
 
-A decision whose selection is no longer in force is a new decision. When a
-later selection replaced the one a decision file recorded, or a later
-disposition of its candidate withdrew it, `accept --file` with the same file
-records a new selection that replaces the run's latest one, under its own
-authorization, and completes it; nothing new is authored. Its review must still
-be the candidate's latest. A newer review, which also ends the selection the
-file recorded, makes `accept --file` refuse the file with
+A decision whose selection ended remains its historical record. The draft
+automatically binds `expected_selection` to the latest selection it inspected.
+When a later selection or disposition ended the file's earlier use,
+`accept --file` preserves that later decision and directs the author to a fresh
+`draft-acceptance`. The new draft supplies the current binding, so the author
+can retain an unchanged semantic reason without manufacturing a new reason or
+editing a digest. A newer review makes `accept --file` refuse the file with
 `SELECTION_REVIEW_CHANGED`; its `required_action` gives the `draft-acceptance`
 command that drafts a decision against the latest review. A `studio-slot`
 decision still needs its drafted slot state. A completed run accepts no new
@@ -170,8 +237,8 @@ different slot decision made since it was authorized. Inspect a reported
 conflict before continuing. When another selection of the candidate is
 recorded while `accept` applies a decision, the Studio refuses the slot
 acceptance with `SLOT_ACCEPTANCE_MISMATCH`: `accept --run RUN` resumes that
-selection in its own scope, and `accept --run RUN --file FILE` with the same
-decision file records it again as a new selection that replaces it.
+selection in its own scope. For a newly intended replacement, create and
+complete a fresh `draft-acceptance`, then apply that new file.
 
 The Studio owns the durable slot receipt. Recovery checks that receipt before
 completing the run. An ordinary later replacement of the slot preserves the

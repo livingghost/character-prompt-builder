@@ -449,7 +449,7 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
         task_a = work_ledger.require_open(self.root)['task_id']
         run_a = production('prepare', '--task', 'task.json')['run']
         decisions_a = cases.fill_decisions(self.root, run_a, 'decisions-a.json')
-        call_a = production('execute', '--run', run_a, '--decisions-file', decisions_a)
+        call_a = production('execute', '--run', run_a, '--decisions-file', decisions_a, '--view', 'full')
         self.assertEqual(call_a['state'], 'host-call-required')
         invoke('work_ledger.py', ['suspend', '--studio', str(self.root), '--reason',
             'Keep A waiting for its synthetic host result while opening independent B.'], json_output=False)
@@ -466,7 +466,7 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
         write(self.root, 'task-b.json', spec_b)
         run_b = production('prepare', '--task', 'task-b.json')['run']
         decisions_b = cases.fill_decisions(self.root, run_b, 'decisions-b.json')
-        call_b = production('execute', '--run', run_b, '--decisions-file', decisions_b)
+        call_b = production('execute', '--run', run_b, '--decisions-file', decisions_b, '--view', 'full')
         self.assertEqual(call_b['state'], 'host-call-required')
         self.assertNotEqual(task_a, task_b)
         self.assertNotEqual(run_a, run_b)

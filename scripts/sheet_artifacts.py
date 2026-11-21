@@ -438,11 +438,19 @@ def reoffer(sidecar: Path, slot_id: str, artifact_id: str) -> dict:
     return {'ok': True, **result, 'adopted': False}
 
 
-def draft_adoption(sidecar: Path, slot_id: str, artifact_id: str) -> dict:
+def draft_adoption(sidecar: Path, slot_id: str, artifact_id: str, *, include_history: bool = False) -> dict:
+    """Inspect an exact offered source, optionally including retained sources for a new use."""
     state = _read(sidecar)
     slot = state['slots'].get(slot_id)
-    if slot is None or not any(item['artifact_id'] == artifact_id for item in slot['candidates']):
+    artifacts = list(slot['candidates']) if slot is not None else []
+    if slot is not None and include_history:
+        artifacts += [item['artifact'] for item in slot['history']]
+        if slot.get('current') is not None:
+            artifacts.append(slot['current']['artifact'])
+    artifact = next((item for item in artifacts if item['artifact_id'] == artifact_id), None)
+    if artifact is None:
         raise ValueError('adoption must choose a recorded candidate')
+    verify_artifact(artifact, sidecar.parent)
     current = current_artifact(slot)
     return {'artifact_type': 'sheet-adoption-decision', 'sheet': str(sidecar.resolve()), 'slot': slot_id,
             'artifact_id': artifact_id, 'expected_current': current['artifact_id'] if current else None,

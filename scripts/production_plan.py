@@ -28,14 +28,22 @@ def validate(direction: Any, sources: list[dict], criteria: list[dict], *, task_
     source_ids = {s['id'] for s in sources}
     applied = {s['id'] for s in sources if s['disposition'] == 'applied'}
     criterion_ids = {x['id'] for x in criteria}
-    if set(strings(direction['basis'], 'direction basis')) - applied:
-        raise ValueError('direction basis must reference applied task sources')
+    invalid_basis = set(strings(direction['basis'], 'direction basis')) - applied
+    if invalid_basis:
+        from production_diagnostics import ProductionError
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            'Direction basis names sources that are not applied to this task: ' + ', '.join(sorted(invalid_basis)) + '.',
+            phase='task-contract', pointer='$.direction.basis',
+            invalid_sources=sorted(invalid_basis), available_sources=sorted(applied),
+            required_action='Edit direction.basis to cite the applicable IDs in available_sources, or apply '
+                            'the intended source to the task first. The commission itself remains the request; '
+                            'its request identifier is not an applied source ID.')
     strings(direction['limitations'], 'direction limitations')
     decisions = direction['decisions']
     if not isinstance(decisions, list):
         raise ValueError('decisions must be a list (an empty list is valid)')
     ids: set[str] = set()
-    for decision in decisions:
+    for index, decision in enumerate(decisions):
         c.exact(decision, {'id', 'basis', 'expression', 'realization', 'criteria', 'depends_on', 'deviations'} |
                           ({'note'} if isinstance(decision, dict) and 'note' in decision else set()),
                 'decision')
@@ -48,8 +56,15 @@ def validate(direction: Any, sources: list[dict], criteria: list[dict], *, task_
             c.text(decision['note'], 'decision note')
         if set(strings(decision['basis'], 'decision basis')) - applied:
             raise ValueError('decision cites an unknown or unused source')
-        if set(strings(decision['criteria'], 'decision criteria', nonempty=True)) - criterion_ids:
-            raise ValueError('decision names an unknown criterion')
+        invalid_criteria = set(strings(decision['criteria'], 'decision criteria', nonempty=True)) - criterion_ids
+        if invalid_criteria:
+            from production_diagnostics import ProductionError
+            raise ProductionError('INPUT_CONSISTENCY_ERROR',
+                'Decision names an unknown criterion: ' + ', '.join(sorted(invalid_criteria)) + '.',
+                phase='task-contract', pointer=f'$.direction.decisions[{index}].criteria',
+                decision=ident, invalid_criteria=sorted(invalid_criteria), available_criteria=sorted(criterion_ids),
+                required_action='Edit this decision.criteria to cite the applicable IDs in available_criteria. '
+                                'Keep criterion descriptions in the task criteria; these references name their IDs.')
         strings(decision['depends_on'], 'decision dependencies')
         realization = decision['realization']
         c.exact(realization, {'method', 'instructions', 'capability_source', 'limitations'}, 'realization')

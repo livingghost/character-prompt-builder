@@ -23,9 +23,7 @@ Run documented `python scripts/<name>.py ...` as `uv run --project <skill-root> 
 
 ## Start the current work
 
-Open the Studio task for saved work. Run `production_workflow.py draft-inputs --operation compose|amend --request-file FILE` with the route, artifact, execution, features and target; follow its read action before authoring. Conversational work reads originals.
-
-Use `production_workflow.py stage-inputs --root STUDIO --choices FILE --stage STAGE` for [the current stage](references/runtime/production-workflow.md#read-the-current-stage). After compaction, `inspect-inputs --root STUDIO --choices FILE` locates files and fresh reading; old receipts supply no knowledge.
+Saved work: [plans](references/runtime/production-work-plan.md). Use `python scripts/production_workflow.py plan --root STUDIO` with `--request-file FILE --route prompt-only --scope save` for new text, or `--run RUN --scope sheet --influence identity` for sheet adoption. Follow `advance`, reading action and answer file. [Current stage](references/runtime/production-workflow.md#read-the-current-stage) supplies complete sources; avoid preloading. After compaction reread work. Conversational work reads applicable originals.
 
 ## Core contract
 
@@ -79,9 +77,9 @@ Before definition vocabulary research, prompt, reference, sheet, generation or v
 
 ## Artifact-bearing production gate
 
-Use the draft's read action or `python scripts/execution_routes.py read --root STUDIO --choices FILE` for its current scope. Other operations follow [their contracts](references/runtime/production-execution.md). Read `body` pages through `actions.all` and `actions.continue` until `reading.record` exists; null continuation alone is insufficient. `--known-reading` reuses complete current context; fresh contexts reread. Curation drafts supply independent `--scope` and `--source-kind`; sheet withdrawal uses `--operation withdraw`.
+Use its paged action or `python scripts/execution_routes.py read --root STUDIO --choices FILE --all`. [Other operations](references/runtime/production-execution.md) supply contracts. Read `body` with `actions.continue` until `reading.record` exists; null continuation is insufficient. `actions.index` lists sources/sections; `actions.all` reads the remainder. `--known-reading` reuses complete current context; fresh contexts reread. Curation has independent `--scope` and `--source-kind`; sheet withdrawal uses `--operation withdraw`.
 
-Use `authoring_guide` and `explain-inputs --root STUDIO --choices FILE` for field contracts. At stage `prepare`, use `save --choices FILE` for text or `prepare --choices FILE` for images; `save --draft` preserves unfinished text. `status` locates sources/actions; `build-inputs` exports when needed.
+Use `authoring_guide` and `explain-inputs --root STUDIO --choices FILE` for field contracts. Plans continue their owning operations; direct `save --choices FILE` saves text and `prepare --choices FILE` prepares images at stage `prepare`. `save --draft` retains unfinished text; `status` locates sources/actions and `build-inputs` exports.
 
 ## Choose a runtime path
 

@@ -1604,7 +1604,7 @@ def _draft_action(root: Path, run: str, kind: str, *, candidate: str | None = No
             expected.update(review=basis['review'], replaces=basis['replaces'])
         elif kind == 'acceptance':
             expected.update(run=run, review=basis['review'], scope=scope, grant=grant,
-                            authority_sha256=basis.get('authority'))
+                            authority_sha256=basis.get('authority'), expected_selection=basis.get('expected_selection'))
             if scope == 'studio-slot':
                 expected['expected_slot'] = basis['expected_slot']
                 expected['expected_placement'] = basis['expected_placement']
@@ -1667,6 +1667,7 @@ def _acceptance_action(root: Path, run: str, candidate: dict, prepared: dict,
     """Keep destination-specific checks within the explicitly named use."""
     import production_permissions
     import production_acceptance
+    import production_operations as workflow
     expected_slot = None
     expected_placement = None
     if scope == 'studio-slot':
@@ -1686,6 +1687,7 @@ def _acceptance_action(root: Path, run: str, candidate: dict, prepared: dict,
     saved = []
     for grant in grants:
         basis = {'review': candidate['review'], 'expected_slot': expected_slot, 'expected_placement': expected_placement,
+                 'expected_selection': workflow.replaced_selection(rows),
                  'authority': production_acceptance.authority_basis(authority, grant)}
         action = _draft_action(root, run, 'acceptance', candidate=candidate['candidate'], grant=grant,
             scope=scope, basis=basis, prepared=prepared, existing_only=True)
@@ -1696,7 +1698,8 @@ def _acceptance_action(root: Path, run: str, candidate: dict, prepared: dict,
         action = _choose_drafts(root, run, 'acceptance', saved)
     else:
         grant = grants[0] if len(grants) == 1 else None
-        basis = {'review': candidate['review'], 'expected_slot': expected_slot, 'expected_placement': expected_placement}
+        basis = {'review': candidate['review'], 'expected_slot': expected_slot, 'expected_placement': expected_placement,
+                 'expected_selection': workflow.replaced_selection(rows)}
         if grant is not None:
             basis['authority'] = production_acceptance.authority_basis(authority, grant)
         action = _draft_action(root, run, 'acceptance', candidate=candidate['candidate'], grant=grant,
@@ -2340,7 +2343,7 @@ def _status(root: Path, run: str | None = None, *, loaded=None, previous_runtime
     current = result['current_task']
     selected = (next((item for item in result['runs'] if item['run'] == current.get('production_run')), None)
                 if current is not None else None)
-    if (selected is not None and selected.get('integrity') == 'intact'
+    if (selected is not None and not current.get('production_plan') and selected.get('integrity') == 'intact'
             and selected.get('preparation') == 'prepared' and selected.get('task_disposition') == 'open'):
         import work_ledger
         try:

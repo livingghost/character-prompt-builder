@@ -414,8 +414,14 @@ def materialize_update(root: Path, choices: dict, current, inputs: EvidenceAcqui
     if principal is not None:
         validate_principal_approval(principal, loaded.prepared, _dispatcher_payload(loaded),
                                    current.document['issuer'], file=evidence['path'])
-    _match([{'operation': item['operation'], 'targets': item['targets']} for item in intents],
-           [{'operation': item['operation'], 'targets': item['targets']} for item in choices['grants']],
+    expected_intents = {item['operation']: item['targets'] for item in intents}
+    selected_intents = {item['operation']: item['targets'] for item in choices['grants']}
+    if len(selected_intents) != len(choices['grants']) or set(selected_intents) - set(expected_intents):
+        raise ProductionError('AUTHORIZATION_MISMATCH',
+            'Additional grants must select distinct operations of this exact prepared use.',
+            phase='authority-evidence', file=file, pointer='$.grants',
+            required_action='Keep one grant per selected operation and its complete derived targets.')
+    _match({operation: expected_intents[operation] for operation in selected_intents}, selected_intents,
            pointer='$.grants', file=file)
     existing_ids = {item['id'] for item in current.document['grants']}
     additions = []

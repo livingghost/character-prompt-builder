@@ -18,6 +18,16 @@ import work_ledger
 def summary(value):
     row = value['runs'][0]
     action = row['next_action']
+    seen = set()
+    while action is not None and 'action_ref' in action:
+        pointer = action['action_ref']
+        if not pointer.startswith('#/') or pointer in seen:
+            raise ValueError('The public continuation has an invalid action reference.')
+        seen.add(pointer)
+        action = value
+        for token in pointer[2:].split('/'):
+            token = token.replace('~1', '/').replace('~0', '~')
+            action = action[int(token)] if isinstance(action, list) else action[token]
     # The action's argv names the temporary Studio, so the recorded summary keeps its command and reason.
     return {'integrity': row['integrity'],
             'readiness': row['readiness'], 'submission': row['submission'],

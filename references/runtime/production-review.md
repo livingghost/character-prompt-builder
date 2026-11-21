@@ -30,7 +30,9 @@ Each observation names its `evidence` (`candidate`, an automatic comparison evid
 Additional evidence entries record path, kind, relation and limitations; their bytes are measured and pinned, not trusted from filenames.
 
 `workspace --phase review` and the `draft-review` report include `review_guide`.
-Its `automatic_evidence` identifies the actual candidate with the reserved ID
+The workspace summary owns those evidence entries once under `evidence`;
+the draft guide and full workspace use `review_guide.automatic_evidence`.
+Those entries identify the actual candidate with the reserved ID
 `candidate` and lists the retained comparison sources with their exact IDs,
 media kinds and paths. Use those IDs directly in `observations[].evidence`.
 The candidate event digest in `review.candidate` is a separate identifier.
@@ -49,10 +51,25 @@ Use a measured stream and the interval actually inspected for motion or audio;
 a whole-file label does not establish either.
 
 `draft-review --out FILE` still saves only the editable review form to `FILE`.
-Its standard output is a report containing `choices` (the same form),
-`draft_file`, `review_guide` and the concrete `next_action`. Fill the saved form
+Its standard summary contains `draft_file`, the exact candidate binding,
+`review_guide`, unanswered locations and the concrete `next_action`.
+`--view full` includes `choices`, the same form. Fill the saved form
 from actual observations, then invoke that next action with the same file.
 Guide templates and artifact decoding supply no finding or passing verdict.
+
+The review workspace keeps every criterion and its authored relationships.
+Read applicable original sources at `sources[].saved_path` and `evidence[].path`
+using their declared scopes and locators. Source bodies are not copied into each
+workspace response. The complete structural identity map and other selected
+prepared context have exact `full_report` locations, while the summary retains
+identity bindings, whole-subject obligations and every unresolved finding.
+Open those originals and relationships whenever they are needed for judgment;
+their displayed locations supply no reading or review result.
+
+`saved_knowledge` locates the model, selected offering and guide resources
+retained with the prepared request. Read those originals for model-specific
+interpretation and limitations. The operation reading supplies the current
+review contract without substituting a later catalog edition for that input.
 
 `draft-review` remembers the chosen output path and its exact run, candidate
 and preceding review. After interruption, status points to that same file while
@@ -357,6 +374,16 @@ temporal phase or spatial relationship can require rebuilding the scene; an
 incidental facial or garment edit cannot establish an event the view cannot
 show. Use a local correction when the mismatch is local, and retain uncertainty
 when the evidence does not isolate a cause.
+
+For a saved authored artifact, follow
+[Edit and save](production-authored-storage.md#edit-and-save): open
+`draft-inputs --from-run REVISION --operation amend`, edit the retained choices,
+then follow the owning plan's `advance` or the standalone `save` action. This
+publishes a new authored revision while preserving the earlier revision and its
+records. Its saved-artifact digest is distinct from a generated candidate-event
+digest. The `revision-intent` and `revise` commands below repair a reviewed
+generated candidate selected by its candidate-event digest.
+
 Draft from the source run, edit the responsible authored choices and build
 the revised task. Preserve the earlier input and candidate evidence.
 `revision-intent` compares the whole prepared input, checks the reviewed scope, and returns an exact `edit` payload:

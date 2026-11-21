@@ -40,6 +40,11 @@ both operations and all their targets.
 It contains the generated run and input identities, with one compact entry in `decisions` for each required operation. Each entry selects its grant and contains only its reason, stop-condition assessments and applicable request judgments. Direction and submission remain separate entries and formal events. The full request, exact targets, payloads, actor identities and output counts are derived from the prepared run when execution records those decisions.
 
 Use the `workspace --phase input` view to read the complete model-facing input without the assessment basis, then `workspace --phase decision` to compare that reading with the commission, source roles, current authority and request-review requirements. These views gather material already needed for the decision; they add no approval or read-completion event. Read only context that is missing from the active session. Complete the reasons, stop-condition assessments and final-request assessment from actual evidence.
+The decision summary keeps every criterion and current stop condition, relevant
+grants, operation targets and exact captured source locations. The sealed input
+has its own executable read action, so this view does not repeat its request
+payload inside every operation. Read source originals at their saved paths;
+`--view full` exposes all retained relationships and authority alternatives.
 [Production permissions](production-permissions.md#authorization-and-execution-records) describes each authorization and its `request_decision`.
 For the `rendition_review`, first reconstruct the artifact and depicted
 situation from the sealed prompt fields, supported controls and actual supplied

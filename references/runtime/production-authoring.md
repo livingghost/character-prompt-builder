@@ -360,7 +360,7 @@ source owner or operation.
 python scripts/execution_routes.py read reference-artifacts --operation author --execution authored --root STUDIO --feature sparse-retrieval
 ```
 
-The first response is a required-source index, with `mode: "index"`, an empty
+This explicit command starts with a required-source index, with `mode: "index"`, an empty
 `body`, and `reading: null`. It reports the selected operation, execution, destination, source kind,
 features and model; each source's exact content hash, full byte size, required
 ranges and selection owners. A whole-source requirement is shown once;
@@ -386,7 +386,14 @@ in that response. A later page, index or status view over delivered ranges relie
 on retaining their earlier text. The index reports these state meanings, and
 `read --help` lists them.
 
-Inspect that scope before reading. Choose the operation actually in progress
+Generated authoring and recovery actions select `--all` for the current stage.
+Their first response delivers a bounded body page; follow `actions.continue`
+until `reading` is non-null. `actions.index` exposes this same complete source
+index when its scope or individual sections need inspection. Input inspection
+continues an unfinished page first, then offers all remaining required material
+in bounded pages after a selected section ends.
+
+Inspect the selected scope as needed. Choose the operation actually in progress
 and the specialists the task uses. For example, `studio-placement` selects the
 complete contract for correcting an existing iteration's current scene or slot;
 ordinary image creation does not select that correction. Preparation and execution
@@ -426,8 +433,10 @@ converted into a completed reading by assertion.
 Use the complete returned invocation when a custom ledger or pack runtime is
 selected. `actions.index` reopens the saved index and its current coverage.
 `actions.all` explicitly delivers every remaining required byte in bounded pages.
-Each executable action provides an `argv` argument array, the same invocation
-quoted in `command`, and a `reason`. Execute the full `argv` or `command`.
+Each executable action provides an `argv` argument array, operation name
+`command: read`, and a `reason`. Execute the full `argv`. Continuations restore
+the exact pack runtime from their snapshot; those arguments need no repeated
+entry on every page.
 It is also available when starting a new reading:
 
 ```bash
@@ -493,11 +502,11 @@ source's contents.
 
 ##### Reuse complete knowledge in this context
 
-For another operation in the same active context, use the appropriate
-`context_reuse.operations` action from a completed result. For example,
-`context_reuse.operations.execute` indexes the current execute contract using
-complete knowledge retained from preparation. These commands carry repeatable
-`--known-reading KEY` selections. The reader compares exact source kind, path,
+For another operation in the same active context, use the actual next draft's
+reading action and append `context_reuse.arguments` from a completed result.
+`context_reuse.operations` offers inspection of the current operation; it does
+not choose the next operation, destination or candidate. The arguments carry
+repeatable `--known-reading KEY` selections. The reader compares exact source kind, path,
 content and resource/model scope, together with the exact source interval, then
 delivers every missing
 or changed required range. A complete earlier full source can cover a later
@@ -508,15 +517,10 @@ Choose sections or `actions.all` to complete the current reading. When no new
 bytes are needed, `actions.all` checks the current sources and issues the current
 record without repeating unchanged bodies.
 
-For curation, `context_reuse.operations` repeats only the current operation,
-and `context_reuse.curation_scopes` offers valid other destinations or withdrawal
-for the same source kind, with those axes kept separate. Use the actual draft
-action or matching scope action when moving from slot acceptance to sheet
-adoption; shared sections remain known only by the explicit supplied keys, and
-additional canonical-use sections are delivered before completion. General
-production reads retain their ordinary operation actions. To enter curation or
-change source ownership, use the next draft's `reading_action` and append
-`context_reuse.arguments`; the draft supplies the actual destination and owner.
+For curation, the actual draft supplies its destination and source owner.
+Moving from slot acceptance to sheet adoption uses that draft's `reading_action`
+and the same explicit retained keys. Shared sections remain known only through
+those keys, and additional canonical-use sections are delivered before completion.
 
 When changing model, service, features, route, destination or source kind, begin an index with the actual
 selections and the `context_reuse.arguments` of complete readings still known in
@@ -532,7 +536,7 @@ rewrite creative work.
 
 A new agent, compacted conversation or lost source context opens the index for the
 operation now needed, with no `--known-reading` selections. Use
-`context_reuse.fresh_context`, `actions.restart` or the fresh-context action in
+`actions.restart` (also referenced by `context_reuse.fresh_context`) or the fresh-context action in
 Studio status. Restart retains the selected task scope and existing authoring
 files while making no assertion of retained knowledge. Continue the work's saved
 choices and current phase; a fresh context need not repeat completed production

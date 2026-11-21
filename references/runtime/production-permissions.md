@@ -18,6 +18,24 @@ Targets are exact strings: `purpose`, `decision:<id>`, `delivery`, `canon:sheet`
 `authority` scopes. Grant only necessary targets. Calling a repair a local edit
 does not exempt its changed sources or protected criteria.
 
+The saved [work plan](production-work-plan.md) asks once for the actual
+instruction and the judgments of its exact selected use. Its curation owner
+reuses eligible current grants and derives the separate select/adopt
+authorizations. When several grants cover an operation, a numbered choice
+appears in that operation's answer; the runtime does not choose an actor or add
+a competing grant to avoid that choice. When coverage is absent, the actual
+instruction must support the missing operation and target; the runtime may then
+record that additional grant from the same retained instruction. A declaration
+of intended use and a passing schema alone supply no permission.
+
+One stop assessment can describe the complete requested selection and adoption
+when the same actual instruction supports both. The runtime records that
+judgment independently in each operation's exact authorization and checks
+current scope, actor, mode and stop definitions at each effect boundary. A
+changed or revoked grant returns a pending plan to current assessment; its
+earlier answer cannot recreate the grant. Reassessment of an already committed
+adoption claim keeps its image, original approval and destination intact.
+
 ## Protected criteria across runs
 
 A grant's `protected_criteria` names criterion ids whose complete definitions

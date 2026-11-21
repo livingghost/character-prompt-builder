@@ -114,7 +114,7 @@ def check_history(root: Path, rows: list[dict[str, Any]], character: str, errors
         selections: set[str] = set()
         for acceptance in acceptances:
             if not isinstance(acceptance, dict) or not {"at", "supersedes"} <= set(acceptance) \
-                    or set(acceptance) - {'at', 'supersedes', 'production_selection', 'slot', 'placement'} \
+                    or set(acceptance) - {'at', 'supersedes', 'production_selection', 'curation_authorization', 'slot', 'placement'} \
                     or not isinstance(acceptance.get("at"), str):
                 errors.append(f"{label}: an acceptance needs at and supersedes, with its slot and exact decision evidence")
                 continue
@@ -154,6 +154,12 @@ def check_history(root: Path, rows: list[dict[str, Any]], character: str, errors
                         raise ValueError('production_selection names another Studio destination')
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     errors.append(f'{label}: invalid Production acceptance receipt: {exc}')
+            if 'curation_authorization' in acceptance:
+                try:
+                    from production_curation import verify_slot_receipt
+                    verify_slot_receipt(root, character, row, acceptance)
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    errors.append(f'{label}: invalid curation acceptance receipt: {exc}')
             replaced = acceptance["supersedes"]
             if replaced is not None and (replaced == row.get("iteration_id") or not accepted_in(replaced, target_slot)):
                 errors.append(f"{label}: supersedes {replaced!r}, which has no acceptance in slot {target_slot!r}")

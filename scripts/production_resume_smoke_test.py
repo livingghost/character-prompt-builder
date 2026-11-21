@@ -189,7 +189,7 @@ class ResumeTests(unittest.TestCase):
     def resume_cli(self,*arguments):
         """resume through the public CLI: the exit status, the printed JSON or None, and stderr."""
         completed=subprocess.run([sys.executable,str(Path(production_workflow_cli.__file__)),'resume','--root',str(self.root),
-                                  '--run',self.run,*arguments],capture_output=True,text=True,encoding='utf-8',
+                                  '--run',self.run,'--view','full',*arguments],capture_output=True,text=True,encoding='utf-8',
                                  env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'},check=False)
         return completed.returncode,(json.loads(completed.stdout) if completed.stdout.strip() else None),completed.stderr
 
@@ -334,7 +334,7 @@ class OutcomeStatementCliTests(unittest.TestCase):
         import sys
         # These recovery assertions inspect complete declarations; ordinary CLI
         # navigation is covered independently by the status presentation suite.
-        if arguments[0] == 'status':
+        if arguments[0] in production_workflow_cli.SUMMARY_COMMANDS:
             arguments = (*arguments, '--view', 'full')
         completed = subprocess.run([sys.executable, str(Path(__file__).with_name('production_workflow.py')), *arguments,
                                     '--root', str(root)], capture_output=True, text=True, encoding='utf-8',
@@ -637,8 +637,9 @@ class InitialAuthoringContinuationTests(unittest.TestCase):
         run = subprocess.run(action['argv'], capture_output=True, text=True, encoding='utf-8', check=False)
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         drafted = json.loads(run.stdout)
-        self.assertIsNone(drafted['choices']['reading']['reading_key'])
-        self.assertEqual(drafted['choices']['authoring']['task']['task_id'], self.work['task_id'])
+        choices = c.load(self.root / drafted['choices_file'])
+        self.assertIsNone(choices['reading']['reading_key'])
+        self.assertEqual(choices['authoring']['task']['task_id'], self.work['task_id'])
 
 
 class AuthoredResumeTests(unittest.TestCase):

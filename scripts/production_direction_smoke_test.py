@@ -639,6 +639,10 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(review_view['candidate'], observed['candidate'])
         self.assertEqual(review_view['prepared_input'], input_view['prepared_input'])
         self.assertEqual(review_view['basis']['criteria'][0]['id'], 'read')
+        self.assertTrue(review_view['sources'])
+        self.assertTrue(all('text' not in source for source in review_view['sources']))
+        for source in review_view['sources']:
+            self.assertEqual(c.digest(Path(source['saved_path']).read_bytes()), source['sha256'])
         rows = w.load_run(self.root, run)[3]
         self.assertFalse(any(row['event'] == 'review' for row in rows))
         draft = w.draft_review(self.root, run, candidate)

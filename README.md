@@ -36,6 +36,14 @@ Saved production records the inputs and decisions needed by later steps.
 
 A request for a prompt alone ends once the prompt is written. Selecting an image, using it as a reference and making a detail permanent are three separate decisions, each the author's. The tools check that a request matches its declared inputs, and people judge whether the image succeeds.
 
+For saved work, [production plans](references/runtime/production-work-plan.md)
+carry that chain through one continuation. A small request selects the source
+and result. `production_workflow.py plan --root STUDIO --file work-request.json`
+creates it; `production_workflow.py advance --root STUDIO` returns the next
+authored decision and records completed transitions. A retained run needs no
+re-entry of its model, prompt, references or internal hashes. Each image still
+receives an actual observation, review and decision for its intended use.
+
 ## Installation
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) to run the skill in its declared Python environment. Prompt work, image processing and validation use the same dependencies. [The Python selection](.python-version) chooses Python 3.12 by default; [the project declaration](pyproject.toml) supports Python 3.12 or later and owns the direct package pins.

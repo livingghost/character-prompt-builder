@@ -242,7 +242,7 @@ class ObservedPackInputTests(unittest.TestCase):
         (self.root / self.choice_path).write_bytes(c.encoded(self.choices))
         command = [sys.executable, '-B', str(Path(__file__).with_name('production_workflow.py')),
             'build-inputs', '--root', str(self.root), '--choices', self.choice_path,
-            '--out-dir', destination]
+            '--out-dir', destination, '--view', 'full']
         command += PackRuntimeContext(self.case['settings'], (self.case['pack'],)).command_arguments()
         process = subprocess.run(command, cwd=Path(__file__).resolve().parents[1],
                                  capture_output=True, text=True, encoding='utf-8', timeout=60)

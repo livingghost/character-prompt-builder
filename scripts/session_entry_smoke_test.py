@@ -104,6 +104,34 @@ class SessionEntry(unittest.TestCase):
         self.assertIn("Inspect saved inputs:", text)
         self.assertEqual(snapshot(self.root), before)
 
+    def test_bound_plan_resumes_its_current_operation_without_reopening_input_authoring(self) -> None:
+        task = work_ledger.read_current(self.studio)
+        task.update(production_plan='work/plans/selected/plan.json', production_run='saved-run')
+        work_ledger.write_current(self.studio, task)
+        before = snapshot(self.root)
+        with mock.patch.object(sqlite3, 'connect', side_effect=AssertionError('startup opened SQLite')), \
+                mock.patch.object(subprocess, 'Popen', side_effect=AssertionError('startup started a process')):
+            text = entry(self.studio / 'story', self.missing_state)
+        self.assertIn('Continue saved plan: ', text)
+        self.assertIn(shown(work_ledger.plan_action(self.studio, task)['argv']), text)
+        self.assertIn(shown(work_ledger.plan_action(self.studio, task, command='plan')['argv']), text)
+        self.assertIn('Saved production revision:', text)
+        self.assertNotIn('Inspect saved inputs:', text)
+        self.assertNotIn('If the requested goal ends at complete input preparation:', text)
+        self.assertEqual(snapshot(self.root), before)
+
+    def test_unplanned_retained_work_offers_result_planning_before_direct_completion(self) -> None:
+        task = work_ledger.read_current(self.studio)
+        task['production_run'] = 'saved-run'
+        work_ledger.write_current(self.studio, task)
+        before = snapshot(self.root)
+        with mock.patch.object(sqlite3, 'connect', side_effect=AssertionError('startup opened SQLite')):
+            text = entry(self.studio / 'story', self.missing_state)
+        self.assertIn('production_workflow.py plan --root', text)
+        self.assertLess(text.index('Choose the remaining requested result'), text.index('Direct completion'))
+        self.assertIn('while further review, selection or adoption is requested', text)
+        self.assertEqual(snapshot(self.root), before)
+
     def test_long_note_history_keeps_every_open_issue_and_one_bounded_checkpoint(self) -> None:
         task = work_ledger.read_current(self.studio)
         task['steps'][0].update(done_at='2026-01-01T00:00:00Z', note='Long completed step detail. ' * 2000)
@@ -265,9 +293,19 @@ class SessionEntry(unittest.TestCase):
         self.assertEqual(created.returncode, 0, created.stdout + created.stderr)
         opened = outside / "opened"
         self.assertEqual(studio.manifest(opened)["studio_id"], "opened")
-        begin = next(line for line in created.stdout.splitlines() if "work_ledger.py" in line)
-        command = begin.partition(": ")[2].replace("<goal>", "Synthetic-goal").replace("<step>", "Synthetic-step")
-        begun = subprocess.run(command, shell=True, cwd=outside, env=environment,
+        begin = next(line for line in created.stdout.splitlines() if "production_workflow.py" in line)
+        command = begin.partition(": ")[2]
+        drafted = subprocess.run(command, shell=True, cwd=outside, env=environment,
+                                 capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(drafted.returncode, 0, drafted.stdout + drafted.stderr)
+        report = json.loads(drafted.stdout)
+        request_path = opened / report['request_file']
+        request = json.loads(request_path.read_text(encoding='utf-8'))
+        request['result']['scope'] = 'save'
+        (opened / request['source']['request']).write_text('Synthetic-goal', encoding='utf-8')
+        request_path.write_text(json.dumps(request), encoding='utf-8')
+        self.assertIsNone(work_ledger.read_current(opened))
+        begun = subprocess.run(report['next_action']['argv'], cwd=outside, env=environment,
                                capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(begun.returncode, 0, begun.stdout + begun.stderr)
         self.assertEqual(work_ledger.read_current(opened)["goal"], "Synthetic-goal")

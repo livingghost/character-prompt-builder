@@ -23,6 +23,16 @@ import production_status_view
 import production_operations as workflow
 import transport_synthetic
 from test_production_execution import decisions
+from test_production_report_view import resolved_action
+
+
+def action_values(report, value):
+    """Follow public root pointers before comparing actionable continuation trees."""
+    if isinstance(value, dict):
+        return {key: action_values(report, child) for key, child in resolved_action(report, value).items()}
+    if isinstance(value, list):
+        return [action_values(report, child) for child in value]
+    return value
 
 
 class StatusViewTests(unittest.TestCase):
@@ -49,6 +59,10 @@ class StatusViewTests(unittest.TestCase):
             capture_output=True, text=True, encoding='utf-8', env=dict(os.environ), check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return json.loads(result.stdout)
+
+    def current_action(self, run):
+        report = self.cli('status', '--root', str(self.root), '--run', run)
+        return action_values(report, report['runs'][0]['next_action'])
 
     def captured(self):
         run = workflow.prepare(self.root, 'task.json')['run']
@@ -81,16 +95,17 @@ class StatusViewTests(unittest.TestCase):
         state = report['runs'][0]
         self.assertEqual(state['integrity'], 'intact')
         self.assertEqual(state['candidates'], [candidate])
-        self.assertEqual(state['next_action']['command'], 'status')
-        self.assertEqual(state['next_action']['draft'], custom)
-        self.assertIn('incomplete or unreadable', state['next_action']['reason'])
-        for context in state['next_action']['read_context']:
+        continuation = action_values(report, state['next_action'])
+        self.assertEqual(continuation['command'], 'status')
+        self.assertEqual(continuation['draft'], custom)
+        self.assertIn('incomplete or unreadable', continuation['reason'])
+        for context in continuation['read_context']:
             self.assertEqual(context['argv'][-2:], ['--candidate', candidate])
         self.assertEqual((self.root / custom).read_text(encoding='utf-8'), '{"candidate":')
         second = 'work/another-review.json'
         self.cli('draft-review', '--root', str(self.root), '--run', run,
                  '--candidate', candidate, '--out', second)
-        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        action = self.current_action(run)
         self.assertEqual(action['command'], 'status')
         self.assertNotIn('draft', action)
         self.assertEqual({item['draft'] for item in action['alternatives']}, {custom, second})
@@ -104,7 +119,7 @@ class StatusViewTests(unittest.TestCase):
         before = (self.root / custom).read_bytes()
         self.review(run, candidate, assessed=False)
         report = self.cli('status', '--root', str(self.root), '--run', run)
-        action = report['runs'][0]['next_action']
+        action = action_values(report, report['runs'][0]['next_action'])
         self.assertEqual(action['command'], 'draft-review')
         self.assertNotEqual(action['draft'], custom)
         self.assertEqual((self.root / custom).read_bytes(), before)
@@ -153,7 +168,7 @@ class StatusViewTests(unittest.TestCase):
         path = f'production/decisions/{run}/review/{identity}.json'
         fixtures.write(self.root / path, workflow.draft_review(self.root, run, candidate))
         before = (self.root / path).read_bytes()
-        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        action = self.current_action(run)
         self.assertEqual((action['command'], action['draft']), ('review', path))
         self.assertEqual((self.root / path).read_bytes(), before)
 
@@ -183,7 +198,7 @@ class StatusViewTests(unittest.TestCase):
                 production_workflow_cli._write_decision_draft(self.root, run, 'review', raced,
                     workflow.draft_review(self.root, run, first), candidate=first)
         report = self.cli('status', '--root', str(self.root), '--run', run)
-        action = report['runs'][0]['next_action']
+        action = action_values(report, report['runs'][0]['next_action'])
         options = {item['read_context'][0]['argv'][-1]: item for item in action['alternatives']}
         self.assertEqual(options[first]['command'], 'draft-review')
         self.assertNotIn(options[first]['draft'], {reused, raced})
@@ -199,7 +214,7 @@ class StatusViewTests(unittest.TestCase):
         acceptance, selection = 'work/acceptance.json', 'work/selection.json'
         self.cli('draft-acceptance', '--root', str(self.root), '--run', run,
                  '--candidate', candidate, '--out', acceptance)
-        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        action = self.current_action(run)
         self.assertEqual((action['command'], action['draft']), ('accept', acceptance))
         authority = execution.status(self.root, run)['runs'][0]['authority']
         document = copy.deepcopy(authority['document'])
@@ -209,17 +224,17 @@ class StatusViewTests(unittest.TestCase):
         fixtures.write(self.root / authority['source_path'], document)
         self.cli('authority-import', '--root', str(self.root), '--file', authority['source_path'],
                  '--expected-event', authority['event_sha256'])
-        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        action = self.current_action(run)
         self.assertEqual((action['command'], action['draft']), ('accept', acceptance))
         self.cli('draft-selection', '--root', str(self.root), '--run', run,
                  '--candidate', candidate, '--out', selection)
-        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        action = self.current_action(run)
         self.assertEqual(action['command'], 'status')
         self.assertNotIn('draft', action)
         self.assertEqual({(item['command'], item['draft']) for item in action['alternatives']},
                          {('accept', acceptance), ('select', selection)})
         self.review(run, candidate, conclusion='A new technical review of the retained fixture.')
-        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        action = self.current_action(run)
         self.assertEqual(action['command'], 'draft-acceptance')
         self.assertNotIn(action['draft'], {acceptance, selection})
         self.assertTrue((self.root / acceptance).is_file())
@@ -233,7 +248,7 @@ class StatusViewTests(unittest.TestCase):
         self.cli('draft-acceptance', '--root', str(self.root), '--run', run,
                  '--candidate', candidate, '--scope', 'studio-slot', '--out', previous)
         original = (self.root / previous).read_bytes()
-        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        action = self.current_action(run)
         self.assertEqual((action['command'], action['draft']), ('accept', previous))
 
         placement = studio_placement.draft(self.root, 'robot', 'it-0001', 'scene.delivery')
@@ -241,7 +256,7 @@ class StatusViewTests(unittest.TestCase):
                          reason='Retain this fixture image under the authored scene destination.')
         studio_placement.reassign(self.root, placement)
         report = self.cli('status', '--root', str(self.root), '--run', run)
-        action = report['runs'][0]['next_action']
+        action = action_values(report, report['runs'][0]['next_action'])
         self.assertEqual(action['command'], 'draft-acceptance')
         self.assertNotEqual(action['draft'], previous)
         self.assertTrue(all(item.get('draft') != previous for item in action.get('alternatives', [])))
@@ -249,7 +264,7 @@ class StatusViewTests(unittest.TestCase):
 
         self.cli('draft-acceptance', '--root', str(self.root), '--run', run,
                  '--candidate', candidate, '--scope', 'studio-slot', '--out', current)
-        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        action = self.current_action(run)
         self.assertEqual((action['command'], action['draft']), ('accept', current))
         self.assertNotEqual(c.load(self.root / previous)['expected_placement'],
                             c.load(self.root / current)['expected_placement'])
@@ -264,7 +279,7 @@ class StatusViewTests(unittest.TestCase):
         custom = 'work/provider-outcome.json'
         draft = self.cli('draft-outcome', '--root', str(self.root), '--run', run, '--out', custom)
         before = workflow.read_run(self.root, run).rows
-        action = self.cli('status', '--root', str(self.root), '--run', run)['runs'][0]['next_action']
+        action = self.current_action(run)
         self.assertEqual(action['command'], 'resume')
         self.assertEqual(action['argv'][-2:], ['--outcome-file', custom])
         self.assertEqual(c.load(self.root / custom)['claim'], draft['claim'])
@@ -397,7 +412,7 @@ class StatusViewTests(unittest.TestCase):
             workflow.schema_check(result, 'status-summary')
             self.assertFalse(any(item.get('code') == 'TARGET_GUIDANCE_REQUIRED' for item in result['blockers']))
             self.assertTrue(any(item.get('code') == 'AUTHORIZATION_REQUIRED' for item in result['blockers']))
-            self.assertEqual(result['current_task']['preparation_completion']['argv'],
+            self.assertEqual(resolved_action(result, result['current_task']['preparation_completion'])['argv'],
                              current['preparation_completion']['argv'])
             self.assertIn('/future_authoring', result['current_task']['authoring']['inputs'][0]['future_authoring']['full_report'])
             self.assertEqual(c.load(self.root / result['full_report']), full)
@@ -519,7 +534,7 @@ class StatusViewTests(unittest.TestCase):
         workflow.schema_check(result, 'status-summary')
         original_requirements = full['runs'][0]['authorization_requirements']
         protected = result['runs'][0]['authorization_requirements']['protected_criteria']
-        self.assertEqual(protected, original_requirements['protected_criteria'])
+        self.assertEqual(action_values(result, protected), original_requirements['protected_criteria'])
         from production_report_view import VALUE_LIMIT, authorization_requirements
         many = copy.deepcopy(original_requirements)
         many['protected_criteria']['changes'] = [
@@ -555,18 +570,19 @@ class StatusViewTests(unittest.TestCase):
         original = full['runs'][0]
         for field in ('readiness', 'submission', 'capture', 'task_disposition', 'next_action',
                       'readiness_diagnostics'):
-            self.assertEqual(actual[field], original[field])
+            self.assertEqual(action_values(result, actual[field]), original[field])
         self.assertEqual(actual['authority']['event_sha256'], original['authority']['event_sha256'])
         self.assertNotIn('document', actual['authority'])
         self.assertIn('document', original['authority'])
         self.assertEqual(result['current_task']['authoring']['pending'], full['current_task']['authoring']['pending'])
-        self.assertEqual(result['current_task']['authoring']['next_actions'], full['current_task']['authoring']['next_actions'])
+        self.assertEqual(action_values(result, result['current_task']['authoring']['next_actions']),
+                         full['current_task']['authoring']['next_actions'])
         public = self.cli('status', '--root', str(self.root), '--run', run)
         workflow.schema_check(public, 'status-summary')
         saved = c.load(self.root / public['full_report'])
         workflow.schema_check(saved, 'status')
         self.assertEqual(saved['runs'][0]['authority']['document'], original['authority']['document'])
-        action = public['details_action']['argv']
+        action = resolved_action(public, public['details_action'])['argv']
         retrieved = subprocess.run(action, capture_output=True, text=True, encoding='utf-8',
                                    env=dict(os.environ), check=False)
         self.assertEqual(retrieved.returncode, 0, retrieved.stdout + retrieved.stderr)

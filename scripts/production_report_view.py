@@ -75,17 +75,20 @@ def action_view(value: dict | None, *, pointer: str) -> dict | None:
     return result
 
 
-def reading_actions_once(value: dict) -> dict:
-    """Point repeated route-reading actions at their first executable command."""
+def actions_once(value: dict) -> dict:
+    """Keep each identical executable action once, with the next action first.
+
+    Equality includes the decision's context, reason and alternatives, not just
+    argv. Two owners may legitimately request the same command for different
+    judgments. Existing references survive repeated projection unchanged.
+    """
     owners = {}
 
     def visit(item, pointer):
         if isinstance(item, dict):
             argv = item.get('argv')
-            if isinstance(argv, list) and len(argv) >= 3 and (
-                    str(argv[1]).endswith('/execution_routes.py') or
-                    str(argv[1]).endswith('\\execution_routes.py')) and argv[2] == 'read':
-                identity = tuple(argv)
+            if isinstance(argv, list) and argv and all(isinstance(word, str) for word in argv):
+                identity = c.content_id(item)
                 if identity in owners:
                     return {'action_ref': owners[identity]}
                 owners[identity] = '#' + pointer
@@ -678,6 +681,43 @@ def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
             'choices_file', 'basis_file', 'projected_source', 'applications', 'subjects',
             'next_actions', 'external_effect'))
         result['unresolved'] = diagnostics(report.get('unresolved'))
+    elif command == 'workspace' and 'phase' in report:
+        from production_workspace import summary
+        result = summary(root, report)
+    elif command == 'sheet-batch' and isinstance(report.get('panels'), Mapping):
+        result = fields(report, ('ok', 'outcome', 'exit_code', 'batch', 'batch_id', 'home', 'adopted'))
+        result['panels'] = {}
+        for name, panel in report['panels'].items():
+            pointer = '/panels/' + name.replace('~', '~0').replace('/', '~1')
+            shown = fields(panel, ('status', 'run', 'source_task', 'compiled_task', 'inputs', 'decision_file'))
+            shown['full_report'] = 'full_report#' + pointer
+            if panel.get('selected_references') is not None:
+                shown['selected_references'] = [
+                    {**fields(reference, ('slot', 'role')),
+                     'artifact_id': reference['artifact']['artifact_id'],
+                     'image_sha256': reference['artifact']['image']['sha256']}
+                    for reference in panel['selected_references']]
+            if panel.get('diagnostic'):
+                shown['diagnostic'] = diagnostic(panel['diagnostic'])
+                shown['diagnostic']['full_report'] = 'full_report#' + pointer + '/diagnostic'
+                if isinstance(panel['diagnostic'].get('report'), Mapping):
+                    compilation = panel['diagnostic']['report']
+                    shown['diagnostic']['report'] = {
+                        **fields(compilation, ('ok', 'publishable')),
+                        'diagnostics': diagnostics(compilation.get('diagnostics', [])),
+                        'full_report': 'full_report#' + pointer + '/diagnostic/report'}
+            shown['omitted_fields'] = [key for key in panel if key not in shown]
+            result['panels'][name] = shown
+        result['panel_count'] = len(report['panels'])
+        result['omitted_fields'] = [key for key in report if key not in result]
+    elif command == 'draft-review' and 'choices' in report:
+        guide = report.get('review_guide', {})
+        result = fields(report, ('draft_file', 'next_action'))
+        result['binding'] = fields(report['choices'], ('input_sha256', 'candidate'))
+        result['review_guide'] = fields(guide, (key for key in guide if key != 'next_action'))
+        result['unresolved'] = [{'file': report.get('draft_file'), 'pointer': '/' + name,
+            'state': 'unanswered', 'required_action': 'Record your actual ' + name + ' in the saved review.'}
+            for name in ('reviewer', 'observations', 'checks', 'conclusion') if not report['choices'].get(name)]
     elif command in {'draft-principal-approval', 'draft-authority-update'} and 'choices' in report:
         result = fields(report, ('state', 'schema', 'unanswered', 'required_action', 'limit',
             'draft_file', 'expected_event', 'required_validation_mode', 'approval_selection', 'phase',
@@ -805,7 +845,7 @@ def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
                     selected.extend(('--' + name, str(item)))
             result['next_action'] = action(root, 'prepare', selected,
                 'Prepare this checked source when its authored choices are complete; execution remains separate.')
-    return reading_actions_once(result)
+    return actions_once(result)
 
 
 def present(root: Path, report: dict, *, command: str, run: str | None = None,

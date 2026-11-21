@@ -461,7 +461,8 @@
           "enum": [
             "authoring",
             "authored",
-            "execution"
+            "execution",
+            "plan"
           ]
         },
         "next_actions": {
@@ -475,6 +476,11 @@
             "string",
             "null"
           ]
+        },
+        "production_plan": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The work task's bound result plan; its next action remains distinct from a selected run's operation."
         },
         "diagnostics": {
           "type": "array",

@@ -167,6 +167,9 @@ class InitialCLITests(unittest.TestCase):
         self.cli = [sys.executable, str(inputs.ROOT / 'scripts/production_workflow.py')]
 
     def call(self, arguments, code=0):
+        import production_workflow
+        if arguments[0] in production_workflow.SUMMARY_COMMANDS:
+            arguments = [*arguments, '--view', 'full']
         result = subprocess.run(self.cli + authoring_fixtures.authoring_arguments(arguments), cwd=self.base, env=self.env,
             capture_output=True, text=True, encoding='utf-8', timeout=60)
         self.assertEqual(result.returncode, code, result.stdout + result.stderr)

@@ -9623,10 +9623,10 @@
     "prepared_reference_set_sha256": "03e92c44036791a02558925a73d49b358bab5bde940c4b4b82ec9125d8192cf9",
     "negative_transport_instruction": "Use transports.integrated: send its text verbatim through the single prompt field. The author has reviewed its image instructions and necessary exclusions.",
     "visual_continuity_sha256": "ed145435680f3a1b8eb1f3a8b6cff1167f9fe61c4cacf179e19e7f752054feec",
-    "route_reading_sha256": "f64ed6d2212bf9110db4bec5a449ca5be2b88d2ed34e8f7a7c2385797ff229d5",
+    "route_reading_sha256": "38d920278bcd4033dd9101593b4d8d50c855f6d4853d34a8e0a4cfb5dd9301ab",
     "request_validation_sha256": "753a532103432f1ad28f7901525099f1b9379b8e167dbb9549320a8099e12036",
     "input_snapshots_sha256": "b8a4b22d7106b7c2cd541c933a191bfc1d5c651cc53f96050c5f4779333339a1",
-    "generation_input_sha256": "f1dc8dc0d0b3ce8a07e30caa01c6f8b0d50151ab3b653731053a7613530221e7"
+    "generation_input_sha256": "7dcc233087fcea24bc26dedba3b68e5385f3ad531ee45c804be6609f8732ee4c"
   },
   "visual_continuity": {
     "purpose": "image",
@@ -9661,8 +9661,8 @@
       },
       {
         "path": "references/runtime/production-workflow.md",
-        "sha256": "649aa63456ab5f686280655a16178a2db281a53bf267f5c2bb328c2feb2f39f0",
-        "size": 16649,
+        "sha256": "9071b6bfde3558f503978ac5f7a4b03d5845948ac8bc5808efdbe710921c7f84",
+        "size": 18290,
         "ranges": [
           {
             "start": 0,
@@ -9671,32 +9671,32 @@
           },
           {
             "start": 356,
-            "end": 3793,
-            "sha256": "b0ddd3ab34f4be984c5a44c5c10e5a927fa3ab914e38eab492c5a830e629096a"
+            "end": 3888,
+            "sha256": "f2b28b25de6103077b84dab972d8c9ed2d0ebd39c14b1d376ede782a0abe2589"
           },
           {
-            "start": 3793,
-            "end": 7581,
-            "sha256": "187caac58788332196f36ab3fd14a5e205b4e31a5ca32a8f9ded9604224cac95"
+            "start": 3888,
+            "end": 7866,
+            "sha256": "00db20797b3b2a666900a6f0bf3a82ae2451138d214328585d58b6c956e31858"
           },
           {
-            "start": 7581,
-            "end": 10076,
-            "sha256": "40038280d8006a2347d35bc27b9b7daa00184f28c29a9c73eb11ead1f91ec9a8"
+            "start": 7866,
+            "end": 11494,
+            "sha256": "530d446d32c7e744c6d1b471383be6cb994bc49d1dbe104ae4dbb3c5d21ec6a3"
           },
           {
-            "start": 10076,
-            "end": 13120,
-            "sha256": "2751d6e89f31587cd650cdade8f7911b0214a5ce5af23c72ac81ea87370da78a"
+            "start": 11494,
+            "end": 14761,
+            "sha256": "fe66de082bf8457d21663c9c6b10afb43bbadf9a1e0f559907c45adf0d994065"
           },
           {
-            "start": 13120,
-            "end": 14418,
+            "start": 14761,
+            "end": 16059,
             "sha256": "ac8182256cee7b1079f8e7de1d90f941b99f44eea0ff03aa617ff90e0e335b3d"
           },
           {
-            "start": 14418,
-            "end": 15590,
+            "start": 16059,
+            "end": 17231,
             "sha256": "32a851b6f20d49eea758012f4db1e9561af9193083b0a33f1d9085672e172d79"
           }
         ]
@@ -9785,8 +9785,8 @@
       },
       {
         "path": "references/runtime/production-authoring.md",
-        "sha256": "c707b78f273cb629dc2732eb664812200d9f1b84c7a590dba59b988422d672ae",
-        "size": 70328,
+        "sha256": "8839e4b61605ec39e9431ef12a984c167f816a7031c7d06dd0d699e0435c780a",
+        "size": 70546,
         "ranges": [
           {
             "start": 0,
@@ -9865,107 +9865,107 @@
           },
           {
             "start": 21377,
-            "end": 24148,
-            "sha256": "1040c589efaabb7c0d1644f8e40a8d1545f4463467d61acef223c9b6c1061d1d"
+            "end": 24605,
+            "sha256": "3d38c70e61c8d9a7077b0fcf66ff8abc068c27557470360c5b7a5dff2f7ab6a5"
           },
           {
-            "start": 24148,
-            "end": 25524,
+            "start": 24605,
+            "end": 25981,
             "sha256": "b669cf81a2459ebcc834ee300c5b78ef57954fca2796032876af8e9823d769d1"
           },
           {
-            "start": 25524,
-            "end": 27822,
-            "sha256": "3b2e7c7670a86c315e5e5cb72b52fb8c2542d567e88c10d63f7e6cf19c8cc179"
+            "start": 25981,
+            "end": 28377,
+            "sha256": "0c8f57c6b0ad74b3db72775638d0a8892d4a525f59316730fb8c5914bbfd2b18"
           },
           {
-            "start": 27822,
-            "end": 28694,
+            "start": 28377,
+            "end": 29249,
             "sha256": "2f89e4b073119ac684eaba2d2b2e95cb7d8f2537c5e7a923b2149efd1712c342"
           },
           {
-            "start": 28694,
-            "end": 29959,
+            "start": 29249,
+            "end": 30514,
             "sha256": "753059cd14186a9a3bcf31db9115c8fda2b4c75cb18a9fa6f3d70233677daaee"
           },
           {
-            "start": 29959,
-            "end": 32380,
-            "sha256": "479f2637925ffb62709f943400c75ba23c30dd30eaaa185ae904ec1423f67a47"
+            "start": 30514,
+            "end": 32578,
+            "sha256": "39e95b14d3933e9da0b6aa00dc5ddc3a656cfaf63799fe9efc99e50e6ceb9dae"
           },
           {
-            "start": 32380,
-            "end": 33029,
-            "sha256": "04f93ed69e826ebec9a8d9d29d86709f11071db33637754f2b97e52e648ca998"
+            "start": 32578,
+            "end": 33247,
+            "sha256": "817c1adf8d8d8808231ff2bc78bb437b5dfc5fe8c7345ede9da3c9265d3bb7b0"
           },
           {
-            "start": 33029,
-            "end": 33502,
+            "start": 33247,
+            "end": 33720,
             "sha256": "c48c5d92f86a814f4f636698158529d83e063c8f1bf98796e79123f48d03067f"
           },
           {
-            "start": 33502,
-            "end": 34477,
+            "start": 33720,
+            "end": 34695,
             "sha256": "789a6189b9f19d3d6240d08b4dfbbe171790cdb7485c499be960cb41b55b85d3"
           },
           {
-            "start": 34477,
-            "end": 34832,
+            "start": 34695,
+            "end": 35050,
             "sha256": "53843e90e353033d4a343254d84ddd32875cd89f34ddecd02f6e89a8fed17493"
           },
           {
-            "start": 34832,
-            "end": 35853,
+            "start": 35050,
+            "end": 36071,
             "sha256": "d7425be4d3d5c057ba26e780f1bac69b891c297cf56a6a17a5715218f947b55d"
           },
           {
-            "start": 35853,
-            "end": 38800,
+            "start": 36071,
+            "end": 39018,
             "sha256": "236e3cc2ff90076953d81929e414bab10c5fb91e1203b4ee792f2f0cf18808b7"
           },
           {
-            "start": 38800,
-            "end": 40833,
+            "start": 39018,
+            "end": 41051,
             "sha256": "a16530b0dcfa4dd3bad7010b202d67ce76ea2846152f36e21b79d91ee1d336bb"
           },
           {
-            "start": 40833,
-            "end": 42563,
+            "start": 41051,
+            "end": 42781,
             "sha256": "b2dcb12cff4ed9d006cec663316c9dd26db7e34c9034d0e11f7fd11385cc812e"
           },
           {
-            "start": 42563,
-            "end": 45499,
+            "start": 42781,
+            "end": 45717,
             "sha256": "e3efef558a1f267aed1e27aa12c26b36be3a3f548a97d55770ef8a3eef933e6c"
           },
           {
-            "start": 45499,
-            "end": 47044,
+            "start": 45717,
+            "end": 47262,
             "sha256": "cc27a575a3bc373488dbf9799cd70fffae20a67656d02f539515c7664a2ea99f"
           },
           {
-            "start": 47044,
-            "end": 47635,
+            "start": 47262,
+            "end": 47853,
             "sha256": "a9f23afb8739bcda73cd9d803a3bcf3e9bc7920e849227dfdacec7fcfedd1e76"
           },
           {
-            "start": 47635,
-            "end": 50717,
+            "start": 47853,
+            "end": 50935,
             "sha256": "e38e91423a7220060a5f314740c4b76637fc011936ea59f920db5382806b9bdd"
           },
           {
-            "start": 50717,
-            "end": 53821,
+            "start": 50935,
+            "end": 54039,
             "sha256": "27b73fc2f6a67ef4e0d5b50cdac038681a0d23250842505beb29a3ef01ba33a8"
           },
           {
-            "start": 63857,
-            "end": 68832,
+            "start": 64075,
+            "end": 69050,
             "sha256": "3567da1e4ffaa72eee763449ca6551399770171b7cc3a1cfae6a68f56d5ae3a9"
           },
           {
-            "start": 68832,
-            "end": 70328,
+            "start": 69050,
+            "end": 70546,
             "sha256": "77ca0829216cf9fdf2c2499c346d17c44f3fcda4cc2100b18d6da5c68fcf521e"
           }
         ]
@@ -10008,27 +10008,27 @@
       },
       {
         "path": "references/runtime/production-permissions.md",
-        "sha256": "02023a5e64e628b9854a9e0af486ace2605163ccab44f3fccb5f1f1ab69e6299",
-        "size": 30421,
+        "sha256": "ad6977c55ad0931fae81a5f6087ba5acfc8e68398d2911f92c9d6c7eb441673f",
+        "size": 31623,
         "ranges": [
           {
             "start": 0,
-            "end": 1130,
-            "sha256": "e408067ade73d0139d2cb6f46de89364c6ea10bd71c2466e95f1dc555ea31a15"
+            "end": 2332,
+            "sha256": "faaee362250f08af297e414e65daec83e93d63431efc9f3f6c21f71e197e6bf9"
           },
           {
-            "start": 1130,
-            "end": 3183,
+            "start": 2332,
+            "end": 4385,
             "sha256": "dbcc9b7ac58151ce25837a3958c11161e1d64a92b3e441a77893303882f7bd53"
           },
           {
-            "start": 14519,
-            "end": 16254,
+            "start": 15721,
+            "end": 17456,
             "sha256": "962aeca3f8c50c5fabad1fbc94a08ed6b55f070cb936353cc29b34a4967b369d"
           },
           {
-            "start": 24296,
-            "end": 25752,
+            "start": 25498,
+            "end": 26954,
             "sha256": "189923c799850206fa752c21af10cffa90ade0bb860dfa90c0fe42584e8ac550"
           }
         ]
@@ -10248,8 +10248,8 @@
       },
       {
         "path": "references/runtime/studio.md",
-        "sha256": "df97c41c65be2060f8e81a90e726ae12da93fe04614fb539ca7cdd04d5e2cb71",
-        "size": 43791,
+        "sha256": "338a08fd23664db45b697a30fa10f1e1dfe9c5e01fbc1b2d114a5cc5540ec9c4",
+        "size": 43884,
         "ranges": [
           {
             "start": 0,
@@ -10273,22 +10273,22 @@
           },
           {
             "start": 11127,
-            "end": 14747,
-            "sha256": "82ec465c5b5b0579d3901e0ae0ac9502c91dd3f30fc01ca5ea61b0e47712b317"
+            "end": 14840,
+            "sha256": "6fc0ff0f2e43da24f5eccce22d181ffcd5169d2e2221c9922b55288d3081b5bf"
           },
           {
-            "start": 31918,
-            "end": 34386,
+            "start": 32011,
+            "end": 34479,
             "sha256": "4ec2029b31b91b8860de13e86d7a83237eb07025004141ac539e09db013d0cd9"
           },
           {
-            "start": 34386,
-            "end": 36168,
+            "start": 34479,
+            "end": 36261,
             "sha256": "e9ccd4845eccbc391679cfe06bc5acbff700e35d969f187793d1a55f537b09dd"
           },
           {
-            "start": 36168,
-            "end": 36416,
+            "start": 36261,
+            "end": 36509,
             "sha256": "557c7edd0be3010f70ee09837cd576956652f3e2799b43c640b5b5d7c6673166"
           }
         ]
@@ -10341,9 +10341,9 @@
     "route": "state-series",
     "scope": null,
     "source_kind": null,
-    "reading_key": "9647c23b543045346210ae92c41d79b2"
+    "reading_key": "da1c3df0a3d38c7ab6b508952177ffc7"
   },
-  "route_reading_sha256": "f64ed6d2212bf9110db4bec5a449ca5be2b88d2ed34e8f7a7c2385797ff229d5",
+  "route_reading_sha256": "38d920278bcd4033dd9101593b4d8d50c855f6d4853d34a8e0a4cfb5dd9301ab",
   "request_validation": {
     "mode": "target-schema",
     "target": {
@@ -10408,5 +10408,5 @@
     }
   },
   "input_snapshots_sha256": "b8a4b22d7106b7c2cd541c933a191bfc1d5c651cc53f96050c5f4779333339a1",
-  "generation_input_sha256": "f1dc8dc0d0b3ce8a07e30caa01c6f8b0d50151ab3b653731053a7613530221e7"
+  "generation_input_sha256": "7dcc233087fcea24bc26dedba3b68e5385f3ad531ee45c804be6609f8732ee4c"
 }

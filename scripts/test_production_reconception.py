@@ -459,7 +459,7 @@ class SavedAuthoringWorkTests(unittest.TestCase):
             **({'from-run': from_run} if from_run is not None else {'task': task_path})}
         for key, value in expected.items():
             self.assertEqual(arguments[arguments.index('--' + key) + 1], value, key)
-        completed = subprocess.run(arguments, cwd=self.root, env=dict(os.environ), capture_output=True,
+        completed = subprocess.run([*arguments, '--view', 'full'], cwd=self.root, env=dict(os.environ), capture_output=True,
                                    text=True, encoding='utf-8', timeout=90)
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         result = json.loads(completed.stdout)
@@ -532,7 +532,7 @@ class SavedAuthoringWorkTests(unittest.TestCase):
         def edit(operation, selected=None):
             argv = [sys.executable, str(inputs.ROOT / 'scripts/production_workflow.py'),
                 'edit-choices', '--root', str(self.root), '--choices', draft['choices_file'],
-                '--pointer', '/task_changes/semantic_edit', '--operation', operation]
+                '--pointer', '/task_changes/semantic_edit', '--operation', operation, '--view', 'full']
             if selected is not None:
                 (self.root / 'selected-plan.json').write_bytes(c.encoded(selected))
                 argv.extend(('--value-file', 'selected-plan.json'))
@@ -964,9 +964,10 @@ class SavedAuthoringWorkTests(unittest.TestCase):
                                    encoding='utf-8', timeout=90)
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         recovered = json.loads(completed.stdout)
-        self.assertEqual(recovered['choices']['authoring_stage'], 'depiction')
-        self.assertEqual(recovered['current_request']['text'], retained_request.read_text(encoding='utf-8'))
-        self.assertEqual(c.load(self.root / recovered['authoring_work']['basis'])['subjects'], {'shell': ['original']})
+        self.assertEqual(c.load(self.root / recovered['choices_file'])['authoring_stage'], 'depiction')
+        basis = c.load(self.root / recovered['authoring_work']['basis'])
+        self.assertEqual(basis['request'], retained_request.read_text(encoding='utf-8'))
+        self.assertEqual(basis['subjects'], {'shell': ['original']})
 
 
 if __name__ == '__main__':

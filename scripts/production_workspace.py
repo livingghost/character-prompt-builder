@@ -23,12 +23,21 @@ def _candidate(loaded, candidate: str) -> dict:
             'files': files, 'media': row['data']['media']}
 
 
-def _reading(prepared: dict) -> dict:
+def _reading(prepared: dict, phase: str) -> dict:
+    import execution_routes
+    task = prepared['task']
+    operation = 'execute' if phase in {'input', 'decision'} else 'review'
+    selected = execution_routes.resolve(task['route'], task.get('features', []),
+        execution=task['execution'], operation=operation)
     return {'entry': str(workflow.ROOT / 'SKILL.md'),
-            'documents': [{'path': str(workflow.ROOT / item['path']), 'prepared_sha256': item['sha256']}
-                          for item in prepared['route']['reads']],
+            'operation': operation,
+            'documents': [{'path': str(workflow.ROOT / item['path']), 'sha256': item['sha256'],
+                           'ranges': item['ranges'],
+                           'sections': [row['anchor'] for row in selected['section_owners'][item['path']]]}
+                          for item in selected['reads']],
             'instruction': 'Use these paths to recover any applicable Skill instructions missing from the '
-                           'active context, then apply them to this phase.'}
+                           'active context at the required source ranges, then apply them to this phase. '
+                           'Earlier authoring-stage reading is not the current operation scope.'}
 
 
 def _input(loaded) -> dict:
@@ -79,10 +88,11 @@ def _sources(loaded) -> list[dict]:
         else:
             raw = loaded.evidence.read(digest)
             entry['size'] = len(raw)
-            try:
-                entry['text'] = raw.decode('utf-8')
-            except UnicodeDecodeError:
-                pass
+            # A workspace locates the exact captured original. Repeating every
+            # document body here makes the act of reopening a decision depend
+            # on the size of all authoring sources, including unchanged ones.
+            # Sources remain accessible at saved_path, with their authored
+            # role, locator and scope, and the review evidence owns their IDs.
             originals[digest] = entry
         sources.append(entry)
 
@@ -100,6 +110,126 @@ def _sources(loaded) -> list[dict]:
     return sources
 
 
+def _saved_knowledge(root: Path, loaded) -> dict:
+    """Locate model interpretation evidence from the prepared edition itself."""
+    prepared, directory = loaded.prepared, loaded.directory
+    reading = prepared.get('route_reading') or {}
+    result = {'model': reading.get('model'),
+        'instruction': 'Use these retained originals to interpret the saved request. '
+            'They preserve its selected model edition; current catalog changes do not redefine it.'}
+    if reading:
+        result['reading_record'] = {'path': str(directory / 'prepared.json'), 'pointer': '/route_reading'}
+    if prepared['task'].get('authored_basis'):
+        result['authored_basis'] = {'path': str(directory / 'prepared.json'), 'pointer': '/task/authored_basis'}
+    if 'execution-target.json' in loaded.artifacts:
+        path = directory / 'execution-target.json'
+        result['target'] = {'path': str(path), 'sha256': c.digest(c.read(path)),
+                            'model_pointer': '/model', 'offering_pointer': '/offering'}
+    descriptor = prepared.get('runtime_snapshot')
+    binding = (descriptor or {}).get('binding', {})
+    if descriptor is not None:
+        import runtime_snapshot
+        snapshot = runtime_snapshot.path(root, descriptor)
+        result['runtime_snapshot'] = {'path': str(snapshot / 'snapshot.json'), 'sha256': descriptor['sha256']}
+    result['resources'] = [{**row,
+        'saved_path': str(snapshot / 'packs' / row['pack'] / row['path'])}
+        for row in binding.get('resources', []) if row.get('role') == 'guide']
+    return result
+
+
+def summary(root: Path, report: dict) -> dict:
+    """Keep this phase's judgment and name the other complete evidence owners.
+
+    The input and observation phases are the material being interpreted, so
+    their exact content stays visible. A decision or review presents every
+    criterion and its source relationship once. Its other prepared views have
+    executable read actions; original files have exact captured paths.
+    """
+    from production_report_view import action, fields, authority, authorization_requirements
+    result = fields(report, ('phase', 'run', 'execution', 'input_sha256', 'candidate', 'saved_knowledge',
+                             'artifact', 'state', 'input_verified', 'instruction', 'next_action'))
+    phase = report['phase']
+    if 'reading' in report:
+        result['reading'] = fields(report['reading'], ('entry', 'operation', 'instruction'))
+        result['reading']['documents'] = [fields(document, ('path', 'sections'))
+                                          for document in report['reading']['documents']]
+    if phase in {'input', 'observe'}:
+        if 'prepared_input' in report:
+            result['prepared_input'] = fields(report, ('prepared_input',))['prepared_input']
+        return result
+    if 'basis' in report:
+        result['basis'] = fields(report['basis'], (key for key in report['basis']
+                                                if key not in {'evidence', 'identity_coverage'}))
+    else:
+        # Authored revisions expose their basis at the top level.
+        result.update(fields(report, ('purpose', 'intended_effect', 'direction', 'criteria', 'source_task_direction',
+                                      'source_task_criteria', 'requirements', 'identity_instruction', 'unresolved')))
+    result['sources'] = [fields(source, (key for key in source if key != 'text'))
+                         for source in report.get('sources', [])]
+    result['source_access'] = ('Read applicable originals at sources[].saved_path and evidence[].path, '
+        'using each source role, locator and declared scope. These references preserve complete saved bytes; '
+        'a path or this view does not establish that the source has been read.')
+    basis = report.get('basis', report)
+    guide = report.get('review_guide')
+    if guide is not None:
+        result['review_guide'] = fields(guide, (key for key in guide if key not in {'automatic_evidence', 'next_action'}))
+        result['evidence'] = fields(guide, ('automatic_evidence',))['automatic_evidence']
+    else:
+        result['evidence'] = fields(basis, ('evidence',)).get('evidence', [])
+        for entry in result['evidence']:
+            if entry.get('path') and not Path(entry['path']).is_absolute():
+                entry['path'] = str(root / entry['path'])
+    coverage = basis.get('identity_coverage', report.get('identity_coverage'))
+    if coverage is not None:
+        # The source terminal inventories repeat complete identity values.
+        # Keep the authored binding choices, whole-subject obligations and all
+        # unresolved findings; put the complete structural map at one owner.
+        result['identity_coverage'] = fields(coverage, (key for key in coverage if key != 'sources'))
+        result['identity_coverage']['sources'] = [
+            {**fields(source, (key for key in source if key != 'terminals')),
+             'terminal_count': len(source.get('terminals', [])),
+             'full_report': 'full_report#' + ('/basis' if 'basis' in report else '')
+                            + '/identity_coverage/sources/' + str(index)}
+            for index, source in enumerate(coverage.get('sources', []))]
+        result['identity_instruction'] = basis.get('identity_instruction', report.get('identity_instruction'))
+    if 'prepared_input' in report:
+        result['prepared_input'] = fields(report['prepared_input'], ('execution', 'target', 'request_sha256', 'outputs'))
+        result['prepared_input']['read_action'] = action(root, 'workspace',
+            ['--run', report['run'], '--phase', 'input'],
+            'Read the exact saved model request and inspect its media before comparing it with this basis.')
+    if report.get('source_context'):
+        result['source_context'] = {name: {'full_report': 'full_report#/source_context/' + name,
+            'meaning': 'Retained prepared context for this selected source kind.'}
+            for name in report['source_context']}
+    result.update(fields(report, ('review_requirements', 'prompt_check')))
+    if 'authority' in report:
+        held = report['authority']
+        result['authority'] = authority(held)
+        document = held.get('document') if held else None
+        if document is not None:
+            relevant = {candidate['grant']
+                for requirement in (report.get('authorization_requirements') or {}).get('requirements', [])
+                for candidate in requirement.get('candidates', [])
+                if candidate.get('eligible') or candidate.get('grant') == requirement.get('selected_grant')}
+            result['authority']['document'] = fields(document, ('task_id', 'issuer', 'evidence', 'stop_conditions'))
+            result['authority']['document']['grants'] = [fields(grant, grant) for grant in document.get('grants', [])
+                                                        if grant['id'] in relevant]
+            result['authority']['other_grant_count'] = len(document.get('grants', [])) - len(
+                result['authority']['document']['grants'])
+            result['authority']['full_report'] = 'full_report#/authority'
+    if 'authorization_requirements' in report:
+        result['authorization_requirements'] = authorization_requirements(report['authorization_requirements'])
+    if 'operations' in report:
+        result['operations'] = [fields(operation, ('operation', 'targets')) for operation in report['operations']]
+    if report.get('request_scope_template') is not None:
+        result['request_scope_template'] = {'full_report': 'full_report#/request_scope_template',
+            'meaning': 'Unanswered authority template for a new request delegation; current grants remain authoritative.'}
+    result['details_action'] = action(root, 'workspace', ['--run', report['run'], '--phase', phase,
+        *(['--candidate', report['candidate']['id']] if 'candidate' in report else []), '--view', 'full'],
+        'Read every retained relationship for this phase. Captured originals remain at their displayed file paths.')
+    return result
+
+
 def _authored(root: Path, loaded, phase: str) -> dict:
     """Read the exact authored artifact before its independent assessment basis."""
     prepared, consumer = loaded.prepared, loaded.consumer
@@ -115,6 +245,7 @@ def _authored(root: Path, loaded, phase: str) -> dict:
     else:
         from production_authored import review_basis
         result.update(review_basis(loaded))
+        result['saved_knowledge'] = _saved_knowledge(root, loaded)
         result['review_guide'] = workflow.review_authoring_guide(
             root, prepared['run'], loaded=loaded, basis=result)
         result['next_action'] = result['review_guide']['next_action']
@@ -126,7 +257,15 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
     if phase not in {'input', 'decision', 'observe', 'review'}:
         raise ValueError('workspace phase must be input, decision, observe or review')
     if phase in {'input', 'decision'} and candidate is not None:
-        raise ValueError('the input view is scoped to its prepared request')
+        from production_diagnostics import ProductionError
+        from production_report_view import action
+        raise ProductionError('INPUT_CONSISTENCY_ERROR',
+            'The input and decision views describe the prepared request; a candidate belongs to observation or review.',
+            phase='workspace', run=run, candidate=candidate,
+            required_action='Use next_action to observe this exact candidate before assessment. '
+                            'For the prepared input or execution decision, omit --candidate.',
+            next_action=action(root, 'workspace', ['--run', run, '--phase', 'observe', '--candidate', candidate],
+                               'Observe the exact saved candidate before interpreting it against the commission.'))
     root = c._root(root)
     loaded = workflow.read_run(root, run)
     directory, prepared, consumer, rows = loaded
@@ -144,7 +283,8 @@ def workspace(root: Path, run: str, *, phase: str, candidate: str | None = None)
                                  'with locators and limits. Preserve this first observation before receiving '
                                  'the commission, expected interpretation or prior findings.')
         return result
-    result.update(input_sha256=prepared['input_sha256'], reading=_reading(prepared),
+    result.update(input_sha256=prepared['input_sha256'], reading=_reading(prepared, phase),
+                  saved_knowledge=_saved_knowledge(root, loaded),
                   prepared_input=_input(loaded))
     if phase == 'input':
         result['instruction'] = ('Read the complete prepared request and inspect its supplied media. '

@@ -16,6 +16,7 @@ import production_case_fixtures as cases
 import production_fixtures as fixtures
 import production_inputs as inputs
 import production_operations as workflow
+import production_reading_scope as reading_scope
 import production_report_view as views
 import route_reading
 import studio_workspace as studio
@@ -44,6 +45,12 @@ class StageCliTests(unittest.TestCase):
                                    text=True, encoding='utf-8', timeout=60, check=False)
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         return json.loads(completed.stdout)
+
+    def check_choices(self, path):
+        result = subprocess.run([sys.executable, str(inputs.ROOT / 'scripts/production_workflow.py'),
+            'check', '--root', str(self.root), '--choices', path], cwd=self.root,
+            env=dict(os.environ), capture_output=True, text=True, encoding='utf-8', timeout=60)
+        return result.returncode, json.loads(result.stdout)
 
     def draft(self, directory='work/draft', *, execution='authored'):
         return self.command('draft-inputs', '--route', 'development' if execution == 'authored' else 'generation',
@@ -84,6 +91,37 @@ class StageCliTests(unittest.TestCase):
                 self.assertEqual(drafted['authoring_stage']['stage'], 'definition')
                 self.assertIsNone(choices['reading']['reading_key'])
                 self.assertFalse(drafted['external_effect'])
+                action = next(row for row in drafted['next_actions'] if row.get('operation') == 'read')
+                page = self.follow(action['argv'])
+                self.assertEqual(page['mode'], 'all')
+                self.assertTrue(page['body'])
+                self.assertLessEqual(sum(len(row['text'].encode('utf-8')) for row in page['body']),
+                                     route_reading.DEFAULT_PAGE_BYTES)
+                self.assertEqual(page['metadata']['authoring_scope']['stage'], 'definition')
+
+    def test_inspection_finishes_the_required_scope_after_an_explicit_section(self):
+        drafted = self.draft()
+        path = drafted['choices_file']
+        original = self.sources(path)
+        indexed = self.follow([sys.executable, str(inputs.ROOT / 'scripts/execution_routes.py'),
+            'read', '--root', str(self.root), '--choices', path, '--page-bytes', '1000000'])
+        self.assertEqual(indexed['mode'], 'index')
+        section = self.follow(indexed['actions']['next']['argv'])
+        self.assertEqual(section['mode'], 'section')
+        self.assertIsNone(section['actions']['continue'])
+        self.assertGreater(section['progress']['remaining_bytes'], 0)
+        inspected = self.command('inspect-inputs', '--choices', path)
+        retained = next(row for row in inspected['readings'] if row['snapshot'] == indexed['snapshot'])
+        completed = self.follow(retained['next_actions'][0]['argv'])
+        self.assertEqual(completed['mode'], 'all')
+        self.assertIsNotNone(completed['reading'])
+        self.assertEqual(completed['progress']['remaining_bytes'], 0)
+        delivered = sum(len(row['text'].encode('utf-8'))
+                        for result in (section, completed) for row in result['body'])
+        self.assertEqual(delivered, indexed['progress']['required_bytes'])
+        record = c.load(self.root / completed['reading']['record'])
+        route_reading.validate_record_content(record)
+        self.assertEqual(self.sources(path), original)
 
     def test_stage_transitions_keep_sources_and_only_clear_a_changed_stage_key(self):
         drafted = self.draft()
@@ -129,6 +167,81 @@ class StageCliTests(unittest.TestCase):
         self.assertGreater(fresh['remaining_bytes'], 0)
         self.assertEqual((self.root / path).read_bytes(), before[0])
         self.assertEqual(self.sources(path), before[1])
+
+    def test_saved_scope_without_choices_restarts_with_bounded_complete_delivery(self):
+        path = self.draft()['choices_file']
+        scope, task = reading_scope.from_choices(self.root, path)
+        self.root = studio.init(self.base / 'scope-only-studio', 'saved-scope', 'Synthetic saved scope')
+        work_ledger.begin(self.root, 'Resume the saved reading scope.', ['Read'])
+        first = route_reading.read_page(route=task['route'], features=task['features'],
+            operation=reading_scope.operation(scope['stage'], task['execution']),
+            execution=task['execution'], authoring_scope=scope, studio=self.root,
+            ledger=self.root / 'work/reads.jsonl', stream=io.StringIO(), publish_record=True)
+        inspected = self.command('inspect-inputs')
+        retained = next(row for row in inspected['readings'] if row['snapshot'] == first['snapshot'])
+        self.assertIsNone(retained['choices'])
+        action = retained['fresh_context_action']
+        self.assertIn('--restart', action['argv'])
+        self.assertIn('--all', action['argv'])
+        self.assertNotIn('--known-reading', action['argv'])
+        fresh = self.follow(action['argv'])
+        self.assertNotEqual(fresh['snapshot'], first['snapshot'])
+        self.assertEqual(fresh['mode'], 'all')
+        self.assertEqual(fresh['metadata']['authoring_scope'], scope)
+        delivered = 0
+        while True:
+            self.assertEqual(fresh['progress']['reused_bytes'], 0)
+            size = sum(len(row['text'].encode('utf-8')) for row in fresh['body'])
+            self.assertGreater(size, 0)
+            self.assertLessEqual(size, route_reading.DEFAULT_PAGE_BYTES)
+            delivered += size
+            if fresh['reading'] is not None:
+                break
+            self.assertIsNotNone(fresh['actions']['continue'])
+            fresh = self.follow(fresh['actions']['continue']['argv'])
+        self.assertEqual(delivered, fresh['progress']['required_bytes'])
+        self.assertEqual(fresh['progress']['remaining_bytes'], 0)
+        route_reading.validate_record_content(c.load(self.root / fresh['reading']['record']))
+
+    def test_early_check_returns_incomplete_content_to_its_current_stage(self):
+        path = self.draft()['choices_file']
+        reading = self.read(path)
+        self.store_key(path, reading['reading']['key'])
+        original = (self.root / path).read_bytes(), self.sources(path)
+        status, checked = self.check_choices(path)
+        self.assertNotEqual(status, 0)
+        self.assertFalse(checked['publishable'])
+        self.assertFalse(checked['formal_run_created'])
+        self.assertTrue(any(row.get('field') == 'authoring.delivery.content'
+                            for row in checked['diagnostics']))
+        self.assertTrue(any(row.get('code') == 'TARGET_GUIDANCE_REQUIRED'
+                            for row in checked['diagnostics']))
+        self.assertEqual(checked['next_action'].get('command'), 'inspect-inputs')
+        resumed = self.follow(checked['next_action']['argv'])
+        self.assertEqual(resumed['authoring_stage']['stage'], 'definition')
+        self.assertFalse(resumed['authoring_stage']['final_inputs_ready'])
+        self.assertEqual((self.root / path).read_bytes(), original[0])
+        self.assertEqual(self.sources(path), original[1])
+
+    def test_check_still_advances_complete_content_to_final_scope(self):
+        self.direct_task()
+        drafted = self.command('draft-inputs', '--task', 'task.json', '--operation', 'compose',
+            '--request-file', self.request, '--focus', 'supporting-setting', '--out-dir', 'work/ready')
+        path = drafted['choices_file']
+        reading = self.read(path)
+        self.store_key(path, reading['reading']['key'])
+        status, checked = self.check_choices(path)
+        self.assertNotEqual(status, 0)
+        self.assertFalse(checked['publishable'])
+        self.assertFalse(checked['formal_run_created'])
+        self.assertEqual(checked['next_action']['stage'], 'prepare')
+        resumed = self.follow(checked['next_action']['argv'])
+        self.assertEqual(resumed['authoring_stage']['stage'], 'prepare')
+        final = self.read(path)
+        self.store_key(path, final['reading']['key'])
+        status, checked = self.check_choices(path)
+        self.assertEqual(status, 0, checked)
+        self.assertTrue(checked['publishable'])
 
     def test_new_action_slice_requires_its_undelivered_contract(self):
         path = self.draft()['choices_file']

@@ -491,7 +491,8 @@ class SelectionAdoptionAuthorityTests(unittest.TestCase):
         selected = self.invoke(report['next_action']['argv'])
         blocked = self.cli('draft-adoption', '--run', self.run, '--scope', 'sheet', '--influence', 'identity',
                            '--out', 'decisions/blocked.json', expected=3)
-        action = blocked['diagnostics'][0]['next_action']
+        from test_production_report_view import resolved_action
+        action = resolved_action(blocked, blocked['diagnostics'][0]['next_action'])
         report = self.invoke(action['argv'] + ['--view', 'full'])
         update = self.author_update(report)
         basis = update['adoption']

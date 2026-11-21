@@ -107,6 +107,7 @@ def draft(root: Path, run: str, candidate: str, grant: str | None = None, *, sco
         raise
     result = {'run': run, 'input_sha256': prepared['input_sha256'], 'candidate': candidate,
             'review': reviewed['sha256'], 'scope': scope,
+            'expected_selection': workflow.replaced_selection(rows),
             'authority_sha256': authority_basis(authority, grant), 'grant': grant, 'reason': '',
             'stop_assessments': assessments.unanswered(authority),
             'owner_acceptance': None}
@@ -139,6 +140,13 @@ def _expand(root: Path, run: str, decisions: dict, loaded: tuple) -> tuple[dict,
                 f'{candidate} --scope {decisions["scope"]} --grant {decisions["grant"]} --out FILE, keep the '
                 'judgments of this decision only where that review still supports them, and apply it with accept '
                 f'--run {run} --file FILE.'))
+    if 'expected_selection' in decisions and decisions['expected_selection'] != workflow.replaced_selection(rows):
+        raise ProductionError('SELECTION_REPLACED',
+            'Another selection was recorded after this acceptance decision was drafted.',
+            phase='acceptance', run=run, expected=decisions['expected_selection'],
+            actual=workflow.replaced_selection(rows),
+            required_action='Inspect the current selection and use draft-acceptance for a fresh intended replacement. '
+                            'Apply that new decision; the earlier decision remains its historical record.')
     target = None
     if decisions['scope'] == 'studio-slot':
         target, row = _target(root, run, decisions['candidate'], loaded=loaded)
@@ -265,9 +273,8 @@ def _resumed(rows: list[dict], digest: str) -> dict | None:
 
     A completed run keeps the selection its completion names. In an open run the
     latest selection is in force until a later disposition of its candidate
-    withdraws it or a newer review of its candidate ends it. The same decision
-    is then applied as a new decision, as it is after a later selection replaced
-    the one it recorded.
+    withdraws it or a newer review of its candidate ends it. A decision that has
+    ended remains historical; a new intended use requires its own fresh draft.
     """
     import production_operations as workflow
     selected = _selected(rows)
@@ -284,9 +291,9 @@ def _resumed(rows: list[dict], digest: str) -> dict | None:
 def _accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
     """Select and complete the requested scope, or recover its exact committed intent.
 
-    A decision file that recorded the selection in force resumes it. Any other
-    decision, including one that recorded an earlier selection, is applied as
-    a new selection that replaces the run's latest one.
+    A decision file that recorded the selection in force resumes it. A fresh
+    decision replaces only the selection inspected by its draft. An earlier
+    decision never reapplies itself after another decision ended its use.
     """
     import production_operations as workflow
     import studio_workspace as studio
@@ -304,6 +311,16 @@ def _accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
                 workflow.require_mutable(rows)
                 workflow.require_open_task(rows, run)
                 selection, request = _expand(root, run, c.decode(raw), loaded)
+                earlier = [row for row in rows if row['event'] == 'selection'
+                           and any(item['sha256'] == c.digest(raw) for item in row['data']['files'])]
+                if earlier:
+                    withdrawn = workflow.selection_withdrawn(rows, earlier[-1])
+                    raise ProductionError('SELECTION_WITHDRAWN' if withdrawn else 'SELECTION_REPLACED',
+                        'This acceptance decision already recorded a selection whose use ended.',
+                        phase='acceptance', run=run, expected=earlier[-1]['sha256'],
+                        actual=workflow.replaced_selection(rows),
+                        required_action='Inspect the current disposition and selection, then use draft-acceptance '
+                                        'for the newly intended use. Its generated binding preserves the earlier decision.')
                 authorization = workflow.authorize_value(root, run, request, evidence_files=[decision_file],
                                                          expected_source=(decision_file, c.digest(raw)))
                 selection['authorization'] = authorization['sha256']
@@ -319,8 +336,7 @@ def _accept(root: Path, run: str, *, decision_file: str | None = None) -> dict:
     if current['sha256'] != selected['sha256']:
         action = ('Read the current selection with production_workflow.py status --run ' + run + '. Run accept --run '
                   + run + ' to resume that selection')
-        action += (', or accept --run ' + run + ' --file ' + decision_file + ' again to record this decision as a '
-                   'new selection that replaces it.' if decision_file is not None else '.')
+        action += '. Use draft-acceptance and complete a fresh decision for an intended replacement.'
         raise ProductionError('SELECTION_REPLACED',
             'Another operation recorded a newer selection of this run while this acceptance was applied.',
             phase='acceptance', run=run, expected=selected['sha256'], actual=current['sha256'],

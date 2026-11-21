@@ -412,7 +412,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--category", action="append", default=[], help="Category fragment filter")
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--list-categories", action="store_true")
-    parser.add_argument("--read", type=Path, help="A finished prompt file: retrieve complete dictionary definitions for its terms")
+    parser.add_argument("--read", type=Path, help="Dictionary readback of literal comma-separated terms or a phrase list; review natural prose as text")
     parser.add_argument("--negative", type=Path, help="A file holding the negative text, read beside --read")
     parser.add_argument("--record", type=Path, metavar="PATH",
                         help="Append this search and the terms it returned to a prompt retrieval record")

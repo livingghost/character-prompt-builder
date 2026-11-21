@@ -8,6 +8,8 @@
     "candidate": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "review": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "scope": {"enum": ["delivery-only", "studio-slot"]},
+    "expected_selection": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$",
+      "description": "Machine-derived latest selection observed by the draft. A later selection requires a fresh draft."},
     "authority_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "expected_placement": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "expected_slot": {

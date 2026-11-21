@@ -37,8 +37,9 @@ The standalone `inspect-inputs` summary keeps the same indexed findings in its
 top-level `diagnostics`.
 Inputs and their context name those findings through `diagnostic_ids`, including
 findings for branches outside the displayed prefix. `blockers` locates every
-current blocking finding. Repeated route-reading commands use an `action_ref`
-JSON Pointer to the executable action already in the summary. Reading changes
+current blocking finding. Repeated identical commands use an `action_ref`
+JSON Pointer to the executable action already in the summary, with the primary
+next action first. Different decision reasons or scopes retain their own actions. Reading changes
 show source paths; complete before/after hashes remain in `full_report`.
 `full_report_action` reads the exact saved JSON snapshot; `details_action` and
 `status --view full` acquire complete current evidence. Presentation changes no
@@ -92,8 +93,10 @@ python scripts/execution_routes.py read --root STUDIO --choices work/draft/choic
 ```
 
 `stage-inputs` retains the choices, source files and prior results and returns
-the reading and editing actions for the selected stage. Use the returned
-invocation with its complete runtime selection. Read the required original
+the reading and editing actions for the selected stage. Its reading action starts
+complete bounded delivery with `--all`; follow `actions.continue` to completion.
+Use `actions.index` when inspecting the source scope or choosing an exact section.
+Use the returned invocation with its complete runtime selection. Read the required original
 sections before making that stage's decisions. Finish its authored work, then
 select the next needed stage. Return to an earlier stage when a changed request
 reopens its definition, construction or expression; retain all applicable
@@ -139,9 +142,27 @@ owns the index, section, replay and recovery contract.
 
 An existing record establishes earlier source delivery. A new context still
 needs the complete knowledge required for its present judgment. In the same
-context, `context_reuse.operations` indexes the next operation with explicit
-complete reading keys and delivers only missing or changed bodies. This reuses
-delivered knowledge, not an earlier successful source or permission check.
+context, append `context_reuse.arguments` to the actual next draft's reading
+action. That action owns its operation and scope; the explicit complete reading
+keys allow the reader to deliver only missing or changed bodies.
+`context_reuse.operations` offers the current operation's inspection without
+enumerating unrelated future operations. This reuses delivered knowledge,
+not an earlier successful source or permission check.
+
+Execution reads the permissions, exact-input interpretation, transport, capture
+and recovery contract for the saved request. Review reads observation, source
+scope, criteria and evidence limits for the actual artifact. Their explicit
+section profiles defer authoring templates and new-depiction procedures to
+reopened input work. Unmanaged selected specialists retain their complete
+delivery. Every required section still receives exact-byte coverage before a
+reading record is issued.
+
+The `execute` and `review` reading actions select the saved task's route,
+features and execution kind. With no new model-family inspection selected,
+they do not reopen every family's prompt-authoring resources. Use the
+workspace's `saved_knowledge` paths for the exact prepared model, offering and
+guide originals. An explicit model or family inspection still delivers its
+selected guidance. Current catalog changes do not redefine a saved request.
 
 | Requested work | Operation and owning result |
 | --- | --- |
@@ -178,7 +199,10 @@ for a model request. `save --draft` preserves unfinished content and unresolved
 choices. Completed target-specific text applies the target's input contract,
 grammar and required real dictionary search even when no image is generated.
 `check --choices FILE` is the same compiler without publication when a separate
-diagnostic is useful. `build-inputs` is an optional export of derived inputs.
+diagnostic is useful. If authored choices are still incomplete, its next action
+returns to their current stage. When only final binding knowledge remains, it
+offers `prepare`; the final reading requirement remains part of every completed
+check. `build-inputs` is an optional export of derived inputs.
 Direct ProductionTask inputs select their acquired common basis with `work_basis`.
 Their completed checks use the same request, character and actual-source
 relationships as saved choices; [Authoring work](authoring-work.md#save-or-execute-the-same-work)

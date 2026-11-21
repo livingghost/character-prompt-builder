@@ -15,6 +15,8 @@ from production_cli_arguments import (INPUT_COMMANDS, CRAFT_COMMANDS, add_input_
 
 
 COMMAND_HELP = {
+    'plan': 'Create a saved production plan, inspect its results or refresh changed current judgments.',
+    'advance': 'Continue the saved plan, record mechanical transitions and return only the next required judgment.',
     'check': 'Check a task and show its request preview and execution plan without creating a run.',
     'prepare': 'Check a task and publish it as a prepared run with its exact request and execution plan.',
     'save': 'Save an authored revision from its editable choices, retaining unresolved input when --draft is selected.',
@@ -167,7 +169,8 @@ FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'choices', 'artifact', 'response_file',
 
 SUMMARY_COMMANDS = frozenset({'status', 'check', 'prepare', 'save', 'authority-import', 'draft-execution',
     'execute', 'resume', 'draft-inputs', 'stage-inputs', 'inspect-inputs', 'build-inputs', 'acquire-source', 'edit-choices',
-    'draft-principal-approval', 'draft-authority-update', 'draft-acceptance', 'draft-adoption'})
+    'draft-principal-approval', 'draft-authority-update', 'draft-acceptance', 'draft-adoption',
+    'workspace', 'draft-review'})
 
 
 def build_parser():
@@ -182,8 +185,27 @@ def build_parser():
     for name in COMMAND_HELP:
         p = sub.add_parser(name, help=COMMAND_HELP[name], description=COMMAND_HELP[name])
         p.add_argument('--root', type=Path, required=name not in {'logs', 'logs-export', 'logs-cleanup'})
-        if name not in {'prepare', 'check', 'save', 'authority-import', 'staging-cleanup', 'logs', 'logs-export', 'logs-cleanup', 'status', 'acquire-source', 'edit-choices'}:
+        if name not in {'plan', 'advance', 'prepare', 'check', 'save', 'authority-import', 'staging-cleanup', 'logs', 'logs-export', 'logs-cleanup', 'status', 'acquire-source', 'edit-choices'}:
             p.add_argument('--run', required=True)
+        if name in {'plan', 'advance'}:
+            p.add_argument('--file', help='Studio-relative work request for plan, or the plan.json to inspect/refresh/advance. '
+                'Omit to continue the active task\'s plan; plan otherwise writes a small unanswered request.')
+            p.epilog = ('A request selects source and result once. Source names choices, run, request, batch, '
+                'or an imported owner. Result scope is save, prepared-input, delivery-only, studio-slot, sheet, '
+                'catalog or withdraw. Example: {"source":{"run":"RUN"},'
+                '"result":{"scope":"sheet","influence":"identity"}}. '
+                'Each returned answer_file contains only the current authored judgment. Complete it and use '
+                'advance again; bindings, independent formal events and ledger updates are derived. '
+                'See references/runtime/production-work-plan.md and '
+                'schemas/authoring/production-work-request.schema.json for complete examples and conditions.')
+            if name == 'plan':
+                from production_work_plan import add_request_arguments
+                add_request_arguments(p)
+                p.epilog = ('For one result, select --run, --choices, --request-file or --batch and --scope. '
+                    'Example: plan --root STUDIO --run RUN --scope sheet --influence identity. '
+                    'No request JSON is needed. --file selects an existing plan or a multi-item request. '
+                    'The intended scope grants no permission; fill only the current authored answer and continue with advance. '
+                    'See references/runtime/production-work-plan.md for the complete workflow.')
         if name in {'status', 'logs', 'logs-export'}:
             p.add_argument('--run')
         if name == 'status':
@@ -316,7 +338,8 @@ def build_parser():
             p.add_argument('--note', required=True)
         if name == 'workspace':
             p.add_argument('--phase', required=True, choices=['input', 'decision', 'observe', 'review'],
-                           help='The context to read; observe exposes candidate evidence before the assessment basis.')
+                           help='input and decision describe the prepared request without --candidate; '
+                                'observe exposes --candidate before the assessment basis, and review adds that basis.')
             p.add_argument('--candidate', help='Candidate event ID for observe or review.')
         if name == 'receive-external':
             p.add_argument('--response', dest='response_file', required=True, help='Actual saved host response file.')
@@ -347,9 +370,9 @@ def build_parser():
             add_pack_runtime_arguments(p)
     for command, child in sub.choices.items():
         if command in SUMMARY_COMMANDS and command != 'status':
-            child.add_argument('--view', choices=['summary', 'full'], default='full',
+            child.add_argument('--view', choices=['summary', 'full'], default='summary',
                 help='Show current results with bounded history, diagnostic_ids/action_ref links and '
-                     'total/omitted/full_report counts, or the full JSON result (default).')
+                     'total/omitted/full_report counts (default), or explicitly select the full JSON result.')
         if child.description is None:
             child.description = next(action.help for action in sub._choices_actions if action.dest == command)
         for action in child._actions:
@@ -427,6 +450,7 @@ def _write_decision_draft(root: Path, run: str, kind: str, out: str, value: dict
     elif kind == 'acceptance':
         basis = {'review': value['review'], 'expected_slot': value.get('expected_slot'),
                  'expected_placement': value.get('expected_placement'),
+                 'expected_selection': value.get('expected_selection'),
                  'authority': value['authority_sha256']}
         grant, scope = value['grant'], value['scope']
     elif kind == 'adoption':
@@ -519,7 +543,12 @@ def main() -> int:
             elif getattr(args, 'choices', None):
                 from production_authoring_state import registered_runtime_arguments
                 runtime_arguments = registered_runtime_arguments(root, args.choices)
-        if name in CRAFT_COMMANDS:
+        if name in {'plan', 'advance'}:
+            import production_work_plan
+            result = (production_work_plan.create(root, args.file,
+                          request=production_work_plan.request_from_arguments(root, args)) if name == 'plan'
+                      else production_work_plan.advance(root, args.file))
+        elif name in CRAFT_COMMANDS:
             import craft_consultation
             result = craft_consultation.command(args, parser)
         elif name in {'variant', 'repeat', 'retarget'}:

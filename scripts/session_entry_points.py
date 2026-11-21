@@ -120,8 +120,9 @@ def authoring_lines(cwd: Path) -> list[str]:
         check = shown(python_argv(ROOT / "scripts" / "validate_studio.py", str(root)))
         return [f"The studio at {root} cannot be read: {one_line(exc)}. Check it with: {check}"]
     workflow = ROOT / "scripts/production_workflow.py"
-    lines.append("Inspect current work: " + shown(python_argv(workflow, "status", "--root", str(root))))
-    if active:
+    if not (active or {}).get('production_plan'):
+        lines.append("Inspect current work: " + shown(python_argv(workflow, "status", "--root", str(root))))
+    if active and not active.get('production_plan'):
         lines.append("Inspect saved inputs: " + shown(python_argv(workflow, "inspect-inputs", "--root", str(root))))
     if run:
         lines.append("Saved production revision: " + shown(python_argv(workflow, "status", "--root", str(root), "--run", run)))

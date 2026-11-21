@@ -96,7 +96,8 @@ class AuthoredRevisionTests(unittest.TestCase):
             capture_output=True, text=True, encoding='utf-8', env=dict(os.environ), check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         report = json.loads(result.stdout)
-        self.assertEqual(report['choices'], c.load(self.root / custom))
+        self.assertNotIn('choices', report)
+        self.assertEqual(c.load(self.root / custom)['observations'], [])
         self.assertEqual(report['draft_file'], custom)
         self.assertEqual(report['review_guide']['automatic_evidence'][0]['id'], 'candidate')
         self.assertEqual(report['next_action']['command'], 'review-authored')
@@ -168,7 +169,8 @@ class AuthoredRevisionTests(unittest.TestCase):
         self.assertEqual(work_ledger.task_path(self.root, b_id).read_bytes(), b_record_before)
         self.assertEqual((self.root / b_path).read_bytes(), b_before)
         self.assertEqual(production_store.runs(self.root), [])
-        actions = problem['recovery_actions']
+        from test_production_report_view import resolved_action
+        actions = [resolved_action(refused, action) for action in problem['recovery_actions']]
         self.assertEqual([action['command'] for action in actions], ['suspend', 'resume-task', 'save'])
         self.assertEqual(actions[0]['expected_active_task_id'], a_id)
         self.assertEqual(actions[1]['argv'][-2:], ['--task-id', b_id])

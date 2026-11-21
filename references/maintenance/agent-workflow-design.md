@@ -512,3 +512,51 @@ reading, search, editing and context-reconstruction work needed to finish the
 task; a shorter first read alone establishes no workflow improvement. Measured
 time and context consumption describe only the task and environment actually
 observed.
+
+### Workflow trial records
+
+Resume an interrupted evaluation from its saved source, workspaces, exact requests
+and raw logs. Establish which snapshot each result exercised and which operations
+remain unfinished before changing anything. Keep completed and failed candidates
+distinct from the current editable source. Do not overwrite an earlier failure
+with a repaired artifact or infer completion from a status note alone.
+
+For independent workflow trials, fix the package and give each operator its own
+Studio and runtime. Record the package hash, source revision, interpreter, Skill
+root, Studio root, model and reasoning effort actually selected. Honor a requested
+model; a parent agent's work cannot substitute for that model's trial. Operators
+follow public instructions and commands. Peers review the raw requests, actions,
+source bytes and final artifacts before adopting a performer's conclusions.
+Keep implementation history, expected answers and earlier findings outside an
+unaided operator's context. Record parent advice, content supplied by another
+agent and harness repairs as interventions, with their point in the action log.
+
+Define the measurement unit and the trial's completion boundary. Count actual
+command attempts, help and search calls, file edits, retries and recovery, including
+successful operations that add unnecessary work. Record source-body bytes
+separately from command-output bytes, repeated reads and context reconstruction.
+Retain the chosen output budget and observed truncation when they affect reading;
+a captured log or delivery receipt does not establish that the operator saw all
+its text. Keep subprocess duration, elapsed session time and unknown historical
+timings distinct. Do not present interrupted or assisted work as an unaided speed
+comparison. Verify the result's meaning and its source, selection, approval and
+ledger relationships where those are part of the task.
+
+An operator mistake is evidence about the workflow, including its complexity.
+Trace what the operator saw, why the action was chosen, whether it recurred, how
+recovery worked and what remained in the result. Distinguish a product defect
+from ambiguous parent instructions, logging failures and environment limitations.
+Record a reasoned decision to fix, retain the existing behavior or seek more
+evidence. A single recovered mistake is not an automatic failure, and recurrence
+is not a prerequisite for fixing a demonstrated correctness defect. Correct the
+owner that caused the burden; avoid adding mandatory restrictions or repeated
+confirmation merely to eliminate every possible mistake.
+
+After a consequential repair, use a fresh relevant task to test the changed
+guidance without the diagnosis, and preserve both trials. A focused trial may
+stop at a declared reading or recovery outcome; report that boundary and do not
+extend it to an unperformed full task. Automated contracts, peer observations,
+artistic judgment and live-service behavior provide different evidence. Keep
+necessary knowledge and decisions in the workflow when reducing steps or output,
+and stop optional repetition once the stated outcome and remaining risks have
+been adequately checked.

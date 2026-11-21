@@ -16,6 +16,7 @@ import production_input_preflight as preflight
 import production_inputs
 from production_diagnostics import ProductionError
 import work_ledger
+from test_production_report_view import resolved_action
 
 
 class InputPreflightTests(unittest.TestCase):
@@ -94,7 +95,8 @@ class InputPreflightTests(unittest.TestCase):
                         self.assertEqual(problem['file'], 'selected-task.json')
                         self.assertEqual(problem['repair_owner']['file'], 'selected-task.json')
                         self.assertIn('type', problem['expected'])
-                        self.assertIn('draft-inputs', problem['repair_action']['argv'])
+                        repair = resolved_action(report, problem['repair_action'])
+                        self.assertIn('draft-inputs', repair['argv'])
                         if view == 'summary':
                             complete = c.load(self.root / report['full_report'])
                             self.assertEqual(complete['diagnostics'][0]['pointer'], pointer)
@@ -126,13 +128,15 @@ class InputPreflightTests(unittest.TestCase):
         diagnosed = subprocess.run([sys.executable, str(cli), 'inspect-inputs', '--root', str(root),
             '--task', 'selected-task.json', '--view', 'summary'], capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(diagnosed.returncode, 2, diagnosed.stdout + diagnosed.stderr)
-        problem = json.loads(diagnosed.stdout)['diagnostics'][0]
-        action = problem['repair_action']
+        report = json.loads(diagnosed.stdout)
+        problem = report['diagnostics'][0]
+        action = resolved_action(report, problem['repair_action'])
         self.assertEqual(action['operation'], 'begin-work')
         self.assertIsNone(work_ledger.read_current(root))
         opened = subprocess.run(action['argv'], capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(opened.returncode, 0, opened.stdout + opened.stderr)
-        scaffold = subprocess.run(action['next_action']['argv'], capture_output=True, text=True, encoding='utf-8')
+        scaffold = subprocess.run(resolved_action(report, action['next_action'])['argv'],
+                                  capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(scaffold.returncode, 0, scaffold.stdout + scaffold.stderr)
         choices = c.load(root / json.loads(scaffold.stdout)['choices_file'])
         self.assertIn('source_allowances', choices['authoring']['task']['direction'])

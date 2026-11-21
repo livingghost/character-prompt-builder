@@ -22,6 +22,7 @@ import production_fixtures
 import production_operations as workflow
 import production_store as store
 import work_ledger
+from test_production_report_view import resolved_action
 
 
 SCRIPT = Path(__file__).with_name('production_workflow.py')
@@ -100,8 +101,9 @@ class RetainedInputPreflightTests(unittest.TestCase):
                     self.assertEqual(problem['file'], 'historical-task.json')
                     self.assertEqual(problem['selected_input']['run'], run)
                     self.assertEqual(problem['repair_owner'], {'kind': 'new-draft', 'file': None})
-                    self.assertEqual(problem['repair_action']['operation'], 'draft-inputs')
-                    self.assertNotIn('--from-run', problem['repair_action']['argv'])
+                    repair = resolved_action(report, problem['repair_action'])
+                    self.assertEqual(repair['operation'], 'draft-inputs')
+                    self.assertNotIn('--from-run', repair['argv'])
                     self.assertIn('Retain the selected run unchanged', problem['required_action'])
                     self.assertEqual(problem['expected']['type'], 'object')
         self.assertEqual(self.contents(directory), before)

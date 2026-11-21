@@ -17,6 +17,20 @@ import production_report_view as views
 import production_status_view
 
 
+def resolved_action(report, value):
+    seen = set()
+    while 'action_ref' in value:
+        pointer = value['action_ref']
+        if pointer in seen:
+            raise AssertionError('cyclic action reference')
+        seen.add(pointer)
+        value = report
+        for token in pointer[2:].split('/'):
+            token = token.replace('~1', '/').replace('~0', '~')
+            value = value[int(token)] if isinstance(value, list) else value[token]
+    return value
+
+
 def grant(identifier, *, operations=None, targets=None):
     return {'id': identifier, 'actor': 'Synthetic actor', 'mode': 'direct',
             'operations': operations or ['direction'], 'targets': targets or ['purpose', 'decision:color'],
@@ -152,6 +166,21 @@ class ReportViewTests(unittest.TestCase):
         self.addCleanup(folder.cleanup)
         self.root = Path(folder.name)
 
+    def test_bound_plan_task_action_and_explicit_run_action_remain_independent(self):
+        import work_ledger
+        report = prepared_authoring_status(self.root)
+        task = report['current_task']
+        task.update(production_plan='work/plans/selected/plan.json', focus='plan')
+        task['next_actions'] = [work_ledger.plan_action(self.root, task)]
+        task['authoring']['selection_required'] = True
+        by_task = production_status_view.summary(self.root, report)
+        self.assertEqual(resolved_action(by_task, by_task['next_action'])['command'], 'advance')
+        self.assertEqual(by_task['current_task']['production_plan'], task['production_plan'])
+        self.assertEqual(resolved_action(by_task, by_task['runs'][0]['next_action'])['command'], 'draft-execution')
+        by_run = production_status_view.summary(self.root, report, run='synthetic-run')
+        self.assertEqual(resolved_action(by_run, by_run['next_action'])['command'], 'draft-execution')
+        self.assertEqual(resolved_action(by_run, by_run['current_task']['next_actions'][0])['command'], 'advance')
+
     def test_retained_source_repair_keeps_complete_arguments_and_precedes_navigation(self):
         repair = {'command': 'draft-inputs', 'argv': ['python', 'production_workflow.py',
             'draft-inputs', '--root', str(self.root), '--choices', 'work/proposal/choices.json',
@@ -198,7 +227,7 @@ class ReportViewTests(unittest.TestCase):
         self.assertNotIn('candidates', need)
         self.assertNotIn('old-1599', json.dumps(large))
         self.assertLess(abs(len(json.dumps(large)) - len(json.dumps(small))), 100)
-        self.assertEqual(large['runs'][0]['next_action'], after['runs'][0]['next_action'])
+        self.assertEqual(resolved_action(large, large['runs'][0]['next_action']), after['runs'][0]['next_action'])
         self.assertEqual(len(after['runs'][0]['authorization_requirements']['requirements'][0]['candidates']), 1600)
 
     def test_many_eligible_grants_are_bounded_and_selection_beyond_prefix_stays_explicit(self):
@@ -393,7 +422,7 @@ class ReportViewTests(unittest.TestCase):
                             'source_roles': ['identity-contract'], 'repair_action': acquire}],
             'next_actions': []}
         view = views.summarize(self.root, draft, command='draft-inputs')
-        self.assertEqual(view['authoring_guide']['source_acquisition'], acquire)
+        self.assertEqual(resolved_action(view, view['authoring_guide']['source_acquisition']), acquire)
         self.assertEqual(view['authoring_guide']['structured_edit'], edit)
         self.assertEqual(view['authoring_guide']['source_requirements'], missing)
         self.assertEqual(view['unresolved'][0]['source_roles'], ['identity-contract'])
@@ -565,7 +594,7 @@ class ReportViewTests(unittest.TestCase):
         self.assertLess(rendered.index('\n  "full_report"'), rendered.index('\n  "current_task"'))
         self.assertIn('\n  "next_action"', rendered[:2000])
         self.assertEqual(result['next_action'], report['runs'][0]['next_action'])
-        self.assertEqual(result['runs'][0]['next_action'], report['runs'][0]['next_action'])
+        self.assertEqual(result['runs'][0]['next_action'], {'action_ref': '#/next_action'})
         authoring = result['current_task']['authoring']
         [identifier] = authoring['inputs'][0]['diagnostic_ids']
         self.assertEqual(next(row for row in authoring['diagnostics'] if row['id'] == identifier)['required_action'],
@@ -735,6 +764,7 @@ class ReportViewTests(unittest.TestCase):
                                        for number in range(54)]
         result = views.present(self.root, report, command='status', run='synthetic-run')
         for displayed in (result['next_action'], result['runs'][0]['next_action']):
+            displayed = resolved_action(result, displayed)
             self.assertEqual(len(displayed['alternatives']), 8)
             self.assertEqual(displayed['alternatives_summary'], {'total': 54, 'omitted': 46,
                 'full_report': result['full_report'] + '#/runs/0/next_action/alternatives'})
@@ -785,6 +815,85 @@ class ReportViewTests(unittest.TestCase):
         self.assertEqual(result['next_action'], report['next_action'])
         self.assertEqual(c.load(self.root / result['full_report']), original)
         self.assertEqual(report, original)
+
+    def test_repeated_execution_actions_resolve_and_distinct_judgments_stay_distinct(self):
+        chosen = {'command': 'accept', 'argv': ['python', 'workflow.py', 'accept', '--run', 'one'],
+                  'reason': 'Complete the selected candidate.', 'requires_author_input': False}
+        different = {**chosen, 'reason': 'Inspect this historical operation before any new choice.'}
+        report = {'runs': [{'next_action': copy.deepcopy(chosen)}],
+                  'next_action': copy.deepcopy(chosen),
+                  'current_task': {'next_actions': [copy.deepcopy(chosen), different]}}
+        shown = views.actions_once(report)
+        self.assertEqual(shown['next_action'], chosen)
+        self.assertEqual(shown['current_task']['next_actions'][1], different)
+        references = []
+        def visit(value):
+            if isinstance(value, dict):
+                if 'action_ref' in value:
+                    references.append(value['action_ref'])
+                for child in value.values(): visit(child)
+            elif isinstance(value, list):
+                for child in value: visit(child)
+        visit(shown)
+        self.assertEqual(len(references), 2)
+        for pointer in references:
+            target = shown
+            for token in pointer[2:].split('/'):
+                token = token.replace('~1', '/').replace('~0', '~')
+                target = target[int(token)] if isinstance(target, list) else target[token]
+            self.assertEqual(target, chosen)
+        self.assertEqual(views.actions_once(copy.deepcopy(shown)), shown)
+
+    def test_review_workspace_keeps_judgments_and_links_complete_originals_once(self):
+        raw = ('Synthetic complete source context. ' * 20000).encode()
+        source_path = self.root / 'original.txt'; source_path.write_bytes(raw)
+        criteria = [{'id': 'required', 'requirement': 'Preserve the selected relationship.',
+                     'evidence': 'image', 'kind': 'hard', 'realizations': []}]
+        evidence = [{'id': 'candidate', 'role': 'candidate', 'files': [{'path': str(self.root / 'candidate.png')}],
+                     'kind': 'image'}, {'id': 'task-source:brief', 'role': 'comparison', 'path': str(source_path),
+                     'kind': 'text', 'relation': 'The complete commissioned source.'}]
+        coverage = {'sources': [{'id': 'brief', 'subject_ids': ['subject'], 'selectors': [''],
+            'path': 'original.txt', 'sha256': c.digest(raw), 'terminals': [{'pointer': '', 'value': raw.decode()}]}],
+            'bindings': [{'criterion': 'required', 'source': 'brief', 'selectors': [''], 'treatment': 'required'}],
+            'unresolved': [], 'whole_reviews': [{'subject_ids': ['subject'], 'criterion': 'required'}]}
+        report = {'phase': 'review', 'run': 'synthetic-run', 'input_sha256': 'a' * 64,
+            'candidate': {'id': 'synthetic-candidate', 'files': evidence[0]['files']},
+            'basis': {'purpose': 'Judge the actual result.', 'criteria': criteria, 'identity_coverage': coverage,
+                      'identity_instruction': 'Read the original identity source.', 'evidence': evidence[1:]},
+            'sources': [{'id': 'brief', 'saved_path': str(source_path), 'locator': 'whole', 'role': 'design',
+                         'text': raw.decode(), 'sha256': c.digest(raw)}],
+            'identity_coverage': coverage,
+            'prepared_input': {'execution': 'external', 'request': {'prompt': raw.decode()}, 'outputs': 1},
+            'source_context': {'world_views': {'full_source': raw.decode()}},
+            'instruction': 'Observe, then assess every commissioned criterion.',
+            'review_guide': {'automatic_evidence': evidence, 'author_fills': ['observations', 'checks'],
+                'observation_template': {'evidence': 'candidate', 'observation': '', 'interpretation': '', 'limitations': []},
+                'next_action': {'command': 'draft-review', 'argv': ['python', 'workflow.py', 'draft-review']}},
+            'next_action': {'command': 'draft-review', 'argv': ['python', 'workflow.py', 'draft-review']}}
+        original = copy.deepcopy(report)
+        result = views.present(self.root, report, command='workspace', run='synthetic-run')
+        self.assertEqual(result['basis']['criteria'], criteria)
+        self.assertEqual(result['identity_coverage']['bindings'], coverage['bindings'])
+        self.assertEqual(result['identity_coverage']['whole_reviews'], coverage['whole_reviews'])
+        self.assertEqual(Path(result['sources'][0]['saved_path']).read_bytes(), raw)
+        self.assertNotIn('text', result['sources'][0])
+        self.assertNotIn('terminals', result['identity_coverage']['sources'][0])
+        self.assertEqual(result['identity_coverage']['sources'][0]['terminal_count'], 1)
+        self.assertEqual(result['evidence'], evidence)
+        self.assertNotIn('automatic_evidence', result['review_guide'])
+        self.assertLess(len(json.dumps(result).encode()), 12000)
+        self.assertEqual(c.load(self.root / result['full_report']), original)
+        self.assertEqual(report, original)
+
+    def test_input_and_observation_workspaces_keep_the_exact_material(self):
+        for phase, material in [('input', {'prepared_input': {'request': {'prompt': 'Exact text. ' * 3000},
+                                                               'media': [{'path': 'saved.png'}]}}),
+                                ('observe', {'candidate': {'id': 'candidate', 'files': [{'path': 'saved.png'}]}})]:
+            with self.subTest(phase=phase):
+                report = {'phase': phase, 'run': 'run', 'instruction': 'Read the actual material.', **material}
+                shown = views.present(self.root, report, command='workspace', run='run')
+                for name, value in material.items(): self.assertEqual(shown[name], value)
+                self.assertNotIn('basis', shown)
 
 
 if __name__ == '__main__':

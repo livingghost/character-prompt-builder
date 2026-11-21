@@ -22,6 +22,64 @@ def active_task_id(root: Path | None) -> str | None:
     return task['task_id'] if task is not None else None
 
 
+def _plan_publication_action(root: Path, task: dict | None, choices: str | None,
+                             actions: list[dict]) -> dict | None:
+    """Continue the owning plan when its exact ready choices would publish directly.
+
+    Read the bound plan state without inspecting it: plan inspection itself can
+    contain this authoring inspection, so calling its public inspection path
+    here would recurse. The source path, task ID and unfinished item all have
+    to agree before a direct save/prepare action is replaced.
+    """
+    if task is None or not task.get('production_plan') or choices is None or len(actions) != 1:
+        return None
+    action = actions[0]
+    if (action.get('command') not in {'save', 'prepare'}
+            or action.get('requires_author_input') is not False
+            or action.get('external_effect') is not False
+            or '--draft' in action.get('argv', [])):
+        return None
+    arguments = action.get('args')
+    if not isinstance(arguments, dict) or not isinstance(arguments.get('choices'), str):
+        return None
+    try:
+        root = c._root(root)
+        selected_path = c.local(root, choices).relative_to(root).as_posix()
+        action_path = c.local(root, arguments['choices']).relative_to(root).as_posix()
+        if selected_path != action_path:
+            return None
+        import production_work_plan
+        _, state, _ = production_work_plan._load(root, task['production_plan'])
+    except READ_ERRORS:
+        return None
+    if (state.get('task_id') != task.get('task_id')
+            or state.get('status') not in {'active', 'blocked'}
+            or not isinstance(state.get('items'), dict)):
+        return None
+    owned = []
+    for entry in state.get('items', {}).values():
+        if not isinstance(entry, dict):
+            continue
+        source = entry.get('source') or {}
+        if not isinstance(source, dict):
+            continue
+        source_choices = source.get('choices')
+        if not isinstance(source_choices, str):
+            continue
+        try:
+            source_path = c.local(root, source_choices).relative_to(root).as_posix()
+        except READ_ERRORS:
+            continue
+        if (source_path == selected_path and entry.get('run') is None
+                and entry.get('phase') in {'source', 'authoring'}
+                and entry.get('status') in {'pending', 'needs-input', 'blocked'}):
+            owned.append(entry)
+    if len(owned) != 1:
+        return None
+    import work_ledger
+    return work_ledger.plan_action(root, task)
+
+
 def current_task(root: Path, *, task: dict | None = None, report: dict | None = None,
                  read_run=None, run: str | None = None) -> dict | None:
     """Expose one continuation from the current work and its actual saved state.
@@ -44,6 +102,9 @@ def current_task(root: Path, *, task: dict | None = None, report: dict | None = 
     result = {'task_id': task.get('task_id'), 'goal': task.get('goal'), 'next': task.get('next'),
               'production_run': task.get('production_run'), 'focus': focus,
               'next_actions': authoring['next_actions'], 'authoring': authoring}
+    continuation = work_ledger.plan_action(root, task)
+    if continuation is not None:
+        result.update(production_plan=task['production_plan'], focus='plan', next_actions=[continuation])
     if run is not None:
         result['authoring_action'] = {'command': 'status',
             'argv': python_argv(ROOT / 'scripts/production_workflow.py', 'status', '--root', str(c._root(root))),
@@ -744,7 +805,7 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
         argv = python_argv(Path(details['skill_root']) / 'scripts/execution_routes.py', 'read', *selected,
                            '--reading-ledger', details['ledger'],
                            '--root', str(c._root(root)),
-                           '--page-bytes', str(details['page_bytes']))
+                           '--page-bytes', str(details['page_bytes']), '--all')
         runtime = route_reading._runtime_context(details['runtime'])
         if runtime is not None:
             argv.extend(runtime.command_arguments())
@@ -811,7 +872,7 @@ def _reading(root: Path, row: dict, records: list[dict]) -> dict:
         acquired=(folder, snapshot, page), coverage=coverage)
     result.update(state='partial' if delivered < total else 'delivered', actions=actions,
                   mode='index' if page.get('index') else 'section' if 'section' in page else 'all')
-    result['next_actions'] = [actions['continue'] or actions['next'] or actions['all']]
+    result['next_actions'] = [actions['continue'] or actions['all']]
     result['fresh_context_action'] = restart(
         'Read the complete current stage after a context change; saved receipts and pages do not establish retained knowledge.',
         cursor=restart_cursor)['next_actions'][0]
@@ -1252,6 +1313,10 @@ def inspect(root: Path, task: dict | None = None, *, read_run=None, choices: str
             if action.get('argv'):
                 action['shown'] = shown(action['argv'])
             result['next_actions'] = [action]
+    continuation = _plan_publication_action(root, task,
+        selected_source.get('choices'), result['next_actions'])
+    if continuation is not None:
+        result['next_actions'] = [continuation]
     try:
         result['context'] = _context(root, task, selected_input, read_run=read_run)
     except READ_ERRORS as exc:
@@ -1261,6 +1326,17 @@ def inspect(root: Path, task: dict | None = None, *, read_run=None, choices: str
 
 def session_lines(root: Path, task: dict, *, report: dict | None = None, read_run=None) -> list[str]:
     report = inspect(root, task, read_run=read_run) if report is None else report
+    if report.get('view') == 'summary':
+        # This text formatter needs saved delivery obligations and log owners
+        # that the JSON projection deliberately keeps at its exact full owner.
+        # Read that acquired snapshot without repeating inspection or checks.
+        if 'complete_report' in report:
+            report = report['complete_report']
+        else:
+            raw = c.read(c.local(root, report['full_report']))
+            if c.digest(raw) != report['full_report_sha256']:
+                raise ValueError('The saved authoring report changed; inspect the current authoring state again.')
+            report = c.decode(raw)
     lines = []
     stage = report.get('authoring_stage')
     if stage is not None and report['pending']:
