@@ -239,6 +239,14 @@ def validate_work(work: Any, complete: bool = False, require_subject: bool = Fal
         error('/basis/baseline_sha256', 'baseline differs from its acquired JSON SHA-256')
     if basis['operation'] == 'amend' and baseline is None:
         error('/basis/baseline', 'amend requires actual baseline content')
+    if basis.get('change_scope') is not None:
+        from production_change_scope import validate_change_scope
+        try:
+            validate_change_scope(basis['change_scope'])
+            if basis['operation'] != 'amend':
+                raise ValueError('change_scope belongs to an amendment of an acquired baseline')
+        except (TypeError, ValueError) as problem:
+            error('/basis/change_scope', str(problem))
     invalid_sources = set()
     for ident, source in basis['sources'].items():
         try:

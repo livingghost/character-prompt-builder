@@ -35,6 +35,8 @@ def add_request_arguments(parser) -> None:
     parser.add_argument('--from-run', help='Retained input to revise under --request-file.')
     parser.add_argument('--operation', choices=('compose', 'amend'),
                         help='Authoring operation for --request-file; otherwise derived from the selected source.')
+    from production_cli_arguments import add_change_scope_arguments
+    add_change_scope_arguments(parser)
     parser.add_argument('--model', help='Selected model for --request-file; omission preserves a retained target.')
     parser.add_argument('--service', help='Selected service for --request-file; omission preserves a retained target.')
     parser.add_argument('--feature', action='append', default=[],
@@ -50,10 +52,12 @@ def request_from_arguments(root: Path, args) -> dict | None:
     source_values = {name: getattr(args, name, None) for name in source_names}
     source_options = {name: value for name, value in source_values.items() if value is not None}
     request_names = ('route', 'execution', 'from_run', 'operation', 'model', 'service')
+    from production_cli_arguments import change_scope_from_arguments
+    change_scope = change_scope_from_arguments(args)
     result_names = {'influence': 'influence', 'registration_file': 'registration_file',
                     'pack_dir': 'pack_dir', 'delivery_path': 'path'}
     selected_options = source_options or any(getattr(args, name, None) is not None
-        for name in (*request_names, *result_names, 'scope', 'candidate', 'goal')) or args.feature
+        for name in (*request_names, *result_names, 'scope', 'candidate', 'goal')) or args.feature or change_scope is not None
     if not selected_options:
         return None
     if args.file is not None:
@@ -61,8 +65,9 @@ def request_from_arguments(root: Path, args) -> dict | None:
     if len(source_options) != 1 or args.scope is None:
         raise ValueError('Select one of --run, --choices, --request-file or --batch together with --scope.')
     source = {source_names[name]: value for name, value in source_options.items()}
-    if 'request' not in source and (any(getattr(args, name, None) is not None for name in request_names) or args.feature):
-        raise ValueError('Route, execution, authoring operation, target and features apply to --request-file.')
+    if 'request' not in source and (any(getattr(args, name, None) is not None for name in request_names)
+                                    or args.feature or change_scope is not None):
+        raise ValueError('Route, execution, authoring operation, target, features and change scope apply to --request-file.')
     if args.candidate is not None:
         if 'run' not in source:
             raise ValueError('--candidate selects a result of --run.')
@@ -71,6 +76,8 @@ def request_from_arguments(root: Path, args) -> dict | None:
         source.update({name: getattr(args, name) for name in request_names if getattr(args, name) is not None})
         if args.feature:
             source['features'] = list(dict.fromkeys(args.feature))
+        if change_scope is not None:
+            source['change_scope'] = change_scope
     result = {'scope': args.scope,
               **{field: getattr(args, name) for name, field in result_names.items() if getattr(args, name) is not None}}
     from production_binding import studio_file
@@ -199,6 +206,13 @@ def _request_shape(request: dict) -> list[dict]:
                 raise ValueError('An imported source names its existing owner, not a production input.')
         elif len(modes) != 1:
             raise ValueError('Choose one source: choices, run, batch, request or an imported/sheet owner.')
+        if 'change_scope' in source:
+            from production_reading_scope import validate_change_scope
+            validate_change_scope(source['change_scope'])
+            if ('request' not in source or not source.get('from_run')
+                    or source.get('operation', 'amend') != 'amend'):
+                raise ValueError('A change scope belongs to a request amending from_run. '
+                                 'Edit work-basis.json for an existing choices source.')
         if not isinstance(item['after'], list) or any(not isinstance(value, str) for value in item['after']):
             raise ValueError('Dependencies are item names in after.')
     done = set()
@@ -365,7 +379,6 @@ def _waiting(entry: dict, phase: str, record: dict, *, reason: str) -> None:
 def _input(root: Path, directory: Path, entry: dict, spec: dict, *, advance: bool) -> bool:
     import production_inputs
     import production_operations as operations
-    import production_reading_scope as scope
     from production_input_adapters import using_runtime
     from production_authoring_state import registered_runtime_arguments
     source = entry['source']
@@ -377,12 +390,14 @@ def _input(root: Path, directory: Path, entry: dict, spec: dict, *, advance: boo
         stage = view['authoring_stage']
         if stage['stage'] != 'prepare':
             if advance and entry.get('phase') == 'authoring' and stage['structural_ready']:
-                following = scope.STAGES[scope.STAGES.index(stage['stage']) + 1]
+                following = stage['next_stage']
                 production_inputs.stage_inputs(root, source['choices'], following, runtime_arguments=runtime)
                 view = production_inputs.authoring_view(root, source['choices'], runtime_arguments=runtime)
                 stage = view['authoring_stage']
             entry.update(phase='authoring', status='needs-input', current={
                 'choices': source['choices'], 'stage': stage['stage'], 'purpose': stage['purpose'],
+                'change_scope': view['authoring_scope'].get('change_scope'),
+                'remaining_stages': stage['remaining_stages'],
                 'unresolved': stage['unresolved'],
                 'inspection': production_inputs.inspect_inputs(root, choices_path=source['choices']),
                 'reason': 'Read the current stage and complete its authored files, then advance to the next stage.'})
@@ -390,6 +405,8 @@ def _input(root: Path, directory: Path, entry: dict, spec: dict, *, advance: boo
         if not advance or not stage['structural_ready']:
             entry.update(phase='authoring', status='needs-input', current={
                 'choices': source['choices'], 'stage': stage['stage'], 'unresolved': stage['unresolved'],
+                'change_scope': view['authoring_scope'].get('change_scope'),
+                'remaining_stages': stage['remaining_stages'],
                 'inspection': production_inputs.inspect_inputs(root, choices_path=source['choices']),
                 'reason': 'Complete the current preparation reading and inputs, then advance to publish this revision.'})
             return False
@@ -406,7 +423,7 @@ def _new_source(root: Path, directory: Path, entry: dict, spec: dict, task_id: s
     if 'request' not in source:
         return
     allowed = {'request', 'route', 'execution', 'model', 'service', 'features', 'operation',
-               'from_run', 'artifact', 'source_image', 'scale', 'purpose', 'focus'}
+               'from_run', 'artifact', 'source_image', 'scale', 'purpose', 'focus', 'change_scope'}
     if set(source) - allowed:
         raise ValueError('Unknown new-work source fields: ' + ', '.join(sorted(set(source) - allowed)))
     out = directory / 'inputs'
@@ -426,7 +443,8 @@ def _new_source(root: Path, directory: Path, entry: dict, spec: dict, task_id: s
                             'text' if execution == 'authored' else 'image'),
         model=source.get('model'), service=source.get('service'), features=source.get('features'),
         source_image=Path(source['source_image']) if source.get('source_image') else None,
-        scale=source.get('scale'), purpose=source.get('purpose'), focus=source.get('focus'))
+        scale=source.get('scale'), purpose=source.get('purpose'), focus=source.get('focus'),
+        change_scope=source.get('change_scope'))
     entry['source'] = {'choices': _relative(root, out / 'choices.json')}
 
 

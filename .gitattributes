@@ -31,3 +31,6 @@ references/catalog-index.md                linguist-generated=true
 packs/default/pack.lock.json               linguist-generated=true
 examples/state-aware-pilot/generated/**    linguist-generated=true
 
+# Content-addressed reading excerpts preserve their source whitespace.
+examples/state-aware-pilot/generated/reading-content/objects/* whitespace=-blank-at-eof
+

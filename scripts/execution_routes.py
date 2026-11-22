@@ -172,7 +172,8 @@ def resolve(route: str, features: list[str] | None = None, *, execution: str,
         roles.update(f['source_roles'])
     if 'scene-persona' in selected:
         roles.difference_update({'persona', 'authorial-intent'})
-    profile_name = 'authoring' if authoring_scope is not None else operation
+    profile_name = ('amendment' if authoring_scope is not None and 'change_scope' in authoring_scope
+                    else 'authoring' if authoring_scope is not None else operation)
     profile = manifest.get('reading_scopes', {}).get(profile_name)
     if authoring_scope is not None and profile is None:
         raise ValueError('the route manifest has no scoped reading owner for authoring')
@@ -221,6 +222,7 @@ def resolve(route: str, features: list[str] | None = None, *, execution: str,
                          if operation in {'adopt', 'withdraw'} else ['operation:' + operation])
             if authoring_scope is not None:
                 selection.append('authoring-stage:' + authoring_scope['stage'])
+                selection.extend('authoring-profile:' + name for name in authoring_scope.get('profiles', []))
             reasons = [{**available[anchor], 'selected_by': list(dict.fromkeys([*selected_by, *selection])),
                         'reason': ' '.join(dict.fromkeys(values))}
                        for anchor, values in wanted.items()]
@@ -267,7 +269,7 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
         if set(context['executions']) != set(EXECUTIONS):
             errors.append(f'{operation}: reading execution scopes do not cover the current contract')
     for operation, profile in d.get('reading_scopes', {}).items():
-        if operation not in (*OPERATIONS, 'authoring'):
+        if operation not in (*OPERATIONS, 'authoring', 'amendment'):
             errors.append('unknown reading profile operation: ' + operation)
         deferred = profile.get('deferred_documents', {})
         if not isinstance(deferred, dict):
@@ -285,8 +287,10 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
                 available = {row['anchor'] for row in document_sections(read(local(root, path)))}
                 for rule in rules:
                     allowed = {'sections', 'whole_source', 'reason', 'scopes', 'source_kinds', 'executions', 'features_any'}
-                    if operation == 'authoring':
+                    if operation in {'authoring', 'amendment'}:
                         allowed.update({'stages', 'compositions', 'conditions_any', 'conditions_all', 'conditions_none'})
+                    if operation == 'amendment':
+                        allowed.update({'profiles_any', 'changes_any'})
                     if set(rule) - allowed:
                         raise ValueError('unknown reading selector fields')
                     if not isinstance(rule.get('reason'), str) or not rule['reason'].strip():
@@ -304,7 +308,7 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
                             raise ValueError('invalid reading selector: ' + field)
                     if operation not in {'adopt', 'withdraw'} and {'scopes', 'source_kinds'} & set(rule):
                         raise ValueError('curation destination/source selectors do not select another operation')
-                    if operation == 'authoring':
+                    if operation in {'authoring', 'amendment'}:
                         from production_reading_scope import STAGES, CONDITIONS
                         for field, choices in (('stages', STAGES), ('compositions', ('compose', 'amend')),
                                                ('conditions_any', CONDITIONS), ('conditions_all', CONDITIONS),
@@ -312,6 +316,16 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
                             if field in rule and (not isinstance(rule[field], list) or not rule[field]
                                                   or set(rule[field]) - set(choices)):
                                 raise ValueError('invalid authoring reading selector: ' + field)
+                        if 'profiles_any' in rule:
+                            from production_reading_scope import PROFILES
+                            if (not isinstance(rule['profiles_any'], list) or not rule['profiles_any']
+                                    or set(rule['profiles_any']) - set(PROFILES)):
+                                raise ValueError('invalid amendment reading profiles')
+                        if 'changes_any' in rule:
+                            from production_change_scope import CHANGE_SCOPES
+                            if (not isinstance(rule['changes_any'], list) or not rule['changes_any']
+                                    or set(rule['changes_any']) - set(CHANGE_SCOPES)):
+                                raise ValueError('invalid amendment changed fields')
             except (ValueError, OSError, TypeError) as exc:
                 errors.append(f'{operation}: {path}: {exc}')
     if len(stage_map)!=len(d['stages']): errors.append('duplicate stage')

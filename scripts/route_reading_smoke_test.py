@@ -680,6 +680,117 @@ class ReadingTests(unittest.TestCase):
         r.require_model_reading(record, model_record=model, service='interface-b', resource_reader=lambda name: None)
         self.assertIsNone(record['model']['service'])
 
+    def amendment_scope(self, profiles, changes, *, stage='rendition', conditions=None):
+        self.manifest['reading_scopes']['amendment'] = {'documents': {}}
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        return {'stage': stage, 'composition': 'amend', 'source_formats': ['text'],
+                'documents': [], 'render_operation': 'generation', 'conditions': sorted(conditions or []),
+                'change_scope': {'retain': ['identity'], 'change': changes},
+                'profiles': sorted(profiles), 'observed_changes': [], 'change_conflicts': [], 'comparison_notices': []}
+
+    def test_controls_reading_keeps_exact_model_controls_without_new_writing_guides(self):
+        from model_prompt_input_fixtures import prompt_input
+        self.manifest['features']['prompt-dialect'] = {'reads': [], 'source_roles': []}
+        model = {'id': 'controlled-model', 'prompt_dialect': 'family-a',
+                 'prompt_input': prompt_input('tag-based', vocabularies=('synthetic',)),
+                 'offerings': [{'service': 'interface-a', 'model_identifier': 'controlled-a'}]}
+        for stage in ('rendition', 'prepare'):
+            scope = self.amendment_scope(['amend-controls'], ['controls.parameters'], stage=stage)
+            with (self.subTest(stage=stage),
+                  patch.object(r, '_live_resource_reader', side_effect=AssertionError('Unchanged wording needs no writing guide acquisition'))):
+                issued = r.issue('generation', ['prompt-dialect'], root=self.root, ledger=self.ledger,
+                    stream=io.StringIO(), execution='dispatcher', model_record=model,
+                    service='interface-a', authoring_scope=scope)
+                record = r.draft_record(issued)
+                self.assertEqual(record['resources'], {})
+                self.assertEqual(record['model']['id'], model['id'])
+                forbidden = lambda name: self.fail('Unchanged writing resource was acquired: ' + name)
+                r.require_model_reading(record, model_record=model, service='interface-a', resource_reader=forbidden)
+                r.require_route_reading(record, root=self.root, ledgers=[self.ledger], authoring_scope=scope,
+                    model_record=model, service='interface-a', dialect='family-a', resource_reader=forbidden)
+                changed = copy.deepcopy(model)
+                changed['recommended_positive_prompt'] = 'Changed selected model knowledge.'
+                with self.assertRaisesRegex(r.ReadingSourcesChanged, 'model edition'):
+                    r.require_model_reading(record, model_record=changed, service='interface-a', resource_reader=forbidden)
+
+    def test_recording_reading_defers_model_card_but_final_model_validation_remains(self):
+        from model_prompt_input_fixtures import prompt_input
+        self.manifest['features']['prompt-dialect'] = {'reads': [], 'source_roles': []}
+        model = {'id': 'recorded-model', 'prompt_dialect': 'family-a',
+                 'prompt_input': prompt_input('tag-based', vocabularies=('synthetic',))}
+        scope = self.amendment_scope(['amend-recording'], ['recording.slot'], stage='depiction')
+        with patch.object(r, '_live_resource_reader', side_effect=AssertionError('Recording does not author wording')):
+            issued = r.issue('generation', ['prompt-dialect'], root=self.root, ledger=self.ledger,
+                stream=io.StringIO(), execution='dispatcher', model_record=model, authoring_scope=scope)
+            record = r.draft_record(issued)
+            self.assertEqual(record['resources'], {})
+            self.assertIsNone(record['model'])
+            r.require_route_reading(record, root=self.root, ledgers=[self.ledger], authoring_scope=scope,
+                                   model_record=model, dialect='family-a')
+            with self.assertRaisesRegex(r.ReadingSourcesChanged, 'complete selected model guidance'):
+                r.require_model_reading(record, model_record=model, resource_reader=lambda name: None)
+            final_scope = {**scope, 'stage': 'prepare'}
+            with self.assertRaisesRegex(r.ReadingSourcesChanged, 'complete selected model guidance'):
+                r.require_route_reading(record, root=self.root, ledgers=[self.ledger], authoring_scope=final_scope,
+                                       operation='prepare', model_record=model, dialect='family-a')
+            final = r.issue('generation', ['prompt-dialect'], root=self.root, ledger=self.ledger,
+                stream=io.StringIO(), execution='dispatcher', model_record=model, authoring_scope=final_scope)
+            r.require_model_reading(r.draft_record(final), model_record=model, resource_reader=lambda name: None)
+            self.assertEqual(final['row']['resources'], {})
+            self.assertEqual(final['row']['model']['id'], model['id'])
+
+    def test_retarget_mixed_and_unknown_amendments_deliver_current_writing_guidance(self):
+        from model_prompt_input_fixtures import prompt_input
+        catalog, guide = self.family_catalog()
+        model = {'id': 'changed-target', 'prompt_dialect': 'family-b',
+                 'prompt_input': prompt_input('tag-based', vocabularies=('synthetic',))}
+        selections = [(['retarget'], ['target'], []),
+                      (['amend-controls', 'amend-rendition'], ['controls.parameters', 'rendition'], []),
+                      (['amend-controls'], ['controls.parameters'], ['target-change']),
+                      (['amend-recording'], ['recording.slot'], ['unknown-sources'])]
+        with catalog:
+            for profiles, changes, conditions in selections:
+                with self.subTest(profiles=profiles, conditions=conditions):
+                    scope = self.amendment_scope(profiles, changes, conditions=conditions)
+                    output = io.StringIO()
+                    issued = r.issue('generation', ['prompt-dialect'], root=self.root, ledger=self.ledger,
+                        stream=output, execution='dispatcher', model_record=model, authoring_scope=scope)
+                    self.assertEqual(set(issued['row']['resources']), {'prompt-writing-guide', 'prompt-dialects'})
+                    self.assertEqual(issued['row']['model']['id'], model['id'])
+                    self.assertIn(guide['sections'][2]['rules'][0], output.getvalue())
+                    self.assertNotIn(guide['sections'][1]['rules'][0], output.getvalue())
+
+    def test_narrow_amendment_issues_its_current_scope_from_a_broader_known_reading(self):
+        from model_prompt_input_fixtures import prompt_input
+        catalog, _ = self.family_catalog()
+        model = {'id': 'same-target', 'prompt_dialect': 'family-a',
+                 'prompt_input': prompt_input('tag-based', vocabularies=('synthetic',))}
+        with catalog:
+            full = r.issue('generation', ['prompt-dialect'], root=self.root, ledger=self.ledger,
+                stream=io.StringIO(), execution='dispatcher', model_record=model)
+            scope = self.amendment_scope(['amend-controls'], ['controls.parameters'], stage='prepare')
+            record = r.draft_record(full)
+            source = self.root / 'pack/resources/guide.json'
+            guide = c.load(source)
+            guide['sections'][0]['rules'].append('An additional complete writing rule.')
+            source.write_bytes(c.encoded(guide))
+            # The original receipt keeps its original scope. A current scoped
+            # read creates a new receipt without reauthoring or mutating it.
+            with self.assertRaises(r.ReadingSourcesChanged):
+                r.require_route_reading(record, root=self.root, ledgers=[self.ledger], authoring_scope=scope,
+                                       model_record=model, dialect='family-a')
+            with patch.object(r, '_selected_model', return_value=(model['id'], model)):
+                result = r.read_page(route='generation', features=['prompt-dialect'], execution='dispatcher',
+                    operation='prepare', root=self.root, ledger=self.ledger, stream=io.StringIO(),
+                    model=model['id'], authoring_scope=scope, known_reading_keys=[full['reading_key']])
+            self.assertEqual(result['body'], [])
+            current = r.draft_record(result['issued'])
+            self.assertEqual(current['resources'], {})
+            self.assertEqual(current['authoring_scope'], scope)
+            self.assertEqual(record, r.draft_record(full))
+            forbidden = lambda name: self.fail('The current controls amendment acquired unrelated writing guidance')
+            r.require_model_reading(current, model_record=model, resource_reader=forbidden)
+
     def test_acquired_model_file_retains_its_complete_scope_across_pages(self):
         from model_prompt_input_fixtures import prompt_input
         model = {'id': 'synthetic-acquired', 'prompt_input': prompt_input('descriptive'),
@@ -1833,18 +1944,22 @@ class ScopedReadingTests(unittest.TestCase):
         self.assertIn('reading_action', result['context_reuse']['curation_guidance'])
         r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
 
-    def test_fresh_context_rereads_selected_ranges_and_changed_source_is_not_known(self):
+    def test_fresh_context_rereads_and_unrelated_source_change_reuses_current_sections(self):
         first = self.start(scope='sheet')
         indexed = self.start(scope='sheet', navigation=True)
         self.assertEqual(indexed['progress']['reused_bytes'], 0)
         self.assertEqual(indexed['remaining_bytes'], first['progress']['required_bytes'])
         fresh, pages, total = self.finish(indexed)
         self.assertEqual(total, first['progress']['required_bytes'])
-        # Even an edit outside the selected ranges changes the complete source edition.
+        # A current receipt retains the new source edition while unchanged
+        # sections remain known only under the explicitly selected context key.
         (self.root / self.document).write_bytes(self.raw + b'Changed retained source edition.\n')
         changed = self.start(scope='sheet', known_reading_keys=[fresh['reading']['key']])
-        self.assertEqual(changed['progress']['reused_bytes'], 0)
-        self.assertEqual(changed['progress']['delivered_bytes'], changed['progress']['required_bytes'])
+        self.assertEqual(changed['progress']['reused_bytes'], changed['progress']['required_bytes'])
+        self.assertEqual(changed['progress']['delivered_bytes'], 0)
+        self.assertNotEqual(changed['issued']['row']['documents'][0]['sha256'],
+                            fresh['issued']['row']['documents'][0]['sha256'])
+        r.require_route_reading(r.draft_record(changed['issued']), root=self.root, ledgers=[self.ledger])
         partial = self.start(scope='sheet', page_bytes=11)
         (self.root / self.document).write_bytes(self.raw)
         before = self.ledger.read_bytes()
@@ -1852,6 +1967,180 @@ class ScopedReadingTests(unittest.TestCase):
             r.read_page(cursor=partial['cursor'], root=self.root, ledger=self.ledger,
                         stream=io.StringIO(), page_bytes=10000)
         self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_moved_sections_retain_complete_issuance_and_current_source_positions(self):
+        whole = r.issue('development', execution='dispatcher', root=self.root, ledger=self.ledger, stream=io.StringIO())
+        prefix = b'# New preface\nAn unrelated maintenance note.\n\n'
+        (self.root / self.document).write_bytes(prefix + self.raw)
+        indexed = self.start(scope='sheet', navigation=True, known_reading_keys=[whole['reading_key']])
+        self.assertEqual(indexed['body'], [])
+        self.assertEqual(indexed['progress']['same_context_new_bytes'], 0)
+        self.assertEqual(indexed['progress']['fresh_context_bytes'], indexed['progress']['reused_bytes'])
+        self.assertTrue(all(row['state'] == 'known' for row in indexed['index']))
+        self.assertTrue(all(row['selection_scope'] == 'selected-sections' for row in indexed['index']))
+        result, pages, total = self.finish(indexed)
+        self.assertEqual(total, 0)
+        for item in result['issued']['row']['delivery']['bodies']:
+            self.assertEqual(item['origin']['key_sha256'], whole['row']['key_sha256'])
+            self.assertEqual(item['source_body']['source_sha256'], c.digest(self.raw))
+            self.assertEqual(item['body']['source_sha256'], c.digest(prefix + self.raw))
+            for section in item['body']['sections']:
+                current = (prefix + self.raw)[section['start']:section['end']]
+                original = self.raw[section['start'] - len(prefix):section['end'] - len(prefix)]
+                self.assertEqual(current, original)
+                self.assertEqual(c.digest(current), section['sha256'])
+        r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
+        fresh = self.start(scope='sheet')
+        self.assertEqual(fresh['progress']['reused_bytes'], 0)
+        self.assertEqual(fresh['progress']['delivered_bytes'], indexed['progress']['fresh_context_bytes'])
+
+    def test_changed_selected_section_delivers_only_that_section_and_retains_others(self):
+        first = self.start(scope='catalog')
+        replacement = b'The revised canonical approval has its own recovery.'
+        current = self.raw.replace(b'The complete canonical approval and recovery.', replacement)
+        (self.root / self.document).write_bytes(current)
+        second = self.start(scope='catalog', known_reading_keys=[first['reading']['key']])
+        self.assertEqual(len(second['body']), 1)
+        self.assertEqual(second['body'][0]['text'], '## Sheet\n' + replacement.decode() + '\n\n')
+        self.assertGreater(second['progress']['reused_bytes'], 0)
+        self.assertEqual(second['progress']['total_bytes'], len(second['body'][0]['text'].encode()))
+        issued = second['issued']['row']
+        fresh_parts = [item for item in issued['delivery']['bodies'] if item['reused_from'] is None]
+        self.assertEqual(len(fresh_parts), 1)
+        self.assertEqual([section['anchor'] for section in fresh_parts[0]['body']['sections']], ['sheet'])
+        r.require_route_reading(r.draft_record(second['issued']), root=self.root, ledgers=[self.ledger])
+        third = self.start(scope='catalog', known_reading_keys=[second['reading']['key']])
+        self.assertEqual(third['body'], [])
+        self.assertEqual(third['progress']['reused_bytes'], third['progress']['required_bytes'])
+
+    def test_scope_expansion_across_source_edit_reads_only_new_required_section(self):
+        first = self.start()
+        (self.root / self.document).write_bytes(b'# Earlier note\nA new opening.\n\n' + self.raw)
+        expanded = self.start(scope='sheet', known_reading_keys=[first['reading']['key']])
+        self.assertEqual(len(expanded['body']), 1)
+        self.assertTrue(expanded['body'][0]['text'].startswith('## Sheet\n'))
+        self.assertNotIn('## Common', expanded['body'][0]['text'])
+        r.require_route_reading(r.draft_record(expanded['issued']), root=self.root, ledgers=[self.ledger])
+
+    def test_section_content_never_reuses_a_different_source_path_or_heading(self):
+        first = self.start(scope='sheet')
+        other = 'notes/other.md'
+        (self.root / other).write_bytes(self.raw)
+        for entry in self.manifest['operation_contexts'].values():
+            entry['reads'] = [other]
+        for profile in self.manifest['reading_scopes'].values():
+            profile['documents'][other] = profile['documents'].pop(self.document)
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        changed = self.start(scope='sheet', known_reading_keys=[first['reading']['key']])
+        self.assertEqual(changed['progress']['reused_bytes'], 0)
+        self.assertTrue(all(item['metadata']['path'] == other for item in changed['body']))
+        self.manifest['reading_scopes']['adopt']['documents'][other][0]['sections'] = ['renamed-common']
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        (self.root / other).write_bytes(self.raw.replace(b'## Common', b'## Renamed common'))
+        renamed = self.start(scope='sheet', known_reading_keys=[changed['reading']['key']])
+        self.assertEqual(len(renamed['body']), 1)
+        self.assertTrue(renamed['body'][0]['text'].startswith('## Renamed common'))
+
+    def test_relocated_section_provenance_and_current_content_cannot_be_substituted(self):
+        first = self.start(scope='catalog')
+        current = b'# Earlier note\nA new opening.\n\n' + self.raw
+        (self.root / self.document).write_bytes(current)
+        indexed = self.start(scope='catalog', navigation=True, known_reading_keys=[first['reading']['key']])
+        snapshot = c.load(self.ledger.parent / 'reading-snapshots' / indexed['snapshot'] / 'snapshot.json')
+        damaged = copy.deepcopy(snapshot)
+        damaged['reused_bodies'][0]['source_body']['sections'][0]['sha256'] = '0' * 64
+        with self.assertRaisesRegex(ValueError, 'complete source issuance'):
+            r._check_reused_bodies(damaged, self.ledger)
+        damaged = copy.deepcopy(snapshot)
+        damaged['required_bodies'][0]['sections'][0]['sha256'] = '0' * 64
+        _, acquired = r.capture('adoption', operation='adopt', execution='dispatcher', scope='catalog',
+                               source_kind='production-candidate', root=self.root)
+        self.assertFalse(r._current_body_ranges(acquired, damaged['required_bodies']))
+        (self.root / self.document).write_bytes(current.replace(b'The common condition.', b'The changed condition.'))
+        with self.assertRaises(r.ReadingSourcesChanged):
+            self.finish(indexed)
+
+    def test_complete_interval_evidence_does_not_invent_unknown_section_hashes(self):
+        manifest, acquired = r.capture('adoption', operation='adopt', execution='dispatcher', scope='studio-slot',
+                                      source_kind='production-candidate', root=self.root)
+        # A complete interval without a section index still proves its own
+        # bytes, but cannot prove an independently hashed subset after edits.
+        bodies = [{key: value for key, value in dict(metadata, size=len(raw)).items() if key != 'sections'}
+                  for metadata, raw in acquired]
+        first = r._issue(manifest, self.ledger, bodies=bodies)
+        (self.root / self.document).write_bytes(b'# Earlier note\nA new opening.\n\n' + self.raw)
+        same = self.start(known_reading_keys=[first['reading_key']])
+        self.assertEqual(same['body'], [])
+        subset = self.start(scope='sheet', known_reading_keys=[first['reading_key']])
+        self.assertEqual(subset['progress']['reused_bytes'], 0)
+        delivered = ''.join(item['text'] for item in subset['body'])
+        self.assertIn('## Common\n', delivered)
+        self.assertIn('## Sheet\n', delivered)
+
+    def test_section_hash_edit_cannot_substitute_for_original_delivered_body_bytes(self):
+        whole = r.issue('development', execution='dispatcher', root=self.root, ledger=self.ledger, stream=io.StringIO())
+        current = self.raw.replace(b'The common condition.', b'The changed common condition.')
+        (self.root / self.document).write_bytes(current)
+        changed_section = next(row for row in r.execution_routes.document_sections(current) if row['anchor'] == 'common')
+        row = copy.deepcopy(whole['row'])
+        body = row['delivery']['bodies'][0]['body']
+        section = next(part for part in body['sections'] if part['anchor'] == 'common')
+        section['sha256'] = changed_section['sha256']
+        self.ledger.write_bytes(c.encoded(row))
+        # The whole-body hash and original manifest still match the earlier
+        # receipt. The finer claim must also match those actual original bytes.
+        r.ledger_rows(self.ledger)
+        result = self.start(scope='sheet', known_reading_keys=[whole['reading_key']])
+        text = ''.join(item['text'] for item in result['body'])
+        self.assertIn('The changed common condition.', text)
+        self.assertEqual(result['progress']['reused_bytes'], 0)
+        r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
+
+    def test_missing_or_damaged_original_body_redelivers_sections_and_allows_fresh_reading(self):
+        for paged, damaged in ((False, False), (False, True), (True, False), (True, True)):
+            with self.subTest(paged=paged, damaged=damaged):
+                (self.root / self.document).write_bytes(self.raw)
+                if paged:
+                    initial = r.read_page(route='development', execution='dispatcher', root=self.root,
+                        ledger=self.ledger, stream=io.StringIO(), page_bytes=100000)
+                    whole = initial['issued']
+                    folder = self.ledger.parent / 'reading-snapshots' / initial['snapshot']
+                else:
+                    whole = r.issue('development', execution='dispatcher', root=self.root,
+                                    ledger=self.ledger, stream=io.StringIO())
+                    folder = self.ledger.parent / 'reading-content'
+                body_file = folder / 'objects' / c.digest(self.raw)
+                if damaged:
+                    body_file.write_bytes(b'A damaged retained body.')
+                else:
+                    body_file.unlink()
+                (self.root / self.document).write_bytes(b'# Earlier note\nUnrelated source maintenance.\n\n' + self.raw)
+                current = self.start(scope='sheet', known_reading_keys=[whole['reading_key']])
+                self.assertEqual(current['progress']['reused_bytes'], 0)
+                self.assertEqual(current['progress']['delivered_bytes'], current['progress']['required_bytes'])
+                fresh = self.start(scope='sheet')
+                self.assertEqual(fresh['progress']['reused_bytes'], 0)
+                self.assertEqual(fresh['progress']['delivered_bytes'], fresh['progress']['required_bytes'])
+                # A direct fresh delivery can also restore its own damaged
+                # content-addressed evidence from the newly delivered bytes.
+                if not paged:
+                    (self.root / self.document).write_bytes(self.raw)
+                    r.issue('development', execution='dispatcher', root=self.root,
+                            ledger=self.ledger, stream=io.StringIO())
+                    self.assertEqual(body_file.read_bytes(), self.raw)
+
+    def test_lost_original_body_during_scoped_read_requires_redelivery(self):
+        whole = r.issue('development', execution='dispatcher', root=self.root, ledger=self.ledger, stream=io.StringIO())
+        (self.root / self.document).write_bytes(b'# Earlier note\nUnrelated source maintenance.\n\n' + self.raw)
+        indexed = self.start(scope='sheet', navigation=True, known_reading_keys=[whole['reading_key']])
+        self.assertGreater(indexed['progress']['reused_bytes'], 0)
+        original = self.ledger.parent / 'reading-content/objects' / c.digest(self.raw)
+        original.unlink()
+        with self.assertRaisesRegex(ValueError, 'start the current reading again'):
+            self.finish(indexed)
+        recovered = self.start(scope='sheet', known_reading_keys=[whole['reading_key']])
+        self.assertEqual(recovered['progress']['reused_bytes'], 0)
+        self.assertEqual(recovered['progress']['delivered_bytes'], recovered['progress']['required_bytes'])
 
     def test_actual_curation_contracts_exclude_other_procedures_and_keep_recovery(self):
         expected = {
@@ -1961,6 +2250,101 @@ class ScopedReadingTests(unittest.TestCase):
         self.assertEqual(action[action.index('--source-kind') + 1], 'production-candidate')
         self.assertNotIn('--known-reading', action)
         self.assertEqual((studio_root / 'work/current.json').read_bytes(), before)
+
+
+class RetainedAmendmentReadingTests(unittest.TestCase):
+    """Follow a scoped same-context read into an actual prepared request."""
+
+    def test_changed_unused_guide_does_not_return_after_scoped_control_reading(self):
+        import pack_manager
+        import production_case_fixtures as cases
+        import production_fixtures as fixtures
+        import production_inputs
+        import production_operations as workflow
+        from catalog_retrieval import runtime
+        temporary = tempfile.TemporaryDirectory(prefix='cpb-reading-amend-')
+        self.addCleanup(temporary.cleanup)
+        base = Path(temporary.name)
+        self.enterContext(fixtures.scratch_home(base / 'home'))
+        self.enterContext(patch.dict(os.environ, {'CPB_READS_LEDGER': str(base / 'reads.jsonl')}))
+        self.addCleanup(runtime.configure_pack_runtime, None)
+
+        def local_guide(pack):
+            declaration = c.load(pack / 'pack.json')
+            declaration['content']['resource_bindings']['prompt-writing-guide'] = 'resources/guide.json'
+            declaration['capabilities'].append('prompt-writing-guide')
+            cases.write(pack / 'pack.json', declaration)
+            raw = (r.ROOT / 'packs/commons/resources/prompt-writing-guide/guide.json').read_bytes()
+            (pack / 'resources/guide.json').write_bytes(raw)
+
+        case = cases.create(base / 'studio', base / 'runtime', configure_pack=local_guide)
+        root, task = case['root'], case['task']
+        # This controls fixture has no new plot or retrieval decision. Its
+        # unchanged subject and rendering remain in the authored specification.
+        for field in ('plot', 'retrieval_record', 'creative_intent'):
+            task['generation'].pop(field)
+        task['direction']['decisions'] = []
+        fixtures.bind_work_basis(root, task, focus='character')
+        cases.write(root / 'task.json', task)
+        parent = workflow.prepare(root, 'task.json')
+        parent_reading = workflow.read_run(root, parent['run']).prepared['route_reading']
+        self.assertEqual(parent_reading['resources']['prompt-writing-guide']['source_pack'], cases.PACK_ID)
+        original_key = parent_reading['reading_key']
+
+        guide = c.load(case['pack'] / 'resources/guide.json')
+        guide['description'] += ' Additional synthetic writing-maintenance context.'
+        cases.write(case['pack'] / 'resources/guide.json', guide)
+        pack_manager.write_lock(case['pack'])
+        runtime.configure_pack_runtime(case['settings'])
+        draft = fixtures.authoring_inputs(root, None, 'work/control-amend', from_run=parent['run'],
+            operation='amend', stage='prepare', change_scope={
+                'retain': ['identity', 'rendition', 'target'], 'change': ['controls.parameters']})
+        choices = c.load(root / draft['choices_file'])
+        choices['reading']['reading_key'] = original_key
+        with cases.edit_document(root, choices, 'parameters') as parameters:
+            parameters['steps'] = 22
+        cases.write(root / draft['choices_file'], choices)
+        view = production_inputs.authoring_view(root, draft['choices_file'])
+        self.assertEqual(view['authoring_scope']['profiles'], ['amend-controls'])
+        gap = next(row for row in view['unresolved'] if row['code'] == 'TARGET_GUIDANCE_REQUIRED')
+        self.assertIn('--choices', gap['next_action']['argv'])
+        scope, selected = view['authoring_scope'], view['choices']['target']
+        current = r.read_page(route=view['task']['route'], features=view['task']['features'], operation='prepare',
+            execution='dispatcher', studio=root, stream=io.StringIO(), page_bytes=1000000,
+            authoring_scope=scope, choices_path=draft['choices_file'], model=selected['model'],
+            service=selected.get('service'), known_reading_keys=[original_key])
+        self.assertTrue(all(item['metadata']['kind'] == 'document' for item in current['body']))
+        self.assertLess(current['progress']['same_context_new_bytes'], current['progress']['fresh_context_bytes'])
+        self.assertEqual(current['issued']['row']['resources'], {})
+        choices['reading']['reading_key'] = current['reading']['key']
+        cases.write(root / draft['choices_file'], choices)
+
+        prepared = workflow.prepare(root, choices=draft['choices_file'])
+        held = workflow.read_run(root, prepared['run'])
+        self.assertEqual(prepared['request_preview']['steps'], 22)
+        self.assertEqual(held.prepared['route_reading']['authoring_scope']['profiles'], ['amend-controls'])
+        self.assertEqual(held.prepared['route_reading']['resources'], {})
+        self.assertEqual(held.artifacts['package.json']['route_reading'], held.prepared['route_reading'])
+        self.assertEqual(held.artifacts['request-contract.json']['request']['prompt'], cases.PROMPT)
+        self.assertEqual(workflow.read_run(root, parent['run']).artifacts['request-contract.json']['request']['steps'], 20)
+
+        known = r.read_page(route=view['task']['route'], features=view['task']['features'], operation='prepare',
+            execution='dispatcher', studio=root, stream=io.StringIO(), page_bytes=1000000,
+            authoring_scope=scope, model=selected['model'], service=selected.get('service'),
+            known_reading_keys=[current['reading']['key']])
+        self.assertEqual(known['body'], [])
+        self.assertEqual(known['progress']['same_context_new_bytes'], 0)
+
+        fresh = r.read_page(route=view['task']['route'], features=view['task']['features'], operation='prepare',
+            execution='dispatcher', studio=root, stream=io.StringIO(), page_bytes=1000000,
+            authoring_scope=scope, model=selected['model'], service=selected.get('service'))
+        self.assertEqual(fresh['progress']['reused_bytes'], 0)
+        self.assertEqual(fresh['progress']['delivered_bytes'], fresh['progress']['fresh_context_bytes'])
+        with cases.edit_document(root, choices, 'parameters') as parameters:
+            parameters['steps'] = -1
+        rejected = production_inputs.compile_choices(root, draft['choices_file'])
+        self.assertFalse(rejected.report['publishable'])
+        self.assertTrue(rejected.report['diagnostics'])
 
 
 if __name__=='__main__':

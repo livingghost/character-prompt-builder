@@ -33,6 +33,7 @@
         "service": {"type": "string", "minLength": 1},
         "features": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
         "operation": {"enum": ["compose", "amend"]},
+        "change_scope": {"$ref": "authoring/authoring-work.schema.json#/$defs/change_scope"},
         "from_run": {"type": "string", "minLength": 1},
         "source_image": {"type": "string", "minLength": 1},
         "scale": {"type": "number", "exclusiveMinimum": 0},
@@ -45,6 +46,10 @@
         "slot": {"type": "string", "minLength": 1}
       },
       "additionalProperties": false,
+      "allOf": [{
+        "if": {"required": ["change_scope"]},
+        "then": {"required": ["request", "from_run"], "properties": {"operation": {"const": "amend"}}}
+      }],
       "oneOf": [
         {"required": ["choices"]}, {"required": ["run"]}, {"required": ["batch"]},
         {"required": ["request"], "anyOf": [{"required": ["route"]}, {"required": ["from_run"]}]},

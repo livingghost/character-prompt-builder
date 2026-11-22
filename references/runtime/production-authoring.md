@@ -322,13 +322,94 @@ therefore add required sections within the same stage. Unresolved source
 content never establishes that an image or protected requirement is absent.
 Preparation also receives its authority, source-binding, verification, preview
 and interrupted-publication contracts. Execution, result repair and curation
-procedures stay with their operation owners. Sparse discovery receives its
-general construction basis during depiction; explicitly adding `finishing`
-requires the whole specialist. Other specialists without an explicit scoped
-profile remain complete. A profile refines only selected documents and never
-activates an unrelated specialist. The selected model card and applicable
-resource instructions remain complete. The prompt-knowledge boundary is also
-delivered through the reader.
+procedures stay with their operation owners. New composition uses the complete
+applicable stage knowledge. A declared retained amendment uses the changed-owner
+profiles below. Sparse discovery keeps its general construction basis when the
+picture is reopened; a changed finishing decision receives the complete selected
+specialist. Specialists without an explicit scoped profile remain complete.
+A profile refines only selected documents and never activates an unrelated
+specialist. Required model cards and writing resources are delivered completely;
+unchanged wording need not select a writing resource for a controls-only or
+recording-only amendment. The prompt-knowledge boundary remains required.
+
+#### Declare a retained amendment
+
+For a retained input, declare the meaningful owners to retain and the changes
+to make before the first read. `plan` and `draft-inputs` accept repeatable
+`--retain` and `--change`. For example:
+
+```bash
+python scripts/production_workflow.py plan --root STUDIO \
+  --request-file revision-request.txt --from-run RUN --operation amend \
+  --retain identity --retain source-authority --retain finish --retain target \
+  --change depiction.view --change references --change recording.slot \
+  --scope prepared-input
+```
+
+The plan's `source.change_scope` initializes one editable declaration in the
+draft's `work-basis.json`. The input guide names that file and its
+`/change_scope` pointer. Edit this owner when the intended scope changes;
+the plan request records how the work began and is not a second live copy.
+The equivalent basis value is:
+
+```json
+{
+  "retain": ["identity", "source-authority", "finish", "target"],
+  "change": ["depiction.view", "references", "recording.slot"]
+}
+```
+
+`retain` accepts `identity`, `source-authority`, `depiction`, `rendition`,
+`finish`, `target`, `controls`, `references` and `recording`. Retaining `finish`
+preserves the rendering declaration while permitting numeric parameter edits.
+Retaining `controls` also preserves that declaration. The changed owners select
+the following knowledge; combined edits receive the union of complete sections.
+
+| Change | Reading profile and responsibility |
+| --- | --- |
+| `definition`, `source-authority` | `amend-definition`: current definition, source applications and their complete applicable design contracts. |
+| `depiction`, `depiction.view` | `amend-depiction`: the retained definition in the changed construction or view, declared geometry and independent review obligations. |
+| `references` | `amend-references`: original media acquisition, selected use, subject coverage and exact transport. |
+| `rendition` | `amend-rendition`: actual prompt and negative text, weighting, dictionary evidence and writing guidance. |
+| `controls`, `controls.parameters`, `controls.render-intent` | `amend-controls`: supported controls and the authored rendering declaration. A numeric-only edit does not reopen finishing design. |
+| `target` | `retarget`: the new model edition, offering, grammar, reference transport and request evidence. |
+| `recording`, `recording.slot` | `amend-recording`: the existing Studio or sheet destination, subject mapping and retained provenance. |
+
+The runtime compares the selected editable values and acquired source bytes
+with the actual baseline. It adds profiles for observed changes; the declaration
+cannot conceal a changed definition or target. The comparison uses structural
+owners and exact content, never keywords in prompt prose. A view declaration
+does not prove the meaning of an edited sentence. The author remains responsible
+for that meaning, source application and the whole-subject review.
+
+Changed values that contradict `retain` produce `AUTHORING_WORK_INCOMPLETE`
+at the basis declaration. Restore those values or revise the declaration to
+state the intended change, then inspect the same draft. Unavailable or
+unclassified comparison inputs select all amendment profiles and report
+`comparison_notices` with the reason and owning repair. Ordinary source and
+input diagnostics remain in force. An undeclared amendment keeps the ordinary
+complete stage requirements; a new `compose` does not use retained-edit scopes.
+
+Scope selection grants no new source authority. The existing amendment identity
+boundary still protects adopted source selections and their bytes. A change
+requiring a new identity uses the returned compose repair and the captured
+proposed candidate, as described under source acquisition. Selecting
+`definition` ensures its knowledge is present; it does not override that boundary.
+
+The plan starts at the first needed stage and exposes `remaining_stages` and
+`next_stage`. Definition changes begin at `definition`; depiction or reference
+changes begin at `depiction`; wording, controls and retargeting begin at
+`rendition`; recording-only changes begin at `prepare`. The selected profiles
+persist across stages, so moving to `depiction` alone adds no unrelated design
+template or species architecture. Actual new edits can enlarge the profiles.
+
+Preparation independently rederives the scope from the actual saved task,
+basis and sources. It retains exact request, source, identity, authority and
+review-structure validation. Controls-only and recording-only edits retain
+current model-card checks at preparation, while unchanged prompt wording does
+not require rereading the writing resources. A changed target or wording
+requires those resources again. Changing the recording destination grants no
+slot acceptance, canonical adoption or execution permission.
 
 #### Choose a curation scope
 
@@ -374,12 +455,20 @@ contract can be inspected before delivery. `progress.required_bytes` measures th
 selected material, while `remaining_bytes` excludes source ranges already
 delivered in this snapshot and explicitly known complete bodies. Navigation
 establishes no source delivery and issues no reading key, even when an earlier
-same-context reading supplies every required body.
+same-context reading supplies every required body. `selection_scope` distinguishes
+`complete-source` from `selected-sections`. `selection_summary` reports the
+stage, declared change scope, selected profiles and bytes attributed to each
+route, feature and operation. Shared bytes can have several selection owners;
+those attributed totals are not additive. `progress.fresh_context_bytes` is
+the complete current reading size. `progress.same_context_new_bytes` removes
+only explicit complete same-context reuse, independently of page progress.
 
 Source states have explicit meanings: `pending` has no delivered bytes;
 `partial` has some delivered ranges and still needs the rest; `delivered` has
 complete source coverage in this snapshot; and `known` comes from an explicitly
-selected complete reading whose source is unchanged. `same_context_required`
+selected complete reading whose required source content is unchanged. An
+unrelated edit elsewhere in the document can leave that content reusable.
+`same_context_required`
 identifies snapshot coverage or known readings already retained when this response
 began. A fresh index or first delivery page has neither; its new source text arrives
 in that response. A later page, index or status view over delivered ranges relies
@@ -506,10 +595,19 @@ For another operation in the same active context, use the actual next draft's
 reading action and append `context_reuse.arguments` from a completed result.
 `context_reuse.operations` offers inspection of the current operation; it does
 not choose the next operation, destination or candidate. The arguments carry
-repeatable `--known-reading KEY` selections. The reader compares exact source kind, path,
-content and resource/model scope, together with the exact source interval, then
-delivers every missing
-or changed required range. A complete earlier full source can cover a later
+repeatable `--known-reading KEY` selections. The reader compares exact source kind,
+path, content and resource/model scope, together with the original delivery
+witness, then delivers every missing or changed required range. Document
+deliveries retain each completely covered section's anchor, original byte range
+and content hash. When another part of that document changes or moves the
+section, matching path, anchor and complete content identify the same known
+section at its current range. A matching heading or a hash without complete
+delivery evidence supplies no knowledge. For reuse of a subsection from a changed
+document edition, the reader also verifies the retained bytes of the complete
+earlier body. If that evidence is missing or damaged, a new current read delivers
+any ranges it can no longer prove. If the evidence disappears during an open
+read, start the current reading again; the incomplete snapshot cannot issue its
+record. A complete earlier full source can cover a later
 required section, and several complete earlier ranges can cover parts of a
 broader requirement. Their union never certifies an unread gap. A scope change
 indexes those missing intervals explicitly before any current reading is issued.
@@ -526,8 +624,12 @@ When changing model, service, features, route, destination or source kind, begin
 selections and the `context_reuse.arguments` of complete readings still known in
 this context. Model and resource scope are independent of shared documents: a
 changed model preserves unchanged workflow knowledge and requires its own card.
-A changed required document delivers all its required ranges again; a changed
-resource delivers its complete selected body. An unneeded specialist
+A changed required section delivers that section again; unchanged sections
+remain available through their exact prior witnesses. A changed resource
+delivers its complete selected body. Whole-source hashes still identify the
+current document edition, and a new record checks the current complete selection
+before issuance. A required section with no matching evidence remains unread.
+An unneeded specialist
 or pack release/lock change does not discard unchanged required knowledge. These
 reads preserve prepared inputs and authored decisions; delivery evidence does not
 rewrite creative work.
@@ -569,6 +671,12 @@ The final `reading.record` is complete when issued. Set `choices.reading.reading
 to that issued key. The input owner resolves the exact document editions, selected
 resource scope and delivered model guidance from the issuance. When authoring a
 task directly, name the emitted file as `task.route_reading`.
+
+To use a narrower amendment scope, obtain its current record through the draft's
+reading action. Supply prior keys with `--known-reading` only while their complete
+contents remain known in this context. The parent record keeps its original
+document editions and resource scope. Complete the current scoped read and use
+its newly issued key, even when no new body text is needed.
 
 ### Select the delivered target knowledge
 

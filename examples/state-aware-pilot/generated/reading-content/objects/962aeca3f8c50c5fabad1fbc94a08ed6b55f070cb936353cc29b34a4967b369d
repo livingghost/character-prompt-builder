@@ -1,0 +1,29 @@
+### Retain a direct instruction for one request
+
+Use the actual instruction file when a dispatcher request needs exact principal
+approval. The actor is the instruction's actual speaker and must equal this work
+task's current issuer. Existing explicit instruction can supply the decision;
+the command introduces no additional user confirmation.
+
+```text
+python scripts/production_workflow.py draft-principal-approval --root STUDIO --run RUN --instruction-file instruction.txt --actor "ACTUAL_ISSUER" --out approval.json
+```
+
+The [principal approval schema](../../schemas/authoring/production-principal-approval.schema.json)
+keeps the literal UTF-8 text in `instruction.text`, with its source path and byte
+digest. Leading spaces, Unicode and line endings are preserved. Empty or invalid
+UTF-8 input is refused. The `binding` derives task, run, exact input and request
+hashes, target model/service and transported reference/media bindings from the
+saved run. It remains separate from `approval`, whose `approved` is initially
+null and whose `scope` is empty. The retained text is not replaced by a summary.
+
+After interpreting the real instruction, fill those approval fields only within
+its actual scope. The retained instruction is available even when the original
+file moves. Select the completed file as
+`{"path":"approval.json","locator":"whole"}` in the dispatcher submission's
+`principal_approval`. Import and execution refuse an unanswered, declined,
+different-run or mismatched structured approval. The same checks use captured
+evidence at later execution boundaries. A hash authenticates neither the speaker
+nor the words' meaning. Ordinary evidence files remain supported for instructions
+already recorded in another format.
+

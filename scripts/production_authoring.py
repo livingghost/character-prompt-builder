@@ -168,6 +168,12 @@ def draft(root: Path, task: dict, reader, *, saved: dict | None = None,
     for source in task.get('upload_sources', []):
         c.exact(source, {'file', 'url'}, 'upload source selection')
         source_files[source['file']] = c.digest(selected_bytes(source['file']))
+    authored_contract = task.get('authored') or {}
+    authored_target = authored_contract.get('target') or {}
+    for path in ((authored_contract.get('negative') or {}).get('path'),
+                 authored_target.get('model_file'), authored_target.get('vocabulary_record')):
+        if path is not None:
+            source_files[path] = c.digest(selected_bytes(path))
     result = {'task': authored_task,
         'delivery': {'content': content, 'translation_notes': task['delivery']['translation_notes']},
         'documents': documents,

@@ -1,0 +1,71 @@
+# Production permissions
+
+A task points to an `authority` JSON file following
+`schemas/authoring/production-authority.schema.json`. Its issuer and evidence
+path/locator identify the instruction whose bytes are pinned during preparation.
+The host checks real user authority: a schema authenticates no issuer and an
+agent-filled form is not consent.
+
+Each grant names an id, actor, direct/delegated mode, allowed operations, exact
+targets, protected criteria, optional request scope, submission validation modes,
+and expiry/effective/revocation timestamps. Direction, edit, submit, select and
+adopt are independent operations. Permission to submit is not canonical adoption
+or permission to change personality. Permission to select is not permission for
+another submission. Stop outside the stated scope or on ambiguous conditions.
+
+Targets are exact strings: `purpose`, `decision:<id>`, `delivery`, `canon:sheet`,
+`canon:catalog`, and changed `source:<id>`, `criterion:<id>`, `execution` or
+`authority` scopes. Grant only necessary targets. Calling a repair a local edit
+does not exempt its changed sources or protected criteria.
+
+The saved [work plan](production-work-plan.md) asks once for the actual
+instruction and the judgments of its exact selected use. Its curation owner
+reuses eligible current grants and derives the separate select/adopt
+authorizations. When several grants cover an operation, a numbered choice
+appears in that operation's answer; the runtime does not choose an actor or add
+a competing grant to avoid that choice. When coverage is absent, the actual
+instruction must support the missing operation and target; the runtime may then
+record that additional grant from the same retained instruction. A declaration
+of intended use and a passing schema alone supply no permission.
+
+One stop assessment can describe the complete requested selection and adoption
+when the same actual instruction supports both. The runtime records that
+judgment independently in each operation's exact authorization and checks
+current scope, actor, mode and stop definitions at each effect boundary. A
+changed or revoked grant returns a pending plan to current assessment; its
+earlier answer cannot recreate the grant. Reassessment of an already committed
+adoption claim keeps its image, original approval and destination intact.
+
+## Protected criteria across runs
+
+A grant's `protected_criteria` names criterion ids whose complete definitions
+must stay identical to the comparison run. Direction compares the new run with
+the previous registered run in the same work task and `production_id`; an edit
+compares its revised task with the parent run. Added and removed protected ids
+also differ. The first run of a production series has no earlier comparison.
+
+Choose these invariants from the actual instruction. `task.criteria` continues
+to hold the intended hard and advisory review requirements. A hard criterion can
+change under explicit authority and remain a hard review requirement of the new
+run. Its changed definition cannot at the same time satisfy a grant requiring
+that id to stay identical. Scripts compare the declared values; they do not
+interpret an instruction or choose the protection scope.
+
+`workspace --phase decision`, `draft-execution`, `draft-authority-update` and
+unsent-run status expose the same comparison in
+`authorization_requirements.protected_criteria`. The report names the comparison
+run, production series, changed ids and their exact before/after values. Grant
+eligibility includes this constraint. A conflicting selected grant reports its
+actual declaration field and the public authority update action.
+
+When an existing actual instruction authorizes a change, use that evidence to
+author the corresponding grant terms. The run-bound additional-grant draft
+preserves every existing grant and records a separate selection; choose its
+`protected_criteria` from the invariants the instruction still requires, import
+it with the observed predecessor, and select that grant for the affected
+operation. A complete current-authority declaration can also record a supported
+change to existing grant terms. Follow the report's update action for that
+owner. Keep the new task's hard review requirements and every saved run intact.
+An already imported compact addition is retained evidence: draft a new update
+against current authority for another change.
+

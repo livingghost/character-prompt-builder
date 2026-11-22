@@ -125,6 +125,25 @@ class WorkPlanTests(unittest.TestCase):
                 plans.request_from_arguments(self.root, args)
         self.assertEqual(before, work_ledger.read_current(self.root))
 
+    def test_typed_amend_scope_has_one_saved_owner_and_validates_before_work(self):
+        import production_workflow
+        parser = production_workflow.build_parser()
+        f.write(self.root / 'revision.txt', 'Keep the selected subject and change only the numeric controls.')
+        before = copy.deepcopy(work_ledger.read_current(self.root))
+        args = parser.parse_args(['plan', '--root', str(self.root), '--request-file', 'revision.txt',
+            '--from-run', self.run, '--scope', 'prepared-input', '--retain', 'identity',
+            '--retain', 'target', '--change', 'controls.parameters'])
+        request = plans.request_from_arguments(self.root, args)
+        self.assertEqual(request['source']['change_scope'],
+                         {'retain': ['identity', 'target'], 'change': ['controls.parameters']})
+        self.assertEqual(before, work_ledger.read_current(self.root))
+        for replacement in ({'run': self.run, 'change_scope': request['source']['change_scope']},
+                            {**request['source'], 'operation': 'compose'},
+                            {**request['source'], 'change_scope': {'retain': ['target'], 'change': ['target']}}):
+            with self.subTest(source=replacement), self.assertRaises(ValueError):
+                plans.create(self.root, request={'source': replacement, 'result': request['result']})
+        self.assertEqual(before, work_ledger.read_current(self.root))
+
     def test_typed_plan_exposes_every_influence_owned_by_the_reference_contract(self):
         import contextlib
         import io

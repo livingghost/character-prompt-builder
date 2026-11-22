@@ -1,0 +1,38 @@
+#### Bind a hosted carrier URL
+
+A transport declares whether its HTTP interface receives file bytes or imports
+an existing media URL. For a URL-import interface, `task.upload_sources` binds
+the actual prepared carrier file to its remotely readable URL. This synthetic
+excerpt selects the hosted bytes of one Studio-relative carrier:
+
+```json
+{
+  "upload_sources": [
+    {
+      "file": "work/reference-inputs/attachments/reference.png",
+      "url": "https://assets.example.org/reference.png"
+    }
+  ]
+}
+```
+
+Select this file and URL in `authoring.task.upload_sources` in the common
+draft. The file is Studio-relative and must contain the exact carrier bytes
+hosted at the URL. The builder measures its content and binds the URL to the
+current prepared carrier by digest, so reordering references does not require
+editing media indices or hashes. A shared board is one carrier even when it
+supplies several logical references. Identical carrier bytes can share one URL;
+conflicting URLs for the same bytes are refused.
+
+Select the exact prepared image's URL from the owner's existing storage or an
+available host interface. A local path is not a remotely readable URL, and the
+adapter does not publish local files to create one. The generated authoring
+source-file record preserves the selected bytes as evidence. A later change to
+those saved file bytes is refused. When an edit removes or changes a carrier,
+`build-inputs` drops its inherited URL selection; select the newly hosted carrier
+file and actual URL when the changed input needs one. Preparation records the
+source dependency and seals the URL with the carrier's hash, size and media
+type. The URL-import transport verifies the provider's stored bytes against
+that carrier before accepting its issued identifier. Byte-upload interfaces
+receive the sealed content directly.
+

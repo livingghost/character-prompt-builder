@@ -1,0 +1,25 @@
+## Preserve an image during enlargement
+
+An upscale request also carries `render_intent`, with `execution_mode: upscale`.
+An operation-only declaration is sufficient when no additional rendering
+constraint is selected; the source and its applicable treatment remain bound.
+Preserve the declared source treatment unless a change is authorized. An
+interface without a text channel receives no invented prompt fields. If an
+authored rendering declaration is selected for that operation, its
+`prompt_expression` stays empty. A guided upscaler includes any selected
+rendering expression in its actual guidance prompt; guidance alone does not
+require a rendering declaration.
+The offering maps the neutral `scale` setting to its actual request field in `parameter_keys`.
+The upscaler's execution profile declares that field and every other setting, including unavailable seed and count controls.
+Its recipe can describe source-image and scale selection without a rendering
+slot. A text-free interface does not require an invented style or prompt.
+`native_scale_factor` describes the network's native enlargement. The separate
+`supported_scale_factors` field describes known request factors; an absent or
+null value means those API factors remain unknown. Never derive an API enum
+from a model name or native factor. The exact offering profile and selected
+request evidence constrain the requested scale. A factor that the schema of the
+profile's scale control refuses is `CONTROL_NOT_AVAILABLE` at the declaration's
+`scale_factor`, and its repair names that control.
+Pass the intent file with `--render-intent` to `production_binding.py`, and to `dispatch.py --upscale` for its preview.
+The sealed request retains the complete resolved contract beside the source evidence.
+

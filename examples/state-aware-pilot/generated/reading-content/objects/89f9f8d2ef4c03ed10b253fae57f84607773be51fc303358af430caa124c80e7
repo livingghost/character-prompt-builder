@@ -1,0 +1,236 @@
+# Production authoring
+
+Compose or amend the actual candidate through [Authoring work](authoring-work.md).
+Edit its commission, selected depiction and source use at their owning locations.
+Save authored text or prepare an image request from those same choices. The author
+judges meaning; the input owners derive paths, hashes and repeated bindings.
+
+## Assemble authored choices
+
+### Discover input structures
+
+`draft-inputs` returns `authoring_guide` and retains it in `context.json`. Use its
+`explain_action` to locate the current editable files and the contracts of the
+selected fields before writing them:
+
+```bash
+python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json
+python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field authoring.documents.negative_provenance
+python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field target.model
+python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field external
+python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field external.image_input.external_request
+python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field authoring.task.recording
+python scripts/production_document_contracts.py explain production_spec
+python scripts/production_document_contracts.py explain production_spec --pointer /properties/subjects/items
+python scripts/production_document_contracts.py validate negative_provenance STUDIO/work/input/negative_provenance.json
+```
+
+`explain-inputs` reads the chosen draft without compiling a request or loading
+past runs. It distinguishes a field required in the draft schema from a choice
+that still needs an actual value before preparation. Select `--field` for one
+field or `authoring.documents.NAME` for its current source and complete contract.
+The document registry supplies required and permitted keys, the canonical
+schema when one exists, the logical validator otherwise, examples and remaining
+contextual checks. A document-level success does not establish request readiness.
+
+#### Select a Production Specification
+
+When a Production Specification is selected, its contract's `scaffold` links to
+`production_spec.py draft --help`, the existing template and the actual
+`subjects` item schema. The draft command starts one subject from the selected
+model and explicit subject, domain, brief, render intent and continuity choices;
+extend the subject array for the commissioned scene. The template also supports
+an explicitly subject-free scene. Select the resulting file at
+`authoring.documents.production_spec`; `choices.target` owns its published
+`target_model`. The scaffold leaves the character definition to its author.
+
+#### Identify the recorded subjects
+
+`explain-inputs --field authoring.task.recording` exposes the recording schema
+and `subject_map`: each key declares an image subject ID and its value names
+the Studio character that records it. Preserve the other required recording
+fields. Use those subject IDs consistently in their source applications,
+reference uses and review criteria.
+
+#### Inspect target and external fields
+
+Target and external fields expose their child contracts through executable
+explain actions. `target.model` follows the selected `target.kind`; an unselected
+kind remains an explicit choice. `external` shows the runtime-owned editable
+envelope and the existing-plan selector. Its child views distinguish authored
+fields from the model, request paths, media mappings and hashes derived during
+compilation. Follow each `schema_action` for the exact published schema
+fragment, then check the complete current draft after editing its owning fields.
+
+#### Select reference inputs
+
+Reference choices expose the same child navigation. Select
+`--field authoring.references.additional_references` for the ordered direct
+source rows, their exact schema and the public Studio source commands.
+`source` pins current adopted artwork; `accepted-source` pins the current slot
+without granting canonical identity authority. Put that returned source object
+in the selected row and author its role and subject uses. Keep supplied files
+under their actual source authority. The builder derives missing use IDs and
+file hashes; retain existing IDs referenced by other authored choices. Follow
+the returned `image_input_action` to choose the existing mirrored-input or
+explicit-plan behavior. Merely capturing an output does not select it as input.
+
+#### Establish the editable definition
+
+The draft is an empty scaffold, not a character definition. For character work,
+[establish the subject for this use](production-direction.md#establish-the-character-for-this-use)
+before writing its rendition. Acquire the applicable original or task-local
+definition through [Authoring work](authoring-work.md). The saved
+`work-basis.json` owns the acquired sources, current applications and their
+subject assignments; the compiler derives `authoring.task.sources` from them.
+Use `authoring_guide.source_acquisition` to acquire or update a Production
+source through its complete source row, as described below. It derives hashes
+from actual bytes and retains Production role and identity metadata together.
+The [saved-basis context command](authoring-work.md#save-or-execute-the-same-work)
+owns core requests and application choices; its generic file acquisition does
+not declare a Production role or identity selection.
+The compiler selects this acquired basis in the public task's `work_basis`.
+For a directly authored ProductionTask, acquire the basis with those same core
+commands and select its actual path. Completed checking, saving and preparation
+capture the current task, delivery and selected documents, require the applicable
+character definition, and verify their source applications and subject bindings
+against the basis. Draft structure inspection allows this work to remain open.
+Preserve the concrete meanings and their
+[researched wording](prompt-vocabulary.md#define-a-character-with-usable-wording)
+together at that owner. An existing definition remains authoritative; do not
+replace it with a summary of the prompt being authored. The builder captures
+source bytes in `authored_basis` for independent review.
+For a selected Production Specification, project the relevant identity, current
+state and performance into its subjects. Carry the meanings needed for this
+depiction into the actual delivery, retaining authored phrases when tags alone
+lose detail. A saved definition or an internal source path is not model input.
+Explicit supporting setting work follows its declared scope.
+
+A task-local definition derived from the current Production Specification
+carries the compiler-derived `definition_owner` with `document: "production_spec"`
+and its `subject_id`. Reacquiring a public task restores that actual document
+as the editable owner. Its subject identity edits update the applied definition;
+removing a subject updates the corresponding applications. A definition retained
+as independent source material during composition keeps its source owner.
+Canonical and external definitions retain their own authority and ownership.
+
+The [complete first-input example](../../examples/input-authoring/README.md)
+creates all selected inputs and prepares one reference-guided image in a fresh
+Studio with no previous run. Use it to understand the relationships; start the
+actual work from its own draft and actual authority. The [state-aware
+pilot](../../examples/state-aware-pilot/README.md) owns the additional complete
+state-derived artifacts when those features apply.
+
+#### Keep specialist documents at their owner
+
+Each `authoring.documents` entry selects one editable file with `{file, field?}`.
+`file` is relative to the Studio; `field`, when needed, is an array of JSON
+object keys or array indices selecting the value inside that file. Keep the body
+in that file. The builder reads its current bytes and captures hashes in the
+compiled revision. Editable selectors do not carry hashes to maintain by hand.
+For example, correcting `work/input/negative_provenance.json` changes the next
+`check --choices` and `prepare --choices` without a second edit to choices.
+Diagnostics name that source file and its owning contract. Earlier prepared
+revisions retain their captured content; `draft-inputs --from-run` restores it
+into the new draft's editable files.
+
+#### Select execution-specific inputs
+
+The `authoring.documents` guide derives `execution_inputs` from the current
+ProductionTask schema and selected execution branch. Its
+`permitted_generation_documents` and `not_permitted_generation_documents` name
+that branch's allowed and excluded document keys. A document's guide reports
+`execution_input.permitted_as_generation_document`. Use that scope for external
+execution as well: a known document key alone does not make it an execution
+input. Applicable research and source evidence keep their existing source
+owners; the selected route and content still require their own checks.
+
+The `authoring.generation` guide uses the same execution-specific schema for
+inline fields. For external execution, compiled `production_spec` and
+`state_graphs` belong to their `authoring.documents` selectors; an inline
+`generation.brief` is not permitted. Dispatcher inputs keep their declared
+inline fields. Inspect reports an excluded field at its actual editable owner
+before compilation, without deleting it or moving the author's meaning.
+
+`artifact_type` belongs only to contracts that declare that discriminator.
+Inspect the selected document's permitted keys rather than copying fields from
+another kind. `owner-direction.json` is not a reserved artifact type: an original
+commission may be prose or structured data, with its source role and locator in
+the task. The task's production direction has its own declared schema.
+
+#### Continue from the prepared request
+
+After preparation, inspect the returned `status --run RUN` action for that
+request. Unqualified `status` inspects all registered runs and has broader cost.
+Both forms report source changes separately from the saved request's execution
+requirements; neither requires restoration of edited original files.
+
+#### Bind input work to the open task
+
+Use [Craft consultation](craft-consultation.md) while deciding what to write or revise.
+Open the work task before reading or drafting its inputs, using
+`work_ledger.py begin --studio STUDIO --goal TEXT --step TEXT`. Reuse its task ID
+through input authoring and preparation. The input builders and route reader
+save their progress under that task automatically.
+
+### Acquire a Production source
+
+Write one public ProductionTask source row in the Studio, then run the action
+returned by `authoring_guide.source_acquisition`. For example, this synthetic
+`work/input/design-source.json` selects the actual definition of subject A:
+
+```json
+{
+  "id": "design",
+  "path": "inputs/design.json",
+  "role": "identity-contract",
+  "disposition": "applied",
+  "locator": "The adopted identity and selected body design",
+  "reason": "These properties define subject A for this image.",
+  "identity": {"subject_ids": ["A"], "selectors": ["/identity", "/parts"]}
+}
+```
+
+```bash
+python scripts/production_workflow.py acquire-source --root STUDIO --choices work/input/choices.json --source-row work/input/design-source.json --view summary
+```
+
+The source file and descriptor are Studio-relative. The operation acquires
+the original bytes, validates the role, pointers and subject selection, retains
+the complete description in the acquired origin and derives applications,
+subject assignments and selected source files. Its `source-acquired` result
+names `choices_file`, `basis_file`, `projected_source`, unresolved matters and
+the next inspection command. `changed: false` means the same selected input
+already produced the current acquisition. Reacquisition updates that source's
+owned selection without silently dropping unrelated applications or subjects.
+A refused acquisition leaves the prior draft usable. Saved runs and their
+evidence remain unchanged.
+
+For an `amend` draft, acquisition compares the complete proposed identity
+selection with the retained evidence before publishing. Adding or removing an
+identity source, replacing its bytes, or changing its subjects, selectors or
+authority requires a new `compose` draft. The diagnostic preserves the proposed
+candidate, including the newly acquired bytes, outside the original draft. Its
+`repair_action.argv` starts a compose from that exact candidate through
+`draft-inputs --choices`; execute that action once to continue the change.
+The original draft stays available for its existing source selection. An
+excluded acquired source uses its retained bytes and needs no live original.
+
+A source without identity coverage uses the same row without `identity`.
+Select its actual role, locator, disposition and reason. Use
+`source_requirements` in the draft or input guide to see required, applied and
+missing roles. Each missing role has a complete row example and acquisition
+action. A `considered-not-used` row does not satisfy an applied-role requirement.
+
+Edit the descriptor and reacquire when its Production metadata changes.
+`task.sources` and the selected source files are derived views. A projection
+diagnostic distinguishes missing origin metadata, undeclared identity and
+inconsistent applications from an invalid criterion binding. It names the
+acquired origin, applications, subjects, projected identity, dropped fields
+and `repair_owner`; follow its `repair_action` instead of editing a field the
+next projection replaces.
+
+The complete current ProductionTask path remains available through
+`draft-inputs --task FILE`. Initial `draft-inputs --route ROUTE --operation compose`
+creates the current editable scaffold without requiring an earlier run.
+

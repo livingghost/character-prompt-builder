@@ -1,0 +1,4 @@
+# Generation Package
+
+Use this complete technical contract to construct, verify or forward a Generation Package. Dispatcher image routes include feature `generation-package` automatically. Standalone package construction for an external run selects that feature explicitly; an ordinary external image request does not need it. [Image Generation Runtime](image-generation.md) owns the shared depiction, target and reference semantics. [Production workflow](production-workflow.md) selects the current operation; [Prepared request execution](production-request-execution.md) and [Dispatcher execution](production-dispatch.md) own its authorization, send and recovery.
+

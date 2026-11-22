@@ -1,0 +1,61 @@
+## Session entry
+
+`scripts/session_entry_points.py` finds the studio the working directory belongs to and prints the open task first: goal, steps done, the next step, and what it is blocked on. It prints them whether or not a pack runtime exists; text authoring resumes without one. A studio it cannot read is named with the problem in one line, and the report goes on. Read that before doing anything else; if a task is open, continue from `next`; if none is open, inspect suspended tasks before the last finished tasks and resolve the intended continuation. Do not reconstruct the state of the work from chat history when the trail is there.
+
+Session entry prioritizes the current goal, unfinished steps, every open
+question and blocker, and a short excerpt of the latest valid checkpoint for
+the current task revision. `note_count` and `omitted` make the retained history
+visible without repeating every note. Its full-history action is
+`work_ledger.py show --studio STUDIO --task-id TASK --view full`; that explicit
+view can inspect active, suspended and closed tasks.
+
+Session entry reads the saved task trail and pack settings without opening the
+Production database, creating operation logs or rebuilding gallery, reference
+or timeline displays. Its printed Production status and input-inspection
+commands read detailed saved choices and continuation state when explicitly run.
+Pending projection receipts remain for
+an explicit `studio.py sync --studio DIR` or an ordinary mutating operation.
+The host uses the already provisioned project interpreter with bytecode disabled;
+it reports missing setup without installing anything. Follow
+[Dependencies](../../DEPENDENCIES.md#uv-project-environment) for that explicit
+setup and the environment's functional check.
+
+Resume in this order: bind the studio, read the trail and the open task, read the applicable originals for the next operation, compare any new instruction with what is saved, then take the next safe operation. Do not repeat an answered question, revive a rejected idea, resend a completed generation, or treat a pending candidate or a held draft choice as adopted. Report what is saved by its actual guarantee: a local checkpoint read back, an export verified, a remote write with an unknown outcome, or a stale resume record. None of these is "backed up"; when writing is unavailable, say what is unsaved and hand over a recoverable export instead of accumulating decisions as if they were safe.
+
+## Validation
+
+```bash
+python scripts/validate_studio.py <dir>
+```
+
+It refuses:
+
+- a manifest that is not what `init` writes;
+- a character listed without a directory, or on disk without a listing;
+- a character id that ends in a dot or differs from another only by case;
+- an iteration whose files are missing or whose hashes moved;
+- a slot accepted twice, or an accepted iteration whose copy under `accepted/` is missing or differs;
+- an acceptance history without the named replacement's acceptance in that historical slot, or a placement that disagrees with its original iteration evidence;
+- an imported iteration without `external-import` provenance, or a rejection that names no actor;
+- a Production row that stores an evaluation, disposition or other judgment field, or whose run cannot be read;
+- a Production candidate a dispatcher run recorded for this studio with no iteration row;
+- a stale sheet binding or an incomplete adoption step;
+- a gallery that differs from what the records produce;
+- a work trail the ledger cannot account for.
+
+A Production row names exactly its run and candidate, and its judgment comes from that run.
+An unreadable run is reported, never reclassified as an imported image.
+A candidate without a row names the command that records it (synthetic, trimmed):
+
+```text
+Error: production run 01a10325-016d-77e5-87f2-fdeae61b82c8: candidate 55a6aed965b7a6ea42d7f986ffc9ead442407539a92c9dc8d422fee0d5f0ab7d has no iteration row in characters/robot; python scripts/production_workflow.py resume --root C:\...\studio --run 01a10325-016d-77e5-87f2-fdeae61b82c8 records it
+1 error(s)
+```
+
+`studio.py status` reports the same stale bindings and incomplete adoption steps.
+`scripts/studio_smoke_test.py` exercises every check on a temporary studio.
+
+## What leaves a studio
+
+An accepted image leaves the studio as a file with its hash, through a Generation Package or an interchange envelope. Nothing outside the studio is asked to hold its iterations, and the studio holds no other tool's files.
+

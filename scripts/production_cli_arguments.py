@@ -7,6 +7,29 @@ from craft_consultation_contract import LAYERS
 
 INPUT_COMMANDS = frozenset({'inspect-inputs', 'compare-inputs', 'explain-inputs', 'draft-inputs', 'stage-inputs', 'build-inputs'})
 
+
+def add_change_scope_arguments(parser) -> None:
+    """Expose authored preservation and change choices at their common owner."""
+    from production_reading_scope import CHANGE_SCOPES, RETAIN_SCOPES
+    parser.add_argument('--retain', action='append', choices=RETAIN_SCOPES,
+        help='Keep this authored decision in a retained amend; repeat for independent decisions. '
+             'The declaration belongs to work-basis.json and does not replace source or identity validation.')
+    parser.add_argument('--change', action='append', choices=CHANGE_SCOPES,
+        help='Declare this intended amendment; repeat to combine changes. The reader also inspects actual '
+             'editable differences and adds their required knowledge. Requires amend of an existing input.')
+
+
+def change_scope_from_arguments(args) -> dict | None:
+    """Preserve the explicit declaration without classifying request text."""
+    retain, change = getattr(args, 'retain', None), getattr(args, 'change', None)
+    if retain is None and change is None:
+        return None
+    value = {'retain': list(dict.fromkeys(retain or [])), 'change': list(dict.fromkeys(change or []))}
+    from production_reading_scope import validate_change_scope
+    validate_change_scope(value)
+    return value
+
+
 def add_input_arguments(subparsers) -> None:
     for name in sorted(INPUT_COMMANDS):
         parser = subparsers.add_parser(name, help={
@@ -54,7 +77,9 @@ def add_input_arguments(subparsers) -> None:
                      'an explicitly retained proposal from a refused edit. The earlier candidate remains comparison evidence.')
             parser.add_argument('--stage', choices=STAGES,
                 help='Current authored work; new character drafts start with definition. A saved unfinished draft '
-                     'retains its stage. Select prepare for binding already authored content.')
+                     'retains its stage. A declared amend begins at its first affected stage. '
+                     'Select prepare for binding already authored content.')
+            add_change_scope_arguments(parser)
             image_source = parser.add_mutually_exclusive_group()
             image_source.add_argument('--source-image', type=Path,
                 help='Upscale only (--route upscale): the raster image to enlarge, Studio-relative or an absolute '

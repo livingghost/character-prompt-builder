@@ -79,11 +79,21 @@ in their actual editable files as they develop. Select the stage whose choices
 need work; the stages are editing scopes, not a requirement to repeat completed
 decisions or an automatic verdict that a picture is finished.
 
+For a retained amendment, declare `--retain` and `--change` owners with `plan`
+or `draft-inputs` under [amendment scope](production-authoring.md#declare-a-retained-amendment).
+The declaration lives in `work-basis.json.change_scope`. Its current structural
+differences select operation profiles independently of the stage label. The plan
+starts with the changed work and reports `remaining_stages` and `next_stage`;
+it does not repeat an unchanged definition before a view, parameter or recording
+edit. Changed definitions automatically select definition knowledge, and a
+conflicting retained owner requires an explicit correction. Final preparation
+still checks actual source bytes, identity, current model and the exact request.
+
 | Stage | Work and complete source knowledge |
 | --- | --- |
 | `definition` | Establish or revise the concrete character, acquired sources, their applications and usable wording. |
 | `depiction` | Develop the intended construction and actual candidate with independent assessment criteria. Apply image contributions and retained requirements at their selected scopes. |
-| `rendition` | Carry that construction into the actual prompt, supported negative text, references and rendering controls. Apply the selected model's complete input and writing guidance. |
+| `rendition` | Carry that construction into the actual prompt, supported negative text, references and rendering controls. Apply complete selected model guidance; changed wording or target also requires writing guidance. |
 | `prepare` | Bind the saved content, references and evidence into the exact native request, or complete the input for saving authored text. Inspect the whole resulting input without inventing new creative decisions. |
 
 ```bash

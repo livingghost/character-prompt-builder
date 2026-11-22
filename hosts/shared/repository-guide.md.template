@@ -113,6 +113,15 @@ After interruption, use the task's saved plan action. With its plan file,
 `plan` inspects historical results or refreshes changed pending judgments.
 Existing phase commands below inspect and repair their specific owners.
 
+For retained input edits, select `--from-run RUN --operation amend` with the
+actual request and repeatable `--retain OWNER --change SCOPE`. The plan initializes
+`work-basis.json.change_scope`, which owns the current declaration. The runtime
+unions it with actual editable differences, selects complete amendment sections
+and advances only through the stages that need work. A retained view edit needs
+its actual identity, geometry and review contracts; a changed definition reopens
+its complete design knowledge. Read [the amendment scope](references/runtime/production-authoring.md#declare-a-retained-amendment)
+for the supported owners, exact source comparison and final validation boundaries.
+
 ```sh
 python scripts/studio.py init --out STUDIO --studio-id <id> --title "<title>"
 python scripts/production_workflow.py status --root STUDIO
@@ -160,12 +169,15 @@ An earlier source-delivery record alone does not supply knowledge to a new conte
 The reader returns JSON; an explicitly requested index delivers no source body.
 Read each `body` segment, follow `actions.continue` within a selected section and
 `actions.next` for remaining required material, and retain the issued
-`reading.record`. A null continuation alone does not establish completion. In the same context, supply complete
-prior keys with repeatable `--known-reading` or follow `context_reuse.operations`;
-the reader delivers missing or changed bodies and records their provenance.
+`reading.record`. A null continuation alone does not establish completion.
+In the same context, use the actual current draft's reading action and append
+`context_reuse.arguments` from complete readings still known here. The reader
+delivers missing or changed ranges and issues a record for the current scope.
+Use that issued key in the current choices; the prior record keeps its
+original scope.
 Fresh contexts use `inspect-inputs --root STUDIO --choices FILE` to find the
-current stage and source files, then read its applicable bodies again without
-discarding production work. No historical receipt supplies knowledge after
+current stage and source files, then read its applicable bodies again with no
+`--known-reading` selections, without discarding production work. No historical receipt supplies knowledge after
 compaction. Earlier completed decisions remain actual source content; revisit
 them when the request or their applicability changes.
 

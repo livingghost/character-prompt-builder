@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import execution_contract as c
 import production_case_fixtures as cases
@@ -21,6 +22,336 @@ import production_report_view as views
 import route_reading
 import studio_workspace as studio
 import work_ledger
+import production_change_scope as change_scope
+import authoring_work
+import test_production_adoption as adoption_cases
+import test_production_pack_reference as pack_reference_cases
+
+
+class AmendmentScopeTests(unittest.TestCase):
+    """Exercise actual editable owners independently of source-delivery receipts."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix='cpb-amend-scope-')
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        task = {'task_id': 'scope', 'production_id': 'scope', 'route': 'character-sheet',
+            'features': ['recurring-identity', 'body-plan'], 'artifact': 'image',
+            'execution': 'dispatcher', 'sources': [], 'criteria': [],
+            'direction': {'purpose': 'Synthetic view', 'basis': []},
+            'recording': {'slot': 'front'}}
+        self.before = {'authoring_stage': 'depiction',
+            'target': {'kind': 'catalog', 'model': 'synthetic:model', 'service': 'synthetic'},
+            'authoring': {'task': task, 'delivery': {'content': 'Synthetic figure.', 'translation_notes': None},
+                'documents': {'parameters': {'steps': 20}, 'production_spec': {
+                    'subjects': [{'id': 'subject', 'domain': 'human', 'identity': {'name': 'Synthetic'},
+                                  'pose_and_body_geometry': 'Front view.'}],
+                    'scene': 'Empty studio.'}},
+                'generation': {'count': 1, 'seed': 7, 'continuity': {'subject': 'recurring'},
+                    'render_intent': {'execution_mode': 'generation'}},
+                'references': None, 'upscale': None, 'source_files': {}},
+            'external': None, 'visual': None, 'validation': None, 'reading': {'reading_key': None},
+            'task_changes': {}}
+
+    def scope(self, *, change, retain=(), edit=None):
+        current = copy.deepcopy(self.before)
+        if edit:
+            edit(current)
+        basis = authoring_work.begin_work(operation='amend', request='Synthetic amendment.',
+            baseline=self.before)['basis']
+        basis['change_scope'] = {'retain': list(retain), 'change': list(change)}
+        scope = reading_scope.selection(self.root, current, current['authoring']['task'], basis=basis)
+        return scope, current, basis
+
+    def test_view_change_preserves_definition_and_stage_does_not_expand_it(self):
+        def edit(current):
+            current['authoring']['documents']['production_spec']['subjects'][0]['pose_and_body_geometry'] = 'Side view.'
+        scope, current, basis = self.scope(change=['depiction.view'], retain=['identity', 'target'], edit=edit)
+        self.assertEqual(scope['profiles'], ['amend-depiction'])
+        self.assertEqual(scope['observed_changes'], ['depiction'])
+        self.assertFalse(scope['change_conflicts'])
+        current['authoring_stage'] = 'definition'
+        selected = reading_scope.selection(self.root, current, current['authoring']['task'], basis=basis)
+        self.assertEqual(selected['profiles'], scope['profiles'])
+
+    def test_actual_definition_edit_enlarges_scope_and_reports_retention_conflict(self):
+        def edit(current):
+            current['authoring']['documents']['production_spec']['subjects'][0]['identity']['name'] = 'Changed'
+        scope, current, _ = self.scope(change=['depiction.view'], retain=['identity'], edit=edit)
+        self.assertEqual(scope['profiles'], ['amend-definition', 'amend-depiction'])
+        self.assertEqual(scope['change_conflicts'], ['identity'])
+        report = reading_scope.projection(current, current['authoring']['task'], [], scope=scope)
+        self.assertFalse(report['structural_ready'])
+        self.assertIn('work-basis.json', report['unresolved'][0]['required_action'])
+
+    def test_parameter_file_bytes_select_only_control_knowledge(self):
+        (self.root / 'parameters.json').write_bytes(c.encoded({'steps': 30}))
+        def edit(current):
+            current['authoring']['documents']['parameters'] = {'file': 'parameters.json'}
+        scope, current, _ = self.scope(change=['controls.parameters'], retain=['identity', 'finish'], edit=edit)
+        self.assertEqual(scope['profiles'], ['amend-controls'])
+        self.assertEqual(scope['observed_changes'], ['controls.parameters'])
+        self.assertFalse(reading_scope.matches({'changes_any': ['controls', 'controls.render-intent']}, scope))
+        self.assertEqual(reading_scope.initial_stage(scope['change_scope']), 'rendition')
+        current['authoring_stage'] = 'rendition'
+        report = reading_scope.projection(current, current['authoring']['task'], [], scope=scope)
+        self.assertEqual(report['remaining_stages'], ['prepare'])
+
+    def test_reference_addition_reads_actual_carrier_and_only_reference_knowledge(self):
+        (self.root / 'reference.bin').write_bytes(b'synthetic-carrier')
+        def edit(current):
+            current['authoring']['references'] = {'additional_references': [
+                {'id': 'side', 'role': 'identity', 'source': {'kind': 'supplied-file',
+                 'reference_id': 'side', 'resolved_path': 'reference.bin'}}], 'image_input': None}
+        scope, _, _ = self.scope(change=['references'], retain=['identity'], edit=edit)
+        self.assertEqual(scope['profiles'], ['amend-references'])
+        self.assertEqual(scope['observed_changes'], ['references'])
+        self.assertEqual(reading_scope.next_stage(scope), 'prepare')
+
+    def test_target_changes_cannot_hide_behind_parameter_declaration(self):
+        def edit(current):
+            current['target']['model'] = 'synthetic:other'
+        scope, _, _ = self.scope(change=['controls.parameters'], retain=['identity'], edit=edit)
+        self.assertEqual(scope['profiles'], ['amend-controls', 'retarget'])
+
+    def test_recording_only_starts_at_binding_and_keeps_existing_content(self):
+        scope, _, _ = self.scope(change=['recording.slot'], retain=['identity', 'target'],
+            edit=lambda current: current['authoring']['task']['recording'].update(slot='side'))
+        self.assertEqual(scope['profiles'], ['amend-recording'])
+        self.assertEqual(reading_scope.initial_stage(scope['change_scope']), 'prepare')
+
+    def test_unreadable_actual_document_cannot_prove_retention(self):
+        scope, _, _ = self.scope(change=['controls.parameters'], retain=['identity'],
+            edit=lambda current: current['authoring']['documents'].update(parameters={'file': 'absent.json'}))
+        self.assertEqual(scope['profiles'], sorted(change_scope.PROFILES))
+        self.assertIn('unknown', scope['observed_changes'])
+        self.assertEqual(scope['comparison_notices'][0]['cause'], 'selected-owner-unreadable')
+
+    def test_authored_context_field_is_not_a_generated_witness(self):
+        self.before['authoring']['documents']['creative_intent'] = {'context': {'purpose': 'Initial'}}
+        scope, _, _ = self.scope(change=['controls.parameters'],
+            edit=lambda current: current['authoring']['documents']['creative_intent']['context'].update(purpose='Changed'))
+        self.assertIn('amend-depiction', scope['profiles'])
+        self.assertIn('depiction', scope['observed_changes'])
+
+    def test_native_parameter_and_negative_fields_follow_explicit_request_paths(self):
+        self.before['external'] = {'image_input': {'references': [],
+            'external_request': {'prompt_field': ['sentence'], 'negative_field': ['avoid'],
+                                 'model_field': ['engine']}},
+            'request': {'sentence': None, 'engine': None, 'avoid': 'blur', 'native': {'quality': 2}},
+            'source_files': {}, 'media_slots': []}
+        scope, _, _ = self.scope(change=['controls.parameters'],
+            edit=lambda current: current['external']['request']['native'].update(quality=3))
+        self.assertEqual(scope['profiles'], ['amend-controls'])
+        self.assertEqual(scope['observed_changes'], ['controls.parameters'])
+        scope, _, _ = self.scope(change=['controls.parameters'],
+            edit=lambda current: current['external']['request'].update(avoid='glare'))
+        self.assertEqual(scope['profiles'], ['amend-controls', 'amend-rendition'])
+
+    def test_external_upload_and_prompt_mapping_changes_keep_their_owners(self):
+        from semantic_edit_plan_smoke_test import setup_plan
+        import production_external_inputs
+        plan = setup_plan(self.root)
+        self.before['external'] = production_external_inputs.draft(plan, c.load(self.root / 'request.json'), root=self.root)
+        def uploaded(current):
+            transport = current['external']['image_input']['references'][0]['transport']
+            transport['value'] = 'synthetic-reupload'
+            (self.root / 'reupload.json').write_bytes(c.encoded({'image_id': transport['value']}))
+            transport['evidence'] = {'path': 'reupload.json', 'locator': 'whole synthetic response'}
+        scope, _, _ = self.scope(change=['controls.parameters'], retain=['references'], edit=uploaded)
+        self.assertEqual(scope['profiles'], ['amend-controls', 'amend-references'])
+        self.assertEqual(scope['change_conflicts'], ['references'])
+        scope, _, _ = self.scope(change=['controls.parameters'], edit=lambda current:
+            current['external']['image_input']['external_request'].update(prompt_field=['other_text']))
+        self.assertEqual(scope['profiles'], ['amend-controls', 'amend-rendition'])
+        self.assertIn('rendition', scope['observed_changes'])
+
+    def test_reference_decisions_outside_attachment_rows_are_compared(self):
+        self.before['authoring']['references'] = {'additional_references': [], 'image_input': None,
+            'reference_use_plan': {'items': [], 'surface_lighting': {'decision': 'Original'},
+                                   'unavailable_record_uses': []}}
+        scope, _, _ = self.scope(change=['controls.parameters'], edit=lambda current:
+            current['authoring']['references']['reference_use_plan']['surface_lighting'].update(decision='Revised'))
+        self.assertEqual(scope['profiles'], ['amend-controls', 'amend-references'])
+
+    def test_upload_url_and_authored_negative_bytes_have_actual_change_owners(self):
+        raw = b'synthetic-upload'
+        (self.root / 'carrier.bin').write_bytes(raw)
+        self.before['authoring']['task']['upload_sources'] = [{'file': 'carrier.bin', 'url': 'https://invalid.example/original'}]
+        self.before['authoring']['source_files']['carrier.bin'] = c.digest(raw)
+        scope, _, _ = self.scope(change=['controls.parameters'], edit=lambda current:
+            current['authoring']['task']['upload_sources'][0].update(url='https://invalid.example/revised'))
+        self.assertIn('references', scope['observed_changes'])
+        raw = b'synthetic original negative'
+        (self.root / 'negative.txt').write_bytes(raw)
+        self.before['authoring']['task']['authored'] = {'prompt_field': ['text'], 'negative': {'path': 'negative.txt'}}
+        self.before['authoring']['source_files']['negative.txt'] = c.digest(raw)
+        (self.root / 'negative.txt').write_bytes(b'synthetic revised negative')
+        scope, _, _ = self.scope(change=['controls.parameters'], retain=['rendition'])
+        self.assertIn('rendition', scope['observed_changes'])
+        self.assertEqual(scope['change_conflicts'], ['rendition'])
+
+    def test_identity_source_relocation_preserves_scope_but_bytes_and_authority_do_not(self):
+        raw = c.encoded({'identity': 'Synthetic fixed definition'})
+        (self.root / 'original.json').write_bytes(raw)
+        (self.root / 'relocated.json').write_bytes(raw)
+        source = {'id': 'canonical', 'path': 'original.json', 'role': 'definition', 'disposition': 'applied',
+            'locator': 'whole source', 'reason': 'Synthetic definition authority.',
+            'identity': {'subject_ids': ['subject'], 'selectors': [''], 'authority': {
+                'reference': 'canonical', 'use_for': ['identity'], 'controls': ['identity'],
+                'intended_influence': ['identity'], 'do_not_transfer': [],
+                'subject_uses': [{'subject_id': 'subject', 'use': 'identity', 'priority': 1}]}}}
+        self.before['authoring']['task']['sources'] = [source]
+        self.before['authoring']['source_files']['original.json'] = c.digest(raw)
+        def relocate(current):
+            current['authoring']['task']['sources'][0]['path'] = 'relocated.json'
+            current['authoring']['source_files']['relocated.json'] = c.digest(raw)
+        scope, _, _ = self.scope(change=['controls.parameters'], retain=['identity', 'source-authority'], edit=relocate)
+        self.assertEqual(scope['profiles'], ['amend-controls'])
+        self.assertEqual(scope['observed_changes'], [])
+        (self.root / 'relocated.json').write_bytes(c.encoded({'identity': 'Changed definition'}))
+        scope, _, _ = self.scope(change=['controls.parameters'], retain=['identity'], edit=relocate)
+        self.assertIn('amend-definition', scope['profiles'])
+        self.assertIn('identity', scope['change_conflicts'])
+        def authority(current):
+            current['authoring']['task']['sources'][0]['identity']['authority']['controls'] = ['identity', 'pose']
+        scope, _, _ = self.scope(change=['controls.parameters'], retain=['source-authority'], edit=authority)
+        self.assertIn('source-authority', scope['observed_changes'])
+        self.assertIn('source-authority', scope['change_conflicts'])
+
+    def test_basis_reference_replacement_uses_the_saved_baseline_witness(self):
+        original = b'original synthetic reference'
+        replacement = b'replaced synthetic reference'
+        (self.root / 'original.txt').write_bytes(original)
+        (self.root / 'replacement.txt').write_bytes(replacement)
+        row = {'id': 'reference', 'path': 'original.txt', 'role': 'reference',
+            'disposition': 'applied', 'locator': 'whole source',
+            'reason': 'Synthetic reference.', 'applications': []}
+        self.before['authoring']['task']['sources'] = [row]
+        self.before['authoring']['source_files']['original.txt'] = c.digest(original)
+        basis = authoring_work.begin_work(operation='amend', request='Synthetic amendment.',
+            baseline=self.before)['basis']
+        basis['sources'] = {'reference': authoring_work.acquire_source(original, origin={'source': row})}
+        basis['change_scope'] = {'retain': ['references'], 'change': ['controls.parameters']}
+        current = copy.deepcopy(self.before)
+        current['authoring']['task']['sources'][0]['path'] = 'replacement.txt'
+        current['authoring']['source_files'] = {'replacement.txt': c.digest(replacement)}
+        basis['sources']['reference'] = authoring_work.acquire_source(replacement,
+            origin={'source': current['authoring']['task']['sources'][0]})
+        scope = reading_scope.selection(self.root, current, current['authoring']['task'], basis=basis)
+        self.assertEqual(scope['observed_changes'], ['references'])
+        self.assertEqual(scope['profiles'], ['amend-controls', 'amend-references'])
+        self.assertEqual(scope['change_conflicts'], ['references'])
+
+    def test_current_reference_bytes_override_an_unchanged_saved_measurement(self):
+        raw = b'original-synthetic-carrier'
+        (self.root / 'carrier.bin').write_bytes(raw)
+        self.before['authoring']['references'] = {'additional_references': [
+            {'id': 'side', 'role': 'identity', 'source': {'kind': 'supplied-file',
+                'reference_id': 'side', 'resolved_path': 'carrier.bin'}}], 'image_input': None,
+            'source_files': {'carrier.bin': {'sha256': c.digest(raw), 'media_type': 'image/png'}}}
+        (self.root / 'carrier.bin').write_bytes(b'replaced-synthetic-carrier')
+        scope, _, _ = self.scope(change=['controls.parameters'], retain=['references'])
+        self.assertIn('amend-references', scope['profiles'])
+        self.assertEqual(scope['change_conflicts'], ['references'])
+
+    def test_unclassified_structured_field_expands_instead_of_being_ignored(self):
+        scope, _, _ = self.scope(change=['controls.parameters'],
+            edit=lambda current: current['authoring']['generation'].update(future_control={'value': 1}))
+        self.assertEqual(scope['profiles'], sorted(change_scope.PROFILES))
+        self.assertEqual(scope['comparison_notices'][0]['cause'], 'unclassified-structured-owner')
+
+    def test_unscoped_existing_work_keeps_its_complete_authoring_contract(self):
+        basis = authoring_work.begin_work(operation='amend', request='Synthetic amendment.',
+            baseline=self.before)['basis']
+        scope = reading_scope.selection(self.root, self.before, self.before['authoring']['task'], basis=basis)
+        self.assertNotIn('change_scope', scope)
+
+    def test_conflicting_or_unknown_declared_owners_are_not_silently_ignored(self):
+        for value in ({'retain': ['identity'], 'change': ['definition']},
+                      {'retain': [], 'change': ['guess-from-prompt']},
+                      {'retain': [], 'change': []}):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                reading_scope.validate_change_scope(value)
+
+    def test_final_task_derives_the_same_actual_parameter_scope(self):
+        scope, current, basis = self.scope(change=['controls.parameters'], retain=['identity', 'target'],
+            edit=lambda value: value['authoring']['documents']['parameters'].update(steps=25))
+        task = copy.deepcopy(current['authoring']['task'])
+        generation = copy.deepcopy(current['authoring']['generation'])
+        for name, value in current['authoring']['documents'].items():
+            path = name + '.json'
+            (self.root / path).write_bytes(c.encoded(value))
+            generation[name] = path
+        generation.update(model=current['target']['model'], service=current['target']['service'])
+        (self.root / 'delivery.txt').write_text(current['authoring']['delivery']['content'], encoding='utf-8')
+        (self.root / 'work-basis.json').write_bytes(c.encoded(basis))
+        task.update(generation=generation, delivery={'path': 'delivery.txt', 'translation_notes': None},
+                    work_basis='work-basis.json')
+        final = reading_scope.from_task(self.root, task)
+        self.assertEqual(final['profiles'], scope['profiles'])
+        self.assertEqual(final['observed_changes'], scope['observed_changes'])
+        specification = c.load(self.root / 'production_spec.json')
+        specification['subjects'][0]['identity']['name'] = 'Changed outside the choices'
+        (self.root / 'production_spec.json').write_bytes(c.encoded(specification))
+        from production_diagnostics import ProductionError
+        with self.assertRaises(ProductionError) as raised:
+            reading_scope.from_task(self.root, task)
+        self.assertIn('identity', str(raised.exception))
+
+
+class RetainedAmendmentCompilationTests(unittest.TestCase):
+    setUpClass = classmethod(adoption_cases.AdoptionTests.setUpClass.__func__)
+    setUp = adoption_cases.AdoptionTests.setUp
+
+    def test_actual_parameter_edit_prepares_with_the_same_narrow_final_scope(self):
+        declaration = {'retain': ['identity', 'target', 'rendition', 'depiction', 'references', 'finish'],
+                       'change': ['controls.parameters']}
+        draft = inputs.draft_inputs(self.root, None, 'work/controls-amend', from_run=self.run,
+            operation='amend', change_scope=declaration)
+        path = draft['choices_file']
+        choices = c.load(self.root / path)
+        parameters = cases.read_document(self.root, choices, 'parameters')
+        previous = parameters['steps']
+        parameters['steps'] += 1
+        cases.write_document(self.root, choices, 'parameters', parameters)
+        choices.update(authoring_stage='prepare', reading={'reading_key': None})
+        cases.write(self.root / path, choices)
+        view = inputs.authoring_view(self.root, path)
+        scope, task = view['authoring_scope'], view['task']
+        self.assertEqual(scope['profiles'], ['amend-controls'])
+        self.assertEqual(scope['observed_changes'], ['controls.parameters'])
+        self.assertFalse(scope['comparison_notices'])
+        target = choices['target']
+        issued = route_reading.issue(task['route'], task['features'], execution=task['execution'],
+            studio=self.root, stream=io.StringIO(), operation='prepare', authoring_scope=scope,
+            model=target['model'], service=target.get('service'))
+        choices['reading']['reading_key'] = issued['reading_key']
+        cases.write(self.root / path, choices)
+        final_scopes = []
+        derive = reading_scope.from_task
+        def observe(root, task, *, read_source=None):
+            result = derive(root, task, read_source=read_source)
+            final_scopes.append(result)
+            return result
+        with patch.object(reading_scope, 'from_task', side_effect=observe):
+            compiled = inputs.compile_choices(self.root, path, persist=False)
+        self.assertTrue(compiled.report['publishable'], compiled.report)
+        self.assertTrue(final_scopes)
+        self.assertEqual(final_scopes[-1]['profiles'], ['amend-controls'])
+        self.assertEqual(final_scopes[-1]['observed_changes'], ['controls.parameters'])
+        self.assertFalse(final_scopes[-1]['change_conflicts'])
+        self.assertFalse(final_scopes[-1]['comparison_notices'])
+        self.assertEqual(cases.read_document(self.root, choices, 'parameters')['steps'], previous + 1)
+
+
+class PackReferenceAmendmentCompilationTests(unittest.TestCase):
+    def setUp(self):
+        pack_reference_cases.PackReferenceRunTests.setUp(self)
+        self.run = self.prepared_run
+
+    test_pack_reference_parameter_amendment_keeps_its_actual_identity_owner = (
+        RetainedAmendmentCompilationTests.test_actual_parameter_edit_prepares_with_the_same_narrow_final_scope)
 
 
 class StageCliTests(unittest.TestCase):

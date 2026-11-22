@@ -1,0 +1,515 @@
+#### Read the required source bodies
+
+```bash
+python scripts/execution_routes.py read reference-artifacts --operation author --execution authored --root STUDIO --feature sparse-retrieval
+```
+
+This explicit command starts with a required-source index, with `mode: "index"`, an empty
+`body`, and `reading: null`. It reports the selected operation, execution, destination, source kind,
+features and model; each source's exact content hash, full byte size, required
+ranges and selection owners. A whole-source requirement is shown once;
+its `section_count` reports internal navigation headings without expanding them.
+Explicit required sections remain visible in `sections`, with original source
+offsets and `selection_reason_ids` referring to the complete explanations in
+the top-level `selection_reasons` map. Source rows use those same reason IDs.
+`sections_expanded` distinguishes an expanded section list from a whole-source
+overview. Shared reasons are printed once, so the applicable
+contract can be inspected before delivery. `progress.required_bytes` measures the complete
+selected material, while `remaining_bytes` excludes source ranges already
+delivered in this snapshot and explicitly known complete bodies. Navigation
+establishes no source delivery and issues no reading key, even when an earlier
+same-context reading supplies every required body. `selection_scope` distinguishes
+`complete-source` from `selected-sections`. `selection_summary` reports the
+stage, declared change scope, selected profiles and bytes attributed to each
+route, feature and operation. Shared bytes can have several selection owners;
+those attributed totals are not additive. `progress.fresh_context_bytes` is
+the complete current reading size. `progress.same_context_new_bytes` removes
+only explicit complete same-context reuse, independently of page progress.
+
+Source states have explicit meanings: `pending` has no delivered bytes;
+`partial` has some delivered ranges and still needs the rest; `delivered` has
+complete source coverage in this snapshot; and `known` comes from an explicitly
+selected complete reading whose required source content is unchanged. An
+unrelated edit elsewhere in the document can leave that content reusable.
+`same_context_required`
+identifies snapshot coverage or known readings already retained when this response
+began. A fresh index or first delivery page has neither; its new source text arrives
+in that response. A later page, index or status view over delivered ranges relies
+on retaining their earlier text. The index reports these state meanings, and
+`read --help` lists them.
+
+Generated authoring and recovery actions select `--all` for the current stage.
+Their first response delivers a bounded body page; follow `actions.continue`
+until `reading` is non-null. `actions.index` exposes this same complete source
+index when its scope or individual sections need inspection. Input inspection
+continues an unfinished page first, then offers all remaining required material
+in bounded pages after a selected section ends.
+
+Inspect the selected scope as needed. Choose the operation actually in progress
+and the specialists the task uses. For example, `studio-placement` selects the
+complete contract for correcting an existing iteration's current scene or slot;
+ordinary image creation does not select that correction. Preparation and execution
+receive the complete [diagnostic-handling contract](production-diagnostic-navigation.md).
+Consult the linked global code catalog when resolving the reported failure.
+The declared section sets retain the prerequisites, authority, constraints,
+exceptions and recovery required for that operation and destination. Headings
+then guide navigation within those required bytes; selecting a heading in the
+index never removes other required sections.
+
+##### Choose a source range
+
+The index supplies an exact `selector` for each source range available to read
+and each expanded heading. To inspect a whole source's headings, append
+`--index-source SELECTOR` to `actions.index.argv`, as `source_navigation` describes.
+This returns `mode: "index"` with the chosen `index_source`, no source body and no
+reading. It leaves the complete required scope unchanged. An explicitly `known`
+source has a null selector; if its text is no longer
+available, start a fresh index without that known-reading assertion. Use its
+`section_selection.argv` plus `--section SELECTOR` to read that choice, or execute
+`actions.next` to read the first missing required section. A source selector
+reads that complete indexed source range; a heading selector reads its exact
+byte segment up to the next heading within that range. Markdown headings inside fenced examples are not sections.
+Writing-guide sections, dialect records and model offering cards have their own
+exact JSON segments, including the source opening and closing bytes.
+
+```bash
+python scripts/execution_routes.py read --snapshot SNAPSHOT --section SELECTOR --root STUDIO
+```
+
+`--snapshot SNAPSHOT --index-source SELECTOR` is navigation; `--section SELECTOR`
+delivers its exact source text. Neither an index nor a direct file read can be
+converted into a completed reading by assertion.
+
+##### Deliver every required byte
+
+Use the complete returned invocation when a custom ledger or pack runtime is
+selected. `actions.index` reopens the saved index and its current coverage.
+`actions.all` explicitly delivers every remaining required byte in bounded pages.
+Each executable action provides an `argv` argument array, operation name
+`command: read`, and a `reason`. Execute the full `argv`. Continuations restore
+the exact pack runtime from their snapshot; those arguments need no repeated
+entry on every page.
+It is also available when starting a new reading:
+
+```bash
+python scripts/execution_routes.py read reference-artifacts --operation author --execution authored --root STUDIO --feature sparse-retrieval --all
+```
+
+Every body response is one JSON object. Read its `body` entries in order. Each
+entry contains exact source text in `text` and its kind, path, hash and byte range
+in `metadata`. A document body binds the complete original source with
+`source_sha256` and `source_size`, and its delivered interval with `source_start`,
+`source_end`, `sha256` and `size`. Page `start` and `end` are offsets within that
+body; adding `source_start` gives the original document offsets. Top-level `metadata` identifies the selected scope. `progress`
+reports required, reused, delivered and remaining source bytes; section and replay
+progress also report the bytes left in that selected delivery. Source text and
+control fields are separate, so text inside a document cannot become an action.
+`--page-bytes N` sets the source-byte budget, which defaults to 16,384 bytes.
+It applies to section and full deliveries alike and preserves UTF-8 boundaries.
+
+Follow `actions.continue` while the selected section or full delivery has another
+page. When a section ends, `actions.continue` becomes `null`; if required material
+remains, choose another indexed section or use `actions.next` or `actions.all`.
+A null continuation alone does not establish completion. Completion is a non-null
+`reading`, containing the issued `reading.key`, `reading.record` path and
+`reading.record_absolute` location.
+An incomplete result has `reading: null` and `context_reuse: null`. Section reads
+may occur in any order, and overlapping reads count their bytes only once. Reading
+the final section first cannot issue a complete receipt. A complete paged read
+skips ranges this same snapshot has already delivered.
+
+##### Recover an interrupted source delivery
+
+`actions.replay` rereads an actual delivered page; indexes have no source page to
+replay. If a host truncates text, replay with a smaller `--page-bytes` budget and
+follow its continuation through the rest of that page before proceeding. Replay
+retains the full required scope and its earlier delivery evidence. A successful
+command does not establish that truncated text was read. Studio status exposes
+the saved index, exact partial coverage and next reading action when no complete
+JSON response reached the agent.
+The reader records the selected continuation explicitly. Reading a later section
+first does not replace a subsequently selected earlier section or its byte budget
+with a guess based on source order. If no continuation was selected, status opens
+the retained index so the next source choice remains explicit.
+
+##### Preserve reading scope and evidence
+
+The actions retain the selected environment's Python, installed script, absolute
+reading ledger, Studio when present, byte budget and exact pack runtime, including
+additional discovery roots. A snapshot fixes the route, operation, execution, destination, source kind,
+features, model, prompt family and explicit same-context sources. A page cursor
+also fixes its delivery selection. `--reading-ledger` selects the ledger.
+Otherwise an explicit `CPB_READS_LEDGER` takes priority, followed by the specified
+or current Studio's ledger, then the configured home ledger.
+
+The reader preserves every required byte and issues a reading only after complete
+coverage and a fresh check of actual documents, resources and selected-model
+contents. Its record and ledger retain whole-source hashes and the original issuance
+witness of every reused interval, together with exact required ranges and
+operation scope. A source change during reading names the changed owners and
+provides `actions.restart`, which opens a new current index. A new reading checks
+its ledger before publishing an index or source body. Following a document link,
+viewing a heading index or retaining a file path alone does not deliver that
+source's contents.
+
+##### Reuse complete knowledge in this context
+
+For another operation in the same active context, use the actual next draft's
+reading action and append `context_reuse.arguments` from a completed result.
+`context_reuse.operations` offers inspection of the current operation; it does
+not choose the next operation, destination or candidate. The arguments carry
+repeatable `--known-reading KEY` selections. The reader compares exact source kind,
+path, content and resource/model scope, together with the original delivery
+witness, then delivers every missing or changed required range. Document
+deliveries retain each completely covered section's anchor, original byte range
+and content hash. When another part of that document changes or moves the
+section, matching path, anchor and complete content identify the same known
+section at its current range. A matching heading or a hash without complete
+delivery evidence supplies no knowledge. For reuse of a subsection from a changed
+document edition, the reader also verifies the retained bytes of the complete
+earlier body. If that evidence is missing or damaged, a new current read delivers
+any ranges it can no longer prove. If the evidence disappears during an open
+read, start the current reading again; the incomplete snapshot cannot issue its
+record. A complete earlier full source can cover a later
+required section, and several complete earlier ranges can cover parts of a
+broader requirement. Their union never certifies an unread gap. A scope change
+indexes those missing intervals explicitly before any current reading is issued.
+Choose sections or `actions.all` to complete the current reading. When no new
+bytes are needed, `actions.all` checks the current sources and issues the current
+record without repeating unchanged bodies.
+
+For curation, the actual draft supplies its destination and source owner.
+Moving from slot acceptance to sheet adoption uses that draft's `reading_action`
+and the same explicit retained keys. Shared sections remain known only through
+those keys, and additional canonical-use sections are delivered before completion.
+
+When changing model, service, features, route, destination or source kind, begin an index with the actual
+selections and the `context_reuse.arguments` of complete readings still known in
+this context. Model and resource scope are independent of shared documents: a
+changed model preserves unchanged workflow knowledge and requires its own card.
+A changed required section delivers that section again; unchanged sections
+remain available through their exact prior witnesses. A changed resource
+delivers its complete selected body. Whole-source hashes still identify the
+current document edition, and a new record checks the current complete selection
+before issuance. A required section with no matching evidence remains unread.
+An unneeded specialist
+or pack release/lock change does not discard unchanged required knowledge. These
+reads preserve prepared inputs and authored decisions; delivery evidence does not
+rewrite creative work.
+
+##### Rebuild knowledge in a fresh context
+
+A new agent, compacted conversation or lost source context opens the index for the
+operation now needed, with no `--known-reading` selections. Use
+`actions.restart` (also referenced by `context_reuse.fresh_context`) or the fresh-context action in
+Studio status. Restart retains the selected task scope and existing authoring
+files while making no assertion of retained knowledge. Continue the work's saved
+choices and current phase; a fresh context need not repeat completed production
+operations. A ledger, partial pages or historical key alone never supply knowledge.
+An incomplete reading cannot contribute known bodies.
+
+##### Read an acquired model
+
+An acquired model outside the catalog uses `--model-file FILE` in place of
+`--model`. A relative path is resolved within the Studio. The reader selects the
+same complete model and writing guidance, binds its exact edition, and retains
+its source for continuation and fresh-context reading. This source matches
+`choices.target.model_file` when saving target-specific text; the input owner
+derives the compiled task target from that selection.
+
+## Use the delivered knowledge
+
+Read interface guidance; resolve the optional `prompt-writing-guide` and read the complete selected guide before final rendition. Preserve authored meaning while applying its syntax and target evidence. Inspect complete selected knowledge records for actual construction questions. A selected specification records the depiction; its fields do not prescribe sentence order or independent criteria of success. For character reuse, resolve actual reference coverage and stage targets.
+
+Selected-model reads and `target_knowledge` provide `prompt_authoring`, derived
+by the script from the selected record. Follow its composition guidance and
+vocabulary action without first classifying the model as prose-only, tags-only
+or mixed. An unlisted target may omit form metadata; the script retains that
+uncertainty and still checks the real request's fields and controls. See
+[Prompt input](render-contract.md#prompt-input) for each returned value.
+
+### Keep the reading at its current scope
+
+The final `reading.record` is complete when issued. Set `choices.reading.reading_key`
+to that issued key. The input owner resolves the exact document editions, selected
+resource scope and delivered model guidance from the issuance. When authoring a
+task directly, name the emitted file as `task.route_reading`.
+
+To use a narrower amendment scope, obtain its current record through the draft's
+reading action. Supply prior keys with `--known-reading` only while their complete
+contents remain known in this context. The parent record keeps its original
+document editions and resource scope. Complete the current scoped read and use
+its newly issued key, even when no new body text is needed.
+
+### Select the delivered target knowledge
+
+Choose the model with `--model MODEL_ID` and its offering with `--service SERVICE_ID`
+when already selected. Without a service, the read delivers that model's complete
+offering guidance for selection. With `prompt-dialect`, `--dialect ID` instead
+selects a known writing family without claiming a selected model. Unknown targets
+use the neutral guidance. Each selected card and writing scope arrives through
+the same complete, paged snapshot. A current operation may use an already delivered
+superset only when the required current source editions and model scope match.
+
+Keep reasons for expression and source use at those actual choices. The delivery
+receipt records which source bytes reached this context; it is not an exercise
+in quoting instructions and does not certify comprehension or artistic quality.
+For a new agent or lost context, read the complete contract for the current work
+again using the status action. A prior delivery record alone supplies no knowledge.
+
+### Create or reopen editable work
+
+- `inspect-inputs` gathers the current task, authored content, source roles, recorded candidates and unresolved choices.
+- `compare-inputs` reads selected editable candidates together through the common authoring comparison owner, including their current delivery, selected documents and source applications.
+- `draft-inputs` creates `choices.json` for the actual candidate and `work-basis.json` for the acquired request, sources and current applications. `context.json` registers those owners and the starting point. `choices.target` owns the model and service; `choices.authoring` holds current task decisions, selectors for editable delivery and selected documents, and reference-use choices. Each selected file owns its content.
+- `save --choices FILE` saves an authored revision; `prepare --choices FILE` compiles the current editable sources and prepares a model request. Both use the same input owners. `build-inputs` exports the derived files when a separate input package is wanted; it is not a required step before saving or preparation.
+
+Start a new authored text task without first constructing a production-task file:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation compose --request-file request.txt --route prompt-only --artifact text --execution authored --out-dir work/first-draft
+python scripts/production_workflow.py save --root STUDIO --choices work/first-draft/choices.json
+```
+
+Between those calls, author the commission's selected depiction, delivery,
+source roles, independent criteria and current knowledge selections. The open
+work task supplies its identity. Select the actual execution kind and route;
+new image work additionally needs its target, rendering and input evidence.
+Unresolved choices stay explicit. `save --draft` preserves them with unfinished text. A completed target-specific prompt and an executable request apply their required input and vocabulary contracts; a saved draft does not certify either.
+
+To edit existing work, select `--task FILE` or `--from-run RUN` and the current
+`--operation compose|amend`. Supply a changed request with `--request-file FILE`;
+continuation under the same request can use its saved authoring work.
+Add `--model MODEL_ID` and `--service SERVICE_ID` when
+selecting another target for that draft. Edit the same source files, then save
+or prepare that draft.
+Reopening a run restores editable source copies and reference media from its
+captured inputs. Original working files may have changed or been removed.
+Validation sources use automatic `@run/RUN/STUDIO_PATH` selectors; nested source
+locators stay within that captured revision. Each new package retains the
+qualified evidence it used for the next continuation. Select a current Studio
+file explicitly when replacing a source, policy or evidence document. That
+choice acquires its current contents and preserves the earlier run separately.
+### Prepare an enlargement
+
+For a plain enlargement, select `--route upscale --source-image IMAGE --scale N
+--purpose TEXT`. Upscale defaults to image output and dispatcher execution.
+An external absolute source is imported into the draft; a Studio source retains
+its path. An explicit purpose opens a work task only when none is open and fills
+unanswered purpose and criteria. The task opens when the draft is produced; a
+refused command, such as one naming an unreadable image, opens no work and can
+be corrected and run again. Current authority and existing judgments remain
+selected. Follow [Upscale Adapter](../adapters/upscale.md) for the complete flow.
+
+To enlarge an image already captured by Production, select its run and exact
+candidate directly. `status` and the review workspace identify all candidates;
+choose the intended result even when several came from one request:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation compose --request-file request.txt --route upscale --source-run RUN --source-candidate CANDIDATE --scale 2 --purpose "Enlarge the selected image while preserving its content." --model MODEL_ID --service SERVICE_ID --out-dir work/enlargement
+```
+
+The input owner verifies and selects the retained image bytes, records the
+originating run and candidate, and creates the ordinary upscale choices. The
+upscale has its own requested result, scale and assessment. The earlier prompt,
+generation criteria, review and completion remain with the earlier image;
+they are available as evidence and are not reinterpreted as upscale controls.
+Preparation records the selected candidate as the parent basis while the
+actual source image still matches it. Selecting another source later changes
+that binding. Nothing is sent, selected or adopted by drafting or preparation.
+Use `--source-image` instead for an explicit local image; it cannot be combined
+with the captured-candidate selector. These upscale selectors, `--scale` and
+`--purpose` apply only to `--route upscale`.
+
+### Start an existing-image edit
+
+To change depicted content of an accepted Studio image, select the image by its
+Studio character and slot:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation amend --request-file request.txt --route generation --execution dispatcher --edit-character CHARACTER --edit-slot SLOT --new-task "Replace the background of the accepted image." --out-dir work/edit
+```
+
+Use `--execution external` for a host call. The draft selects the image with
+its exact slot acceptance as the scene reference and the applied `accepted-source`,
+writes an editable edit plan beside the choices and carries the applicable
+Production Specification, controls and validation selection of the run that
+produced the image, including every subject and its explicit mapping. Sheet
+adoption is not required; an applicable adopted identity keeps its separate
+canonical proof. What changes and stays, the instruction text, criteria and
+result destination remain unanswered and are reported together. The result may
+use the source slot or a deliberately different slot. Follow
+[Semantic instruction editing](semantic-instruction-edit.md#start-from-the-accepted-image)
+for the complete flow.
+
+When the target differs from the source run's prepared request, the next action
+uses `retarget` with that parent run. Supply its actual reason. Reopened choices
+are assessed again, including edits that restore the original target.
+The saved context identifies its source, so the build can continue from the
+choices file without reconstructing the source command or choosing a new generated output path. Preserve the context
+beside its choices. Inspect the emitted request before preparing or sending it.
+
+### Edit the owning authored field
+
+| Authored area | Edit here | Builder responsibility |
+| --- | --- | --- |
+| `work-basis.json` | Acquire the request and source bytes through Authoring work; select applications, subjects and retained requirements. Acquire a deliberate adaptation as its own source. | Resolve current applications into task sources and preserve complete acquired originals alongside selected content |
+| `target` | One selected catalog model and service, acquired model file, or evidenced external interface | Acquire that target and derive its model identity, offering, specification bindings and reference transport inputs |
+| `authoring.task` | Direction, criteria and applicable task choices | Bind materialized inputs and the current source applications into the task |
+| `authoring.delivery.file` | Directly editable text, or a JSON document with an optional `field` key/index array; translation notes only for an actual translation | Read the exact selected content and bind its delivered bytes |
+| `authoring.documents` | Selected settings and specialist files with `{ "file": "path", "field": ["key"] }`; omit `field` to select the entire file | Read each editable owner, materialize derived content and bind task references |
+| `authoring.generation` | Count, seed, continuity and applicable generation choices | Combine these choices with the selected target in the declared generation input |
+| `authoring.references` | Ordered source selection, uses, exclusions, subject scope and transport choice | Rebuild the prepared set, attachment order, board placement and content hashes |
+| `authoring.upscale` | Selected source, scale, settings, guidance and applicable evidence | Build the upscale declaration for the selected target and reuse its valid evidence |
+| `validation` | The request-validation mode, selected contract or evidence, and execution policy | Resolve that evidence against the same acquired target and derive its exact binding |
+| `task_changes.semantic_edit` | The Studio path of the editable edit plan of an existing-image edit | Bind the plan to the scene reference, the applied `accepted-source` and the declared criteria |
+
+When a JSON application selects part of a source, the compiler can publish that
+selected content at the task source's `path` and retain the complete original
+under its derived `origin: {path, sha256}`. The source's derived `applications`
+contains `{id, pointer, subjects, requirement}` for each actual application.
+Its ordered pointers produce one selected value or, for several applications,
+an ordered array of their values. Snapshot checks bind that content to the
+complete original. Acquiring the exported task restores each application's
+subject and requirement relationships independently of canonical identity
+metadata. The compiler owns these files and bindings; acquire changed material
+or update the application through the source context command.
+
+### Select dispatcher image inputs
+
+`authoring.references.image_input` selects how a dispatcher image input is
+formed from the references. `null` writes no image input. The mirrored form `{}`
+uses the other reference choices, such as a Studio source in
+`additional_references`: preparation writes one image-input row per prepared
+source, with its reference ID, role, prepared carrier and the authority that
+preparation gave it as `use_for` and `do_not_transfer`. The carriers lie under
+the new input's directory; a semantic edit matches its scene reference to the
+applied `accepted-source` by the file's bytes. The explicit form is a plan with
+its own `references` rows (`id`, `role`, `file`, `use_for`, `do_not_transfer`,
+optional `subject_uses`), `external_request: null` and an optional
+`prepared_references` path. It then owns the reference order, and the other
+reference selections stay empty. Without `prepared_references`, each file is an
+ordinary supplied image. With it, the existing set keeps its sources, adoption
+and authority and each row takes the plan's reference ID. `choices.target`
+supplies the plan's model in both forms.
+
+`task_changes.semantic_edit` names the edit plan
+(`schemas/authoring/semantic-edit-plan.schema.json`) whose `source` is the scene
+reference ID. The edit draft writes it beside the choices; the draft and
+preparation report each unanswered part as
+`task_changes.semantic_edit.edit.target`, `.edit.change`, `.edit.preserve` or
+`.review_criteria`, with `file` naming the plan. Edit the plan file in place.
+
+### Preserve authored authority
+
+These are separate meanings within one editable source. Criteria remain based
+on the commission. A selected plot or other adopted specialist artifact retains its own approval and version; work that does not use it needs no empty substitute. A prompt
+wording edit does not by itself require rewriting the plot or criteria.
+The builder does not infer new approval, source authority or semantic agreement
+from successful file assembly. Existing grants remain subject to their actual
+scope; a new run does not inherit an exact execution authorization or claim.
+
+### Select and change the target
+
+Edit `choices.target` once. A catalog selection has `kind: "catalog"`, the
+canonical `model` ID and selected `service`; an external host using that model
+also declares the evidenced wire `operation`. A target-specific authored prompt
+can select `kind: "acquired"` with `model_file` for a supplied model definition.
+An unlisted image interface uses `kind: "external"`: its `model` contains the
+requested identity, `target.service`, `target.model_identifier`,
+`target.operation`, input contract and acquired evidence. Its optional
+`reference_model` selects the catalog model needed to prepare canonical
+references for that interface. Portable authored text can leave `target` null.
+For target-specific authored text, keep its execution mode, native parameters,
+syntax and vocabulary record with that same target selection.
+
+The input owner projects that selection into compiled generation and upscale
+inputs, the selected Production Specification and model-facing reference
+bindings. Keep model and service selection at `choices.target`; the builder
+writes their other representations. `choices.validation` selects the policy
+and evidence for the request, without a second editable model or offering.
+The complete public artifacts retain the derived target declarations needed
+to interpret them independently.
+
+For example, reopen a saved request with another selected catalog target:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --operation amend --request-file request.txt --model MODEL_ID --service SERVICE_ID --out-dir work/next-target
+```
+
+The draft retains the saved content, source definitions, references and authored
+choices. Read the selected target's complete current guidance and assess how
+the existing expression, controls and reference uses apply to it. Reuse a
+completed reading whose source editions, operation and model scope cover the
+new selection. Reuse evidence where its declared applicability still holds.
+A different target alone does not justify erasing valid content, resetting
+choices or discarding those records. Change the affected choices and let their
+owners rebuild the deterministic consequences. Missing evidence or unresolved
+judgment remains explicit at the field that needs it.
+
+To prepare a target or runtime change with lineage to the earlier dispatcher or external image
+run, use the edited choices directly:
+
+```bash
+python scripts/production_workflow.py retarget --root STUDIO --from RUN --choices work/next-target/choices.json --reason "Apply the selected target to the retained depiction." --prepare
+```
+
+Without `--prepare`, `retarget` checks the input without publishing a run.
+The parent supplies lineage; its saved input and results remain intact.
+The new request uses current applicable source evidence, guidance and controls.
+It receives no submission claim or exact-request authorization from its parent.
+Existing grants still apply according to their actual scope. Follow
+[Input variations](production-variation.md) for the complete retarget contract.
+
+### Keep branches and reopen completed work
+
+Select `draft-inputs --from-run RUN --operation compose|amend --out-dir DIRECTORY`
+for the current work. Supply the actual changed request with `--request-file FILE`.
+The saved source catalog keeps original identity bytes, subject assignments,
+selectors and scoped authority available, including information acquired through
+a reference or state graph. The agent applies the sources relevant to this
+candidate and retains the requirements the current request relies on.
+
+Both operations seed the draft with the selected candidate's meaningful authored
+content, editable documents and current source applications. `amend` starts from
+the actual selected baseline and retains its identity source boundary and the
+choices outside the declared change. `compose` owns a fresh current source
+selection, with the previous candidate available for comparison. The
+request determines which relationships to retain or reconsider; a property name
+does not determine the operation. Follow [Authoring work](authoring-work.md) for
+the candidate and its exact change contract. Resolve the proposed construction
+within delegated authority and ask only for necessary authorial decisions.
+
+The same boundary applies while opening a draft. If constructor choices such
+as `--apply-source` would add an identity source to an `amend`, drafting refuses
+before publishing the directory or opening new work. Its compose action retains
+the selected task or run and the supplied request, source, target, stage and
+runtime arguments. The saved source defines the retained boundary; constructor
+arguments cannot redefine it.
+
+To continue the current edits in a new compose, select their choices directly:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO \
+  --choices work/amend/choices.json --out-dir work/new-compose
+```
+
+`--choices` selects this compose operation; it needs no content-reuse switch.
+The current request, prompt bytes, parameters, document field selectors,
+direction, criteria, recording choices and target carry into independent
+editable files. The selected reading and authoring stage remain visible for
+their current applicability checks. The original saved run remains comparison
+evidence. Current source owners produce the new identity inventory and dependent
+bindings; a historical derived witness alone never activates an old reference.
+Current grants are checked against their actual operation and scope. Execution
+claims and run-specific decisions remain with the runs that own them.
+
+| Intended change | Operation |
+| --- | --- |
+| Change prompt wording, pose, expression or controls while retaining identity evidence | `amend` |
+| Reorder the same reference uses with the same bytes, subjects, scope and authority | `amend` |
+| Add, remove or replace an identity source | New `compose` |
+| Change identity selectors, subjects, reference authority or accepted proof | New `compose` |
+| Add or remove an environment or prop source with no identity effect | `amend` |
+| Generate another result from the exact prepared input | `repeat` |
+

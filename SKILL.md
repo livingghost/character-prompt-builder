@@ -23,7 +23,7 @@ Run documented `python scripts/<name>.py ...` as `uv run --project <skill-root> 
 
 ## Start the current work
 
-Saved work: [plans](references/runtime/production-work-plan.md). Use `python scripts/production_workflow.py plan --root STUDIO` with `--request-file FILE --route prompt-only --scope save` for new text, or `--run RUN --scope sheet --influence identity` for sheet adoption. Follow `advance`, reading action and answer file. [Current stage](references/runtime/production-workflow.md#read-the-current-stage) supplies complete sources; avoid preloading. After compaction reread work. Conversational work reads applicable originals.
+Saved work: [plans](references/runtime/production-work-plan.md). Use `python scripts/production_workflow.py plan --root STUDIO` with `--request-file FILE --route prompt-only --scope save` for new text, or `--run RUN --scope sheet --influence identity` for sheet adoption. Follow `advance`, reads and answer files. [Current stage](references/runtime/production-workflow.md#read-the-current-stage) supplies complete sources; avoid preloading. After compaction reread work. Conversational work reads applicable originals.
 
 ## Core contract
 
@@ -55,7 +55,7 @@ An authored rendering declaration binds its prompt span in `render_intent`. Use 
 A Generation Package uses `generation-package` (automatic for dispatcher), with its exact interface profile and mode-valid controls. Record unlisted targets under [Image Generation](references/runtime/image-generation.md#choose-execution). `image_input` binds references and exact external requests; edits add [Semantic instruction editing](references/runtime/semantic-instruction-edit.md). [Model evidence](references/runtime/model-evidence.md) owns schemas, trials, profiles, suitability and failure diagnosis.
 Put execution values in declared controls, not prompt prose. Image shape and framing remain depiction choices. Resolve required scalar recommendations with provenance; choose within ranges. Display unavailable controls without sending them.
 Display the rendering choice and complete verified request before submission. Use its named provider; never substitute engines.
-Use [Variation](references/runtime/production-variation.md) for saved revisions. Select `compose` or `amend` from what the request retains and reopens.
+For saved [revisions](references/runtime/production-variation.md), select `compose` or `amend`; declare retained edits with `--retain` / `--change`.
 
 ## Knowledge use and retrieval records
 
@@ -77,7 +77,7 @@ Before definition vocabulary research, prompt, reference, sheet, generation or v
 
 ## Artifact-bearing production gate
 
-Use its paged action or `python scripts/execution_routes.py read --root STUDIO --choices FILE --all`. [Other operations](references/runtime/production-execution.md) supply contracts. Read `body` with `actions.continue` until `reading.record` exists; null continuation is insufficient. `actions.index` lists sources/sections; `actions.all` reads the remainder. `--known-reading` reuses complete current context; fresh contexts reread. Curation has independent `--scope` and `--source-kind`; sheet withdrawal uses `--operation withdraw`.
+Use its paged action or `python scripts/execution_routes.py read --root STUDIO --choices FILE --all`. [Other operations](references/runtime/production-execution.md) supply contracts. Read `body` with `actions.continue` until `reading.record` exists; null continuation is insufficient. `actions.index` lists sources/sections; `actions.all` reads the remainder. `--known-reading` reuses unchanged sections in this context; fresh contexts reread. Curation has independent `--scope` and `--source-kind`; sheet withdrawal uses `--operation withdraw`.
 
 Use `authoring_guide` and `explain-inputs --root STUDIO --choices FILE` for field contracts. Plans continue their owning operations; direct `save --choices FILE` saves text and `prepare --choices FILE` prepares images at stage `prepare`. `save --draft` retains unfinished text; `status` locates sources/actions and `build-inputs` exports.
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026.11.22.2
+
+- Declare retained and changed owners for an amendment with `plan` or
+  `draft-inputs --retain / --change`. Keep the editable declaration in the work
+  basis, compare actual source content and authored fields, and enlarge reading
+  scope for observed changes. Report conflicts with retained owners explicitly.
+- Select complete amendment sections for definition, depiction, references,
+  rendition, controls, target changes and recording. Keep unchanged definition
+  procedures out of local view edits and unchanged writing guidance out of
+  numeric-control and recording-only edits. Retain final source, identity,
+  model, exact-request and authority validation.
+- Start a retained edit at its first needed stage and let `advance` follow the
+  remaining stages while preserving earlier choices and results.
+- Reuse completely delivered, unchanged document sections in the same context
+  after unrelated sections change or move them. Preserve section content hashes,
+  original delivery witnesses and current edition checks. A fresh context still
+  reads every currently required section.
+- Show complete-source and section selections, their attributed byte counts,
+  current amendment profiles, fresh-context size and same-context new bytes.
+  Preserve the full source documents and independent whole-subject review.
+
 ## 2026.11.22.1
 
 - Add Real-ESRGAN, Real-ESRGAN Anime 6B, AnimeSharp and UltraSharp model records

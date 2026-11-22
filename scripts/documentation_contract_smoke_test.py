@@ -462,13 +462,15 @@ class RepositoryDocumentationTests(unittest.TestCase):
             self.assertNotIn("SKILL.md", [entry["path"] for entry in route["files"]])
             for entry in route["files"]:
                 self.assertFalse(entry["missing"], entry["path"])
+                raw = (ROOT / entry['path']).read_bytes()
+                selected = b''.join(raw[row['start']:row['end']] for row in entry['ranges'])
                 self.assertEqual(
-                    _skill_word_count(
-                        (ROOT / entry["path"]).read_text(encoding="utf-8")
-                    ),
+                    _skill_word_count(selected.decode('utf-8')),
                     entry["words"],
                     entry["path"],
                 )
+                self.assertEqual(len(selected), entry['selected_bytes'])
+            self.assertEqual(sum(entry['selected_bytes'] for entry in route['files']), route['selected_bytes'])
 
     def test_catalog_batch_is_routed_and_self_describing(self) -> None:
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")

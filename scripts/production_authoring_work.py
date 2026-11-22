@@ -680,6 +680,10 @@ def unresolved(basis: dict, choices: dict, *, require_subject: bool = False,
         result.extend(protected_requirement_diagnostics(basis, task, root=root,
             choices_path=choices_path, basis_path=basis_path,
             criteria_pointer='/task_changes/criteria' if 'criteria' in changes else None))
+        if root is not None and basis.get('change_scope') is not None:
+            import production_change_scope
+            scope = production_change_scope.evaluate(root, choices, task, basis)
+            result.extend(production_change_scope.diagnostics(scope, basis_path=basis_path))
     return result
 
 

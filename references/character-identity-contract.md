@@ -275,6 +275,8 @@ according to their original status. Their presence does not adopt an observed
 feature as canon. Bind a particular scene obligation to this context when its
 source relation needs an explicit input check.
 
+### Identity obligations for the current view
+
 Use `identity_bindings` on an existing independent criterion for a specific
 scene obligation whose source-to-input relationship needs verification. This
 can protect a required visible detail, a relationship, an indirect effect or
@@ -316,6 +318,8 @@ The author can perform this review using the original source independently
 of the current prompt's interpretation. Several subjects may share the
 comparison when its question covers them together. Report additional mismatches or uncertainty through the existing
 review's repairs and unresolved issues.
+
+### Identity carrier example
 
 The following is a synthetic excerpt, not a complete production task. Assume
 the adopted source `design.json` contains a `seam` object and the actual primary
@@ -362,6 +366,8 @@ in the ordinary task; its whole-subject source-comparison criterion is also requ
 }
 ```
 
+### Bind exact identity carriers
+
 A text carrier selects the actual `primary` or `negative` request surface.
 Use `"selection": {"whole": true}` when the whole selected surface carries the
 obligation. The compiler takes its current text directly; no separate quotation
@@ -395,6 +401,8 @@ rendition assessment compares sufficiency with the original scoped source and
 checks incidental source state that the input might transfer. Widen a reference's scope only when its actual authority supports it;
 do not universally narrow references and then attempt to repair every missing
 property with text.
+
+### Inspect identity coverage and retain its authority
 
 The input builder's `identity_coverage` inventory retains every selected source
 value and shows the explicit bindings separately. `unbound_source_values` lists

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -267,6 +268,76 @@ class RetainedSourcePlanCases(unittest.TestCase):
         self.assertEqual((self.root / retained['path']).read_bytes(), original)
         self.assertEqual({key: retained.get(key) for key in ('role', 'disposition', 'locator')},
                          {key: source.get(key) for key in ('role', 'disposition', 'locator')})
+
+    def test_declared_amend_enters_the_affected_stage_and_retains_one_scope_owner(self):
+        import production_workflow
+        parser = production_workflow.build_parser()
+        declaration = {'retain': ['identity', 'target'], 'change': ['controls.parameters']}
+        f.write(self.root / 'revision-request.txt', 'Keep the subject and target; revise the numeric controls.')
+        args = parser.parse_args(['plan', '--root', str(self.root), '--request-file', 'revision-request.txt',
+            '--from-run', self.run, '--scope', 'prepared-input', '--retain', 'identity',
+            '--retain', 'target', '--change', 'controls.parameters'])
+        plan = plans.create(self.root, request=plans.request_from_arguments(self.root, args))['plan']
+        report = plans.advance(self.root, plan)
+        self.assertEqual(report['items'][0]['phase'], 'authoring', report)
+        current = report['items'][0]['current']
+        self.assertEqual(current['stage'], 'rendition')
+        self.assertEqual(current['remaining_stages'], ['prepare'])
+        choices = c.load(self.root / current['choices'])
+        basis_file = self.root / Path(current['choices']).parent / 'work-basis.json'
+        basis = c.load(basis_file)
+        self.assertEqual(basis['change_scope'], declaration)
+        self.assertNotIn('change_scope', choices)
+        self.assertNotIn('change_scope', choices['authoring']['task'])
+        self.assertEqual(choices['authoring_stage'], 'rendition')
+        inspection = production_inputs.authoring_view(self.root, current['choices'])
+        self.assertIn('amend-controls', inspection['authoring_scope']['profiles'])
+        self.assertEqual(inspection['authoring_stage']['next_stage'], 'prepare')
+        self.assertNotEqual(current['inspection']['authoring_stage']['stage'], 'definition')
+
+    def test_recording_amend_drafts_directly_for_preparation(self):
+        declaration = {'retain': ['identity', 'target', 'rendition'], 'change': ['recording.slot']}
+        draft = production_inputs.draft_inputs(self.root, None, 'work/recording-amend',
+            from_run=self.run, operation='amend', change_scope=declaration)
+        self.assertEqual(draft['authoring_stage']['stage'], 'prepare')
+        self.assertIsNone(draft['authoring_stage']['next_stage'])
+        self.assertEqual(draft['authoring_stage']['remaining_stages'], [])
+        self.assertEqual(c.load(self.root / 'work/recording-amend/work-basis.json')['change_scope'], declaration)
+        self.assertIn('amend-recording', draft['authoring_scope']['profiles'])
+
+    def test_reference_amend_advances_to_prepare_after_its_actual_reading(self):
+        import production_reading_scope
+        import route_reading
+        f.write(self.root / 'reference-request.txt', 'Keep the subject and prompt while revising reference selection.')
+        report = plans.create(self.root, request={
+            'source': {'request': 'reference-request.txt', 'from_run': self.run,
+                'change_scope': {'retain': ['identity', 'target', 'rendition'], 'change': ['references']}},
+            'result': {'scope': 'prepared-input'}})
+        plan = report['plan']
+        waiting = plans.advance(self.root, plan)
+        choice_path = waiting['items'][0]['current']['choices']
+        choices = c.load(self.root / choice_path)
+        choices['reading']['reading_key'] = None
+        f.write(self.root / choice_path, choices)
+        view = production_inputs.authoring_view(self.root, choice_path)
+        self.assertEqual(view['authoring_stage']['stage'], 'depiction')
+        self.assertEqual(view['authoring_stage']['next_stage'], 'prepare')
+        self.assertFalse(view['authoring_stage']['structural_ready'])
+        task, scope = view['task'], view['authoring_scope']
+        target = view['choices']['target']
+        issued = route_reading.issue(task['route'], task['features'],
+            execution=task['execution'], studio=self.root, stream=io.StringIO(),
+            operation=production_reading_scope.operation(scope['stage'], task['execution']),
+            authoring_scope=scope, model=target['model'], service=target.get('service'))
+        choices = c.load(self.root / choice_path)
+        choices['reading']['reading_key'] = issued['reading_key']
+        f.write(self.root / choice_path, choices)
+        ready = production_inputs.authoring_view(self.root, choice_path)
+        self.assertTrue(ready['authoring_stage']['structural_ready'], ready['authoring_stage'])
+        continued = plans.advance(self.root, plan)
+        self.assertEqual(continued['items'][0]['current']['stage'], 'prepare')
+        self.assertEqual(c.load(self.root / choice_path)['authoring_stage'], 'prepare')
+        self.assertIsNone(continued['items'][0]['run'])
 
 
 class BatchPlanConditionCases(unittest.TestCase):

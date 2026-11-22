@@ -1,0 +1,6 @@
+## Failure policy
+
+For package dispatch, stop when the required environment remains incomplete; the target lacks a declared media type or negative mode; selected evidence is missing, unsafe, changed, or ineligible; the Surface and Lighting Plan is unresolved; the reference count exceeds the endpoint; a carrier escapes its companion; a package or hash check fails; or the host cannot receive every committed transport.
+
+Do not continue by dropping references, changing modes, rebuilding prompt text from chat, scanning an output directory, or forwarding an unverified path. Revise the reviewed plan and regenerate the prepared set and Generation Package.
+

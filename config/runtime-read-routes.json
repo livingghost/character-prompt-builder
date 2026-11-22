@@ -75,5 +75,183 @@
     "features": [],
     "execution": "authored",
     "operation": "save"
+  },
+  "sheet-compose-definition": {
+    "route": "character-sheet",
+    "features": [
+      "recurring-identity",
+      "body-plan",
+      "adoption",
+      "geometry"
+    ],
+    "execution": "dispatcher",
+    "authoring_scope": {
+      "stage": "definition",
+      "composition": "compose",
+      "source_formats": [
+        "image",
+        "json"
+      ],
+      "documents": [],
+      "render_operation": "generation",
+      "conditions": [
+        "image-source",
+        "multiple-results",
+        "references",
+        "render-intent"
+      ]
+    }
+  },
+  "sheet-amend-view": {
+    "route": "character-sheet",
+    "features": [
+      "recurring-identity",
+      "body-plan",
+      "adoption",
+      "geometry"
+    ],
+    "execution": "dispatcher",
+    "authoring_scope": {
+      "stage": "depiction",
+      "composition": "amend",
+      "source_formats": [
+        "image",
+        "json"
+      ],
+      "documents": [],
+      "render_operation": "generation",
+      "conditions": [
+        "image-source",
+        "multiple-results",
+        "references",
+        "render-intent"
+      ],
+      "change_scope": {
+        "retain": [],
+        "change": [
+          "depiction.view"
+        ]
+      },
+      "profiles": [
+        "amend-depiction"
+      ],
+      "observed_changes": [],
+      "change_conflicts": [],
+      "comparison_notices": []
+    }
+  },
+  "sheet-amend-references": {
+    "route": "character-sheet",
+    "features": [
+      "recurring-identity",
+      "body-plan",
+      "adoption",
+      "geometry"
+    ],
+    "execution": "dispatcher",
+    "authoring_scope": {
+      "stage": "depiction",
+      "composition": "amend",
+      "source_formats": [
+        "image",
+        "json"
+      ],
+      "documents": [],
+      "render_operation": "generation",
+      "conditions": [
+        "image-source",
+        "multiple-results",
+        "references",
+        "render-intent"
+      ],
+      "change_scope": {
+        "retain": [],
+        "change": [
+          "references"
+        ]
+      },
+      "profiles": [
+        "amend-references"
+      ],
+      "observed_changes": [],
+      "change_conflicts": [],
+      "comparison_notices": []
+    }
+  },
+  "sheet-amend-controls": {
+    "route": "character-sheet",
+    "features": [
+      "recurring-identity",
+      "body-plan",
+      "adoption",
+      "geometry"
+    ],
+    "execution": "dispatcher",
+    "authoring_scope": {
+      "stage": "rendition",
+      "composition": "amend",
+      "source_formats": [
+        "image",
+        "json"
+      ],
+      "documents": [],
+      "render_operation": "generation",
+      "conditions": [
+        "image-source",
+        "multiple-results",
+        "references",
+        "render-intent"
+      ],
+      "change_scope": {
+        "retain": [],
+        "change": [
+          "controls.parameters"
+        ]
+      },
+      "profiles": [
+        "amend-controls"
+      ],
+      "observed_changes": [],
+      "change_conflicts": [],
+      "comparison_notices": []
+    }
+  },
+  "sheet-amend-recording": {
+    "route": "character-sheet",
+    "features": [
+      "recurring-identity",
+      "body-plan",
+      "adoption",
+      "geometry"
+    ],
+    "execution": "dispatcher",
+    "authoring_scope": {
+      "stage": "prepare",
+      "composition": "amend",
+      "source_formats": [
+        "image",
+        "json"
+      ],
+      "documents": [],
+      "render_operation": "generation",
+      "conditions": [
+        "image-source",
+        "multiple-results",
+        "references",
+        "render-intent"
+      ],
+      "change_scope": {
+        "retain": [],
+        "change": [
+          "recording.slot"
+        ]
+      },
+      "profiles": [
+        "amend-recording"
+      ],
+      "observed_changes": [],
+      "change_conflicts": [],
+      "comparison_notices": []
+    }
   }
 }

@@ -1,0 +1,43 @@
+### Preview a prepared request
+
+`scripts/dispatch.py` previews the run a package is bound to and sends nothing:
+
+```bash
+python scripts/dispatch.py PACKAGE --studio STUDIO --character SUBJECT_ID --slot SLOT_ID [--preview-out FILE]
+```
+
+The preview shows the sealed request of the prepared run, the one `execute` sends, and checks it against the validation evidence the run fixed. A relative path is a `/`-separated path below the studio root.
+
+The preview refuses:
+
+- a package bound to no prepared run (`EXECUTION_NOT_APPLICABLE`);
+- a package or recording target that differs from the sealed run (`INPUT_CONSISTENCY_ERROR`);
+- newly supplied source arguments that differ from their declared input (`SOURCE_CHANGED`);
+- a run that already owns an execution (`DISPATCH_ALREADY_CLAIMED`).
+
+Otherwise it prints the rendering choice, a few plain lines and the exact request the service would receive. The lines name:
+
+- the model and the service with its endpoint;
+- the output count;
+- whether a negative prompt is sent;
+- the run's quoted cost;
+- the production run;
+- each review requirement of the package;
+- where `--preview-out` saved the trace, or how to save it.
+
+A last line says `shown, not sent`. `--preview-out FILE` saves the sealed request, its transformation trace and the validation report. The synthetic run, trimmed:
+
+```text
+model: cpb-synthetic-image as synthetic:robot (offering observed 2000-01-01)
+service: synthetic at http://localhost/cpb-synthetic-no-network (record observed None)
+outputs: 1
+negative prompt: none authored
+cost: 0 USD at most (Aggregate ceiling for the explicitly listed external effects: send: Local synthetic transport performs no network request.)
+production run: 01a10323-7b8a-764e-8196-44f1fb79b46e
+review: Assess the selected direction against this exact rendition.
+more: --preview-out FILE saves the trace and validation
+shown, not sent; production_workflow.py execute sends it under the run's authorization
+request (sha256 71bece6826a2f6820a6e6ebe206474f9f741159fcc648754c41a1a9de700587f):
+{"count": 1, "height": 32, "model": "synthetic:robot", "operation": "generate", "prompt": "A flat graphic portrait of a simple synthetic robot standing against a plain background.", ...}
+```
+

@@ -720,7 +720,7 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                  edit_character: str | None = None, edit_slot: str | None = None,
                  operation: str | None = None, request_file: str | None = None,
                  apply_sources: list[str] | None = None, focus: str | None = None,
-                 stage: str | None = None) -> dict:
+                 stage: str | None = None, change_scope: dict | None = None) -> dict:
     _destination(root, out_dir)
     if source_choices is not None and (task_path is not None or from_run is not None):
         raise ValueError('select choices, a task or a source run as the candidate input')
@@ -734,6 +734,9 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                 'Continue an existing amend by editing its current choices.')
     if operation not in {'compose', 'amend'}:
         raise ValueError('select the authoring operation: compose or amend')
+    reading_scope.validate_change_scope(change_scope)
+    if change_scope is not None and (operation != 'amend' or (task_path is None and from_run is None)):
+        raise ValueError('A change scope requires amend of an existing --task or --from-run input.')
     if stage is not None and stage not in reading_scope.STAGES:
         raise ValueError('select an authoring stage: ' + ', '.join(reading_scope.STAGES))
     constructor_actions = _constructor_identity_actions(root, out_dir, {
@@ -839,6 +842,9 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                 arguments += ['--apply-source', source]
             for feature in features or []:
                 arguments += ['--feature', feature]
+            for key, values in (change_scope or {}).items():
+                for value in values:
+                    arguments += ['--' + key, value]
             arguments += ['--task-id', active] if active else ['--new-task', '<revision-goal>']
             for key, value in {'model': model, 'service': service, 'focus': focus, 'route': route,
                                'artifact': artifact, 'execution': execution, 'source-image': source_image,
@@ -867,16 +873,17 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
                 source_image=source_image, scale=scale, purpose=purpose, open_work=open_work,
                 operation=operation, request_file=request_file, apply_sources=apply_sources, focus=focus,
                 route=route, artifact=artifact, execution=execution, features=features, stage=stage,
-                constructor_actions=constructor_actions)
+                change_scope=change_scope, constructor_actions=constructor_actions)
     if candidate is not None:
         return _draft_candidate(root, candidate, out_dir, task_id=task_id,
             runtime_arguments=runtime_arguments, operation=operation, request_file=request_file,
             apply_sources=apply_sources, focus=focus, model=model, service=service,
             source_image=source_image, scale=scale, purpose=purpose, open_work=open_work,
             route=route, artifact=artifact, execution=execution, features=features, stage=stage,
-            constructor_actions=constructor_actions)
+            change_scope=change_scope, constructor_actions=constructor_actions)
     choices = draft_choices(task)
-    choices['authoring_stage'] = stage or ('prepare' if task.get('route') == 'upscale' else 'definition')
+    choices['authoring_stage'] = stage or ('prepare' if task.get('route') == 'upscale'
+        else reading_scope.initial_stage(change_scope))
     captured = _captured_inputs(root, saved)
     retained_identity = None
     with captured if captured is not None else nullcontext():
@@ -934,7 +941,7 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         task, choices, work_basis, request = _begin_work(root, task, choices, retained_files, out_dir, reader,
             operation=operation, request_file=request_file, apply_sources=apply_sources,
             prior_basis=prior_basis, initial=initial, focus=focus,
-            route=route, artifact=artifact, execution=execution, features=features)
+            route=route, artifact=artifact, execution=execution, features=features, change_scope=change_scope)
         _mark_identity_owners(work_basis, retained_owners)
         retained_files['work-basis.json'] = c.encoded(work_basis)
         imported, selected_image = authoring.select_upscale(root, choices['authoring'], out_dir,
@@ -985,7 +992,7 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         choices_path=(Path(out_dir) / 'choices.json').as_posix(), locations=locations)
     gaps.extend(item for item in projected['unresolved'] if item not in gaps)
     gaps.extend(_target_gaps(choices, chosen, projected))
-    current_scope = reading_scope.selection(root, choices, chosen, basis=work_basis,
+    current_scope = reading_scope.selection(root, resolved, chosen, basis=work_basis,
         context={'derived_from': {'source_run': saved}})
     gaps.extend(_guidance_gap(root, task, choices, projected, runtime_arguments,
         choices_path=(Path(out_dir) / 'choices.json').as_posix(), authoring_scope=current_scope))
@@ -1008,7 +1015,8 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
     gaps.extend(authoring_work.unresolved(work_basis, resolved, require_subject=authoring_work.requires_subject(task),
         root=root, choices_path=(Path(out_dir) / 'choices.json').as_posix(),
         basis_path=(Path(out_dir) / 'work-basis.json').as_posix()))
-    result.update(authoring_scope=current_scope, authoring_stage=reading_scope.projection(choices, chosen, gaps),
+    result.update(authoring_scope=current_scope,
+        authoring_stage=reading_scope.projection(choices, chosen, gaps, scope=current_scope),
         stage_actions=reading_scope.actions(root, (Path(out_dir) / 'choices.json').as_posix(),
                                             choices['authoring_stage'], runtime_arguments),
         next_actions=_draft_actions(root, chosen, choices, gaps, out_dir, runtime_arguments, saved, projected))
@@ -1036,7 +1044,8 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
             _authoring_arguments(task, operation=operation, request_file=request_file,
                 apply_sources=apply_sources, focus=focus, route=route, artifact=artifact,
                 execution=execution, features=features, model=model, service=service,
-                stage=choices['authoring_stage'], source_image=source_image, scale=scale, purpose=purpose)))
+                stage=choices['authoring_stage'], source_image=source_image, scale=scale, purpose=purpose,
+                change_scope=change_scope)))
     _publish(root, out_dir, {**editable,'choices.json': c.encoded(choices),
                             'context.json': context_raw}, reader=reader)
     production_authoring_state.published_draft(root, task, out_dir)
@@ -1069,7 +1078,8 @@ def _begin_work(root: Path, task: dict, choices: dict, files: dict, out_dir: str
                 apply_sources: list[str] | None, prior_basis: dict | None,
                 initial: bool = False, editable: bool = False, focus: str | None = None,
                 route: str | None = None, artifact: str | None = None,
-                execution: str | None = None, features: list[str] | None = None) -> tuple[dict, dict, dict, dict | None]:
+                execution: str | None = None, features: list[str] | None = None,
+                change_scope: dict | None = None) -> tuple[dict, dict, dict, dict | None]:
     """Apply the shared content operation after either acquisition adapter."""
     import production_store
     choices = normalize_task_choices(choices)
@@ -1090,6 +1100,9 @@ def _begin_work(root: Path, task: dict, choices: dict, files: dict, out_dir: str
         request=_request_text(request_file, reader), read_source=read, prior_basis=prior_basis,
         applied_sources=apply_sources, protected_criteria=protected, initial=initial,
         route=route, artifact=artifact, execution=execution, features=features, focus=focus)
+    reading_scope.validate_change_scope(change_scope)
+    if change_scope is not None:
+        basis['change_scope'] = copy.deepcopy(change_scope)
     if selected_stage is not None:
         choices['authoring_stage'] = selected_stage
     choices, selected_files, request = authoring_work.project(basis, choices, out_dir)
@@ -1217,7 +1230,7 @@ def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str 
                      service: str | None, source_image: Path | None, scale: float | None,
                      purpose: str | None, open_work, route: str | None, artifact: str | None,
                      execution: str | None, features: list[str] | None, stage: str | None,
-                     constructor_actions: dict) -> dict:
+                     constructor_actions: dict, change_scope: dict | None = None) -> dict:
     """Compose an acquired actual candidate without replaying a refused mutation."""
     import production_candidate_snapshot as snapshots
     import production_authoring_state as state
@@ -1228,7 +1241,8 @@ def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str 
     if task_id is not None:
         task = _bind_task(task, task_id)
         choices['authoring']['task'] = _bind_task(choices['authoring']['task'], task_id)
-    choices['authoring_stage'] = stage or choices.get('authoring_stage') or 'definition'
+    choices['authoring_stage'] = stage or (reading_scope.initial_stage(change_scope)
+        if change_scope is not None else choices.get('authoring_stage') or 'definition')
     owners = copy.deepcopy(candidate['identity_owners'])
     _select_identity_owners(choices, prior_basis, owners, operation=operation)
     # Preserve actual file selectors and aliases while the work owner examines
@@ -1240,7 +1254,7 @@ def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str 
     task, choices, work_basis, request = _begin_work(root, task, choices, files, out_dir, reader,
         operation=operation, request_file=request_file, apply_sources=apply_sources,
         prior_basis=prior_basis, editable=True, focus=focus,
-        route=route, artifact=artifact, execution=execution, features=features)
+        route=route, artifact=artifact, execution=execution, features=features, change_scope=change_scope)
     choices['authoring']['delivery'] = selected_delivery
     choices['authoring']['documents'] = selected_documents
     _mark_identity_owners(work_basis, owners)
@@ -1266,7 +1280,7 @@ def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str 
             out_dir=out_dir, actions=constructor_actions)
         identity = _identity_view(root, task, reader, saved=saved, choices=choices, basis=work_basis)
         projected = production_target.project(resolved, task, root, reader, out_dir)
-        scope = reading_scope.selection(root, choices, task, basis=work_basis, context={'derived_from': origin})
+        scope = reading_scope.selection(root, resolved, task, basis=work_basis, context={'derived_from': origin})
         gaps = _unresolved(resolved, task, root=root, runtime_arguments=runtime_arguments,
             choices_path=(Path(out_dir) / 'choices.json').as_posix()) + file_gaps
         gaps.extend(projected['unresolved'])
@@ -1288,7 +1302,7 @@ def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str 
         'identity_coverage': identity,
         'candidate_inputs': candidate_inputs,
         'target_knowledge': projected['knowledge'], 'authoring_scope': scope,
-        'authoring_stage': reading_scope.projection(choices, task, gaps),
+        'authoring_stage': reading_scope.projection(choices, task, gaps, scope=scope),
         'stage_actions': reading_scope.actions(root, choice_path, choices['authoring_stage'], runtime_arguments),
         'next_actions': _draft_actions(root, task, choices, gaps, out_dir, runtime_arguments, saved, projected)}
     if request is not None:
@@ -1308,7 +1322,8 @@ def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str 
         input_arguments=_authoring_arguments(task, operation=operation, request_file=request_file,
             apply_sources=apply_sources, focus=focus, route=route, artifact=artifact,
             execution=execution, features=features, model=model, service=service,
-            stage=choices['authoring_stage'], source_image=source_image, scale=scale, purpose=purpose))
+            stage=choices['authoring_stage'], source_image=source_image, scale=scale, purpose=purpose,
+            change_scope=change_scope))
     _publish(root, out_dir, {**files, 'choices.json': c.encoded(choices), 'context.json': raw}, reader=reader)
     state.published_draft(root, task, out_dir)
     return {**result, 'choices_file': choice_path, 'context_file': (Path(out_dir) / 'context.json').as_posix()}
@@ -1319,13 +1334,14 @@ def _authoring_arguments(task: dict, *, operation: str, request_file: str | None
                         execution: str | None, features: list[str] | None,
                         model: str | None, service: str | None, stage: str | None = None,
                         source_image: Path | None = None, scale: float | None = None,
-                        purpose: str | None = None) -> dict:
+                        purpose: str | None = None, change_scope: dict | None = None) -> dict:
     """Recover the actual operation, request and source selections after interruption."""
     return {key: value for key, value in {
         'operation': operation, 'request-file': request_file, 'apply-source': apply_sources, 'focus': focus,
         'task-id': task['task_id'], 'route': route, 'artifact': artifact,
         'execution': execution, 'feature': features, 'model': model, 'service': service, 'stage': stage,
         'source-image': str(source_image) if source_image is not None else None, 'scale': scale, 'purpose': purpose,
+        **(copy.deepcopy(change_scope) if change_scope is not None else {}),
     }.items() if value is not None}
 
 
@@ -1469,7 +1485,7 @@ def _restore_draft(root: Path, run: str, out_dir: str, saved_source: dict, *,
                    purpose: str | None = None, open_work=lambda: None,
                    route: str | None = None, artifact: str | None = None,
                    execution: str | None = None, features: list[str] | None = None,
-                   stage: str | None = None) -> dict:
+                   stage: str | None = None, change_scope: dict | None = None) -> dict:
     """Acquire an unfinished saved candidate, then use the common authoring operation."""
     choices = normalize_task_choices(saved_source['choices'])
     saved = _source_run(root, run)
@@ -1499,7 +1515,7 @@ def _restore_draft(root: Path, run: str, out_dir: str, saved_source: dict, *,
         apply_sources=apply_sources, focus=focus, model=model, service=service,
         source_image=source_image, scale=scale, purpose=purpose, open_work=open_work,
         route=route, artifact=artifact, execution=execution, features=features, stage=stage,
-        constructor_actions=constructor_actions)
+        change_scope=change_scope, constructor_actions=constructor_actions)
 
 
 def _validate_choices(value: dict, *, file: str | None = None) -> None:
@@ -1847,7 +1863,7 @@ def authoring_view(root: Path, choices_path: str, *, register: bool = False,
             'target_identity':production_target.projected_identity(projected),
             'runtime_arguments': runtime_arguments,
             'authoring_scope': current_scope,
-            'authoring_stage': reading_scope.projection(choices, task, unresolved),
+            'authoring_stage': reading_scope.projection(choices, task, unresolved, scope=current_scope),
             'stage_actions': reading_scope.actions(root, choices_path, current_scope['stage'], runtime_arguments),
             'authoring_work': {'basis': current_basis, 'content': copy.deepcopy(choices)}}
 
@@ -2327,6 +2343,7 @@ def command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
             action['args'].update(runtime_arguments or {})
         return result
     if args.command == 'draft-inputs':
+        from production_cli_arguments import change_scope_from_arguments
         return draft_inputs(root, args.task, args.out_dir, from_run=args.from_run,
                             source_choices=getattr(args, 'choices', None),
                             runtime_arguments=runtime_arguments, route=args.route, artifact=args.artifact_kind,
@@ -2336,5 +2353,5 @@ def command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
                             source_run=args.source_run,source_candidate=args.source_candidate,
                             edit_character=args.edit_character,edit_slot=args.edit_slot,
                             operation=args.operation,request_file=args.request_file,apply_sources=args.apply_sources,focus=args.focus,
-                            stage=args.stage)
+                            stage=args.stage, change_scope=change_scope_from_arguments(args))
     return build_inputs(root, args.task, args.choices, args.out_dir, from_run=args.from_run, runtime_arguments=runtime_arguments)

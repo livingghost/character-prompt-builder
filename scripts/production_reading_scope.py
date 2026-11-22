@@ -11,12 +11,16 @@ import copy
 from pathlib import Path
 
 import execution_contract as c
+from production_change_scope import (CHANGE_SCOPES, RETAIN_SCOPES, PROFILES,
+                                     validate_change_scope)
+import production_change_scope
 
 STAGES = ('definition', 'depiction', 'rendition', 'prepare')
 CONDITIONS = frozenset({'image-source', 'unknown-sources', 'references', 'accepted-variation',
     'state', 'action-slice', 'multiple-results', 'target-change', 'semantic-edit',
     'render-intent', 'production-spec', 'plot'})
 FIELDS = {'stage', 'composition', 'source_formats', 'documents', 'render_operation', 'conditions'}
+CHANGE_FIELDS = {'change_scope', 'profiles', 'observed_changes', 'change_conflicts', 'comparison_notices'}
 STAGE_MEANINGS = {
     'definition': 'Establish or revise the concrete character and source applications for this use.',
     'depiction': 'Develop the intended depiction, actual candidate and independent assessment criteria.',
@@ -44,7 +48,7 @@ def operation(selected: str, execution: str) -> str:
 def validate(value: dict | None, *, reading_operation: str | None = None, execution: str | None = None) -> None:
     if value is None:
         return
-    c.exact(value, FIELDS, 'authoring reading scope')
+    c.exact(value, FIELDS | (CHANGE_FIELDS if 'change_scope' in value else set()), 'authoring reading scope')
     if value['stage'] not in STAGES or value['composition'] not in {'compose', 'amend'}:
         raise ValueError('authoring reading needs its actual stage and compose/amend operation')
     for key in ('source_formats', 'documents', 'conditions'):
@@ -57,6 +61,25 @@ def validate(value: dict | None, *, reading_operation: str | None = None, execut
         raise ValueError('unknown authoring reading condition')
     if value['render_operation'] is not None:
         c.text(value['render_operation'], 'selected render operation')
+    if 'change_scope' in value:
+        validate_change_scope(value['change_scope'])
+        if value['composition'] != 'amend':
+            raise ValueError('a change-aware reading scope requires retained amend')
+        for key in ('profiles', 'observed_changes', 'change_conflicts'):
+            rows = value[key]
+            if (not isinstance(rows, list) or any(not isinstance(item, str) for item in rows)
+                    or rows != sorted(set(rows))):
+                raise ValueError('authoring reading ' + key + ' must be normalized unique strings')
+        if not value['profiles'] or set(value['profiles']) - PROFILES:
+            raise ValueError('unknown or empty amendment profiles')
+        if set(value['change_conflicts']) - set(RETAIN_SCOPES):
+            raise ValueError('unknown retained owner conflict')
+        if not isinstance(value['comparison_notices'], list):
+            raise ValueError('amendment comparison notices must be a list')
+        for row in value['comparison_notices']:
+            c.exact(row, {'cause', 'message', 'required_action'}, 'amendment comparison notice')
+            for key in row:
+                c.text(row[key], 'amendment comparison ' + key)
     if reading_operation is not None and execution is not None and reading_operation != operation(value['stage'], execution):
         raise ValueError('the authoring stage and reading operation differ')
 
@@ -67,6 +90,14 @@ def matches(rule: dict, value: dict) -> bool:
         return False
     if 'compositions' in rule and value['composition'] not in rule['compositions']:
         return False
+    if 'profiles_any' in rule and not set(value.get('profiles') or []).intersection(rule['profiles_any']):
+        return False
+    if 'changes_any' in rule:
+        changes = set((value.get('change_scope') or {}).get('change', [])) | set(value.get('observed_changes') or [])
+        if changes.intersection({'unknown', 'route'}):
+            changes.update(CHANGE_SCOPES)
+        if not changes.intersection(rule['changes_any']):
+            return False
     conditions = set(value['conditions'])
     # An unreadable selected original must not be used as evidence of absence.
     # Its ordinary input diagnostic still requires source repair.
@@ -80,6 +111,34 @@ def matches(rule: dict, value: dict) -> bool:
         # Retain both conception paths while an actual source is unresolved.
         return 'unknown-sources' in conditions
     return True
+
+
+def _stages(profiles: list[str]) -> list[str]:
+    selected = {'prepare'}
+    if 'amend-definition' in profiles:
+        selected.update(STAGES)
+    if 'amend-depiction' in profiles:
+        selected.update({'depiction', 'rendition'})
+    if 'amend-references' in profiles:
+        selected.add('depiction')
+    if set(profiles).intersection({'amend-rendition', 'amend-controls', 'retarget'}):
+        selected.add('rendition')
+    return [name for name in STAGES if name in selected]
+
+
+def initial_stage(change_scope: dict | None) -> str:
+    validate_change_scope(change_scope)
+    if change_scope is None:
+        return 'definition'
+    return _stages([production_change_scope.PROFILE_BY_SCOPE[name.split('.')[0]]
+                    for name in change_scope['change']])[0]
+
+
+def next_stage(scope: dict) -> str | None:
+    selected = scope['stage']
+    stages = _stages(scope['profiles']) if scope.get('change_scope') is not None else list(STAGES)
+    following = [name for name in stages if STAGES.index(name) > STAGES.index(selected)]
+    return following[0] if following else None
 
 
 def _selected_value(root: Path, value):
@@ -242,6 +301,7 @@ def selection(root: Path, choices: dict, task: dict, *, basis: dict | None = Non
              'source_formats': sorted(formats), 'documents': sorted(documents),
              'render_operation': target.get('operation') or ('upscale' if task.get('route') == 'upscale' else 'generation'),
              'conditions': sorted(conditions)}
+    value.update(production_change_scope.evaluate(root, choices, task, basis, read_source=read_source))
     validate(value)
     return value
 
@@ -257,9 +317,9 @@ def from_choices(root: Path, path: str, *, selected_stage: str | None = None,
     return (*result, choices) if include_choices else result
 
 
-def _task_selection(root: Path, task: dict, read_source) -> dict:
+def _task_selection(root: Path, task: dict, read_source, *, compare_amend: bool = False) -> dict:
     """Read a completed task's actual selectors, without a reading receipt."""
-    from production_authoring import DOCUMENTS
+    from production_authoring import DOCUMENTS, TEXT_DOCUMENTS, GENERATED_TASK_FIELDS
     from production_target import extract
     task = copy.deepcopy(task)
     generation = task.get('generation') or {}
@@ -273,16 +333,47 @@ def _task_selection(root: Path, task: dict, read_source) -> dict:
             documents['production_spec'] = c.decode(read_source(specifications[0]['path']))
     plan = c.decode(read_source(task['image_input'])) if task.get('image_input') else None
     references = None
-    if generation.get('references'):
+    prepared = None
+    prepared_path = generation.get('references')
+    if prepared_path:
         prepared = c.decode(read_source(generation['references']))
         references = {'image_input': {'references': prepared['selected_references']}}
+    if compare_amend and plan is not None and plan.get('prepared_references'):
+        prepared_path = plan['prepared_references']
+        prepared = c.decode(read_source(prepared_path))
     if plan is not None:
-        references = {'image_input': {'references': plan['references']}}
+        references = {**(references or {}), 'image_input': {'references': plan['references']}}
     authored = {'task': task, 'documents': documents, 'generation': copy.deepcopy(generation),
                 'references': references, 'upscale': None}
+    if compare_amend:
+        if task.get('execution') == 'dispatcher' and prepared is not None:
+            import production_reference_inputs
+            references = production_reference_inputs.draft(prepared,
+                package_root=c.local(root, prepared_path, exists=False).parent, root=root,
+                mirrored_input=plan is not None and plan.get('prepared_references') == prepared_path)
+            authored['references'] = references
+        documents.update({name: (read_source(generation[name]).decode('utf-8') if name in TEXT_DOCUMENTS
+                                  else c.decode(read_source(generation[name])))
+                          for name in DOCUMENTS if generation.get(name) is not None})
+        authored['task'] = {key: value for key, value in task.items() if key not in GENERATED_TASK_FIELDS}
+        authored['delivery'] = {'content': read_source(task['delivery']['path']).decode('utf-8'),
+                                'translation_notes': task['delivery'].get('translation_notes')}
+        authored['source_files'] = {row['path']: c.digest(read_source(row['path']))
+                                    for row in task.get('sources', [])}
+        authored['generation'] = {key: value for key, value in generation.items()
+                                  if key not in DOCUMENTS and key not in {'references', 'request_validation'}}
     if task.get('route') == 'upscale' and task.get('execution') == 'dispatcher':
         authored['upscale'] = c.decode(read_source(task['delivery']['path']))
     external = {'image_input': plan} if task.get('execution') == 'external' else None
+    if compare_amend and task.get('execution') == 'external' and plan is not None:
+        import production_external_inputs
+        binding = plan.get('external_request') or {}
+        native = binding.get('request')
+        if native is None and binding.get('file'):
+            native = c.decode(read_source(binding['file']))
+        external = production_external_inputs.draft(plan, native, prepared=prepared, root=root,
+            package_root=c.local(root, prepared_path, exists=False).parent if prepared_path else None)
+        authored['references'] = None
     target = extract(task, authored, external)
     return {'authoring_stage': 'prepare', 'authoring': authored, 'target': target,
             'external': external, 'task_changes': {}}
@@ -298,7 +389,7 @@ def from_task(root: Path, task: dict, *, read_source=None) -> dict:
     """
     read_source = read_source or (lambda path: c.read(c.local(root, path)))
     basis = c.decode(read_source(task['work_basis']))
-    choices = _task_selection(root, task, read_source)
+    choices = _task_selection(root, task, read_source, compare_amend=basis.get('change_scope') is not None)
     context = None
     baseline = basis.get('baseline') or {}
     previous_task = (baseline.get('authoring') or {}).get('task') or baseline.get('task')
@@ -315,8 +406,16 @@ def from_task(root: Path, task: dict, *, read_source=None) -> dict:
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             # An unavailable selected baseline establishes no target equality.
             context = {'derived_from': {'source_run': {'target_identity': {}}}}
-    return selection(root, choices, task, basis=basis, context=context, selected_stage='prepare',
-                     read_source=read_source)
+    result = selection(root, choices, task, basis=basis, context=context, selected_stage='prepare',
+                       read_source=read_source)
+    conflicts = production_change_scope.diagnostics(result, basis_path=task.get('work_basis'))
+    if conflicts:
+        from production_diagnostics import ProductionError
+        row = conflicts[0]
+        raise ProductionError(row['code'], row['message'], phase=row['phase'], file=row['file'],
+                              pointer=row['pointer'], required_action=row['required_action'],
+                              guidance=row['guidance'], retained_conflicts=row['retained_conflicts'])
+    return result
 
 
 def actions(root: Path, path: str, selected: str, runtime_arguments: dict | None = None) -> list[dict]:
@@ -353,11 +452,15 @@ def _diagnostic_stage(row: dict) -> str:
     return 'current'
 
 
-def projection(choices: dict, task: dict, unresolved: list[dict]) -> dict:
+def projection(choices: dict, task: dict, unresolved: list[dict], *, scope: dict | None = None) -> dict:
     """Separate current work from final-input omissions, preserving every defect."""
     selected = stage(choices, task)
     current, pending = [], []
-    for row in unresolved:
+    selected_rows = list(unresolved)
+    for row in production_change_scope.diagnostics(scope or {}):
+        if not any(item.get('retained_conflicts') == row['retained_conflicts'] for item in selected_rows):
+            selected_rows.append(row)
+    for row in selected_rows:
         owner = _diagnostic_stage(row)
         # A selected model must be usable while considering model-dependent
         # depiction. Preparation still checks every original final-input defect.
@@ -365,8 +468,11 @@ def projection(choices: dict, task: dict, unresolved: list[dict]) -> dict:
                     or selected == 'depiction' and owner == 'rendition' and str(row.get('field', '')).startswith('target')
                     and choices.get('target') is not None)
         (current if relevant else pending).append(row)
+    stages = _stages(scope['profiles']) if scope is not None and scope.get('change_scope') is not None else list(STAGES)
+    remaining = [name for name in stages if STAGES.index(name) > STAGES.index(selected)]
     return {'stage': selected, 'purpose': STAGE_MEANINGS[selected],
-            'structural_ready': not current, 'final_inputs_ready': selected == 'prepare' and not unresolved,
+            'next_stage': remaining[0] if remaining else None, 'remaining_stages': remaining,
+            'structural_ready': not current, 'final_inputs_ready': selected == 'prepare' and not selected_rows,
             'unresolved': current, 'pending': pending,
             'meaning': 'Structural readiness does not establish artistic completion, source authority or final publishability.'}
 

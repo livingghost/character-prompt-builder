@@ -36,11 +36,22 @@
       "required": ["source", "pointer"],
       "additionalProperties": false
     },
+    "change_scope": {
+      "type": "object",
+      "description": "The author's retained and changed owners for one amendment. Exact editable differences can require additional knowledge; this declaration grants no source authority or execution permission.",
+      "required": ["retain", "change"],
+      "additionalProperties": false,
+      "properties": {
+        "retain": {"type": "array", "uniqueItems": true, "items": {"enum": ["identity", "source-authority", "depiction", "rendition", "finish", "target", "controls", "references", "recording"]}},
+        "change": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["definition", "source-authority", "depiction", "depiction.view", "references", "rendition", "controls", "controls.parameters", "controls.render-intent", "target", "recording", "recording.slot"]}}
+      }
+    },
     "basis": {
       "type": "object",
       "properties": {
         "operation": { "enum": ["compose", "amend"] },
         "focus": { "enum": ["character", "supporting-setting"] },
+        "change_scope": { "$ref": "#/$defs/change_scope" },
         "request": { "type": ["string", "null"] },
         "request_sha256": { "anyOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
         "sources": {

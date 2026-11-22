@@ -46,7 +46,9 @@ sheet and catalog also require `--influence`. `--candidate` explicitly selects
 a result of `--run` when needed; omission leaves the ordinary candidate choice.
 For new or revised requests, `--feature` is repeatable and `--from-run`,
 `--operation`, `--execution`, `--model` and `--service` retain their authoring
-meanings. `--goal` supplies the actual new task for later use of completed work.
+meanings. A retained amendment can also declare repeatable `--retain` and
+`--change` owners under [retained amendment scope](production-authoring.md#declare-a-retained-amendment).
+`--goal` supplies the actual new task for later use of completed work.
 Catalog use also names `--registration-file` and `--pack-dir`; requested local
 authored delivery can name `--delivery-path`.
 
@@ -181,7 +183,10 @@ Production-owned candidates retain their Production run and candidate source.
 
 The plan keeps one editable source across definition, depiction, rendition and
 preparation. Read the reported stage and complete its actual files. `advance`
-moves a structurally ready stage to the next stage after that author action.
+moves a structurally ready stage to its `next_stage` after that author action.
+For a declared retained amendment, `change_scope` and `remaining_stages` show
+the actual owners that still need work. Unchanged stages are not reopened merely
+because they precede the selected change.
 The next stage returns its own applicable reading. Readiness is structural;
 the author remains responsible for meaning and artistic completion.
 
@@ -204,7 +209,11 @@ new request and retained input:
   "goal": "Revise the selected character illustration for the new commission.",
   "source": {
     "request": "revision-request.txt",
-    "from_run": "RUN"
+    "from_run": "RUN",
+    "change_scope": {
+      "retain": ["identity", "source-authority", "finish", "target"],
+      "change": ["depiction.view", "references", "recording.slot"]
+    }
   },
   "result": {"scope": "studio-slot"}
 }
@@ -218,6 +227,14 @@ model selection and controls at their documented owners. Use `compose` when
 the commission reopens the whole realization. Exact reference meaning,
 authority and exclusions remain authored choices. Follow
 [Variation](production-variation.md) for those contracts.
+
+The declaration initializes `work-basis.json.change_scope`; that basis is its
+editable owner. The runtime unions declared changes with actual owner differences.
+A retained value that changed has an explicit repair at the basis, and unreadable
+or unclassified comparisons keep broad knowledge with their diagnostic reason.
+Parameter-only changes begin at `rendition`; recording-only changes begin at
+`prepare`. New composition keeps the complete applicable stage knowledge.
+Scope selection changes no approval, source authority, review or final input check.
 
 ## Authorize an exact request
 

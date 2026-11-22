@@ -142,8 +142,14 @@ def summary(root: Path, choices_path: str, choices: dict) -> dict:
                 'context_argv': context_argv,
                 'context_command': shown(context_argv),
                 'inputs': '--request FILE; --application APP=SOURCE#POINTER; '
-                          '--subject SUBJECT=APP[,APP...]; --requirement APP; --focus character|supporting-setting',
-                'ownership': 'The basis owns acquired originals and current applications. Task sources are a derived '
+                          '--subject SUBJECT=APP[,APP...]; --requirement APP; --focus character|supporting-setting; '
+                          'plan or draft-inputs --retain OWNER --change SCOPE for a retained amendment',
+                'change_scope': {'file': basis_path, 'pointer': '/change_scope',
+                    'schema': 'schemas/authoring/authoring-work.schema.json',
+                    'document_path': 'references/runtime/production-authoring.md#declare-a-retained-amendment',
+                    'meaning': 'Declare retained owners and intended changes once in the basis. Actual changed '
+                               'values can expand required knowledge; retained conflicts need an explicit correction.'},
+                'ownership': 'The basis owns acquired originals, current applications and the amendment change_scope. Task sources are a derived '
                              'view. Acquire Production sources with source_acquisition; the generic context command '
                              'does not declare Production role or identity metadata. A Production Specification '
                              'subject supplies its actual identity owner when no '

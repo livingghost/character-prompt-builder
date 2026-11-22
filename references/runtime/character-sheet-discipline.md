@@ -114,6 +114,8 @@ The sheet's inventory follows a domain-neutral reference-sheet standard. The vie
 - **Icon.** A crop of the primary recognition feature: head, emblem, sensor cluster, core, prow, pattern junction, or another declared focal landmark.
 - **Base body and outfits.** The uncovered body, underlying chassis, unladen formation, or other base configuration is the identity reference. Every declared outfit, shell, covering, carried assembly, or equipment state repeats the layout profile's complete outfit view set; each additional row keeps its own set rather than collapsing into one generic variant image.
 - **Items.** Each carried item drawn separately. Items reveal role, purpose, and taste, and the signature items also appear in the icon.
+### Communicated state repertoire
+
 - **Communicated states and body language.** Derive the repertoire from the persona's adopted bodily baselines, conditional responses and relationship rules. Declare `expressions` and `bodylang` rows for the situations and concrete realizations that need visual evidence across the character's range, including situations absent from the current scene list. A communicated state may use a face, gaze, ears, tail, light pattern, topology, formation, component spacing, or any other declared channel. A body-language state may be a posture, gesture, orientation, deployment, or collective formation. The bundled layout profiles seed six expression rows and four body-language rows as authoring starters only; the character's definition determines the actual inventory.
 
   Resolve each selected realization before writing its panel: the condition and information available to the character, their appraisal and display control, the concrete changes and held features, the response's degree, any relevant temporal condition, and the variation allowed under that rule. Use the declared structures and functions of this individual. An emotion can have several realizations, distinguished by the situation, addressee, audience, intensity or timing. Define those branches at their persona owner; a sheet row records the bounded example being drawn. A general word such as embarrassment, joy or anger leaves open consequential choices among gaze, eyelids, mouth, physiological signals, posture, hands, distance and other available channels. Resolve the choices that make this individual's response identifiable; unrelated channels can remain at their applicable baseline.
@@ -203,6 +205,8 @@ The sheet's inventory follows a domain-neutral reference-sheet standard. The vie
   | low | yawn | closed | - | open wide | back |
 
   Select examples by the individual's adopted rules and intended range: a character whose inner canon excludes smiling leaves the smile examples unused; sleep or fatigue examples apply only where those states belong to the definition and use. An unexplored response remains an authoring question rather than an instruction to improvise a generic one.
+### Performance coverage and topology
+
 - **Performance series.** Declare how the character moves in four tables, each row one panel:
   - `partstates` for one part in one configuration (the tail carried high, low, curled, or bristled);
   - `motion` for a body region at both ends of its reach with the limit it stays within;

@@ -3074,6 +3074,1451 @@
       "deferred_documents": {
         "templates/narrative/design/design-template.md": "The design template is an authoring form. Execution and review consume the selected saved design as source evidence; reopening that design reads the complete form."
       }
+    },
+    "amendment": {
+      "documents": {
+        "references/runtime/authoring-work.md": [
+          {
+            "sections": [
+              "authoring-work",
+              "apply-sources-to-this-candidate",
+              "compose-or-amend-actual-content"
+            ],
+            "reason": "Apply the current request and acquired originals to the retained candidate; preserve the baseline and change only the authored scope."
+          },
+          {
+            "sections": [
+              "begin-from-the-current-request"
+            ],
+            "reason": "A changed definition or source authority reopens the character and its applicable requirements.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          },
+          {
+            "sections": [
+              "compare-actual-candidates"
+            ],
+            "reason": "Compare the consequential depiction alternatives within the retained commission.",
+            "profiles_any": [
+              "amend-depiction"
+            ]
+          },
+          {
+            "sections": [
+              "inspect-and-deliver",
+              "save-or-execute-the-same-work"
+            ],
+            "reason": "Bind the completed edit to its actual source basis and final input without treating retained receipts as knowledge.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/production-workflow.md": [
+          {
+            "sections": [
+              "production-workflow",
+              "read-the-current-stage",
+              "change-direction-without-losing-prior-work"
+            ],
+            "reason": "Continue the selected amendment at its actual stage while preserving independent branches and completed judgments."
+          },
+          {
+            "sections": [
+              "open-the-current-work",
+              "edit-and-produce-the-requested-artifact",
+              "continue-according-to-the-actual-result"
+            ],
+            "reason": "Compile finished inputs and keep preparation, execution, review and canonical decisions separate.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/production-authoring.md": [
+          {
+            "sections": [
+              "production-authoring",
+              "discover-input-structures",
+              "keep-specialist-documents-at-their-owner",
+              "bind-input-work-to-the-open-task",
+              "select-and-read-the-current-knowledge",
+              "read-the-required-source-bodies",
+              "deliver-every-required-byte",
+              "preserve-reading-scope-and-evidence",
+              "reuse-complete-knowledge-in-this-context",
+              "rebuild-knowledge-in-a-fresh-context",
+              "keep-the-reading-at-its-current-scope",
+              "edit-the-owning-authored-field",
+              "preserve-authored-authority",
+              "declare-a-retained-amendment"
+            ],
+            "reason": "Locate each editable owner, obtain complete current scoped knowledge and retain source evidence and actual authority through the amendment."
+          },
+          {
+            "sections": [
+              "establish-the-editable-definition",
+              "acquire-a-production-source",
+              "create-or-reopen-editable-work",
+              "identify-the-recorded-subjects"
+            ],
+            "reason": "Reopen changed character definitions and source applications at their actual owners.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          },
+          {
+            "sections": [
+              "select-reference-inputs",
+              "acquire-a-production-source"
+            ],
+            "reason": "Acquire the actual added or changed reference bytes and declare their use and authority.",
+            "profiles_any": [
+              "amend-references"
+            ]
+          },
+          {
+            "sections": [
+              "select-a-production-specification"
+            ],
+            "reason": "Keep a selected specification at its one editable owner and preserve its contextual checks.",
+            "conditions_any": [
+              "production-spec"
+            ]
+          },
+          {
+            "sections": [
+              "use-the-delivered-knowledge",
+              "select-the-delivered-target-knowledge",
+              "inspect-target-and-external-fields"
+            ],
+            "reason": "Apply the selected model knowledge to the changed picture, wording, references or controls.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction",
+              "amend-references",
+              "amend-rendition",
+              "amend-controls",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "read-an-acquired-model",
+              "select-and-change-the-target"
+            ],
+            "reason": "Read the new target evidence and revise its grammar, reference transport and exact request dependencies.",
+            "profiles_any": [
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "identify-the-recorded-subjects"
+            ],
+            "reason": "Preserve the subject and Studio assignment when changing the recording destination.",
+            "profiles_any": [
+              "amend-recording"
+            ]
+          },
+          {
+            "sections": [
+              "select-execution-specific-inputs",
+              "continue-from-the-prepared-request"
+            ],
+            "reason": "Complete the execution-specific bindings before inspecting the prepared request.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "select-dispatcher-image-inputs"
+            ],
+            "reason": "Carry selected references through the dispatcher native image-input contract.",
+            "profiles_any": [
+              "amend-references",
+              "retarget"
+            ],
+            "executions": [
+              "dispatcher"
+            ]
+          },
+          {
+            "sections": [
+              "start-an-existing-image-edit"
+            ],
+            "reason": "Keep exact image preservation and semantic edit obligations when the selected task is an existing-image edit.",
+            "conditions_any": [
+              "semantic-edit"
+            ]
+          },
+          {
+            "sections": [
+              "scene-preparation-and-reusable-authoring-input"
+            ],
+            "reason": "Preserve the explicitly selected reusable authoring document and its actual source applications.",
+            "features_any": [
+              "scene-persona",
+              "source-material",
+              "agent-evaluation",
+              "repair-analysis"
+            ]
+          }
+        ],
+        "references/runtime/production-direction.md": [
+          {
+            "sections": [
+              "production-direction"
+            ],
+            "reason": "Retain the commission, subject definition and independent assessment basis while changing selected means."
+          },
+          {
+            "sections": [
+              "establish-the-character-for-this-use",
+              "translate-established-facts-into-the-current-appearance"
+            ],
+            "reason": "Develop changed identity facts and resolve their current visible meaning.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          },
+          {
+            "sections": [
+              "translate-established-facts-into-the-current-appearance",
+              "choose-the-expression",
+              "choose-framing-from-the-intended-effect",
+              "record-the-production-direction"
+            ],
+            "reason": "Construct the changed view, pose or depiction from the retained definition and independent criteria.",
+            "profiles_any": [
+              "amend-depiction"
+            ]
+          },
+          {
+            "sections": [
+              "form-a-prompt-from-an-image",
+              "carry-the-selected-image-contribution-into-the-input"
+            ],
+            "reason": "Read changed visual sources as actual evidence and express each bounded contribution in the input.",
+            "profiles_any": [
+              "amend-references"
+            ]
+          },
+          {
+            "sections": [
+              "carry-the-chosen-depiction-into-the-input",
+              "keep-authoring-context-out-of-consumer-instructions"
+            ],
+            "reason": "Carry the retained or changed depiction into exact consumer wording without leaking internal records.",
+            "profiles_any": [
+              "amend-depiction",
+              "amend-references",
+              "amend-rendition",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "preserve-accepted-variation-at-its-declared-scope"
+            ],
+            "reason": "Preserve every applicable accepted variation at its actual authority.",
+            "conditions_any": [
+              "accepted-variation",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "an-image-of-an-action-is-not-the-action"
+            ],
+            "reason": "Preserve the selected temporal state and action slice without inventing an event.",
+            "conditions_any": [
+              "action-slice",
+              "state",
+              "unknown-sources"
+            ]
+          }
+        ],
+        "references/runtime/production-permissions.md": [
+          {
+            "sections": [
+              "production-permissions",
+              "protected-criteria-across-runs",
+              "retain-a-direct-instruction-for-one-request",
+              "stored-decisions-and-current-authority"
+            ],
+            "reason": "Retained source content and earlier reading never waive protected criteria or supply new execution authority."
+          }
+        ],
+        "references/runtime/studio.md": [
+          {
+            "sections": [
+              "studio-runtime",
+              "the-work-trail"
+            ],
+            "reason": "Continue the retained Studio work and its selected branch."
+          },
+          {
+            "sections": [
+              "every-image-with-what-produced-it",
+              "slot-acceptance-and-history",
+              "production-owned-candidates"
+            ],
+            "reason": "Keep exact image provenance, subject mapping and independent slot acceptance when changing recording.",
+            "profiles_any": [
+              "amend-recording"
+            ]
+          },
+          {
+            "sections": [
+              "validation",
+              "what-leaves-a-studio"
+            ],
+            "reason": "Validate the saved context and preserve private Studio records at final preparation.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/prompt-vocabulary.md": [
+          {
+            "sections": [
+              "prompt-vocabulary-runtime",
+              "activation",
+              "resolve-the-active-dictionary",
+              "search",
+              "read-a-finished-prompt",
+              "data-contract"
+            ],
+            "reason": "Use the active dictionary and actual sense evidence for changed definitions or wording.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-rendition",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "define-a-character-with-usable-wording"
+            ],
+            "reason": "Research the wording of a changed definition at that definition owner.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          },
+          {
+            "sections": [
+              "select-wording-for-a-tag-based-model"
+            ],
+            "reason": "Bind changed target-specific wording to its actual dictionary search evidence.",
+            "profiles_any": [
+              "amend-rendition",
+              "retarget"
+            ]
+          }
+        ],
+        "references/runtime/prompt-writing-guide.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete writing contract when changing the rendition or its target grammar.",
+            "profiles_any": [
+              "amend-rendition",
+              "retarget"
+            ]
+          }
+        ],
+        "references/runtime/prompt-weighting.md": [
+          {
+            "whole_source": true,
+            "reason": "Use the complete selected weighting grammar when changing model-facing wording or target.",
+            "profiles_any": [
+              "amend-rendition",
+              "retarget"
+            ]
+          }
+        ],
+        "references/runtime/render-contract.md": [
+          {
+            "sections": [
+              "rendering-choices-and-execution-controls",
+              "read-the-models-guidance"
+            ],
+            "reason": "Keep subject facts, rendering choices and model controls distinct under the selected current model.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction",
+              "amend-references",
+              "amend-rendition",
+              "amend-controls",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "prompt-input"
+            ],
+            "reason": "Use the actual prompt and negative channels for changed wording and the selected target.",
+            "profiles_any": [
+              "amend-rendition",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "select-the-operation-and-optional-rendering-declaration",
+              "declare-controls-by-operation"
+            ],
+            "reason": "Edit supported operation-specific controls while preserving the authored rendering treatment.",
+            "profiles_any": [
+              "amend-controls",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "apply-the-authors-model-selection-preferences"
+            ],
+            "reason": "Reassess a changed model against the actual author preferences and current use-case guidance.",
+            "profiles_any": [
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "resolve-and-inspect-the-exact-input"
+            ],
+            "reason": "Inspect the fully bound request and supported controls even when most authored content is retained.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "external-image-work"
+            ],
+            "reason": "Bind the acquired external interface to the exact native request.",
+            "stages": [
+              "prepare"
+            ],
+            "executions": [
+              "external"
+            ]
+          },
+          {
+            "sections": [
+              "choose-the-visual-treatment",
+              "represent-the-selected-design"
+            ],
+            "reason": "Reassess the visual treatment and its subject-owned representation only when the authored rendering intent changes.",
+            "changes_any": [
+              "controls",
+              "controls.render-intent"
+            ]
+          }
+        ],
+        "references/runtime/reference-delivery.md": [
+          {
+            "sections": [
+              "exact-reference-delivery",
+              "selection-and-authority"
+            ],
+            "reason": "Keep selected original reference media at its declared scope and authority.",
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "resolve-the-attributes-needed-by-this-image",
+              "reference-identities-and-coverage"
+            ],
+            "reason": "Resolve changed views and selected references against retained identity coverage.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction",
+              "amend-references"
+            ]
+          },
+          {
+            "sections": [
+              "author-the-consumed-reference-direction"
+            ],
+            "reason": "Express each changed reference use and its allowed contribution in the actual model input.",
+            "profiles_any": [
+              "amend-references",
+              "amend-rendition",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "reference-identities-and-coverage",
+              "bind-the-actual-transport",
+              "retain-source-and-carrier-evidence"
+            ],
+            "reason": "Acquire exact reference sources, verify subject coverage and bind the selected transport.",
+            "profiles_any": [
+              "amend-references",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "reference-identities-and-coverage",
+              "bind-the-actual-transport",
+              "retain-source-and-carrier-evidence"
+            ],
+            "reason": "Check retained reference scope and exact transport at the final input boundary.",
+            "stages": [
+              "prepare"
+            ],
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          },
+          {
+            "sections": [
+              "bind-external-media",
+              "bind-a-hosted-carrier-url"
+            ],
+            "reason": "Bind external attachment positions and hosted-carrier evidence without assuming upload authority.",
+            "profiles_any": [
+              "amend-references",
+              "retarget"
+            ],
+            "executions": [
+              "external"
+            ]
+          },
+          {
+            "sections": [
+              "bind-external-media",
+              "bind-a-hosted-carrier-url"
+            ],
+            "reason": "Verify the complete retained external media mapping for final preparation.",
+            "stages": [
+              "prepare"
+            ],
+            "executions": [
+              "external"
+            ],
+            "conditions_any": [
+              "references",
+              "image-source",
+              "unknown-sources"
+            ]
+          }
+        ],
+        "references/runtime/generation-package.md": [
+          {
+            "sections": [
+              "generation-package",
+              "generation-package-1",
+              "verification-and-host-forwarding",
+              "preview-a-prepared-request",
+              "failure-policy"
+            ],
+            "reason": "Preserve the sealed package, exact input, lineage, source authority and inspection before later execution.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/model-evidence.md": [
+          {
+            "sections": [
+              "model-request-evidence",
+              "prompt-input-evidence",
+              "keep-kinds-of-evidence-apart"
+            ],
+            "reason": "Use attributed current model evidence for changed prompt, references, controls or target.",
+            "profiles_any": [
+              "amend-references",
+              "amend-rendition",
+              "amend-controls",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "validation-modes",
+              "the-request-validation-record",
+              "editable-selections-and-compiled-evidence"
+            ],
+            "reason": "Retain full current request validation and its exact native-input binding.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "execution-policy-for-reference-delivery"
+            ],
+            "reason": "Keep reference transport policy attached to the actual current model.",
+            "profiles_any": [
+              "amend-references",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "compare-inputs-and-change-the-target"
+            ],
+            "reason": "Read new target guidance and reassess still-applicable content and evidence.",
+            "profiles_any": [
+              "retarget"
+            ]
+          }
+        ],
+        "references/runtime/production-image-inputs.md": [
+          {
+            "whole_source": true,
+            "reason": "Bind exact selected source media and declared subject uses when changing image inputs.",
+            "profiles_any": [
+              "amend-references",
+              "retarget"
+            ]
+          },
+          {
+            "whole_source": true,
+            "reason": "Validate all selected retained image inputs before the final native request.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/production-external-inputs.md": [
+          {
+            "whole_source": true,
+            "reason": "Edit the exact external request and provider evidence at their actual owner.",
+            "profiles_any": [
+              "amend-references",
+              "amend-rendition",
+              "amend-controls",
+              "retarget"
+            ]
+          },
+          {
+            "whole_source": true,
+            "reason": "Preserve complete external request validation for the finished input.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/production-preparation.md": [
+          {
+            "whole_source": true,
+            "reason": "Compile the finished input, preserve publication evidence and retain local-publication recovery.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/production-diagnostic-navigation.md": [
+          {
+            "whole_source": true,
+            "reason": "Resolve final binding failures at their source owners without dropping unresolved evidence.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/production-authored-storage.md": [
+          {
+            "sections": [
+              "authored-revisions",
+              "edit-and-save"
+            ],
+            "reason": "Preserve unfinished authored choices without claiming a complete target input."
+          },
+          {
+            "sections": [
+              "finished-prompt-targets",
+              "complete-and-continue"
+            ],
+            "reason": "Check the finished authored target and preserve its independent delivery and completion scope.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/prompt-only-core.md": [
+          {
+            "sections": [
+              "prompt-only-core",
+              "knowledge-and-sources",
+              "record-actual-investigations"
+            ],
+            "reason": "Retain the applicable sources and actual investigations for the selected authored amendment."
+          },
+          {
+            "sections": [
+              "author-or-assess-the-depiction"
+            ],
+            "reason": "Assess a changed construction against the retained commission.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          },
+          {
+            "sections": [
+              "rendition-and-delivery",
+              "saved-prompt-artifacts",
+              "retrieved-wording-checks",
+              "optional-structural-detail"
+            ],
+            "reason": "Change the actual supported rendition and retain its research and selected structure.",
+            "profiles_any": [
+              "amend-rendition",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "specialized-prompt-artifact-export",
+              "target-readiness-and-a-selected-plot",
+              "artifact-evidence-and-completion"
+            ],
+            "reason": "Bind a complete final authored artifact and selected target without claiming later review.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/image-generation.md": [
+          {
+            "sections": [
+              "image-generation-runtime"
+            ],
+            "reason": "Keep the retained generation owner and actual model-facing input."
+          },
+          {
+            "sections": [
+              "model-and-negative-transport",
+              "the-models-family"
+            ],
+            "reason": "Resolve model-facing wording and negative channels for the changed input.",
+            "profiles_any": [
+              "amend-depiction",
+              "amend-references",
+              "amend-rendition",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "prompt-rendition-gate",
+              "services-and-offerings",
+              "explicit-rendering-and-controls"
+            ],
+            "reason": "Use the selected service and actual native controls when changing wording, parameters or target.",
+            "profiles_any": [
+              "amend-rendition",
+              "amend-controls",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "choose-execution",
+              "activation-and-dependency-preflight",
+              "prompt-rendition-gate",
+              "model-and-negative-transport",
+              "services-and-offerings",
+              "delivery-geometry",
+              "explicit-rendering-and-controls"
+            ],
+            "reason": "Inspect final exact generation input under its current model, service, runtime and delivery geometry.",
+            "stages": [
+              "prepare"
+            ]
+          },
+          {
+            "sections": [
+              "model-facing-reference-transport"
+            ],
+            "reason": "Bind the current media transport without inventing upload authority.",
+            "profiles_any": [
+              "amend-references",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "dispatcher-package"
+            ],
+            "reason": "Keep the exact sealed dispatcher package as the prepared request owner.",
+            "stages": [
+              "prepare"
+            ],
+            "executions": [
+              "dispatcher"
+            ]
+          }
+        ],
+        "references/runtime/authorial-intent.md": [
+          {
+            "whole_source": true,
+            "reason": "A changed definition needs the complete identity and design-intent contract.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          },
+          {
+            "sections": [
+              "authorial-intent-portrayal-identity-and-deliberate-change",
+              "1-distinguish-four-kinds-of-claim",
+              "4-resolve-a-moment-under-the-intended-identity",
+              "5-distinguish-variation-from-a-deliberate-departure",
+              "7-keep-author-knowledge-and-downstream-access-separate"
+            ],
+            "reason": "Apply retained identity and intent to the changed depiction while preserving its permitted variation and downstream scope.",
+            "profiles_any": [
+              "amend-depiction",
+              "amend-references",
+              "amend-rendition"
+            ]
+          }
+        ],
+        "templates/narrative/design/design-template.md": [
+          {
+            "whole_source": true,
+            "reason": "Reopen the complete design form only when the definition or source authority changes.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          }
+        ],
+        "templates/narrative/personas/persona-template.md": [
+          {
+            "whole_source": true,
+            "reason": "Develop a changed Persona at its complete definition owner.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          }
+        ],
+        "references/narrative-authoring.md": [
+          {
+            "whole_source": true,
+            "reason": "Read complete narrative-definition knowledge when revising the selected definition.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          }
+        ],
+        "references/runtime/narrative-development.md": [
+          {
+            "whole_source": true,
+            "reason": "Read complete character-development knowledge when the retained definition changes.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          }
+        ],
+        "references/runtime/cast-and-persona-depth.md": [
+          {
+            "whole_source": true,
+            "reason": "Reassess actual cast and Persona depth only when changing their definition.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          }
+        ],
+        "references/character-identity-contract.md": [
+          {
+            "whole_source": true,
+            "reason": "A changed definition requires the full identity contract, source hierarchy and review obligations.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          },
+          {
+            "sections": [
+              "character-identity-contract",
+              "identity-at-the-authored-level-of-detail",
+              "owns",
+              "does-not-own"
+            ],
+            "reason": "Keep the retained identity obligations and their authority separate from the changed realization."
+          },
+          {
+            "sections": [
+              "construct-the-character-in-the-scene",
+              "rendered-reference-transfer-boundary",
+              "anchor-fragments",
+              "coverage-requirements",
+              "identity-versus-era-form-and-appearance",
+              "morphology-references",
+              "identity-obligations-for-the-current-view",
+              "inspect-identity-coverage-and-retain-its-authority"
+            ],
+            "reason": "Carry retained identity into the changed view, reference or rendition and review the whole subject against independent coverage.",
+            "profiles_any": [
+              "amend-depiction",
+              "amend-references",
+              "amend-rendition",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "source-to-input-and-review-coverage",
+              "identity-carrier-example",
+              "bind-exact-identity-carriers"
+            ],
+            "reason": "Bind changed source selections and model-facing carriers to the complete independent identity obligation.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-references",
+              "amend-rendition",
+              "retarget"
+            ]
+          },
+          {
+            "sections": [
+              "source-to-input-and-review-coverage",
+              "identity-obligations-for-the-current-view",
+              "bind-exact-identity-carriers",
+              "inspect-identity-coverage-and-retain-its-authority"
+            ],
+            "reason": "Preserve actual source authority, whole-subject review and all exact-input carrier checks at final preparation.",
+            "stages": [
+              "prepare"
+            ]
+          }
+        ],
+        "references/morphology-and-species-contracts.md": [
+          {
+            "whole_source": true,
+            "reason": "A changed definition reopens the complete morphology and species contract.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          },
+          {
+            "sections": [
+              "morphology-and-species-contracts",
+              "1-purpose",
+              "2-ownership-and-precedence",
+              "5-body-regions-and-topology",
+              "6-counts-and-instance-identity",
+              "7-limbs-hands-feet-digits-claws-and-terminal-structures",
+              "8-head-and-sensory-cluster",
+              "9-tails-wings-fins-tentacles-and-special-appendages",
+              "10-skin-fur-scales-feathers-shells-and-materials",
+              "11-special-organs-and-capabilities",
+              "12-expression-and-communication-grammar",
+              "13-individual-morphology-contract",
+              "14-identity-versus-state",
+              "17-resolved-morphology-for-a-shot",
+              "18-coverage-planning",
+              "19-which-authority-settles-what",
+              "20-review-checklist",
+              "22-frame-character-per-part-measurement-and-accessory-geometry"
+            ],
+            "reason": "Project the retained declared structures into the changed view with exact counts, attachment, movement, state, measurements and coverage; undeclared anatomy stays unchosen.",
+            "profiles_any": [
+              "amend-depiction",
+              "amend-references"
+            ]
+          }
+        ],
+        "references/species-architecture.md": [
+          {
+            "whole_source": true,
+            "reason": "Species construction and catalog architectures belong to changed definitions; retained morphology is verified from its actual source.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          }
+        ],
+        "references/prompt-composition-geometry.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected geometry specialist when changing spatial construction or its exact wording.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction",
+              "amend-rendition"
+            ]
+          }
+        ],
+        "references/camera-framing-contract.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the selected camera contract to the changed view and its declared visible consequences.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction",
+              "amend-references"
+            ]
+          }
+        ],
+        "references/runtime/character-sheet-discipline.md": [
+          {
+            "whole_source": true,
+            "reason": "A changed sheet definition needs the complete character, kind, form, inventory and layout discipline.",
+            "profiles_any": [
+              "amend-definition"
+            ]
+          },
+          {
+            "sections": [
+              "character-sheet-discipline",
+              "the-identity-ledger-fixed-versus-rule-governed",
+              "provenance-and-consumption",
+              "using-the-sheet-downstream",
+              "maintaining-the-canon",
+              "non-anatomical-reference-coverage"
+            ],
+            "reason": "Preserve actual sheet identity, source provenance, downstream scope and unchanged canonical decisions."
+          },
+          {
+            "sections": [
+              "building-the-sheet",
+              "character-reference-sheet",
+              "iterative-editing-and-accumulated-results",
+              "performance-coverage-and-topology"
+            ],
+            "reason": "Interpret the changed panel view against the retained inventory, source coverage and whole-subject review.",
+            "profiles_any": [
+              "amend-depiction",
+              "amend-references"
+            ]
+          },
+          {
+            "sections": [
+              "registering-the-sheet",
+              "editor-interaction-contract",
+              "iterative-editing-and-accumulated-results"
+            ],
+            "reason": "Use the selected existing sheet and exact recording destination while preserving earlier images and decisions.",
+            "profiles_any": [
+              "amend-recording"
+            ]
+          },
+          {
+            "sections": [
+              "communicated-state-repertoire"
+            ],
+            "reason": "A changed communicated state or definition uses the complete repertoire and its source-owned conditions; a declared view-only edit retains that repertoire.",
+            "changes_any": [
+              "definition",
+              "depiction"
+            ]
+          }
+        ],
+        "references/runtime/sheet-fill-workflow.md": [
+          {
+            "sections": [
+              "sheet-fills-evidence-and-adoption",
+              "one-artifact-and-one-selection-contract"
+            ],
+            "reason": "Keep the retained sheet artifact, selected source and later adoption at their actual independent owners."
+          },
+          {
+            "sections": [
+              "safe-author-edits-including-a-stale-browser",
+              "review-evidence"
+            ],
+            "reason": "Preserve the current view specification and independent evidence when editing a panel or its recording destination.",
+            "profiles_any": [
+              "amend-depiction",
+              "amend-references",
+              "amend-recording"
+            ]
+          }
+        ],
+        "references/runtime/adoption-workflow.md": [
+          {
+            "sections": [
+              "adoption-workflow",
+              "canonical-image-scope",
+              "inspect-canonical-reference-readiness"
+            ],
+            "reason": "Inspect the retained canonical source and its permitted reuse without requesting new adoption.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction",
+              "amend-references",
+              "amend-rendition"
+            ]
+          }
+        ],
+        "references/runtime/studio-placement.md": [
+          {
+            "sections": [
+              "correct-an-iterations-current-slot",
+              "draft-the-exact-correction",
+              "candidate-and-accepted-image-behavior",
+              "canonical-adoption-stays-explicit",
+              "conflict-integrity-and-recovery"
+            ],
+            "reason": "Read the complete explicit placement correction contract when recording is changed.",
+            "profiles_any": [
+              "amend-recording"
+            ]
+          }
+        ],
+        "references/runtime/reference-prompt-artifacts.md": [
+          {
+            "sections": [
+              "prompt-artifact-reference-runtime",
+              "activation-gate",
+              "record-scoped-authority",
+              "technical-artifact-roles",
+              "prompt-facing-transports",
+              "validation-and-failure-policy"
+            ],
+            "reason": "Apply reference-artifact authority and transport only to changed selected reference uses.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-references",
+              "retarget"
+            ]
+          }
+        ],
+        "references/visual-reference-activation-and-transport.md": [
+          {
+            "sections": [
+              "visual-reference-activation-and-transport",
+              "activation-gate",
+              "semantic-reading",
+              "role-map",
+              "registered-character-sheet-identity-with-other-evidence",
+              "reference-to-prompt-synthesis",
+              "layer-roles",
+              "conditional-artifacts",
+              "target-transport",
+              "surface-and-lighting",
+              "review"
+            ],
+            "reason": "Interpret changed reference evidence and bind its permitted role to the actual target transport and review.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-references",
+              "retarget"
+            ]
+          }
+        ],
+        "references/derived-visual-evidence.md": [
+          {
+            "whole_source": true,
+            "reason": "Preserve the complete derived-visual-evidence contract when changing or retargeting selected reference artifacts.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-references",
+              "retarget"
+            ]
+          }
+        ],
+        "references/runtime/sparse-discovery.md": [
+          {
+            "whole_source": true,
+            "reason": "Open depiction development keeps the complete explicitly selected discovery procedure.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/creative-core.md": [
+          {
+            "whole_source": true,
+            "reason": "Keep the selected creative foundation for changed definition or depiction decisions.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          },
+          {
+            "whole_source": true,
+            "reason": "A changed rendering intent uses the complete explicitly selected finishing specialist and its construction foundation.",
+            "changes_any": [
+              "controls",
+              "controls.render-intent"
+            ],
+            "features_any": [
+              "finishing"
+            ]
+          }
+        ],
+        "references/finishing-layers-specification.md": [
+          {
+            "whole_source": true,
+            "reason": "Read complete selected finishing knowledge when changing the picture construction.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          },
+          {
+            "whole_source": true,
+            "reason": "A changed rendering intent uses the complete explicitly selected finishing specialist and its construction foundation.",
+            "changes_any": [
+              "controls",
+              "controls.render-intent"
+            ],
+            "features_any": [
+              "finishing"
+            ]
+          }
+        ],
+        "references/runtime/production-variation.md": [
+          {
+            "sections": [
+              "production-input-variants",
+              "input-variants-and-intentional-repeats",
+              "revise-the-editable-source-across-production-steps"
+            ],
+            "reason": "Preserve the selected parent input and independent branches through the actual amendment."
+          },
+          {
+            "sections": [
+              "change-the-target-explicitly"
+            ],
+            "reason": "Rebind the current target and all of its meaningful input dependencies.",
+            "profiles_any": [
+              "retarget"
+            ]
+          }
+        ],
+        "references/runtime/character-performance.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected performance specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/performance-language-specification.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected performance specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/world-realization.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected world-view specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/portrayal-principles.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected portrayal-principles specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/narrative-protocol.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected narrative-files specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/story-timeline.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected narrative-files specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/subject-domain-quick-reference.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected subject-domain specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/story-context.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected story-context specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/scene-persona.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected scene-persona specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/state-aware-series.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected state-series specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/studio-canon-references.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected state-series specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/craft-consultation.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected craft-consultation specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/source-material.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected source-material specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/agent-evaluation.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected agent-evaluation specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/repair-analysis.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected repair-analysis specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/garment-geometry-specification.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected garment-growth specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/growth-geometry-specification.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected garment-growth specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/distinctive-detail-specification.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected garment-growth specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/production-specification.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected production-spec specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/scene-mask-planning.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected scene-mask-planning specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ]
+          }
+        ],
+        "references/runtime/image-editing.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected existing-image edit contract when changing the depiction, references, wording or target.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction",
+              "amend-references",
+              "amend-rendition",
+              "retarget"
+            ]
+          }
+        ],
+        "references/runtime/semantic-instruction-edit.md": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected existing-image edit contract when changing the depiction, references, wording or target.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction",
+              "amend-references",
+              "amend-rendition",
+              "retarget"
+            ]
+          }
+        ]
+      }
     }
   }
 }

@@ -23,7 +23,7 @@ INDEX_SOURCE_STATES = {
     'pending': 'No source bytes have been delivered in this snapshot.',
     'partial': 'Some exact source ranges have been delivered; remaining ranges are required.',
     'delivered': 'This snapshot has complete delivery evidence for this source.',
-    'known': 'An explicitly selected complete reading supplies the unchanged source in this context.',
+    'known': 'An explicitly selected complete reading supplies unchanged selected source content in this context.',
 }
 _NO_MODEL = object()
 # An authoring reading made without a model holds every family's guide sections.
@@ -237,6 +237,24 @@ def _live_resource_reader():
     return read_named
 
 
+def _knowledge_requirements(manifest: dict) -> dict[str, bool]:
+    """Select reading material from declared changes, never from prompt words.
+
+    Exact request, target, source and permission validators keep their own
+    effect-boundary responsibilities. This selection only defers instructions
+    for decisions that the current retained amendment does not make.
+    """
+    scope = manifest.get('authoring_scope') or {}
+    profiles = set(scope.get('profiles') or [])
+    if (scope.get('composition') != 'amend' or scope.get('change_scope') is None
+            or not profiles or 'target-change' in scope.get('conditions', [])
+            or 'unknown-sources' in scope.get('conditions', [])):
+        return {'writing': True, 'model': True}
+    limited = profiles.issubset({'amend-controls', 'amend-recording'})
+    return {'writing': not limited,
+            'model': scope.get('stage') == 'prepare' or profiles != {'amend-recording'}}
+
+
 def _capture_resources(manifest: dict, bodies: list, dialect: Any, resource_reader) -> None:
     manifest['resources'] = {}
     if 'prompt-dialect' not in manifest['features']:
@@ -247,6 +265,8 @@ def _capture_resources(manifest: dict, bodies: list, dialect: Any, resource_read
     # family selected, do not reacquire every family's authoring material.
     # An explicit family/model inspection still delivers its requested guide.
     if manifest.get('operation') in SAVED_INPUT_OPERATIONS and dialect is None:
+        return
+    if not _knowledge_requirements(manifest)['writing']:
         return
     selected={name:resource_reader(name) for name in ('prompt-writing-guide','prompt-dialects')}
     for name,resource in selected.items():
@@ -278,7 +298,8 @@ def _validate_resources(value: dict) -> None:
     resources = value.get('resources')
     if value.get('operation') in SAVED_INPUT_OPERATIONS and resources == {}:
         return
-    expected = {'prompt-writing-guide', 'prompt-dialects'} if 'prompt-dialect' in value['features'] else set()
+    expected = ({'prompt-writing-guide', 'prompt-dialects'}
+                if 'prompt-dialect' in value['features'] and _knowledge_requirements(value)['writing'] else set())
     if not isinstance(resources, dict) or set(resources) != expected:
         raise ValueError('reading resource set differs from its feature requirements')
     fields = {'status', 'source_pack', 'path', 'sha256'}
@@ -297,6 +318,8 @@ def _validate_resources(value: dict) -> None:
 
 
 def _require_dialect(record: dict, bodies: list, dialect: Any) -> None:
+    if not _knowledge_requirements(record)['writing']:
+        return
     bound = bound_dialect(record)
     if dialect is not _NO_MODEL and bound != dialect:
         raise ValueError(f'the delivered writing guide is scoped to {bound!r}; read the current model or prompt family')
@@ -342,7 +365,8 @@ def require_model_reading(record: dict, *, dialect: Any = _NO_MODEL, resource_re
     """
     _validate_resources(record)
     _validate_model(record['model'])
-    manifest = {'features': record['features'], 'operation': record.get('operation')}
+    manifest = {'features': record['features'], 'operation': record.get('operation'),
+                'authoring_scope': record.get('authoring_scope')}
     bodies = []
     _capture_resources(manifest, bodies, bound_dialect(record), resource_reader)
     if manifest['resources'] != record['resources']:
@@ -373,7 +397,8 @@ def require_model_reading(record: dict, *, dialect: Any = _NO_MODEL, resource_re
             raise ReadingSourcesChanged([{'kind': 'model', 'id': current['id'],
                                           'before': record['model'], 'after': current}],
                                         'delivered model guidance differs from the current guidance')
-    _require_dialect(record, bodies, dialect)
+    if _knowledge_requirements(manifest)['writing']:
+        _require_dialect(record, bodies, dialect)
 
 
 def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
@@ -435,10 +460,104 @@ def _body_identity(metadata: dict) -> str:
     return c.content_id(metadata)
 
 
-def _document_body(document: dict, start: int, end: int, raw: bytes) -> dict:
+def _document_body(document: dict, start: int, end: int, raw: bytes, sections: list[dict]) -> dict:
     return {'kind': 'document', 'path': document['path'], 'source_sha256': document['sha256'],
             'source_size': document['size'], 'source_start': start, 'source_end': end,
-            'sha256': c.digest(raw)}
+            'sha256': c.digest(raw), 'sections': [
+                {key: section[key] for key in ('anchor', 'start', 'end', 'sha256')}
+                for section in sections if start <= section['start'] and section['end'] <= end]}
+
+
+def _section_identity(section: dict) -> tuple:
+    """Name unchanged complete section content independently of its position."""
+    return section['anchor'], section['end'] - section['start'], section['sha256']
+
+
+def _document_part(metadata: dict, start: int, end: int, raw: bytes) -> dict:
+    result = {**metadata, 'source_start': start, 'source_end': end,
+              'size': len(raw), 'sha256': c.digest(raw)}
+    if 'sections' in metadata:
+        result['sections'] = [section for section in metadata['sections']
+                              if start <= section['start'] and section['end'] <= end]
+    return result
+
+
+def _validate_sections(metadata: dict) -> None:
+    """Section evidence partitions a delivered body; a body hash also stands alone."""
+    if 'sections' not in metadata:
+        return
+    sections = metadata['sections']
+    if not isinstance(sections, list) or not sections:
+        raise ValueError('reading document sections must cover its complete body')
+    reach, anchors = metadata['source_start'], set()
+    for section in sections:
+        c.exact(section, {'anchor', 'start', 'end', 'sha256'}, 'delivered section')
+        c.text(section['anchor'], 'delivered section anchor'); c.sha(section['sha256'])
+        if (type(section['start']) is not int or type(section['end']) is not int
+                or section['start'] != reach or not reach <= section['end'] <= metadata['source_end']
+                or section['anchor'] in anchors):
+            raise ValueError('reading document sections must partition its exact source range')
+        reach = section['end']
+        anchors.add(section['anchor'])
+    if reach != metadata['source_end']:
+        raise ValueError('reading document sections do not cover its complete body')
+    if len(sections) == 1 and sections[0]['sha256'] != metadata['sha256']:
+        raise ValueError('reading document section differs from its complete body')
+
+
+def _section_content_available(metadata: dict, issuance: dict, ledger: Path) -> bool:
+    """Verify finer section evidence against the complete retained body bytes.
+
+    A missing or damaged body narrows the available reuse evidence; it never
+    prevents a new complete read. Whole-body and same-edition range evidence
+    keep their own content identities without inventing unknown section hashes.
+    """
+    if metadata.get('kind') != 'document' or not metadata.get('sections'):
+        return False
+    snapshot = issuance['delivery']['snapshot']
+    try:
+        folder = (_snapshot_dir(ledger, snapshot) if snapshot is not None
+                  else ledger.parent / 'reading-content')
+        raw = c.object_read(folder, metadata['sha256'])
+        if len(raw) != metadata['size']:
+            return False
+        return all(c.digest(raw[section['start'] - metadata['source_start']:
+                                section['end'] - metadata['source_start']]) == section['sha256']
+                   for section in metadata['sections'])
+    except (ValueError, OSError):
+        return False
+
+
+def _store_document_content(folder: Path, acquired: list[tuple[dict, bytes]], required: list[dict]) -> None:
+    """Retain each known complete body with its owning delivery snapshot."""
+    for body in required:
+        if body['kind'] != 'document':
+            continue
+        for metadata, raw in acquired:
+            if metadata['kind'] != 'document' or any(body[field] != metadata[field]
+                    for field in ('path', 'source_sha256', 'source_size')):
+                continue
+            if metadata['source_start'] <= body['source_start'] <= body['source_end'] <= metadata['source_end']:
+                part = raw[body['source_start'] - metadata['source_start']:
+                           body['source_end'] - metadata['source_start']]
+                if len(part) != body['size'] or c.digest(part) != body['sha256']:
+                    raise ValueError('retained reading body differs from its acquired source bytes')
+                path = c.local(folder, 'objects/' + body['sha256'], exists=False)
+                if path.exists():
+                    # Newly acquired exact source bytes can restore damaged
+                    # evidence. This storage does not issue or extend delivery.
+                    if c.read(path) != part:
+                        c.atomic(path, part, replace=True)
+                else:
+                    c.object_store(folder, part)
+                break
+        else:
+            raise ValueError('retained reading body has no acquired source interval')
+
+
+def _reuse_provenance(available: dict, body: dict) -> dict:
+    return {'body': body, 'origin': available['origin'], 'reused_from': available['reused_from'],
+            'source_body': available['body']}
 
 
 def _uncovered_ranges(required: list[tuple[int, int]], available: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -459,14 +578,22 @@ def _uncovered_ranges(required: list[tuple[int, int]], available: list[tuple[int
 def _body_covers(known: dict, required: dict) -> bool:
     if known.get('kind') != 'document' or required.get('kind') != 'document':
         return known == required
-    if any(known.get(field) != required.get(field)
-           for field in ('kind', 'path', 'source_sha256', 'source_size')):
+    if known.get('path') != required.get('path'):
         return False
-    if not (known['source_start'] <= required['source_start'] <= required['source_end'] <= known['source_end']):
+    same_source = all(known.get(field) == required.get(field)
+                      for field in ('source_sha256', 'source_size'))
+    if same_source and known['source_start'] <= required['source_start'] <= required['source_end'] <= known['source_end']:
+        if (known['source_start'], known['source_end']) == (required['source_start'], required['source_end']):
+            return known['sha256'] == required['sha256'] and known['size'] == required['size']
+        return True
+    # A complete body is itself content evidence even when it has no finer
+    # section index. It never proves a different source or a partial body.
+    if known['sha256'] == required['sha256'] and known['size'] == required['size']:
+        return True
+    if not known.get('sections') or not required.get('sections'):
         return False
-    if (known['source_start'], known['source_end']) == (required['source_start'], required['source_end']):
-        return known == required
-    return True
+    available = {_section_identity(section) for section in known['sections']}
+    return all(_section_identity(section) in available for section in required['sections'])
 
 
 def _validate_body_scope(manifest: dict, metadata: list[dict]) -> None:
@@ -489,7 +616,8 @@ def _validate_body_scope(manifest: dict, metadata: list[dict]) -> None:
             raise ValueError('reading delivery body has an invalid byte size')
         if kind == 'document':
             c.exact(item, {'kind', 'path', 'sha256', 'size', 'source_sha256', 'source_size',
-                           'source_start', 'source_end'}, 'delivered document')
+                           'source_start', 'source_end'} | ({'sections'} if 'sections' in item else set()),
+                    'delivered document')
             start, end = item['source_start'], item['source_end']
             valid = (item['source_sha256'] == expected['sha256'] and item['source_size'] == expected['size']
                      and type(start) is int and type(end) is int
@@ -498,6 +626,7 @@ def _validate_body_scope(manifest: dict, metadata: list[dict]) -> None:
             valid = valid and not _uncovered_ranges([(start, end)], selected)
             exact = [part for part in expected['ranges'] if (part['start'], part['end']) == (start, end)]
             valid = valid and (not exact or item['sha256'] == exact[0]['sha256'])
+            _validate_sections(item)
             document_ranges.setdefault(item['path'], []).append((start, end))
         elif kind == 'resource':
             c.exact(item, {'kind', 'resource', 'status', 'source_pack', 'path', 'sha256',
@@ -566,16 +695,18 @@ def _known_bodies(keys: list[str], ledger: Path) -> tuple[list[str], list[dict]]
         known.append(row['key_sha256'])
         for item in row['delivery']['bodies']:
             bodies[_body_identity(item['body'])] = {
-                'body': item['body'], 'origin': item['origin'], 'reused_from': row['key_sha256']}
+                'body': item['body'], 'origin': item['origin'], 'reused_from': row['key_sha256'],
+                'section_content_available': _section_content_available(item['body'], row, ledger)}
     return sorted(known), list(bodies.values())
 
 
 def _reuse_acquired(acquired: list[tuple[dict, bytes]], available: list[dict]) -> tuple[list, list, list]:
     """Partition current requirements at complete known source boundaries.
 
-    A whole source can prove one selected section. Several prior selected ranges
-    can prove parts of a later broader requirement. Only the missing intervals
-    are delivered; each reused interval keeps its complete issuance witness.
+    A whole source can prove selected sections. Unchanged section content can
+    retain that witness when unrelated source edits move its byte offsets.
+    Only missing intervals are delivered; every reused part names its complete
+    issuance and current source bytes. No ledger is selected implicitly.
     """
     required, reused, pending = [], [], []
     for metadata, raw in acquired:
@@ -586,25 +717,46 @@ def _reuse_acquired(acquired: list[tuple[dict, bytes]], available: list[dict]) -
             if found is None:
                 pending.append((base, raw))
             else:
-                reused.append({**found, 'body': base, 'source_body': found['body']})
+                reused.append(_reuse_provenance(found, base))
             continue
         low, high = base['source_start'], base['source_end']
-        candidates = [item for item in available if item['body']['kind'] == 'document'
-                      and all(item['body'][field] == base[field]
-                              for field in ('path', 'source_sha256', 'source_size'))
-                      and item['body']['source_start'] < high and low < item['body']['source_end']]
-        cuts = sorted({low, high, *(max(low, item['body']['source_start']) for item in candidates),
-                       *(min(high, item['body']['source_end']) for item in candidates)})
+        candidates = []
+        for item in available:
+            known = item['body']
+            if known['kind'] != 'document' or known['path'] != base['path']:
+                continue
+            if all(known[field] == base[field] for field in ('source_sha256', 'source_size')):
+                start, end = max(low, known['source_start']), min(high, known['source_end'])
+                if start < end:
+                    candidates.append((start, end, item))
+            elif known['sha256'] == base['sha256'] and known['size'] == base['size']:
+                candidates.append((low, high, item))
+            elif item['section_content_available']:
+                indexed = {_section_identity(section) for section in known['sections']}
+                candidates.extend((section['start'], section['end'], item) for section in base.get('sections', [])
+                                  if _section_identity(section) in indexed)
+        cuts = sorted({low, high, *(start for start, _, _ in candidates),
+                       *(end for _, end, _ in candidates)})
+        parts = []
         for start, end in zip(cuts, cuts[1:]):
             piece = raw[start - low:end - low]
-            part = {**base, 'source_start': start, 'source_end': end,
-                    'size': len(piece), 'sha256': c.digest(piece)}
+            part = _document_part(base, start, end, piece)
+            found = next((item for first, last, item in candidates
+                          if first <= start and end <= last and _body_covers(item['body'], part)), None)
+            # Adjacent sections with the same delivery witness remain one
+            # body. Section evidence stays distinct from transport chunking.
+            if parts and parts[-1][2] == found:
+                parts[-1] = (parts[-1][0], end, found)
+            else:
+                parts.append((start, end, found))
+        for start, end, found in parts:
+            piece = raw[start - low:end - low]
+            part = _document_part(base, start, end, piece)
             required.append(part)
-            found = next((item for item in candidates if _body_covers(item['body'], part)), None)
             if found is None:
                 pending.append((part, piece))
             else:
-                reused.append({**found, 'body': part, 'source_body': found['body']})
+                reused.append(_reuse_provenance(found, part))
     return required, reused, pending
 
 
@@ -616,10 +768,15 @@ def _current_body_ranges(acquired: list[tuple[dict, bytes]], required: list[dict
             complete = dict(metadata, size=len(raw))
             if selected['kind'] != 'document':
                 matched = selected == complete
-            elif _body_covers(complete, selected):
+            elif (all(complete.get(field) == selected.get(field)
+                      for field in ('path', 'source_sha256', 'source_size'))
+                  and _body_covers(complete, selected)):
                 start = selected['source_start'] - complete['source_start']
                 end = selected['source_end'] - complete['source_start']
                 matched = (selected['size'] == end - start and c.digest(raw[start:end]) == selected['sha256'])
+                if matched and 'sections' in selected:
+                    matched = selected['sections'] == [section for section in complete['sections']
+                        if selected['source_start'] <= section['start'] and section['end'] <= selected['source_end']]
             if matched:
                 break
         if not matched:
@@ -640,6 +797,7 @@ def _issuance_index(rows: list[dict]) -> dict[str, dict]:
 def _check_reused_bodies(snapshot: dict, ledger: Path) -> None:
     """Recheck issuance provenance without treating saved pages as known content."""
     rows = _issuance_index(ledger_rows(ledger)) if snapshot['reused_bodies'] else {}
+    verified_sections = set()
     for item in snapshot['reused_bodies']:
         key = item['reused_from']
         if key not in snapshot['known_readings'] or key not in rows:
@@ -650,6 +808,16 @@ def _check_reused_bodies(snapshot: dict, ledger: Path) -> None:
         if (previous is None or previous['origin'] != item['origin'] or
                 not _body_covers(previous['body'], item['body'])):
             raise ValueError('same-context body differs from its complete source issuance')
+        before, after = previous['body'], item['body']
+        if (before['kind'] == 'document'
+                and any(before[field] != after[field] for field in ('source_sha256', 'source_size'))
+                and (before['sha256'], before['size']) != (after['sha256'], after['size'])):
+            evidence = (key, _body_identity(before))
+            if evidence not in verified_sections:
+                if not _section_content_available(before, rows[key], ledger):
+                    raise ValueError('same-context section content is unavailable; start the current reading again '
+                                     'to redeliver the required source bodies')
+                verified_sections.add(evidence)
     selected = [item['body'] for item in snapshot['reused_bodies']] + snapshot['bodies']
     if sorted(map(_body_identity, selected)) != sorted(map(_body_identity, snapshot['required_bodies'])):
         raise ValueError('reading snapshot does not cover its required bodies')
@@ -726,18 +894,20 @@ def capture(route: str, features: list[str] | None = None, *, execution: str, ro
         # Adjacent required sections share one exact source interval. Their
         # individual boundaries and reasons remain in the manifest/index; a
         # body never crosses an unselected gap.
+        sections = execution_routes.document_sections(raw)
         for start, end in _merged_ranges([(part['start'], part['end']) for part in entry['ranges']]):
             body = raw[start:end]
-            bodies.append((_document_body(entry, start, end, body), body))
+            bodies.append((_document_body(entry, start, end, body, sections), body))
     manifest = {'route': resolved['route'], 'operation': resolved['operation'], 'execution': resolved['execution'],
                 'scope': resolved['scope'], 'source_kind': resolved['source_kind'], 'features': resolved['features'],
                 **({'authoring_scope': resolved['authoring_scope']} if 'authoring_scope' in resolved else {}),
                 'documents': resolved['reads'], 'model': None}
-    if resource_reader is None and 'prompt-dialect' in resolved['features'] and not (
+    knowledge = _knowledge_requirements(manifest)
+    if resource_reader is None and knowledge['writing'] and 'prompt-dialect' in resolved['features'] and not (
             resolved['operation'] in SAVED_INPUT_OPERATIONS and dialect is None):
         resource_reader = _live_resource_reader()
     _capture_resources(manifest, bodies, dialect, resource_reader)
-    if model_record is not None:
+    if model_record is not None and knowledge['model']:
         metadata, raw = _model_material(model_record, service)
         manifest['model'] = metadata
         bodies.append(({'kind': 'model', 'path': 'model-guidance/' + metadata['id'],
@@ -785,6 +955,11 @@ def _begin_output(stream: TextIO, body: list[dict], metadata: dict) -> None:
     stream.flush()
 
 
+def _visible_body_metadata(metadata: dict) -> dict:
+    """Keep section witnesses in the record and index, not on every text page."""
+    return {key: value for key, value in metadata.items() if key != 'sections'}
+
+
 def _finish_output(stream: TextIO, result: dict) -> None:
     visible = {key: value for key, value in result.items() if key not in {'body', 'metadata', 'issued', 'delivered'}}
     stream.write(', ' + json.dumps(visible, ensure_ascii=False)[1:] + '\n')
@@ -817,13 +992,16 @@ def issue(route: str, features: list[str] | None = None, *, execution: str, root
     manifest, bodies = capture(route, features, root=root, dialect=dialect, operation=operation, execution=execution, model=model,
                                service=service, model_file=model_file, model_record=model_record,
                                scope=scope, source_kind=source_kind, authoring_scope=authoring_scope)
-    _begin_output(stream, [{'metadata': meta, 'text': raw.decode('utf-8')} for meta, raw in bodies], manifest)
+    _begin_output(stream, [{'metadata': _visible_body_metadata(meta), 'text': raw.decode('utf-8')}
+                           for meta, raw in bodies], manifest)
     try:
         current, _ = capture(route, features, root=root, dialect=dialect, operation=operation, execution=execution,
                              model=model, service=service, model_file=model_file, model_record=model_record,
                              scope=scope, source_kind=source_kind, authoring_scope=authoring_scope)
         if manifest != current:
             raise ReadingSourcesChanged(source_changes(manifest, current))
+        _store_document_content(target.parent / 'reading-content', bodies,
+                                [dict(meta, size=len(raw)) for meta, raw in bodies])
         issued = _issue(manifest, target, bodies=[dict(meta, size=len(raw)) for meta, raw in bodies],
                         key=key, at=at, cwd=cwd)
     except (ValueError, OSError) as exc:
@@ -907,10 +1085,12 @@ def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path]
             for selected in document['ranges']:
                 if c.digest(raw[selected['start']:selected['end']]) != selected['sha256']:
                     raise ValueError('reading source range differs from the current exact bytes: ' + document['path'])
-    _require_dialect(record, bodies, dialect)
-    if model_record is not None:
+    if _knowledge_requirements(current)['writing']:
+        _require_dialect(record, bodies, dialect)
+    if model_record is not None and _knowledge_requirements({'authoring_scope': selected_authoring})['model']:
         require_model_reading(record, model_record=model_record, service=service,
-                              resource_reader=resource_reader or _live_resource_reader())
+                              resource_reader=resource_reader or (_live_resource_reader()
+                                  if _knowledge_requirements(record)['writing'] else lambda name: None))
     return row
 
 
@@ -1186,7 +1366,7 @@ def _navigation(snapshot: dict, coverage: dict, sections: list[dict],
     source is one requirement, so its internal headings are navigation detail.
     Reasons are shared by ID without shortening any selected contract.
     """
-    known = {_body_identity(item['body']) for item in snapshot['reused_bodies']}
+    known = {_body_identity(item['body']): item for item in snapshot['reused_bodies']}
     sources, reasons = [], {}
     def reason_ids(values: list[str]) -> list[str]:
         result = []
@@ -1203,6 +1383,11 @@ def _navigation(snapshot: dict, coverage: dict, sections: list[dict],
             continue
         rows = [row for row in sections if row['source'] == source]
         state = 'known' if _body_identity(metadata) in known else 'delivered'
+        if state == 'known':
+            rows = [{'selector': None, 'heading': section['anchor'],
+                     'start': section['start'] - metadata['source_start'],
+                     'end': section['end'] - metadata['source_start'], 'low': 0, 'high': 0}
+                    for section in metadata.get('sections', [])]
         remaining = sum(_remaining_in(row['low'], row['high'], coverage['missing']) for row in rows)
         if remaining:
             state = 'pending' if remaining == metadata['size'] else 'partial'
@@ -1219,20 +1404,52 @@ def _navigation(snapshot: dict, coverage: dict, sections: list[dict],
             low = metadata.get('source_start', 0) + row['start']
             high = metadata.get('source_start', 0) + row['end']
             selected_reasons = [item['reason'] for item in scope if item['start'] < high and low < item['end']]
+            identity = next((section for section in metadata.get('sections', [])
+                             if (section['start'], section['end']) == (low, high)), None)
             visible.append({'selector': row['selector'], 'heading': row['heading'],
                             'bytes': row['end'] - row['start'],
                             'selection_reason_ids': reason_ids(selected_reasons or source_reasons),
+                            **({'anchor': identity['anchor'], 'content_sha256': identity['sha256']}
+                               if identity is not None else {}),
                             **({'source_start': low, 'source_end': high} if metadata['kind'] == 'document' else {}),
                             'remaining_bytes': _remaining_in(row['low'], row['high'], coverage['missing'])})
+        witness = known.get(_body_identity(metadata))
         sources.append({'selector': None if state == 'known' else source, **metadata, 'selected_by': selected_by,
                         'selection_reason_ids': reason_ids(source_reasons),
+                        'selection_scope': ('complete-source' if not scope or any(item['anchor'] is None for item in scope)
+                                            else 'selected-sections'),
                         'state': state, 'remaining_bytes': remaining,
+                        **({'reuse': {'reading_key_sha256': witness['reused_from'],
+                                     'origin': witness['origin'],
+                                     'source_sha256': witness['source_body'].get('source_sha256'),
+                                     'source_start': witness['source_body'].get('source_start'),
+                                     'source_end': witness['source_body'].get('source_end')}}
+                           if witness is not None else {}),
                         'section_count': len(rows), 'sections_expanded': expanded,
                         'sections': visible})
     if index_source is not None and not sources:
         raise ValueError('unknown source index selector: ' + index_source
                          + '; open the snapshot index and choose a source selector')
     return sources, reasons
+
+
+def _selection_summary(snapshot: dict) -> dict:
+    """Measure selected knowledge independently of current-context reuse."""
+    reused = {_body_identity(item['body']) for item in snapshot['reused_bodies']}
+    owners = {}
+    for body in snapshot['required_bodies']:
+        selected = snapshot.get('read_owners', {}).get(body.get('path'), ['selected:' + body['kind']])
+        for owner in selected:
+            row = owners.setdefault(owner, {'selected_bytes': 0, 'reused_bytes': 0})
+            row['selected_bytes'] += body['size']
+            if _body_identity(body) in reused:
+                row['reused_bytes'] += body['size']
+    scope = snapshot['manifest'].get('authoring_scope') or {}
+    return {'stage': scope.get('stage'), 'composition': scope.get('composition'),
+            'change_scope': scope.get('change_scope'), 'profiles': scope.get('profiles', []),
+            'by_selection': owners,
+            'attribution': 'A source can have several selection owners; owner totals overlap and must not be added.',
+            'fresh_context': 'Read every selected current range; a saved receipt supplies no knowledge to a fresh context.'}
 
 
 def read_page(*, route: str | None = None, features: list[str] | None = None,
@@ -1291,7 +1508,9 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         folder.mkdir(parents=True)
         c.atomic(folder / 'snapshot.json', c.encoded(snapshot))
         for meta, raw in pending_bodies:
-            c.object_store(folder, raw)
+            if meta['kind'] != 'document':
+                c.object_store(folder, raw)
+        _store_document_content(folder, acquired, required)
     else:
         if (route is not None or features or dialect is not None or operation is not None or execution is not None
                 or scope is not None or source_kind is not None or authoring_scope is not None or choices_path is not None
@@ -1357,7 +1576,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         segment = raw[offset:stop]
         header = {**meta, 'snapshot': sid, 'start': offset, 'end': stop, 'total': len(raw)}
         ranges.append(header)
-        body.append({'metadata': header, 'text': segment.decode('utf-8')})
+        body.append({'metadata': _visible_body_metadata(header), 'text': segment.decode('utf-8')})
         end += len(segment)
         budget -= len(segment)
         if stop == len(raw):
@@ -1391,6 +1610,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         result['progress'] = {key: coverage[key] for key in ('total_bytes', 'delivered_bytes', 'remaining_bytes')}
         result['progress'].update(page_start=start, page_end=end,
             required_bytes=total + reused_bytes, reused_bytes=reused_bytes,
+            fresh_context_bytes=total + reused_bytes, same_context_new_bytes=total,
             required_bodies=len(snapshot['required_bodies']), reused_bodies=len(snapshot['reused_bodies']),
             section_remaining_bytes=selected['high'] - end if selected is not None else None,
             replay_remaining_bytes=max(0, pending.get('replay_until', end) - end))
@@ -1398,6 +1618,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
                                             acquired=(folder, snapshot, page), coverage=coverage, sections=sections)
         if navigation:
             result['index'], result['selection_reasons'] = navigation_rows
+            result['selection_summary'] = _selection_summary(snapshot)
             result['index_source'] = index_source
             result['source_states'] = dict(INDEX_SOURCE_STATES)
             result['section_selection'] = {
@@ -1520,9 +1741,11 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     delivery.add_argument('--section', metavar='SELECTOR',
                           help='With --snapshot, deliver the exact source or heading selector from its index; complete coverage is still required')
     delivery.add_argument('--index-source', metavar='SELECTOR',
-                          help='With --snapshot, expand one source heading index without delivering source bytes; selection_reason_ids resolve in selection_reasons')
+                          help='With --snapshot, expand one source heading index without delivery; '
+                               'selection_reason_ids resolve in selection_reasons; progress compares fresh-context and reused bytes')
     parser.add_argument('--known-reading', action='append', default=[], metavar='KEY',
-                        help='Complete reading still known in this context; repeat to combine readings and deliver only missing current bodies')
+                        help='Complete reading still known in this context; repeat to reuse unchanged selected sections '
+                             'even when unrelated edits move their offsets, and deliver only missing current bodies; omit in a fresh context')
     parser.add_argument('--reading-ledger', type=Path,
                         help='Reading ledger for the selected Studio or explicit continuation context')
     _add_runtime_arguments(parser)

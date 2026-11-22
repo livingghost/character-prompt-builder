@@ -1,0 +1,88 @@
+### Resume input authoring
+
+Interruption can occur during authoring, including while an older run exists.
+Inspect the open work task with:
+
+```bash
+python scripts/production_workflow.py inspect-inputs --root STUDIO
+python scripts/production_workflow.py status --root STUDIO
+```
+
+`inspect-inputs` without a source selector reads the task's saved authoring
+state. `status.current_task.authoring`, `studio.py status` and session entry expose the same editing locations and continuation commands. The report names existing
+`choices.json`, its context, published input tasks and reports, partial route
+reading, completed source-delivery records, and the last recorded check when one
+exists. Continue those files and actions after compaction. A source selector
+still performs the ordinary inspection of that task or saved run.
+
+Each saved draft keeps its producer's registered pack runtime. For a draft
+whose producer recorded no runtime, `inspect-inputs` can use an explicit
+`--state-file`, `--cache-dir` and `--managed-root` selection, with repeatable
+`--pack-root` paths. The report's reading and continuation actions retain that
+selection. Without explicit paths, that draft uses the caller's current
+runtime. Inspection preserves the saved registration, source files and runs;
+different branches resolve their models within their own selected runtimes.
+
+The builders register each output location before publication. Recovery can
+therefore find a directory that was published before its caller returned.
+The reader records committed page ranges and the saved cursor. Recovery offers
+the existing continuation or replay action and preserves completed delivery records. Its separate fresh-context action delivers the complete current knowledge again. Merely inspecting saved state does not issue another key or claim that the present agent read it.
+Unanswered choices remain unanswered, and a saved check is diagnostic history;
+preparation and execution still evaluate their actual current inputs and authority.
+
+`scripts/production_authoring_state.py` owns these discovery pointers under
+`work/tasks/TASK/authoring/`. They identify work owned by that ledger task and
+do not replace its inputs, reading receipts, run records or author decisions.
+Inspection reads the existing files without regenerating them or loading a
+catalog merely to discover a saved path.
+
+When a draft cannot establish its source boundary, use the reported cause and
+the complete `next_action.argv` or `next_actions` entry. Each action retains the
+active Python environment, installed script, Studio and available source
+selection. The same structured diagnostic appears in compilation and current
+authoring state; it identifies the owning file and necessary correction.
+
+| Reported cause | Continue from its owner |
+| --- | --- |
+| `AUTHORING_DRAFT_UNREGISTERED` | Inspect the task's registered inputs and continue the source draft. A copied context cannot establish a new registration by itself. |
+| `AUTHORING_DRAFT_REGISTRATION_INVALID` | Inspect and repair the registration that identifies the task and draft location. |
+| `AUTHORING_CONTEXT_MISSING` or `AUTHORING_CONTEXT_MISMATCH` | Draft from the registered source using the returned unused output location. Existing editable content remains available for continuation. |
+| `IDENTITY_SOURCE_CHANGED` with `retained-identity-source-changed` | Run the returned compose repair. For an existing draft, its `--choices` selects the captured current candidate; its separate inspection action opens the retained amend evidence. |
+| Other `IDENTITY_SOURCE_CHANGED` causes | Correct the named source origin, selector or authority evidence at its owner. The specific cause determines the repair. |
+| `IDENTITY_SOURCE_UNAVAILABLE` | Inspect the named source and restore or explicitly replace it before drafting its application. |
+
+These diagnostics distinguish provenance and file-state failures from creative
+judgment. Restoring a registration, context or source supplies no new identity
+adoption or approval. Keep valid content and evidence, and update the choices
+whose source or applicability changed. [Production diagnostics](production-diagnostics.md)
+owns the diagnostic and exit-status contract.
+
+The report compares the saved build's source and choices with the editable
+content. A later edit remains pending even when its earlier build has already
+been prepared. Continue the reported working copy; do not treat the older
+run's request as the current draft. An incomplete edit remains visible with
+its diagnostic rather than selecting an older input silently.
+
+The authoring context gathers the work goal, current choices, unresolved
+fields, source roles and paths to original or saved source bytes. Inspect the
+actual documents and images needed for the next judgment. These views preserve
+existing evidence and grant no approval. The older run keeps its own execution
+and result-recovery actions, which remain available independently of editing.
+## Scene preparation and reusable authoring input
+
+Use [Scene Persona Material](scene-persona.md) to preserve a full-reading result for one scoped scene.
+Add `scene-persona` to the task features and name local selectors as `scene_materials: [{"plan": "scene-plan.json", "bundle": "scene-material"}]`.
+Preparation checks the complete source files and deterministic documents, stores their dependencies, and includes the document in `consumer.authoring_materials`.
+The agent interprets the material into the selected depiction's present
+circumstances, visible state, performance and relationships. Supply the
+contextual premises that make those instructions intelligible in the actual
+model input. Complete authoring material remains available to the author;
+its presence in the consumer does not establish what the renderer receives.
+Source definitions, internal keys and review evidence remain in the authoring context.
+Viewpoint limits and exact submitted inputs keep their own boundaries.
+Public material requires an explicit content hash and accepted-by or basis instead of a search for its producer.
+
+For intake of existing source text, use [Source Material](source-material.md).
+For observed host trials, use [Agent Evaluation](agent-evaluation.md); process success is not proof of task completion or expressive quality.
+For recurring failures, use [Repair Analysis](repair-analysis.md) over actual reviews, then the repair and authorization process.
+None of these commands adopts or sends.

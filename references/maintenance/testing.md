@@ -423,6 +423,23 @@ python scripts/narrative_contract_smoke_test.py
 python scripts/scene_plot_contract_smoke_test.py
 ```
 
+`runtime_read_footprint.py` counts the selected original document ranges, rather
+than every byte in their containing files. It reports `selected_bytes`, full
+`source_bytes`, complete-source versus section selection and static lexical
+words. Model cards, pack resources, command metadata and host tokens are outside
+that measurement; the route reader's `progress` includes its actual delivered
+knowledge bodies. Compare new composition and each retained amendment separately.
+For the current actual draft, use
+`python scripts/runtime_read_footprint.py --root STUDIO --choices work/input/choices.json`.
+The choices owner derives its stage, declaration and actual differences.
+
+`test_amendment_reading_profiles.py` checks definition expansion, view and
+reference scope, numeric controls versus finishing, retarget dependencies,
+recording, complete union coverage and stage-independent retained knowledge.
+`test_production_reading_scope.py` checks the actual editable and final-task
+owners. `route_reading_smoke_test.py` checks content delivery, current section
+reuse, fresh-context reading and exact model knowledge separately.
+
 Do not make reference transport files mandatory when no reference is selected. Do not replace semantic camera or anatomy validation with prose alone.
 
 ## World realization and portrayal-principle changes
