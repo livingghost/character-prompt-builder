@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.11.22.1
+
+- Add Real-ESRGAN, Real-ESRGAN Anime 6B, AnimeSharp and UltraSharp model records
+  with scoped Runware and model-author evidence. Retain the supported upscale
+  factor contracts where available and mark unresolved standalone interfaces.
+- Treat image-only upscalers as having no text or negative-prompt channel.
+  Validate their request scale constraints without inventing prompt controls.
+
 ## 2026.11.21.5
 
 - Distinguish saved authored amendments from generated-candidate repairs in the

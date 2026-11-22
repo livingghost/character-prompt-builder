@@ -5467,6 +5467,586 @@
           }
         }
       ]
+    },
+    {
+      "curation_status": "curated",
+      "prompt_style": "not a prompt surface; image-to-image upscale operation",
+      "prompt_input": {
+        "mode": "none",
+        "forms": [],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/real-esrgan",
+            "scope": "operation",
+            "observed_at": "2026-11-22",
+            "statement": "The Runware model page identifies an image-upscale interface with an upscaleFactor control and no text-prompt surface."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/real-esrgan/examples",
+            "scope": "operation",
+            "observed_at": "2026-11-22",
+            "statement": "The official examples call runware:504@1 with inputs.image and upscaleFactor 4 in an upscale request and return imageUpscale results."
+          },
+          {
+            "kind": "model-author-documentation",
+            "source": "https://github.com/xinntao/Real-ESRGAN/blob/master/docs/model_zoo.md",
+            "scope": "model",
+            "observed_at": "2026-11-22",
+            "statement": "The model author identifies RealESRGAN_x4plus as the native 4x model for general images."
+          }
+        ],
+        "notes": [
+          "Do not interpret platform routing instructions as a text-to-image prompt channel.",
+          "Native network magnification and supported provider request scales are distinct. The model record and its selected schema retain the applicable source scope and unresolved checks."
+        ]
+      },
+      "ordering": [
+        "input-image",
+        "scale-parameters"
+      ],
+      "reference_input_media_types": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "verified_on": "2026-11-22",
+      "id": "real-esrgan",
+      "label": "Real-ESRGAN (restorative GAN upscaler)",
+      "aliases": [
+        "real esrgan",
+        "runware:504@1"
+      ],
+      "tags": [
+        "model",
+        "upscaler",
+        "restorative"
+      ],
+      "search_terms": [
+        {
+          "phrase": "upscale",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "tag"
+        },
+        {
+          "phrase": "esrgan",
+          "facet": "model",
+          "weight": 0.95,
+          "source": "tag"
+        },
+        {
+          "phrase": "restorative upscaler",
+          "facet": "model",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "conservative restoration",
+          "facet": "model",
+          "weight": 0.85,
+          "source": "tag"
+        }
+      ],
+      "recommended_uses": [
+        "routine delivery scaling where minor inferred high-frequency detail is acceptable",
+        "general photographic and mixed-content restoration"
+      ],
+      "operation_kind": "upscale",
+      "input_image_count": 1,
+      "upscaler_class": "restorative",
+      "supported_scale_factors": [
+        2,
+        4
+      ],
+      "supports_guidance_prompt": false,
+      "upscale_settings": {},
+      "avoid_uses": [
+        "workflows requiring pixel-identical preservation or zero inferred texture",
+        "flat cel or anime art when an anime-specific Real-ESRGAN variant is available"
+      ],
+      "offerings": [
+        {
+          "service": "runware",
+          "model_identifier": "runware:504@1",
+          "setting_keys": {},
+          "parameter_keys": {
+            "scale": "upscaleFactor"
+          },
+          "request_keys": {
+            "input image": [
+              "inputs.image"
+            ]
+          },
+          "constraints": {
+            "input_image": {
+              "max": 1
+            },
+            "upscale_factor": {
+              "one_of": [
+                2,
+                4
+              ]
+            },
+            "text": "none: the service takes no prompt for this model",
+            "inputs_envelope": "the image sits inside an inputs object (inputs.image)"
+          },
+          "observed_at": "2026-09-13",
+          "schema_snapshot": "resources/observed-schemas/real-esrgan.runware.json",
+          "execution_profile": {
+            "id": "runware-real-esrgan-interface",
+            "basis": {
+              "kind": "provider-documentation",
+              "source": "resources/observed-schemas/real-esrgan.runware.json",
+              "limitations": [
+                "The supported schema derives from dated interface evidence. It is not a quality benchmark or a current network verification.",
+                "This profile declares the scale factor only. Output encoding, cost reporting and upload destinations need a separately authored profile extension."
+              ]
+            },
+            "prompt_recipe": {
+              "order": [
+                "input-image",
+                "scale-parameters"
+              ],
+              "guidance": [
+                "not a prompt surface; image-to-image upscale operation",
+                "This interface takes no text. The upscale operation, input image and selected scale suffice; no rendering declaration or prompt expression is required."
+              ]
+            },
+            "modes": {
+              "upscale": {
+                "media": "input-image",
+                "controls": {
+                  "upscaleFactor": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Upscale Factor",
+                      "description": "Factor by which to upscale the generated image. A value of 2 doubles width and height.",
+                      "type": "integer",
+                      "enum": [
+                        2,
+                        4
+                      ]
+                    },
+                    "recommendation": null,
+                    "reason": "Scale factor 2 or 4, as the record and the stored schema declare."
+                  },
+                  "numberResults": {
+                    "status": "not-applicable",
+                    "binding": "dispatch-count",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "The stored schema has no numberResults field; one upscale request is one operation."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "The stored schema exposes no seed."
+                  }
+                },
+                "parameter_schema": {},
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
+              }
+            }
+          }
+        }
+      ],
+      "native_scale_factor": 4,
+      "description": "RealESRGAN_x4plus, a native 4x image restoration network. The recorded Runware interface supports request factors 2 and 4. Native scale does not establish arbitrary provider request scales."
+    },
+    {
+      "curation_status": "curated",
+      "prompt_style": "not a prompt surface; image-to-image upscale operation",
+      "prompt_input": {
+        "mode": "none",
+        "forms": [],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "model-author-documentation",
+            "source": "https://github.com/xinntao/Real-ESRGAN/blob/master/docs/model_zoo.md",
+            "scope": "model",
+            "observed_at": "2026-11-22",
+            "statement": "The model zoo identifies RealESRGAN_x4plus_anime_6B as a native 4x model with six RRDB blocks for anime images and illustrations."
+          },
+          {
+            "kind": "model-author-documentation",
+            "source": "https://github.com/xinntao/Real-ESRGAN/blob/master/docs/anime_model.md",
+            "scope": "operation",
+            "observed_at": "2026-11-22",
+            "statement": "The author's inference instructions accept image input and this checkpoint without a text prompt."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/sdxl",
+            "scope": "operation",
+            "observed_at": "2026-11-22",
+            "statement": "Runware maps runware:realesrgan@anime-6b to RealESRGAN_x4plus_anime_6B with native 4x in its upscaler table. This mapping does not supply a complete standalone schema."
+          }
+        ],
+        "notes": [
+          "A full dedicated current standalone Runware schema was not located. Preserve the existing measured interface evidence rather than inventing a new one. The source checkpoint itself is image-restoration, without text conditioning.",
+          "Native network magnification and supported provider request scales are distinct. The model record and its selected schema retain the applicable source scope and unresolved checks."
+        ]
+      },
+      "ordering": [
+        "input-image",
+        "scale-parameters"
+      ],
+      "reference_input_media_types": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "verified_on": "2026-11-22",
+      "id": "real-esrgan-anime-6b",
+      "label": "Real-ESRGAN x4plus anime 6B (anime upscaler)",
+      "aliases": [
+        "runware:realesrgan@anime-6b",
+        "real esrgan anime",
+        "anime6b",
+        "realesrgan anime"
+      ],
+      "tags": [
+        "model",
+        "upscaler",
+        "restorative",
+        "anime"
+      ],
+      "search_terms": [
+        {
+          "phrase": "upscale",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "tag"
+        },
+        {
+          "phrase": "esrgan",
+          "facet": "model",
+          "weight": 0.95,
+          "source": "tag"
+        },
+        {
+          "phrase": "restorative upscaler",
+          "facet": "model",
+          "weight": 0.9,
+          "source": "tag"
+        },
+        {
+          "phrase": "conservative restoration",
+          "facet": "model",
+          "weight": 0.85,
+          "source": "tag"
+        },
+        {
+          "phrase": "anime upscaler",
+          "facet": "model",
+          "weight": 0.95,
+          "source": "author"
+        }
+      ],
+      "recommended_uses": [
+        "candidate for anime still images and illustration enlargement, as described by the original model author",
+        "enlarging an existing composition after checking the selected interface and requested output dimensions"
+      ],
+      "operation_kind": "upscale",
+      "input_image_count": 1,
+      "upscaler_class": "restorative",
+      "supported_scale_factors": [
+        4
+      ],
+      "supports_guidance_prompt": false,
+      "upscale_settings": {},
+      "avoid_uses": [
+        "workflows requiring pixel-identical preservation or zero inferred texture"
+      ],
+      "offerings": [
+        {
+          "service": "runware",
+          "model_identifier": "runware:realesrgan@anime-6b",
+          "setting_keys": {},
+          "parameter_keys": {
+            "scale": "upscaleFactor"
+          },
+          "request_keys": {
+            "input image": [
+              "inputs.image"
+            ]
+          },
+          "constraints": {
+            "input_image": {
+              "max": 1
+            },
+            "upscale_factor": {
+              "one_of": [
+                4
+              ]
+            },
+            "text": "none: the service takes no prompt for this model",
+            "inputs_envelope": "the image sits inside an inputs object (inputs.image)",
+            "resolver": "The cited provider table establishes the model mapping, not a complete standalone schema. The pack supplies an authored factor-4 subset."
+          },
+          "observed_at": "2026-11-22",
+          "schema_snapshot": "resources/observed-schemas/real-esrgan-anime-6b.runware.json",
+          "execution_profile": {
+            "id": "runware-real-esrgan-anime-6b-interface",
+            "basis": {
+              "kind": "curated-starting-point",
+              "source": "resources/observed-schemas/real-esrgan-anime-6b.runware.json",
+              "limitations": [
+                "No dedicated standalone provider-returned schema was acquired. The authored supported subset selects factor 4 from the provider mapping and native model scale; provider acceptance and visual quality remain unmeasured."
+              ]
+            },
+            "prompt_recipe": {
+              "order": [
+                "input-image",
+                "scale-parameters"
+              ],
+              "guidance": [
+                "not a prompt surface; image-to-image upscale operation",
+                "This interface takes no text. The upscale operation, input image and selected scale suffice; no rendering declaration or prompt expression is required."
+              ]
+            },
+            "modes": {
+              "upscale": {
+                "media": "input-image",
+                "controls": {
+                  "upscaleFactor": {
+                    "status": "required",
+                    "binding": "package",
+                    "schema": {
+                      "title": "Upscale Factor",
+                      "description": "Factor by which to upscale the generated image. This interface accepts only 4.",
+                      "type": "integer",
+                      "enum": [
+                        4
+                      ]
+                    },
+                    "recommendation": null,
+                    "reason": "The authored supported subset selects factor 4 from the provider model mapping and the checkpoint's native 4x scale. This is not a measured list of every provider-accepted factor."
+                  },
+                  "numberResults": {
+                    "status": "not-applicable",
+                    "binding": "dispatch-count",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "The stored schema has no numberResults field; one upscale request is one operation."
+                  },
+                  "seed": {
+                    "status": "backend-managed",
+                    "binding": "dispatch-seed",
+                    "schema": null,
+                    "recommendation": null,
+                    "reason": "The stored schema exposes no seed."
+                  }
+                },
+                "parameter_schema": {},
+                "prompt_syntax": {
+                  "default": "literal",
+                  "control": null
+                }
+              }
+            }
+          }
+        }
+      ],
+      "native_scale_factor": 4,
+      "description": "RealESRGAN_x4plus_anime_6B, a native 4x model with six RRDB blocks for anime still images and illustrations. It is distinct from the animevideov3 video model. Runware standalone execution uses the attributed authored subset in this pack, not a separately acquired complete anime-6b schema."
+    },
+    {
+      "id": "animesharp",
+      "label": "4x-AnimeSharp",
+      "curation_status": "curated",
+      "description": "The author documents an ESRGAN model with native scale 4 for anime and text, formerly named 4x-TextSharpV1. It is an interpolation of 4x-UltraSharp and 4x-TextSharp-v0.5. Runware lists this AIR in its hiresFix model table. The standalone imageUpscale parameter contract remains unresolved; native 4x is not a confirmed standalone upscaleFactor enum.",
+      "aliases": [
+        "anime sharp",
+        "4x-AnimeSharp",
+        "4x-TextSharpV1",
+        "runware:esrgan@animesharp"
+      ],
+      "tags": [
+        "model",
+        "upscaler",
+        "restorative",
+        "animesharp"
+      ],
+      "search_terms": [
+        {
+          "phrase": "animesharp",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "4x-AnimeSharp",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "restorative upscaler",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ],
+      "operation_kind": "upscale",
+      "input_image_count": 1,
+      "upscaler_class": "restorative",
+      "native_scale_factor": 4,
+      "supports_guidance_prompt": false,
+      "upscale_settings": {},
+      "prompt_style": "image restoration without a text prompt",
+      "prompt_input": {
+        "mode": "none",
+        "forms": [],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "model-author-documentation",
+            "source": "https://huggingface.co/Kim2091/AnimeSharp/blob/main/README.md",
+            "scope": "model",
+            "observed_at": "2026-11-22",
+            "statement": "The author documents an ESRGAN model with native scale 4 for anime and text, formerly named 4x-TextSharpV1. It is an interpolation of 4x-UltraSharp and 4x-TextSharp-v0.5. This image restoration network is not a text-conditioned generator."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/sdxl",
+            "scope": "operation",
+            "observed_at": "2026-11-22",
+            "statement": "The hiresFix model table maps runware:esrgan@animesharp to 4x-AnimeSharp. This identifies an upscaler option for that operation; it does not establish the standalone request schema, allowed request scales or hosted checkpoint digest."
+          }
+        ],
+        "notes": [
+          "No model prompt or rendering declaration is required for the upstream restoration operation. Provider routing instructions are not model prompt text.",
+          "The cited Runware table establishes the model mapping for SDXL hiresFix, not a complete standalone imageUpscale schema or accepted request-scale list. Acquire exact standalone evidence before dispatcher preparation."
+        ]
+      },
+      "ordering": [
+        "input-image",
+        "scale-parameters"
+      ],
+      "verified_on": "2026-11-22",
+      "recommended_uses": [
+        "candidate for anime images and text, following the model author's stated use"
+      ],
+      "avoid_uses": [
+        "workflows requiring pixel-identical preservation or zero inferred detail",
+        "standalone dispatch before the selected interface has an acquired contract or explicit bounded-probe basis"
+      ],
+      "offerings": [
+        {
+          "service": "runware",
+          "model_identifier": "runware:esrgan@animesharp",
+          "request_keys": {},
+          "constraints": {
+            "documented_surface": "SDXL hiresFix upscaler model list",
+            "standalone_contract": "Unresolved. The current provider model table supplies no complete standalone schema or accepted-scale list.",
+            "native_scale": "The upstream model is native 4x; the standalone provider scale enum is unknown."
+          },
+          "observed_at": "2026-11-22"
+        }
+      ]
+    },
+    {
+      "id": "ultrasharp",
+      "label": "4x-UltraSharp",
+      "curation_status": "curated",
+      "description": "The author documents an ESRGAN model with native scale 4 for general images and emphasizes JPEG-compression training. It is not limited to photography. Runware lists this AIR in its hiresFix model table. The standalone imageUpscale parameter contract remains unresolved; native 4x is not a confirmed standalone upscaleFactor enum.",
+      "aliases": [
+        "ultra sharp",
+        "4x-UltraSharp",
+        "runware:esrgan@ultrasharp"
+      ],
+      "tags": [
+        "model",
+        "upscaler",
+        "restorative",
+        "ultrasharp"
+      ],
+      "search_terms": [
+        {
+          "phrase": "ultrasharp",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "4x-UltraSharp",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        },
+        {
+          "phrase": "restorative upscaler",
+          "facet": "model",
+          "weight": 1.0,
+          "source": "author"
+        }
+      ],
+      "operation_kind": "upscale",
+      "input_image_count": 1,
+      "upscaler_class": "restorative",
+      "native_scale_factor": 4,
+      "supports_guidance_prompt": false,
+      "upscale_settings": {},
+      "prompt_style": "image restoration without a text prompt",
+      "prompt_input": {
+        "mode": "none",
+        "forms": [],
+        "vocabularies": [],
+        "basis": [
+          {
+            "kind": "model-author-documentation",
+            "source": "https://huggingface.co/Kim2091/UltraSharp/blob/main/README.md",
+            "scope": "model",
+            "observed_at": "2026-11-22",
+            "statement": "The author documents an ESRGAN model with native scale 4 for general images and emphasizes JPEG-compression training. It is not limited to photography. This image restoration network is not a text-conditioned generator."
+          },
+          {
+            "kind": "provider-documentation",
+            "source": "https://runware.ai/docs/models/sdxl",
+            "scope": "operation",
+            "observed_at": "2026-11-22",
+            "statement": "The hiresFix model table maps runware:esrgan@ultrasharp to 4x-UltraSharp. This identifies an upscaler option for that operation; it does not establish the standalone request schema, allowed request scales or hosted checkpoint digest."
+          }
+        ],
+        "notes": [
+          "No model prompt or rendering declaration is required for the upstream restoration operation. Provider routing instructions are not model prompt text.",
+          "The cited Runware table establishes the model mapping for SDXL hiresFix, not a complete standalone imageUpscale schema or accepted request-scale list. Acquire exact standalone evidence before dispatcher preparation."
+        ]
+      },
+      "ordering": [
+        "input-image",
+        "scale-parameters"
+      ],
+      "verified_on": "2026-11-22",
+      "recommended_uses": [
+        "candidate for general images, including images with JPEG compression, following the model author's stated use"
+      ],
+      "avoid_uses": [
+        "workflows requiring pixel-identical preservation or zero inferred detail",
+        "standalone dispatch before the selected interface has an acquired contract or explicit bounded-probe basis"
+      ],
+      "offerings": [
+        {
+          "service": "runware",
+          "model_identifier": "runware:esrgan@ultrasharp",
+          "request_keys": {},
+          "constraints": {
+            "documented_surface": "SDXL hiresFix upscaler model list",
+            "standalone_contract": "Unresolved. The current provider model table supplies no complete standalone schema or accepted-scale list.",
+            "native_scale": "The upstream model is native 4x; the standalone provider scale enum is unknown."
+          },
+          "observed_at": "2026-11-22"
+        }
+      ]
     }
   ]
 }

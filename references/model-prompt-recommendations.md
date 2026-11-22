@@ -1,6 +1,6 @@
 # Model Prompt Recommendation Contract
 
-Verified: 2026-10-16
+Verified: 2026-11-22
 
 ## Admission rule
 
@@ -18,6 +18,10 @@ The core release evaluates only the model records owned by `packs/commons`.
 | `commons` | `seedream-5.5` (ByteDance Seedream 5.5) | No fixed reusable default adopted | The exact Runware interface is observed; natural-language directions remain task-specific. Critical exclusions belong in the positive prompt because no negativePrompt field is exposed. |
 | `commons` | `minimax-h3-image` (MiniMax H3 Image) | No fixed reusable default adopted | The exact Runware interface is observed; natural-language directions remain task-specific. Critical exclusions belong in the positive prompt because no negativePrompt field is exposed. |
 | `commons` | `qwen-image-2.1-pro` (Alibaba Qwen-Image-2.1-Pro) | No fixed reusable default adopted | The observed Runware interface accepts task-specific natural-language instructions; no universal prompt string is committed. |
+| `commons` | `real-esrgan` (Real-ESRGAN x4plus) | No prompt recommendation applies | The restoration interface takes an image and scale, not a text prompt or negative prompt. |
+| `commons` | `real-esrgan-anime-6b` (Real-ESRGAN x4plus anime 6B) | No prompt recommendation applies | The anime restoration interface takes an image and scale, not a text prompt or negative prompt. |
+| `commons` | `animesharp` (4x-AnimeSharp) | No prompt recommendation adopted | The model is an image-restoration network. Its standalone provider contract remains unresolved, and no prompt text is invented. |
+| `commons` | `ultrasharp` (4x-UltraSharp) | No prompt recommendation adopted | The model is an image-restoration network. Its standalone provider contract remains unresolved, and no prompt text is invented. |
 
 ## Nondefault-pack boundary
 

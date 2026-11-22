@@ -1,9 +1,9 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.11.21.5",
+  "version": "2026.11.22.1",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
-  "generated_at": "2026-11-21",
+  "generated_at": "2026-11-22",
   "license": "GPL-3.0-only",
   "language": "English project content and canonical English retrieval; user-language interpretation belongs to the calling agent",
   "purpose": "state-aware expansion of character ideas into coherent model-aware image prompts",
@@ -17,10 +17,10 @@
     "default_state": "config/default-pack-state.json",
     "default_pack_count": 1,
     "record_counts": {
-      "total_records": 134,
+      "total_records": 138,
       "record_families": {
         "domain-realization": 6,
-        "model": 6,
+        "model": 10,
         "module": 111,
         "profile": 1,
         "scene": 6,
@@ -44,7 +44,7 @@
       }
     },
     "tier_counts": {
-      "curated": 118,
+      "curated": 122,
       "vocabulary": 16
     },
     "named_resources": [
@@ -81,8 +81,8 @@
     "distribution": "generated externally by scripts/package.py",
     "included_in_archive": false
   },
-  "file_count_excluding_manifest": 1191,
-  "total_bytes_excluding_manifest": 24028339,
+  "file_count_excluding_manifest": 1193,
+  "total_bytes_excluding_manifest": 24068388,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -97,12 +97,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "536050c78c79364bfea9d030ebf4e66d5c315a9fba8ab55ab45318aecac2493f"
+      "sha256": "dbaba7b124d843810a05322695762c0c04bef674344feac4c1c03016c82a80f9"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "a2c65d5589e095a7156dca465156f60170d4cee5a360fd73aea7b0cd46458827"
+      "sha256": "4d482d84778cf23e59f44fd2f7bf27c883c9163f05769280be4b863a2f67e75c"
     },
     {
       "path": ".python-version",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 144721,
-      "sha256": "89e5220b5c52ffe805ff8cc83dfaced5c8b3e2b41182d6e1dd6ed72eb2a1b63a"
+      "bytes": 145129,
+      "sha256": "88160b95b464a24de11f789d0218e757f5294ee11009f34e03bb4a29972196eb"
     },
     {
       "path": "CLAUDE.md",
@@ -292,7 +292,7 @@
     {
       "path": "examples/craft-consultation/report.json",
       "bytes": 376,
-      "sha256": "f0e57a093fc2561e5dc3a92c5e05b10730fd173c4e9a77c04bebfa75528988cb"
+      "sha256": "16d7dea1e5d060cedf3ffabafb6fa3a33dbdc7ba22f989c5dbda61983a4be015"
     },
     {
       "path": "examples/declared-structures/asymmetric-topology.json",
@@ -1582,12 +1582,12 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2130,
-      "sha256": "a7c1c297d3cf6b61f825855d1ee13db7fd90e8cad176834f4768759733636763"
+      "sha256": "a5da8b34a0bb947fd3d5fbff3359081d74f27f6839750909db75e135978492a5"
     },
     {
       "path": "packs/commons/pack.json",
       "bytes": 1888,
-      "sha256": "20a0ee577e9a361602b8a88b9f82bd8bcbec6886d022d9803d53656d01416f4d"
+      "sha256": "19df76096460fa342254133f52d303c994319d6fc12025e368095d92fa9a0877"
     },
     {
       "path": "packs/commons/records/base-scenes.json",
@@ -1601,8 +1601,8 @@
     },
     {
       "path": "packs/commons/records/models.json",
-      "bytes": 229540,
-      "sha256": "e358ed890cee1319ea833dcc15e788a7452a93425bbabcae5eea3e2258e2ef86"
+      "bytes": 252603,
+      "sha256": "780af0661ccd76c712cabb99bc02f1975ea368f53a713a000ec48463038c1b9c"
     },
     {
       "path": "packs/commons/records/modules/aesthetic-touch.json",
@@ -1758,6 +1758,16 @@
       "path": "packs/commons/resources/observed-schemas/qwen-image-2.1-pro.runware.json",
       "bytes": 12531,
       "sha256": "753e9b45b71722a162b633420df48e64665c5bb2ed22fde8aedc5e8db7941c9e"
+    },
+    {
+      "path": "packs/commons/resources/observed-schemas/real-esrgan-anime-6b.runware.json",
+      "bytes": 3406,
+      "sha256": "d36a1f359da27419a3e2155098b72db60e1956b72ad7e348e26319f05bfbb2e3"
+    },
+    {
+      "path": "packs/commons/resources/observed-schemas/real-esrgan.runware.json",
+      "bytes": 3148,
+      "sha256": "e5417f9104186427cbec51628baa0fa972a66ae6b6596c2d81111d011585fa1f"
     },
     {
       "path": "packs/commons/resources/observed-schemas/seedream-5.5.runware.json",
@@ -2417,7 +2427,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 825,
-      "sha256": "4e2b078b02d67a345e931591f22822e8e5de5a55904b278d903e1863c970fa06"
+      "sha256": "c6c70e031798dabdca6968ac3d6b53b954bd158be287c04a30448055b4f60c1d"
     },
     {
       "path": "references/adapters/gpt-image.md",
@@ -2491,8 +2501,8 @@
     },
     {
       "path": "references/catalog-index.md",
-      "bytes": 3187,
-      "sha256": "0c9075cfc96879c6b8eb66e0dbd8cd242e135c399244788f08423387d3975fbb"
+      "bytes": 3188,
+      "sha256": "8cdf497c62a09e5a8b57fd8e48461b5478d6e55211dcd395748ecabccf5c7808"
     },
     {
       "path": "references/character-identity-contract.md",
@@ -2576,8 +2586,8 @@
     },
     {
       "path": "references/model-prompt-recommendations.md",
-      "bytes": 3475,
-      "sha256": "7657ad8a6f6256d58a14f6ef77b361bae837395c1032eb34d24cd38068661cc6"
+      "bytes": 4275,
+      "sha256": "b51e4edfd1f888f09d86ee7112f6f6688b211778a0c872de173541cc27dd26b8"
     },
     {
       "path": "references/morphology-and-species-contracts.md",
@@ -3871,8 +3881,8 @@
     },
     {
       "path": "scripts/fixtures/model_capability_cases.json",
-      "bytes": 14357,
-      "sha256": "ef6b57060c0c964d6a5e82e1b812e53cc97e115084e3d33b59b4eb8155af4e78"
+      "bytes": 21578,
+      "sha256": "2d0b1f527a3b255e54c1feab57daf22a44f906d3a13d386648e15ffbac2087c7"
     },
     {
       "path": "scripts/fresh_session_runtime_smoke_test.py",
@@ -3996,8 +4006,8 @@
     },
     {
       "path": "scripts/model_capability_smoke_test.py",
-      "bytes": 19655,
-      "sha256": "d5c14d6d05f3792dfeacd2efdb48a69a7cbd9f6571264c48864b3af3cf1c9adc"
+      "bytes": 21410,
+      "sha256": "8bbc3422e2dfeb1e0ab76ae82a02ded8de5bdea616ada5653ba0736e0d823a88"
     },
     {
       "path": "scripts/model_contract.py",
@@ -5631,8 +5641,8 @@
     },
     {
       "path": "scripts/validate.py",
-      "bytes": 127024,
-      "sha256": "b3f1965aae7615b6f636c8e19d5c0c17eeb2be243140bb5e0de29ba6fed041a1"
+      "bytes": 127271,
+      "sha256": "c48d3d241cb25c771444723ec37b0bc697eb0a031a52a03cc106a4f7b01874a1"
     },
     {
       "path": "scripts/validate_catalog_site.py",
@@ -6037,7 +6047,7 @@
     {
       "path": "uv.lock",
       "bytes": 113758,
-      "sha256": "07387888fca6248bff499babd002927535172d1c47766ec1557f38de43edf584"
+      "sha256": "1ce8a963b44c60b2ebd90809eb7f58826951f88d6e54e94d75e074a7a22c64fb"
     }
   ]
 }

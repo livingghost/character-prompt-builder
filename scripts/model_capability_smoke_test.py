@@ -86,6 +86,9 @@ class ModelCapabilityTests(unittest.TestCase):
 
     def setUp(self):
         self.blocked = []
+        self.all_fixtures = list(self.fixtures)
+        self.fixtures = [row for row in self.all_fixtures
+                         if self.models[row["model"]].get("operation_kind") != "upscale"]
         for target in ("urllib.request.urlopen", "socket.create_connection"):
             self.blocked.append(self.enterContext(patch(target, side_effect=AssertionError("unexpected network call"))))
         for transport in self.transports.values():
@@ -128,12 +131,12 @@ class ModelCapabilityTests(unittest.TestCase):
             yield from self.cases["case_sets"][name]
 
     def test_case_matrix_covers_every_commons_offering(self):
-        keys = [(row["model"], row["service"]) for row in self.fixtures]
+        keys = [(row["model"], row["service"]) for row in self.all_fixtures]
         self.assertTrue(keys)
         self.assertEqual(len(keys), len(set(keys)), "duplicate offering cases")
         self.assertEqual(set(keys), set(self.offerings), "commons offerings and validation cases must match")
-        self.assertEqual({name for row in self.fixtures for name in row["case_sets"]}, set(self.cases["case_sets"]))
-        for fixture in self.fixtures:
+        self.assertEqual({name for row in self.all_fixtures for name in row["case_sets"]}, set(self.cases["case_sets"]))
+        for fixture in self.all_fixtures:
             cases = list(self.scenarios(fixture))
             self.assertTrue(cases)
             for case in cases:
@@ -143,13 +146,18 @@ class ModelCapabilityTests(unittest.TestCase):
                         self.assertIs(type(case["profile"]), bool)
 
     def test_definition_identity_and_aliases(self):
-        for fixture in self.fixtures:
+        for fixture in self.all_fixtures:
             with self.subTest(model=fixture["model"]):
                 record, offering = self.models[fixture["model"]], self.offering(fixture)
                 self.assertEqual(offering["model_identifier"], fixture["model_identifier"])
-                self.assertEqual(set(offering["execution_profile"]["modes"]), set(fixture["modes"]))
-                self.assertEqual(record["supports_negative_prompt"], fixture["supports_negative_prompt"])
-                self.assertEqual(record["negative_transport_mode"], fixture["negative_transport_mode"])
+                profile = offering.get("execution_profile") or {}
+                self.assertEqual(set(profile.get("modes", {})), set(fixture["modes"]))
+                self.assertEqual(record.get("supports_negative_prompt", False), fixture["supports_negative_prompt"])
+                if record["prompt_input"]["mode"] == "none":
+                    self.assertNotIn("negative_transport_mode", record)
+                    self.assertNotIn("negative_transport_notes", record)
+                else:
+                    self.assertEqual(record["negative_transport_mode"], fixture["negative_transport_mode"])
                 for name in [fixture["model"], *fixture["aliases"], *record.get("aliases", [])]:
                     self.assertEqual(refs.resolve_model_record(name)[0], fixture["model"])
                 self.assertEqual(refs.model_pack_root(fixture["model"]), PACK)
@@ -329,6 +337,27 @@ class ModelCapabilityTests(unittest.TestCase):
                 if prepared is not None:
                     self.assertEqual(len(prepared["selected_references"]), count)
                     self.assert_outcome(lambda: self.validate(fixture, self.request(fixture, references=count)), False)
+
+    def test_upscale_offerings_use_image_input_without_text_channels(self):
+        for fixture in self.all_fixtures:
+            record = self.models[fixture["model"]]
+            if record.get("operation_kind") != "upscale":
+                continue
+            with self.subTest(model=fixture["model"]):
+                offering = self.offering(fixture)
+                self.assertFalse(record.get("supports_negative_prompt", False))
+                if fixture["model"] in {"animesharp", "ultrasharp"}:
+                    self.assertNotIn("execution_profile", offering)
+                    self.assertNotIn("schema_snapshot", offering)
+                    continue
+                accepted = [2, 4] if fixture["model"] == "real-esrgan" else [4]
+                for factor in (2, 3, 4):
+                    request = mc.request_instance(offering, {"upscaleFactor": factor},
+                        prompt=None, media_counts={"input image": 1})
+                    self.assertNotIn("positivePrompt", request)
+                    self.assertNotIn("negativePrompt", request)
+                    put(request, "model", fixture["model_identifier"])
+                    self.assert_outcome(lambda: self.validate(fixture, request), factor in accepted)
 
 
 if __name__ == "__main__":

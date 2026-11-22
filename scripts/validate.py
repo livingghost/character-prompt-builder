@@ -2170,20 +2170,25 @@ def validate(
         valid_transport_modes = TRANSPORT_MODES - {"auto"}
         for model_id, record in model_catalog.items():
             declared = str(record.get("negative_transport_mode") or "")
-            if declared not in valid_transport_modes:
+            prompt_input = record.get("prompt_input")
+            no_text = isinstance(prompt_input, dict) and prompt_input.get("mode") == "none"
+            if no_text:
+                pass
+            elif declared not in valid_transport_modes:
                 errors.append(
                     f"enabled model record {model_id!r} has invalid negative_transport_mode {declared!r}"
                 )
                 continue
-            try:
-                inferred = infer_negative_transport(model_id)
-            except ValueError as exc:
-                errors.append(f"model transport resolution failed for {model_id!r}: {exc}")
-                continue
-            if inferred != declared:
-                errors.append(
-                    f"model transport mismatch for {model_id!r}: declared {declared!r}, resolved {inferred!r}"
-                )
+            else:
+                try:
+                    inferred = infer_negative_transport(model_id)
+                except ValueError as exc:
+                    errors.append(f"model transport resolution failed for {model_id!r}: {exc}")
+                    continue
+                if inferred != declared:
+                    errors.append(
+                        f"model transport mismatch for {model_id!r}: declared {declared!r}, resolved {inferred!r}"
+                    )
             aliases = record.get("aliases") or []
             if not isinstance(aliases, list):
                 errors.append(

@@ -7,18 +7,18 @@ This index describes 1 explicitly configured default pack. User-owned and third-
 | Record family | Count |
 |---|---:|
 | `domain-realization` | 6 |
-| `model` | 6 |
+| `model` | 10 |
 | `module` | 111 |
 | `profile` | 1 |
 | `scene` | 6 |
 | `style-family` | 4 |
-| **All default-pack records** | **134** |
+| **All default-pack records** | **138** |
 
 ## Record roles
 
 | Role | Count |
 |---|---:|
-| `curated` | 118 |
+| `curated` | 122 |
 | `vocabulary` | 16 |
 
 `curated` records contain complete production knowledge. `vocabulary` records provide compact model-legible names and options. These are different jobs, not a quality ranking.
@@ -52,7 +52,7 @@ This index describes 1 explicitly configured default pack. User-owned and third-
   "human": 7,
   "hybrid": 42,
   "robot": 4,
-  "shared": 93
+  "shared": 97
 }
 ```
 

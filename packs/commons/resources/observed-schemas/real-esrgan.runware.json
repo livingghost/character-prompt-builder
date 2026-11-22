@@ -1,0 +1,99 @@
+{
+  "artifact_type": "supported-parameter-schema",
+  "model_id": "real-esrgan",
+  "service": "runware",
+  "model_identifier": "runware:504@1",
+  "observed_at": "2026-09-13",
+  "source": "the service's model schema endpoint",
+  "selection": {
+    "source_schema_sha256": "0c27a04951f1c4476418e4bc8c3adf9e4f4913d40b29008fa545523e98106aa9",
+    "statement": "Authored supported subset of the recorded source schema. Image inputs use UUIDs issued by a completed file upload; image results use URL delivery. The source attribution retains its original target and observation limits."
+  },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "title": "Model",
+        "description": "Identifier of the model to use for generation.",
+        "type": "string",
+        "const": "runware:504@1"
+      },
+      "upscaleFactor": {
+        "title": "Upscale Factor",
+        "description": "Factor by which to upscale the generated image. A value of 2 doubles width and height.",
+        "type": "integer",
+        "enum": [
+          2,
+          4
+        ]
+      },
+      "includeCost": {
+        "title": "Include Cost",
+        "description": "Include task cost in the response.",
+        "type": "boolean"
+      },
+      "uploadEndpoint": {
+        "title": "Upload Endpoint",
+        "description": "URL to upload content via HTTP PUT. The request body will contain the raw binary data.",
+        "type": "string",
+        "format": "uri"
+      },
+      "ttl": {
+        "title": "TTL",
+        "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+        "type": "integer",
+        "minimum": 60
+      },
+      "outputQuality": {
+        "title": "Output Quality",
+        "description": "Compression quality of the output. Higher values preserve quality but increase file size.",
+        "type": "integer",
+        "minimum": 20,
+        "maximum": 99,
+        "default": 95
+      },
+      "outputType": {
+        "title": "Output Type",
+        "description": "Image output is delivered by URL.",
+        "type": "string",
+        "enum": [
+          "URL"
+        ],
+        "default": "URL"
+      },
+      "outputFormat": {
+        "title": "Output Format",
+        "description": "File format for the generated image.",
+        "type": "string",
+        "enum": [
+          "JPG",
+          "PNG",
+          "WEBP"
+        ],
+        "default": "JPG"
+      },
+      "inputs": {
+        "title": "Inputs",
+        "description": "The unified payload wrapper for complex media assets dictating image, video or audio inference constraints.",
+        "type": "object",
+        "properties": {
+          "image": {
+            "title": "Image",
+            "description": "Image input (issued upload UUID).",
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "image"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "model",
+      "inputs"
+    ]
+  }
+}

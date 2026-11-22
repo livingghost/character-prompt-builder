@@ -1,0 +1,98 @@
+{
+  "artifact_type": "supported-parameter-schema",
+  "model_id": "real-esrgan-anime-6b",
+  "service": "runware",
+  "model_identifier": "runware:realesrgan@anime-6b",
+  "observed_at": "2026-11-22",
+  "source": "Authored from Runware's SDXL upscaler table and the Real-ESRGAN model author's model zoo and anime inference guide. No dedicated provider-returned standalone schema is claimed.",
+  "selection": {
+    "source_schema_sha256": "e9c1df6eabf51f9c17e2a2354a0ee22e41c045652647b77f5823a3521ba4cb3d",
+    "statement": "Authored supported subset using the retained sibling-schema acquisition identified by source_schema_sha256 and current official model mapping. Factor 4 is selected from the provider mapping and the checkpoint's native 4x scale. This is not a provider-returned standalone anime-6b schema or a measured visual-quality claim."
+  },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "title": "Model",
+        "description": "Identifier of the model to use for generation.",
+        "type": "string",
+        "const": "runware:realesrgan@anime-6b"
+      },
+      "upscaleFactor": {
+        "title": "Upscale Factor",
+        "description": "Factor by which to upscale the generated image. This interface accepts only 4.",
+        "type": "integer",
+        "enum": [
+          4
+        ]
+      },
+      "includeCost": {
+        "title": "Include Cost",
+        "description": "Include task cost in the response.",
+        "type": "boolean"
+      },
+      "uploadEndpoint": {
+        "title": "Upload Endpoint",
+        "description": "URL to upload content via HTTP PUT. The request body will contain the raw binary data.",
+        "type": "string",
+        "format": "uri"
+      },
+      "ttl": {
+        "title": "TTL",
+        "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+        "type": "integer",
+        "minimum": 60
+      },
+      "outputQuality": {
+        "title": "Output Quality",
+        "description": "Compression quality of the output. Higher values preserve quality but increase file size.",
+        "type": "integer",
+        "minimum": 20,
+        "maximum": 99,
+        "default": 95
+      },
+      "outputType": {
+        "title": "Output Type",
+        "description": "Image output is delivered by URL.",
+        "type": "string",
+        "enum": [
+          "URL"
+        ],
+        "default": "URL"
+      },
+      "outputFormat": {
+        "title": "Output Format",
+        "description": "File format for the generated image.",
+        "type": "string",
+        "enum": [
+          "JPG",
+          "PNG",
+          "WEBP"
+        ],
+        "default": "JPG"
+      },
+      "inputs": {
+        "title": "Inputs",
+        "description": "The unified payload wrapper for complex media assets dictating image, video or audio inference constraints.",
+        "type": "object",
+        "properties": {
+          "image": {
+            "title": "Image",
+            "description": "Image input (issued upload UUID).",
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "image"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "model",
+      "inputs"
+    ]
+  }
+}
