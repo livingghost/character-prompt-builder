@@ -546,6 +546,35 @@ class RetainedSourceMutationTests(unittest.TestCase):
         self.assertEqual(core.source_bytes(basis['sources']['canon']), self.replacement)
         self.assertEqual(result['choices_file'], (Path(output) / 'choices.json').as_posix())
 
+    def test_cross_task_run_revision_repair_remains_registered(self):
+        import production_operations as operations
+        import work_ledger
+
+        (self.root / self.choices_path).write_bytes(c.encoded(self.choices))
+        parent = operations.prepare(self.root, choices=self.choices_path)['run']
+        work_ledger.suspend(self.root, reason='Open independent synthetic revision work.')
+        revision = work_ledger.begin(self.root, 'Synthetic identity revision.', ['Compose'])['task_id']
+        drafted = inputs.draft_inputs(self.root, None, 'cross-task-amend', from_run=parent,
+                                      operation='amend', task_id=revision)
+        self.choices_path = drafted['choices_file']
+        self.folder = Path(self.choices_path).parent
+        problem = self.reject()
+        completed = subprocess.run(problem['repair_action']['argv'], cwd=self.root,
+            capture_output=True, text=True, encoding='utf-8', timeout=60)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        result = json.loads(completed.stdout)
+        inspection = subprocess.run([sys.executable, str(Path(__file__).with_name('production_workflow.py')),
+            'inspect-inputs', '--root', str(self.root), '--choices', result['choices_file'], '--view', 'summary'],
+            cwd=self.root, capture_output=True, text=True, encoding='utf-8', timeout=60)
+        self.assertEqual(inspection.returncode, 0, inspection.stdout + inspection.stderr)
+        report = json.loads(inspection.stdout)
+        self.assertEqual(report['choices_file'], result['choices_file'])
+        self.assertFalse(any(row.get('code') == 'AUTHORING_STATE_UNREADABLE'
+                             for row in report['diagnostics']), report)
+        context = c.load(self.root / result['context_file'])
+        self.assertEqual(context['task_binding'], {'task_id': revision})
+        self.assertEqual(context['derived_from']['source_run']['run'], parent)
+
     def test_exclusion_uses_retained_bytes_when_original_is_unavailable(self):
         original = next(row for row in self.choices['authoring']['task']['sources'] if row['id'] == 'canon')
         excluded = {key: copy.deepcopy(value) for key, value in original.items()

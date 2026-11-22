@@ -1311,8 +1311,7 @@ def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str 
     result['authoring_guide'] = production_input_guide.summary(root, choice_path, choices)
     context = {key: value for key, value in result.items() if key != 'choices'}
     context['task_content'] = task
-    if task_id is not None:
-        context['task_binding'] = {'task_id': task_id}
+    context['task_binding'] = {'task_id': task['task_id']}
     raw = c.encoded(context)
     open_work()
     state.remember_inputs(root, task, 'draft-inputs', out_dir, task_path=None,

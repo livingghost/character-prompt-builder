@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.11.22.3
+
+- Preserve the actual work-task binding when repairing a retained candidate from another task's run. Keep the repaired draft registered and inspectable without changing its source-run provenance.
+
 ## 2026.11.22.2
 
 - Declare retained and changed owners for an amendment with `plan` or
