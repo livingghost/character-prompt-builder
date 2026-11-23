@@ -453,8 +453,9 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
             cwd=self.base, capture_output=True, text=True, encoding='utf-8', timeout=45)
         self.assertEqual(failed.returncode, 2, failed.stdout + failed.stderr)
         [diagnostic] = json.loads(failed.stdout)['diagnostics']
-        self.assertEqual(tuple(diagnostic.get(key) for key in ('code', 'file', 'root', 'run')),
-                         ('INPUT_SCHEMA_INVALID', str(outside), str(self.root), run))
+        self.assertEqual((diagnostic['code'], diagnostic['run']), ('INPUT_SCHEMA_INVALID', run))
+        self.assertTrue(Path(diagnostic['file']).samefile(outside))
+        self.assertTrue(Path(diagnostic['root']).samefile(self.root))
         self.assertIn('Copy the existing received file into the studio', diagnostic['required_action'])
         self.assertIn('same --run and --response', diagnostic['required_action'])
         self.assertIn('no regeneration', diagnostic['required_action'])

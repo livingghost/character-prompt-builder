@@ -611,7 +611,8 @@ class InitialAuthoringContinuationTests(unittest.TestCase):
         context_path = Path(drafted['choices_file']).parent / 'context.json'
         original_context = (self.root / context_path).read_bytes()
         stored = c.decode(original_context)['authoring_guide']
-        self.assertIn(str(old_skill / 'scripts/production_workflow.py'), stored['explain_action']['argv'])
+        self.assertEqual(Path(stored['explain_action']['argv'][1]).resolve(),
+                         (old_skill / 'scripts/production_workflow.py').resolve())
         with tempfile.TemporaryDirectory() as temporary:
             moved = Path(temporary) / 'relocated-studio'
             shutil.copytree(self.root, moved)
@@ -620,7 +621,7 @@ class InitialAuthoringContinuationTests(unittest.TestCase):
             action = report['context']['input']['authoring_guide_action']
             argv = action['argv']
             self.assertIn(str(guide.ROOT / 'scripts/production_workflow.py'), argv)
-            self.assertEqual(argv[argv.index('--root') + 1], str(moved))
+            self.assertTrue(Path(argv[argv.index('--root') + 1]).samefile(moved))
             self.assertEqual(argv[argv.index('--choices') + 1], drafted['choices_file'])
             self.assertEqual(argv[argv.index('--field') + 1], 'authoring')
             compact = production_report_view.authoring_state(moved, report, choices=drafted['choices_file'])

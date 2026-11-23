@@ -1109,9 +1109,9 @@ class AuthoredPlanConditionCases(unittest.TestCase):
         self.assertEqual((self.root / self.choices_path).read_bytes(), original)
         current = production_authoring_state.inspect(self.root)
         self.assertFalse(current['selection_required'], current)
-        self.assertEqual(current['context']['input']['choices_file'], str(self.root / successor['choices_file']))
+        self.assertTrue(Path(current['context']['input']['choices_file']).samefile(self.root / successor['choices_file']))
         explicit = production_inputs.inspect_inputs(self.root, choices_path=sibling['choices_file'])
-        self.assertEqual(explicit['context']['input']['choices_file'], str(self.root / sibling['choices_file']))
+        self.assertTrue(Path(explicit['context']['input']['choices_file']).samefile(self.root / sibling['choices_file']))
         completed = plans.advance(self.root, plan)
         self.assertEqual(completed['state'], 'complete', completed)
         run = completed['items'][0]['run']

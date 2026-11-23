@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1231,
-  "total_bytes_excluding_manifest": 25077692,
+  "total_bytes_excluding_manifest": 25077826,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -4666,8 +4666,8 @@
     },
     {
       "path": "scripts/production_resume_smoke_test.py",
-      "bytes": 53462,
-      "sha256": "97f1099cd24d72bf11dd43dc224fddc4d61b9f0226d2e85ec704f55921dcc685"
+      "bytes": 53525,
+      "sha256": "cf22e1f808936de8a4dfdf6e3c6d6d33a6eb8131c7dd6ac1c2f20df4bed21ebb"
     },
     {
       "path": "scripts/production_saved_inputs.py",
@@ -5506,8 +5506,8 @@
     },
     {
       "path": "scripts/test_external_delivery.py",
-      "bytes": 37979,
-      "sha256": "5d99aff5f27f6040e33402721987c48587ab72b6ae181650a32cdefc0e96cb52"
+      "bytes": 38032,
+      "sha256": "a29853cd83184b3a83214dfd441c1700b70fe434612cbfde473e503faea60b8b"
     },
     {
       "path": "scripts/test_identity_coverage.py",
@@ -5751,8 +5751,8 @@
     },
     {
       "path": "scripts/test_production_work_plan_cases.py",
-      "bytes": 98772,
-      "sha256": "ca8325a7bff1c45275bb1f9229232201ca6f7d28ea1386d15047929a04631131"
+      "bytes": 98790,
+      "sha256": "8445f2f644011812f9ef9113e80d8327e2e8328f9e1fea0d6930f1a698d77c74"
     },
     {
       "path": "scripts/test_reference_read_model.py",
