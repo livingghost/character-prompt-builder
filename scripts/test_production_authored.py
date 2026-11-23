@@ -230,7 +230,9 @@ class AuthoredRevisionTests(unittest.TestCase):
                     self.assertIn('basis and content.prompt, not choices.json', problem['required_action'])
                     self.assertIn('target and document selections', problem['required_action'])
                     prepare = problem['operation_guidance']['prepare']['argv']
-                    self.assertEqual(prepare[-5:], ['prepare', '--root', str(self.root), '--choices', path])
+                    self.assertEqual(prepare[-5:-3], ['prepare', '--root'])
+                    self.assertTrue(Path(prepare[-3]).samefile(self.root))
+                    self.assertEqual(prepare[-2:], ['--choices', path])
                     export = problem['operation_guidance']['prompt_export']
                     self.assertIn('WORK --pointer /prompt --out FILE', export['required_inputs'])
                 publish.assert_not_called()

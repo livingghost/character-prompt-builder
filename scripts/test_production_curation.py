@@ -498,7 +498,7 @@ class CurationTests(unittest.TestCase):
         f.write(self.root / 'adoption-basis.txt', 'A later unrelated instruction cannot replace captured approval.')
         result = self.apply(drafted, choice)
         self.assertEqual(result['result']['status'], 'catalog-registered')
-        self.assertEqual(Path(result['result']['registration']['pack_path']), target)
+        self.assertTrue(Path(result['result']['registration']['pack_path']).samefile(target))
         self.assertEqual(before, {path.relative_to(target): path.read_bytes() for path in target.rglob('*') if path.is_file()})
         self.assertTrue(validate_pack(target, require_lock=True).valid)
         canonical = c.load(target / 'records/canonical.json')['records'][0]

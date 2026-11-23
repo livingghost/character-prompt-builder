@@ -27,6 +27,17 @@ import test_authored_continuation as authored_cases
 import test_production_identity as identity_cases
 
 
+def assert_same_action(test, actual, expected):
+    """Compare command actions by executable file identity across path aliases."""
+    test.assertEqual(actual['command'], expected['command'])
+    test.assertEqual(actual['reason'], expected['reason'])
+    test.assertEqual(len(actual['argv']), len(expected['argv']))
+    for actual_part, expected_part in zip(actual['argv'], expected['argv']):
+        if actual_part != expected_part:
+            test.assertTrue(Path(actual_part).samefile(Path(expected_part)),
+                            (actual_part, expected_part))
+
+
 class PlanProjectionCases(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -236,7 +247,7 @@ class PlanProjectionCases(unittest.TestCase):
             diagnostic = caught.exception.diagnostic.as_dict()
             self.assertEqual(diagnostic['code'], 'INPUT_CONSISTENCY_ERROR')
             self.assertEqual(diagnostic['plan'], path)
-            self.assertEqual(diagnostic['next_action'], plans.action(self.root, path))
+            assert_same_action(self, diagnostic['next_action'], plans.action(self.root, path))
             self.assertEqual(diagnostic['plan_continuation'], diagnostic['next_action'])
             self.assertEqual(diagnostic['guidance']['document_path'],
                              'references/runtime/production-work-plan.md#revise-the-result-or-items')
@@ -991,7 +1002,7 @@ class AuthoredPlanConditionCases(unittest.TestCase):
         self.assertEqual(report['state'], 'blocked', report)
         self.assertNotIn('inspection', item['current'])
         self.assertEqual(item['diagnostic']['current_owner']['choices'], self.choices_path)
-        self.assertEqual(item['diagnostic']['plan_continuation'], plans.action(self.root, plan))
+        assert_same_action(self, item['diagnostic']['plan_continuation'], plans.action(self.root, plan))
         self.assertEqual(store.runs(self.root), [])
 
     def test_refresh_selects_a_registered_reserved_run_before_reading_the_old_editor(self):
@@ -1016,7 +1027,7 @@ class AuthoredPlanConditionCases(unittest.TestCase):
         self.assertEqual(item['run'], run, report)
         self.assertEqual(item['state'], 'pending')
         self.assertNotIn('inspection', item['current'])
-        self.assertEqual(item['current']['next_action'], plans.action(self.root, plan))
+        assert_same_action(self, item['current']['next_action'], plans.action(self.root, plan))
         self.assertEqual(repeated['items'][0], item)
         self.assertEqual(store.event_rows(self.root, run), before)
         self.assertEqual(work_ledger.read_current(self.root), owner)
@@ -1047,7 +1058,7 @@ class AuthoredPlanConditionCases(unittest.TestCase):
         self.assertEqual(item['diagnostic']['code'], 'RUN_NOT_REGISTERED')
         self.assertEqual(item['diagnostic']['current_owner']['reserved_run'], run)
         self.assertIn('reserved publication', item['diagnostic']['required_action'])
-        self.assertEqual(item['diagnostic']['plan_continuation'], plans.action(self.root, plan))
+        assert_same_action(self, item['diagnostic']['plan_continuation'], plans.action(self.root, plan))
         self.assertEqual(list(directory.iterdir()), [])
         self.assertEqual(store.runs(self.root), [])
         self.assertEqual(work_ledger.read_current(self.root), owner)

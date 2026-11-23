@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1231,
-  "total_bytes_excluding_manifest": 25076967,
+  "total_bytes_excluding_manifest": 25077692,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -5566,8 +5566,8 @@
     },
     {
       "path": "scripts/test_production_authored.py",
-      "bytes": 39896,
-      "sha256": "fe1beabbdcaf8a0bcaab4e2eaefe661828b0e02cbf6629badcc17def06adc7e7"
+      "bytes": 40010,
+      "sha256": "b19ba9cfc59c6ecae40cb791ea323438215a68f038d6bac5c4fc9b4a6497b5c2"
     },
     {
       "path": "scripts/test_production_authority_drafts.py",
@@ -5596,8 +5596,8 @@
     },
     {
       "path": "scripts/test_production_curation.py",
-      "bytes": 42961,
-      "sha256": "cf303c43743868653527cbdbfd45c616fad3996bacf8d4c00f438f5e0eca8a9f"
+      "bytes": 42969,
+      "sha256": "16ea285a3dc3071d5ee5f4c3ba8ee9bfdc72c91e80b018ffd52b7efa5187352b"
     },
     {
       "path": "scripts/test_production_document_contracts.py",
@@ -5751,8 +5751,8 @@
     },
     {
       "path": "scripts/test_production_work_plan_cases.py",
-      "bytes": 98169,
-      "sha256": "c6cd80cf6c1303378fc4cf8dd828c1fc0198cb90d6126705ea108d3b2f2c497d"
+      "bytes": 98772,
+      "sha256": "ca8325a7bff1c45275bb1f9229232201ca6f7d28ea1386d15047929a04631131"
     },
     {
       "path": "scripts/test_reference_read_model.py",
