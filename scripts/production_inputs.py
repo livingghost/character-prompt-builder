@@ -37,7 +37,7 @@ IDENTITY_GAPS = {
         'it, or give the binding the treatment not-exposed or not-applicable with its reason.'),
     'missing_subject_sources': ('authoring.task.sources',
         'Identity subjects have no identity source.',
-        'Acquire each adopted definition with scripts/production_workflow.py acquire-source --root STUDIO '
+        'Acquire each applicable task-local or adopted definition with scripts/production_workflow.py acquire-source --root STUDIO '
         '--choices CHOICES --source-row SOURCE_ROW. Declare its actual role, identity.subject_ids and '
         'identity.selectors in that source row; the builder derives task sources and applications.'),
     'missing_whole_reviews': ('authoring.task.criteria',
@@ -50,8 +50,9 @@ IDENTITY_GAPS = {
         'the mistaken declaration at its existing owner.'),
     'requires_identity_source': ('authoring.task.sources',
         'The recurring-identity feature is selected, and no identity source is declared.',
-        'Acquire the adopted identity source with acquire-source using its subject_ids and selectors, '
-        'or revise the actual feature selection if this work has no recurring identity.'),
+        'Acquire the applicable task-local or adopted definition with acquire-source, declaring '
+        'identity.subject_ids and identity.selectors. Preserve its actual authority; acquisition does not '
+        'adopt canon. If this work has no shared identity, correct its feature selection.'),
 }
 
 
@@ -348,7 +349,9 @@ def _reading_required(field: str, root: Path, task: dict, choices: dict,
     return choice_required(field, 'reading-required', message,
         'Read the complete current scope with ' + action['shown'] + '. Follow actions.continue through '
         'its bounded pages until reading is non-null. actions.index exposes the exact source scope '
-        'and optional section selection. Then set ' + value + '.',
+        'and optional section selection. ' +
+        ('The completed read binds its issued key to reading.reading_key in these exact choices automatically.'
+         if choices_path is not None and 'authoring_stage' in choices else 'Then set ' + value + '.'),
         {'document_path': 'references/runtime/production-authoring.md#select-and-read-the-current-knowledge'},
         next_action=action, next_actions=[action])
 
@@ -512,6 +515,7 @@ def _reading_action(root: Path, task: dict, choices: dict, runtime_arguments: di
             'feature': task['features'], **(runtime_arguments or {})}
     if choices_path is not None and 'authoring_stage' in choices:
         args['choices'] = choices_path
+        args['bind-choices'] = True
     selected = choices.get('target') or {}
     if selected.get('kind') in {'catalog', 'acquired'}:
         field = 'model' if selected['kind'] == 'catalog' else 'model_file'
@@ -557,7 +561,9 @@ def _guidance_gap(root: Path, task: dict, choices: dict, projected: dict,
             action = next(item for item in reading_scope.actions(root, choices_path,
                 reading_scope.stage(choices, task), runtime_arguments) if item['stage'] == authoring_scope['stage'])
         return [{'field': 'reading.reading_key', 'code': 'TARGET_GUIDANCE_REQUIRED',
-                 'message': str(exc), 'required_action': 'Read the applicable current guidance and select its issued reading key.',
+                 'message': str(exc), 'required_action': 'Follow the current reading action and read every required body; '
+                     'its --bind-choices action applies the completed key to the unchanged draft. '
+                     'For a direct task without editable choices, select the issued record.',
                  'guidance': phase_guidance('route-reading'),
                  **({'source_changes': exc.as_dict()} if isinstance(exc, route_reading.ReadingSourcesChanged) else {}),
                  'next_action': action, 'next_actions': [action]}]
@@ -581,7 +587,7 @@ def continuation_action(root: Path, task: dict, choices_path: str,
     args = {'root': str(root), 'choices': choices_path, **(runtime_arguments or {})}
     source_task = (source_run or {}).get('task', {})
     previous = (source_run or {}).get('target_identity')
-    retarget = (previous is not None and target is not None and previous != target
+    retarget = (previous is not None and target is not None and production_target.identity_changed(previous, target)
         and source_task.get('production_id') == task.get('production_id'))
     if retarget:
         command = 'retarget'
@@ -636,6 +642,54 @@ def _reading(choices: dict, *, root: Path, task: dict, authoring_scope: dict | N
         routes={task['route']}, features=task['features'], execution=task['execution'],
         operation=operation, authoring_scope=authoring_scope)
     return record
+
+
+def reading_choice_identity(choices: dict) -> str:
+    """Bind authored content while allowing a replay to refresh its derived key."""
+    return c.content_id({key: value for key, value in choices.items() if key != 'reading'})
+
+
+def bind_reading(root: Path, choices_path: str, issued: dict, *, expected_choices_sha256: str,
+                 ledger: Path, source_root: Path = ROOT) -> dict:
+    """Apply one complete current reading to the exact unchanged editable owner."""
+    path = c.local(root, choices_path)
+    record = route_reading.draft_record(issued)
+    from cli_invocation import python_argv, shown
+    argv = python_argv(ROOT / 'scripts/production_workflow.py', 'inspect-inputs',
+                       '--root', str(root), '--choices', choices_path)
+    repair = {'command': 'inspect-inputs', 'argv': argv,
+              'reason': 'Inspect this current editable owner and follow its complete reading action.'}
+    with c.file_lock(path):
+        raw = c.read(path)
+        choices = read_choices(c.decode(raw), file=choices_path, root=root)
+        if reading_choice_identity(choices) != expected_choices_sha256:
+            return {'bound': False, 'choices': choices_path, 'reason': 'choices-changed',
+                'required_action': shown(argv) + '. Follow its current --bind-choices reading action. '
+                    'The completed reading remains available; no changed authored choices were overwritten.',
+                'next_action': repair}
+        scope, task, observed = reading_scope.from_choices(root, choices_path, include_choices=True)
+        if reading_choice_identity(observed) != expected_choices_sha256:
+            raise ValueError('The editable choices changed while acquiring their reading scope; read their current scope again.')
+        operation = reading_scope.operation(scope['stage'], task['execution'])
+        try:
+            route_reading.require_route_reading(record, root=source_root, studio=root, ledgers=[ledger],
+                routes={task['route']}, operation=operation, execution=task['execution'],
+                features=task.get('features', []), authoring_scope=scope)
+        except (route_reading.ReadingSourcesChanged, ValueError) as exc:
+            return {'bound': False, 'choices': choices_path, 'reason': 'reading-scope-changed',
+                'message': str(exc),
+                'required_action': shown(argv) + '. Follow its current --bind-choices reading action; '
+                    'the completed earlier reading and authored files remain intact.', 'next_action': repair}
+        # Keep the key usable by the actual input owner even when this delivery
+        # selected a separate ledger. The original exact issuance is preserved.
+        route_reading.copy_issuance(record, root / 'work/reads.jsonl', root=source_root,
+                                   studio=root, ledgers=[ledger])
+        choices['reading'] = {'reading_key': issued['reading_key']}
+        if c.read(path) != raw:
+            raise ValueError('The editable choices changed during reading binding; inspect the current owner and read its scope again.')
+        c.atomic(path, c.encoded(choices), replace=True)
+    return {'bound': True, 'choices': choices_path, 'reading_key': issued['reading_key'],
+            'meaning': 'The complete current reading was bound to these unchanged authored choices.'}
 
 
 def _destination(root: Path, out_dir: str) -> Path:
@@ -814,7 +868,28 @@ def draft_inputs(root: Path, task_path: str | None, out_dir: str, *, from_run: s
         opening = (c.text(purpose, 'upscale purpose'),
                    ['Prepare the requested enlargement.', 'Save and assess the returned image.'])
     if opening is not None:
-        work_ledger.require_beginnable(root, *opening)
+        try:
+            work_ledger.require_beginnable(root, *opening)
+        except ValueError:
+            active = work_ledger.read_current(root)
+            if active is None:
+                raise
+            from cli_invocation import python_argv, shown
+            argv = python_argv(ROOT / 'scripts/work_ledger.py', 'show', '--studio', str(root),
+                               '--task-id', active['task_id'], '--view', 'full')
+            inspect = {'command': 'show', 'argv': argv, 'shown': shown(argv),
+                       'reason': 'Inspect the exact open work before choosing its continuation or another task.'}
+            continuation = work_ledger.plan_action(root, active)
+            owner = work_ledger.task_path(root, active['task_id']).relative_to(c._root(root)).as_posix()
+            raise ProductionError('WORK_TASK_ALREADY_OPEN',
+                'A different work-task opening was requested while work is already open.',
+                phase='authoring', file=owner, pointer='/task_id', current_task=active['task_id'],
+                current_plan=active.get('production_plan'), plan_continuation=continuation,
+                repair_owner={'file': owner, 'task_id': active['task_id']},
+                next_action=inspect, next_actions=[inspect] + ([continuation] if continuation else []),
+                required_action='For a revision within this current work, omit --new-task and retain its owner. '
+                    'For a separate commission, inspect ' + shown(argv) + ' and suspend or complete that work '
+                    'through work_ledger.py before opening another task. No task or draft was replaced.') from None
         task_id = work_ledger.new_task_id(root)
 
     def open_work() -> None:
@@ -1314,8 +1389,14 @@ def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str 
     context['task_binding'] = {'task_id': task['task_id']}
     raw = c.encoded(context)
     open_work()
+    plan_continuation = None
+    if operation == 'compose' and candidate['origin'].get('choices'):
+        import production_work_plan
+        plan_continuation = production_work_plan.draft_continuation(
+            root, task['task_id'], candidate['origin']['choices'])
     state.remember_inputs(root, task, 'draft-inputs', out_dir, task_path=None,
         from_run=saved['run'] if saved else None, source_choices_path=candidate.get('source_choices'),
+        plan_continuation=plan_continuation,
         runtime_arguments=runtime_arguments, context_sha256=c.digest(raw),
         request=request['text'] if request is not None else None,
         input_arguments=_authoring_arguments(task, operation=operation, request_file=request_file,
@@ -1324,7 +1405,9 @@ def _draft_candidate(root: Path, candidate: dict, out_dir: str, *, task_id: str 
             stage=choices['authoring_stage'], source_image=source_image, scale=scale, purpose=purpose,
             change_scope=change_scope))
     _publish(root, out_dir, {**files, 'choices.json': c.encoded(choices), 'context.json': raw}, reader=reader)
-    state.published_draft(root, task, out_dir)
+    continuation = state.published_draft(root, task, out_dir)
+    if continuation is not None:
+        result['plan_continuation'] = continuation
     return {**result, 'choices_file': choice_path, 'context_file': (Path(out_dir) / 'context.json').as_posix()}
 
 

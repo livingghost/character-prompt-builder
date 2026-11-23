@@ -38,6 +38,42 @@ Each diagnostic has `code`, `severity`, `phase`, `file`, `pointer`, `message`, `
 When present, `guidance.document_path` identifies that owning document and section. `guidance.schema` names the schema when the check declares one. A document without a published JSON Schema uses `guidance.validator_source` to identify its actual logical validator by script path and function; `production_document_contracts.py explain NAME` exposes its permitted fields and validation command. Specification diagnostics include an optional `guidance.validation` action with executable `argv`, quoted `command` and `reason`. The action runs the same validator on the named specification alone. It is available for a focused correction, and is not an additional prerequisite for `check` or `prepare`.
 The compiler reports each structural defect of every declared external specification in one result, including when a separate request binding fails. Only checks that depend on an invalid source wait for its correction. Each specification diagnostic names that source file and its field, rather than the enclosing task file.
 Some add `run`, `expected`, `actual` or other details.
+The shared diagnostic owner also reports `category` and
+`repair_responsibility`. Categories are independent of process exit status:
+
+| Category | Repair responsibility |
+| --- | --- |
+| `input` | The author corrects the named input or completes its judgment. |
+| `authority` | The actual principal or delegated authority resolves the permission scope or stop condition. |
+| `state-conflict` | The current work owner inspects changed or competing state and continues its exact result. |
+| `environment` | The runtime operator repairs dependencies, credentials, configuration or storage. |
+| `provider` | The execution owner inspects the provider outcome and recovers the same submission. |
+
+These categories route a repair; they neither choose another candidate nor
+authorize a retry that would send again. The concrete `required_action`,
+`file`, `pointer` and any `repair_owner` still identify what must be corrected.
+For an existing saved plan, follow its reported `plan_continuation` after
+repair instead of creating another plan for the same work.
+
+`edit-choices` preserves the exact received JSON Pointer in a pointer failure.
+On Windows Git Bash, shell path conversion can turn `/authoring/...` into a
+filesystem path even when the argument is quoted. Disable that conversion for
+the command, then pass the actual pointer unchanged:
+
+```sh
+MSYS_NO_PATHCONV=1 python scripts/production_workflow.py edit-choices --root STUDIO --choices work/draft/choices.json --pointer /authoring/task/criteria --value-file criteria.json
+```
+
+The runtime reports `received_pointer` and the owning choices file. It does
+not guess a corrected pointer or change the selected owner automatically.
+Successful structured edits return `edit.changes`: the actual JSON Pointer
+differences with the previous and resulting values, after normalizing the
+effective task choices. These are observations of the edit, not a declaration
+of permitted scope. `inspect-inputs` separately compares actual differences
+with `work-basis.json.change_scope.retain` and `.change`. The console carries
+the values needed to inspect the change; operation logs omit `before` and
+`after` payloads and count only the owner and pointer.
+
 For parameter failures, `required_action` states whether to supply, replace or
 remove the value, or set the explicit dispatcher choice. `expected` gives the
 value schema or the available selections when relevant; `recommendation` holds

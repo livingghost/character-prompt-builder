@@ -84,6 +84,17 @@ def projected_identity(projected: dict) -> dict | None:
             'execution': task['execution'], 'operation': operation}
 
 
+def identity_changed(previous: dict, current: dict) -> bool:
+    """Compare selected execution and target fields, independently of workflow route.
+
+    Prepared identities supply every field. An editable catalog selection may
+    leave its native operation to the model resolver; compare that operation
+    when the current selection or prepared request actually supplies it.
+    """
+    return any(previous.get(key) != current[key]
+               for key in ('execution', 'model', 'service', 'operation') if key in current)
+
+
 def _reference_choices(authored: dict, external: dict | None):
     value = authored.get('references')
     if isinstance(value, dict):

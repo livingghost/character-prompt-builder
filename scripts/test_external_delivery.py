@@ -429,6 +429,59 @@ class ExternalExecutionDeliveryTests(DeliveryFixture, unittest.TestCase):
         self.assertEqual(received['request_evidence']['status'], 'matched-recorded-call')
         self.assertEqual(received['request_evidence']['submitted_request_sha256'], c.content_id(request))
 
+    def test_public_receive_external_outside_artifact_reuses_the_result_after_copy(self):
+        import subprocess
+        import sys
+        import execution_lifecycle as lifecycle
+        import production_case_fixtures as cases
+        import production_execution as execution
+        import production_operations as workflow
+
+        run = workflow.prepare(self.root, 'task.json')['run']
+        decisions = cases.fill_decisions(self.root, run, 'decisions.json')
+        execution.execute(self.root, run, decisions_file=decisions)
+        write(self.root, 'host-response.json', {'synthetic': True, 'status': 'complete'})
+        pixels = png((25, 50, 75))
+        outside = self.base / 'host-output.png'
+        outside.write_bytes(pixels)
+        write(self.root, 'already-local.png', pixels)
+        before = copy.deepcopy(workflow.read_run(self.root, run).rows)
+        cli = [sys.executable, str(Path(__file__).with_name('production_workflow.py'))]
+        receive = cli + ['receive-external', '--root', str(self.root), '--run', run,
+            '--response', 'host-response.json', '--reason', 'Synthetic returned image; no provider call.']
+        failed = subprocess.run(receive + ['--artifact', 'already-local.png', '--artifact', str(outside)],
+            cwd=self.base, capture_output=True, text=True, encoding='utf-8', timeout=45)
+        self.assertEqual(failed.returncode, 2, failed.stdout + failed.stderr)
+        [diagnostic] = json.loads(failed.stdout)['diagnostics']
+        self.assertEqual(tuple(diagnostic.get(key) for key in ('code', 'file', 'root', 'run')),
+                         ('INPUT_SCHEMA_INVALID', str(outside), str(self.root), run))
+        self.assertIn('Copy the existing received file into the studio', diagnostic['required_action'])
+        self.assertIn('same --run and --response', diagnostic['required_action'])
+        self.assertIn('no regeneration', diagnostic['required_action'])
+        self.assertEqual(workflow.read_run(self.root, run).rows, before)
+        state = lifecycle.summary(self.root, run=run)
+        self.assertEqual((state['submissions'], state['captured_outputs']), (1, 0))
+        parser = production_workflow_cli.build_parser()
+        command = next(action for action in parser._actions if action.dest == 'command').choices['receive-external']
+        help_text = ' '.join(command.format_help().split())
+        self.assertIn('inside the Studio', help_text)
+        self.assertIn('same run', help_text)
+        self.assertIn('no regeneration', help_text)
+
+        # Preserve the returned bytes; only their local placement changes.
+        write(self.root, 'evidence/host-output.png', outside.read_bytes())
+        received = subprocess.run(receive + ['--artifact', 'evidence/host-output.png'],
+            cwd=self.base, capture_output=True, text=True, encoding='utf-8', timeout=45)
+        self.assertEqual(received.returncode, 0, received.stdout + received.stderr)
+        self.assertTrue(json.loads(received.stdout)['execution_completed'])
+        rows = workflow.read_run(self.root, run).rows
+        self.assertEqual(len([row for row in rows if row['event'] == 'external-claim']), 1)
+        [candidate] = [row for row in rows if row['event'] == 'candidate']
+        self.assertEqual(candidate['data']['files'][0]['sha256'], c.digest(pixels))
+        state = lifecycle.summary(self.root, run=run)
+        self.assertEqual((state['submissions'], state['captured_outputs']), (1, 1))
+        self.assertEqual(outside.read_bytes(), pixels)
+
     def test_public_parallel_external_tasks_receive_reverse_order_without_resending(self):
         import subprocess
         import sys

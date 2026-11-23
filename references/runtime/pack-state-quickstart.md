@@ -25,6 +25,14 @@ Once a state file exists it is complete: nothing re-enables a pack the author di
 
 A pack the catalog cannot use is left out: an invalid pack, a missing one, one whose required pack is not in use, an unreadable `pack.json`, or one pack ID in two roots. Every command that reads the catalog names it once, in the `warning:` line shown above.
 
+Explain each pack warning through its effect on the requested work, in the
+user's language. Keep exact diagnostics and repair commands in the operation
+record; present technical details when the user needs them to decide or act.
+Installation messages from `uv` are separate environment diagnostics. A
+successful copy fallback does not ask the author to choose a pack or approve
+generation again. Continue when the environment is usable; explain an actual
+blocker or relevant limitation plainly.
+
 Choose capabilities before retrieval. A core-only installation supplies generic direction; a full source installation initially enables all discovered packs, but capabilities still come from validated active manifests rather than promises based on filenames. Existing evidence-artifact prompt packages require enabled `searchable-assets` and `evidence-artifact-reference`; derived evidence also requires `visual-evidence`, and reusable authored identity requires `character-archetypes`. If none is discovered, stop on that prerequisite rather than fabricate references.
 
 ## Enable packs

@@ -8,8 +8,19 @@ python scripts/production_workflow.py inspect-inputs --root STUDIO
 python scripts/production_workflow.py status --root STUDIO
 ```
 
-`inspect-inputs` without a source selector reads the task's saved authoring
-state. `status.current_task.authoring`, `studio.py status` and session entry expose the same editing locations and continuation commands. The report names existing
+`inspect-inputs` without a source selector reads the current plan's selected
+unfinished inputs. When a reopened work revision has no plan, it reads every
+input registered since the ledger's recorded reopen boundary. It keeps all
+current branches; a later creation time does not select just one. Earlier
+inputs remain in `comparison_inputs` with explicit inspection actions, without
+rechecking their unresolved choices as current work. For example, reopening a
+one-image task and drafting three new images exposes all three new inputs and
+keeps the earlier image as a comparison. A new plan can select that earlier
+input again, and `--choices PATH` can inspect it directly without changing the
+current work or plan selection.
+
+`status.current_task.authoring`, `studio.py status` and session entry expose the
+same editing locations and continuation commands. The report names existing
 `choices.json`, its context, published input tasks and reports, partial route
 reading, completed source-delivery records, and the last recorded check when one
 exists. Continue those files and actions after compaction. A source selector

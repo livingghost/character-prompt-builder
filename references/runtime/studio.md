@@ -29,6 +29,10 @@ Two things go wrong when character work has no home of its own. Generated images
 
 ## Layout
 
+Run initialization from an existing working directory. The requested new Studio
+path need not exist yet; `init --out` creates it. Set the command runner's
+working directory to that Studio only after initialization succeeds.
+
 ```bash
 python scripts/studio.py init --out <dir> --studio-id <id> --title "<title>"
 ```

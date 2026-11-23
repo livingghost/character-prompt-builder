@@ -166,6 +166,36 @@ class ReportViewTests(unittest.TestCase):
         self.addCleanup(folder.cleanup)
         self.root = Path(folder.name)
 
+    def test_current_stage_summary_retains_navigation_and_defers_later_fields(self):
+        report = prepared_authoring_status(self.root)['current_task']['authoring']
+        report['pending'] = True
+        report['inputs'][0]['changed_since_save'] = True
+        stage = report['authoring_stage']
+        pending = {'code': 'AUTHORED_CHOICE_REQUIRED', 'field': 'target',
+            'message': 'The eventual request still needs a target.',
+            'required_action': 'Select the actual interface while authoring its rendition.'}
+        stage.update(stage='definition', next_stage='depiction',
+            remaining_stages=['depiction', 'rendition', 'prepare'], final_inputs_ready=False,
+            unresolved=[], pending=[pending])
+        original = copy.deepcopy(report)
+        result = views.present(self.root, report, command='stage-inputs')
+        for shown in (result['authoring_stage'], result['inputs'][0]['authoring_stage']):
+            self.assertEqual(shown['next_stage'], 'depiction')
+            self.assertEqual(shown['remaining_stages'], ['depiction', 'rendition', 'prepare'])
+            self.assertEqual(shown['diagnostic_ids'], [])
+            self.assertEqual(shown['pending_summary']['total'], 1)
+            self.assertIn('later stages', shown['pending_meaning'])
+            self.assertIn('before final preparation', shown['pending_meaning'])
+        self.assertEqual(result['diagnostics'], [])
+        self.assertEqual(report, original)
+        self.assertEqual(c.load(self.root / result['full_report']), original)
+        draft = {'state': 'draft', 'authoring_stage': copy.deepcopy(stage),
+                 'unresolved': [pending], 'choices': {}}
+        saved = views.present(self.root, draft, command='draft-inputs')
+        self.assertEqual(saved['authoring_stage']['next_stage'], 'depiction')
+        self.assertEqual(saved['authoring_stage']['pending_count'], 1)
+        self.assertEqual(saved['unresolved'], [])
+
     def test_bound_plan_task_action_and_explicit_run_action_remain_independent(self):
         import work_ledger
         report = prepared_authoring_status(self.root)

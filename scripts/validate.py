@@ -725,7 +725,8 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "coverage and a fresh check of actual documents, resources and selected-model",
         "whole-source hashes and the original issuance",
         "content and resource/model scope",
-        "operation now needed, with no `--known-reading` selections",
+        "operation now needed with `--fresh-context`, without the previous",
+        "`--reading-context` or any `--known-reading` selections",
         "same complete, paged snapshot",
     ),
     "references/runtime/narrative-development.md": (

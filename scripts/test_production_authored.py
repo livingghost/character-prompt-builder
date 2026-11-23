@@ -207,6 +207,41 @@ class AuthoredRevisionTests(unittest.TestCase):
         self.assertEqual(workflow.verify_completion(self.root, saved['run'], self.task['task_id'])['sha256'],
                          completion['sha256'])
 
+    def test_image_save_stays_refused_and_exposes_the_completed_prompt_export_owner(self):
+        from types import SimpleNamespace
+        from production_diagnostics import ProductionError, from_exception
+        import production_compiler as compiler
+        path = 'work/input/choices.json'
+        for execution in ('external', 'dispatcher'):
+            task = {'execution': execution, 'artifact': 'image'}
+            compiled = SimpleNamespace(report={'publishable': True}, prepared={'task': task})
+            with (patch.object(inputs, 'compile_choices', return_value=compiled),
+                  patch.object(inputs, 'authoring_view', return_value={'task': task, 'authored_basis': {}}),
+                  patch.object(compiler, 'publish_compilation') as publish,
+                  patch.object(compiler, '_staging') as staging):
+                for draft in (False, True):
+                    with self.subTest(execution=execution, draft=draft), self.assertRaises(ProductionError) as raised:
+                        authored.save(self.root, path, draft=draft)
+                    problem = from_exception(raised.exception, phase='cli')
+                    self.assertEqual(problem['code'], 'INPUT_CONSISTENCY_ERROR')
+                    self.assertEqual(problem['cause'], 'save-execution-kind')
+                    self.assertEqual(problem['selected_execution'], execution)
+                    self.assertEqual((problem['file'], problem['pointer']), (path, '/authoring/task/execution'))
+                    self.assertIn('basis and content.prompt, not choices.json', problem['required_action'])
+                    self.assertIn('target and document selections', problem['required_action'])
+                    prepare = problem['operation_guidance']['prepare']['argv']
+                    self.assertEqual(prepare[-5:], ['prepare', '--root', str(self.root), '--choices', path])
+                    export = problem['operation_guidance']['prompt_export']
+                    self.assertIn('WORK --pointer /prompt --out FILE', export['required_inputs'])
+                publish.assert_not_called()
+                staging.assert_not_called()
+        completed = subprocess.run(export['help_action']['argv'], cwd=self.root, capture_output=True,
+            text=True, encoding='utf-8', check=False, timeout=30)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn('--pointer', completed.stdout)
+        self.assertIn('--out', completed.stdout)
+        self.assertIn('work', completed.stdout)
+
     def test_reopened_target_keeps_captured_model_after_original_removal(self):
         from model_prompt_input_fixtures import prompt_input
         model = {'id': 'synthetic-authored-model', 'prompt_input': prompt_input('descriptive')}

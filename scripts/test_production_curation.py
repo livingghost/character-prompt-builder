@@ -204,6 +204,22 @@ class CurationTests(unittest.TestCase):
         self.assertEqual([g['operations'] for g in additions[-1]['data']['authority']['grants'][-2:]],
                          [['select'], ['adopt']])
 
+    def test_authority_scope_is_visible_before_the_shared_instruction_is_chosen(self):
+        authority = store.authority(self.root, self.task['task_id'])
+        for grant in authority['grants']:
+            grant['operations'] = [op for op in grant['operations'] if op != 'adopt']
+            grant['targets'] = [target for target in grant['targets'] if target != 'canon:sheet']
+        self.import_authority(authority)
+        drafted = self.draft()
+        requirements = {item['operation']: item for item in drafted['authority_requirements']}
+        self.assertEqual(requirements['select']['targets'], ['delivery'])
+        self.assertIsNotNone(requirements['select']['selected_grant'])
+        self.assertEqual(requirements['adopt']['targets'], ['canon:sheet'])
+        self.assertIsNone(requirements['adopt']['selected_grant'])
+        self.assertIn('approval.evidence', requirements['adopt']['required_action'])
+        self.assertIn('both', drafted['answer_contract']['fields']['approval'])
+        self.assertEqual(drafted['choices']['approval']['evidence'], {'path': '', 'locator': ''})
+
     def test_uncleared_stop_has_no_formal_effect(self):
         authority = store.authority(self.root, self.task['task_id'])
         authority['stop_conditions'] = [{'id': 'scope', 'text': 'Stop outside the actual synthetic instruction.'}]
@@ -456,6 +472,40 @@ class CurationTests(unittest.TestCase):
         grants = store.authority(self.root, self.task['task_id'])['grants']
         self.assertEqual(grants[-1]['operations'], ['adopt'])
         self.assertEqual(grants[-1]['targets'], ['canon:catalog'])
+
+    def test_imported_catalog_use_recovers_the_same_registration_after_interruption(self):
+        import adoption_workflow
+        from pack_manager import validate_pack
+        destination = self.catalog_draft()['destination']
+        source = self.imported(package=True)
+        drafted = curation.draft(self.root, source, destination)
+        choice = self.decide(drafted)
+        choice['review'].update(observation='The exact imported fixture PNG is visible.',
+            conclusion='The explicit synthetic instruction permits this independent catalog registration.')
+        original_record = c.load(self.root / 'registration.json')
+        publish = adoption_workflow._registration
+
+        def interrupted_registration(*args, **kwargs):
+            publish(*args, **kwargs)
+            raise OSError('Synthetic interruption after the catalog pack was published.')
+
+        with patch.object(adoption_workflow, '_registration', side_effect=interrupted_registration):
+            with self.assertRaisesRegex(OSError, 'after the catalog pack was published'):
+                self.apply(drafted, choice)
+        target = Path(destination['pack_dir'])
+        before = {path.relative_to(target): path.read_bytes() for path in target.rglob('*') if path.is_file()}
+        f.write(self.root / 'registration.json', {**original_record, 'label': 'A later unrelated editable record'})
+        f.write(self.root / 'adoption-basis.txt', 'A later unrelated instruction cannot replace captured approval.')
+        result = self.apply(drafted, choice)
+        self.assertEqual(result['result']['status'], 'catalog-registered')
+        self.assertEqual(Path(result['result']['registration']['pack_path']), target)
+        self.assertEqual(before, {path.relative_to(target): path.read_bytes() for path in target.rglob('*') if path.is_file()})
+        self.assertTrue(validate_pack(target, require_lock=True).valid)
+        canonical = c.load(target / 'records/canonical.json')['records'][0]
+        self.assertEqual(canonical, original_record)
+        self.assertTrue(self.apply(drafted, choice)['recovered'])
+        self.assertEqual(curation.verify(self.root, self.root / 'work/one-use',
+            binding=drafted['binding'])['current_use'], 'current')
 
     def test_catalog_record_changes_before_apply_are_explicit(self):
         drafted = self.catalog_draft()

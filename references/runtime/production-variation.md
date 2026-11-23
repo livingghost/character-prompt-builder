@@ -121,6 +121,10 @@ explicitly reopened work task.
 Fill its reason with the actual reason for the change. The status view reads the
 current editable target again, so reverting that selection restores the ordinary
 prepare action. It never invents a change reason or discards unchanged criteria.
+Target identity compares execution kind, model, service and the actual wire
+operation. A workflow route selects its own applicable contracts; changing
+that route alone preserves an otherwise identical target and the ordinary
+prepare action.
 
 `variant` keeps its model and service. `retarget` applies another target to an
 exact prepared dispatcher or external image request. Reopen the source run and

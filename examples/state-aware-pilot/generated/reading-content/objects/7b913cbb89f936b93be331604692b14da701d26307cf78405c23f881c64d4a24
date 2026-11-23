@@ -105,6 +105,9 @@ python scripts/execution_routes.py read --root STUDIO --choices work/draft/choic
 `stage-inputs` retains the choices, source files and prior results and returns
 the reading and editing actions for the selected stage. Its reading action starts
 complete bounded delivery with `--all`; follow `actions.continue` to completion.
+The generated `--bind-choices` action applies the completed reading key to this
+exact unchanged draft. Inspect `choices_binding` if input changed during delivery;
+its named owner and repair action preserve that edit and the completed reading.
 Use `actions.index` when inspecting the source scope or choosing an exact section.
 Use the returned invocation with its complete runtime selection. Read the required original
 sections before making that stage's decisions. Finish its authored work, then
@@ -112,6 +115,12 @@ select the next needed stage. Return to an earlier stage when a changed request
 reopens its definition, construction or expression; retain all applicable
 choices outside that change. A stage's structural readiness establishes neither
 artistic completion nor final request readiness.
+
+The summary preserves `next_stage` and `remaining_stages`. Its current diagnostic
+IDs identify blockers for this stage; `pending_summary` counts final-input fields
+assigned to later stages. Those pending fields remain required before preparation,
+but do not mean every field must be authored during definition. Assess the current
+stage's actual content, then select the next needed stage through `stage_actions`.
 
 The choices-based reader derives the actual route, execution, features, target,
 composition and source conditions. Adding an image, changing source applications
@@ -124,7 +133,9 @@ to fill a field or obtain a reading record.
 
 After conversation compaction or a new agent, use `inspect-inputs` to recover
 the current editable files and stage, then take its fresh reading action with
-no `--known-reading` assertion. Read the complete requirements for that stage
+`--fresh-context` and no earlier context ID or `--known-reading` assertion.
+The saved plan accepts the same `--fresh-context` option and carries its new
+context through the returned reading and continuation actions. Read the complete requirements for that stage
 and inspect its actual saved content. An older receipt, stage name or successful
 check supplies no retained knowledge. Completed work remains available as source
 material, so rebuilding context does not repeat earlier authoring or execution.
@@ -139,25 +150,76 @@ sizes, required sections and selection owners; it delivers no source bodies and 
 reading. Whole-source internal headings expand with `--snapshot ID --index-source SELECTOR`.
 Each `selection_reason_ids` entry resolves in the shared `selection_reasons` map.
 Select a returned source or heading with `--snapshot ID --section SELECTOR`,
-follow `actions.next`, or choose `actions.all` for complete paged delivery. The
+follow `actions.next` or `actions.all` for complete paged delivery. The
 explicit `--all` option also starts a complete read directly.
 
-Read every returned JSON `body`. Follow `actions.continue` through a selected
-section, then choose the next required section or all remaining material.
+Read every returned JSON `body`, or add `--view text` to show the exact bodies
+with original line breaks and source ranges. Text view retains the complete
+JSON response in a new `response_file`; its short `next_action` continues that
+view and keeps the current context. It displays required, reused, delivered and
+remaining bytes, `same_context_required`, the issued reading and choices binding.
+Warnings, diagnostics and failed bindings remain visible. Use the saved JSON
+for complete metadata, alternate actions and source indexes. `--response-dir`
+selects its directory; the default is `reading-responses` beside the ledger.
+
+Follow `actions.continue` through a selected
+section or full delivery, then use `actions.next` for all remaining material.
+Individual heading navigation remains optional.
+Text pages show the current continuation, replay, index and fresh-context
+restart actions. Their `selection_summary.action_ref` opens `actions.index`
+for the complete source-selection reasons and optional `actions.all` command;
+those details are not repeated with each page. A response without source text
+has no page to replay. Inspect the non-null `reading` before treating delivery
+as complete.
 Completion requires non-null `reading`; a null continuation can mean only that
 one section ended. The required operation, route and specialist contracts remain
 complete, and the record is issued only after exact complete coverage and current
 source checks. [Production authoring](production-authoring.md#select-and-read-the-current-knowledge)
 owns the index, section, replay and recovery contract.
 
+`--page-bytes` and `--host-page-bytes` count UTF-8 source bytes, not the whole
+JSON response or model tokens. `--page-bytes auto` uses the declared safe
+source capacity, or 16,384 bytes when none is declared. A host capacity caps a
+fixed page too. Reserve separate room in the host tool's output allowance for
+source metadata, escaped text and navigation; a source-byte limit alone cannot
+prevent that tool from truncating its response. Read one complete response
+before following its continuation. If only the tool response was truncated and
+earlier source text remains in the live model context, use `actions.replay` with
+a smaller `--page-bytes` and follow that replay's continuation. The saved receipt
+does not establish that the model saw the text.
+
+After model-context compaction, replacement by a summary or handoff to a new
+agent, use `actions.restart` instead. It keeps the current choices, images,
+prepared runs and completed work. If needed, inspect the current choices and
+reopen their reading action with `--fresh-context`, omitting earlier
+`--reading-context` and `--known-reading` selections. Follow the fresh reading
+actions through every body required for the current stage. Keeping the same
+Studio or conversation does not retain those bodies. Input inspection recovers
+these actions when the controls were cut off. Only knowledge is rebuilt;
+completed authoring and execution remain intact.
+
 An existing record establishes earlier source delivery. A new context still
 needs the complete knowledge required for its present judgment. In the same
 context, append `context_reuse.arguments` to the actual next draft's reading
-action. That action owns its operation and scope; the explicit complete reading
-keys allow the reader to deliver only missing or changed bodies.
+action. Saved plan actions carry `--reading-context ID` when that invocation
+explicitly selected the current context, automatically selecting its complete
+readings without retyping keys. That action owns its operation and scope; the
+explicit context or complete reading keys allow the reader to deliver only
+missing or changed bodies. A plan file never supplies a current context ID by
+itself. The reader's `metadata`, `reuse_selection` and `progress` explain the
+current operation, reused knowledge and remaining delivery. The linked index
+retains the complete `selection_summary` and source-selection reasons.
 `context_reuse.operations` offers the current operation's inspection without
 enumerating unrelated future operations. This reuses delivered knowledge,
 not an earlier successful source or permission check.
+
+For several images sharing a character, finish the first item's required
+reading, then follow the other items' own reading actions with the same
+`--reading-context` ID. Each item keeps its own exact input binding; unchanged
+complete material can be reused while additional requirements are delivered.
+Starting several incomplete readings at once provides no complete knowledge
+for those readings to reuse. This reading order does not serialize independent
+image requests once their inputs are ready.
 
 Execution reads the permissions, exact-input interpretation, transport, capture
 and recovery contract for the saved request. Review reads observation, source

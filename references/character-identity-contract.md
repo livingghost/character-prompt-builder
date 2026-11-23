@@ -1,6 +1,8 @@
 # Character Identity Contract
 
-A Character Identity Contract defines the stable properties that make a subject the same character across scenes and time. The adopted contract supplies those properties; a scene-specific Production Specification realizes them in the chosen scene.
+Use `recurring-identity` for shared task-local definitions and existing adopted identities. A task-local definition governs only its current commission; selecting it neither adopts it as canon nor changes existing canon. The feature requires the original definition and review against it, without requiring a previously generated image.
+
+A formal Character Identity Contract defines the stable properties that make a subject the same character across scenes and time. The adopted contract supplies those properties; a selected scene-specific Production Specification realizes them in the chosen scene.
 
 ## Identity at the authored level of detail
 
@@ -216,6 +218,8 @@ Each anchor fragment has exact wording, priority, visibility conditions, carrier
 Reference bundles are planned from visible identity obligations, not a fixed image count. A left-ear accessory requires left-profile or left-three-quarter coverage; a rear marking requires a rear view; paw-pad identity requires a paw detail. The planner may add views until every declared obligation is covered.
 
 ## Source to input and review coverage
+
+For a new character, acquire its task-local definition through Production source acquisition with role `identity`, `identity.subject_ids` and `identity.selectors`, then apply it to each relevant image's subject. Use the source that actually governs the work. Retain `identity.authority` when an original reference or graph owner supplies it; do not invent an adopted authority declaration for a task-local file.
 
 Use the ordinary `draft-inputs`, `build-inputs`, `check` and `prepare` workflow
 for saved production. Construct the wanted depiction as described above, then
@@ -454,7 +458,7 @@ The identity contract's morphology references are cryptographic, so changing the
 
 ## Morphology references
 
-A recurring identity contract references exactly one approved `species-morphology-profile` and one approved `individual-morphology-contract`. The identity contract summarizes stable recognition anchors, but it does not duplicate the complete anatomical inventory.
+A selected formal Identity Contract references exactly one approved `species-morphology-profile` and one approved `individual-morphology-contract`. A task-local shared definition does not itself select that artifact type. The identity contract summarizes stable recognition anchors, but it does not duplicate the complete anatomical inventory.
 
 The species profile owns valid feature kinds, counts, attachment topology, body regions, surfaces, expression channels, capabilities, meaningful absences, developmental variation, and near-species differentials. The individual contract owns exact feature realizations, measurements, instance IDs, asymmetries, markings, damage, modifications, grooming, nails or claws, personal expression habits, expression tools, and state boundaries.
 

@@ -201,6 +201,47 @@ def _validation_mode(loaded) -> str:
     return loaded.consumer['image_input']['external_request']['schema_validation']['mode']
 
 
+@read_context.operation
+def draft_initial_authority(root: Path, run: str) -> dict:
+    """Expose the ordinary first declaration without supplying its authority."""
+    import production_decisions
+    import production_operations as workflow
+    import production_store as store
+    loaded = production_decisions.context(root, run)
+    task_id = loaded.prepared['task']['task_id']
+    if store.read_authority(root, task_id, required=False) is not None:
+        raise ProductionError('AUTHORITY_UPDATE_CONFLICT', 'The work task already has current authority.',
+            phase='authority-evidence', run=run,
+            required_action='Continue the same plan under its current authority; use its execution answer '
+                            'only for any missing grants. Do not replace the current declaration with this first draft.')
+    intents = loaded.artifacts['execution-plan.json']['operations']
+    grants = [{'id': 'run-' + run + '-' + intent['operation'], 'actor': None, 'mode': None,
+               'operations': [intent['operation']], 'targets': copy.deepcopy(intent['targets']),
+               'protected_criteria': [], 'expires_at': None, 'request_scope': None,
+               'submission_validation_modes': []} for intent in intents]
+    choices = {'task_id': task_id, 'issuer': None, 'evidence': {'path': None, 'locator': 'whole'},
+               'grants': grants, 'stop_conditions': None}
+    return {'choices': choices, 'state': 'unapproved',
+            'schema': 'schemas/authoring/production-authority.schema.json',
+            'binding': {'task_id': task_id, 'run': run, 'input_sha256': loaded.prepared['input_sha256']},
+            'authorization_requirements': workflow.authorization_requirements(root, loaded.prepared, None, intents),
+            'required_validation_mode': _validation_mode(loaded),
+            'unanswered': ['$.issuer', '$.evidence.path', '$.stop_conditions'] +
+                [f'$.grants[{index}].{field}' for index in range(len(grants)) for field in ('actor', 'mode')] +
+                [f'$.grants[{index}].submission_validation_modes' for index, grant in enumerate(grants)
+                 if 'submit' in grant['operations']],
+            'instructions': 'Record the actual instruction already supplied for this work task. Name its real '
+                'issuer and evidence, the permitted actor/mode and scope, and its actual stop conditions '
+                '(an explicit empty list only when none apply). Keep only grants that instruction permits; '
+                'choose protected criteria, expiry, request scope and submission validation modes from it. '
+                'This single declaration is shared by the plan items. Advance imports the completed declaration '
+                'through the ordinary authority owner, then opens each exact execution judgment. '
+                'Existing user instructions may be recorded; this is not a request for new consent.',
+            'limit': 'Drafting records no authority and sends nothing. Derived operations and targets are '
+                'unapproved suggestions. Missing or empty instruction evidence and unanswered fields cannot '
+                'be imported. Importing authority does not approve an exact request or assess its stop conditions.'}
+
+
 def _update_scope(root: Path, run: str, phase: str, candidate: str | None, *, scope: str | None = None,
                   influence: str | None = None, registration_file: str | None = None,
                   pack_dir: Path | None = None):

@@ -41,7 +41,7 @@ _KEY_QUALIFIERS = frozenset({'api', 'access', 'private', 'secret', 'session', 's
 _PRIVATE_KEYS = re.compile(
     r'^(?:prompt|positivePrompt|negativePrompt|composition_prompt|prompt_expression|negative|positive|'
     r'instructions|document|definition|terms|rendition|lines|chunk|base64|imageData|response_body|'
-    r'raw_body|text|query|description)$', re.I)
+    r'raw_body|text|query|description|before|after)$', re.I)
 # Short, boolean and numeric values would redact ordinary words and numbers everywhere.
 _MINIMUM_SECRET = 8
 _PLAIN_VALUE = re.compile(r'(?i)true|false|yes|no|on|off|none|null|[-+]?[0-9][0-9_.,]*')

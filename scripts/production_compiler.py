@@ -1708,6 +1708,11 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
         raise ProductionError('ARTIFACT_PUBLISH_FAILED','No complete compiled staging tree is available for publication.',phase='publication')
     if current_task is None:current_task=work_ledger.require_open(root)
     directory=compiled.directory;prepared=compiled.prepared;run=compiled.identity
+    choices = (prepared.get('authoring') or {}).get('choices_ref')
+    planned = choices is not None and (prepared.get('authored_revision') or {}).get('state') != 'draft'
+    if planned:
+        import production_work_plan
+        production_work_plan.reserve_preparation(root, choices['path'], run)
     target=c.local(root, 'production/runs/'+run, exists=False)
     try:
         with stage('artifact-publication'), store.transaction(root):
@@ -1784,6 +1789,13 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
                 warnings.append(recorded['projection_warning'])
         except (ValueError,OSError) as exc:
             warnings.append({'code':'WORK_PROJECTION_FAILED','message':str(exc),'formal_run_retained':True})
+        if planned:
+            try:
+                production_work_plan.record_preparation(root, run)
+            except (ValueError, OSError) as exc:
+                warnings.append({'code': 'WORK_PROJECTION_FAILED', 'message': str(exc),
+                    'formal_run_retained': True,
+                    'required_action': 'Advance the saved plan to recover its exact reserved published run.'})
         operation=current()
         if operation:
             operation.link(run=run,task=prepared['task']['task_id'])

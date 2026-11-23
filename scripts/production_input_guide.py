@@ -53,8 +53,12 @@ OWNERS = {
 # authoring fields or validation rules. The selected target kind remains an
 # explicit choice even when the task uses an external execution branch.
 CHILD_OWNERS = {
+    'task_changes.semantic_edit': ('Select the editable semantic edit plan; the selected file owns its edit and review content.',
+                                   'references/runtime/production-authoring.md#start-an-existing-image-edit'),
     'authoring.task.direction': ('Own the task direction at this existing choices field; its production contract keeps its contextual checks.',
                                  'references/runtime/production-direction.md#record-the-production-direction'),
+    'authoring.task.criteria': ('Own independent review criteria, subject comparisons and their declared identity bindings.',
+                               'references/character-identity-contract.md#source-to-input-and-review-coverage'),
     'authoring.task.recording': ('Own explicit subject IDs and their Studio character assignments for recording.',
                                 'references/character-identity-contract.md#source-to-input-and-review-coverage'),
     'target.model': ('Select the actual model name or acquired external interface.', EXTERNAL_DOCUMENT),
@@ -571,6 +575,28 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
             row['schema_pointer'] = '/properties/' + '/properties/'.join(parts)
         if isinstance(value, dict) and 'file' in value:
             row['source'] = {key: copy.deepcopy(value[key]) for key in ('file', 'field') if key in value}
+        if name in {'task_changes', 'task_changes.semantic_edit'}:
+            from production_choice_edits import editable_owner
+            pointer = editable_owner('/task_changes/semantic_edit')
+            edit_help = python_argv(ROOT / 'scripts/production_workflow.py', 'edit-choices', '--help')
+            edit_action = {'operation': 'edit-choices', 'choices_file': choices_path, 'pointer': pointer,
+                'help_action': {'argv': edit_help, 'shown': shown(edit_help)},
+                'required_inputs': 'Select --operation add|replace|remove. For add or replace, supply --value-file '
+                                   'containing the JSON string of the Studio-relative plan path; remove takes no value.'}
+            if name == 'task_changes':
+                child = _child(root, choices_path, 'task_changes.semantic_edit')
+                child.update(choices_pointer=pointer, edit_action=edit_action)
+                row.update(editable_container=False, child_contracts={'semantic_edit': child},
+                    task_choices_action=action(root, choices_path, field='authoring.task'),
+                    required_action='task_changes is a display selector and mixed-owner container, not an editable '
+                    'parent. Follow the semantic_edit child for its exact plan selector. Other authored task '
+                    'choices belong under authoring.task; use their individual owner pointers.')
+            else:
+                row.update(edit_action=edit_action, source={'file': value} if isinstance(value, str) else None,
+                    content_schema='schemas/authoring/semantic-edit-plan.schema.json',
+                    required_action='Edit this selector to choose the plan file. Edit /edit/target, /edit/change, '
+                    '/edit/preserve and /review_criteria in that selected file; its contents are not children '
+                    'of this choices pointer.')
         if name == 'authoring.task':
             row['content_schema'] = 'schemas/authoring/production-task.schema.json'
             row['schema_scope'] = ('This is the compiled task contract. The draft owns authored task fields; '
@@ -585,8 +611,9 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
                 **{key: {'schema': row['content_schema'], 'pointer': '/properties/' + key}
                    for key in ('sources', 'criteria', 'recording', 'world_views')},
             }
-            row['child_contracts']['recording']['explain_action'] = action(
-                root, choices_path, field='authoring.task.recording')
+            for child in ('criteria', 'recording'):
+                row['child_contracts'][child]['explain_action'] = action(
+                    root, choices_path, field='authoring.task.' + child)
         if name == 'authoring.task.direction':
             row['declaration'] = _field_shape(actual)
             contract = contracts.metadata('production_direction')
@@ -600,12 +627,13 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
             row['required_action'] = ('Edit this declared direction in the current choices file. Follow contract_action '
                 'for its production-direction schema and contextual checks; task sources, independent criteria and '
                 'actual authority remain separate inputs.')
-        if name == 'authoring.task.recording':
+        if name in {'authoring.task.criteria', 'authoring.task.recording'}:
             row['content_schema'] = 'schemas/authoring/production-task.schema.json'
-            row['schema_pointer'] = '/properties/recording'
-            fragment = c.load(ROOT / row['content_schema'])['properties']['recording']
+            row['schema_pointer'] = '/properties/' + parts[-1]
+            fragment = c.load(ROOT / row['content_schema'])['properties'][parts[-1]]
             row['declaration'] = _field_shape(fragment)
             row['schema_fragment'] = fragment
+        if name == 'authoring.task.recording':
             row['subject_declaration'] = {'choices_pointer': '/authoring/task/recording/subject_map',
                 'schema_pointer': '/properties/recording/properties/subject_map',
                 'meaning': 'Each key is an explicitly declared image subject ID; its value is the Studio character ID. '
@@ -656,6 +684,8 @@ def explain(root: Path, choices_path: str, *, field: str | None = None) -> dict:
             _external_fields(root, choices_path, choices, name, row, detailed=field is not None)
         fields.append(row)
     result['fields'] = fields
+    if field == 'authoring':
+        result['authoring_guide'] = summary(root, choices_path, choices)
     if field is not None:
         check = python_argv(ROOT / 'scripts/production_workflow.py', 'check', '--root', str(root),
                             '--choices', choices_path)

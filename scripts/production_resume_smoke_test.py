@@ -601,6 +601,89 @@ class InitialAuthoringContinuationTests(unittest.TestCase):
                          (self.root / choices['authoring']['delivery']['file']).read_bytes())
         self.assertFalse(self.inputs.inspect_inputs(self.root)['pending'])
 
+    def test_current_input_guide_follows_relocated_studio_without_rewriting_context(self):
+        import shutil
+        import production_input_guide as guide
+        import production_report_view
+        old_skill = self.root.parent / 'previous-skill-location'
+        with patch.object(guide, 'ROOT', old_skill):
+            drafted, _ = self.initial()
+        context_path = Path(drafted['choices_file']).parent / 'context.json'
+        original_context = (self.root / context_path).read_bytes()
+        stored = c.decode(original_context)['authoring_guide']
+        self.assertIn(str(old_skill / 'scripts/production_workflow.py'), stored['explain_action']['argv'])
+        with tempfile.TemporaryDirectory() as temporary:
+            moved = Path(temporary) / 'relocated-studio'
+            shutil.copytree(self.root, moved)
+            choices_bytes = (moved / drafted['choices_file']).read_bytes()
+            report = self.inputs.inspect_inputs(moved, choices_path=drafted['choices_file'])
+            action = report['context']['input']['authoring_guide_action']
+            argv = action['argv']
+            self.assertIn(str(guide.ROOT / 'scripts/production_workflow.py'), argv)
+            self.assertEqual(argv[argv.index('--root') + 1], str(moved))
+            self.assertEqual(argv[argv.index('--choices') + 1], drafted['choices_file'])
+            self.assertEqual(argv[argv.index('--field') + 1], 'authoring')
+            compact = production_report_view.authoring_state(moved, report, choices=drafted['choices_file'])
+            self.assertEqual(compact['context']['input']['authoring_guide_action'], action)
+            self.assertEqual((moved / context_path).read_bytes(), original_context)
+            self.assertEqual((self.root / context_path).read_bytes(), original_context)
+            self.assertEqual((moved / drafted['choices_file']).read_bytes(), choices_bytes)
+
+    def test_explicit_choices_acquire_only_that_branch_and_keep_other_paths(self):
+        import production_authoring_state
+        drafted, choices = self.initial()
+        sibling = authoring_fixtures.authoring_inputs(self.root, None, 'sibling', route='development')
+        sibling_file = self.root / sibling['choices_file']
+        sibling_file.write_text('{"unfinished":', encoding='utf-8')
+        retained = sibling_file.read_bytes()
+        with patch.object(production_authoring_state, '_authored_input',
+                          wraps=production_authoring_state._authored_input) as acquire:
+            report = self.inputs.inspect_inputs(self.root, choices_path=drafted['choices_file'])
+        self.assertEqual([row['choices'] for row in report['inputs']], [drafted['choices_file']])
+        self.assertEqual(report['diagnostics'], [])
+        self.assertEqual(report['context']['input']['choices'], choices)
+        self.assertTrue(report['inputs'][0]['current'])
+        self.assertTrue(all(call.args[1]['details']['directory'] == 'initial'
+                            for call in acquire.call_args_list))
+        self.assertTrue(acquire.called)
+        comparison = next(row for row in report['comparison_inputs']
+                          if row['choices'] == sibling['choices_file'])
+        argv = comparison['action']['argv']
+        self.assertEqual(argv[argv.index('--choices') + 1], sibling['choices_file'])
+        self.assertEqual(sibling_file.read_bytes(), retained)
+        other = self.inputs.inspect_inputs(self.root, choices_path=sibling['choices_file'])
+        self.assertEqual([row['choices'] for row in other['inputs']], [sibling['choices_file']])
+        self.assertEqual(other['inputs'][0]['unresolved'][0]['code'], 'authored-input-unreadable')
+
+    def test_unreadable_selected_choices_repair_before_any_sibling_reading(self):
+        import io
+        import route_reading
+        drafted, _ = self.initial()
+        sibling = authoring_fixtures.authoring_inputs(self.root, None, 'sibling', route='development')
+        page = route_reading.read_page(route='development', operation='author', execution='authored',
+            studio=self.root, ledger=self.ledger, choices_path=sibling['choices_file'],
+            page_bytes=40, stream=io.StringIO())
+        selected_file = self.root / drafted['choices_file']
+        selected_file.write_text('{"unfinished":', encoding='utf-8')
+        before = {path: path.read_bytes() for path in self.root.rglob('*') if path.is_file()}
+
+        report = self.inputs.inspect_inputs(self.root, choices_path=drafted['choices_file'])
+
+        self.assertEqual([row['choices'] for row in report['inputs']], [drafted['choices_file']])
+        self.assertTrue(report['inputs'][0]['current'])
+        self.assertEqual(report['inputs'][0]['unresolved'][0]['code'], 'authored-input-unreadable')
+        self.assertTrue(report['pending'])
+        self.assertFalse(any(row['current'] for row in report['readings']))
+        retained = next(row for row in report['readings'] if row['snapshot'] == page['snapshot'])
+        self.assertEqual(retained['applicability'], 'historical')
+        self.assertEqual([row['command'] for row in report['next_actions']], ['edit-choices'])
+        self.assertNotIn(page['cursor'], json.dumps(report['next_actions']))
+        comparison = next(row for row in report['comparison_inputs']
+                          if row['choices'] == sibling['choices_file'])
+        argv = comparison['action']['argv']
+        self.assertEqual(argv[argv.index('--choices') + 1], sibling['choices_file'])
+        self.assertEqual({path: path.read_bytes() for path in self.root.rglob('*') if path.is_file()}, before)
+
     def test_reediting_initial_text_preserves_the_saved_revision_and_saves_again(self):
         drafted, choices = self.initial()
         saved = workflow.save(self.root, drafted['choices_file'])
@@ -622,6 +705,72 @@ class InitialAuthoringContinuationTests(unittest.TestCase):
         self.assertNotEqual(saved['run'], revised['run'])
         self.assertEqual(Path(revised['artifact']).read_bytes(), edited.read_bytes())
         self.assertFalse(self.inputs.inspect_inputs(self.root)['pending'])
+
+    def test_selected_choices_keep_their_saved_run_and_never_finish_another_branch(self):
+        import copy
+        import production_authoring_state
+        drafted, choices = self.initial()
+        first = workflow.save(self.root, drafted['choices_file'])
+        sibling = authoring_fixtures.authoring_inputs(self.root, None, 'sibling', route='development')
+        other = c.load(self.root / sibling['choices_file'])
+        other['reading'] = copy.deepcopy(self.choices['reading'])
+        other['authoring']['task']['direction'] = copy.deepcopy(self.task['direction'])
+        other['authoring']['task']['criteria'] = copy.deepcopy(self.task['criteria'])
+        fixtures.write(self.root / other['authoring']['delivery']['file'], 'A courtyard beside a stone tower.')
+        fixtures.write(self.root / sibling['choices_file'], other)
+        second = workflow.save(self.root, sibling['choices_file'])
+        retained = {path: path.read_bytes() for path in (self.root / 'production/runs').rglob('*') if path.is_file()}
+        registered = store.runs(self.root, task_id=self.work['task_id'])
+        histories = {result['run']: c.encoded(store.read_history(self.root, result['run']).rows)
+                     for result in (first, second)}
+
+        selected = self.inputs.inspect_inputs(self.root, choices_path=drafted['choices_file'])
+        self.assertEqual(selected['saved']['run'], first['run'])
+        self.assertEqual(selected['inputs'][0]['prepared_run'], first['run'])
+        self.assertEqual(selected['inputs'][0]['prepared_runs'], [first['run']])
+        action = selected['next_actions'][0]
+        self.assertEqual(action['command'], 'finish')
+        self.assertEqual(action['argv'][action['argv'].index('--run') + 1], first['run'])
+        comparison = next(row for row in selected['comparison_inputs'] if row['choices'] == sibling['choices_file'])
+        argv = comparison['action']['argv']
+        compared = self.inputs.inspect_inputs(self.root, choices_path=argv[argv.index('--choices') + 1])
+        self.assertEqual(compared['saved']['run'], second['run'])
+        by_run = production_authoring_state.inspect(self.root, run=first['run'])
+        self.assertEqual(by_run['saved']['run'], first['run'])
+        self.assertEqual(by_run['next_actions'][0]['argv'][-1], first['run'])
+        self.assertEqual(self.inputs.inspect_inputs(self.root)['saved']['run'], second['run'])
+
+        other_consumer = workflow.run_dir(self.root, second['run']) / 'consumer.json'
+        original_consumer = other_consumer.read_bytes()
+        other_consumer.write_text('{}', encoding='utf-8')
+        try:
+            with patch.object(production_authoring_state, '_run',
+                              wraps=production_authoring_state._run) as acquired:
+                isolated = self.inputs.inspect_inputs(self.root, choices_path=drafted['choices_file'])
+            self.assertEqual(isolated['saved']['run'], first['run'])
+            self.assertEqual(isolated['diagnostics'], [])
+            self.assertNotIn(second['run'], [call.args[1] for call in acquired.call_args_list])
+            self.assertFalse(workflow.status(self.root, second['run'])['ok'])
+        finally:
+            other_consumer.write_bytes(original_consumer)
+
+        fixtures.write(self.root / choices['authoring']['delivery']['file'], 'The courtyard after a shower.')
+        changed = self.inputs.inspect_inputs(self.root, choices_path=drafted['choices_file'])
+        self.assertEqual(changed['saved']['run'], first['run'])
+        self.assertTrue(changed['saved']['working_changes'])
+        self.assertEqual(changed['next_actions'][0]['command'], 'save')
+        unfinished = authoring_fixtures.authoring_inputs(self.root, None, 'unfinished', route='development')
+        for path in (unfinished['choices_file'], drafted['choices_file']):
+            with self.subTest(unpublished_or_unreadable=path):
+                if path == drafted['choices_file']:
+                    fixtures.write(self.root / path, '{"unfinished":')
+                current = self.inputs.inspect_inputs(self.root, choices_path=path)
+                self.assertIsNone(current['saved'])
+                self.assertTrue(current['pending'])
+                self.assertNotIn('finish', [row.get('command') for row in current['next_actions']])
+        self.assertEqual({path: path.read_bytes() for path in (self.root / 'production/runs').rglob('*') if path.is_file()}, retained)
+        self.assertEqual(store.runs(self.root, task_id=self.work['task_id']), registered)
+        self.assertEqual({run: c.encoded(store.read_history(self.root, run).rows) for run in histories}, histories)
 
     def test_unpublished_initial_draft_restarts_with_its_route_and_task(self):
         with patch.object(self.inputs, '_publish', side_effect=OSError('Synthetic draft interruption.')):

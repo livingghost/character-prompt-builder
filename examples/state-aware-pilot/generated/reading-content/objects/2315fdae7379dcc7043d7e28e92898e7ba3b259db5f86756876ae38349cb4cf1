@@ -1,6 +1,8 @@
 # State-Aware Series Runtime
 
-Use this document for recurring characters, temporal continuity, visible consequences of off-screen events, rendered identity references from other scenes, or an arriving shot-request. A one-off image with no continuity state uses the ordinary image route and does not require these state artifacts.
+Use this document for temporal or causal continuity, approved scene-state carry-over, visible consequences of prior or off-screen events, or an arriving shot-request.
+
+Independent scenes that share identity without carrying scene state use the ordinary image route or `batch`, with `recurring-identity`. Repeated appearance requirements can apply to each scene without asserting that one scene inherits another's condition or history. Apply the complete shared definition and per-image review under [Character Identity Contract](../character-identity-contract.md#source-to-input-and-review-coverage); classify an identity reference's retained and discarded content under [rendered-reference transfer](../character-identity-contract.md#rendered-reference-transfer-boundary). Identity reuse alone requires no event ledger, state snapshots or continuity graph. Keep selected Identity, morphology, Era, Form, Appearance and state authorities at their applicable scopes.
 
 ## Contents
 
@@ -21,7 +23,7 @@ phase-specific personas supply their scoped baselines; this runtime governs appr
 A proposed world change, relationship turn or future persona is not an executed state event.
 A theme, genre convention or author-only plan cannot override current state.
 
-Do not reconstruct current state from chat memory. Resolve the current image from approved artifacts:
+Do not reconstruct current state from chat memory. Stateless participants retain their independently selected Identity and morphology contracts. Apply the graph and state-resolution steps below to each state-aware subject, using approved artifacts:
 
 ```text
 Identity, Era, Form, and Appearance contracts

@@ -94,7 +94,7 @@ def matches(rule: dict, value: dict) -> bool:
         return False
     if 'changes_any' in rule:
         changes = set((value.get('change_scope') or {}).get('change', [])) | set(value.get('observed_changes') or [])
-        if changes.intersection({'unknown', 'route'}):
+        if 'unknown' in changes:
             changes.update(CHANGE_SCOPES)
         if not changes.intersection(rule['changes_any']):
             return False
@@ -289,9 +289,10 @@ def selection(root: Path, choices: dict, task: dict, *, basis: dict | None = Non
     previous = (((context or {}).get('derived_from') or {}).get('source_run') or {}).get('target_identity')
     if previous is not None:
         try:
+            from production_target import identity_changed
             now = _selected_target_identity(root, target, task, external, read_source=read_source)
             changed = (not now.get('model') or not now.get('service')
-                       or any(previous.get(key) != value for key, value in now.items()))
+                       or identity_changed(previous, now))
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             changed = True
         if changed:

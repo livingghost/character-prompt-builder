@@ -1,6 +1,6 @@
 ---
 name: character-prompt-builder
-description: Develop character definitions, image prompts and scoped references for human, animal, creature and machine characters. Use for generation, illustration, image edits; prompt review, revision, translation or variation; OCs, fursonas, mascots, VTubers, supporting worlds, themes, personalities, casts, relationships and narratives; recurring identity; SVG or verified model-facing references; state-aware series with emotion, relationships, environment, wardrobe, inventory, time, injury, transformation or off-screen events. Handle sparse or detailed briefs in any language, even without the word prompt, with any image model or service.
+description: Develop character definitions, image prompts and scoped references for human, animal, creature and machine characters. Use for images and edits; prompt review, revision, translation or variation; OCs, fursonas, mascots, VTubers, supporting worlds, themes, personalities, casts, relationships and narratives; identity reuse; SVG or verified references; state-aware series with emotion, relationships, environment, wardrobe, inventory, time, injury, transformation or off-screen events. Handle briefs in any language, even without 'prompt', for any image model/service.
 ---
 
 # Character Prompt Builder
@@ -19,11 +19,11 @@ uv run --project <skill-root> --locked python <skill-root>/scripts/check_depende
 
 Explicit runtime commands synchronize packages; session startup only reports readiness. Add `--capability sheet` for fonts or `--capability temporal-media` for FFprobe. Resolve requirements under [Dependencies](DEPENDENCIES.md).
 
-Run documented `python scripts/<name>.py ...` as `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...` on every route. Keep the Studio working directory; `--project` selects the environment without changing argument paths. Execute returned `argv` as given.
+Run documented `python scripts/<name>.py ...` as `uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...`. Start in an existing directory; after Studio initialization, use its directory. `--project` selects only the environment. Execute returned `argv` as given.
 
 ## Start the current work
 
-Saved work: [plans](references/runtime/production-work-plan.md). Use `python scripts/production_workflow.py plan --root STUDIO` with `--request-file FILE --route prompt-only --scope save` for new text, or `--run RUN --scope sheet --influence identity` for sheet adoption. Follow `advance`, reads and answer files. [Current stage](references/runtime/production-workflow.md#read-the-current-stage) supplies complete sources; avoid preloading. After compaction reread work. Conversational work reads applicable originals.
+Work: [plans](references/runtime/production-work-plan.md). Use `python scripts/production_workflow.py plan --root STUDIO --fresh-context` with `--request-file FILE`. Text uses `--route prompt-only --scope save`; host images use `--route generation --execution external --scope delivery-only`. Use named `items` for separate images; `--run RUN` selects retained results. Follow reads, answer files and `advance`. [Current stage](references/runtime/production-workflow.md#read-the-current-stage) supplies required sources. After compaction reread work. Conversation reads applicable originals.
 
 ## Core contract
 
@@ -71,15 +71,15 @@ Construction questions may be empty; tag renditions need a searched vocabulary s
 
 Before definition vocabulary research, prompt, reference, sheet, generation or visual-state work, run `python scripts/pack_cli.py ready`. Supply `--state-file`, `--cache-dir` and `--managed-root` together for an explicit runtime; repeated `--pack-root` options add discovery roots. It initializes state once, preserves choices, lists active packs and maintains their browser catalog.
 
-- Exit 0: retrieval can proceed. Tell the user each `warning:` line.
+- Exit 0: proceed. Explain pack warnings' effects in plain terms.
 - Exit 1: each `decide:` line is the author's decision and names the command that settles it. Put new or unusable packs to the user before continuing; never continue on bundled commons alone while a discovered pack awaits that decision. Run the command the author chooses, then `ready` again. A pack the author disabled stays disabled and is not asked about again.
 - If the enabled packs change after retrieval has begun, discard the earlier results and restart from the image intent.
 
 ## Artifact-bearing production gate
 
-Use its paged action or `python scripts/execution_routes.py read --root STUDIO --choices FILE --all`. [Other operations](references/runtime/production-execution.md) supply contracts. Read `body` with `actions.continue` until `reading.record` exists; null continuation is insufficient. `actions.index` lists sources/sections; `actions.all` reads the remainder. `--known-reading` reuses unchanged sections in this context; fresh contexts reread. Curation has independent `--scope` and `--source-kind`; sheet withdrawal uses `--operation withdraw`.
+Use its action or `python scripts/execution_routes.py read --root STUDIO --choices FILE --all --view text`. [Other operations](references/runtime/production-execution.md) supply contracts. Read `body` via `actions.continue` until `reading.record` exists; null continuation is insufficient. `actions.index` lists scope; `actions.all` reads the remainder. Start `--fresh-context`, then carry its `--reading-context` to reuse known bodies; reread after compaction. Curation uses `--scope` and `--source-kind`; sheet withdrawal uses `--operation withdraw`.
 
-Use `authoring_guide` and `explain-inputs --root STUDIO --choices FILE` for field contracts. Plans continue their owning operations; direct `save --choices FILE` saves text and `prepare --choices FILE` prepares images at stage `prepare`. `save --draft` retains unfinished text; `status` locates sources/actions and `build-inputs` exports.
+Use `authoring_guide` field actions or `explain-inputs --root STUDIO --choices FILE --field FIELD`. Plans continue their owning operations; direct `save --choices FILE` saves text and `prepare --choices FILE` prepares images at stage `prepare`. `save --draft` retains unfinished text; `status` locates sources/actions and `build-inputs` exports.
 
 ## Choose a runtime path
 
@@ -101,8 +101,8 @@ Prompt work uses [Prompt-Only Core](references/runtime/prompt-only-core.md) with
 - linked evidence, or a prompt plus references without generation: route `reference-artifacts` or feature `references`;
 - model-facing reference transports: feature `reference-delivery`;
 - generation or model transport: route `generation` plus the feature for exactly one of `gpt-image`, `midjourney` (and Niji), `sdxl` (and ComfyUI), `novelai`, `grok`, `instruction-edit`, or `unlisted-interface` for any other image interface;
-- continuity, temporal state, off-screen events, cross-scene identity, or an arriving shot-request: route or feature `state-series`;
-- several images at once, across models or as concurrent variants of one model: route `batch`;
+- temporal or causal continuity, off-screen events or a shot-request: route or feature `state-series`; shared identity alone: `recurring-identity`;
+- several images at once, across or within models: route `batch`;
 - accepted characters in a new pose or shared scene, including staged asset creation: route `repose`;
 - deterministic editing of pinned stills: feature `image-edit`; user-requested semantic replacement of clothing, objects, environment or other depicted content: feature `semantic-instruction-edit`, [Semantic instruction editing](references/runtime/semantic-instruction-edit.md); masks when needed: feature `scene-mask-planning`;
 - enlarging a finished image: route `upscale`; offer enlargement when its intended use needs more resolution;
@@ -115,7 +115,7 @@ Prompt work uses [Prompt-Only Core](references/runtime/prompt-only-core.md) with
 - public state or shot interchange: feature `protocol-exchange`;
 - absent pack state, custom packs, or a resource conflict between packs: feature `pack-runtime`.
 
-Select specialists for consequential construction questions: `geometry` for exact multi-subject geometry, crop, perspective, overlap, or contact; `body-plan` for the declared construction of non-human or unfamiliar bodies, transformations, or feature counts; `recurring-identity` for a recurring character's identity contract; `performance-language` for subtle emotion, body language, appendage acting, physiological response, or mechanical performance; `garment-growth` for garment construction, growth, grooming and localized identity, including hair, fur, feathers, quills, fibers, nails, claws, hooves and digit plates; `production-spec` for scene artifacts; `finishing` for open treatment, design from source traits, type/logo or region relationships, named or implied media, photographic or 3D/toy presentation, environment-led composition, or wrong-finish results; `visual-evidence` for derived visual evidence, linked SVGs, or corpus ingestion.
+Select specialists for consequential construction questions: `geometry` for exact multi-subject geometry, crop, perspective, overlap, or contact; `body-plan` for the declared construction of non-human or unfamiliar bodies, transformations, or feature counts; `recurring-identity` for shared task-local or adopted identity; `performance-language` for subtle emotion, body language, appendage acting, physiological response, or mechanical performance; `garment-growth` for garment construction, growth, grooming and localized identity, including hair, fur, feathers, quills, fibers, nails, claws, hooves and digit plates; `production-spec` for scene artifacts; `finishing` for open treatment, design from source traits, type/logo or region relationships, named or implied media, photographic or 3D/toy presentation, environment-led composition, or wrong-finish results; `visual-evidence` for derived visual evidence, linked SVGs, or corpus ingestion.
 
 [Weighting grammar](references/runtime/prompt-weighting.md).
 

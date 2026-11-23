@@ -166,18 +166,28 @@ body. `selection_reason_ids` resolve in the shared `selection_reasons` map.
 Generated stage reads begin complete paged delivery. Use actions.index to inspect
 the scope or select exact sections. Continue until reading.record is issued.
 An earlier source-delivery record alone does not supply knowledge to a new context.
-The reader returns JSON; an explicitly requested index delivers no source body.
+The reader returns JSON by default. Add `--view text` to display every original
+body with its source range and short continuation controls, while retaining
+the complete JSON in the returned `response_file`. Each call uses a new file
+under `reading-responses` beside the ledger, or in `--response-dir DIRECTORY`.
+Its next action keeps that display and directory. Read selection reasons once
+through the index; complete metadata and other actions remain in the saved JSON.
+An explicitly requested index delivers no source body.
 Read each `body` segment, follow `actions.continue` within a selected section and
 `actions.next` for remaining required material, and retain the issued
 `reading.record`. A null continuation alone does not establish completion.
-In the same context, use the actual current draft's reading action and append
-`context_reuse.arguments` from complete readings still known here. The reader
-delivers missing or changed ranges and issues a record for the current scope.
-Use that issued key in the current choices; the prior record keeps its
-original scope.
+Begin a model context with `plan --fresh-context` or `advance --fresh-context`.
+Carry the returned `--reading-context` in its subsequent actions. The reader
+automatically selects complete current-context readings, delivers missing or
+changed ranges and issues a record for the current scope. Generated draft
+reading actions use `--bind-choices` to attach that completed record to the
+exact unchanged draft. A concurrent edit returns the current owner's reading
+repair without overwriting authored content. Low-level readings can still use
+explicit `context_reuse.arguments`; each prior record keeps its original scope.
 Fresh contexts use `inspect-inputs --root STUDIO --choices FILE` to find the
-current stage and source files, then read its applicable bodies again with no
-`--known-reading` selections, without discarding production work. No historical receipt supplies knowledge after
+current stage and source files, then read its applicable bodies again with
+`--fresh-context`, without earlier context IDs or `--known-reading` selections
+and without discarding production work. No historical receipt supplies knowledge after
 compaction. Earlier completed decisions remain actual source content; revisit
 them when the request or their applicability changes.
 

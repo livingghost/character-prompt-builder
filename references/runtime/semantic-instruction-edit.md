@@ -6,6 +6,11 @@ to an accepted Studio image. The agent chooses the edit's meaning and evaluates
 the result. Production pins the selected source, reference scopes, model, exact
 request and output evidence through its ordinary execution path.
 
+For a generated candidate without an accepted Studio slot, follow the
+[captured-output editing entry](production-authoring.md#start-an-existing-image-edit).
+That path selects the actual returned image and preserves existing review
+findings; neither slot acceptance nor canonical adoption is a prerequisite.
+
 A new scene assembled from character or design references uses the common
 `image_input` contract in [Production Execution](production-image-inputs.md#image-input).
 It has no edit source unless an existing scene is actually being edited.

@@ -5,6 +5,7 @@ import runtime_paths
 import operation_context as _operation_context
 
 import argparse
+import copy
 import datetime
 import json
 import os
@@ -16,9 +17,11 @@ from typing import Any, Callable, TextIO
 import execution_contract as c
 import execution_routes
 from cli_invocation import python_argv, shown
+from route_reading_output import TextReadingOutput
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PAGE_BYTES = 16384
+MAX_AUTO_PAGE_BYTES = 262144
 INDEX_SOURCE_STATES = {
     'pending': 'No source bytes have been delivered in this snapshot.',
     'partial': 'Some exact source ranges have been delivered; remaining ranges are required.',
@@ -28,6 +31,180 @@ INDEX_SOURCE_STATES = {
 _NO_MODEL = object()
 # An authoring reading made without a model holds every family's guide sections.
 SAVED_INPUT_OPERATIONS = {'execute', 'review'}
+
+
+def page_budget(value: int | str | None = None, host_page_bytes: int | None = None) -> tuple[int, dict]:
+    """Select a bounded source-text page from a declared host capacity.
+
+    The capacity covers source text, not the complete JSON response. The caller
+    reserves room for response metadata when choosing its host page capacity.
+    No successful write or saved receipt proves that a host displayed all text.
+    """
+    if host_page_bytes is not None and (type(host_page_bytes) is not int or host_page_bytes < 4):
+        raise ValueError('host-page-bytes must be an integer of at least four source bytes')
+    selected = DEFAULT_PAGE_BYTES if value is None else value
+    if selected == 'auto':
+        budget = min(host_page_bytes or DEFAULT_PAGE_BYTES, MAX_AUTO_PAGE_BYTES)
+    else:
+        if isinstance(selected, str) and selected.isdecimal():
+            selected = int(selected)
+        if type(selected) is not int or selected < 4:
+            raise ValueError('page-bytes must be auto or an integer of at least four')
+        budget = min(selected, host_page_bytes) if host_page_bytes is not None else selected
+    return budget, {'mode': 'auto' if value == 'auto' else 'fixed',
+        'source_bytes': budget, 'host_page_bytes': host_page_bytes,
+        'meaning': 'Source-text budget; reserve separate room for JSON metadata and replay any truncated page.'}
+
+
+def add_context_arguments(parser: argparse.ArgumentParser, *, pages: bool = True) -> None:
+    """Share an explicit current-context contract with plan navigation."""
+    context = parser.add_mutually_exclusive_group()
+    context.add_argument('--reading-context', metavar='ID',
+        help='The returned ID for this uninterrupted model context; automatically reuse only its complete readings. '
+             'Never carry this ID across compaction or a new context.')
+    context.add_argument('--fresh-context', action='store_true',
+        help='Start a new reading context; read current required bodies again while preserving authored work.')
+    if pages:
+        parser.add_argument('--page-bytes', default=None, metavar='N|auto',
+            help=f'Maximum UTF-8 source-text bytes per reading page (default: {DEFAULT_PAGE_BYTES}); '
+                 f'auto uses declared --host-page-bytes up to {MAX_AUTO_PAGE_BYTES}, '
+                 'or the default when no capacity is declared. This is not a total-response or token limit.')
+        parser.add_argument('--host-page-bytes', type=int, metavar='N',
+            help='Safe source-text capacity declared by this host, after reserving separate space for JSON metadata; '
+                 'caps fixed and auto source pages, not the complete JSON response. '
+                 'Keep the host tool output allowance larger; never infer capacity from a successful command.')
+
+
+def resolve_context_options(args: argparse.Namespace) -> dict:
+    """Resolve one invocation; persisted plans never select a knowledge context."""
+    identifier = getattr(args, 'reading_context', None)
+    fresh = getattr(args, 'fresh_context', False)
+    if fresh and identifier is not None:
+        raise ValueError('Choose --fresh-context or the current --reading-context ID.')
+    if fresh:
+        identifier = secrets.token_hex(16)
+    elif identifier is not None:
+        _hex(identifier, 32, 'reading context')
+    requested = getattr(args, 'page_bytes', None)
+    host = getattr(args, 'host_page_bytes', None)
+    page_budget(requested, host)
+    return {'reading_context': identifier, 'fresh_context': fresh,
+            'page_bytes': requested, 'host_page_bytes': host}
+
+
+def _context_path(ledger: Path, identifier: str) -> Path:
+    return ledger.parent / 'reading-contexts' / (_hex(identifier, 32, 'reading context') + '.json')
+
+
+def _context_keys(ledger: Path, identifier: str | None, root: Path) -> list[str]:
+    if identifier is None:
+        return []
+    path = _context_path(ledger, identifier)
+    if not path.exists():
+        return []
+    value = c.load(path)
+    c.exact(value, {'context', 'root', 'keys'}, 'reading context')
+    if value['context'] != identifier or value['root'] != str(root.absolute()):
+        raise ValueError('The reading context belongs to another source root; start with --fresh-context.')
+    keys = value['keys']
+    if not isinstance(keys, list) or keys != list(dict.fromkeys(keys)):
+        raise ValueError('The reading context needs distinct complete reading keys; start with --fresh-context.')
+    for key in keys:
+        _hex(key, 32, 'reading key')
+    return keys
+
+
+def _remember_context(ledger: Path, identifier: str, root: Path, keys: list[str]) -> None:
+    path = _context_path(ledger, identifier)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _ledger_lock(ledger):
+        previous = _context_keys(ledger, identifier, root)
+        value = {'context': identifier, 'root': str(root.absolute()),
+                 'keys': list(dict.fromkeys([*previous, *keys]))}
+        c.atomic(path, c.encoded(value), replace=path.exists())
+
+
+def decorate_context(report: dict, *, reading_context: str | None = None,
+                     fresh_context: bool = False, page_bytes: int | str | None = None,
+                     host_page_bytes: int | None = None) -> dict:
+    """Carry invocation knowledge through returned actions, never into plan state.
+
+    A different context restarts a saved page selection. No previously delivered
+    page or complete receipt silently supplies its body to the new context.
+    """
+    result = copy.deepcopy(report)
+    if reading_context is not None:
+        _hex(reading_context, 32, 'reading context')
+    page_budget(page_bytes, host_page_bytes)
+
+    def visit(value, owner=None):
+        if isinstance(value, list):
+            for child in value:
+                visit(child, owner)
+            return
+        if not isinstance(value, dict):
+            return
+        argv = value.get('argv')
+        if isinstance(argv, list) and len(argv) >= 3:
+            read_action = Path(argv[1]).name == 'execution_routes.py' and argv[2] == 'read'
+            plan_action = Path(argv[1]).name == 'production_workflow.py' and argv[2] in {'plan', 'advance'}
+            if read_action or plan_action:
+                selected = list(argv)
+                explicit_fresh = owner in {'fresh_context_action', 'restart'} and not fresh_context
+                def remove(name, argument=True):
+                    while name in selected:
+                        index = selected.index(name)
+                        del selected[index:index + (2 if argument else 1)]
+                def option(name):
+                    return selected[selected.index(name) + 1] if name in selected else None
+                if read_action:
+                    cursor = option('--continue') or option('--replay') or option('--restart')
+                    sid = option('--snapshot') or (cursor.split(':')[0] if cursor else None)
+                    ledger_value, studio_value = option('--reading-ledger'), option('--root')
+                    ledger = ledger_candidates(studio=Path(studio_value) if studio_value else None,
+                                               ledger=Path(ledger_value) if ledger_value else None)[0]
+                    if sid is not None:
+                        folder = _snapshot_dir(ledger, sid)
+                        snapshot = c.load(folder / 'snapshot.json')
+                        if (reading_context is None or snapshot.get('reading_context') != reading_context
+                                or fresh_context or explicit_fresh):
+                            if cursor is None:
+                                continuation = c.load(folder / 'continuation.json')
+                                cursor = sid + ':' + continuation['page']
+                            delivery = any(flag in selected for flag in ('--continue', '--replay', '--section', '--all'))
+                            for name in ('--continue', '--replay', '--restart', '--snapshot', '--section', '--index-source'):
+                                remove(name)
+                            selected.extend(('--restart', cursor))
+                            if delivery and '--all' not in selected:
+                                selected.append('--all')
+                    remove('--known-reading')
+                remove('--reading-context')
+                remove('--fresh-context', False)
+                if explicit_fresh:
+                    selected.append('--fresh-context')
+                elif reading_context is not None:
+                    selected.extend(('--reading-context', reading_context))
+                if page_bytes is not None:
+                    remove('--page-bytes')
+                    selected.extend(('--page-bytes', str(page_bytes)))
+                if host_page_bytes is not None:
+                    remove('--host-page-bytes')
+                    selected.extend(('--host-page-bytes', str(host_page_bytes)))
+                value['argv'] = selected
+                if 'shown' in value:
+                    value['shown'] = shown(selected)
+                if value.get('command') not in {'read', 'plan', 'advance'} and 'command' in value:
+                    value['command'] = shown(selected)
+        for key, child in value.items():
+            if key != 'argv':
+                visit(child, key)
+
+    visit(result)
+    if reading_context is not None:
+        result['reading_context'] = {'id': reading_context, 'fresh': fresh_context,
+            'meaning': 'Only complete material actually delivered in this uninterrupted context is reused automatically.',
+            'new_context': 'Use --fresh-context after compaction or in a new context; saved work remains intact.'}
+    return result
 
 
 def _hex(value: Any, length: int, label: str) -> str:
@@ -89,6 +266,7 @@ def operation_reading_action(studio: Path, run: str, *, operation: str, loaded=N
                        '--execution', task['execution'])
     for feature in task.get('features', []):
         argv.extend(('--feature', feature))
+    argv.append('--all')
     return {'argv': argv, 'command': 'read',
             'reason': 'Read the current ' + operation + ' contract for this saved request. '
                       'Use workspace.saved_knowledge for its exact retained model and source guidance.'}
@@ -109,6 +287,80 @@ class ReadingSourcesChanged(ValueError):
     def as_dict(self) -> dict:
         return {'code': 'READING_SOURCES_CHANGED', 'changes': self.changes,
                 'required_action': self.required_action, 'actions': self.actions}
+
+
+class ReadingInvocationConflict(ValueError):
+    """Return a verified saved reading's recovery without delivering any bytes."""
+
+    def __init__(self, message: str, details: dict):
+        super().__init__(message)
+        self.details = details
+
+    def as_dict(self) -> dict:
+        return {'code': 'READING_INVOCATION_CONFLICT', **self.details}
+
+
+def _invocation_conflict(args: argparse.Namespace, message: str) -> ReadingInvocationConflict:
+    """Keep continuation ownership and explicit knowledge context at an input error."""
+    details = {'required_action': 'Use the complete reading action from the current input inspection.',
+               'actions': {}}
+    try:
+        ledger = ledger_candidates(studio=args.root, ledger=args.reading_ledger)[0]
+        studio = args.root.absolute() if args.root is not None else (_studio(Path.cwd()) or _studio(ledger.parent))
+        cursor = args.cursor or args.replay or args.restart
+        if cursor is None:
+            folder = _snapshot_dir(ledger, args.snapshot_id)
+            continuation = c.load(folder / 'continuation.json')
+            cursor = args.snapshot_id + ':' + continuation['page']
+        _, snapshot, _ = _cursor(ledger, cursor)
+        if snapshot['root'] != str(ROOT.absolute()):
+            raise ValueError('The saved reading belongs to another Skill directory; inspect the current draft with the selected Skill.')
+        details['owner'] = {'snapshot': cursor.split(':')[0], 'choices': snapshot.get('choices'),
+                            'reading_ledger': str(ledger.absolute()),
+                            'reading_context': snapshot.get('reading_context')}
+        budget = DEFAULT_PAGE_BYTES if args.page_bytes is None else args.page_bytes
+        base = python_argv(ROOT / 'scripts/execution_routes.py', 'read',
+                           '--reading-ledger', str(ledger.absolute()), '--page-bytes', str(budget))
+        if studio is not None:
+            base.extend(('--root', str(studio.absolute())))
+        if args.host_page_bytes is not None:
+            base.extend(('--host-page-bytes', str(args.host_page_bytes)))
+        restart = [*base, '--restart', cursor, '--fresh-context']
+        if args.cursor or args.replay or args.all or args.section:
+            restart.append('--all')
+        actions = details['actions']
+        actions['restart'] = {'argv': restart, 'command': 'read',
+            'reason': 'Read the current required bodies in a new context, retaining all authored work.'}
+        # A stored context ID is information, not a claim that this caller
+        # still knows its bodies. Only an explicitly matching invocation can
+        # recover that context; a fresh or different context always restarts.
+        if (not args.fresh_context and args.restart is None and args.reading_context is not None
+                and args.reading_context == snapshot.get('reading_context')):
+            if args.snapshot_id is not None or (args.all and args.cursor):
+                resume = [*base, '--snapshot', cursor.split(':')[0]]
+                if args.all:
+                    resume.append('--all')
+                elif args.section is not None:
+                    resume.extend(('--section', args.section))
+                elif args.index_source is not None:
+                    resume.extend(('--index-source', args.index_source))
+            else:
+                selector = '--continue' if args.cursor else '--replay' if args.replay else '--restart'
+                resume = [*base, selector, cursor]
+            if args.reading_context is not None:
+                resume.extend(('--reading-context', args.reading_context))
+            actions['resume'] = {'argv': resume, 'command': 'read',
+                'reason': 'Continue this saved selection only in the same uninterrupted context; do not append initial route or feature selectors.'}
+            details['required_action'] = ('In this same context, run actions.resume.argv unchanged. '
+                'After compaction or in a new context, run actions.restart.argv instead.')
+        else:
+            details['required_action'] = ('Run actions.restart.argv to read the current required bodies in a new context. '
+                + ('A restart reacquires current source bodies instead of continuing stored pages.'
+                   if args.restart is not None else
+                   'No matching current context was explicitly selected; saved receipts do not supply knowledge.'))
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        details['recovery_unavailable'] = str(exc)
+    return ReadingInvocationConflict(message, details)
 
 
 def source_changes(previous: dict, current: dict, *, required_only: bool = False,
@@ -950,6 +1202,9 @@ def _issue(manifest: dict, ledger: Path, *, bodies: list[dict], reused: list[dic
 
 def _begin_output(stream: TextIO, body: list[dict], metadata: dict) -> None:
     """Flush actual source text before publishing its successful delivery."""
+    if isinstance(stream, TextReadingOutput):
+        stream.begin(body, metadata)
+        return
     stream.write('{"metadata": ' + json.dumps(metadata, ensure_ascii=False))
     stream.write(', "body": ' + json.dumps(body, ensure_ascii=False))
     stream.flush()
@@ -962,6 +1217,21 @@ def _visible_body_metadata(metadata: dict) -> dict:
 
 def _finish_output(stream: TextIO, result: dict) -> None:
     visible = {key: value for key, value in result.items() if key not in {'body', 'metadata', 'issued', 'delivered'}}
+    if result.get('mode') in {'all', 'section'}:
+        # Text pages need their current continuation and recovery commands.
+        # The complete source index owns optional whole-scope navigation and
+        # selection attribution; repeating those alongside every page obscures
+        # the remaining text and increases the host's output allowance.
+        if 'actions' in result:
+            visible['actions'] = {name: value for name, value in result['actions'].items() if name != 'all'}
+            if not result.get('body'):
+                visible['actions']['replay'] = None
+        if 'selection_summary' in result:
+            visible['selection_summary'] = {'action_ref': '#/actions/index',
+                'reason': 'Inspect the complete selected scope and source-selection reasons.'}
+    if isinstance(stream, TextReadingOutput):
+        stream.finish(visible)
+        return
     stream.write(', ' + json.dumps(visible, ensure_ascii=False)[1:] + '\n')
     stream.flush()
 
@@ -969,7 +1239,7 @@ def _finish_output(stream: TextIO, result: dict) -> None:
 def _failed_output(stream: TextIO, exc: Exception) -> None:
     """Finish an already begun structured response without a successful receipt."""
     value = {'ok': False, 'error': str(exc), 'reading': None,
-             **(exc.as_dict() if isinstance(exc, ReadingSourcesChanged) else {})}
+             **(exc.as_dict() if isinstance(exc, (ReadingSourcesChanged, ReadingInvocationConflict)) else {})}
     try:
         _finish_output(stream, value)
     except OSError:
@@ -1445,28 +1715,53 @@ def _selection_summary(snapshot: dict) -> dict:
             if _body_identity(body) in reused:
                 row['reused_bytes'] += body['size']
     scope = snapshot['manifest'].get('authoring_scope') or {}
-    return {'stage': scope.get('stage'), 'composition': scope.get('composition'),
+    return {'operation': snapshot['manifest']['operation'], 'route': snapshot['manifest']['route'],
+            'execution': snapshot['manifest']['execution'], 'scope': snapshot['manifest']['scope'],
+            'stage': scope.get('stage'), 'composition': scope.get('composition'),
             'change_scope': scope.get('change_scope'), 'profiles': scope.get('profiles', []),
             'by_selection': owners,
             'attribution': 'A source can have several selection owners; owner totals overlap and must not be added.',
             'fresh_context': 'Read every selected current range; a saved receipt supplies no knowledge to a fresh context.'}
 
 
+def _record_delivery(result: dict, snapshot: dict, body: list[dict], *, new_snapshot: bool,
+                     failed: bool = False) -> None:
+    """Count actually flushed body text, including a later source-check failure."""
+    context = _operation_context.current()
+    if context is None:
+        return
+    delivered = sum(len(item['text'].encode('utf-8')) for item in body)
+    reused = sum(item['body']['size'] for item in snapshot['reused_bodies'])
+    progress = result.get('progress') or {}
+    context.event('reading_progress', delivered_bytes=delivered,
+        reused_bytes=reused if new_snapshot else 0,
+        remaining_bytes=progress.get('remaining_bytes'),
+        required_bytes=sum(item['size'] for item in snapshot['required_bodies']),
+        delivered_pages=int(bool(body)), snapshot=result['snapshot'],
+        reading_record=None if failed else (result.get('reading') or {}).get('key'),
+        operation=snapshot['manifest']['operation'], choices=snapshot.get('choices'), failed=failed)
+
+
 def read_page(*, route: str | None = None, features: list[str] | None = None,
-              cursor: str | None = None, replay: bool = False, page_bytes: int = DEFAULT_PAGE_BYTES,
+              cursor: str | None = None, replay: bool = False, page_bytes: int | str = DEFAULT_PAGE_BYTES,
               root: Path = ROOT, studio: Path | None = None, ledger: Path | None = None,
               stream: TextIO | None = None, runtime: dict | None = None,
               dialect: str | None = None, operation: str | None = None, execution: str | None = None,
               scope: str | None = None, source_kind: str | None = None,
               authoring_scope: dict | None = None, choices_path: str | None = None,
+              bind_choices: bool = False, choices_sha256: str | None = None,
               model: str | None = None, service: str | None = None,
               model_file: Path | None = None, known_reading_keys: list[str] | None = None,
+              reading_context: str | None = None, host_page_bytes: int | None = None,
               publish_record: bool = False, navigation: bool = False,
               snapshot_id: str | None = None, section: str | None = None,
               index_source: str | None = None) -> dict:
     """Index or deliver exact source ranges; only complete coverage issues a record."""
-    if isinstance(page_bytes, bool) or not isinstance(page_bytes, int) or page_bytes < 4:
-        raise ValueError('page-bytes must be an integer of at least four')
+    page_bytes, page_sizing = page_budget(page_bytes, host_page_bytes)
+    if reading_context is not None:
+        _hex(reading_context, 32, 'reading context')
+    if bind_choices and (studio is None or choices_path is None or choices_sha256 is None):
+        raise ValueError('Binding a reading requires the exact --root, --choices and captured authored content.')
     if navigation and (cursor is not None or section is not None):
         raise ValueError('choose a snapshot index or a delivery action')
     if index_source is not None and (not navigation or snapshot_id is None):
@@ -1489,7 +1784,8 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         resolved = execution_routes.resolve(route, features, operation=operation, execution=execution,
                                             root=root, read_source=read_source, scope=scope, source_kind=source_kind,
                                             authoring_scope=authoring_scope)
-        context_keys = list(dict.fromkeys(known_reading_keys or []))
+        automatic_keys = _context_keys(ledger, reading_context, root)
+        context_keys = list(dict.fromkeys([*automatic_keys, *(known_reading_keys or [])]))
         known, available = _known_bodies(context_keys, ledger)
         required, reused, pending_bodies = _reuse_acquired(acquired, available)
         bodies = [meta for meta, raw in pending_bodies]
@@ -1497,8 +1793,12 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         task_id = production_authoring_state.active_task_id(authoring_studio)
         snapshot = {'manifest': manifest, 'root': str(root.absolute()), 'runtime': runtime,
                     **({'choices': choices_path} if choices_path is not None else {}),
+                    **({'bind_choices': True, 'choices_sha256': _hex(choices_sha256, 64, 'choices content')}
+                       if bind_choices else {}),
                     'task_id': task_id, 'model_file': str(model_file.absolute()) if model_file is not None else None,
                     'nonce': secrets.token_hex(16), 'bodies': bodies, 'required_bodies': required,
+                    **({'reading_context': reading_context, 'automatic_readings': len(automatic_keys)}
+                       if reading_context is not None else {}),
                     'reused_bodies': reused, 'known_readings': known, 'context_keys': context_keys,
                     'read_owners': resolved['read_owners'], 'section_owners': resolved['section_owners']}
         _validate_body_scope(manifest, required)
@@ -1514,7 +1814,8 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
     else:
         if (route is not None or features or dialect is not None or operation is not None or execution is not None
                 or scope is not None or source_kind is not None or authoring_scope is not None or choices_path is not None
-                or model is not None or service is not None or model_file is not None or known_reading_keys):
+                or model is not None or service is not None or model_file is not None or known_reading_keys
+                or bind_choices or choices_sha256 is not None):
             raise ValueError('a snapshot fixes its route, operation, execution, destination, source kind, features, model scope and known readings')
         if cursor is not None:
             folder, snapshot, previous = _cursor(ledger, cursor)
@@ -1526,6 +1827,9 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         sid = c.content_id(snapshot)
         if str(root.absolute()) != snapshot['root']:
             raise ValueError('reading snapshot belongs to a different skill root')
+        if snapshot.get('reading_context') != reading_context:
+            raise ValueError('This snapshot belongs to another reading context. Use its --restart action '
+                             'with --fresh-context to read the current complete material again.')
         _restore_runtime(snapshot['runtime'])
         _check_reused_bodies(snapshot, ledger)
     coverage = snapshot_coverage(folder, snapshot)
@@ -1536,7 +1840,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
     selection = section if section is not None else (previous or {}).get('section')
     selected = _section_scope(sections, selection) if selection is not None else None
     if previous is not None and previous.get('index'):
-        raise ValueError('an index has no delivered source page; use its next-section or --all action')
+        raise ValueError('an index has no delivered source page; use its actions.next or --all action')
     if navigation:
         start, limit = 0, 0
     elif replay:
@@ -1547,7 +1851,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         start = selected['low'] if previous is None else previous['end']
         limit = selected['high']
         if start >= limit:
-            raise ValueError('selected section is complete; open the snapshot index or choose its next required section')
+            raise ValueError('selected section is complete; use its actions.next or --all action for the remaining required scope')
     else:
         start, limit = coverage['missing'][0] if coverage['missing'] else (total, total)
     index, offset = _position(snapshot, start)
@@ -1597,6 +1901,12 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
               'section': ({key: selected[key] for key in ('selector', 'heading', 'start', 'end')}
                           if selected is not None else None),
               'reading': None, 'context_reuse': None,
+              'reading_context': reading_context, 'page_sizing': page_sizing,
+              'reuse_selection': {'automatic_readings': snapshot.get('automatic_readings', 0),
+                  'selected_readings': len(snapshot['context_keys']),
+                  'reason': ('Complete readings explicitly associated with this uninterrupted context; '
+                             'only unchanged current required ranges are reused.' if reading_context else
+                             'Only explicitly selected --known-reading values; no saved context is inferred.')},
               'same_context_required': bool(snapshot['context_keys'] or coverage['delivered_bytes'])}
     # Navigation never contributes delivered bytes. Actual text is flushed
     # before its page receipt can contribute to whole-source coverage.
@@ -1616,9 +1926,9 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
             replay_remaining_bytes=max(0, pending.get('replay_until', end) - end))
         result['actions'] = _reading_actions(result, ledger=ledger, studio=studio, page_bytes=page_bytes,
                                             acquired=(folder, snapshot, page), coverage=coverage, sections=sections)
+        result['selection_summary'] = _selection_summary(snapshot)
         if navigation:
             result['index'], result['selection_reasons'] = navigation_rows
-            result['selection_summary'] = _selection_summary(snapshot)
             result['index_source'] = index_source
             result['source_states'] = dict(INDEX_SOURCE_STATES)
             result['section_selection'] = {
@@ -1655,10 +1965,21 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
                 result['reading']['record_absolute'] = str(path.absolute())
             result['context_reuse'] = _context_reuse(result, snapshot=snapshot, ledger=ledger,
                                                        studio=studio, page_bytes=page_bytes)
+            if snapshot.get('bind_choices'):
+                import production_inputs
+                result['choices_binding'] = production_inputs.bind_reading(
+                    authoring_studio, snapshot['choices'], issued,
+                    expected_choices_sha256=snapshot['choices_sha256'], ledger=ledger, source_root=root)
     except (ValueError, OSError) as exc:
         _failed_output(stream, exc)
+        _record_delivery(result, snapshot, body,
+                         new_snapshot=cursor is None and snapshot_id is None, failed=True)
         raise
     _finish_output(stream, result)
+    _record_delivery(result, snapshot, body, new_snapshot=cursor is None and snapshot_id is None)
+    if reading_context is not None and result.get('issued') is not None:
+        _remember_context(ledger, reading_context, root,
+                          [*snapshot['context_keys'], result['issued']['reading_key']])
     return result
 
 
@@ -1700,7 +2021,11 @@ def _selected_model(model: str) -> tuple[str, dict]:
         resource = catalog.resources.get('prompt-dialects')
         families = sorted(row['id'] for row in c.load(Path(resource.path))['dialects']) if resource else []
         raise ValueError(f"{exc}; model ids: {', '.join(models) or 'none'}; a prompt-only read can name "
-                         f"the prompt family instead with --dialect ID: {', '.join(families) or 'none'}") from None
+                         f"the prompt family instead with --dialect ID: {', '.join(families) or 'none'}; "
+                         'for an acquired model definition use --model-file FILE. For an unlisted host tool, '
+                         'select execution external and target.kind external in the owning choices, then use '
+                         'their returned reading action. See references/runtime/production-external-inputs.md'
+                         '#exact-target-and-provider-schema; do not invent a catalog ID or undisclosed backend.') from None
 
 
 def add_read_arguments(parser: argparse.ArgumentParser) -> None:
@@ -1710,6 +2035,15 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--feature', action='append', default=[], help='Feature to include when beginning a route')
     parser.add_argument('--root', type=Path, help='Studio root for the reading ledger')
     parser.add_argument('--choices', help='Studio-relative input choices; derive the current stage, route, execution, features and target')
+    parser.add_argument('--bind-choices', action='store_true',
+        help='With --choices, bind the issued key to that exact unchanged draft after complete delivery; '
+             'generated authoring actions select this automatically. Changed authored content is never overwritten.')
+    parser.add_argument('--view', choices=['json', 'text'], default='json',
+        help='json returns the complete response (default); text displays every original body with source ranges '
+             'and short continuation controls, retaining the complete JSON in a new response file.')
+    parser.add_argument('--response-dir', type=Path,
+        help='Directory for new response files with --view text; defaults to reading-responses beside the reading ledger. '
+             'Each read or replay uses a new file. Source selection and reading requirements are unchanged.')
     parser.add_argument('--operation', choices=execution_routes.OPERATIONS,
                         help='Current operation; defaults to the route owner')
     parser.add_argument('--execution', choices=execution_routes.EXECUTIONS,
@@ -1724,11 +2058,10 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     family.add_argument('--model-file', type=Path, help='Acquired model definition, relative to the Studio or absolute')
     family.add_argument('--dialect', metavar='ID',
                         help='Read only the writing guide sections for this prompt family, without a model record')
-    parser.add_argument('--page-bytes', type=int, default=DEFAULT_PAGE_BYTES,
-                        help=f'Maximum source bytes delivered per page (default: {DEFAULT_PAGE_BYTES})')
+    add_context_arguments(parser)
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--continue', dest='cursor',
-                       help='Continue the saved route, features and prompt family using the emitted action')
+                       help='Continue with the complete emitted action and its current context; do not append initial route, feature or choices selectors. Conflicts return recovery actions.')
     group.add_argument('--replay', dest='replay', metavar='CURSOR',
                        help='Read the selected snapshot page again using the emitted action')
     group.add_argument('--restart', metavar='CURSOR',
@@ -1779,20 +2112,26 @@ def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_by
                          if 'section' in page else coverage['remaining_bytes'])
         if remaining:
             actions['continue'] = action('--continue', result['cursor'],
-                reason=f'Read the remaining {remaining} bytes of this selected delivery.')
+                reason=f'Read the remaining {remaining} bytes of this selected delivery in the same live model context.')
         actions['replay'] = action('--replay', result['cursor'],
-            reason='Read this delivered page again; reduce --page-bytes if the host truncated it.')
+            reason='Replay this page with smaller --page-bytes after tool-output truncation; '
+                   'after model-context compaction, use actions.restart.')
     if coverage['missing'] and actions['continue'] is None:
-        position = coverage['missing'][0][0]
-        selected = next(row for row in sections if row['low'] <= position < row['high'])
-        actions['next'] = action('--snapshot', sid, '--section', selected['selector'],
-            reason='Read the next required section: ' + selected['heading'] + '.')
+        actions['next'] = action('--snapshot', sid, '--all',
+            reason='Read the complete remaining required scope in bounded pages in the same live model context; '
+                   'individual heading selection is optional through actions.index.')
     actions['index'] = action('--snapshot', sid,
         reason='Inspect required sources, selected sections, shared selection reasons and exact remaining coverage without issuing a reading.')
     actions['all'] = action('--snapshot', sid, '--all',
         reason='Deliver all remaining required source bytes in bounded pages, then check current sources and issue the reading.')
     actions['restart'] = action('--restart', result['cursor'],
-        reason='Index current sources for a fresh context; keep task work and make no assertion of retained knowledge.')
+        reason='Index all current required knowledge after compaction, a summary handoff or a new agent; '
+               'keep choices, images and saved progress.')
+    if snapshot.get('reading_context') is not None:
+        for name, value in actions.items():
+            if value is not None:
+                value['argv'].extend(['--fresh-context'] if name == 'restart' else
+                                     ['--reading-context', snapshot['reading_context']])
     return actions
 
 
@@ -1800,7 +2139,8 @@ def _context_reuse(result: dict, *, snapshot: dict, ledger: Path,
                    studio: Path | None, page_bytes: int) -> dict:
     """Offer complete read invocations without inferring a later context's knowledge."""
     keys = list(dict.fromkeys([*snapshot['context_keys'], result['issued']['reading_key']]))
-    arguments = [word for key in keys for word in ('--known-reading', key)]
+    arguments = (['--reading-context', snapshot['reading_context']] if snapshot.get('reading_context') else
+                 [word for key in keys for word in ('--known-reading', key)])
     manifest = snapshot['manifest']
     base = python_argv(ROOT / 'scripts/execution_routes.py', 'read', manifest['route'],
                        '--reading-ledger', str(ledger.absolute()), '--page-bytes', str(page_bytes),
@@ -1833,6 +2173,8 @@ def _context_reuse(result: dict, *, snapshot: dict, ledger: Path,
             argv = python_argv(ROOT / 'scripts/execution_routes.py', 'read',
                 '--reading-ledger', str(ledger.absolute()), '--page-bytes', str(page_bytes),
                 '--choices', snapshot['choices'])
+            if snapshot.get('bind_choices'):
+                argv.append('--bind-choices')
             if studio is not None:
                 argv.extend(('--root', str(studio.absolute())))
             if runtime is not None:
@@ -1880,6 +2222,9 @@ def _choice_selection(args: argparse.Namespace) -> tuple[dict | None, str | None
         raise ValueError('--choices requires --root STUDIO to acquire the selected editable input')
     from production_reading_scope import from_choices, operation
     selected, task, choices = from_choices(args.root, args.choices, include_choices=True)
+    if args.bind_choices:
+        from production_inputs import reading_choice_identity
+        args.choices_sha256 = reading_choice_identity(choices)
     for field in ('route', 'execution'):
         supplied = getattr(args, field)
         if supplied is not None and supplied != task[field]:
@@ -1911,19 +2256,26 @@ def _choice_selection(args: argparse.Namespace) -> tuple[dict | None, str | None
     return selected, args.choices
 
 
-def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
+def _read_command(args: argparse.Namespace, parser: argparse.ArgumentParser, *, stream=None) -> dict:
     """Start with navigation unless the caller selects exact source delivery."""
+    options = resolve_context_options(args)
+    if options['fresh_context'] and args.known_reading:
+        raise ValueError('--fresh-context cannot assert --known-reading; read current required bodies again.')
+    if options['fresh_context'] and (args.cursor is not None or args.replay is not None or args.snapshot_id is not None):
+        raise _invocation_conflict(args, 'Use --restart CURSOR --fresh-context; continuing saved pages cannot supply knowledge to a new context.')
     continuation = args.cursor is not None or args.replay is not None or args.restart is not None or args.snapshot_id is not None
     if continuation and (args.route is not None or args.feature or args.model is not None or args.model_file is not None or args.dialect is not None
                          or args.operation is not None or args.execution is not None or args.scope is not None or args.source_kind is not None
-                         or args.service is not None or args.known_reading or args.choices is not None):
-        raise ValueError('a cursor or snapshot fixes its route, operation, execution, destination, source kind, features, model scope and known readings; execute its complete reading action')
+                         or args.service is not None or args.known_reading or args.choices is not None or args.bind_choices):
+        raise _invocation_conflict(args, 'a cursor or snapshot fixes its route, operation, execution, destination, source kind, features, model scope and known readings; execute its complete reading action')
     if args.section is not None and args.snapshot_id is None:
         raise ValueError('--section requires --snapshot ID from the source index; begin with read ROUTE and its actual task selections')
     if args.index_source is not None and args.snapshot_id is None:
         raise ValueError('--index-source requires --snapshot ID from the source index; it expands headings and delivers no body')
     if args.all and (args.cursor is not None or args.replay is not None):
         raise ValueError('a cursor fixes its delivery selection; use --snapshot ID --all to select all remaining bytes')
+    if args.bind_choices and args.choices is None:
+        raise ValueError('--bind-choices requires --choices FILE; follow the current draft reading action.')
     authoring_scope, choices_path = _choice_selection(args) if not continuation else (None, None)
     if not continuation and args.execution is None:
         raise ValueError('a new reading requires --execution authored, external or dispatcher from the task')
@@ -1947,26 +2299,70 @@ def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> d
             raise ValueError('reading cursor belongs to a different skill root')
         _restore_runtime(snapshot['runtime'])
         manifest = snapshot['manifest']
+        if snapshot.get('bind_choices'):
+            args.root, args.choices, args.bind_choices = studio, snapshot['choices'], True
+            authoring_scope, choices_path = _choice_selection(args)
+            model_file = args.model_file
+            if model_file is not None and not model_file.is_absolute():
+                model_file = studio / model_file
+            return read_page(route=args.route, features=args.feature, root=ROOT,
+                stream=stream,
+                operation=args.operation, execution=args.execution, authoring_scope=authoring_scope,
+                choices_path=choices_path, bind_choices=True, choices_sha256=args.choices_sha256,
+                dialect=args.dialect, model_file=model_file, model=args.model, service=args.service,
+                page_bytes=page_bytes, reading_context=options['reading_context'],
+                host_page_bytes=options['host_page_bytes'], ledger=ledger, studio=studio,
+                runtime=snapshot['runtime'], publish_record=True, navigation=not args.all)
         result = read_page(route=manifest['route'], features=manifest['features'], root=ROOT,
+            stream=stream,
             operation=manifest['operation'], execution=manifest['execution'],
             scope=manifest['scope'], source_kind=manifest['source_kind'],
             authoring_scope=manifest.get('authoring_scope'), choices_path=snapshot.get('choices'),
             dialect=bound_dialect(manifest), model_file=Path(snapshot['model_file']) if snapshot['model_file'] else None,
             model=(manifest['model'] or {}).get('id') if snapshot['model_file'] is None else None,
             service=(manifest['model'] or {}).get('service'), page_bytes=page_bytes,
+            reading_context=options['reading_context'], host_page_bytes=options['host_page_bytes'],
             ledger=ledger, studio=studio, runtime=snapshot['runtime'], publish_record=True,
             navigation=not args.all)
     else:
         result = read_page(route=args.route, features=args.feature, cursor=cursor, root=ROOT,
+                           stream=stream,
                            replay=args.replay is not None, page_bytes=page_bytes,
                            ledger=ledger, studio=studio, runtime=runtime, dialect=dialect,
                            operation=args.operation, execution=args.execution, model=args.model, service=args.service,
                            scope=args.scope, source_kind=args.source_kind,
                            authoring_scope=authoring_scope, choices_path=choices_path,
+                           bind_choices=args.bind_choices, choices_sha256=getattr(args, 'choices_sha256', None),
                            model_file=model_file, known_reading_keys=args.known_reading, publish_record=True,
+                           reading_context=options['reading_context'], host_page_bytes=options['host_page_bytes'],
                            snapshot_id=args.snapshot_id, section=args.section, index_source=args.index_source,
                            navigation=cursor is None and not args.all and args.section is None)
     return result
+
+
+def read_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
+    """Keep source delivery and its retained response within one public read."""
+    if getattr(args, 'view', 'json') == 'json':
+        if getattr(args, 'response_dir', None) is not None:
+            raise ValueError('--response-dir requires --view text; JSON output can also be captured directly.')
+        return _read_command(args, parser)
+    directory = (getattr(args, 'response_dir', None)
+        or ledger_candidates(studio=args.root, ledger=args.reading_ledger)[0].parent / 'reading-responses')
+    output = TextReadingOutput(directory, sys.stdout)
+    try:
+        return _read_command(args, parser, stream=output)
+    except (ValueError, OSError) as exc:
+        if not getattr(exc, 'reading_result_written', False):
+            try:
+                if not output.begun:
+                    _begin_output(output, [], {})
+                _failed_output(output, exc)
+            except OSError:
+                pass
+            exc.reading_result_written = True
+        raise
+    finally:
+        output.close()
 
 
 def main() -> int:

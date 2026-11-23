@@ -119,6 +119,73 @@ class AuthoredContinuationTests(unittest.TestCase):
         work_ledger.finish(self.root, saved['run'])
         self.assertIsNone(authoring.current_task(self.root))
 
+    def test_reopened_work_inspects_all_new_drafts_without_rechecking_the_previous_revision(self):
+        self.choices['reading']['reading_key'] = ''
+        self.write(self.choices_path, self.choices)
+        work_ledger.reopen(self.root, 1, reason='Revise the commissioned descriptions.', actor='Synthetic author')
+        selected = {
+            authoring_fixtures.authoring_inputs(self.root, 'task.json', 'revised-' + name)['choices_file']
+            for name in ('first', 'second', 'third')
+        }
+        before = (self.root / self.choices_path).read_bytes()
+        observed = []
+        original = authoring._input
+
+        def inspect_input(root, record, **kwargs):
+            observed.append(record['details']['directory'])
+            return original(root, record, **kwargs)
+
+        with patch.object(authoring, '_input', side_effect=inspect_input):
+            report = authoring.inspect(self.root)
+        self.assertEqual({row['choices'] for row in report['inputs']}, selected)
+        self.assertEqual({row['choices'] for row in report['input_options']}, selected)
+        self.assertTrue(report['selection_required'])
+        self.assertNotIn(str(Path(self.choices_path).parent), observed)
+        retained = next(row for row in report['comparison_inputs'] if row['choices'] == self.choices_path)
+        self.assertIn('--choices', retained['action']['argv'])
+        self.assertIn(self.choices_path, retained['action']['argv'])
+        printed = subprocess.run([sys.executable, '-B', str(Path(production_workflow_cli.__file__)),
+            'inspect-inputs', '--root', str(self.root)], cwd=self.root,
+            capture_output=True, text=True, encoding='utf-8', check=False, timeout=45)
+        self.assertEqual(printed.returncode, 0, printed.stdout + printed.stderr)
+        summary = json.loads(printed.stdout)
+        self.assertEqual({row['choices'] for row in summary['inputs']}, selected)
+        self.assertNotIn(self.choices_path, c.encoded(summary['diagnostics']).decode('utf-8'))
+        historical = authoring.inspect(self.root, choices=self.choices_path)
+        self.assertEqual([row['choices'] for row in historical['inputs']], [self.choices_path])
+        self.assertTrue(any(row['field'] == 'reading.reading_key' for row in historical['inputs'][0]['unresolved']))
+        self.assertEqual((self.root / self.choices_path).read_bytes(), before)
+
+    def test_current_plan_keeps_every_selected_item_including_a_retained_revision_source(self):
+        import production_work_plan as plans
+        stale = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'old-comparison')['choices_file']
+        self.write(stale, '{ invalid retained comparison input')
+        work_ledger.reopen(self.root, 1, reason='Produce three requested descriptions.', actor='Synthetic author')
+        selected = [self.choices_path] + [
+            authoring_fixtures.authoring_inputs(self.root, 'task.json', 'selected-' + name)['choices_file']
+            for name in ('second', 'third')
+        ]
+        plan = plans.create(self.root, request={'items': [
+            {'name': 'description-' + str(number), 'source': {'choices': path},
+             'result': {'scope': 'save'}} for number, path in enumerate(selected)
+        ]})
+        self.assertIn('plan', plan)
+        report = authoring.inspect(self.root)
+        self.assertEqual({row['choices'] for row in report['inputs']}, set(selected))
+        self.assertEqual({row['choices'] for row in report['input_options']}, set(selected))
+        self.assertEqual(report['diagnostics'], [])
+        self.assertEqual([row['choices'] for row in report['comparison_inputs']], [stale])
+
+    def test_explicit_choices_inspection_does_not_read_an_unselected_broken_sibling(self):
+        sibling = authoring_fixtures.authoring_inputs(self.root, 'task.json', 'broken-sibling')['choices_file']
+        self.write(sibling, '{ invalid unselected input')
+        with patch.object(authoring, '_input', wraps=authoring._input) as observed:
+            report = authoring.inspect(self.root, choices=self.choices_path)
+        self.assertEqual([row['choices'] for row in report['inputs']], [self.choices_path])
+        self.assertEqual(report['diagnostics'], [])
+        self.assertEqual(observed.call_count, 1)
+        self.assertEqual([row['choices'] for row in report['comparison_inputs']], [sibling])
+
 
 class RegisteredRuntimeContinuationTests(unittest.TestCase):
     """A draft's registered runtime owns its current target and reading guidance."""

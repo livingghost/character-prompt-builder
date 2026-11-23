@@ -33,7 +33,7 @@ def change_scope_from_arguments(args) -> dict | None:
 def add_input_arguments(subparsers) -> None:
     for name in sorted(INPUT_COMMANDS):
         parser = subparsers.add_parser(name, help={
-            'inspect-inputs': 'Show declared sources, candidates and required input choices.',
+            'inspect-inputs': 'Inspect current work inputs, or an explicitly selected retained source.',
             'compare-inputs': 'Read actual editable candidates together through the common comparison owner.',
             'explain-inputs': 'Describe editable fields, source files, schemas, validators and completed examples.',
             'draft-inputs': 'Start a concrete compose or amend operation in a new authoring directory.',
@@ -58,20 +58,33 @@ def add_input_arguments(subparsers) -> None:
             continue
         if name == 'explain-inputs':
             parser.add_argument('--choices', required=True, help='Studio-relative choices.json to explain without compiling.')
-            parser.add_argument('--field', help='One choices field, such as authoring.documents.production_spec '
+            parser.add_argument('--field', help='One display selector, such as task_changes.semantic_edit, authoring.documents.production_spec '
                                 'or authoring.references.additional_references; follow returned child contracts '
-                                'for exact schemas, or omit for the field and source index.')
+                                'for exact schemas and editable owner pointers. Container selectors are not '
+                                'permission to replace the parent. Omit for the field and source index.')
             continue
         source = parser.add_mutually_exclusive_group()
         source.add_argument('--task', help='Studio-relative authored production task JSON.')
         source.add_argument('--from-run', help='Use the saved task and delivery of this existing run.')
         if name == 'inspect-inputs':
-            parser.add_argument('--choices', help='Select this registered editable draft when several are pending.')
-            parser.epilog = ('Saved inputs use their registered producer runtime. An explicit pack runtime '
+            parser.add_argument('--choices', help='Inspect only this registered editable draft, including a retained '
+                'draft from an earlier work revision; leave the current work and plan selection unchanged.')
+            parser.epilog = ('Without a source selector, inspect every unfinished input of the current plan, or '
+                'every input registered since the current work revision was reopened. Earlier inputs remain '
+                'available through comparison actions. A later creation time does not choose one current branch. '
+                'Saved inputs use their registered producer runtime. An explicit pack runtime '
                 'supplies inputs with no registered runtime and is retained in their continuation actions; '
                 'inspection does not change the saved inputs or registration.')
         if name == 'draft-inputs':
             from production_reading_scope import STAGES
+            parser.epilog = ('To edit a captured candidate without a Studio slot, first create its draft with '
+                '--from-run RUN --operation amend and declare the actual --retain and --change owners. Follow its '
+                'current inspection and reading actions, then select the actual image file from '
+                'input_reuse.captured_outputs. Apply it as this task\'s source and '
+                'scene reference, and declare the semantic edit; no slot acceptance or canonical adoption is required. '
+                'Follow references/runtime/production-authoring.md#start-an-existing-image-edit. Prepared results '
+                'require an explicitly reopened work revision; see '
+                'references/runtime/production-work-plan.md#revise-the-result-or-items.')
             source.add_argument('--choices',
                 help='Use this actual editable candidate as the content of a new compose operation, including '
                      'an explicitly retained proposal from a refused edit. The earlier candidate remains comparison evidence.')
@@ -94,11 +107,13 @@ def add_input_arguments(subparsers) -> None:
                 help='Start an instruction edit of the accepted image of this Studio character, with --edit-slot, '
                      '--route generation and --execution dispatcher or external. The draft selects the image with '
                      'its acceptance evidence and any separately adopted identity; leaves the edit, prompt, criteria '
-                     'and recording destination for the author. Sheet adoption is not required for scene editing.')
+                     'and recording destination for the author. Sheet adoption is not required for scene editing. '
+                     'For a candidate without a slot, use --from-run and the candidate-edit guidance below.')
             parser.add_argument('--edit-slot', metavar='SLOT',
                 help='The source slot of --edit-character whose current accepted image is edited. '
                      'Choose the result destination independently in authoring.task.recording.slot.')
-            parser.add_argument('--model',help='Select the canonical model in a new or reopened draft.')
+            parser.add_argument('--model',help='Select a catalog model in a new or reopened draft. For an unlisted '
+                                'host, omit this selector and complete target.kind external in the choices.')
             parser.add_argument('--service',help='Select the offering service in a new or reopened draft.')
             parser.add_argument('--route', help='Select the production route in a new or reopened draft; no prebuilt task is needed.')
             parser.add_argument('--artifact', dest='artifact_kind',
@@ -107,12 +122,14 @@ def add_input_arguments(subparsers) -> None:
                      'otherwise text; an existing task retains its kind when this option is omitted.')
             parser.add_argument('--execution', choices=('authored', 'external', 'dispatcher'),
                 help='Select the execution method. A new task defaults to dispatcher for upscale, otherwise authored. '
-                     'An accepted-image edit selects dispatcher or external; an existing task retains its method '
+                     'Use external for an available host image tool. An accepted-image edit selects dispatcher or '
+                     'external; an existing task retains its method '
                      'when this option is omitted.')
             parser.add_argument('--task-id', help='Existing work task ID; defaults to the open work task.')
             parser.add_argument('--new-task', metavar='GOAL',
                 help='Open a new work task for this selected saved source, captured upscale image or accepted image to '
-                     'edit; this goal names the work. Give its current actual instruction with --request-file.')
+                     'edit; this goal names the work. Omit this option for another draft within the current open work. '
+                     'Give its current actual instruction with --request-file.')
             parser.add_argument('--operation', choices=('compose', 'amend'),
                 help='Both operations seed actual selected content. Compose opens identity-source selection; amend '
                      'retains the selected identity-source boundary. Required except with --choices, which selects compose. '

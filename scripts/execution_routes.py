@@ -125,6 +125,15 @@ def _require_name(manifest: dict[str, Any], kind: str, name: str) -> None:
                      'SKILL.md explains when to select them.')
 
 
+def require_selection_names(route: str | None = None, features: list[str] | None = None) -> None:
+    """Check explicit names before a work owner is created, without reading its bodies."""
+    manifest = decode(read(local(ROOT, MANIFEST)))
+    if route is not None:
+        _require_name(manifest, 'route', route)
+    for feature in features or []:
+        _require_name(manifest, 'feature', feature)
+
+
 def resolve(route: str, features: list[str] | None = None, *, execution: str,
             operation: str | None = None, root: Path = ROOT,
             scope: str | None = None, source_kind: str | None = None,
@@ -393,8 +402,11 @@ def main() -> int:
     p.add_argument('--source-kind', choices=SOURCE_KINDS, help='Independent owner of the retained image or artifact')
     p.add_argument('--root', type=Path, help='Studio root when selecting editable --choices')
     p.add_argument('--choices', help='Studio-relative input choices; derive the current authoring stage and source conditions')
-    reading = sub.add_parser('read', help='Index the selected knowledge; choose sections or --all for exact paged delivery')
-    from route_reading import ReadingSourcesChanged, add_read_arguments, read_command
+    reading = sub.add_parser('read', help='Read exact paged source text with --all, or inspect the source index',
+        description='Deliver complete selected source text in bounded pages. Page budgets count UTF-8 source bytes; '
+                    'the host tool must also allow space for the JSON controls. Follow each returned continuation '
+                    'after reading its complete response; use the index for optional source selection.')
+    from route_reading import ReadingInvocationConflict, ReadingSourcesChanged, add_read_arguments, read_command
     add_read_arguments(reading)
     sub.add_parser('validate')
     a=parser.parse_args()
@@ -426,7 +438,7 @@ def main() -> int:
     except (ValueError,OSError) as exc:
         if not getattr(exc, 'reading_result_written', False):
             print(json.dumps({'ok':False,'error':str(exc),
-                              **(exc.as_dict() if isinstance(exc, ReadingSourcesChanged) else {})}))
+                              **(exc.as_dict() if isinstance(exc, (ReadingSourcesChanged, ReadingInvocationConflict)) else {})}))
         return 1
 if __name__=='__main__':
     import stdio_utf8

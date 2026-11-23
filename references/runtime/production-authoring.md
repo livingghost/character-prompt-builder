@@ -9,21 +9,45 @@ judges meaning; the input owners derive paths, hashes and repeated bindings.
 
 ### Discover input structures
 
-`draft-inputs` returns `authoring_guide` and retains it in `context.json`. Use its
-`explain_action` to locate the current editable files and the contracts of the
-selected fields before writing them:
+`draft-inputs` returns `authoring_guide` and retains its creation-time copy in
+`context.json`. `inspect-inputs` exposes the selected input's current
+`context.input.authoring_guide_action`; follow it, or run `explain-inputs --field
+authoring`, to obtain the guide for the current Studio and Skill locations.
+After moving the Studio or changing the Skill installation, reacquire this
+guide before executing its actions; saved context actions may still name their
+original locations. Keep that context unchanged as the draft's source record.
+Use the current guide's field-specific explain actions to locate the editable
+files and complete contracts of unresolved fields before writing them. An unqualified
+`explain-inputs` returns the entire field catalogue and may exceed a host's
+display capacity; use the supplied `explain_action` or a listed input field
+with `--field` for a focused response. A document member's repair pointer is
+distinct from its document selector; inspect that member through the selected
+document's contract action. This does not replace the current route's required
+source reading:
 
 ```bash
-python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field authoring.documents.negative_provenance
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field target.model
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field external
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field external.image_input.external_request
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field authoring.task.recording
+python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field authoring.task.criteria
 python scripts/production_document_contracts.py explain production_spec
 python scripts/production_document_contracts.py explain production_spec --pointer /properties/subjects/items
 python scripts/production_document_contracts.py validate negative_provenance STUDIO/work/input/negative_provenance.json
 ```
+
+The complete catalogue remains available by omitting `--field` when the host
+can receive it. If a response is truncated, retrieve the affected field again
+before using its contents.
+
+`--field` selects a display; its container pointer is not permission to replace
+that parent. For example, `--field task_changes` exposes the
+`task_changes.semantic_edit` child and its exact edit owner
+`/task_changes/semantic_edit`. Use that pointer to select the plan path, then
+edit the plan's content in the selected file. Other authored task choices use
+their individual `authoring.task` owners. Follow the returned child actions
+instead of constructing an `authoring.task_changes` selector.
 
 `explain-inputs` reads the chosen draft without compiling a request or loading
 past runs. It distinguishes a field required in the draft schema from a choice
@@ -113,6 +137,17 @@ as the editable owner. Its subject identity edits update the applied definition;
 removing a subject updates the corresponding applications. A definition retained
 as independent source material during composition keeps its source owner.
 Canonical and external definitions retain their own authority and ownership.
+
+Declare the subjects actually depicted in an image at their input owner. For
+new task-local work, select a Production Specification and declare its
+`/subjects`; an existing actual `recording.subject_map` also supplies its mapped
+subject IDs. Acquired source assignments alone do not declare the image's
+subjects. Use those same IDs in the source assignments and review criteria.
+Each identity-bearing subject needs a `hard` criterion in
+`authoring.task.criteria` whose `identity_review` names it and compares the whole
+subject with its complete applicable definition at that source's original
+authority. These declarations apply to task-local definitions as well as
+canonical ones; complete them while establishing the definition for this use.
 
 The [complete first-input example](../../examples/input-authoring/README.md)
 creates all selected inputs and prepares one reference-guided image in a fresh
@@ -277,16 +312,21 @@ claims, result reviews or exact-request approvals.
 `draft-inputs`, `stage-inputs`, `inspect-inputs`, `build-inputs`, `check`, `save` and `prepare`
 accept `--view summary`. The summary retains unresolved choices, owning files
 and actions, and gives `full_report` for the complete JSON snapshot. The
-default full view remains available with `--view full`. Summarizing changes
+complete view remains available with `--view full`. Summarizing changes
 neither the checks performed nor the command's exit status.
 `inspect-inputs` applies the [current-work navigation contract](production-workflow.md#open-the-current-work):
 bounded input, reading and decision lists retain `total`, `omitted` and the
 complete report location in their `<name>_summary`. Its `diagnostics` owns each
 unresolved finding once; input rows and `context.input` use `diagnostic_ids`.
 Repeated reading commands use `action_ref` to their executable summary location.
-Every distinct unresolved finding remains visible even when its branch is
-outside the displayed list. Complete source changes, hashes and historical
+Every distinct unresolved finding in the selected work scope remains visible
+even when its branch is outside the displayed list. Retained comparison inputs
+have explicit inspection actions; their unresolved choices do not become
+current-work findings. Complete source changes, hashes and historical
 notes remain available in the saved report.
+With `--choices PATH`, inspection acquires that exact registered editable
+branch. Other retained paths remain available as `comparison_inputs` without
+their content or diagnoses becoming current blockers.
 
 ### Select and read the current knowledge
 
@@ -381,6 +421,19 @@ cannot conceal a changed definition or target. The comparison uses structural
 owners and exact content, never keywords in prompt prose. A view declaration
 does not prove the meaning of an edited sentence. The author remains responsible
 for that meaning, source application and the whole-subject review.
+
+The current route and features select their applicable contracts independently
+of those content profiles. A route or feature selection is reported as an
+observed `route` change; it does not establish changes to every content owner.
+The target owner compares the actual target, execution kind and artifact kind.
+Moving between workflow routes with the same model, service, wire operation
+and execution kind does not by itself select `retarget`.
+
+For a changed definition or depiction, `sparse-retrieval` selects the same
+complete general construction sections as ordinary depiction authoring.
+Selecting `finishing` explicitly obtains every original specialist section,
+example and limitation for that work or a changed rendering intent. Retaining
+the finish does not turn sparse discovery into a full finishing commission.
 
 Changed values that contradict `retain` produce `AUTHORING_WORK_INCOMPLETE`
 at the basis declaration. Restore those values or revise the declaration to
@@ -503,7 +556,7 @@ reading. It leaves the complete required scope unchanged. An explicitly `known`
 source has a null selector; if its text is no longer
 available, start a fresh index without that known-reading assertion. Use its
 `section_selection.argv` plus `--section SELECTOR` to read that choice, or execute
-`actions.next` to read the first missing required section. A source selector
+`actions.next` to begin the complete remaining scope in bounded pages. A source selector
 reads that complete indexed source range; a heading selector reads its exact
 byte segment up to the next heading within that range. Markdown headings inside fenced examples are not sections.
 Writing-guide sections, dialect records and model offering cards have their own
@@ -521,7 +574,9 @@ converted into a completed reading by assertion.
 
 Use the complete returned invocation when a custom ledger or pack runtime is
 selected. `actions.index` reopens the saved index and its current coverage.
-`actions.all` explicitly delivers every remaining required byte in bounded pages.
+The index's `actions.all` explicitly delivers every remaining required byte in
+bounded pages. Body pages keep the continuation and recovery actions, and their
+`selection_summary` points to `actions.index` for complete selection reasons.
 Each executable action provides an `argv` argument array, operation name
 `command: read`, and a `reason`. Execute the full `argv`. Continuations restore
 the exact pack runtime from their snapshot; those arguments need no repeated
@@ -532,7 +587,7 @@ It is also available when starting a new reading:
 python scripts/execution_routes.py read reference-artifacts --operation author --execution authored --root STUDIO --feature sparse-retrieval --all
 ```
 
-Every body response is one JSON object. Read its `body` entries in order. Each
+The default `--view json` response is one JSON object. Read its `body` entries in order. Each
 entry contains exact source text in `text` and its kind, path, hash and byte range
 in `metadata`. A document body binds the complete original source with
 `source_sha256` and `source_size`, and its delivered interval with `source_start`,
@@ -541,12 +596,48 @@ body; adding `source_start` gives the original document offsets. Top-level `meta
 reports required, reused, delivered and remaining source bytes; section and replay
 progress also report the bytes left in that selected delivery. Source text and
 control fields are separate, so text inside a document cannot become an action.
+
+For an agent-facing display, add `--view text` to the same public read action.
+It displays every original `body[].text` character with its actual line breaks,
+source path and original byte range. It retains the complete JSON response in
+the returned `response_file`, including full source metadata, selection reasons
+and every alternate action. The default directory is `reading-responses` beside
+the ledger; `--response-dir DIRECTORY` selects another directory. Each call,
+including an index or replay, creates a new file without replacing earlier
+responses. Source text is flushed to the host before successful delivery can
+be recorded, and the complete response is saved before its final controls are
+displayed. An interrupted response remains evidence of that interruption.
+
+The text view's final `READING CONTROL` supplies one `next_action`, the current
+`reading_context`, `same_context_required`, required/reused/delivered/remaining
+byte counts, the issued `reading` and `choices_binding`. Read the whole body
+before executing that next action. It preserves the display and response
+directory without repeating every alternate command. The index displays all
+selected source ranges and their complete selection reasons. Warnings and
+diagnostics remain visible; an error or failed binding displays every repair
+control. Ordinary command errors and non-JSON stderr remain visible as well.
+Use the structured actions in the retained JSON when exact machine parsing is
+needed; a literal command in source text is not an executable reader action.
+
+Text view changes presentation alone. It selects no smaller scope, issues no
+extra reading and advances no page automatically. An earlier response file or
+reading key supplies no knowledge after compaction. When a host wraps command
+results, display stdout as text instead of JSON-encoding it a second time.
+
 `--page-bytes N` sets the source-byte budget, which defaults to 16,384 bytes.
 It applies to section and full deliveries alike and preserves UTF-8 boundaries.
+`--page-bytes auto --host-page-bytes N` uses the host's explicitly declared
+safe source-text capacity, bounded at 262,144 bytes. Reserve separate space for
+JSON metadata when declaring that capacity. Without a declared capacity, auto
+keeps the 16,384-byte default. A fixed budget is also capped by a supplied host
+capacity. `page_sizing` reports the selected budget and its meaning; successful
+output does not prove that the host displayed every byte.
 
 Follow `actions.continue` while the selected section or full delivery has another
 page. When a section ends, `actions.continue` becomes `null`; if required material
-remains, choose another indexed section or use `actions.next` or `actions.all`.
+remains, `actions.next` or the index's `actions.all` reads the complete remaining scope in
+bounded pages. Choosing another individual heading through the index is optional;
+ordinary continuation need not step through small headings one at a time.
 A null continuation alone does not establish completion. Completion is a non-null
 `reading`, containing the issued `reading.key`, `reading.record` path and
 `reading.record_absolute` location.
@@ -591,11 +682,32 @@ source's contents.
 
 ##### Reuse complete knowledge in this context
 
+Start the current uninterrupted model context with `--fresh-context` on the
+saved plan or a reading command. Its returned `reading_context` identifies only
+that live context. Follow the returned plan and reading actions: they carry
+`--reading-context ID` and automatically select complete readings delivered in
+that context through this Studio's ledger. The plan does not retain this ID as
+knowledge. An ordinary invocation without either option infers no context from
+saved work. After compaction, a new agent or loss of source context, start with
+`--fresh-context` again rather than copying the earlier ID.
+
+The automatic selection derives from successful complete deliveries, never an
+index or incomplete page sequence. `reuse_selection` reports its selected and
+automatic reading counts. The index's complete `selection_summary` names the actual operation,
+execution, destination, stage and the selection owners with required and reused
+bytes; owner counts overlap when the same source has several reasons. `progress`
+separately reports required, reused, delivered and remaining bytes. Execution,
+review and curation keep their current operation and destination selectors when
+using the same context, so shared knowledge is reused while every additional
+requirement still arrives as text.
+
 For another operation in the same active context, use the actual next draft's
 reading action and append `context_reuse.arguments` from a completed result.
 `context_reuse.operations` offers inspection of the current operation; it does
 not choose the next operation, destination or candidate. The arguments carry
-repeatable `--known-reading KEY` selections. The reader compares exact source kind,
+the selected context ID, or repeatable `--known-reading KEY` selections when no
+context was declared. Explicit keys remain available for individual repair and
+inspection. The reader compares exact source kind,
 path, content and resource/model scope, together with the original delivery
 witness, then delivers every missing or changed required range. Document
 deliveries retain each completely covered section's anchor, original byte range
@@ -611,14 +723,16 @@ record. A complete earlier full source can cover a later
 required section, and several complete earlier ranges can cover parts of a
 broader requirement. Their union never certifies an unread gap. A scope change
 indexes those missing intervals explicitly before any current reading is issued.
-Choose sections or `actions.all` to complete the current reading. When no new
-bytes are needed, `actions.all` checks the current sources and issues the current
-record without repeating unchanged bodies.
+Choose sections or the index's `actions.all` to complete the current reading.
+When no new bytes are needed, that action checks the current sources and issues
+the current record without repeating unchanged bodies. Its response has no
+body page to replay, so `actions.replay` is `null`.
 
 For curation, the actual draft supplies its destination and source owner.
 Moving from slot acceptance to sheet adoption uses that draft's `reading_action`
-and the same explicit retained keys. Shared sections remain known only through
-those keys, and additional canonical-use sections are delivered before completion.
+and the same explicitly selected context or retained keys. Shared sections remain
+known only through their complete deliveries in that context, and additional
+canonical-use sections are delivered before completion.
 
 When changing model, service, features, route, destination or source kind, begin an index with the actual
 selections and the `context_reuse.arguments` of complete readings still known in
@@ -637,13 +751,17 @@ rewrite creative work.
 ##### Rebuild knowledge in a fresh context
 
 A new agent, compacted conversation or lost source context opens the index for the
-operation now needed, with no `--known-reading` selections. Use
+operation now needed with `--fresh-context`, without the previous
+`--reading-context` or any `--known-reading` selections. Use
 `actions.restart` (also referenced by `context_reuse.fresh_context`) or the fresh-context action in
 Studio status. Restart retains the selected task scope and existing authoring
 files while making no assertion of retained knowledge. Continue the work's saved
 choices and current phase; a fresh context need not repeat completed production
 operations. A ledger, partial pages or historical key alone never supply knowledge.
-An incomplete reading cannot contribute known bodies.
+An incomplete reading cannot contribute known bodies. A saved page continuation
+requires its explicit original context. When a plan is inspected in a different
+declared context, its reading action restarts the current source selection;
+previously delivered pages are not skipped on that new context's behalf.
 
 ##### Read an acquired model
 
@@ -667,16 +785,34 @@ uncertainty and still checks the real request's fields and controls. See
 
 ### Keep the reading at its current scope
 
-The final `reading.record` is complete when issued. Set `choices.reading.reading_key`
-to that issued key. The input owner resolves the exact document editions, selected
-resource scope and delivered model guidance from the issuance. When authoring a
-task directly, name the emitted file as `task.route_reading`.
+The final `reading.record` is complete when issued. Generated draft reading
+actions include `--bind-choices`: after complete delivery, the input owner binds
+the issued key to that exact choices file. It compares the captured authored
+content under the file's write lock and rechecks the current stage and knowledge
+scope before changing only `reading.reading_key`. A replay may refresh that
+derived key without changing authored content or another draft.
+
+`choices_binding.bound` reports the result. `choices-changed` means authored
+input changed while the body pages were being read; `reading-scope-changed`
+means its current required scope differs from the completed reading. Both leave
+the changed choices intact and retain the completed reading, with an inspection
+action for the exact owner. Follow that owner's current reading action; the
+current context can reuse unchanged complete material while reading any new
+requirements. A restart of a binding read derives the current stage and target
+from that choices file again.
+
+Direct low-level reads remain available without `--bind-choices`. For that
+explicit path, select the issued key in `choices.reading.reading_key`; no
+document hashes need copying. The input owner resolves exact document editions,
+resource scope and delivered model guidance from the issuance. When authoring
+a task directly, name the emitted file as `task.route_reading`.
 
 To use a narrower amendment scope, obtain its current record through the draft's
 reading action. Supply prior keys with `--known-reading` only while their complete
 contents remain known in this context. The parent record keeps its original
-document editions and resource scope. Complete the current scoped read and use
-its newly issued key, even when no new body text is needed.
+document editions and resource scope. A declared reading context selects its
+complete current deliveries automatically. Complete the current scoped read;
+the binding action applies its newly issued key even when no new body text is needed.
 
 ### Select the delivered target knowledge
 
@@ -759,6 +895,21 @@ with the captured-candidate selector. These upscale selectors, `--scale` and
 `--purpose` apply only to `--route upscale`.
 
 ### Start an existing-image edit
+
+For a generated candidate without an accepted Studio slot, reopen its saved
+input with `--from-run RUN --operation amend` and the actual `--request-file`.
+Create that draft first and declare the actual `--retain` and `--change` owners.
+Follow its current inspection and reading actions for the selected source,
+target and stage, including additional material required as those choices change.
+Select its image file from `derived_from.source_run.input_reuse.captured_outputs`;
+[retained output selection](#keep-branches-and-reopen-completed-work) describes
+the source acquisition and reference owners. Bind that image as the task's
+`accepted-source` and `scene` reference, and declare the change and preservation
+under [the semantic edit contract](semantic-instruction-edit.md#author-and-bind-the-task).
+This task source needs no Studio slot acceptance or canonical adoption. Keep
+the existing review findings and the other results. A prepared result's later
+edit belongs to an explicit [work revision](production-work-plan.md#revise-the-result-or-items);
+creating a draft alone does not replace the plan's prepared run.
 
 To change depicted content of an accepted Studio image, select the image by its
 Studio character and slot:
@@ -1027,10 +1178,17 @@ and preparation still read and check the current owners.
 
 When several independent drafts remain pending, `inspect-inputs` returns
 `selection_required` and an `input_options` action for each. Choose the intended
-draft with `inspect-inputs --choices PATH`; the report then exposes that draft's
-unresolved fields and next command. A later creation time alone does not choose
+draft with `inspect-inputs --choices PATH`; the report acquires only that draft
+and exposes its unresolved fields and next command. Other registered branches
+remain explicit comparison actions without being reread or contributing stale
+diagnostics to the selected work. A later creation time alone does not choose
 the user's intended branch. Separate drafts can be prepared and compared; no
 inspection or preparation automatically sends all branches to a provider.
+The selected draft also owns its saved result and any offered completion
+command. A newer save from another branch remains a comparison. If the selected
+file is unreadable, repair that file first; an unrelated reading cursor or saved
+result cannot supply its continuation. Explicit inspection of that other run
+still verifies its complete saved evidence.
 Remove the directory of a draft that is no longer wanted: a published draft
 whose directory is gone leaves the pending branches, and one remaining draft
 needs no explicit selection. A draft whose creation was interrupted before its
@@ -1092,7 +1250,8 @@ their owners.
 For external work, [External request inputs](production-external-inputs.md) owns the native request, media mappings and actual upload evidence.
 
 For identity-bearing work, construct the character's forms, details,
-relationships and performance in the chosen scene from its adopted definition.
+relationships and performance in the chosen scene from its applicable definition
+at that source's original authority.
 Choose the text and reference views that communicate that depiction through
 the same source and criterion choices. Follow
 [source to input and review coverage](../character-identity-contract.md#source-to-input-and-review-coverage)
@@ -1119,8 +1278,19 @@ python scripts/production_workflow.py inspect-inputs --root STUDIO
 python scripts/production_workflow.py status --root STUDIO
 ```
 
-`inspect-inputs` without a source selector reads the task's saved authoring
-state. `status.current_task.authoring`, `studio.py status` and session entry expose the same editing locations and continuation commands. The report names existing
+`inspect-inputs` without a source selector reads the current plan's selected
+unfinished inputs. When a reopened work revision has no plan, it reads every
+input registered since the ledger's recorded reopen boundary. It keeps all
+current branches; a later creation time does not select just one. Earlier
+inputs remain in `comparison_inputs` with explicit inspection actions, without
+rechecking their unresolved choices as current work. For example, reopening a
+one-image task and drafting three new images exposes all three new inputs and
+keeps the earlier image as a comparison. A new plan can select that earlier
+input again, and `--choices PATH` can inspect it directly without changing the
+current work or plan selection.
+
+`status.current_task.authoring`, `studio.py status` and session entry expose the
+same editing locations and continuation commands. The report names existing
 `choices.json`, its context, published input tasks and reports, partial route
 reading, completed source-delivery records, and the last recorded check when one
 exists. Continue those files and actions after compaction. A source selector

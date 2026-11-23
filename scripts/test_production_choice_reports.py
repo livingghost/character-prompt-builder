@@ -118,18 +118,21 @@ class AuthoredChoiceReportTests(ChoiceReports, unittest.TestCase):
         (self.root / result['choices_file']).write_bytes(c.encoded(choices))
         return result['choices_file']
 
-    def test_unread_route_names_its_read_command_and_the_key_to_select(self):
+    def test_unread_route_names_its_read_command_and_automatic_binding(self):
         result, choices = self.initial('draft')
         reading = next(row for row in result['unresolved'] if row['field'] == 'reading.reading_key')
         self.assert_choice(reading, 'reading-required', 'reading.reading_key',
-                           mentions=('execution_routes.py', 'read development', 'actions.continue', 'reading.key'))
+                           mentions=('execution_routes.py', 'read development', 'actions.continue',
+                                     '--bind-choices', 'automatically'))
         self.assertEqual(reading['next_action']['positional'], ['development'])
         self.assertEqual(reading['next_actions'], [reading['next_action']])
         self.assert_reported(result['choices_file'], [
-            ('reading-required', 'reading.reading_key', {'mentions': ('execution_routes.py', 'reading.key')})])
+            ('reading-required', 'reading.reading_key',
+             {'mentions': ('execution_routes.py', '--bind-choices', 'automatically')})])
         choices['reading'] = None
         self.assert_reported(self.write(result, choices), [
-            ('reading-required', 'reading', {'mentions': ('execution_routes.py', '"reading_key"')})])
+            ('reading-required', 'reading',
+             {'mentions': ('execution_routes.py', 'reading.reading_key', '--bind-choices', 'automatically')})])
 
     def test_empty_commission_fields_name_what_to_write_and_where(self):
         result, choices = self.initial('draft')

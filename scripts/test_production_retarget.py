@@ -20,6 +20,29 @@ from production_diagnostics import ProductionError,CompilationError
 import production_fixtures
 
 
+class TargetIdentityTests(unittest.TestCase):
+    def test_continuation_distinguishes_routes_from_actual_target_fields(self):
+        import production_inputs
+        import production_target
+        previous = {'execution': 'external', 'model': 'synthetic:model', 'service': 'synthetic',
+                    'operation': 'image', 'route': 'batch'}
+        current = {**previous, 'route': 'generation'}
+        task = {'execution': 'external', 'production_id': 'synthetic-series'}
+        source = {'run': 'synthetic-run', 'task': {'production_id': task['production_id']},
+                  'target_identity': previous}
+        def action(target):
+            return production_inputs.continuation_action(Path('/synthetic-studio'), task,
+                'work/choices.json', None, source, target)['operation']
+        self.assertFalse(production_target.identity_changed(previous, current))
+        self.assertEqual(action(current), 'prepare')
+        for key, value in (('execution', 'dispatcher'), ('model', 'synthetic:other'),
+                           ('service', 'other'), ('operation', 'edit')):
+            with self.subTest(key=key):
+                changed = {**current, key: value}
+                self.assertTrue(production_target.identity_changed(previous, changed))
+                self.assertEqual(action(changed), 'retarget')
+
+
 class RetargetTests(unittest.TestCase):
     @staticmethod
     def build(base):

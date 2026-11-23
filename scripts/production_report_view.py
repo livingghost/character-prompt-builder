@@ -34,6 +34,15 @@ def fields(value: Mapping, names) -> dict:
     return {name: copy.deepcopy(value[name]) for name in names if name in value}
 
 
+def _stage_header(stage: dict) -> dict:
+    result = fields(stage, ('stage', 'purpose', 'next_stage', 'remaining_stages',
+                           'structural_ready', 'final_inputs_ready', 'meaning'))
+    result['pending_meaning'] = ('Pending fields belong to later stages; current-stage blockers are listed '
+        'separately. Pending fields still require resolution before final preparation. '
+        'The author assesses this stage before selecting its next stage.')
+    return result
+
+
 def _summary_order(value: dict) -> dict:
     """Put the outcome, executable continuation and full report before detail."""
     leading = ('view', 'command', 'ok', 'state', 'run', 'task_id', 'required_action',
@@ -419,8 +428,7 @@ def _input_row(value: dict, *, index: DiagnosticIndex, pointer: str) -> dict:
         result['route_scope']['document_count'] = len(scope.get('documents', []))
     stage = value.get('authoring_stage')
     if stage is not None:
-        result['authoring_stage'] = fields(stage, ('stage', 'purpose', 'structural_ready',
-                                                   'final_inputs_ready', 'meaning'))
+        result['authoring_stage'] = _stage_header(stage)
         result['authoring_stage']['pending_summary'] = {'total': len(stage.get('pending', [])),
             'full_report': 'full_report#' + pointer + '/authoring_stage/pending'}
         result['diagnostic_ids'] = index.add(stage.get('unresolved'),
@@ -460,7 +468,7 @@ def authoring_state(root: Path, value: dict, *, choices: str | None = None,
         stage = owner.get('authoring_stage')
         if stage is None:
             return None
-        return {**fields(stage, ('stage', 'purpose', 'structural_ready', 'final_inputs_ready', 'meaning')),
+        return {**_stage_header(stage),
             'diagnostic_ids': index.add(stage.get('unresolved'), pointer=at + '/authoring_stage/unresolved'),
             'pending_summary': {'total': len(stage.get('pending', [])),
                 'full_report': 'full_report#' + at + '/authoring_stage/pending'}}
@@ -517,6 +525,12 @@ def authoring_state(root: Path, value: dict, *, choices: str | None = None,
                 pointer=option_pointer + '/fresh_context_action')
         options.append(option)
     collection(result, 'input_options', options, pointer=pointer + '/input_options')
+    if 'comparison_inputs' in value:
+        collection(result, 'comparison_inputs', list(enumerate(value['comparison_inputs'])),
+            pointer=pointer + '/comparison_inputs',
+            project=lambda pair: {**fields(pair[1], ('choices', 'directory', 'source_run', 'reason')),
+                'action': action_view(pair[1].get('action'),
+                    pointer=pointer + '/comparison_inputs/' + str(pair[0]) + '/action')})
     readings = value.get('readings', [])
     current_readings = [(number, row) for number, row in enumerate(readings) if row.get('current')]
     def reading(pair):
@@ -560,7 +574,8 @@ def authoring_state(root: Path, value: dict, *, choices: str | None = None,
         'work': work_view,
         'input': (fields(selected, ('state', 'directory', 'source_task', 'source_run', 'choices_file',
             'published_task', 'prepared_run', 'changed_since_build', 'editable_locations',
-            'assessment_required', 'instruction', 'source_requirements')) if selected is not None else None),
+            'assessment_required', 'instruction', 'source_requirements',
+            'authoring_guide_action')) if selected is not None else None),
         'read_action': action(root, 'inspect-inputs', ['--choices', choices] if choices else [],
             'Read the complete authoring context and editable source for the selected branch.')}
     if selected is not None:
@@ -640,7 +655,7 @@ def _draft_inputs(root: Path, report: dict) -> dict:
     stage = report.get('authoring_stage')
     result['unresolved'] = diagnostics(stage['unresolved'] if stage else report.get('unresolved'))
     if stage:
-        result['authoring_stage'] = fields(stage, ('stage', 'purpose', 'structural_ready', 'final_inputs_ready', 'meaning'))
+        result['authoring_stage'] = _stage_header(stage)
         result['authoring_stage']['pending_count'] = len(stage['pending'])
         result['authoring_stage']['pending_details'] = 'full_report#/authoring_stage/pending'
     guide = report.get('authoring_guide')
@@ -676,6 +691,10 @@ def summarize(root: Path, report: dict, *, command: str, run: str | None = None,
         result = authoring_state(root, report, choices=choices)
     elif command == 'draft-inputs' and report.get('state') == 'draft':
         result = _draft_inputs(root, report)
+    elif command == 'edit-choices' and report.get('state') == 'choices-edited':
+        result = fields(report, ('ok', 'state', 'changed', 'choices_file', 'basis_file',
+            'edit', 'next_actions', 'external_effect'))
+        result['unresolved'] = diagnostics(report.get('unresolved'))
     elif command == 'acquire-source' and report.get('state') == 'source-acquired':
         result = fields(report, ('ok', 'state', 'changed', 'source', 'source_row', 'acquired',
             'choices_file', 'basis_file', 'projected_source', 'applications', 'subjects',

@@ -465,13 +465,13 @@ def retarget(root: Path, run: str, task_file: str | None = None, *, choices: str
         raise ProductionError('RETARGET_NOT_APPLICABLE', 'The selected target needs its exact prepared image request.', phase='retarget',
             required_action='Reassess the task as a dispatcher request, or as an external image task whose image input holds '
                             'its exact external request.')
-    from production_target import prepared_identity
+    from production_target import identity_changed, prepared_identity
     old_target = prepared_identity(previous['task'], before, loaded.consumer, loaded.artifacts.get('package.json'))
     new_target = prepared_identity(task, new_plan, compiled.consumer, compiled.package)
     changes = []
     if task['task_id'] != previous['task']['task_id']:
         changes.append({'field': 'task', 'before': previous['task']['task_id'], 'after': task['task_id']})
-    if not same_json(old_target, new_target):
+    if identity_changed(old_target, new_target):
         changes.append({'field': 'target', 'before': old_target, 'after': new_target})
     old_runtime = (previous.get('runtime_snapshot') or {}).get('sha256')
     new_runtime = (compiled.prepared.get('runtime_snapshot') or {}).get('sha256')

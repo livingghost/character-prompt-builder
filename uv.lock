@@ -34,7 +34,7 @@ wheels = [
 
 [[package]]
 name = "character-prompt-builder"
-version = "2026.11.22.3"
+version = "2026.11.23.2"
 source = { virtual = "." }
 dependencies = [
     { name = "numpy" },

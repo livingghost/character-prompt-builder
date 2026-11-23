@@ -9,21 +9,45 @@ judges meaning; the input owners derive paths, hashes and repeated bindings.
 
 ### Discover input structures
 
-`draft-inputs` returns `authoring_guide` and retains it in `context.json`. Use its
-`explain_action` to locate the current editable files and the contracts of the
-selected fields before writing them:
+`draft-inputs` returns `authoring_guide` and retains its creation-time copy in
+`context.json`. `inspect-inputs` exposes the selected input's current
+`context.input.authoring_guide_action`; follow it, or run `explain-inputs --field
+authoring`, to obtain the guide for the current Studio and Skill locations.
+After moving the Studio or changing the Skill installation, reacquire this
+guide before executing its actions; saved context actions may still name their
+original locations. Keep that context unchanged as the draft's source record.
+Use the current guide's field-specific explain actions to locate the editable
+files and complete contracts of unresolved fields before writing them. An unqualified
+`explain-inputs` returns the entire field catalogue and may exceed a host's
+display capacity; use the supplied `explain_action` or a listed input field
+with `--field` for a focused response. A document member's repair pointer is
+distinct from its document selector; inspect that member through the selected
+document's contract action. This does not replace the current route's required
+source reading:
 
 ```bash
-python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field authoring.documents.negative_provenance
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field target.model
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field external
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field external.image_input.external_request
 python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field authoring.task.recording
+python scripts/production_workflow.py explain-inputs --root STUDIO --choices work/input/choices.json --field authoring.task.criteria
 python scripts/production_document_contracts.py explain production_spec
 python scripts/production_document_contracts.py explain production_spec --pointer /properties/subjects/items
 python scripts/production_document_contracts.py validate negative_provenance STUDIO/work/input/negative_provenance.json
 ```
+
+The complete catalogue remains available by omitting `--field` when the host
+can receive it. If a response is truncated, retrieve the affected field again
+before using its contents.
+
+`--field` selects a display; its container pointer is not permission to replace
+that parent. For example, `--field task_changes` exposes the
+`task_changes.semantic_edit` child and its exact edit owner
+`/task_changes/semantic_edit`. Use that pointer to select the plan path, then
+edit the plan's content in the selected file. Other authored task choices use
+their individual `authoring.task` owners. Follow the returned child actions
+instead of constructing an `authoring.task_changes` selector.
 
 `explain-inputs` reads the chosen draft without compiling a request or loading
 past runs. It distinguishes a field required in the draft schema from a choice
@@ -113,6 +137,17 @@ as the editable owner. Its subject identity edits update the applied definition;
 removing a subject updates the corresponding applications. A definition retained
 as independent source material during composition keeps its source owner.
 Canonical and external definitions retain their own authority and ownership.
+
+Declare the subjects actually depicted in an image at their input owner. For
+new task-local work, select a Production Specification and declare its
+`/subjects`; an existing actual `recording.subject_map` also supplies its mapped
+subject IDs. Acquired source assignments alone do not declare the image's
+subjects. Use those same IDs in the source assignments and review criteria.
+Each identity-bearing subject needs a `hard` criterion in
+`authoring.task.criteria` whose `identity_review` names it and compares the whole
+subject with its complete applicable definition at that source's original
+authority. These declarations apply to task-local definitions as well as
+canonical ones; complete them while establishing the definition for this use.
 
 The [complete first-input example](../../examples/input-authoring/README.md)
 creates all selected inputs and prepares one reference-guided image in a fresh

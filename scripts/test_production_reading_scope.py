@@ -114,6 +114,55 @@ class AmendmentScopeTests(unittest.TestCase):
         scope, _, _ = self.scope(change=['controls.parameters'], retain=['identity'], edit=edit)
         self.assertEqual(scope['profiles'], ['amend-controls', 'retarget'])
 
+    def test_route_and_features_select_contracts_without_claiming_content_changes(self):
+        import execution_routes
+        previous = reading_scope._selected_target_identity(self.root, self.before['target'],
+            self.before['authoring']['task'], {})
+        def edit(current):
+            current['authoring']['task'].update(route='generation', features=['recurring-identity', 'geometry'])
+        _, current, basis = self.scope(change=['depiction', 'references'],
+            retain=['identity', 'target', 'finish', 'controls'], edit=edit)
+        scope = reading_scope.selection(self.root, current, current['authoring']['task'], basis=basis,
+            context={'derived_from': {'source_run': {'target_identity': previous}}})
+        self.assertEqual(scope['observed_changes'], ['route'])
+        self.assertEqual(scope['profiles'], ['amend-depiction', 'amend-references'])
+        self.assertNotIn('target-change', scope['conditions'])
+        self.assertFalse(scope['change_conflicts'])
+        self.assertFalse(reading_scope.matches({'changes_any': ['controls.render-intent']}, scope))
+        resolved = execution_routes.resolve('generation', current['authoring']['task']['features'],
+            execution='dispatcher', authoring_scope=scope)
+        for path in ('references/prompt-composition-geometry.md', 'references/camera-framing-contract.md'):
+            source = next(row for row in resolved['reads'] if row['path'] == path)
+            self.assertEqual(sum(row['end'] - row['start'] for row in source['ranges']), source['size'])
+            self.assertIn('feature:geometry', resolved['read_owners'][path])
+        self.assertIn('references/runtime/image-generation.md', resolved['read_owners'])
+
+    def test_execution_and_artifact_changes_belong_to_the_target_owner(self):
+        for key, value in (('execution', 'external'), ('artifact', 'text')):
+            with self.subTest(key=key):
+                scope, _, _ = self.scope(change=['references'], retain=['target'],
+                    edit=lambda current: current['authoring']['task'].update({key: value}))
+                self.assertEqual(scope['observed_changes'], ['target'])
+                self.assertEqual(scope['profiles'], ['amend-references', 'retarget'])
+                self.assertEqual(scope['change_conflicts'], ['target'])
+
+    def test_actual_external_target_fields_select_retarget_knowledge(self):
+        self.before['authoring']['task']['execution'] = 'external'
+        self.before['target'] = {'kind': 'external', 'model': {'target': {
+            'model_identifier': 'synthetic:model', 'service': 'synthetic', 'operation': 'image'}}}
+        previous = reading_scope._selected_target_identity(self.root, self.before['target'],
+            self.before['authoring']['task'], {})
+        for key, value in (('model_identifier', 'synthetic:other'), ('service', 'other'), ('operation', 'edit')):
+            with self.subTest(key=key):
+                _, current, basis = self.scope(change=['references'], retain=['target'],
+                    edit=lambda current: current['target']['model']['target'].update({key: value}))
+                scope = reading_scope.selection(self.root, current, current['authoring']['task'], basis=basis,
+                    context={'derived_from': {'source_run': {'target_identity': previous}}})
+                self.assertIn('target-change', scope['conditions'])
+                self.assertEqual(scope['observed_changes'], ['target'])
+                self.assertEqual(scope['profiles'], ['amend-references', 'retarget'])
+                self.assertEqual(scope['change_conflicts'], ['target'])
+
     def test_recording_only_starts_at_binding_and_keeps_existing_content(self):
         scope, _, _ = self.scope(change=['recording.slot'], retain=['identity', 'target'],
             edit=lambda current: current['authoring']['task']['recording'].update(slot='side'))
@@ -304,6 +353,47 @@ class RetainedAmendmentCompilationTests(unittest.TestCase):
     setUpClass = classmethod(adoption_cases.AdoptionTests.setUpClass.__func__)
     setUp = adoption_cases.AdoptionTests.setUp
 
+    def test_route_change_requires_current_contract_and_preserves_final_target_validation(self):
+        declaration = {'retain': ['identity', 'target', 'finish', 'controls'],
+                       'change': ['depiction', 'references']}
+        draft = inputs.draft_inputs(self.root, None, 'work/route-amend', from_run=self.run,
+            operation='amend', change_scope=declaration)
+        path = draft['choices_file']
+        choices = c.load(self.root / path)
+        choices['authoring']['task']['route'] = 'batch'
+        choices['authoring_stage'] = 'prepare'
+        cases.write(self.root / path, choices)
+        before = inputs.compile_choices(self.root, path, persist=False)
+        self.assertFalse(before.report['publishable'])
+        view = inputs.authoring_view(self.root, path)
+        scope, task = view['authoring_scope'], view['task']
+        self.assertEqual(scope['observed_changes'], ['route'])
+        self.assertEqual(scope['profiles'], ['amend-depiction', 'amend-references'])
+        self.assertNotIn('target-change', scope['conditions'])
+        self.assertTrue(any(row['code'] == 'TARGET_GUIDANCE_REQUIRED' for row in view['unresolved']))
+        target = choices['target']
+        issued = route_reading.issue(task['route'], task['features'], execution=task['execution'],
+            studio=self.root, stream=io.StringIO(), operation='prepare', authoring_scope=scope,
+            model=target['model'], service=target.get('service'))
+        choices['reading']['reading_key'] = issued['reading_key']
+        cases.write(self.root / path, choices)
+        final_scopes = []
+        derive = reading_scope.from_task
+        def observe(root, task, *, read_source=None):
+            result = derive(root, task, read_source=read_source)
+            final_scopes.append(result)
+            return result
+        with patch.object(reading_scope, 'from_task', side_effect=observe):
+            compiled = inputs.compile_choices(self.root, path, persist=False)
+        self.assertTrue(compiled.report['publishable'], compiled.report)
+        self.assertTrue(final_scopes)
+        self.assertEqual(final_scopes[-1]['profiles'], ['amend-depiction', 'amend-references'])
+        self.assertEqual(final_scopes[-1]['observed_changes'], ['route'])
+        choices['target']['service'] = 'unselected-service'
+        cases.write(self.root / path, choices)
+        rejected = inputs.compile_choices(self.root, path, persist=False)
+        self.assertFalse(rejected.report['publishable'])
+
     def test_actual_parameter_edit_prepares_with_the_same_narrow_final_scope(self):
         declaration = {'retain': ['identity', 'target', 'rendition', 'depiction', 'references', 'finish'],
                        'change': ['controls.parameters']}
@@ -437,7 +527,8 @@ class StageCliTests(unittest.TestCase):
         indexed = self.follow([sys.executable, str(inputs.ROOT / 'scripts/execution_routes.py'),
             'read', '--root', str(self.root), '--choices', path, '--page-bytes', '1000000'])
         self.assertEqual(indexed['mode'], 'index')
-        section = self.follow(indexed['actions']['next']['argv'])
+        section = self.follow([*indexed['section_selection']['argv'],
+                               '--section', indexed['index'][0]['selector']])
         self.assertEqual(section['mode'], 'section')
         self.assertIsNone(section['actions']['continue'])
         self.assertGreater(section['progress']['remaining_bytes'], 0)

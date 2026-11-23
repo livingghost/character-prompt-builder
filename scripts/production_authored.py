@@ -17,6 +17,34 @@ from production_diagnostics import CompilationError, ProductionError
 EVENTS = {'authored-save', 'authored-delivery', 'authored-review'}
 
 
+def _require_authored_save(task: dict, choices_path: str, root: Path) -> None:
+    """Retain the save boundary and expose the existing alternative owners."""
+    if task.get('execution') == 'authored':
+        return
+    from cli_invocation import python_argv, shown
+    prepare = python_argv(Path(__file__).with_name('production_workflow.py'), 'prepare',
+        '--root', str(root), '--choices', choices_path)
+    export_help = python_argv(Path(__file__).with_name('authoring_work.py'), 'export', '--help')
+    raise ProductionError('INPUT_CONSISTENCY_ERROR',
+        'save requires authored execution; this task retains ' + str(task.get('execution')) + ' execution.',
+        phase='authoring', file=choices_path, pointer='/authoring/task/execution',
+        cause='save-execution-kind', selected_execution=task.get('execution'),
+        required_action='For a saved authored revision, select authored work through its draft owner. '
+            'For image-request preparation, use prepare with these choices. To deliver only completed prompt '
+            'text without generating an image, use authoring_work.py export WORK --pointer /prompt --out FILE. '
+            'WORK is the actual completed authoring work with basis and content.prompt, not choices.json. '
+            'Retain applicable target and document selections in that work; follow operation_guidance.',
+        guidance={'document_path': 'references/runtime/production-authored-storage.md#edit-and-save'},
+        operation_guidance={
+            'prompt_export': {'document_path': 'references/runtime/authoring-work.md#inspect-and-deliver',
+                'help_action': {'argv': export_help, 'shown': shown(export_help), 'external_effect': False},
+                'required_inputs': 'WORK --pointer /prompt --out FILE; WORK owns basis and content.prompt. '
+                                   'Keep selected model/model_record and documents at their content owners.',
+                'meaning': 'Validate and write the requested prompt text, without an image request or saved Production run.'},
+            'prepare': {'argv': prepare, 'shown': shown(prepare), 'external_effect': False,
+                'meaning': 'Prepare the selected image request when that is the intended operation; this does not execute it.'}})
+
+
 def requirements(task: dict) -> list[str]:
     """Results commissioned for this authored task, independently of candidates."""
     return list((task.get('authored') or {}).get('requirements', ['save']))
@@ -136,8 +164,7 @@ def _draft_compilation(root: Path, choices_path: str):
     view = production_inputs.authoring_view(root, choices_path, register=True)
     task = copy.deepcopy(view['task'])
     task['authored_basis'] = copy.deepcopy(view['authored_basis'])
-    if task.get('execution') != 'authored':
-        raise ValueError('save accepts an authored artifact; use prepare for an image execution')
+    _require_authored_save(task, choices_path, root)
     if task.get('artifact') not in {'text', 'json'}:
         raise ValueError('authored saving requires text or JSON')
     identity = generate_uuid7()
@@ -229,8 +256,7 @@ def save(root: Path, choices_path: str, *, draft: bool = False) -> dict:
                 production_inputs.compile_choices(root, choices_path, persist=True))
     if not compiled.report.get('publishable'):
         raise CompilationError(compiled.report)
-    if compiled.prepared['task']['execution'] != 'authored':
-        raise ValueError('save requires authored execution; prepare the selected image request instead')
+    _require_authored_save(compiled.prepared['task'], choices_path, root)
     result = compiler.publish_compilation(root, compiled,
         parent=production_inputs.compilation_parent(root, compiled))
     result.update(record_save(root, result['run']))

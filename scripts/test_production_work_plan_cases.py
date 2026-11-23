@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+from contextlib import ExitStack
 import io
 import json
 from pathlib import Path
@@ -23,6 +24,7 @@ import test_production_report_view as report_cases
 import sheet_batch_smoke_test as batch_cases
 import test_production_adoption as adoption_cases
 import test_authored_continuation as authored_cases
+import test_production_identity as identity_cases
 
 
 class PlanProjectionCases(unittest.TestCase):
@@ -36,6 +38,78 @@ class PlanProjectionCases(unittest.TestCase):
         state = {'status': 'active', 'task_id': 'synthetic-task', 'items': {'current': {
             'phase': 'execution', 'status': 'needs-input', 'run': 'synthetic-run', 'current': current}}}
         return plans._project(self.root, 'work/plan.json', state, definition)
+
+    def test_failed_publication_lists_each_named_input_before_its_large_detail(self):
+        state = {'status': 'blocked', 'task_id': 'synthetic-task', 'items': {}}
+        definition = {'items': []}
+        for name in ('first', 'second', 'third'):
+            choices = 'work/' + name + '/choices.json'
+            diagnostics = [{'code': 'IDENTITY_COVERAGE_INCOMPLETE', 'severity': 'error',
+                'phase': 'identity-coverage', 'file': choices, 'pointer': pointer,
+                'message': message, 'required_action': 'Repair the explicitly named owner.'}
+                for pointer, message in [('authoring.task.criteria', 'Declare the whole-subject review.'),
+                    ('/authoring/documents/production_spec', 'Declare the actual input subjects.')]]
+            state['items'][name] = {'phase': 'authoring', 'status': 'blocked', 'run': None,
+                'source': {'choices': choices}, 'publication_ready': True, 'current': {
+                    'choices': choices, 'unresolved': [], 'reason': 'Advance to publish the complete input.',
+                    'compilation': {'ok': False, 'publishable': False, 'diagnostics': diagnostics,
+                                    'captured_sources': {'original': 'retained source material ' * 10000}}}}
+            definition['items'].append({'name': name, 'result': {'scope': 'delivery-only'}})
+        before = copy.deepcopy(state)
+        report = plans._project(self.root, 'work/plan.json', state, definition)
+        self.assertEqual(state, before)
+        self.assertEqual(report['next_action']['command'], 'check')
+        self.assertEqual(report['plan_continuation']['command'], 'advance')
+        self.assertEqual({row['item'] for row in report['blockers']}, set(state['items']))
+        self.assertEqual(len(report['blockers']), 6)
+        self.assertTrue(all(row['required_action'] == 'Repair the explicitly named owner.'
+                            for row in report['blockers']))
+        for item in report['items']:
+            self.assertEqual(item['current']['unresolved_summary']['total'], 2)
+            self.assertTrue(item['current']['unresolved_summary']['owner'].endswith('/compilation/diagnostics'))
+            self.assertNotIn('publish the complete input', item['current']['reason'])
+        encoded = json.dumps(report)
+        self.assertLess(encoded.index('"next_action"'), encoded.index('"items"'))
+        self.assertLess(encoded.index('"blockers"'), encoded.index('"items"'))
+        for name in state['items']:
+            self.assertIn('work/' + name + '/choices.json', encoded[:encoded.index('"items"')])
+
+    def test_invalid_request_names_are_rejected_before_any_work_is_opened(self):
+        from production_diagnostics import ProductionError
+        import work_ledger
+        sources = [
+            {'route': 'batch', 'features': ['generation']},
+            {'route': 'unlisted-interface'},
+            {'route': 'generation', 'features': ['nonexistent-feature']},
+        ]
+        for source in sources:
+            with self.subTest(source=source):
+                request = {'source': {'request': 'request.txt', 'execution': 'external', **source},
+                           'result': {'scope': 'delivery-only'}}
+                with self.assertRaises(ProductionError) as caught:
+                    plans.create(self.root, request=request)
+                diagnostic = caught.exception.diagnostic.as_dict()
+                self.assertEqual(diagnostic['code'], 'INPUT_CONSISTENCY_ERROR')
+                self.assertEqual(diagnostic['pointer'], '/source')
+                self.assertIn('--route/--feature', diagnostic['required_action'])
+                self.assertIsNone(work_ledger.read_current(self.root))
+                self.assertFalse((self.root / 'work').exists())
+
+    def test_later_invalid_item_does_not_partially_open_a_multi_item_plan(self):
+        from production_diagnostics import ProductionError
+        request = {'items': [
+            {'name': 'valid', 'source': {'request': 'request.txt', 'route': 'prompt-only'},
+             'result': {'scope': 'save'}},
+            {'name': 'invalid', 'source': {'request': 'request.txt', 'route': 'batch',
+                 'features': ['generation'], 'execution': 'external'},
+             'result': {'scope': 'delivery-only'}},
+        ]}
+        with self.assertRaises(ProductionError) as caught:
+            plans.create(self.root, request=request)
+        diagnostic = caught.exception.diagnostic.as_dict()
+        self.assertEqual(diagnostic['pointer'], '/items/1/source')
+        self.assertEqual(diagnostic['item'], 'invalid')
+        self.assertFalse((self.root / 'work').exists())
 
     def test_nested_owner_reports_stay_compact_and_every_action_reference_resolves(self):
         status = report_cases.long_authoring_status()
@@ -135,6 +209,62 @@ class PlanProjectionCases(unittest.TestCase):
         self.assertEqual(archived['plan_steps'], {'1': 'prepared'})
         self.assertIsNone(work_ledger.plan_action(self.root, revised))
 
+    def test_changed_result_or_items_returns_the_retained_plan_and_public_revision_repair(self):
+        import work_ledger
+        from production_diagnostics import ProductionError
+        work_ledger.begin(self.root, 'Create three separate synthetic scenes.',
+                          ['Retain the definition', 'Prepare sources', 'Complete the image results'])
+        work_ledger.step_done(self.root, 1, 'The selected synthetic definition remains applicable.')
+        f.write(self.root / 'request.txt', 'Create three separate synthetic scenes of the same character.')
+        source = {'request': 'request.txt', 'route': 'batch', 'execution': 'external',
+                  'features': ['unlisted-interface']}
+        request = {'source': source, 'result': {'scope': 'prepared-input'},
+                   'work_steps': {'2': 'prepared', '3': 'results'}}
+        first = plans.create(self.root, request=request)
+        path = first['plan']
+        owner = copy.deepcopy(work_ledger.read_current(self.root))
+        old_files = {file: file.read_bytes() for file in (self.root / path).parent.iterdir() if file.is_file()}
+        # The explicit declaration controls the result; route and request prose
+        # do not silently create items or authorize image execution.
+        self.assertEqual(list(c.load(self.root / path)['items']), ['item-1'])
+        multi = {'items': [{'name': name, 'source': {**source, 'focus': name + ' scene'},
+                            'result': {'scope': 'delivery-only'}} for name in ('opening', 'middle', 'closing')],
+                 'work_steps': request['work_steps']}
+        for revised_request in ({**request, 'result': {'scope': 'delivery-only'}}, multi):
+            with self.subTest(request=revised_request), self.assertRaises(ProductionError) as caught:
+                plans.create(self.root, request=revised_request)
+            diagnostic = caught.exception.diagnostic.as_dict()
+            self.assertEqual(diagnostic['code'], 'INPUT_CONSISTENCY_ERROR')
+            self.assertEqual(diagnostic['plan'], path)
+            self.assertEqual(diagnostic['next_action'], plans.action(self.root, path))
+            self.assertEqual(diagnostic['plan_continuation'], diagnostic['next_action'])
+            self.assertEqual(diagnostic['guidance']['document_path'],
+                             'references/runtime/production-work-plan.md#revise-the-result-or-items')
+            for marker in ('exact owning task', 'work_ledger.py reopen', 'first affected step',
+                           'actual reason and actor', 'plan --file'):
+                self.assertIn(marker, diagnostic['required_action'])
+            self.assertEqual(work_ledger.read_current(self.root), owner)
+            self.assertEqual({file: file.read_bytes() for file in old_files}, old_files)
+            self.assertEqual(len(list((self.root / 'work/plans').iterdir())), 1)
+
+        revised = work_ledger.reopen(self.root, 2,
+            reason='Correct the declaration to the three images in the synthetic instruction.',
+            actor='Synthetic author')
+        second = plans.create(self.root, request=multi)
+        current = work_ledger.read_current(self.root)
+        self.assertEqual(current['task_id'], owner['task_id'])
+        self.assertEqual(current['revision'], owner['revision'] + 1)
+        self.assertEqual(current['steps'][0], owner['steps'][0])
+        self.assertNotEqual(second['plan'], path)
+        self.assertEqual(current['production_plan'], second['plan'])
+        self.assertEqual(set(c.load(self.root / second['plan'])['items']), {'opening', 'middle', 'closing'})
+        archived = c.load(self.root / revised['revisions'][-1]['snapshot'])
+        self.assertEqual(archived['production_plan'], path)
+        self.assertEqual({file: file.read_bytes() for file in old_files}, old_files)
+        with self.assertRaisesRegex(ValueError, 'historical plan'):
+            plans.advance(self.root, path)
+        self.assertEqual(work_ledger.read_current(self.root)['production_plan'], second['plan'])
+
 
 class ExternalPlanRecoveryCases(unittest.TestCase):
     setUp = external.LifecycleTests.setUp
@@ -143,6 +273,160 @@ class ExternalPlanRecoveryCases(unittest.TestCase):
     external_case = external.LifecycleTests.external_case
     external_response = external.LifecycleTests.external_response
     prepared_external_case = external.LifecycleTests.prepared_external_case
+
+    def test_first_external_plan_shares_one_unapproved_authority_answer_then_exact_decisions(self):
+        import test_operation_metrics as metric_cases
+        self.task['authority'] = None
+        runs = [self.prepared_external_case() for _ in range(3)]
+        request = {'items': [{'name': name, 'source': {'run': run}, 'result': {'scope': 'delivery-only'}}
+                            for name, run in zip(('first', 'second', 'third'), runs)]}
+        self.write('work-request.json', request)
+        plan = plans.create(self.root, 'work-request.json')['plan']
+        prepared_bytes = {run: (self.root / 'production/runs' / run / 'prepared.json').read_bytes()
+                          for run in runs}
+
+        def assert_no_effects(*, no_authority=True):
+            if no_authority:
+                self.assertIsNone(store.read_authority(self.root, self.task['task_id'], required=False))
+            for run in runs:
+                self.assertFalse(any(row['event'] in {'authorization', 'handoff', 'external-claim', 'candidate'}
+                                     for row in store.event_rows(self.root, run)))
+
+        def exercise():
+            first = plans.advance(self.root, plan)
+            self.assertEqual([row['phase'] for row in first['items']], ['initial-authority'] * 3)
+            files = {row['current']['answer_file'] for row in first['items']}
+            self.assertEqual(len(files), 1)
+            answer_file = next(iter(files))
+            self.assertEqual(first['continuation_observation']['tracked_files'].count(answer_file), 1)
+            value = c.load(self.root / answer_file)
+            self.assertIsNone(value['issuer'])
+            self.assertIsNone(value['evidence']['path'])
+            self.assertIsNone(value['stop_conditions'])
+            self.assertTrue(all(row['actor'] is None and row['mode'] is None for row in value['grants']))
+            assert_no_effects()
+            untouched = plans.advance(self.root, plan)
+            self.assertEqual({row['current']['answer_file'] for row in untouched['items']}, files)
+            self.assertTrue(untouched['continuation_observation']['unchanged_since_previous'])
+            assert_no_effects()
+
+            for malformed in ([], 'A mistaken top-level answer'):
+                self.write(answer_file, malformed)
+                invalid = plans.advance(self.root, plan)
+                self.assertEqual({row['diagnostic']['code'] for row in invalid['items']}, {'INPUT_SCHEMA_INVALID'})
+                assert_no_effects()
+
+            value['issuer'] = 'explicit-synthetic-principal'
+            self.write(answer_file, value)
+            incomplete = plans.advance(self.root, plan)
+            self.assertEqual({row['diagnostic']['code'] for row in incomplete['items']}, {'INPUT_SCHEMA_INVALID'})
+            assert_no_effects()
+
+            value['evidence'] = {'path': 'empty-instruction.txt', 'locator': 'whole'}
+            self.write('empty-instruction.txt', b' \n')
+            value['stop_conditions'] = [{'id': 'scope-current',
+                'text': 'The explicit synthetic instruction still covers this exact request.'}]
+            for grant in value['grants']:
+                grant.update(actor=fixtures.ACTOR, mode='direct')
+                if 'submit' in grant['operations']:
+                    grant['submission_validation_modes'] = [first['items'][0]['current']['required_validation_mode']]
+            self.write(answer_file, value)
+            empty = plans.advance(self.root, plan)
+            self.assertEqual({row['diagnostic']['code'] for row in empty['items']}, {'AUTHORIZATION_REQUIRED'})
+            assert_no_effects()
+
+            self.write('actual-instruction.txt', b'Explicit synthetic instruction authorizes these three separate '
+                       b'external images and their direction and submission by the synthetic actor. '
+                       b'No selection or adoption grant is supplied. This fixture is not real user consent.\n')
+            value['evidence']['path'] = 'actual-instruction.txt'
+            self.write(answer_file, value)
+            waiting = plans.advance(self.root, plan)
+            self.assertEqual([row['phase'] for row in waiting['items']], ['execution'] * 3)
+            self.assertEqual([row['run'] for row in waiting['items']], runs)
+            held = store.read_authority(self.root, self.task['task_id'])
+            self.assertEqual(held.document['issuer'], value['issuer'])
+            self.assertEqual(held.document['stop_conditions'], value['stop_conditions'])
+            self.assertEqual([row['operations'] for row in held.document['grants']], [['direction'], ['submit']])
+            self.assertEqual(len(store.read_history(self.root, 'authority:' + self.task['task_id']).rows), 1)
+            assert_no_effects(no_authority=False)
+
+            execution_file = waiting['items'][0]['current']['answer_file']
+            answer = c.load(self.root / execution_file)
+            self.assertNotIn('approval', answer)
+            answer['reason'] = 'The recorded synthetic instruction covers this exact one-image request.'
+            fixtures.assess_rendition(answer['request_decision']['rendition_review'])
+            self.write(execution_file, answer)
+            stopped = plans.advance(self.root, plan)
+            self.assertEqual(stopped['items'][0]['state'], 'blocked')
+            assert_no_effects(no_authority=False)
+            answer['stop_assessments'][0].update(clear=True,
+                evidence='The explicit synthetic instruction is current and applies to this exact request.')
+            self.write(execution_file, answer)
+            claimed = plans.advance(self.root, plan)
+            self.assertEqual(claimed['items'][0]['phase'], 'recovery')
+            self.assertEqual(claimed['items'][0]['run'], runs[0])
+            self.assertEqual(claimed['items'][0]['current']['host_request']['request'],
+                             operations.read_run(self.root, runs[0]).consumer['image_input']['external_request']['request'])
+            self.assertEqual(sum(row['event'] == 'external-claim' for row in store.event_rows(self.root, runs[0])), 1)
+            for run in runs[1:]:
+                self.assertFalse(any(row['event'] == 'external-claim' for row in store.event_rows(self.root, run)))
+            plans.advance(self.root, plan)
+            self.assertEqual(sum(row['event'] == 'external-claim' for row in store.event_rows(self.root, runs[0])), 1)
+            self.assertEqual(store.read_authority(self.root, self.task['task_id']).event['sha256'], held.event['sha256'])
+            self.assertEqual({run: (self.root / 'production/runs' / run / 'prepared.json').read_bytes()
+                              for run in runs}, prepared_bytes)
+            return 0
+
+        code, _, events = metric_cases.MetricsTests.logged(self, exercise)
+        self.assertEqual(code, 0)
+        judgments = [row for row in events if row.get('phase') == 'initial-authority'
+                     and row['event'].startswith('judgment_')]
+        self.assertEqual(sum(row['event'] == 'judgment_pending' for row in judgments), 1)
+        self.assertEqual(sum(row['event'] == 'judgment_answered' for row in judgments), 5)
+        self.assertEqual(len({row['answer_file'] for row in judgments}), 1)
+
+    def test_first_authority_import_conflicts_with_a_concurrent_registration(self):
+        self.task['authority'] = None
+        run = self.prepared_external_case()
+        self.write('work-request.json', {'source': {'run': run}, 'result': {'scope': 'delivery-only'}})
+        plan = plans.create(self.root, 'work-request.json')['plan']
+        first = plans.advance(self.root, plan)
+        answer_file = first['items'][0]['current']['answer_file']
+        value = c.load(self.root / answer_file)
+        self.write('actual-instruction.txt', b'Explicit synthetic authority source; not actual user consent.\n')
+        value.update(issuer='first-synthetic-principal', evidence={'path': 'actual-instruction.txt', 'locator': 'whole'},
+                     stop_conditions=[])
+        for grant in value['grants']:
+            grant.update(actor=fixtures.ACTOR, mode='direct')
+            if 'submit' in grant['operations']:
+                grant['submission_validation_modes'] = [first['items'][0]['current']['required_validation_mode']]
+        self.write(answer_file, value)
+        concurrent = copy.deepcopy(value)
+        concurrent.update(issuer='concurrently-recorded-principal', grants=[],
+                          stop_conditions=[{'id': 'current-scope', 'text': 'Assess the concurrently recorded scope.'}])
+        self.write('concurrent-authority.json', concurrent)
+        original = store.import_authority
+
+        def register_before_import(root, file, **kwargs):
+            self.assertEqual(file, answer_file)
+            self.assertIsNone(kwargs['expected'])
+            self.assertNotIn('initial', kwargs)
+            original(root, 'concurrent-authority.json')
+            return original(root, file, **kwargs)
+
+        with patch.object(store, 'import_authority', side_effect=register_before_import):
+            blocked = plans.advance(self.root, plan)
+        self.assertEqual(blocked['items'][0]['diagnostic']['code'], 'AUTHORITY_UPDATE_CONFLICT')
+        held = store.read_authority(self.root, self.task['task_id'])
+        self.assertEqual(held.document, concurrent)
+        self.assertFalse(any(row['event'] in {'authorization', 'external-claim'} for row in store.event_rows(self.root, run)))
+        current = plans.advance(self.root, plan)
+        self.assertEqual(current['items'][0]['phase'], 'execution')
+        answer = c.load(self.root / current['items'][0]['current']['answer_file'])
+        self.assertIsNone(answer['approval']['evidence']['path'])
+        self.assertFalse(answer['stop_assessments'][0]['clear'])
+        self.assertEqual(store.read_authority(self.root, self.task['task_id']).event['sha256'], held.event['sha256'])
+        self.assertEqual(c.load(self.root / answer_file), value)
 
     def test_status_returns_the_bound_plan_and_keeps_the_runs_independent_next_operation(self):
         import production_execution
@@ -340,6 +624,50 @@ class RetainedSourcePlanCases(unittest.TestCase):
         self.assertIsNone(continued['items'][0]['run'])
 
 
+class PlanComposeIdentityCases(unittest.TestCase):
+    def test_reference_identity_repair_binds_its_proposed_candidate_to_the_same_plan(self):
+        from test_production_identity import IdentityAuthoringTests
+        from production_diagnostics import ProductionError
+        from production_source_acquisition import acquire_source
+        helper = IdentityAuthoringTests()
+        helper.setUp()
+        self.addCleanup(helper.doCleanups)
+        draft, choices = helper.draft_identity(graph=True)
+        f.write(helper.root / draft['choices_file'], choices)
+        plan = plans.create(helper.root, request={'source': {'choices': draft['choices_file']},
+            'result': {'scope': 'prepared-input'}, 'work_steps': {'1': 'prepared'}})['plan']
+        graph_file = choices['authoring']['documents']['state_graphs']['file']
+        graphs = c.load(helper.root / graph_file)
+        graphs[0]['identity_contract']['identity']['outline'] = 'A closed solid disc.'
+        f.write(helper.root / graph_file, graphs)
+        descriptor = copy.deepcopy(helper.task['sources'][0])
+        descriptor['path'] = graph_file
+        f.write(helper.root / 'replacement-source.json', descriptor)
+        with self.assertRaises(ProductionError) as caught:
+            acquire_source(helper.root, draft['choices_file'], 'replacement-source.json')
+        diagnostic = caught.exception.diagnostic.as_dict()
+        self.assertEqual(diagnostic['plan'], plan)
+        self.assertIn(plan, diagnostic['plan_continuation']['argv'])
+        repair = diagnostic['repair_action']['argv']
+        proposal = repair[repair.index('--choices') + 1]
+        destination = repair[repair.index('--out-dir') + 1]
+        composed = production_inputs.draft_inputs(helper.root, None, destination,
+            source_choices=proposal, stage='prepare')
+        self.assertEqual(composed['plan_continuation']['plan'], plan)
+        selected = c.load(helper.root / plan)['items']['item-1']
+        self.assertEqual(selected['source']['choices'], composed['choices_file'])
+        composed_choices = composed['choices']
+        composed_choices['reading'] = copy.deepcopy(choices['reading'])
+        built = helper.build_identity(composed, composed_choices, 'composed-built')
+        self.assertTrue(built['ok'], built.get('unresolved'))
+        task = c.load(helper.root / built['inputs']['production-task']['path'])
+        restored = c.load(helper.root / task['generation']['state_graphs'])
+        self.assertEqual(restored[0]['identity_contract']['identity']['outline'], 'A closed solid disc.')
+        self.assertEqual((helper.root / 'canon.json').read_bytes(), helper.raw)
+        report = plans.inspect(helper.root, plan)
+        self.assertEqual(report['items'][0]['current']['choices'], composed['choices_file'])
+
+
 class BatchPlanConditionCases(unittest.TestCase):
     setUp = batch_cases.BatchTests.setUp
     side_reference_prompt = batch_cases.BatchTests.side_reference_prompt
@@ -501,6 +829,76 @@ class BatchPlanConditionCases(unittest.TestCase):
         self.assertEqual(c.load(self.sheet), sheet)
 
 
+class PublicationFailurePlanCases(unittest.TestCase):
+    setUp = identity_cases.IdentityAuthoringTests.setUp
+    save_choices = identity_cases.IdentityAuthoringTests.save_choices
+    draft_identity = identity_cases.IdentityAuthoringTests.draft_identity
+
+    def test_current_status_exposes_publication_failure_and_rechecks_an_actual_edit(self):
+        import production_status_view
+        import work_ledger
+        drafted, choices = self.draft_identity()
+        path = drafted['choices_file']
+        choices['authoring_stage'] = 'prepare'
+        for criterion in choices['authoring']['task']['criteria']:
+            criterion.pop('identity_review', None)
+        (self.root / path).write_bytes(c.encoded(choices))
+        self.assertTrue(production_inputs.authoring_view(self.root, path)['authoring_stage']['structural_ready'])
+        plan = plans.create(self.root, request={'source': {'choices': path},
+            'result': {'scope': 'prepared-input'}, 'work_steps': {'1': 'prepared'}})['plan']
+        failed = plans.advance(self.root, plan)
+        self.assertEqual(failed['state'], 'blocked', failed)
+        self.assertEqual(failed['blockers'][0]['code'], 'IDENTITY_COVERAGE_INCOMPLETE')
+        self.assertEqual(failed['blockers'][0]['file'], path)
+        self.assertEqual(failed['next_action']['command'], 'check')
+        entry = c.load(self.root / plan)['items']['item-1']
+        reserved = entry['reserved_run']
+        self.assertNotIn('publication_ready', entry)
+        self.assertIsNone(entry['run'])
+        self.assertEqual(failed['items'][0]['current']['unresolved_summary']['total'], 1)
+        protected = {file: file.read_bytes() for file in (self.root / path, self.root / plan,
+                     work_ledger.task_path(self.root, failed['task_id']))}
+        status = operations.status(self.root)
+        operations.schema_check(status, 'status')
+        public = production_status_view.summary(self.root, status)
+        self.assertTrue(public['ok'])  # Intact status acquisition is not publication readiness.
+        self.assertEqual(public['runs'], [])
+        self.assertEqual(public['blockers'][0]['code'], 'IDENTITY_COVERAGE_INCOMPLETE')
+        self.assertEqual(report_cases.resolved_action(public, public['next_action'])['command'], 'check')
+        self.assertEqual({file: file.read_bytes() for file in protected}, protected)
+        old_report = copy.deepcopy(entry['current']['compilation'])
+
+        delivery = self.root / choices['authoring']['delivery']['file']
+        original_delivery = delivery.read_bytes()
+        delivery.write_bytes(original_delivery + b'\n')
+        self.assertEqual(operations.status(self.root)['current_task'].get('diagnostics', []), [])
+        delivery.write_bytes(original_delivery)
+        self.assertEqual(operations.status(self.root)['current_task']['diagnostics'][0]['code'],
+                         'IDENTITY_COVERAGE_INCOMPLETE')
+
+        # Correct the actual authored file, then inspect without rewriting the
+        # saved failed attempt. Its source hashes, not its age, determine reuse.
+        choices['authoring']['task']['criteria'][0]['identity_review'] = ['A']
+        (self.root / path).write_bytes(c.encoded(choices))
+        edited = operations.status(self.root)
+        self.assertEqual(edited['current_task'].get('diagnostics', []), [])
+        action = edited['current_task']['next_actions'][0]
+        self.assertEqual(action['command'], 'check')
+        checked = subprocess.run(action['argv'], cwd=self.root, capture_output=True,
+                                 text=True, encoding='utf-8')
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+        self.assertTrue(json.loads(checked.stdout)['publishable'])
+        self.assertEqual(c.load(self.root / plan)['items']['item-1']['current']['compilation'], old_report)
+        completed = plans.advance(self.root, plan)
+        # This standalone identity fixture has no Studio manifest: its input
+        # publishes, while the independent final Studio validation still stops.
+        self.assertEqual(completed['state'], 'verification-required', completed)
+        self.assertEqual(completed['items'][0]['state'], 'complete')
+        self.assertEqual(completed['items'][0]['run'], reserved)
+        self.assertFalse(completed.get('blockers'))
+        self.assertEqual([row['run_id'] for row in store.runs(self.root)], [reserved])
+
+
 class AuthoredPlanConditionCases(unittest.TestCase):
     setUp = authored_cases.AuthoredContinuationTests.setUp
     write = authored_cases.AuthoredContinuationTests.write
@@ -514,6 +912,166 @@ class AuthoredPlanConditionCases(unittest.TestCase):
             'result': {'scope': 'save', 'path': 'exports/description.txt'}, 'work_steps': {'1': 'results'}})
         return plans.create(self.root, 'work-request.json')['plan']
 
+    def refresh_without_effects(self, plan):
+        with ExitStack() as guards:
+            for target in ('production_inputs.stage_inputs', 'production_operations.prepare',
+                           'production_compiler.recover_publication', 'production_work_plan._publish',
+                           'production_work_plan._run', 'production_work_execution.apply',
+                           'production_work_review.apply', 'production_curation.apply'):
+                guards.enter_context(patch(target, side_effect=AssertionError('Refresh called ' + target)))
+            return plans.create(self.root, plan)
+
+    def test_refresh_replaces_historical_authoring_error_from_current_choices_without_rewriting_definition(self):
+        import work_ledger
+        fixtures.current_request(self.root, 'Write a synthetic description of the brass key on its table.')
+        # Simulate a plan retained from a version that accepted this misplaced
+        # feature. New requests still pass the normal before-publication check.
+        with patch('execution_routes.require_selection_names'):
+            plan = self.make_plan({'request': 'fixture-current-request.txt',
+                'route': 'development', 'features': ['generation'], 'execution': 'authored'})
+        folder = (self.root / plan).parent
+        immutable = {file: file.read_bytes() for file in (folder / 'definition.json', folder / 'request.json')}
+        self.choices['authoring_stage'] = 'definition'
+        self.write(self.choices_path, self.choices)
+        cached = production_inputs.inspect_inputs(self.root, choices_path=self.choices_path)
+        stale = {'code': 'INPUT_CONSISTENCY_ERROR', 'message': 'Historical misplaced feature generation.',
+            'required_action': 'Synthetic old action from /old-skill/scripts/production_workflow.py'}
+        cached['diagnostics'] = [stale]
+        state = c.load(self.root / plan)
+        entry = state['items']['item-1']
+        entry.update(source={'choices': self.choices_path}, phase='authoring', status='blocked',
+                     current={'stage': 'definition', 'inspection': cached}, diagnostic=stale)
+        state['status'] = 'blocked'
+        self.write(plan, state)
+        self.choices['authoring_stage'] = 'prepare'
+        self.write(self.choices_path, self.choices)
+        original_choices = (self.root / self.choices_path).read_bytes()
+        original_task = copy.deepcopy(work_ledger.read_current(self.root))
+
+        report = self.refresh_without_effects(plan)
+        item = report['items'][0]
+        self.assertEqual(report['state'], 'active', report)
+        self.assertEqual(item['current']['stage'], 'prepare', report)
+        self.assertEqual(item['current']['inspection']['authoring_stage']['stage'], 'prepare')
+        self.assertNotIn('diagnostic', item)
+        shown = c.encoded(item).decode('utf-8')
+        self.assertNotIn('Historical misplaced feature', shown)
+        self.assertNotIn('/old-skill/', shown)
+        current = c.load(self.root / plan)['items']['item-1']
+        actual = production_inputs.inspect_inputs(self.root, choices_path=self.choices_path)
+        self.assertEqual(current['current']['inspection'], actual)
+        self.assertEqual(current['source'], {'choices': self.choices_path})
+        self.assertIsNone(current['run'])
+        self.assertNotIn('reserved_run', current)
+        self.assertEqual(store.runs(self.root), [])
+        self.assertEqual(work_ledger.read_current(self.root), original_task)
+        self.assertEqual((self.root / self.choices_path).read_bytes(), original_choices)
+        self.assertEqual({file: file.read_bytes() for file in immutable}, immutable)
+
+    def test_refresh_keeps_a_structurally_ready_authoring_stage_until_advance(self):
+        self.choices['authoring_stage'] = 'rendition'
+        self.write(self.choices_path, self.choices)
+        plan = self.make_plan({'choices': self.choices_path})
+        before = (self.root / self.choices_path).read_bytes()
+        report = self.refresh_without_effects(plan)
+        stage = report['items'][0]['current']['inspection']['authoring_stage']
+        self.assertEqual(stage['stage'], 'rendition', report)
+        self.assertTrue(stage['structural_ready'], stage)
+        self.assertEqual(stage['next_stage'], 'prepare')
+        self.assertEqual((self.root / self.choices_path).read_bytes(), before)
+        self.assertIsNone(report['items'][0]['run'])
+        self.assertEqual(store.runs(self.root), [])
+
+    def test_refresh_reports_current_unreadable_choices_without_the_cached_inspection(self):
+        plan = self.make_plan({'choices': self.choices_path})
+        self.refresh_without_effects(plan)
+        self.write(self.choices_path, '{ current synthetic editor is invalid JSON')
+        report = self.refresh_without_effects(plan)
+        item = report['items'][0]
+        self.assertEqual(report['state'], 'blocked', report)
+        self.assertNotIn('inspection', item['current'])
+        self.assertEqual(item['diagnostic']['current_owner']['choices'], self.choices_path)
+        self.assertEqual(item['diagnostic']['plan_continuation'], plans.action(self.root, plan))
+        self.assertEqual(store.runs(self.root), [])
+
+    def test_refresh_selects_a_registered_reserved_run_before_reading_the_old_editor(self):
+        import production_authoring_state
+        import work_ledger
+        plan = self.make_plan({'choices': self.choices_path})
+        self.refresh_without_effects(plan)
+        # Retain the interruption between formal registration and plan binding.
+        with patch.object(plans, 'record_preparation', side_effect=OSError('Synthetic interrupted plan binding')):
+            operations.prepare(self.root, choices=self.choices_path)
+        state = c.load(self.root / plan)
+        run = state['items']['item-1']['reserved_run']
+        self.assertIsNone(state['items']['item-1']['run'])
+        before = store.event_rows(self.root, run)
+        owner = copy.deepcopy(work_ledger.read_current(self.root))
+        self.write(self.choices_path, '{ current editor is no longer readable')
+        with patch.object(production_authoring_state, 'registered_runtime_arguments',
+                          side_effect=AssertionError('Refresh read the old editable source')):
+            report = self.refresh_without_effects(plan)
+            repeated = self.refresh_without_effects(plan)
+        item = report['items'][0]
+        self.assertEqual(item['run'], run, report)
+        self.assertEqual(item['state'], 'pending')
+        self.assertNotIn('inspection', item['current'])
+        self.assertEqual(item['current']['next_action'], plans.action(self.root, plan))
+        self.assertEqual(repeated['items'][0], item)
+        self.assertEqual(store.event_rows(self.root, run), before)
+        self.assertEqual(work_ledger.read_current(self.root), owner)
+        self.assertFalse((self.root / 'exports/description.txt').exists())
+
+    def test_refresh_leaves_incomplete_reserved_publication_to_advance(self):
+        from pack_manager import generate_uuid7
+        import work_ledger
+        plan = self.make_plan({'choices': self.choices_path})
+        self.refresh_without_effects(plan)
+        state = c.load(self.root / plan)
+        run = generate_uuid7()
+        state['items']['item-1']['reserved_run'] = run
+        self.write(plan, state)
+        directory = operations.run_dir(self.root, run, exists=False)
+        owner = copy.deepcopy(work_ledger.read_current(self.root))
+        reserved = self.refresh_without_effects(plan)
+        self.assertEqual(reserved['items'][0]['current']['stage'], 'prepare', reserved)
+        self.assertIsNone(reserved['items'][0]['run'])
+        self.assertFalse(directory.exists())
+        self.assertEqual(c.load(self.root / plan)['items']['item-1']['reserved_run'], run)
+        directory.mkdir(parents=True)
+        report = self.refresh_without_effects(plan)
+        item = report['items'][0]
+        self.assertEqual(report['state'], 'blocked', report)
+        self.assertIsNone(item['run'])
+        self.assertNotIn('inspection', item['current'])
+        self.assertEqual(item['diagnostic']['code'], 'RUN_NOT_REGISTERED')
+        self.assertEqual(item['diagnostic']['current_owner']['reserved_run'], run)
+        self.assertIn('reserved publication', item['diagnostic']['required_action'])
+        self.assertEqual(item['diagnostic']['plan_continuation'], plans.action(self.root, plan))
+        self.assertEqual(list(directory.iterdir()), [])
+        self.assertEqual(store.runs(self.root), [])
+        self.assertEqual(work_ledger.read_current(self.root), owner)
+
+    def test_refresh_rejects_a_reserved_run_for_other_choices_without_rebinding(self):
+        plan = self.make_plan({'choices': self.choices_path})
+        sibling = authored_cases.authoring_fixtures.authoring_inputs(self.root, 'task.json', 'refresh-other')
+        choices = c.load(self.root / sibling['choices_file'])
+        choices['reading'] = copy.deepcopy(self.choices['reading'])
+        self.write(sibling['choices_file'], choices)
+        other = operations.prepare(self.root, choices=sibling['choices_file'])['run']
+        state = c.load(self.root / plan)
+        state['items']['item-1']['reserved_run'] = other
+        self.write(plan, state)
+        before = store.event_rows(self.root, other)
+        report = self.refresh_without_effects(plan)
+        item = report['items'][0]
+        self.assertEqual(report['state'], 'blocked', report)
+        self.assertIsNone(item['run'])
+        self.assertIn('another input or work task', item['diagnostic']['message'])
+        self.assertEqual(item['source'], {'choices': self.choices_path})
+        self.assertIsNone(c.load(self.root / plan)['items']['item-1']['run'])
+        self.assertEqual(store.event_rows(self.root, other), before)
+
     def fill_observation(self, report):
         file = report['items'][0]['current']['answer_file']
         answer = c.load(self.root / file)
@@ -523,6 +1081,140 @@ class AuthoredPlanConditionCases(unittest.TestCase):
             limitations=['This observes authored text only; no generated artwork is claimed.'])
         self.write(file, answer)
         return answer
+
+    def test_compose_successor_becomes_the_plan_input_without_reselecting_siblings(self):
+        import production_authoring_state
+        import work_ledger
+        plan = self.make_plan({'choices': self.choices_path})
+        original = (self.root / self.choices_path).read_bytes()
+        sibling = authored_cases.authoring_fixtures.authoring_inputs(self.root, 'task.json', 'comparison')
+        successor = production_inputs.draft_inputs(self.root, None, 'current-compose',
+            source_choices=self.choices_path, stage='prepare')
+        self.assertEqual(successor['plan_continuation']['plan'], plan)
+        state = c.load(self.root / plan)
+        entry = state['items']['item-1']
+        self.assertEqual(entry['source'], {'choices': successor['choices_file']})
+        self.assertEqual(entry['source_history'][0]['source'], {'choices': self.choices_path})
+        self.assertEqual((self.root / self.choices_path).read_bytes(), original)
+        current = production_authoring_state.inspect(self.root)
+        self.assertFalse(current['selection_required'], current)
+        self.assertEqual(current['context']['input']['choices_file'], str(self.root / successor['choices_file']))
+        explicit = production_inputs.inspect_inputs(self.root, choices_path=sibling['choices_file'])
+        self.assertEqual(explicit['context']['input']['choices_file'], str(self.root / sibling['choices_file']))
+        completed = plans.advance(self.root, plan)
+        self.assertEqual(completed['state'], 'complete', completed)
+        run = completed['items'][0]['run']
+        self.assertEqual(operations.read_run(self.root, run).prepared['authoring']['choices_ref']['path'],
+                         successor['choices_file'])
+        self.assertIsNone(work_ledger.read_current(self.root))
+
+    def test_compose_publication_interruption_recovers_the_explicit_plan_binding(self):
+        plan = self.make_plan({'choices': self.choices_path})
+        with patch.object(plans, 'continue_draft', side_effect=OSError('Synthetic interruption after draft publication')):
+            with self.assertRaisesRegex(OSError, 'after draft publication'):
+                production_inputs.draft_inputs(self.root, None, 'published-compose',
+                    source_choices=self.choices_path, stage='prepare')
+        self.assertEqual(c.load(self.root / plan)['items']['item-1']['source']['choices'], self.choices_path)
+        self.assertTrue((self.root / 'published-compose/choices.json').is_file())
+        completed = plans.advance(self.root, plan)
+        self.assertEqual(completed['state'], 'complete', completed)
+        self.assertEqual(completed['items'][0]['source']['choices'], 'published-compose/choices.json')
+        self.assertEqual(len(c.load(self.root / plan)['items']['item-1']['source_history']), 1)
+
+    def test_direct_preparation_resumes_saved_input_even_when_editor_is_no_longer_readable(self):
+        plan = self.make_plan({'choices': self.choices_path})
+        prepared = operations.prepare(self.root, choices=self.choices_path)
+        task_id = operations.read_run(self.root, prepared['run']).prepared['task']['task_id']
+        self.write(self.choices_path, '{ not JSON anymore')
+        completed = plans.advance(self.root, plan)
+        self.assertEqual(completed['state'], 'complete', completed)
+        self.assertEqual(completed['items'][0]['run'], prepared['run'])
+        self.assertEqual([row['run_id'] for row in store.runs(self.root, task_id=task_id)], [prepared['run']])
+
+    def test_compose_after_direct_publication_keeps_the_reserved_result_as_plan_owner(self):
+        plan = self.make_plan({'choices': self.choices_path})
+        prepared = operations.prepare(self.root, choices=self.choices_path)
+        state = c.load(self.root / plan)['items']['item-1']
+        self.assertEqual(state['run'], prepared['run'])
+        comparison = production_inputs.draft_inputs(self.root, None, 'after-publication',
+            source_choices=self.choices_path, stage='prepare')
+        self.assertNotIn('plan_continuation', comparison)
+        report = plans.advance(self.root, plan)
+        self.assertEqual(report['state'], 'complete', report)
+        self.assertEqual(report['items'][0]['run'], prepared['run'])
+        self.assertEqual(report['items'][0]['source']['choices'], self.choices_path)
+
+    def test_unrelated_corrupt_run_is_not_a_plan_input_recovery_candidate(self):
+        from pack_manager import generate_uuid7
+        plan = self.make_plan({'choices': self.choices_path})
+        other_task = c.load(self.root / 'task.json')
+        other_task['production_id'] = generate_uuid7()
+        self.write('independent-task.json', other_task)
+        sibling = authored_cases.authoring_fixtures.authoring_inputs(self.root, 'independent-task.json', 'independent')
+        choices = c.load(self.root / sibling['choices_file'])
+        choices['reading'] = copy.deepcopy(self.choices['reading'])
+        self.write(sibling['choices_file'], choices)
+        other = operations.prepare(self.root, choices=sibling['choices_file'])['run']
+        self.write('production/runs/' + other + '/prepared.json', '{}')
+        report = plans.advance(self.root, plan)
+        item = report['items'][0]
+        self.assertNotEqual(item['state'], 'blocked', report)
+        self.assertIsNotNone(item['run'])
+        self.assertNotEqual(item['run'], other)
+        self.assertEqual(operations.read_run(self.root, item['run']).prepared['authoring']['choices_ref']['path'],
+                         self.choices_path)
+
+    def test_reserved_published_run_recovers_before_attempting_the_old_editor(self):
+        plan = self.make_plan({'choices': self.choices_path})
+        publish = operations.prepare
+        published = []
+
+        def interrupted(*args, **kwargs):
+            result = publish(*args, **kwargs)
+            published.append(result['run'])
+            raise OSError('Synthetic interruption after the formal run publication')
+
+        with patch.object(operations, 'prepare', side_effect=interrupted):
+            blocked = plans.advance(self.root, plan)
+        self.assertEqual(blocked['state'], 'blocked', blocked)
+        self.assertIsNone(blocked['items'][0]['run'])
+        self.write(self.choices_path, '{ the current editor is unavailable')
+        completed = plans.advance(self.root, plan)
+        self.assertEqual(completed['state'], 'complete', completed)
+        self.assertEqual(completed['items'][0]['run'], published[0])
+        self.assertEqual(len(store.runs(self.root)), 1)
+
+    def test_other_prepared_branch_is_not_selected_by_the_plan(self):
+        plan = self.make_plan({'choices': self.choices_path})
+        sibling = authored_cases.authoring_fixtures.authoring_inputs(self.root, 'task.json', 'other-prepared')
+        choices = c.load(self.root / sibling['choices_file'])
+        choices['reading'] = copy.deepcopy(self.choices['reading'])
+        self.write(sibling['choices_file'], choices)
+        other = operations.prepare(self.root, choices=sibling['choices_file'])
+        completed = plans.advance(self.root, plan)
+        self.assertEqual(completed['state'], 'complete', completed)
+        self.assertNotEqual(completed['items'][0]['run'], other['run'])
+        prepared = operations.read_run(self.root, completed['items'][0]['run']).prepared
+        self.assertEqual(prepared['authoring']['choices_ref']['path'], self.choices_path)
+
+    def test_mismatched_plan_run_does_not_finish_its_task_or_apply_a_result(self):
+        import work_ledger
+        plan = self.make_plan({'choices': self.choices_path})
+        sibling = authored_cases.authoring_fixtures.authoring_inputs(self.root, 'task.json', 'wrong-run')
+        choices = c.load(self.root / sibling['choices_file'])
+        choices['reading'] = copy.deepcopy(self.choices['reading'])
+        self.write(sibling['choices_file'], choices)
+        other = operations.prepare(self.root, choices=sibling['choices_file'])['run']
+        state = c.load(self.root / plan)
+        state['items']['item-1']['run'] = other
+        self.write(plan, state)
+        before = store.event_rows(self.root, other)
+        blocked = plans.advance(self.root, plan)
+        self.assertEqual(blocked['state'], 'blocked', blocked)
+        self.assertIn('another input or work task', blocked['items'][0]['diagnostic']['message'])
+        self.assertEqual(store.event_rows(self.root, other), before)
+        self.assertIsNotNone(work_ledger.read_current(self.root))
+        self.assertTrue(all(step['done_at'] is None for step in work_ledger.read_current(self.root)['steps']))
 
     def test_new_authored_save_delivers_then_observes_and_reviews_in_one_plan(self):
         import work_ledger

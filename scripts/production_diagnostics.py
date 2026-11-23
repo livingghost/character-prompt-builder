@@ -30,6 +30,35 @@ EXECUTION_CODES = frozenset({
 EXIT_CODES = {**{code: EXIT_WAITING for code in WAITING_CODES}, **{code: EXIT_EXECUTION for code in EXECUTION_CODES}}
 
 DEFAULT_ACTION = 'Correct the declared input and retry the operation.'
+# Categories describe the repair responsibility, independently of exit status.
+# Exact codes own classification; diagnostic prose is never interpreted.
+FAILURE_CATEGORIES = {
+    'input': 'The author corrects the named input or completes its judgment.',
+    'authority': 'The instructing principal or delegated authority resolves the actual scope or stop condition.',
+    'state-conflict': 'The current work owner inspects competing or changed state and continues its exact result.',
+    'environment': 'The runtime operator repairs dependencies, credentials, configuration or storage.',
+    'provider': 'The execution owner inspects the provider outcome and recovers the same submission.',
+}
+_CATEGORY_CODES = {
+    'authority': frozenset({'AUTHORIZATION_REQUIRED', 'AUTHORIZATION_MISMATCH', 'GRANT_SCOPE_EXCEEDED',
+        'GRANT_REVOKED', 'GRANT_NOT_EFFECTIVE', 'EXECUTION_STOPPED'}),
+    'state-conflict': frozenset({'DISPATCH_ALREADY_CLAIMED', 'SETTLEMENT_CONFLICT', 'PLACEMENT_CONFLICT',
+        'SLOT_ACCEPTANCE_CONFLICT', 'SLOT_ACCEPTANCE_MISMATCH', 'ACCEPTANCE_AUTHORITY_CHANGED',
+        'ADOPTION_DECISION_CHANGED', 'ADOPTION_OWNER_MISMATCH', 'AUTHORING_WORK_MISMATCH',
+        'AUTHORING_TASK_SELECTION_REQUIRED', 'INPUT_PUBLICATION_CHANGED', 'READING_SOURCES_CHANGED',
+        'INPUT_SOURCES_CHANGED', 'AUTHORITY_CHANGED', 'OUTPUT_ALREADY_EXISTS', 'WORK_TASK_ALREADY_OPEN'}),
+    'environment': frozenset({'CREDENTIAL_UNAVAILABLE', 'DEPENDENCY_UNAVAILABLE', 'PACK_RUNTIME_REQUIRED',
+        'PACK_NOT_ENABLED', 'LOG_WRITE_FAILED', 'LOG_PATH_UNSAFE', 'ARTIFACT_PUBLISH_FAILED',
+        'IMPLEMENTATION_CHANGED', 'STUDIO_PROJECTION_FAILED', 'WORK_PROJECTION_FAILED',
+        'PLACEMENT_PROJECTION_PENDING'}),
+    'provider': frozenset({'PROVIDER_REJECTION', 'REMOTE_OUTCOME_UNKNOWN', 'TRANSPORT_RESULT_INVALID',
+        'RESPONSE_CORRUPT', 'PROVIDER_OUTPUT_CHANGED', 'OUTPUT_COUNT_MISMATCH'}),
+}
+
+
+def failure_category(code: str) -> str:
+    return next((name for name, codes in _CATEGORY_CODES.items() if code in codes), 'input')
+
 # Phase owners are declared here; diagnostic prose never selects its own help.
 PHASE_DOCUMENTS = {
     'task-read': 'references/runtime/production-preparation.md#prepare-one-complete-input',
@@ -169,9 +198,11 @@ class Diagnostic:
 
     def as_dict(self) -> dict[str, Any]:
         owner = self.guidance or guidance(self.phase)
+        category = failure_category(self.code)
         return {**{name: getattr(self, name) for name in
                 ('code', 'severity', 'phase', 'file', 'pointer', 'message',
                  'required_action', 'blocked_checks')},
+                'category': category, 'repair_responsibility': FAILURE_CATEGORIES[category],
                 **({'guidance': owner} if owner is not None else {}), **self.details}
 
 class ProductionError(ValueError):

@@ -4254,11 +4254,37 @@
         ],
         "references/finishing-layers-specification.md": [
           {
-            "whole_source": true,
-            "reason": "Read complete selected finishing knowledge when changing the picture construction.",
+            "sections": [
+              "visual-construction-and-finishing",
+              "1-purpose",
+              "2-the-five-finishing-layers",
+              "3-composition-order",
+              "visibility-and-surface-order",
+              "large-form-interval-and-degree",
+              "color-and-value-as-a-shared-construction",
+              "shape-and-mark-as-one-drawing-grammar",
+              "8-resolve-competition-and-choose-a-realizable-method",
+              "9-observation-contract",
+              "10-layer-specific-cautions"
+            ],
+            "reason": "Sparse discovery uses the complete general construction basis for the changed definition or depiction, retaining purpose, layers, dependencies, surface order, large form, color, drawing grammar and evidence limits.",
             "profiles_any": [
               "amend-definition",
               "amend-depiction"
+            ],
+            "features_any": [
+              "sparse-retrieval"
+            ]
+          },
+          {
+            "whole_source": true,
+            "reason": "The explicitly selected finishing specialist requires every original section, example and limitation when changing the picture construction.",
+            "profiles_any": [
+              "amend-definition",
+              "amend-depiction"
+            ],
+            "features_any": [
+              "finishing"
             ]
           },
           {

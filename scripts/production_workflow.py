@@ -27,16 +27,16 @@ COMMAND_HELP = {
     'acquire-source': 'Acquire one complete Production source row and regenerate its applications, subjects and derived task sources.',
     'edit-choices': 'Edit one authored choices owner with a JSON Pointer, then publish the checked draft and basis together.',
     'draft-principal-approval': 'Retain an actual instruction and bind an unanswered approval draft to this exact run and request.',
-    'draft-authority-update': 'Draft execution, reviewed selection or selected canonical-use authority, deriving run bindings and predecessor.',
+    'draft-authority-update': 'Draft additional execution, reviewed selection or selected canonical-use grants under an already registered authority, deriving run bindings and predecessor.',
     'execute': 'Apply the separate execution decisions, then dispatch or hand the exact request to its external host once.',
     'resume': 'Recover the same execution without sending it again where a send has started; --watch keeps asking '
               'while the provider task is pending.',
     'draft-outcome': "Write the statement to fill when the provider's records hold no task for a started send.",
     'status': 'Report each run by preparation, readiness, submission, capture, review and disposition.',
-    'authority-import': 'Import the grant file of the named work task, or replace the current one.',
+    'authority-import': 'Import a work task\'s first complete authority declaration, or update its registered authority with the observed predecessor.',
     'recover-publication': 'Register a verified publication whose registration was interrupted.',
     'staging-cleanup': "List one ended operation's unpublished staging, unclaimed journals and unrecoverable publications.",
-    'logs': 'List automatic operation logs of the studio, or of the configuration directory without --root.',
+    'logs': 'List automatic operation logs, or aggregate recorded calls, reading, edits and time with --summary.',
     'logs-export': 'Copy operation logs to a new directory with a manifest of what it includes.',
     'logs-cleanup': 'List diagnostic operation logs that may be deleted; production records stay.',
     'handoff-intent': 'Show the exact direction operation that a handoff needs authorized.',
@@ -110,7 +110,7 @@ OPTION_HELP = {
     'decisions_file': 'Completed execution decision file from draft-execution, or - for stdin.',
     'outcome_file': "Statement from draft-outcome that the provider's records hold no task for the started send, or - for stdin.",
     'grant': 'ID of the grant the drafted decisions use.',
-    'expected_event': 'Digest of the current authority event that this import replaces.',
+    'expected_event': 'Digest of the current authority event that this import replaces; omit for the first import.',
     'failed': 'Only operations that failed or did not finish.',
     'recipient': 'Who receives the consumer.',
     'method': 'How the consumer is handed over.',
@@ -144,7 +144,7 @@ OPTION_HELP = {
     ('logs', 'operation'): 'Only this operation ID.',
     ('staging-cleanup', 'operation'): 'Owner operation ID whose items --apply removes.',
     ('staging-cleanup', 'apply'): 'Remove the eligible items of --operation; without it, only list them.',
-    ('authority-import', 'file'): 'Grant file of the work task, or - for stdin.',
+    ('authority-import', 'file'): 'Complete authority declaration, or a run-bound addition to registered authority; use - for stdin.',
     ('authorize', 'file'): 'Completed authorization request file, or - for stdin.',
     ('review', 'file'): 'Completed review file from draft-review, or - for stdin.',
     ('deliver', 'file'): 'Receipt identifying actual presentation or attachment evidence, or - for stdin.',
@@ -164,7 +164,7 @@ OPTION_HELP = {
 # Arguments that name one JSON input file and accept - for stdin.
 STDIN_INPUTS = ('decisions_file', 'file', 'request', 'intent', 'outcome_file', 'registration_record', 'changes_file')
 # Arguments that name a studio file.
-FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'choices', 'artifact', 'response_file', 'submission_file',
+FILE_ARGUMENTS = STDIN_INPUTS + ('task', 'choices', 'artifact', 'artifacts', 'response_file', 'submission_file',
                                'source_row', 'instruction_file', 'approval_evidence', 'value_file')
 
 SUMMARY_COMMANDS = frozenset({'status', 'check', 'prepare', 'save', 'authority-import', 'draft-execution',
@@ -188,6 +188,8 @@ def build_parser():
         if name not in {'plan', 'advance', 'prepare', 'check', 'save', 'authority-import', 'staging-cleanup', 'logs', 'logs-export', 'logs-cleanup', 'status', 'acquire-source', 'edit-choices'}:
             p.add_argument('--run', required=True)
         if name in {'plan', 'advance'}:
+            from route_reading import add_context_arguments
+            add_context_arguments(p)
             p.add_argument('--file', help='Studio-relative work request for plan, or the plan.json to inspect/refresh/advance. '
                 'Omit to continue the active task\'s plan; plan otherwise writes a small unanswered request.')
             p.epilog = ('A request selects source and result once. Source names choices, run, request, batch, '
@@ -208,6 +210,11 @@ def build_parser():
                     'See references/runtime/production-work-plan.md for the complete workflow.')
         if name in {'status', 'logs', 'logs-export'}:
             p.add_argument('--run')
+        if name == 'logs':
+            p.add_argument('--summary', action='store_true',
+                help='Aggregate recorded command and stage times, reading bytes, structured edits, recovery calls '
+                     'and current plan observations. Unknown host or active author time remains unmeasured; '
+                     'stage times are inclusive and may overlap. Cannot combine with --failed.')
         if name == 'status':
             p.epilog, p.formatter_class = _status_epilog(), argparse.RawDescriptionHelpFormatter
             p.add_argument('--view', choices=['summary', 'full'], default='summary',
@@ -224,7 +231,8 @@ def build_parser():
         if name == 'edit-choices':
             p.add_argument('--choices', required=True, help='Current Studio-relative editable choices.json.')
             p.add_argument('--pointer', required=True,
-                help='JSON Pointer of one authored owner or its child; use explain-inputs to locate editable fields.')
+                help='JSON Pointer of one authored owner or its child; use explain-inputs to locate editable fields. '
+                     'In Windows Git Bash, prefix the command with MSYS_NO_PATHCONV=1 to preserve the pointer.')
             p.add_argument('--operation', choices=('add', 'replace', 'remove'), default='replace',
                 help='Apply the JSON Pointer operation; replace by default. Array add inserts and a final - appends.')
             p.add_argument('--value-file',
@@ -246,6 +254,10 @@ def build_parser():
             p.add_argument('--influence', choices=INTENDED_INFLUENCES, help='Required intended canonical influence for --phase adoption.')
             p.add_argument('--registration-record')
             p.add_argument('--pack-dir', type=Path)
+            p.epilog = ('Requires registered authority. For the first declaration, use '
+                'production_document_contracts.py explain authority to find its schema and template, then '
+                'authority-import without --expected-event. This command preserves existing grants and derives '
+                'the predecessor for an additional grant from the current registered authority.')
         if name == 'resume':
             from execution_watch_options import WATCH_LIMIT_SECONDS
             recovery = p.add_mutually_exclusive_group()
@@ -278,6 +290,10 @@ def build_parser():
         if name == 'authority-import':
             p.add_argument('--file', required=True)
             p.add_argument('--expected-event')
+            p.epilog = ('For the first import, author the complete declaration from actual instruction evidence; '
+                'production_document_contracts.py explain authority gives its schema and template. Omit '
+                '--expected-event until authority is registered. For later changes, use the exact predecessor '
+                'in status.authority.update_action; a run-bound addition also retains that predecessor in its draft.')
         if name == 'staging-cleanup':
             p.add_argument('--operation')
             p.add_argument('--apply', action='store_true')
@@ -303,6 +319,11 @@ def build_parser():
         if name == 'save':
             p.add_argument('--choices', required=True)
             p.add_argument('--draft', action='store_true')
+            p.epilog = ('Save requires a task with authored execution. For an image request, use prepare. '
+                'To write only completed prompt text without creating an image, use authoring_work.py export '
+                'WORK --pointer /prompt --out FILE. WORK is the actual completed authoring work, including '
+                'its applicable target and documents; choices.json is not that work. See '
+                'references/runtime/authoring-work.md#inspect-and-deliver.')
         if name in {'prepare', 'check', 'save'}:
             from pack_runtime_cli import add_pack_runtime_arguments
             add_pack_runtime_arguments(p)
@@ -342,8 +363,11 @@ def build_parser():
                                 'observe exposes --candidate before the assessment basis, and review adds that basis.')
             p.add_argument('--candidate', help='Candidate event ID for observe or review.')
         if name == 'receive-external':
-            p.add_argument('--response', dest='response_file', required=True, help='Actual saved host response file.')
-            p.add_argument('--artifact', dest='artifacts', action='append', default=[], help='Received file; repeat for several files.')
+            p.add_argument('--response', dest='response_file', required=True, help='Actual saved host response file inside the Studio.')
+            p.add_argument('--artifact', dest='artifacts', action='append', default=[],
+                           help='Received file inside the Studio, named relative to --root or by an absolute path inside it; '
+                                'repeat for several files. Copy an outside host file unchanged into the Studio, then '
+                                'receive it on the same run; no regeneration is needed.')
             p.add_argument('--image-pointer', dest='image_pointers', action='append', type=json.loads, default=[],
                            help='JSON array of keys/indices selecting a base64 image or image data URL in the response; repeat as needed.')
             p.add_argument('--call', dest='submission_file', help='Actual saved host call, when available.')
@@ -352,6 +376,10 @@ def build_parser():
             p.add_argument('--cost-pointer', type=json.loads, help='JSON key/index array selecting actual {currency, amount} in the response.')
             p.add_argument('--pending', action='store_true', help='The host has not delivered its final outcome yet.')
             p.add_argument('--reason', required=True, help='Executor explanation of the observed final or pending outcome.')
+            p.epilog = ('When the host saves a returned file outside the Studio, copy that existing file into the '
+                'Studio and preserve the original. Pass its Studio-relative path to --artifact and receive it with '
+                'the same --run and --response; no new host call is needed. For an inline image in the actual saved '
+                'response, --image-pointer selects its base64 or image data URL directly.')
         if name == 'draft-authorization':
             p.add_argument('--intent', required=True)
         if name in {'revision-intent', 'revise'}:
@@ -381,8 +409,63 @@ def build_parser():
     return parser
 
 
+def _report_diagnostics(result: dict) -> tuple[list[dict], bool]:
+    """Collect current report-owned failures, leaving nested history untouched."""
+    diagnostics, unclassified = [], False
+
+    def collect(rows) -> bool:
+        nonlocal unclassified
+        for row in rows if isinstance(rows, list) else []:
+            if isinstance(row, dict):
+                if row not in diagnostics:
+                    diagnostics.append(row)
+            else:
+                unclassified = True
+        return isinstance(rows, list) and bool(rows)
+
+    collect(result.get('diagnostics'))
+    if result.get('ok') is False:
+        items = result.get('items')
+        for item in items if isinstance(items, list) else []:
+            if not isinstance(item, dict) or item.get('state') not in {'blocked', 'verification-required'}:
+                continue
+            current = item.get('current')
+            owners = [item.get('diagnostic')]
+            if isinstance(current, dict):
+                owners.append(current.get('diagnostic'))
+            if not collect([value for value in owners if value is not None]):
+                unclassified = True
+        verification = result.get('verification')
+        if isinstance(verification, dict) and verification.get('ok') is False:
+            explained = collect(verification.get('diagnostics'))
+            explained = collect(verification.get('errors')) or explained
+            projection = verification.get('projection')
+            if isinstance(projection, dict) and projection.get('ok') is False:
+                rows = projection.get('diagnostics')
+                if not collect(rows):
+                    unclassified = True
+                explained = True
+            if not explained:
+                unclassified = True
+    return diagnostics, unclassified
+
+
 def _print_report(args, result: dict, *, runtime_arguments: dict | None = None) -> None:
     """Select presentation without changing the outcome of the actual operation."""
+    operation = _operation_context.current()
+    if operation is not None:
+        diagnostics, unclassified = _report_diagnostics(result)
+        errors = [row for row in diagnostics if row.get('severity', 'error') == 'error'
+                  and row.get('code') != 'CHECK_NOT_PERFORMED']
+        codes = sorted({row['code'] for row in errors if isinstance(row.get('code'), str)})
+        if result.get('ok') is False:
+            operation.outcome = next((row for row in errors if isinstance(row.get('code'), str)), None)
+        operation.event('command_result', ok=result.get('ok', True),
+            diagnostic_codes=[row.get('code') for row in diagnostics],
+            failure_codes=codes if result.get('ok') is False else [],
+            unclassified_failure=result.get('ok') is False and (unclassified or not codes
+                or any(not isinstance(row.get('code'), str) for row in errors)),
+            state=result.get('state'))
     if getattr(args, 'view', 'full') == 'summary' and args.root is not None:
         from production_report_view import present
         result = present(args.root, result, command=args.command,
@@ -402,15 +485,22 @@ def _studio_arguments(root: Path, args) -> None:
     def normalize(name: str, value: str) -> str:
         if value == '-':
             return value
-        option = '--' + name.replace('_', '-')
+        option = '--artifact' if name == 'artifacts' else '--' + name.replace('_', '-')
         # A missing task is named here; its compiler reports an unreadable input.
         path = studio_file(root, value, option=option, exists=name != 'task')
         try:
             return path.resolve().relative_to(root).as_posix() if Path(value).is_absolute() else value
         except ValueError as exc:
+            repair = ('Copy the existing received file into the studio, preserving the original. Pass the copied '
+                      'Studio-relative path to --artifact and retry receive-external with the same --run and '
+                      '--response; no regeneration or new host call is needed.' if name == 'artifacts' else
+                      'Copy the file into the studio and name it relative to --root.')
+            context = ({'root': str(root), 'run': getattr(args, 'run', None),
+                        'guidance': {'document_path': 'references/runtime/production-external-execution.md'}}
+                       if name == 'artifacts' else {})
             raise ProductionError('INPUT_SCHEMA_INVALID', f'{option} names a file outside the studio: {value}',
                                   phase='arguments', file=str(value), option=option,
-                                  required_action='Copy the file into the studio and name it relative to --root.') from exc
+                                  required_action=repair, **context) from exc
 
     for name in FILE_ARGUMENTS:
         value = getattr(args, name, None)
@@ -545,9 +635,12 @@ def main() -> int:
                 runtime_arguments = registered_runtime_arguments(root, args.choices)
         if name in {'plan', 'advance'}:
             import production_work_plan
+            import route_reading
+            context_options = route_reading.resolve_context_options(args)
             result = (production_work_plan.create(root, args.file,
                           request=production_work_plan.request_from_arguments(root, args)) if name == 'plan'
                       else production_work_plan.advance(root, args.file))
+            result = route_reading.decorate_context(result, **context_options)
         elif name in CRAFT_COMMANDS:
             import craft_consultation
             result = craft_consultation.command(args, parser)
@@ -650,7 +743,15 @@ def main() -> int:
             from production_compiler import staging_cleanup
             result = staging_cleanup(root, operation_id=args.operation, apply=args.apply)
         elif name == 'logs':
-            result = {'operations': _operation_context.list_operations(root, run=args.run, failed=args.failed, operation_id=args.operation)}
+            if args.summary:
+                if args.failed:
+                    raise ProductionError('INPUT_ARGUMENT_INVALID', '--summary includes every selected outcome.',
+                        phase='arguments', required_action='Omit --failed when using logs --summary; '
+                            'the summary separates failed, waiting and incomplete calls.')
+                import operation_metrics
+                result = operation_metrics.summarize(root, run=args.run, operation_id=args.operation)
+            else:
+                result = {'operations': _operation_context.list_operations(root, run=args.run, failed=args.failed, operation_id=args.operation)}
         elif name == 'logs-export':
             result = _operation_context.export_logs(root, _new_output(root, args.out), run=args.run,
                                                      include_streams=not args.without_streams)
@@ -700,10 +801,7 @@ def main() -> int:
             result = operations.authorize(root, args.run, args.file)
         elif name == 'receive-external':
             import production_operations as operations
-            from production_binding import studio_file
-            artifacts = [studio_file(root, path, option='--artifact').relative_to(root).as_posix()
-                         for path in args.artifacts]
-            result = operations.receive_external(root, args.run, response_file=args.response_file, artifacts=artifacts,
+            result = operations.receive_external(root, args.run, response_file=args.response_file, artifacts=args.artifacts,
                 image_pointers=args.image_pointers, final=not args.pending, reason=args.reason,
                 submission_file=args.submission_file, request_pointer=args.request_pointer,
                 model_identity_pointer=args.model_identity_pointer, cost_pointer=args.cost_pointer)

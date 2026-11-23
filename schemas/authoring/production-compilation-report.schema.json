@@ -134,6 +134,13 @@
           "type": "string",
           "minLength": 1
         },
+        "category": {
+          "enum": ["input", "authority", "state-conflict", "environment", "provider"]
+        },
+        "repair_responsibility": {
+          "type": "string",
+          "minLength": 1
+        },
         "severity": {
           "enum": [
             "error",

@@ -179,11 +179,14 @@ not whether they are the right depiction. The author owns that judgment.
 
 For saved editable text, use `production_workflow.py draft-inputs` with the
 current authoring operation and request. Continue the candidate in its directly
-editable files. Save it with `save --choices FILE`; `--draft` retains unfinished
+editable files. For a task with authored execution, save it with `save --choices FILE`; `--draft` retains unfinished
 text and unresolved choices. A finished
 model-targeted prompt still requires its real vocabulary search and grammar
 contract. [Authored storage](production-authored-storage.md) owns exact revision,
 delivery and requested-review completion.
+For a plain prompt file without a Production run, use the completed
+[Authoring work export](authoring-work.md#inspect-and-deliver). It keeps the
+candidate's selected target and documents under their existing content owners.
 
 ### Specialized prompt artifact export
 

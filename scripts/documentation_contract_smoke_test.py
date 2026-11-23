@@ -318,10 +318,11 @@ class DocumentationContractSmokeTest(unittest.TestCase):
             self.assertIn(command, run.stdout)
 
         gate = skill.partition("## Artifact-bearing production gate")[2].partition("\n## ")[0]
-        route_command = "`python scripts/execution_routes.py read --root STUDIO --choices FILE --all`"
+        route_command = "`python scripts/execution_routes.py read --root STUDIO --choices FILE --all --view text`"
         self.assertIn(route_command, gate)
         self.assertEqual(1, skill.count(route_command))
-        for marker in ("--choices", "actions.continue", "reading.record", "--known-reading", "fresh contexts reread"):
+        for marker in ("--choices", "actions.continue", "reading.record", "--fresh-context",
+                       "--reading-context", "reread after compaction"):
             self.assertIn(marker, gate)
 
         sequence = skill.partition("## Start the current work")[2].partition("\n## ")[0]
@@ -341,13 +342,15 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         reading = document.partition("### Select and read the current knowledge")[2].partition("\n## ")[0]
         for marker in ("actions.continue", "`argv`", "`command: read`", "`reason`", "`body`", "`null`",
                        "--reading-ledger", "CPB_READS_LEDGER", "reading.record", "--known-reading",
-                       "actions.next", "actions.all", "--snapshot", "--section", "--all", "non-null"):
+                       "actions.next", "actions.all", "--snapshot", "--section", "--all", "non-null",
+                       "--fresh-context", "--reading-context", "--host-page-bytes"):
             self.assertIn(marker, reading)
         run = subprocess.run([sys.executable, str(ROOT / "scripts/execution_routes.py"), "read", "--help"],
                              cwd=self.root, env=UNPAINTED, capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         for option in ("--page-bytes", "--continue", "--replay", "--reading-ledger", "--known-reading",
-                       "--snapshot", "--section", "--all"):
+                       "--snapshot", "--section", "--all", "--fresh-context",
+                       "--reading-context", "--bind-choices", "--host-page-bytes"):
             self.assertIn(option, run.stdout)
         from route_reading import INDEX_SOURCE_STATES
         for state in INDEX_SOURCE_STATES:
@@ -554,9 +557,12 @@ class RepositoryDocumentationTests(unittest.TestCase):
         self.assertIn(check, prompt_artifacts)
         self.assertIn("uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...", skill)
         self.assertIn(
-            "`uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...` on every route.",
+            "Run documented `python scripts/<name>.py ...` as "
+            "`uv run --project <skill-root> --locked python <skill-root>/scripts/<name>.py ...`.",
             skill,
         )
+        self.assertIn("Start in an existing directory", skill)
+        self.assertIn("after Studio initialization, use its directory", skill)
         self.assertLess(skill.index("## Mandatory execution environment"), skill.index("## Core contract"))
         self.assertIn("prompt-artifacts", prompt_artifacts)
         self.assertIn("same locked environment", prompt_artifacts)

@@ -6,6 +6,16 @@ path/locator identify the instruction whose bytes are pinned during preparation.
 The host checks real user authority: a schema authenticates no issuer and an
 agent-filled form is not consent.
 
+For a first prepared request with no registered authority, the saved work plan
+exposes one shared, unapproved `initial-authority` declaration. Its task and
+prepared operations are derived; issuer, instruction evidence, actors/modes and
+stop conditions remain unanswered. Complete them from the actual instruction
+already supplied, and choose only its permitted scope. `advance` uses the normal
+authority import, which requires nonempty evidence and rejects a concurrent
+registration. Registration then opens the separate exact execution judgments;
+it does not send, approve a rendition or clear a stop condition. Other items of
+the same plan reuse this current task authority and assess their own coverage.
+
 Each grant names an id, actor, direct/delegated mode, allowed operations, exact
 targets, protected criteria, optional request scope, submission validation modes,
 and expiry/effective/revocation timestamps. Direction, edit, submit, select and

@@ -52,7 +52,7 @@ specification remains optional for an ordinary image.
 
 ### Stateless
 
-Use `state_context.mode: "stateless"` for a one-off image and for the first images of a character, when no approved temporal canon exists. A stateless `state_context` holds only the mode and optional notes, and the builder seals the stateless lineage.
+Use `state_context.mode: "stateless"` for one-off images, first appearances or independent recurring scenes whose depiction needs no temporal-state resolution or carry-over. Keep selected Identity, morphology, Era, Form, Appearance and state authorities at their applicable scopes. Shared identity alone requires no temporal lineage. A stateless `state_context` holds only the mode and optional notes, and the builder seals the stateless lineage.
 
 For a detailed composition or dispatcher request, draft the specification for
 its subject. Replace each `"unspecified"` the author decides and add the camera

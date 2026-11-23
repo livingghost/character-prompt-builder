@@ -765,6 +765,59 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(candidate['data']['files'][0]['sha256'], c.digest(png()))
         self.assertEqual((candidate['data']['media']['width'], candidate['data']['media']['height']), (24, 16))
 
+    def test_public_receive_names_external_file_repair_and_finishes_the_same_call(self):
+        import subprocess
+        import sys
+        import execution_lifecycle as life
+        run, token, claim = self.external_case()
+        self.external_response(amount=None)
+        raw = png()
+        directory = w.run_dir(self.root, run)
+        before_rows = [row['sha256'] for row in w.load_run(self.root, run)[3]]
+        before_files = {path.relative_to(directory).as_posix(): path.read_bytes()
+                        for path in directory.rglob('*') if path.is_file()}
+        command = [sys.executable, str(Path(__file__).with_name('production_workflow.py')),
+                   'receive-external', '--root', str(self.root), '--run', run,
+                   '--response', 'host-response.json', '--reason', 'Synthetic received output; no provider call.']
+        with tempfile.TemporaryDirectory() as host_directory:
+            original = Path(host_directory) / 'returned.png'
+            original.write_bytes(raw)
+            refused = subprocess.run([*command, '--artifact', str(original)],
+                                     capture_output=True, text=True, encoding='utf-8')
+            self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+            self.assertEqual([row['sha256'] for row in w.load_run(self.root, run)[3]], before_rows)
+            self.assertEqual({path.relative_to(directory).as_posix(): path.read_bytes()
+                              for path in directory.rglob('*') if path.is_file()}, before_files)
+            problem = json.loads(refused.stdout)['diagnostics'][0]
+            self.assertEqual((problem['code'], problem['phase']), ('INPUT_SCHEMA_INVALID', 'arguments'))
+            self.assertEqual((problem['file'], problem['option']), (str(original), '--artifact'))
+            self.assertIn('Copy the existing received file into the studio', problem['required_action'])
+            self.assertIn('same --run and --response', problem['required_action'])
+            self.assertIn('no regeneration or new host call', problem['required_action'])
+            received_path = self.root / 'received.png'
+            shutil.copyfile(original, received_path)
+            self.assertEqual(received_path.read_bytes(), raw)
+            received = []
+            for selected in (str(received_path), 'received.png'):
+                completed = subprocess.run([*command, '--artifact', selected],
+                                           capture_output=True, text=True, encoding='utf-8')
+                self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+                result = json.loads(completed.stdout)
+                self.assertTrue(result['execution_completed'])
+                self.assertFalse(result['external_effect'])
+                self.assertEqual(len(result['candidates']), 1)
+                receipt = c.load(self.root / result['receipt_file'])
+                self.assertEqual(receipt['claim'], claim['sha256'])
+                self.assertEqual(receipt['response']['sha256'], c.sha256_file(self.root / 'host-response.json'))
+                received.append(result['candidates'])
+            self.assertEqual(received[0], received[1])
+            self.assertEqual(original.read_bytes(), raw)
+        rows = w.load_run(self.root, run)[3]
+        candidates = [row for row in rows if row['event'] == 'candidate']
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]['data']['files'][0]['sha256'], c.digest(raw))
+        self.assertEqual(life.summary(self.root, run=run)['submissions'], 1)
+
     def test_external_receive_recovers_partial_capture_without_sending(self):
         import execution_lifecycle as life
         run, token, claim = self.external_case(count=2)

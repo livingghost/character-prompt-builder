@@ -81,6 +81,7 @@ Read-only queries such as `status` stay usable while a new operation cannot save
 python scripts/production_workflow.py logs --root STUDIO --run RUN
 python scripts/production_workflow.py logs --root STUDIO --failed
 python scripts/production_workflow.py logs --root STUDIO --operation OPERATION_ID
+python scripts/production_workflow.py logs --root STUDIO --summary
 python scripts/production_workflow.py logs-export --root STUDIO --run RUN --out diagnostics --without-streams
 python scripts/production_workflow.py logs-cleanup --root STUDIO --before YYYY-MM-DD
 python scripts/production_workflow.py logs-cleanup --root STUDIO --operation OPERATION_ID
@@ -88,6 +89,68 @@ python scripts/production_workflow.py logs-cleanup --root STUDIO --operation OPE
 
 Without `--root`, these commands read the logs of the configuration directory, and `logs-export --out` must be absolute.
 `logs --failed` lists incomplete operations and nonzero exits other than 3, which means waiting for authority or configuration.
+
+### Measure recorded workflow effort
+
+`logs --summary`, implemented by `scripts/operation_metrics.py`, groups the
+selected operations by command and stage. `--run` or `--operation` can narrow
+the same report. Keep every outcome in a summary; use ordinary `logs --failed`
+for a list of failures rather than combining that filter with `--summary`.
+
+| Field | Measurement |
+| --- | --- |
+| `totals` and `by_command` | Recorded call counts, completed and incomplete calls, failures, permission/configuration waits and duration sums |
+| `by_stage` | Inclusive durations and counts for actual named stages; nested stages can overlap |
+| `reading` | Delivered source pages, UTF-8 source bytes and automatically or explicitly reused source bytes; reuse is counted once when each snapshot starts |
+| `editing` | Successful structured choice edits, whether they changed files, and the actual choices path and JSON Pointer |
+| `provider` | In-process submission, lookup, upload and polling intervals, when recorded; external host-tool duration remains null |
+| `judgment_pending` | Time between an unanswered file and its first changed answer; superseded unanswered intervals have separate counts and seconds |
+| `plans` | Latest recorded plan, task, current choices, actual run and per-item continuation state |
+| `failures_by_category` | Failed calls by current reported repair category, including current blocked items and verification; uncoded failures remain `unclassified` |
+
+For a synthetic command that delivered 100 bytes and reused 200 bytes, followed
+by a second page delivering 50 bytes, the reading portion is:
+
+```json
+{"delivered_pages": 2, "delivered_bytes": 150, "reused_bytes": 200,
+ "reported_calls": 2, "snapshots": 1}
+```
+
+Command seconds sum subprocess durations. They are not elapsed session time:
+parents can include child time, and concurrent calls overlap.
+`top_level_seconds` excludes calls that name a parent, but those top-level calls
+can still overlap. Keep stage sums separate from either command measure.
+Recorded recovery counts name `resume`, `receive-external`,
+`recover-publication` and `record-save`; they do not imply another external send.
+`unchanged_continuations` counts explicit unchanged plan observations when
+present, without blocking a retry. Its bounded comparison includes the batch
+state file and every child panel's selected state, evidence and current answer,
+including panels other than the first displayed continuation. It also compares
+the current work-step answer, remaining work and verification findings. Unreadable named
+inputs make the comparison unknown. It does not replace a production check.
+
+Renewing a judgment records `judgment_superseded` for its original answer and
+`judgment_pending` for the replacement. An original unanswered interval closes
+in `superseded_intervals` and `superseded_seconds`, separately from answered
+intervals; a previously answered interval is not counted again. These times
+include downtime, and an edited answer still needs independent validation.
+Supersession never means approval or successful application.
+
+Failure categories describe the current report's errors. Historical inspection
+reports do not add failures. A call with different current error categories can
+appear once in each category, so their sum is not a count of distinct calls.
+Uncoded verification findings remain unclassified instead of receiving an
+inferred cause. Categorization changes neither the CLI exit status nor its
+distinction between failed and waiting calls.
+
+`partial` identifies incomplete or unreadable diagnostic coverage. A truncated
+final event leaves its earlier complete events available and supplies no
+invented completion time. `LOG_RECORD_UNREADABLE` names a record that could not
+be measured; other selected operations remain in the report. Older logs may
+lack reading or edit measurements. Edits in another editor, host-tool latency
+and the author's active thinking time are not reconstructed from gaps between
+commands. The report measures workflow effort and establishes no creative
+quality, reading comprehension, approval or canonical adoption.
 
 `logs-export` builds a new directory, relative to `--root`, in staging and publishes it once.
 `--without-streams` leaves `stdout.log` and `stderr.log` out.

@@ -179,6 +179,17 @@ endpoint/tool to `model.target`; the later host-call record separately shows
 which endpoint/tool was used. `operation_field` and `count_field` are null when
 those parameters are absent. Record the expected output count explicitly.
 
+For a host that exposes no backend model ID, the target identifies the actual
+exposed interface. Keep the backend unknown in its evidence; a placeholder
+such as "unspecified" is not a catalog model. Start new host work with
+`--execution external`, omit the catalog `--model` selector, and author
+`target.kind: "external"` at the returned choices owner. Use
+`explain-inputs --field target.model` for its exact evidence fields and follow
+that draft's reading action. A separately acquired authored model definition
+uses `target.kind: "acquired"` and `model_file` for text work. These selections
+preserve the distinction between known interface behavior and unknown model
+properties; neither grants permission or proves image quality.
+
 An optional `schema: {"path": "inputs/schema.json", "sha256": "...", "pointer": []}`
 selects an acquired request schema. An empty pointer selects the whole document;
 a nested pointer may select an encoded schema string inside a tool response.

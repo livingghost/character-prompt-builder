@@ -74,6 +74,23 @@ class AmendmentProfileTests(unittest.TestCase):
         self.assertIn('choose-the-visual-treatment', self.sections(finishing, 'references/runtime/render-contract.md'))
         self.assertIn('references/finishing-layers-specification.md', finishing['section_owners'])
 
+    def test_sparse_construction_and_explicit_finishing_keep_their_complete_scopes(self):
+        path = 'references/finishing-layers-specification.md'
+        amended = self.resolve(['depiction'], features=['sparse-retrieval'])
+        scope = self.scope(['depiction'])
+        for key in ('change_scope', 'profiles', 'observed_changes', 'change_conflicts', 'comparison_notices'):
+            scope.pop(key)
+        ordinary = routes.resolve('character-sheet', ['sparse-retrieval'], execution='dispatcher',
+                                  authoring_scope=scope)
+        self.assertEqual(self.sections(amended, path), self.sections(ordinary, path))
+        self.assertEqual(len(self.sections(amended, path)), 11)
+        for changes in (['definition'], ['depiction'], ['controls.render-intent']):
+            with self.subTest(changes=changes):
+                explicit = self.resolve(changes, features=['sparse-retrieval', 'finishing'])
+                source = next(row for row in explicit['reads'] if row['path'] == path)
+                self.assertEqual(sum(row['end'] - row['start'] for row in source['ranges']), source['size'])
+                self.assertIn('feature:finishing', explicit['read_owners'][path])
+
     def test_retarget_selects_new_target_and_wording_dependencies(self):
         result = self.resolve(['target'], features=[*self.features, 'gpt-image'])
         self.assertIn('select-and-change-the-target',

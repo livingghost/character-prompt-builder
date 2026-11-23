@@ -17,7 +17,7 @@ resolves selected material, captures source bytes, assigns stable reference use
 IDs and compiles the current choices.
 
 ```bash
-uv run python scripts/production_workflow.py save --root STUDIO --choices INPUT/choices.json
+uv run --locked python scripts/production_workflow.py save --root STUDIO --choices INPUT/choices.json
 ```
 
 This saves a finished authored revision. `check --choices` runs the same compiler
@@ -26,10 +26,20 @@ is authored, publication records the saved revision. The returned `run` names
 that revision and `artifact` names its exact saved text. Saving does not claim
 that anyone received, read or approved it.
 
+`save` requires `task.execution: authored`. A successful `check` of an external
+or dispatcher image input does not change that operation. Use `prepare` when
+the intended result is a prepared image request. To write only prompt text
+without creating an image or a Production run, use the completed
+[Authoring work export](authoring-work.md#inspect-and-deliver):
+`python scripts/authoring_work.py export WORK --pointer /prompt --out FILE`.
+`WORK` owns `basis` and `content.prompt`; a Studio `choices.json` is not that
+input. Keep applicable model, document and source selections in the actual
+work, and retain the export's reported target and input-validation state.
+
 To retain unfinished work:
 
 ```bash
-uv run python scripts/production_workflow.py save --root STUDIO --choices INPUT/choices.json --draft
+uv run --locked python scripts/production_workflow.py save --root STUDIO --choices INPUT/choices.json --draft
 ```
 
 A draft retains the current text, source files and unresolved choices. It is not
@@ -84,7 +94,7 @@ bytes. A portable authored document without a selected target omits
 For a local delivery, choose the requested Studio-relative destination:
 
 ```bash
-uv run python scripts/production_workflow.py deliver --root STUDIO --run REVISION --to deliveries/artifact.txt
+uv run --locked python scripts/production_workflow.py deliver --root STUDIO --run REVISION --to deliveries/artifact.txt
 ```
 
 The command copies the exact saved bytes and records the completed local file
@@ -101,7 +111,7 @@ destination is edited later.
 After presenting or handing over the saved artifact, record the actual evidence:
 
 ```bash
-uv run python scripts/production_workflow.py deliver --root STUDIO --run REVISION --file delivery.json
+uv run --locked python scripts/production_workflow.py deliver --root STUDIO --run REVISION --file delivery.json
 ```
 
 The receipt follows
@@ -131,10 +141,10 @@ image it instructs the model to produce, as well as any required format. It is
 not a claim that a generated image has already been observed.
 
 ```bash
-uv run python scripts/production_workflow.py workspace --root STUDIO --run REVISION --phase input
-uv run python scripts/production_workflow.py workspace --root STUDIO --run REVISION --phase review
-uv run python scripts/production_workflow.py draft-review --root STUDIO --run REVISION --out review.json
-uv run python scripts/production_workflow.py review-authored --root STUDIO --run REVISION --file review.json
+uv run --locked python scripts/production_workflow.py workspace --root STUDIO --run REVISION --phase input
+uv run --locked python scripts/production_workflow.py workspace --root STUDIO --run REVISION --phase review
+uv run --locked python scripts/production_workflow.py draft-review --root STUDIO --run REVISION --out review.json
+uv run --locked python scripts/production_workflow.py review-authored --root STUDIO --run REVISION --file review.json
 ```
 
 The input view exposes the artifact before the assessment basis. The review
@@ -174,7 +184,7 @@ artifact still needs its requested review. Status reports those states as
 ## Complete and continue
 
 ```bash
-uv run python scripts/work_ledger.py finish --studio STUDIO --run REVISION
+uv run --locked python scripts/work_ledger.py finish --studio STUDIO --run REVISION
 ```
 
 Finishing verifies the revision's save, requested `authored.completion_state`

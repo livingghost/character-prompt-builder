@@ -448,6 +448,83 @@ class IdentityCoverageTests(unittest.TestCase):
         self.assertTrue(validate_against_schema(self.task['sources'][0]['identity'], identity_schema))
 
 
+class TaskLocalIdentityTests(unittest.TestCase):
+    def setUp(self):
+        self.appearance = 'A copper courier with one square blue inset.'
+        self.raw = c.encoded({'definition': {'appearance': self.appearance}})
+        self.source = {
+            'id': 'shared-design', 'path': 'shared-design.json', 'role': 'identity',
+            'disposition': 'applied', 'locator': '/definition',
+            'reason': 'Task-local definition for this commission of independent images.',
+            'identity': {'subject_ids': ['courier'], 'selectors': ['/definition']},
+        }
+        self.task = {
+            'task_id': 'independent-scene', 'artifact': 'image', 'features': ['recurring-identity'],
+            'sources': [self.source], 'direction': {'decisions': []},
+            'criteria': [{
+                'id': 'shared-identity', 'strength': 'hard', 'evidence': 'image',
+                'text': 'Compare this image with the complete applicable shared definition.',
+                'identity_review': ['courier'],
+                'identity_bindings': [{
+                    'source': 'shared-design', 'subject_ids': ['courier'],
+                    'selectors': ['/definition/appearance'], 'treatment': 'preserve',
+                    'reason': 'Retain the common appearance in this independent scene.',
+                    'carriers': [{'kind': 'text', 'surface': 'primary', 'quote': self.appearance}],
+                    'variation': None,
+                }],
+            }],
+        }
+        self.context = {
+            'subject_ids': ['courier'], 'required_subject_ids': ['courier'],
+            'identity_sources': [], 'references': [],
+            'text': {'primary': {'text': self.appearance, 'field': ['prompt'],
+                                 'sha256': c.digest(self.appearance.encode('utf-8'))}},
+        }
+
+    def read(self, path):
+        if path != self.source['path']:
+            raise FileNotFoundError(path)
+        return self.raw
+
+    def test_task_local_definition_acquires_and_compiles_without_adoption(self):
+        import authoring_work
+        from production_authoring_work import acquire_source_row
+        work = authoring_work.begin_work(operation='compose',
+            request='Make three independent images of the same new courier.')
+        basis = acquire_source_row(work['basis'], self.source, self.raw)
+        acquired = basis['sources']['shared-design']
+        self.assertEqual(authoring_work.source_bytes(acquired), self.raw)
+        self.assertEqual(set(basis['subjects']), {'courier'})
+        self.assertEqual({row['pointer'] for row in basis['applications'].values()}, {'/definition'})
+        self.assertNotIn('authority', acquired['origin']['source']['identity'])
+        files = {self.source['path']: authoring_work.source_bytes(acquired)}
+        report = identity.compile(self.task, files.__getitem__, context=self.context)
+        self.assertEqual(report['status'], 'bindings-verified')
+        self.assertFalse(report['requires_identity_source'])
+        self.assertEqual(report['whole_reviews'], [
+            {'criterion': 'shared-identity', 'subject_ids': ['courier']}])
+        self.assertEqual(report['sources'][0]['sha256'], c.digest(self.raw))
+        self.assertNotIn('authority', report['sources'][0])
+        self.assertEqual(report['bindings'][0]['carriers'][0]['quote'], self.appearance)
+
+    def test_recurring_identity_without_original_source_is_rejected(self):
+        self.task['sources'] = []
+        self.task['criteria'][0].pop('identity_bindings')
+        with self.assertRaises(ProductionError) as caught:
+            identity.compile(self.task, self.read, context=self.context)
+        diagnostic = caught.exception.diagnostic.as_dict()
+        self.assertEqual(diagnostic['code'], 'IDENTITY_COVERAGE_INCOMPLETE')
+        self.assertTrue(diagnostic['gaps']['requires_identity_source'])
+        self.assertEqual(diagnostic['gaps']['missing_subject_sources'], ['courier'])
+
+    def test_task_local_source_cannot_fabricate_adopted_graph_authority(self):
+        self.source['identity']['authority'] = {
+            'owner': 'identity_contract', 'character_id': 'courier', 'canon_status': 'adopted'}
+        with self.assertRaises(ProductionError) as caught:
+            identity.compile(self.task, self.read, context=self.context)
+        self.assertEqual(caught.exception.diagnostic.code, 'IDENTITY_CONTRACT_INVALID')
+
+
 if __name__ == '__main__':
     import stdio_utf8
     stdio_utf8.configure()

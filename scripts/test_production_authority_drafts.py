@@ -102,6 +102,39 @@ class AuthorityDraftTests(unittest.TestCase):
         value['stop_conditions'][0]['text'] = 'A changed synthetic condition under the same id.'
         return self.import_full(value)
 
+    def test_initial_authority_guidance_and_registered_update_keep_their_owners(self):
+        import production_document_contracts as contracts
+        held = self.authority()
+        before = copy.deepcopy(held.event)
+        with tempfile.TemporaryDirectory() as temporary:
+            empty_root = Path(temporary)
+            initial = store.authority_snapshot(empty_root, self.task_id, None)
+            self.assertIsNone(initial['document'])
+            self.assertIsNone(initial['event_sha256'])
+            self.assertIsNone(initial['source_path'])
+            action = initial['update_action']
+            self.assertEqual(action['command'], 'authority-import')
+            self.assertNotIn('--expected-event', action['argv'])
+            explain = contracts.explain_action('authority')
+            self.assertIn(explain['shown'], action['reason'])
+            self.assertIn('first import', action['reason'])
+            self.assertIn('draft-authority-update', action['reason'])
+            completed = subprocess.run(explain['argv'], text=True, capture_output=True, encoding='utf-8')
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            contract = json.loads(completed.stdout)
+            self.assertEqual(contract['schema'], 'schemas/authoring/production-authority.schema.json')
+            self.assertIn('templates/realization/production-authority.json', contract['example_paths'])
+            self.assertEqual(list(empty_root.iterdir()), [])
+        current = store.authority_snapshot(self.root, self.task_id, held, run=self.run)
+        action = current['update_action']
+        self.assertEqual(action['command'], 'authority-import')
+        self.assertEqual(action['argv'][action['argv'].index('--expected-event') + 1], before['sha256'])
+        self.assertEqual(current['document'], held.document)
+        self.assertEqual(current['event_sha256'], before['sha256'])
+        self.assertIn('observed predecessor', action['reason'])
+        self.assertNotIn('first import', action['reason'])
+        self.assertEqual(self.authority().event, before)
+
     def protected_change(self):
         """Prepare an explicitly authored change, retaining a real same-series baseline."""
         from production_fixtures import bind_work_basis

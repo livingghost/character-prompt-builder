@@ -6,6 +6,16 @@ path/locator identify the instruction whose bytes are pinned during preparation.
 The host checks real user authority: a schema authenticates no issuer and an
 agent-filled form is not consent.
 
+For a first prepared request with no registered authority, the saved work plan
+exposes one shared, unapproved `initial-authority` declaration. Its task and
+prepared operations are derived; issuer, instruction evidence, actors/modes and
+stop conditions remain unanswered. Complete them from the actual instruction
+already supplied, and choose only its permitted scope. `advance` uses the normal
+authority import, which requires nonempty evidence and rejects a concurrent
+registration. Registration then opens the separate exact execution judgments;
+it does not send, approve a rendition or clear a stop condition. Other items of
+the same plan reuse this current task authority and assess their own coverage.
+
 Each grant names an id, actor, direct/delegated mode, allowed operations, exact
 targets, protected criteria, optional request scope, submission validation modes,
 and expiry/effective/revocation timestamps. Direction, edit, submit, select and
@@ -235,6 +245,39 @@ inferred by the runtime and must be explicitly recorded by the host.
 A prepared input does not pin the mutable grant declaration or a whole work
 ledger tail. Evidence is captured with its path, hash, locator, time and purpose;
 a later ledger append does not invalidate an earlier reading.
+
+### Register the first authority
+
+When `status` reports `authority.event_sha256: null`, this work task has no
+registered authority. Continue a saved plan through its shared
+`initial-authority` answer. For a direct phase command, create the first complete
+declaration from the actual instruction and evidence using the existing contract
+discovery command. `draft-authority-update` adds grants to an existing
+registration:
+
+```text
+python scripts/production_document_contracts.py explain authority
+```
+
+It locates the [authority schema](../../schemas/authoring/production-authority.schema.json)
+and [declaration template](../../templates/realization/production-authority.json).
+Set the current work task, actual issuer, evidence, grants and stop conditions
+from the instruction. The template supplies no grant or approval. Existing
+explicit user authorization can supply these choices without another user
+confirmation. Fill only the operations and targets that it actually covers.
+
+Follow `authority.update_action` with that completed file. The first import has
+no predecessor, so omit `--expected-event`:
+
+```text
+python scripts/production_workflow.py authority-import --root STUDIO --file authority.json
+```
+
+This registers authority for the work task. Inspect `status --run RUN` again to
+continue each run's separate execution decisions from the imported authority.
+
+### Change registered authority
+
 `authority-import --root STUDIO --file FILE --expected-event EVENT` records a real
 authority update and its predecessor. Revocation is checked again at every new
 external boundary. Updating authority does not authorize different request bytes.
@@ -275,6 +318,10 @@ nor the words' meaning. Ordinary evidence files remain supported for instruction
 already recorded in another format.
 
 ### Add authority for a prepared run
+
+This command requires authority already registered for the work task. For an
+unregistered task, [register the first declaration](#register-the-first-authority)
+before drafting additional grants.
 
 ```text
 python scripts/production_workflow.py draft-authority-update --root STUDIO --run RUN --approval-evidence approval.json --out authority-update.json

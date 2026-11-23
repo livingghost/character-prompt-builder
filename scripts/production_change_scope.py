@@ -403,14 +403,15 @@ def _snapshot(root: Path, choices: dict, task: dict, *, basis: dict | None = Non
             **{key: generation[key] for key in ('seed', 'count') if key in generation},
             'upscale': authored.get('upscale'), 'external': external_owners['controls']},
         'controls.render-intent': render,
-        'target': {'selection': target, 'external': external_owners['target']},
+        'target': {'selection': target, 'external': external_owners['target'],
+                   'execution': task.get('execution'), 'artifact': task.get('artifact')},
         'references': references, 'recording': {'destination': task.get('recording'),
             'authored_result': {key: authored_contract[key] for key in ('completion_state', 'requirements') if key in authored_contract}},
         'unknown': {'task': {key: task[key] for key in task if key not in TASK_KNOWN},
             'generation': {key: generation[key] for key in generation if key not in generation_fields},
             'external': {key: external[key] for key in external if key not in
                 {'image_input', 'request', 'media_slots', 'source_files', 'source_uploads', 'reference_delivery'}}},
-        'route': {key: task.get(key) for key in ('route', 'features', 'artifact', 'execution')},
+        'route': {key: task.get(key) for key in ('route', 'features')},
     }
 
 
@@ -448,10 +449,12 @@ def evaluate(root: Path, choices: dict, task: dict, basis: dict, *, read_source=
             'required_action': 'Read the complete returned scope and retain the ordinary input validation for the changed owner.'})
     profiles = {PROFILE_BY_SCOPE[item.split('.')[0]] for item in declaration['change']}
     for item in observed:
-        if item in {'unknown', 'route'}:
+        if item == 'unknown':
             profiles.update(PROFILES)
-        else:
+        elif item != 'route':
             profiles.add(PROFILE_BY_SCOPE[item.split('.')[0]])
+        # The current route and features select their own contracts. They do
+        # not establish a change to every content owner or to the image target.
     conflicts = sorted(name for name in declaration['retain']
         if any(item == RETAIN_OWNER.get(name, name) or item.startswith(RETAIN_OWNER.get(name, name) + '.')
                for item in observed))

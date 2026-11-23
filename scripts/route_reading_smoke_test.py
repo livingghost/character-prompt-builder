@@ -154,7 +154,7 @@ class ReadingTests(unittest.TestCase):
             self.assertEqual(action['argv'][action['argv'].index('--execution') + 1], 'external')
             self.assertNotIn('--model', action['argv'])
             self.assertNotIn('--model-file', action['argv'])
-            self.assertEqual(action['argv'][-4:], ['--feature', 'body-plan', '--feature', 'prompt-dialect'])
+            self.assertEqual(action['argv'][-5:], ['--feature', 'body-plan', '--feature', 'prompt-dialect', '--all'])
         with self.assertRaisesRegex(ValueError, 'another run'):
             r.operation_reading_action(self.root, 'different-run', operation='review', loaded=loaded)
     def test_skill_names_every_route_and_feature(self):
@@ -256,6 +256,8 @@ class ReadingTests(unittest.TestCase):
         self.assertFalse(indexed['same_context_required'])
         self.assertFalse(ledger.exists())
         argv=indexed['actions']['next']['argv']
+        self.assertIn('--all', argv)
+        self.assertNotIn('--section', argv)
         delivered={}
         for page_number in range(64):
             output=self.cli_read(argv,cwd=self.root,environment=env)
@@ -343,7 +345,10 @@ class ReadingTests(unittest.TestCase):
     def cli_reading_actions(self, output, *, studio, ledger, runtime, roots, page_bytes):
         actions = json.loads(output)['actions']
         self.assertIn('replay', actions)
-        self.assertEqual(set(actions), {'continue', 'next', 'replay', 'restart', 'index', 'all'})
+        expected_actions = {'continue', 'next', 'replay', 'restart', 'index'}
+        if json.loads(output)['mode'] == 'index':
+            expected_actions.add('all')
+        self.assertEqual(set(actions), expected_actions)
         self.assertIn('restart', actions)
         for name, action in actions.items():
             if action is None:
@@ -364,9 +369,7 @@ class ReadingTests(unittest.TestCase):
                 self.assertNotIn(option, argv)
             option = '--snapshot' if name in {'next', 'index', 'all'} else '--' + name
             self.assertEqual(argv.count(option), 1, argv)
-            if name == 'next':
-                self.assertIn('--section', argv)
-            elif name == 'all':
+            if name in {'next', 'all'}:
                 self.assertIn('--all', argv)
             for fixed in ('development', '--feature', '--model', '--dialect'):
                 self.assertNotIn(fixed, argv[3:])
@@ -468,7 +471,7 @@ class ReadingTests(unittest.TestCase):
             actions = self.cli_reading_actions(output, **expected)
         else:
             self.fail('Returned continuation commands did not finish the route reading')
-        self.assertEqual(set(actions), {'continue', 'next', 'replay', 'restart', 'index', 'all'})
+        self.assertEqual(set(actions), {'continue', 'next', 'replay', 'restart', 'index'})
         self.assertIsNone(actions['continue'])
         path, record = self.cli_reading_record(output, studio=studio, ledger=ledger)
         self.assertEqual(record['features'], ['studio'] if explicit else [])
@@ -902,7 +905,7 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual({x['dialect'] for x in draft['resources'].values()},{'family-a'})
         row=next(x for x in r.ledger_rows(self.root/'work/reads.jsonl') if x['key_sha256']==c.digest(draft['reading_key'].encode()))
         self.assertEqual(row['resources'],draft['resources'])
-    def test_an_unknown_model_names_the_models_and_the_prompt_families(self):
+    def test_an_unknown_model_names_catalog_families_and_the_external_target_repair(self):
         import generation_references as prepare_generation_references
         catalog,self.guide=self.family_catalog()
         models=[RuntimePackEntry(kind='model',category=None,record={'id':name},source_pack='synthetic-pack',
@@ -913,9 +916,12 @@ class ReadingTests(unittest.TestCase):
             loader.return_value=replace(loader.return_value,entries=tuple(models))
             with self.assertRaises(ValueError) as caught:
                 r.read_command(*self.read_args('generation','--model','family-a'))
-        self.assertEqual(str(caught.exception),"unknown model 'family-a'; use a model record from an enabled pack; "
+        self.assertIn("unknown model 'family-a'; use a model record from an enabled pack; "
                          'model ids: synthetic-model-a, synthetic-model-b; a prompt-only read can name the prompt family '
-                         'instead with --dialect ID: family-a, family-b')
+                         'instead with --dialect ID: family-a, family-b', str(caught.exception))
+        for instruction in ('--model-file FILE', 'target.kind external', 'returned reading action',
+                            'production-external-inputs.md', 'do not invent a catalog ID or undisclosed backend'):
+            self.assertIn(instruction, str(caught.exception))
     def test_a_model_needs_the_prompt_dialect_feature(self):
         with self.assertRaisesRegex(ValueError,'add --feature prompt-dialect'):
             r.capture('generation',root=self.root,dialect='family-a', execution='dispatcher')
@@ -1279,7 +1285,7 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(work['remaining_bytes'],len(raw))
         self.assertIsNone(indexed['actions']['continue'])
         self.assertIsNone(indexed['actions']['replay'])
-        self.assertIn('--section',indexed['actions']['next']['argv'])
+        self.assertIn('--all',indexed['actions']['next']['argv'])
 
     def test_out_of_order_section_delivery_and_all_preserve_complete_exact_coverage(self):
         raw=b'# Work\nOpening.\n\n## First\nFirst condition.\n\n## Last\nLast condition.\n'
@@ -1294,6 +1300,7 @@ class ReadingTests(unittest.TestCase):
         self.assertFalse(result['same_context_required'])
         self.assertIsNone(result['actions']['continue'])
         self.assertIsNotNone(result['actions']['next'])
+        self.assertIn('--all', result['actions']['next']['argv'])
         self.assertFalse(self.ledger.exists())
         segments=list(result['body'])
         result=r.read_page(snapshot_id=indexed['snapshot'],root=self.root,ledger=self.ledger,
@@ -2345,6 +2352,625 @@ class RetainedAmendmentReadingTests(unittest.TestCase):
         rejected = production_inputs.compile_choices(root, draft['choices_file'])
         self.assertFalse(rejected.report['publishable'])
         self.assertTrue(rejected.report['diagnostics'])
+
+
+class ContextReadingTests(unittest.TestCase):
+    """Explicit model-context reuse and bounded delivery keep complete evidence."""
+
+    setUp = ReadingTests.setUp
+
+    def choice_owner(self):
+        import production_inputs
+        self.manifest['reading_scopes']['authoring'] = {'documents': {}}
+        (self.root / r.execution_routes.MANIFEST).write_bytes(c.encoded(self.manifest))
+        task = {'route': 'generation', 'execution': 'authored', 'features': []}
+        choices = production_inputs.draft_choices(task)
+        choices['authoring_stage'] = 'definition'
+        directory = self.root / 'draft'
+        directory.mkdir()
+        c.atomic(directory / 'choices.json', c.encoded(choices))
+        c.atomic(directory / 'context.json', c.encoded({'task_content': task}))
+        return choices
+
+    def command(self, words, *, stream=None):
+        import argparse
+        import contextlib
+        parser = argparse.ArgumentParser()
+        r.add_read_arguments(parser)
+        with patch.object(r, 'ROOT', self.root), patch.object(r, '_configure_runtime', return_value=None), \
+             contextlib.redirect_stdout(stream if stream is not None else io.StringIO()):
+            return r.read_command(parser.parse_args(words), parser)
+
+    def test_compact_cli_pages_preserve_complete_sources_index_replay_and_source_capacity(self):
+        work = self.root / 'notes/work.md'
+        work.write_bytes(work.read_bytes() * 80)
+        expected = (self.root / 'notes/always.md').read_bytes() + work.read_bytes()
+
+        def command(words):
+            stream = io.StringIO()
+            result = self.command(words, stream=stream)
+            return result, json.loads(stream.getvalue())
+
+        result, response = command(['generation', '--execution', 'dispatcher', '--root', str(self.root),
+            '--all', '--fresh-context', '--page-bytes', '6000', '--host-page-bytes', '2048'])
+        first = b''.join(item['text'].encode('utf-8') for item in response['body'])
+        self.assertEqual(len(first), 2048)
+        self.assertEqual(response['page_sizing']['source_bytes'], 2048)
+        self.assertIsNone(response['reading'])
+        self.assertNotIn('all', response['actions'])
+        self.assertEqual(response['selection_summary']['action_ref'], '#/actions/index')
+        self.assertNotIn('by_selection', response['selection_summary'])
+
+        indexed, index_response = command(response['actions']['index']['argv'][3:])
+        self.assertEqual(index_response['body'], [])
+        self.assertIsNone(index_response['reading'])
+        self.assertEqual(index_response['selection_summary'], result['selection_summary'])
+        self.assertTrue(index_response['selection_summary']['by_selection'])
+        self.assertTrue(index_response['selection_reasons'])
+        self.assertIn('all', index_response['actions'])
+        self.assertFalse(self.ledger.exists())
+
+        replay = list(response['actions']['replay']['argv'][3:])
+        replay[replay.index('--page-bytes') + 1] = '512'
+        _, replay_response = command(replay)
+        self.assertEqual(b''.join(item['text'].encode('utf-8') for item in replay_response['body']), first[:512])
+        self.assertGreater(replay_response['progress']['replay_remaining_bytes'], 0)
+        self.assertIsNotNone(replay_response['actions']['continue'])
+        self.assertIsNone(replay_response['reading'])
+
+        delivered = bytearray(first)
+        while response['reading'] is None:
+            result, response = command(response['actions']['continue']['argv'][3:])
+            body = b''.join(item['text'].encode('utf-8') for item in response['body'])
+            self.assertLessEqual(len(body), 2048)
+            delivered.extend(body)
+        self.assertEqual(delivered, expected)
+        self.assertEqual(response['progress']['remaining_bytes'], 0)
+        self.assertEqual(response['reading']['key'], result['issued']['reading_key'])
+        r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger],
+                               operation='prepare', execution='dispatcher')
+
+    def test_three_choices_reuse_one_completed_context_with_independent_bindings(self):
+        original = self.choice_owner()
+        names = ['draft', 'second', 'third']
+        for name in names[1:]:
+            (self.root / name).mkdir()
+            c.atomic(self.root / name / 'choices.json', c.encoded(original))
+            c.atomic(self.root / name / 'context.json', (self.root / 'draft/context.json').read_bytes())
+        work = self.root / 'notes/work.md'
+        work.write_bytes(work.read_bytes() * 50)
+        base = ['--root', str(self.root), '--bind-choices', '--all', '--page-bytes', '4096']
+        first = self.command([*base, '--choices', 'draft/choices.json', '--fresh-context'])
+        while first['reading'] is None:
+            first = self.command(first['actions']['continue']['argv'][3:])
+        context = first['reading_context']
+        bound = {'draft': first['reading']['key']}
+        for name in names[1:]:
+            stream = io.StringIO()
+            result = self.command([*base, '--choices', name + '/choices.json', '--reading-context', context],
+                                  stream=stream)
+            response = json.loads(stream.getvalue())
+            self.assertEqual(response['body'], [])
+            self.assertEqual(response['progress']['reused_bytes'], first['progress']['required_bytes'])
+            self.assertEqual(response['progress']['same_context_new_bytes'], 0)
+            self.assertTrue(response['choices_binding']['bound'])
+            self.assertEqual(response['choices_binding']['choices'], name + '/choices.json')
+            self.assertIsNone(response['actions']['replay'])
+            self.assertEqual(response['context_reuse']['arguments'], ['--reading-context', context])
+            bound[name] = result['reading']['key']
+            for saved_name, key in bound.items():
+                expected = copy.deepcopy(original)
+                expected['reading']['reading_key'] = key
+                self.assertEqual(c.load(self.root / saved_name / 'choices.json'), expected)
+        self.assertEqual(len(set(bound.values())), 3)
+        fresh = self.command([*base, '--choices', 'third/choices.json', '--fresh-context'])
+        self.assertEqual(fresh['progress']['reused_bytes'], 0)
+        self.assertTrue(fresh['body'])
+        self.assertIsNone(fresh['reading'])
+
+    def read(self, *, context=None, page_bytes=16384, host_page_bytes=None, operation='prepare', features=None):
+        pages = []
+        result = r.read_page(route='generation', operation=operation, execution='dispatcher',
+            scope='sheet' if operation == 'adopt' else None,
+            source_kind='production-candidate' if operation == 'adopt' else None,
+            features=features, root=self.root, ledger=self.ledger, stream=io.StringIO(),
+            reading_context=context, page_bytes=page_bytes, host_page_bytes=host_page_bytes)
+        pages.append(result)
+        while result['reading'] is None:
+            result = r.read_page(cursor=result['cursor'], root=self.root, ledger=self.ledger,
+                stream=io.StringIO(), reading_context=context, page_bytes=page_bytes,
+                host_page_bytes=host_page_bytes)
+            pages.append(result)
+        return result, pages
+
+    def test_one_context_selects_complete_ranges_across_actual_operations(self):
+        context = 'a' * 32
+        byte_counts = []
+        for operation in ('author', 'prepare', 'execute', 'review', 'adopt'):
+            result, pages = self.read(context=context, operation=operation,
+                                      features=['extra'] if operation == 'adopt' else None)
+            self.assertEqual(result['selection_summary']['operation'], operation)
+            self.assertEqual(result['issued']['row']['operation'], operation)
+            self.assertEqual(result['context_reuse']['arguments'], ['--reading-context', context])
+            byte_counts.append(sum(len(item['text'].encode()) for page in pages for item in page['body']))
+            r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger],
+                operation=operation, execution='dispatcher',
+                scope='sheet' if operation == 'adopt' else None,
+                source_kind='production-candidate' if operation == 'adopt' else None)
+        self.assertGreater(byte_counts[0], 0)
+        self.assertEqual(byte_counts[1:4], [0, 0, 0])
+        self.assertEqual(byte_counts[-1], (self.root / 'notes/extra.md').stat().st_size)
+        self.assertEqual(result['reuse_selection']['automatic_readings'], 4)
+
+    def test_conflicting_start_flags_return_nonmutating_exact_cursor_recovery(self):
+        import contextlib
+        partial = self.command(['generation', '--root', str(self.root), '--execution', 'dispatcher',
+                                '--all', '--fresh-context', '--page-bytes', '40'])
+        argv = partial['actions']['continue']['argv'][3:]
+        before = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        bad = [*argv, '--execution', 'external', '--feature', 'extra', '--model', 'unknown-target']
+        with self.assertRaises(r.ReadingInvocationConflict) as caught:
+            self.command(bad)
+        failure = caught.exception.as_dict()
+        self.assertEqual(failure['code'], 'READING_INVOCATION_CONFLICT')
+        resume = failure['actions']['resume']['argv']
+        self.assertEqual(resume[resume.index('--continue') + 1], partial['cursor'])
+        self.assertEqual(resume[resume.index('--reading-context') + 1], partial['reading_context'])
+        self.assertFalse({'--execution', '--feature', '--model'} & set(resume))
+        self.assertEqual(before, {str(p.relative_to(self.root)): p.read_bytes()
+                                  for p in self.root.rglob('*') if p.is_file()})
+        output = io.StringIO()
+        with patch.object(r, 'ROOT', self.root), patch.object(sys, 'argv', ['execution_routes.py', 'read', *bad]), \
+             contextlib.redirect_stdout(output):
+            status = r.execution_routes.main()
+        self.assertEqual(status, 1)
+        self.assertEqual(json.loads(output.getvalue())['actions'], failure['actions'])
+        continued = self.command(resume[3:])
+        self.assertEqual(continued['snapshot'], partial['snapshot'])
+        self.assertEqual(continued['progress']['delivered_bytes'], 80)
+        self.assertEqual(continued['reading_context'], partial['reading_context'])
+
+    def test_conflict_never_restores_an_unselected_or_fresh_context(self):
+        partial = self.command(['generation', '--root', str(self.root), '--execution', 'dispatcher',
+                                '--all', '--fresh-context', '--page-bytes', '40'])
+        words = partial['actions']['continue']['argv'][3:]
+        at = words.index('--reading-context')
+        without_context = words[:at] + words[at + 2:]
+        for extra in (['--execution', 'dispatcher'], ['--fresh-context']):
+            with self.subTest(extra=extra), self.assertRaises(r.ReadingInvocationConflict) as caught:
+                self.command([*without_context, *extra])
+            failure = caught.exception.as_dict()
+            self.assertNotIn('resume', failure['actions'])
+            restarted = self.command(failure['actions']['restart']['argv'][3:])
+            self.assertNotEqual(restarted['reading_context'], partial['reading_context'])
+            self.assertEqual(restarted['progress']['reused_bytes'], 0)
+            self.assertEqual(restarted['progress']['delivered_bytes'], 40)
+            self.assertIsNone(restarted['reading'])
+
+    def test_conflict_with_damaged_snapshot_does_not_offer_a_guessed_action(self):
+        partial = self.command(['generation', '--root', str(self.root), '--execution', 'dispatcher',
+                                '--all', '--fresh-context', '--page-bytes', '40'])
+        folder = r._snapshot_dir(self.ledger, partial['snapshot'])
+        original = c.load(folder / 'snapshot.json')
+        original['root'] = '/unrelated-synthetic-source'
+        (folder / 'snapshot.json').write_bytes(c.encoded(original))
+        before = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        with self.assertRaises(r.ReadingInvocationConflict) as caught:
+            self.command([*partial['actions']['continue']['argv'][3:], '--feature', 'extra'])
+        failure = caught.exception.as_dict()
+        self.assertEqual(failure['actions'], {})
+        self.assertIn('snapshot address mismatch', failure['recovery_unavailable'])
+        self.assertEqual(before, {str(p.relative_to(self.root)): p.read_bytes()
+                                  for p in self.root.rglob('*') if p.is_file()})
+
+    def test_conflict_without_a_snapshot_context_requires_a_fresh_read(self):
+        partial = self.command(['generation', '--root', str(self.root), '--execution', 'dispatcher',
+                                '--all', '--page-bytes', '40'])
+        self.assertIsNone(partial.get('reading_context'))
+        with self.assertRaises(r.ReadingInvocationConflict) as caught:
+            self.command([*partial['actions']['continue']['argv'][3:], '--execution', 'external'])
+        actions = caught.exception.as_dict()['actions']
+        self.assertEqual(set(actions), {'restart'})
+        restarted = self.command(actions['restart']['argv'][3:])
+        self.assertIsNotNone(restarted['reading_context'])
+        self.assertEqual(restarted['progress']['delivered_bytes'], 40)
+        self.assertEqual(restarted['progress']['reused_bytes'], 0)
+
+    def test_conflicting_restart_keeps_complete_delivery_and_starts_fresh(self):
+        partial = self.command(['generation', '--root', str(self.root), '--execution', 'dispatcher',
+                                '--all', '--fresh-context', '--page-bytes', '40'])
+        with self.assertRaises(r.ReadingInvocationConflict) as caught:
+            self.command(['--root', str(self.root), '--restart', partial['cursor'], '--all',
+                          '--reading-context', partial['reading_context'], '--execution', 'external',
+                          '--page-bytes', '40'])
+        actions = caught.exception.as_dict()['actions']
+        self.assertEqual(set(actions), {'restart'})
+        self.assertIn('--all', actions['restart']['argv'])
+        restarted = self.command(actions['restart']['argv'][3:])
+        self.assertEqual(restarted['mode'], 'all')
+        self.assertEqual(restarted['progress']['delivered_bytes'], 40)
+        self.assertNotEqual(restarted['reading_context'], partial['reading_context'])
+
+    def test_fresh_or_unspecified_context_does_not_reuse_persisted_history(self):
+        original, _ = self.read(context='a' * 32)
+        for context in (None, 'b' * 32):
+            result, _ = self.read(context=context)
+            self.assertEqual(result['progress']['reused_bytes'], 0)
+            self.assertEqual(result['progress']['delivered_bytes'], original['progress']['required_bytes'])
+        parser = __import__('argparse').ArgumentParser()
+        r.add_context_arguments(parser)
+        first = r.resolve_context_options(parser.parse_args(['--fresh-context']))
+        second = r.resolve_context_options(parser.parse_args(['--fresh-context']))
+        self.assertNotEqual(first['reading_context'], second['reading_context'])
+        self.assertEqual(r.resolve_context_options(parser.parse_args([]))['reading_context'], None)
+
+    def test_partial_delivery_and_failed_output_never_enter_the_automatic_registry(self):
+        context = 'c' * 32
+        partial = r.read_page(route='generation', operation='prepare', execution='dispatcher',
+            root=self.root, ledger=self.ledger, stream=io.StringIO(), reading_context=context, page_bytes=40)
+        self.assertIsNone(partial['reading'])
+        self.assertEqual(r._context_keys(self.ledger, context, self.root), [])
+        result, _ = self.read(context=context)
+        self.assertEqual(result['progress']['reused_bytes'], 0)
+        class FailedOutput(io.StringIO):
+            def flush(self):
+                raise OSError('synthetic interrupted output')
+        with self.assertRaises(OSError):
+            r.read_page(route='generation', operation='prepare', execution='dispatcher',
+                root=self.root, ledger=self.ledger, stream=FailedOutput(), reading_context='d' * 32)
+        self.assertEqual(r._context_keys(self.ledger, 'd' * 32, self.root), [])
+
+    def test_changed_document_is_delivered_without_repeating_unchanged_documents(self):
+        context = 'e' * 32
+        first, _ = self.read(context=context)
+        changed = self.root / 'notes/work.md'
+        changed.write_bytes(changed.read_bytes() + b'A newly required source sentence.\n')
+        result, pages = self.read(context=context)
+        delivered = [item for page in pages for item in page['body']]
+        self.assertEqual([item['metadata']['path'] for item in delivered], ['notes/work.md'])
+        self.assertEqual(delivered[0]['text'].encode(), changed.read_bytes())
+        self.assertEqual(result['progress']['reused_bytes'], (self.root / 'notes/always.md').stat().st_size)
+        self.assertNotEqual(first['issued']['row']['documents'], result['issued']['row']['documents'])
+
+    def test_continuation_and_plan_navigation_keep_an_explicit_context_boundary(self):
+        context = 'f' * 32
+        partial = r.read_page(route='generation', operation='prepare', execution='dispatcher',
+            root=self.root, ledger=self.ledger, stream=io.StringIO(), reading_context=context, page_bytes=40)
+        with self.assertRaisesRegex(ValueError, 'another reading context'):
+            r.read_page(cursor=partial['cursor'], root=self.root, ledger=self.ledger, stream=io.StringIO())
+        action = partial['actions']['continue']
+        report = {'next_action': {'argv': [sys.executable, str(r.ROOT / 'scripts/production_workflow.py'),
+            'advance', '--root', str(self.root)], 'command': 'advance'},
+            'items': [{'current': {'reading_action': action,
+                                  'fresh_context_action': partial['actions']['restart']}}]}
+        retained = copy.deepcopy(report)
+        same = r.decorate_context(report, reading_context=context)
+        self.assertIn('--continue', same['items'][0]['current']['reading_action']['argv'])
+        self.assertIn('--fresh-context', same['items'][0]['current']['fresh_context_action']['argv'])
+        new = r.decorate_context(report, reading_context='0' * 32, fresh_context=True)
+        argv = new['items'][0]['current']['reading_action']['argv']
+        self.assertIn('--restart', argv)
+        self.assertNotIn('--continue', argv)
+        self.assertEqual(argv[argv.index('--reading-context') + 1], '0' * 32)
+        fresh_argv = new['items'][0]['current']['fresh_context_action']['argv']
+        self.assertNotIn('--fresh-context', fresh_argv)
+        self.assertEqual(fresh_argv[fresh_argv.index('--reading-context') + 1], '0' * 32)
+        self.assertEqual(report, retained)
+        self.assertEqual(new['next_action']['argv'][-2:], ['--reading-context', '0' * 32])
+        unspecified = r.decorate_context(report)
+        argv = unspecified['items'][0]['current']['reading_action']['argv']
+        self.assertIn('--restart', argv)
+        self.assertIn('--all', argv)
+        self.assertNotIn('--continue', argv)
+        self.assertNotIn('--reading-context', argv)
+        legacy = r.read_page(route='generation', operation='prepare', execution='dispatcher',
+            root=self.root, ledger=self.ledger, stream=io.StringIO(), page_bytes=40)
+        fresh_legacy = r.decorate_context({'reading_action': legacy['actions']['continue']})
+        self.assertIn('--restart', fresh_legacy['reading_action']['argv'])
+
+    def test_auto_pages_respect_declared_host_capacity_and_preserve_complete_bytes(self):
+        original = (self.root / 'notes/work.md').read_bytes()
+        (self.root / 'notes/work.md').write_bytes(original * 1000)
+        fixed, fixed_pages = self.read()
+        automatic, auto_pages = self.read(page_bytes='auto', host_page_bytes=65536)
+        self.assertGreater(len(fixed_pages), len(auto_pages))
+        self.assertEqual(fixed['progress']['required_bytes'], automatic['progress']['required_bytes'])
+        self.assertEqual(''.join(item['text'] for page in fixed_pages for item in page['body']),
+                         ''.join(item['text'] for page in auto_pages for item in page['body']))
+        self.assertTrue(all(sum(len(item['text'].encode()) for item in page['body']) <= 65536 for page in auto_pages))
+        self.assertEqual(r.page_budget('auto', 10 ** 9)[0], r.MAX_AUTO_PAGE_BYTES)
+        self.assertEqual(r.page_budget('auto')[0], r.DEFAULT_PAGE_BYTES)
+        self.assertEqual(r.page_budget(100000, 2048)[0], 2048)
+
+    def test_reading_measurements_count_delta_pages_and_reuse_once(self):
+        from types import SimpleNamespace
+        events = []
+        current = SimpleNamespace(event=lambda name, **facts: events.append((name, facts)),
+                                  artifact=lambda *args, **kwargs: None)
+        context = '1' * 32
+        with patch.object(r._operation_context, 'current', return_value=current):
+            first, pages = self.read(context=context, page_bytes=40)
+            second, more = self.read(context=context, page_bytes=40)
+        self.assertEqual(sum(value['delivered_bytes'] for _, value in events), first['progress']['required_bytes'])
+        self.assertEqual(sum(value['reused_bytes'] for _, value in events), second['progress']['required_bytes'])
+        self.assertEqual(sum(value['delivered_pages'] for _, value in events), len(pages))
+        self.assertEqual(len(more), 1)
+
+    def test_public_complete_read_binds_only_its_exact_choices_and_retains_authored_content(self):
+        original = self.choice_owner()
+        other = self.root / 'other-choices.json'
+        c.atomic(other, c.encoded(original))
+        command = ['--root', str(self.root), '--choices', 'draft/choices.json', '--bind-choices', '--all']
+        result = self.command([*command, '--fresh-context', '--page-bytes', '40'])
+        self.assertIsNone(c.load(self.root / 'draft/choices.json')['reading']['reading_key'])
+        while result['reading'] is None:
+            result = self.command(result['actions']['continue']['argv'][3:])
+        self.assertTrue(result['choices_binding']['bound'])
+        expected = copy.deepcopy(original)
+        expected['reading']['reading_key'] = result['reading']['key']
+        self.assertEqual(c.load(self.root / 'draft/choices.json'), expected)
+        self.assertEqual(c.load(other), original)
+        repeated = self.command([*command, '--reading-context', result['reading_context']])
+        self.assertEqual(repeated['body'], [])
+        self.assertTrue(repeated['choices_binding']['bound'])
+        self.assertEqual(c.load(self.root / 'draft/choices.json')['reading']['reading_key'], repeated['reading']['key'])
+        restarted = self.command(repeated['actions']['restart']['argv'][3:] + ['--all'])
+        self.assertNotEqual(restarted['reading_context'], repeated['reading_context'])
+        self.assertEqual(restarted['progress']['reused_bytes'], 0)
+        self.assertTrue(restarted['choices_binding']['bound'])
+
+    def test_concurrent_choices_edit_retains_reading_without_overwriting_the_changed_owner(self):
+        original = self.choice_owner()
+        result = self.command(['--root', str(self.root), '--choices', 'draft/choices.json', '--bind-choices',
+                               '--all', '--fresh-context', '--page-bytes', '40'])
+        changed = copy.deepcopy(original)
+        changed['authoring']['task']['features'] = ['extra']
+        c.atomic(self.root / 'draft/choices.json', c.encoded(changed), replace=True)
+        while result['reading'] is None:
+            result = self.command(result['actions']['continue']['argv'][3:])
+        self.assertFalse(result['choices_binding']['bound'])
+        self.assertEqual(result['choices_binding']['reason'], 'choices-changed')
+        self.assertEqual(c.load(self.root / 'draft/choices.json'), changed)
+        current = self.command(['--root', str(self.root), '--choices', 'draft/choices.json', '--bind-choices',
+                                '--all', '--reading-context', result['reading_context']])
+        self.assertTrue(current['choices_binding']['bound'])
+        self.assertEqual([item['metadata']['path'] for item in current['body']], ['notes/extra.md'])
+
+
+class TextReadingOutputTests(unittest.TestCase):
+    """Retained JSON and plain bodies share one source-delivery boundary."""
+
+    setUp = ReadingTests.setUp
+    command = ContextReadingTests.command
+    choice_owner = ContextReadingTests.choice_owner
+
+    def displayed(self, words):
+        stream = io.StringIO()
+        result = self.command(words, stream=stream)
+        text = stream.getvalue()
+        controls = json.loads(text.rsplit('\n=== READING CONTROL ===\n', 1)[1])
+        response = c.load(Path(controls['response_file']))
+        return result, text, controls, response
+
+    def test_full_plain_bodies_and_saved_json_keep_ranges_context_and_new_response_files(self):
+        raw = ('# Work\r\n\r\nOne synthetic \u03a9 character.\r\n'
+               'Literal JSON: {"actions": {"continue": "source text only"}}\r\n'
+               'A path: source\\input.txt\r\n').encode('utf-8')
+        (self.root / 'notes/work.md').write_bytes(raw)
+        expected = (self.root / 'notes/always.md').read_bytes() + raw
+        result, text, controls, response = self.displayed(['generation', '--execution', 'dispatcher',
+            '--root', str(self.root), '--fresh-context', '--view', 'text', '--page-bytes', '80'])
+        self.assertEqual(response['body'], [])
+        self.assertIsNone(controls['reading'])
+        self.assertIn('notes/work.md', text)
+        for reason in response['selection_reasons'].values():
+            self.assertIn(reason, text)
+        context, files, delivered = result['reading_context'], {}, bytearray()
+        while controls['next_action'] is not None:
+            path = Path(controls['response_file'])
+            files[path] = path.read_bytes()
+            argv = controls['next_action']['argv']
+            self.assertIn('--view', argv)
+            self.assertEqual(argv[argv.index('--view') + 1], 'text')
+            self.assertEqual(argv[argv.index('--reading-context') + 1], context)
+            result, text, controls, response = self.displayed(argv[3:])
+            self.assertNotIn(Path(controls['response_file']), files)
+            for row in response['body']:
+                body = row['text'].encode('utf-8')
+                self.assertIn(body, text.encode('utf-8'))
+                self.assertEqual(len(body), row['metadata']['end'] - row['metadata']['start'])
+                delivered.extend(body)
+            self.assertEqual(controls['reading_context'], context)
+            self.assertEqual(controls['same_context_required'], result['same_context_required'])
+            self.assertEqual(controls['progress'], {key: result['progress'][key] for key in
+                ('required_bytes', 'reused_bytes', 'delivered_bytes', 'remaining_bytes')})
+        self.assertEqual(delivered, expected)
+        self.assertIsNotNone(controls['reading'])
+        self.assertEqual(controls['progress']['remaining_bytes'], 0)
+        self.assertTrue(all(path.read_bytes() == original for path, original in files.items()))
+        r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
+        self.assertIn('--view', response['actions']['replay']['argv'])
+        self.assertIn('--response-dir', response['context_reuse']['operations']['prepare']['argv'])
+        previous_path = Path(controls['response_file'])
+        previous_bytes = previous_path.read_bytes()
+        _, _, replayed, _ = self.displayed(response['actions']['replay']['argv'][3:])
+        self.assertNotEqual(replayed['response_file'], str(previous_path))
+        self.assertEqual(previous_path.read_bytes(), previous_bytes)
+
+    def test_same_context_reuse_is_visible_and_fresh_context_redelivers(self):
+        words = ['generation', '--execution', 'dispatcher', '--root', str(self.root), '--all', '--view', 'text']
+        first, _, _, _ = self.displayed([*words, '--fresh-context'])
+        _, text, controls, response = self.displayed([*words, '--reading-context', first['reading_context']])
+        self.assertEqual(response['body'], [])
+        self.assertTrue(controls['same_context_required'])
+        self.assertGreater(controls['progress']['reused_bytes'], 0)
+        self.assertEqual(controls['progress']['delivered_bytes'], 0)
+        fresh, _, controls, response = self.displayed([*words, '--fresh-context'])
+        self.assertNotEqual(fresh['reading_context'], first['reading_context'])
+        self.assertEqual(controls['progress']['reused_bytes'], 0)
+        self.assertTrue(response['body'])
+
+    def test_text_display_preserves_source_newlines_on_a_translating_host(self):
+        raw = b'# Work\r\nOriginal CRLF.\r\nOriginal LF.\n'
+        (self.root / 'notes/work.md').write_bytes(raw)
+        buffer = io.BytesIO()
+        stream = io.TextIOWrapper(buffer, encoding='utf-8', newline='\r\n')
+        self.addCleanup(stream.close)
+        self.command(['generation', '--execution', 'dispatcher', '--root', str(self.root),
+                      '--all', '--view', 'text'], stream=stream)
+        self.assertIn(raw, buffer.getvalue())
+        self.assertNotIn(b'\r\r\n', buffer.getvalue())
+
+    def test_failed_host_body_flush_issues_no_reading_or_completed_page(self):
+        class FailedOutput(io.StringIO):
+            def flush(self):
+                raise OSError('Synthetic host body flush failed.')
+        with self.assertRaisesRegex(OSError, 'host body flush failed'):
+            self.command(['generation', '--execution', 'dispatcher', '--root', str(self.root),
+                          '--all', '--fresh-context', '--view', 'text'], stream=FailedOutput())
+        self.assertFalse(self.ledger.exists())
+        folder = self.ledger.parent
+        self.assertFalse(list((folder / 'reading-contexts').glob('*.json')))
+        snapshot_path = next((folder / 'reading-snapshots').glob('*/snapshot.json'))
+        coverage = r.snapshot_coverage(snapshot_path.parent, c.load(snapshot_path))
+        self.assertEqual(coverage['delivered_bytes'], 0)
+        self.assertEqual(coverage['remaining_bytes'], coverage['total_bytes'])
+        saved = c.load(next((folder / 'reading-responses').glob('*.json')))
+        self.assertFalse(saved['ok'])
+        self.assertIsNone(saved['reading'])
+        self.assertIn('host body flush failed', saved['error'])
+
+    def test_failed_binding_displays_its_complete_repair_and_preserves_edits(self):
+        original = self.choice_owner()
+        result, _, controls, _ = self.displayed(['--root', str(self.root), '--choices', 'draft/choices.json',
+            '--bind-choices', '--all', '--fresh-context', '--view', 'text', '--page-bytes', '80'])
+        changed = copy.deepcopy(original)
+        changed['authoring']['task']['features'] = ['extra']
+        c.atomic(self.root / 'draft/choices.json', c.encoded(changed), replace=True)
+        while result['reading'] is None:
+            result, text, controls, response = self.displayed(controls['next_action']['argv'][3:])
+        self.assertFalse(controls['choices_binding']['bound'])
+        self.assertEqual(controls['choices_binding'], response['choices_binding'])
+        self.assertIn('required_action', controls['choices_binding'])
+        self.assertIn('choices-changed', text)
+        self.assertEqual(c.load(self.root / 'draft/choices.json'), changed)
+
+    def test_early_read_error_is_retained_and_printed_without_issuing(self):
+        stream = io.StringIO()
+        with self.assertRaisesRegex(ValueError, 'unknown route'):
+            self.command(['absent', '--execution', 'dispatcher', '--root', str(self.root),
+                          '--all', '--view', 'text'], stream=stream)
+        controls = json.loads(stream.getvalue().rsplit('\n=== READING CONTROL ===\n', 1)[1])
+        response = c.load(Path(controls['response_file']))
+        self.assertFalse(controls['ok'])
+        self.assertEqual(controls['error'], response['error'])
+        self.assertIsNone(controls['reading'])
+        self.assertFalse(self.ledger.exists())
+
+    def displayed_conflict(self, words, partial):
+        import contextlib
+        stream = io.StringIO()
+        with patch.object(r, 'ROOT', self.root), \
+             patch.object(sys, 'argv', ['execution_routes.py', 'read', *words]), \
+             contextlib.redirect_stdout(stream):
+            status = r.execution_routes.main()
+        self.assertEqual(status, 1)
+        text = stream.getvalue()
+        self.assertEqual(text.count('\n=== READING CONTROL ===\n'), 1)
+        controls = json.loads(text.rsplit('\n=== READING CONTROL ===\n', 1)[1])
+        response = c.load(Path(controls['response_file']))
+        for output in (controls, response):
+            self.assertFalse(output['ok'])
+            self.assertIsNone(output['reading'])
+            self.assertEqual(output['code'], 'READING_INVOCATION_CONFLICT')
+            self.assertEqual(output['owner'], {'snapshot': partial['snapshot'],
+                'choices': 'draft/choices.json', 'reading_ledger': str(self.ledger.absolute()),
+                'reading_context': partial['reading_context']})
+        for key in ('code', 'owner', 'error', 'required_action', 'actions'):
+            self.assertEqual(controls[key], response[key])
+        self.assertEqual(response['body'], [])
+        self.assertFalse(self.ledger.exists())
+        for action in controls['actions'].values():
+            argv = action['argv']
+            self.assertEqual(argv[argv.index('--view') + 1], 'text')
+            self.assertEqual(argv[argv.index('--response-dir') + 1], str(self.root / 'responses'))
+            self.assertFalse({'--execution', '--feature', '--model'} & set(argv))
+        return controls, response
+
+    def test_text_invocation_conflict_retains_owner_and_same_context_resume(self):
+        original = self.choice_owner()
+        for selector in ('--continue', '--snapshot'):
+            with self.subTest(selector=selector):
+                partial, _, controls, _ = self.displayed(['--root', str(self.root),
+                    '--choices', 'draft/choices.json', '--bind-choices', '--all', '--fresh-context',
+                    '--view', 'text', '--response-dir', str(self.root / 'responses'), '--page-bytes', '40'])
+                words = controls['next_action']['argv'][3:]
+                if selector == '--snapshot':
+                    at = words.index('--continue')
+                    words[at:at + 2] = ['--snapshot', partial['snapshot']]
+                    words.append('--all')
+                snapshot = r._snapshot_dir(self.ledger, partial['snapshot'])
+                before = {p.name: p.read_bytes() for p in snapshot.iterdir() if p.is_file()}
+                controls, _ = self.displayed_conflict([
+                    *words, '--execution', 'external', '--feature', 'extra', '--model', 'unknown-target'], partial)
+                self.assertEqual(set(controls['actions']), {'resume', 'restart'})
+                self.assertIn('actions.resume.argv', controls['required_action'])
+                self.assertIn('actions.restart.argv', controls['required_action'])
+                self.assertEqual(before, {p.name: p.read_bytes() for p in snapshot.iterdir() if p.is_file()})
+                self.assertEqual(c.load(self.root / 'draft/choices.json'), original)
+                resume = controls['actions']['resume']['argv']
+                self.assertEqual(resume[resume.index(selector) + 1],
+                                 partial['cursor'] if selector == '--continue' else partial['snapshot'])
+                continued, _, _, _ = self.displayed(resume[3:])
+                self.assertEqual(continued['snapshot'], partial['snapshot'])
+                self.assertEqual(continued['reading_context'], partial['reading_context'])
+                self.assertEqual(continued['progress']['delivered_bytes'], 80)
+
+    def test_text_invocation_conflict_retains_fresh_context_restart_without_resume(self):
+        self.choice_owner()
+        partial, _, controls, _ = self.displayed(['--root', str(self.root),
+            '--choices', 'draft/choices.json', '--bind-choices', '--all', '--fresh-context',
+            '--view', 'text', '--response-dir', str(self.root / 'responses'), '--page-bytes', '40'])
+        words = controls['next_action']['argv'][3:]
+        at = words.index('--reading-context')
+        without_context = words[:at] + words[at + 2:]
+        for extra in (['--execution', 'external'], ['--fresh-context'],
+                      ['--reading-context', '0' * 32, '--feature', 'extra']):
+            with self.subTest(extra=extra):
+                controls, _ = self.displayed_conflict([*without_context, *extra], partial)
+                self.assertEqual(set(controls['actions']), {'restart'})
+                self.assertIn('actions.restart.argv', controls['required_action'])
+                self.assertNotIn('actions.resume.argv', controls['required_action'])
+                restart = controls['actions']['restart']['argv']
+                self.assertIn('--fresh-context', restart)
+                self.assertNotIn('--reading-context', restart)
+                restarted, _, _, _ = self.displayed(restart[3:])
+                self.assertNotEqual(restarted['reading_context'], partial['reading_context'])
+                self.assertEqual(restarted['progress']['reused_bytes'], 0)
+                self.assertEqual(restarted['progress']['delivered_bytes'], 40)
+                self.assertIsNone(restarted['reading'])
+
+    def test_warnings_diagnostics_and_non_json_stderr_remain_visible(self):
+        import contextlib
+        output = io.StringIO()
+        display = r.TextReadingOutput(self.root / 'responses', output)
+        self.addCleanup(display.close)
+        display.begin([], {})
+        value = {'ok': True, 'mode': 'all', 'warnings': ['Synthetic evidence limitation.'],
+                 'diagnostics': [{'code': 'synthetic-diagnostic', 'required_action': 'Inspect the selected source.',
+                                  'actual': {'argv': ['python', 'execution_routes.py', 'read']}}]}
+        display.finish(value)
+        controls = json.loads(output.getvalue().rsplit('\n=== READING CONTROL ===\n', 1)[1])
+        self.assertEqual(controls['warnings'], value['warnings'])
+        self.assertEqual(controls['diagnostics'], value['diagnostics'])
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), patch.object(sys, 'argv', [
+                'execution_routes.py', 'read', '--view', 'text', '--execution', 'invalid']), \
+                self.assertRaises(SystemExit) as rejected:
+            r.execution_routes.main()
+        self.assertEqual(rejected.exception.code, 2)
+        self.assertIn('invalid choice', stderr.getvalue())
+        self.assertFalse(self.ledger.exists())
 
 
 if __name__=='__main__':

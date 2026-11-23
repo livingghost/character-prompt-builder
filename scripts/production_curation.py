@@ -182,7 +182,8 @@ def _answer_contract(root: Path, choices: dict) -> dict:
         'reason': 'String: why the exact result is being selected for this destination, including material limitations.',
         'approval': 'Choose the actual instruction for this use once as evidence {path, locator}, with the '
                     'actual actor and direct or delegated mode. Prior authority instruction is read-only context, not '
-                    'the chosen source. The requested destination alone grants no permission.',
+                    'the chosen source. When both selection and adoption are required, this instruction must explicitly '
+                    'authorize both operations shown in authority_requirements. The requested destination alone grants no permission.',
         'stop_assessments': 'Keep each displayed id and condition. Set clear to true only from actual evidence '
                             'and write that evidence. An empty array means no current stop conditions.',
         'continuity_decision': 'character_id is the actual identity string (or null for one-off); continuity is '
@@ -224,6 +225,7 @@ def draft(root: Path, source: dict, destination: dict) -> dict:
     binding = {'source': source, 'destination': destination}
     evidence = {}
     authority = None
+    authority_requirements = None
     if kind == 'production':
         snapshot, loaded = _production(root, source)
         reviewed = workflow.find(loaded.rows, 'review', snapshot['review'])
@@ -247,6 +249,19 @@ def draft(root: Path, source: dict, destination: dict) -> dict:
         if scope in {'sheet', 'catalog'}:
             operations.append({'operation': 'adopt', 'targets': ['canon:' + scope]})
         requirement = permissions.grant_requirements(authority.document, operations)
+        authority_requirements = []
+        for row in requirement['requirements']:
+            eligible = [item['grant'] for item in row['candidates'] if item['eligible']]
+            required_action = (
+                'Use this current grant only within the actual approval and assessed stop conditions.'
+                if row['selected_grant'] is not None else
+                'Choose one displayed grant number in grant_choices.' + row['operation'] + '.'
+                if eligible else
+                'Choose approval.evidence only from an actual instruction authorizing ' + row['operation'] +
+                ' for ' + ', '.join(row['targets']) + '; record its actual actor and mode in the same answer.')
+            authority_requirements.append({key: copy.deepcopy(row[key])
+                for key in ('operation', 'targets', 'selected_grant')})
+            authority_requirements[-1]['required_action'] = required_action
         grants = {row['operation']: row['selected_grant'] for row in requirement['requirements']}
         options = {}
         for row in requirement['requirements']:
@@ -351,6 +366,7 @@ def draft(root: Path, source: dict, destination: dict) -> dict:
         **({'acting_authority': {operation: {key: terms['grant'][key] for key in ('id', 'actor', 'mode')}
                                 for operation, terms in binding['authority_terms'].items()}}
            if binding.get('authority_terms') else {}),
+        **({'authority_requirements': authority_requirements} if authority_requirements is not None else {}),
         'reading_action': curation_action(root, execution=execution,
             scope='sheet' if scope == 'withdraw' else scope,
             source_kind='production-candidate' if kind == 'production' else 'imported-iteration',
@@ -1013,7 +1029,8 @@ def _local_apply(root: Path, directory: Path, state: dict, *, settings=None,
     import sheet_artifacts as fills
     import studio_workspace as studio
     binding = state['binding']
-    source, scope = binding['source'], binding['destination']['scope']
+    source, destination = binding['source'], binding['destination']
+    scope = destination['scope']
     file = directory / 'local-decision.json'
     value = _local_decision(root, directory, state, continuity_evidence=continuity_evidence)
     if file.exists():

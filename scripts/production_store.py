@@ -854,9 +854,18 @@ def authority_snapshot(root: Path, task_id: str, current: CurrentAuthority | Non
     if current is not None:
         arguments += ['--expected-event', current.event['sha256']]
     edited = edited_authority_source(root, current)
-    reason = ('Edit the current declaration from actual authority, then import it with this observed predecessor. '
-              'Author input can be supplied by the acting agent from already-established user authorization; '
-              'ask the user only if necessary authority remains unresolved. Reinspect if another update wins.')
+    if current is None:
+        from production_document_contracts import explain_action
+        reason = ('No authority is registered for this work task. Read the initial declaration schema and template with '
+                  + explain_action('authority')['shown'] + '. Complete the declaration from the actual instruction '
+                  'and its evidence, then import it with this action. The first import has no predecessor; omit '
+                  '--expected-event. draft-authority-update adds grants only after authority is registered. '
+                  'Author input can be supplied by the acting agent from already-established user authorization; '
+                  'ask the user only if necessary authority remains unresolved.')
+    else:
+        reason = ('Edit the current declaration from actual authority, then import it with this observed predecessor. '
+                  'Author input can be supplied by the acting agent from already-established user authorization; '
+                  'ask the user only if necessary authority remains unresolved. Reinspect if another update wins.')
     if edited is not None:
         reason = (f'{edited["path"]} changed after its import, and draft-execution, execute and status read the '
                   'imported authority. Import the edit with this command when it records an actual authority change; '

@@ -18,10 +18,23 @@ External non-image work uses `handoff-intent`, `draft-authorization`, `authorize
 
 External image work uses the shared `draft-execution` and `execute` flow above. Set the task's `image_input`; existing-scene edits also activate `semantic-instruction-edit` and declare `semantic_edit`. Preparation exposes the complete exact request. The submit grant must allow the binding's validation mode and have `request_scope: null`; dispatcher scope cases use their own request contract. Existing explicit authority may supply that grant without another confirmation. The claim commits execution ownership and the external-send boundary before returning the request to the host. Reading a claim again does not permit a second call.
 
+Save the actual host response and optional call record inside the Studio.
+Returned files also use Studio-relative paths, or absolute paths inside that
+Studio. A host tool can save its image in a separate output directory. Copy that
+existing file into the Studio, for example `received/result.png`, preserving
+the original image. Receive those same bytes with the existing run and actual
+response; this needs no new host call or generation.
+
+An outside `--artifact` returns `INPUT_SCHEMA_INVALID` with its exact `file`,
+`root` and `run` before reception starts, including when an earlier repeated
+artifact is already inside the Studio. Copy the returned file unchanged and
+repeat the same run and response; the failed input does not capture a partial
+result or create another execution claim.
+
 Receive the actual host response and returned files in one operation:
 
 ```sh
-python scripts/production_workflow.py receive-external --root STUDIO --run RUN --response evidence/response.json --artifact result.png --reason "The host returned its final response and image."
+python scripts/production_workflow.py receive-external --root STUDIO --run RUN --response evidence/response.json --artifact received/result.png --reason "The host returned its final response and image."
 ```
 
 Repeat `--artifact` for several local files. For an image encoded inside the actual response, use `--image-pointer '["result", "image"]'`; repeat it for several fields. The selected value must be a base64 string or an image data URL. Downloaded remote files use `--artifact`. The command decodes and measures each image, stores its bytes and captures it before recording settlement. It performs no provider call, image review, selection or adoption.
@@ -45,7 +58,7 @@ record when the host exposes it.
 Supply the actual call record directly when receiving its result. This synthetic example selects the recorded arguments and tool identity without authoring a receipt:
 
 ```sh
-python scripts/production_workflow.py receive-external --root STUDIO --run RUN --response evidence/response.json --artifact result.png --call evidence/host-call.json --request-pointer '["arguments"]' --model-identity-pointer '["tool"]' --reason "The host returned its final response and image."
+python scripts/production_workflow.py receive-external --root STUDIO --run RUN --response evidence/response.json --artifact received/result.png --call evidence/host-call.json --request-pointer '["arguments"]' --model-identity-pointer '["tool"]' --reason "The host returned its final response and image."
 ```
 
 `request_pointer` selects the actual recorded argument object. For endpoint or

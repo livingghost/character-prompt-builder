@@ -118,8 +118,16 @@ class CompletedSourceCLITests(PublicCLI, unittest.TestCase):
         path, _ = self.choices()
         run = self.invoke('save', '--root', self.root, '--choices', path)['run']
         before = work_ledger.read_current(self.root)
-        self.invoke('draft-inputs', '--root', self.root, '--from-run', run,
+        refused = self.invoke('draft-inputs', '--root', self.root, '--from-run', run,
             '--new-task', 'A different requested revision.', '--out-dir', 'other', expected=2)
+        diagnostic = refused['diagnostics'][0]
+        self.assertEqual(diagnostic['code'], 'WORK_TASK_ALREADY_OPEN')
+        self.assertEqual(diagnostic['category'], 'state-conflict')
+        self.assertEqual(diagnostic['current_task'], before['task_id'])
+        self.assertEqual(diagnostic['file'], 'work/tasks/' + before['task_id'] + '/task.json')
+        self.assertIn('omit --new-task', diagnostic['required_action'])
+        action = resolved_action(refused, diagnostic['next_action'])
+        self.assertEqual(action['argv'][action['argv'].index('--task-id') + 1], before['task_id'])
         self.assertEqual(work_ledger.read_current(self.root), before)
         self.assertFalse((self.root / 'other').exists())
         self.invoke('draft-inputs', '--root', self.root, '--from-run', run,

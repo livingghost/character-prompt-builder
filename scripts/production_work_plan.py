@@ -24,23 +24,30 @@ def add_request_arguments(parser) -> None:
     source.add_argument('--choices', help='Studio-relative editable input choices for the requested result.')
     source.add_argument('--request-file', help='Studio-relative UTF-8 commission for new or revised work.')
     source.add_argument('--batch', help='Studio-relative saved sheet batch to continue through its intended result.')
-    parser.add_argument('--scope', choices=SCOPES, help='Commissioned result of this source; required with a source option.')
+    parser.add_argument('--scope', choices=SCOPES,
+                        help='Commissioned result; required with a source option. save retains authored text; '
+                             'prepared-input stops before image execution; delivery-only completes a reviewed '
+                             'image result; studio-slot accepts it into a slot; sheet/catalog adds canonical use; '
+                             'withdraw records canonical withdrawal.')
     parser.add_argument('--candidate', help='Explicit candidate of --run; omit to retain the normal candidate choice.')
     parser.add_argument('--influence', choices=INTENDED_INFLUENCES,
                         help='Intended canonical influence; required for sheet or catalog scope.')
     parser.add_argument('--goal', help='Actual goal when opening a new task for retained work.')
     parser.add_argument('--route', help='Route for --request-file; required unless --from-run supplies it.')
     parser.add_argument('--execution', choices=('authored', 'dispatcher', 'external'),
-                        help='Execution kind for --request-file; defaults to authored or the retained source.')
+                        help='Execution kind for --request-file; use external for an available host image tool. '
+                             'Defaults to authored or the retained source.')
     parser.add_argument('--from-run', help='Retained input to revise under --request-file.')
     parser.add_argument('--operation', choices=('compose', 'amend'),
                         help='Authoring operation for --request-file; otherwise derived from the selected source.')
     from production_cli_arguments import add_change_scope_arguments
     add_change_scope_arguments(parser)
-    parser.add_argument('--model', help='Selected model for --request-file; omission preserves a retained target.')
+    parser.add_argument('--model', help='Catalog model ID for --request-file; omission preserves a retained target. '
+                        'For an unlisted host, omit this selector and complete target.kind external in its choices.')
     parser.add_argument('--service', help='Selected service for --request-file; omission preserves a retained target.')
     parser.add_argument('--feature', action='append', default=[],
-                        help='Applicable knowledge feature for --request-file; repeat for independent features.')
+                        help='Applicable knowledge feature for --request-file; repeat for independent features. '
+                             'Route names belong in --route; names are checked before new work is opened.')
     parser.add_argument('--registration-file', help='Studio-relative registration record for catalog scope.')
     parser.add_argument('--pack-dir', help='Actual destination pack directory for catalog scope.')
     parser.add_argument('--delivery-path', help='Studio-relative local delivery destination for save scope, when requested.')
@@ -99,6 +106,54 @@ def action(root: Path, path: str, *, command: str = 'advance', reason: str = '')
             'reason': reason or 'Continue this saved plan from its current evidence and completed answers.'}
 
 
+def publication_recovery(root: Path, path: str, state: dict, *, authoring: dict | None = None,
+                         choices: str | None = None) -> dict:
+    """Expose owned failed compilations without rechecking or publishing inputs.
+
+    Status already acquires the editable sources. Only an exact retained
+    choices reference may contribute its old findings to that current view;
+    changed inputs keep a check action, not obsolete failure assertions.
+    """
+    from cli_invocation import python_argv
+    references = {}
+    if authoring is not None:
+        for row in authoring.get('inputs', []):
+            current = row.get('working_copy') or row
+            reference = (current.get('assembly_basis') or {}).get('choices')
+            if isinstance(reference, dict):
+                references[reference['path']] = reference
+    result = {'diagnostics': [], 'next_actions': []}
+    for name, entry in state.get('items', {}).items():
+        selected = (entry.get('source') or {}).get('choices')
+        current = entry.get('current') or {}
+        compilation = current.get('compilation') or {}
+        if (entry.get('status') != 'blocked' or entry.get('run') is not None
+                or not selected or (choices is not None and choices != selected)
+                or compilation.get('publishable') is not False
+                or (current.get('choices') is not None and current['choices'] != selected)):
+            continue
+        check = {'command': 'check',
+            'argv': python_argv(SCRIPT, 'check', '--root', str(root), '--choices', selected),
+            'external_effect': False, 'requires_author_input': False,
+            'reason': 'Check the current input for ' + name + ' without publishing. '
+                      'Resolve its reported source fields, then advance the same saved plan.'}
+        result['next_actions'].append(check)
+        acquired = compilation.get('authoring') or {}
+        previous = acquired.get('choices_ref') or (acquired.get('derived_from') or {}).get('choices')
+        if authoring is not None and (previous is None or references.get(selected) != previous):
+            continue
+        pointer = '/items/' + name.replace('~', '~0').replace('/', '~1') + '/current/compilation/diagnostics/'
+        for number, value in enumerate(compilation.get('diagnostics', [])):
+            if value.get('severity', 'error') != 'error':
+                continue
+            result['diagnostics'].append({**copy.deepcopy(value), 'item': name, 'choices': selected,
+                'plan': path, 'full_report': path + '#' + pointer + str(number),
+                'observation': 'Last failed preparation for this selected input. This display does not '
+                    'revalidate packs, external state or authority; check reevaluates current sources.',
+                'check_action': copy.deepcopy(check)})
+    return result
+
+
 def _relative(root: Path, path: Path) -> str:
     return path.relative_to(root).as_posix()
 
@@ -148,6 +203,131 @@ def _current_path(root: Path) -> str | None:
     import work_ledger
     task = work_ledger.read_current(root)
     return task.get('production_plan') if task else None
+
+
+def draft_continuation(root: Path, task_id: str, source_choices: str) -> dict | None:
+    """Bind an explicit compose successor to its unfinished selected input.
+
+    The source path comes from the candidate acquisition, including the original
+    editor of an immutable proposal. A sibling or a prepared result is never
+    replaced merely because another draft was created most recently.
+    """
+    task = _task(root, task_id)
+    path = task.get('production_plan')
+    if path is None:
+        return None
+    _, state, _ = _load(root, path)
+    if state['task_id'] != task_id or state['status'] == 'complete':
+        return None
+    source_choices = c.local(root, source_choices, exists=False).relative_to(root).as_posix()
+    names = [name for name, entry in state['items'].items()
+             if entry['source'].get('choices') == source_choices and entry.get('run') is None
+             and entry['status'] != 'complete']
+    if not names:
+        return None
+    return {'plan': path, 'plan_id': state['plan_id'], 'task_id': task_id,
+            'items': names, 'source_choices': source_choices}
+
+
+def _continue_draft(root: Path, state: dict, registration: dict) -> bool:
+    """Apply a published, explicitly registered successor without guessing order."""
+    details = registration['details']
+    binding = details.get('plan_continuation')
+    if not binding or (binding['plan_id'], binding['task_id']) != (state['plan_id'], state['task_id']):
+        return False
+    if not details.get('directory_published'):
+        return False
+    selected = (Path(details['directory']) / 'choices.json').as_posix()
+    changed = False
+    for name in binding['items']:
+        entry = state['items'][name]
+        if entry['source'].get('choices') == selected:
+            continue
+        if (entry['source'].get('choices') != binding['source_choices']
+                or entry.get('run') is not None or entry['status'] == 'complete'):
+            continue
+        reserved = entry.get('reserved_run')
+        if reserved is not None:
+            import production_operations as operations
+            if operations.run_dir(root, reserved, exists=False).exists():
+                # Publication already selected an immutable revision. Resume it;
+                # the new editor remains an independent available branch.
+                continue
+        context = c.read(c.local(root, (Path(details['directory']) / 'context.json').as_posix()))
+        if c.digest(context) != details['context_sha256']:
+            raise ValueError('The compose continuation context differs from its registered publication.')
+        choices = c.load(c.local(root, selected))
+        if choices['authoring']['task']['task_id'] != state['task_id']:
+            raise ValueError('The compose continuation belongs to another work task.')
+        history = entry.setdefault('source_history', [])
+        history.append({key: copy.deepcopy(value) for key, value in entry.items() if key != 'source_history'})
+        entry.clear()
+        entry.update(source={'choices': selected}, run=None, candidate=None, phase='authoring',
+            status='pending', answers={}, evidence={}, source_history=history,
+            current={'choices': selected, 'run': None,
+                'reason': 'Continue this explicitly composed input; the prior editor remains comparison material.'})
+        state.update(status='active', verification=None)
+        changed = True
+    return changed
+
+
+def continue_draft(root: Path, registration: dict) -> dict | None:
+    """Finish the plan binding after the draft publication, with repeatable recovery."""
+    binding = registration['details'].get('plan_continuation')
+    if binding is None:
+        return None
+    path = binding['plan']
+    file, _, _ = _load(root, path)
+    with c.file_lock(file):
+        file, state, _ = _load(root, path)
+        if _task(root, binding['task_id']).get('production_plan') != path:
+            return None
+        if _continue_draft(root, state, registration):
+            _save(file, state)
+        selected = (Path(registration['details']['directory']) / 'choices.json').as_posix()
+        if any(state['items'][name]['source'].get('choices') == selected for name in binding['items']):
+            return {'plan': path, 'choices': selected, 'next_action': action(root, path)}
+    return None
+
+
+def _recover_draft_continuations(root: Path, path: str, state: dict) -> None:
+    """Recover the explicit binding if interruption followed draft publication."""
+    import production_authoring_state
+    folder = production_authoring_state._directory(root, state['task_id'])
+    if not folder.is_dir():
+        return
+    records = []
+    for file in sorted(folder.glob('draft-inputs-*.json')):
+        try:
+            record = c.load(file)
+        except (ValueError, OSError, TypeError):
+            # Other branches remain explicitly inspectable. Their damaged
+            # discovery pointers cannot retarget or block this selected plan.
+            continue
+        if not isinstance(record, dict):
+            continue
+        details = record.get('details') or {}
+        binding = details.get('plan_continuation') or {}
+        if (binding.get('plan') == path and binding.get('plan_id') == state['plan_id']
+                and details.get('directory_published')):
+            records.append(record)
+    while records:
+        ready = [record for record in records if any(
+            state['items'][name]['source'].get('choices') == record['details']['plan_continuation']['source_choices']
+            and state['items'][name].get('run') is None and state['items'][name]['status'] != 'complete'
+            for name in record['details']['plan_continuation']['items'])]
+        if not ready:
+            return
+        owners = {}
+        for record in ready:
+            for name in record['details']['plan_continuation']['items']:
+                if name in owners:
+                    raise ValueError('Concurrent compose continuations name the same plan input. '
+                        'Inspect the registered draft publications and retain the intended plan binding before advancing.')
+                owners[name] = record
+        for record in ready:
+            _continue_draft(root, state, record)
+            records.remove(record)
 
 
 def _source_task(root: Path, source: dict) -> str | None:
@@ -206,6 +386,19 @@ def _request_shape(request: dict) -> list[dict]:
                 raise ValueError('An imported source names its existing owner, not a production input.')
         elif len(modes) != 1:
             raise ValueError('Choose one source: choices, run, batch, request or an imported/sheet owner.')
+        if 'request' in source:
+            from execution_routes import require_selection_names
+            try:
+                require_selection_names(source.get('route'), source.get('features'))
+            except ValueError as exc:
+                pointer = f'/items/{number - 1}/source' if 'items' in request else '/source'
+                raise ProductionError('INPUT_CONSISTENCY_ERROR', str(exc), phase='work-plan',
+                    pointer=pointer, item=name,
+                    guidance={'document_path': 'references/runtime/production-work-plan.md'},
+                    required_action=f'Correct route/features at {pointer} in this work request, or the '
+                        '--route/--feature arguments that construct it. Route names and feature names '
+                        'are separate selections; retain the route appropriate to the commissioned work. '
+                        'Retry plan with the corrected request. This refusal opens no work task, plan or draft.') from exc
         if 'change_scope' in source:
             from production_reading_scope import validate_change_scope
             validate_change_scope(source['change_scope'])
@@ -331,7 +524,19 @@ def create(root: Path, request_file: str | None = None, *, request: dict | None 
         if previous.get('status') != 'complete':
             if previous.get('request_sha256') == c.content_id(request):
                 return inspect(root, work['production_plan'])
-            raise ValueError('This work already has a plan. Continue it, or open separate work for a new branch.')
+            continuation = action(root, work['production_plan'])
+            raise ProductionError('INPUT_CONSISTENCY_ERROR',
+                'This work already has a plan. Continue it, or revise the work before changing its result or items.',
+                phase='work-plan', file=work['production_plan'], plan=work['production_plan'],
+                next_action=continuation, plan_continuation=continuation,
+                guidance={'document_path': 'references/runtime/production-work-plan.md#revise-the-result-or-items'},
+                required_action='Run the returned plan_continuation for the current saved work. '
+                    'To revise its current input, compose from that exact choices file; '
+                    'to change the same commission\'s result scope or items, inspect its exact owning task, '
+                    'use work_ledger.py reopen on its first affected step with the actual reason and actor, '
+                    'then create the revised request with plan --file. Follow '
+                    'references/runtime/production-work-plan.md#revise-the-result-or-items. '
+                    'Open a separate work task for an independent commissioned result.')
     identifier = generate_uuid7()
     directory = c.local(root, 'work/plans/' + identifier, exists=False)
     directory.mkdir(parents=True)
@@ -356,6 +561,8 @@ def create(root: Path, request_file: str | None = None, *, request: dict | None 
 
 
 def _answer(root: Path, directory: Path, entry: dict, key: str, draft: dict) -> tuple[dict | None, dict]:
+    from operation_context import current
+    operation = current()
     record = entry['answers'].get(key)
     if record is None:
         path = directory / (key + '.json')
@@ -364,10 +571,17 @@ def _answer(root: Path, directory: Path, entry: dict, key: str, draft: dict) -> 
                   'binding': copy.deepcopy(draft.get('binding')), 'context': {
                       name: copy.deepcopy(value) for name, value in draft.items() if name not in {'choices', 'binding'}}}
         entry['answers'][key] = record
+        if operation is not None:
+            operation.event('judgment_pending', answer_file=record['file'], phase=key)
         return None, record
     value = c.load(c.local(root, record['file']))
     if c.content_id(value) == record['initial_sha256']:
         return None, record
+    identity = c.content_id(value)
+    if record.get('observed_sha256') != identity:
+        if operation is not None:
+            operation.event('judgment_answered', answer_file=record['file'], phase=key)
+        record['observed_sha256'] = identity
     return value, record
 
 
@@ -376,7 +590,8 @@ def _waiting(entry: dict, phase: str, record: dict, *, reason: str) -> None:
                  'reason': reason, **copy.deepcopy(record['context'])})
 
 
-def _input(root: Path, directory: Path, entry: dict, spec: dict, *, advance: bool) -> bool:
+def _input(root: Path, directory: Path, entry: dict, spec: dict, *, advance: bool,
+           task_id: str) -> bool:
     import production_inputs
     import production_operations as operations
     from production_input_adapters import using_runtime
@@ -387,6 +602,9 @@ def _input(root: Path, directory: Path, entry: dict, spec: dict, *, advance: boo
     runtime = registered_runtime_arguments(root, source['choices'])
     with using_runtime(runtime):
         view = production_inputs.authoring_view(root, source['choices'], runtime_arguments=runtime)
+        if view['task']['task_id'] != task_id:
+            raise ValueError('The plan input belongs to another work task. '
+                'Continue this plan\'s current choices under their exact owning task.')
         stage = view['authoring_stage']
         if stage['stage'] != 'prepare':
             if advance and entry.get('phase') == 'authoring' and stage['structural_ready']:
@@ -408,7 +626,8 @@ def _input(root: Path, directory: Path, entry: dict, spec: dict, *, advance: boo
                 'change_scope': view['authoring_scope'].get('change_scope'),
                 'remaining_stages': stage['remaining_stages'],
                 'inspection': production_inputs.inspect_inputs(root, choices_path=source['choices']),
-                'reason': 'Complete the current preparation reading and inputs, then advance to publish this revision.'})
+                'reason': ('Advance this plan to publish the current complete input.' if stage['structural_ready'] else
+                    'Complete the current preparation reading and inputs, then advance to publish this revision.')})
             return False
         from pack_manager import generate_uuid7
         entry.setdefault('reserved_run', generate_uuid7())
@@ -446,6 +665,90 @@ def _new_source(root: Path, directory: Path, entry: dict, spec: dict, task_id: s
         scale=source.get('scale'), purpose=source.get('purpose'), focus=source.get('focus'),
         change_scope=source.get('change_scope'))
     entry['source'] = {'choices': _relative(root, out / 'choices.json')}
+
+
+def _require_run_source(root: Path, entry: dict, task_id: str, *, loaded=None):
+    """Keep the selected source, immutable result and actual work owner aligned."""
+    import production_operations as operations
+    loaded = operations.read_run(root, entry['run']) if loaded is None else loaded
+    if loaded.prepared['run'] != entry['run']:
+        raise ValueError('The selected plan run differs from its acquired result.')
+    source = entry['source']
+    if source.get('choices'):
+        reference = (loaded.prepared.get('authoring') or {}).get('choices_ref') or {}
+        if (loaded.prepared['task']['task_id'] != task_id
+                or reference.get('path') != source['choices']):
+            raise ValueError('The plan run belongs to another input or work task. '
+                'Continue the run of this plan\'s exact current choices; preserve other branches independently.')
+    elif source.get('run') and source['run'] != entry['run']:
+        raise ValueError('The plan run differs from its explicitly selected retained result.')
+    return loaded
+
+
+def reserve_preparation(root: Path, choices: str, identity: str | None = None) -> str | None:
+    """Reserve direct preparation at the exact active plan input before publication."""
+    path = _current_path(root)
+    if path is None:
+        return identity
+    file, _, _ = _load(root, path)
+    with c.file_lock(file):
+        file, state, _ = _load(root, path)
+        if state['status'] == 'complete':
+            return identity
+        selected = c.local(root, choices, exists=False).relative_to(root).as_posix()
+        matches = [entry for entry in state['items'].values()
+            if entry['source'].get('choices') == selected and entry.get('run') is None
+            and entry['status'] != 'complete']
+        if len(matches) > 1 and identity is not None:
+            matches = [entry for entry in matches if entry.get('reserved_run') == identity]
+        if len(matches) != 1:
+            return identity
+        entry = matches[0]
+        reserved = entry.get('reserved_run')
+        if reserved:
+            import production_operations as operations
+            if operations.run_dir(root, reserved, exists=False).exists():
+                # The plan already owns that publication. A new explicit
+                # preparation remains independent of its completed revision.
+                return identity
+        from pack_manager import generate_uuid7
+        identity = identity or reserved or generate_uuid7()
+        entry['reserved_run'] = identity
+        _save(file, state)
+        return identity
+
+
+def record_preparation(root: Path, run: str) -> None:
+    """Bind a published reservation, leaving unrelated plans and runs unchanged."""
+    path = _current_path(root)
+    if path is None:
+        return
+    file, _, _ = _load(root, path)
+    with c.file_lock(file):
+        file, state, _ = _load(root, path)
+        changed = False
+        for entry in state['items'].values():
+            if entry.get('reserved_run') != run or entry.get('run') is not None:
+                continue
+            proposal = {**entry, 'run': run}
+            _require_run_source(root, proposal, state['task_id'])
+            entry['run'] = run
+            entry.pop('publication_ready', None)
+            entry['evidence']['prepared'] = {'run': run}
+            changed = True
+        if changed:
+            _save(file, state)
+
+
+def _recover_prepared(root: Path, entry: dict, task_id: str) -> None:
+    """Continue a reserved or explicitly prepared current input before rereading edits."""
+    import production_operations as operations
+    if entry.get('run') is not None or not entry['source'].get('choices'):
+        return
+    reserved = entry.get('reserved_run')
+    if reserved and operations.run_dir(root, reserved, exists=False).exists():
+        _publish(root, entry)
+        _require_run_source(root, entry, task_id)
 
 
 def _publish(root: Path, entry: dict) -> None:
@@ -525,7 +828,41 @@ def _review(root: Path, directory: Path, entry: dict, run: str, candidate: str |
     return False
 
 
-def _run(root: Path, directory: Path, entry: dict, spec: dict) -> bool:
+def _initial_authority(root: Path, directory: Path, entry: dict, loaded, *,
+                       plan_answers: tuple[Path, dict] | None = None) -> bool:
+    """Record one actual first declaration for the task, before exact decisions."""
+    import production_authority_drafts
+    import production_store as store
+    task_id = loaded.prepared['task']['task_id']
+    if store.read_authority(root, task_id, required=False) is not None:
+        return True
+    answer_directory, owner = plan_answers if plan_answers is not None else (directory, entry)
+    owner.setdefault('answers', {})
+    record = owner['answers'].get('initial-authority')
+    draft = (production_authority_drafts.draft_initial_authority(root, loaded.prepared['run'])
+             if record is None else {'choices': {}, 'binding': record['binding'], **record['context']})
+    answers, record = _answer(root, answer_directory, owner, 'initial-authority', draft)
+    _waiting(entry, 'initial-authority', record,
+             reason='Record the existing actual instruction once for this task; this draft grants no authority or execution.')
+    if answers is None:
+        return False
+    if not isinstance(answers, dict):
+        raise ProductionError('INPUT_SCHEMA_INVALID', 'The first authority declaration must be a JSON object.',
+            phase='authority-evidence', file=record['file'],
+            required_action='Complete the existing object using schemas/authoring/production-authority.schema.json '
+                            'and the actual instruction. An array or text value is not an authority declaration.')
+    if record['binding']['task_id'] != task_id or answers.get('task_id') != task_id:
+        raise ValueError('The first authority declaration belongs to another work task.')
+    # A concurrent registration must conflict, never be replaced or silently
+    # accepted as this declaration. A later advance reads the actual current
+    # authority and opens fresh exact decisions rather than replaying this form.
+    receipt = store.import_authority(root, record['file'], expected=None)
+    record['imported_event'] = receipt['sha256']
+    return True
+
+
+def _run(root: Path, directory: Path, entry: dict, spec: dict, *,
+         plan_answers: tuple[Path, dict] | None = None) -> bool:
     import production_operations as operations
     import production_execution as execution
     loaded = operations.read_run(root, entry['run'])
@@ -595,6 +932,8 @@ def _run(root: Path, directory: Path, entry: dict, spec: dict) -> bool:
                     return False
         else:
             import production_work_execution
+            if not _initial_authority(root, directory, entry, loaded, plan_answers=plan_answers):
+                return False
             draft = production_work_execution.draft(root, run)
             answers, record = _answer(root, directory, entry, 'execution', draft)
             if answers is None:
@@ -668,7 +1007,8 @@ def _curate(root: Path, directory: Path, entry: dict, source: dict, destination:
     return True
 
 
-def _batch(root: Path, directory: Path, entry: dict, spec: dict) -> bool:
+def _batch(root: Path, directory: Path, entry: dict, spec: dict, *,
+           plan_answers: tuple[Path, dict] | None = None) -> bool:
     import sheet_batch
     state_path = entry['source']['batch']
     report = sheet_batch.advance(root, state_path, unreceived_only=True)
@@ -692,7 +1032,7 @@ def _batch(root: Path, directory: Path, entry: dict, spec: dict) -> bool:
         target = directory / name
         target.mkdir(parents=True, exist_ok=True)
         try:
-            if _run(root, target, child, spec):
+            if _run(root, target, child, spec, plan_answers=plan_answers):
                 progressed = True
                 child.pop('diagnostic', None)
                 continue
@@ -730,9 +1070,9 @@ def _batch(root: Path, directory: Path, entry: dict, spec: dict) -> bool:
 def _finish(root: Path, state: dict, definition: dict) -> None:
     import work_ledger
     import validate_studio
-    all_prepared = all(entry.get('run') or entry['source'].get('kind') in {'imported', 'sheet'}
+    all_prepared = all(entry['status'] != 'blocked' and (entry.get('run') or entry['source'].get('kind') in {'imported', 'sheet'}
         or (entry.get('expected_panels') and set(entry.get('panels', {})) == set(entry['expected_panels'])
-            and all(child.get('run') for child in entry['panels'].values())) for entry in state['items'].values())
+            and all(child.get('run') for child in entry['panels'].values()))) for entry in state['items'].values())
     if all_prepared:
         work_ledger.record_plan_stage(root, state['task_id'], 'prepared', state['plan_id'],
             {name: value['evidence'].get('prepared', {'source': value['source']})
@@ -740,14 +1080,18 @@ def _finish(root: Path, state: dict, definition: dict) -> None:
     if not all(entry['status'] == 'complete' for entry in state['items'].values()):
         return
     for spec in definition['items']:
-        _verify_entry(root, state['items'][spec['name']], spec)
+        _verify_entry(root, state['items'][spec['name']], spec, state['task_id'])
     work_ledger.record_plan_stage(root, state['task_id'], 'results', state['plan_id'],
         {name: value['evidence'] for name, value in state['items'].items()})
     import studio_activity
     projection = studio_activity.refresh(root)
     errors = validate_studio.validate(root)
-    if errors:
-        state['verification'] = {'ok': False, 'errors': errors, 'projection': projection}
+    if errors or not projection.get('ok', True):
+        state['verification'] = {'ok': False, 'errors': errors, 'projection': projection,
+            'required_action': 'Repair the named Studio validation or projection diagnostics, '
+                'then follow next_action to retry verification of this same plan. Its formal results are retained.',
+            'next_action': action(root, _task(root, state['task_id'])['production_plan'],
+                reason='Retry derived views and Studio validation after repairing their reported inputs.')}
         state['status'] = 'verification-required'
         return
     state['verification'] = {'ok': True}
@@ -791,7 +1135,7 @@ def _finish(root: Path, state: dict, definition: dict) -> None:
     state.pop('work_input', None)
 
 
-def _verify_entry(root: Path, entry: dict, spec: dict) -> None:
+def _verify_entry(root: Path, entry: dict, spec: dict, task_id: str | None = None) -> None:
     """Check formal result owners before counting a saved plan flag as progress."""
     if 'panels' in entry:
         import sheet_batch
@@ -800,8 +1144,10 @@ def _verify_entry(root: Path, entry: dict, spec: dict) -> None:
                 panel.get('run') != entry['panels'][name].get('run') for name, panel in panels.items()):
             raise ValueError('Verify every actual batch panel and its retained run before completing the work.')
         for child in entry['panels'].values():
-            _verify_entry(root, child, spec)
+            _verify_entry(root, child, spec, task_id)
         return
+    if entry.get('run') is not None and task_id is not None:
+        _require_run_source(root, entry, task_id)
     record = entry.get('answers', {}).get('curation')
     if record is not None:
         import production_curation
@@ -821,8 +1167,83 @@ def _verify_entry(root: Path, entry: dict, spec: dict) -> None:
     raise ValueError('Completed work lacks a formal result to verify.')
 
 
-def _project(root: Path, path: str, state: dict, definition: dict) -> dict:
+def _observe_continuation(root: Path, state: dict) -> None:
+    """Compare current navigation and named editable owners without authorizing work.
+
+    This bounded diagnostic does not reacquire media or the complete prepared
+    publication. Their independent effect-boundary checks remain authoritative.
+    """
+    files, entries, unavailable = {}, [], []
+
+    def acquire(path):
+        if not isinstance(path, str) or path in files:
+            return None
+        try:
+            raw = c.read(c.local(root, path))
+            files[path] = c.digest(raw)
+            return raw
+        except (OSError, ValueError) as exc:
+            unavailable.append({'file': path, 'message': str(exc)})
+            return None
+
+    def observe(entry: dict, path: list[str]) -> None:
+        source = entry.get('source') or {}
+        current = entry.get('current') or {}
+        entries.append({'path': path, **{key: entry.get(key) for key in
+            ('source', 'run', 'candidate', 'phase', 'status', 'evidence')},
+            'diagnostic': entry.get('diagnostic'), 'answer_file': current.get('answer_file')})
+        acquire(source.get('batch'))
+        choices = source.get('choices')
+        if choices:
+            acquire(choices)
+            context_path = (Path(choices).parent / 'context.json').as_posix()
+            raw = acquire(context_path)
+            if raw is not None:
+                try:
+                    context = c.decode(raw)
+                    acquire((context.get('authoring_work') or {}).get('basis'))
+                except (ValueError, AttributeError, TypeError) as exc:
+                    unavailable.append({'file': context_path, 'message': str(exc)})
+        acquire(current.get('answer_file'))
+        for name, child in (entry.get('panels') or {}).items():
+            observe(child, [*path, 'panels', name])
+
+    for name, entry in state['items'].items():
+        observe(entry, ['items', name])
+    work_answer = (state.get('work_input') or {}).get('answer_file')
+    acquire(work_answer)
+    previous = state.get('continuation_observation') or {}
+    signature = c.content_id({'state': state['status'], 'items': entries, 'files': files,
+        'work_answer': work_answer, 'remaining_work': state.get('remaining_work'),
+        'verification': state.get('verification')})
+    comparable = not unavailable and not previous.get('unavailable')
+    same = (signature == previous['signature']) if comparable and previous.get('signature') else None
+    state['continuation_observation'] = {'signature': signature,
+        'unchanged_since_previous': same, 'tracked_files': sorted(files), 'unavailable': unavailable,
+        'meaning': ('The compared plan state and named editable owners have not changed since the previous advance. '
+                    'Follow the current repair or answer before repeating the same attempt.' if same else
+                    'The comparison covers the reported plan state and named editable owners only.'),
+        'scope': 'Current choices, context, work basis, batch state and every panel answer, plus each selected '
+                 'source/run/candidate/phase/state and recorded evidence, the current work answer, '
+                 'remaining work and verification findings. '
+                 'Media, external files and provider state are checked independently by their operation owners.'}
+
+
+def _project(root: Path, path: str, state: dict, definition: dict, *, observation_current: bool = False) -> dict:
     from production_report_view import present, diagnostic
+    from operation_context import current
+    operation = current()
+    if operation is not None:
+        operation.link(plan_id=state.get('plan_id'), plan_file=path, task=state['task_id'])
+        operation.event('plan_continuation', plan_id=state.get('plan_id'), plan_file=path,
+            task_id=state['task_id'], state=state['status'],
+            unchanged_since_previous=((state.get('continuation_observation') or {}).get('unchanged_since_previous')
+                                      if observation_current else None),
+            items=[{
+                'name': name, 'phase': entry['phase'], 'state': entry['status'],
+                'choices': entry.get('source', {}).get('choices'), 'run': entry.get('run'),
+                'answer_file': (entry.get('current') or {}).get('answer_file')}
+                for name, entry in state['items'].items()])
 
     def diagnostic_view(value: dict, pointer: str) -> dict:
         import sys
@@ -850,6 +1271,9 @@ def _project(root: Path, path: str, state: dict, definition: dict) -> dict:
 
     def current_view(entry: dict, number: int, name: str) -> dict:
         current = copy.deepcopy(entry['current'])
+        current['run'] = entry.get('run')
+        if entry.get('source', {}).get('choices'):
+            current['choices'] = entry['source']['choices']
         # Owners retain the complete reports, while a resumed plan exposes the
         # current judgment through the same projection as their public command.
         # Rebase local action pointers because each report is embedded here.
@@ -899,16 +1323,41 @@ def _project(root: Path, path: str, state: dict, definition: dict) -> dict:
         if isinstance(current.get('diagnostic'), dict):
             current['diagnostic'] = diagnostic_view(current['diagnostic'],
                 '/items/' + name.replace('~', '~0').replace('/', '~1') + '/current/diagnostic')
+        compilation = current.get('compilation') or {}
+        if entry.get('status') == 'blocked' and compilation.get('publishable') is False:
+            current.pop('unresolved', None)
+            current['unresolved_summary'] = {
+                'total': len([row for row in compilation.get('diagnostics', [])
+                              if row.get('severity', 'error') == 'error']),
+                'owner': '#/items/' + str(number) + '/current/compilation/diagnostics',
+                'meaning': 'Publication findings belong to the failed compilation, independently of structural stage readiness.'}
+            current['reason'] = 'Resolve the failed compilation at its named input fields, check the current choices, then advance this plan.'
         return current
 
+    recovery = publication_recovery(root, path, state)
+    next_actions = recovery['next_actions']
     result = {'ok': state['status'] not in {'blocked', 'verification-required'}, 'plan': path,
-        'task_id': state['task_id'], 'state': state['status'], 'items': [],
-        'next_action': None if state['status'] == 'complete' else action(root, path),
-        'verification': copy.deepcopy(state.get('verification'))}
+        'task_id': state['task_id'], 'state': state['status'],
+        'next_action': ({**next_actions[0], **({'alternatives': next_actions[1:]} if len(next_actions) > 1 else {})}
+                        if next_actions else None if state['status'] == 'complete' else action(root, path))}
+    if next_actions:
+        result['required_action'] = 'Resolve the listed publication findings in their named inputs; check each changed input before continuing this plan.'
+        result['blockers'] = [{key: value[key] for key in
+            ('item', 'choices', 'code', 'phase', 'file', 'pointer', 'message', 'required_action', 'full_report') if key in value}
+            for value in recovery['diagnostics']]
+        result['plan_continuation'] = action(root, path)
+    result.update(items=[], verification=copy.deepcopy(state.get('verification')))
+    if state.get('continuation_observation'):
+        result['continuation_observation'] = {**copy.deepcopy(state['continuation_observation']),
+            'observed_now': observation_current}
     for number, spec in enumerate(definition['items']):
         entry = state['items'][spec['name']]
         shown = {'name': spec['name'], 'result': spec['result'], 'phase': entry['phase'],
                  'state': entry['status'], 'run': entry.get('run')}
+        if entry.get('source'):
+            shown['source'] = copy.deepcopy(entry['source'])
+        if entry.get('source_history'):
+            shown['previous_sources'] = [copy.deepcopy(value['source']) for value in entry['source_history']]
         if entry.get('current_use'):
             shown['current_use'] = entry['current_use']
         if entry.get('current'):
@@ -934,7 +1383,7 @@ def inspect(root: Path, path: str | None = None) -> dict:
     for spec in definition['items']:
         entry = state['items'][spec['name']]
         if entry['status'] == 'complete':
-            _verify_entry(root, entry, spec)
+            _verify_entry(root, entry, spec, state['task_id'])
     return _project(root, path, state, definition)
 
 
@@ -958,19 +1407,57 @@ def _renew_answer(root: Path, directory: Path, entry: dict, key: str, draft: dic
     _waiting(entry, key, record,
              reason='Assess the current displayed conditions. The previous answer and committed records are retained.')
     entry.pop('diagnostic', None)
+    from operation_context import current
+    operation = current()
+    if operation is not None:
+        operation.event('judgment_superseded', answer_file=previous['file'],
+                        successor_answer_file=record['file'], phase=key)
+        operation.event('judgment_pending', answer_file=record['file'], phase=key)
 
 
-def _refresh_entry(root: Path, directory: Path, entry: dict, spec: dict) -> None:
+def _refresh_entry(root: Path, directory: Path, entry: dict, spec: dict, *, task_id: str, path: str) -> None:
     if entry['status'] == 'complete':
         return
     if 'panels' in entry:
         for name, child in entry['panels'].items():
-            _refresh_entry(root, directory / name, child, spec)
+            _refresh_entry(root, directory / name, child, spec, task_id=task_id, path=path)
         waiting = [(name, child) for name, child in entry['panels'].items() if child.get('current')]
         if waiting:
             name, child = waiting[0]
             entry.update(phase='batch', status=child['status'], current={'panel': name, **child['current']})
         return
+    source = entry['source']
+    if source.get('choices') or entry.get('run'):
+        import production_operations as operations
+        authoring = entry['phase'] in {'source', 'authoring'}
+        if authoring:
+            # The old report belongs to an earlier read. Even a failed refresh
+            # must not present its old stage, diagnostics or installed actions.
+            entry['current'] = {key: source[key] for key in ('choices', 'run') if key in source}
+        run = entry.get('run')
+        reserved = entry.get('reserved_run')
+        if run is None and reserved and operations.run_dir(root, reserved, exists=False).exists():
+            # Refresh selects only a fully registered, readable publication.
+            # Recovery may compile or register a run and belongs to advance.
+            loaded = _require_run_source(root, {**entry, 'run': reserved}, task_id)
+            run = entry['run'] = loaded.prepared['run']
+            entry.pop('publication_ready', None)
+            entry['evidence']['prepared'] = {'run': run}
+        elif run is not None:
+            loaded = _require_run_source(root, entry, task_id)
+        if run is None:
+            if authoring:
+                _input(root, directory, entry, spec, advance=False, task_id=task_id)
+                entry.pop('diagnostic', None)
+            return
+        if authoring:
+            entry.update(phase='source', status='pending', current={
+                'run': run, 'input_sha256': loaded.prepared['input_sha256'],
+                'execution': loaded.prepared['task']['execution'],
+                'reason': 'The verified saved input is selected. Advance this plan to continue its commissioned result.',
+                'next_action': action(root, path)})
+            entry.pop('diagnostic', None)
+            return
     record = entry['answers'].get('curation')
     if record is not None:
         import production_curation as curation
@@ -1003,20 +1490,41 @@ def _refresh_entry(root: Path, directory: Path, entry: dict, spec: dict) -> None
 
 
 def refresh(root: Path, path: str) -> dict:
-    """Refresh current answer bindings without sending or replaying completed effects."""
+    """Read current inputs and answer bindings without preparing or applying effects."""
     file, initial, _ = _load(root, path)
     if _task(root, initial['task_id']).get('production_plan') != path:
         return inspect(root, path)
     from catalog_retrieval.runtime import using_pack_runtime
     with using_pack_runtime(_runtime(initial['runtime'])), c.file_lock(file):
         file, state, definition = _load(root, path)
+        _recover_draft_continuations(root, path, state)
         for spec in definition['items']:
             entry = state['items'][spec['name']]
             if entry['status'] == 'complete':
-                _verify_entry(root, entry, spec)
+                _verify_entry(root, entry, spec, state['task_id'])
             else:
-                _refresh_entry(root, file.parent / spec['name'], entry, spec)
-        if state['status'] == 'blocked' and not any(entry['status'] == 'blocked' for entry in state['items'].values()):
+                try:
+                    _refresh_entry(root, file.parent / spec['name'], entry, spec,
+                                   task_id=state['task_id'], path=path)
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    from cli_invocation import shown
+                    continuation = action(root, path)
+                    entry['status'] = 'blocked'
+                    entry['diagnostic'] = from_exception(exc, phase='work-plan',
+                        file=entry['source'].get('choices') or path,
+                        required_action='Correct the reported current input, then run ' + shown(continuation['argv']) + '.')
+                    entry['diagnostic'].update(plan=path, plan_continuation=continuation,
+                        current_owner={'choices': entry['source'].get('choices'),
+                            'task_id': state['task_id'], 'run': entry.get('run'),
+                            'reserved_run': entry.get('reserved_run'), 'phase': entry['phase']})
+                    if (entry.get('reserved_run') and entry.get('run') is None
+                            and entry['diagnostic']['code'] == 'RUN_NOT_REGISTERED'):
+                        entry['diagnostic']['required_action'] = ('Run ' + shown(continuation['argv'])
+                            + ' to recover this plan\'s reserved publication; correct any publication diagnostic '
+                            'that operation reports. Refresh retains the reservation without publishing it.')
+        if any(entry['status'] == 'blocked' for entry in state['items'].values()):
+            state['status'] = 'blocked'
+        elif state['status'] == 'blocked':
             state['status'] = 'active'
         _save(file, state)
         return _project(root, path, state, definition)
@@ -1033,10 +1541,11 @@ def advance(root: Path, path: str | None = None) -> dict:
         file, state, definition = _load(root, path)
         if state['status'] == 'complete':
             for spec in definition['items']:
-                _verify_entry(root, state['items'][spec['name']], spec)
+                _verify_entry(root, state['items'][spec['name']], spec, state['task_id'])
             return _project(root, path, state, definition)
         if _task(root, state['task_id']).get('production_plan') != path:
             raise ValueError('This historical plan belongs to earlier work. Continue the current task\'s bound plan.')
+        _recover_draft_continuations(root, path, state)
         for spec in definition['items']:
             entry = state['items'][spec['name']]
             if entry['status'] == 'complete':
@@ -1049,31 +1558,48 @@ def advance(root: Path, path: str | None = None) -> dict:
             try:
                 _new_source(root, directory, entry, spec, state['task_id'])
                 if 'batch' in entry['source']:
-                    _batch(root, directory, entry, spec)
+                    _batch(root, directory, entry, spec, plan_answers=(file.parent, state))
                 elif entry['source'].get('kind') in {'imported', 'sheet'}:
                     _curate(root, directory, entry, entry['source'], spec['result'])
                 else:
+                    _recover_prepared(root, entry, state['task_id'])
                     if entry.get('run') is None:
-                        ready = _input(root, directory, entry, spec, advance=True)
+                        ready = _input(root, directory, entry, spec, advance=True, task_id=state['task_id'])
                         _save(file, state)
                         if not ready:
                             continue
                         _publish(root, entry)
                         _save(file, state)
-                    _run(root, directory, entry, spec)
+                    _require_run_source(root, entry, state['task_id'])
+                    _run(root, directory, entry, spec, plan_answers=(file.parent, state))
                 entry.pop('diagnostic', None)
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 from production_diagnostics import CompilationError
+                from cli_invocation import shown
                 entry['status'] = 'blocked'
+                continuation = action(root, path)
+                owner_file = ((entry.get('current') or {}).get('answer_file')
+                              or entry.get('source', {}).get('choices') or path)
                 entry['diagnostic'] = from_exception(exc, phase='work-plan',
-                    required_action='Correct the named current answer or source, then advance the same plan. '
+                    file=owner_file,
+                    required_action='Correct the current owner at ' + owner_file + ', then run '
+                                    + shown(continuation['argv']) + '. '
                                     'For changed approval, review or placement, use refresh_action to assess '
                                     'the current basis while preserving committed effects.')
+                entry['diagnostic'].update(plan=path, plan_continuation=continuation,
+                    current_owner={'choices': entry.get('source', {}).get('choices'),
+                        'answer_file': (entry.get('current') or {}).get('answer_file'),
+                        'task_id': state['task_id'], 'run': entry.get('run'), 'phase': entry['phase']})
                 entry.setdefault('current', {})
                 if entry['current'] is None:
                     entry['current'] = {}
                 if isinstance(exc, CompilationError):
                     entry['current']['compilation'] = copy.deepcopy(exc.report)
+                    entry.pop('publication_ready', None)
+                    entry['current']['reason'] = ('Resolve the failed compilation at its named input fields, '
+                        'check the current choices, then advance this plan.')
+                    if entry['diagnostic'].get('file') is None:
+                        entry['diagnostic']['file'] = owner_file
                 entry['current']['refresh_action'] = action(root, path, command='plan',
                     reason='Refresh changed current judgments while retaining the previous answer and effects.')
             _save(file, state)
@@ -1082,5 +1608,6 @@ def advance(root: Path, path: str | None = None) -> dict:
             state['status'] = 'blocked'
         elif state['status'] == 'blocked':
             state['status'] = 'active'
+        _observe_continuation(root, state)
         _save(file, state)
-        return _project(root, path, state, definition)
+        return _project(root, path, state, definition, observation_current=True)

@@ -620,6 +620,13 @@
             }
           }
         },
+        "comparison_inputs": {
+          "type": "array",
+          "description": "Retained branches outside the selected current inputs, with explicit inspection actions.",
+          "items": {
+            "type": "object"
+          }
+        },
         "readings": {
           "type": "array",
           "items": {

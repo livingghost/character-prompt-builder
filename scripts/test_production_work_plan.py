@@ -69,6 +69,62 @@ class WorkPlanTests(unittest.TestCase):
         self.assertTrue(report['remaining_work']['steps'])
         self.assertTrue(all(not row['done_at'] for row in work_ledger.read_current(self.root)['steps']))
 
+    def test_formal_adoption_waits_for_open_work_question_before_closing(self):
+        path = self.plan()
+        question = work_ledger.block(self.root, 'Which synthetic archive note should accompany this result?')['questions'][-1]
+        self.answer(plans.advance(self.root, path))
+        waiting = plans.advance(self.root, path)
+        self.assertEqual(waiting['state'], 'work-required', waiting)
+        self.assertEqual(waiting['remaining_work']['questions'][0]['question_id'], question['question_id'])
+        self.assertIsNotNone(work_ledger.read_current(self.root))
+        events = store.event_rows(self.root, self.run)
+        self.assertEqual(sum(row['event'] == 'adoption-result' for row in events), 1)
+        work_ledger.respond(self.root, question['question_id'], 'Use the existing synthetic fixture note.', actor=ACTOR)
+        completed = plans.advance(self.root, path)
+        self.assertEqual(completed['state'], 'complete', completed)
+        self.assertEqual(store.event_rows(self.root, self.run), events)
+
+    def test_suspended_plan_finishes_only_its_actual_owner(self):
+        path = self.plan()
+        owner = work_ledger.read_current(self.root)['task_id']
+        self.answer(plans.advance(self.root, path))
+        work_ledger.suspend(self.root, reason='Continue independent fixture work while this result remains retained.')
+        independent = work_ledger.begin(self.root, 'Unrelated synthetic task.', ['Keep this task open.'])
+        completed = plans.advance(self.root, path)
+        self.assertEqual(completed['state'], 'complete', completed)
+        self.assertEqual(work_ledger.read_current(self.root), independent)
+        self.assertEqual(c.load(work_ledger.task_path(self.root, owner))['work_state'], 'completed')
+
+    def test_failed_view_validation_retains_results_without_closing_the_work(self):
+        path = self.plan()
+        self.answer(plans.advance(self.root, path))
+        with patch('validate_studio.validate', return_value=['Synthetic inconsistent derived view']):
+            blocked = plans.advance(self.root, path)
+        self.assertEqual(blocked['state'], 'verification-required', blocked)
+        self.assertFalse(blocked['verification']['ok'])
+        self.assertIsNotNone(work_ledger.read_current(self.root))
+        events = store.event_rows(self.root, self.run)
+        completed = plans.advance(self.root, path)
+        self.assertEqual(completed['state'], 'complete', completed)
+        self.assertEqual(store.event_rows(self.root, self.run), events)
+
+    def test_failed_projection_blocks_verified_milestone_even_when_studio_validation_passes(self):
+        path = self.plan()
+        task = work_ledger.read_current(self.root)
+        work_ledger.bind_plan(self.root, task['task_id'], path, {str(step['n']): 'verified' for step in task['steps']})
+        self.answer(plans.advance(self.root, path))
+        failure = {'ok': False, 'diagnostics': [{'projection': 'gallery', 'message': 'Synthetic missing gallery input.'}]}
+        with patch('studio_activity.refresh', return_value=failure), patch('validate_studio.validate', return_value=[]):
+            blocked = plans.advance(self.root, path)
+        self.assertEqual(blocked['state'], 'verification-required', blocked)
+        self.assertFalse(blocked['verification']['ok'])
+        self.assertIn(path, blocked['verification']['next_action']['argv'])
+        self.assertTrue(all(not step['done_at'] for step in work_ledger.read_current(self.root)['steps']))
+        events = store.event_rows(self.root, self.run)
+        completed = plans.advance(self.root, path)
+        self.assertEqual(completed['state'], 'complete', completed)
+        self.assertEqual(store.event_rows(self.root, self.run), events)
+
     def test_prepare_only_finishes_without_selection_or_new_submission(self):
         path = self.plan('prepared-input')
         before = store.event_rows(self.root, self.run)
@@ -92,6 +148,11 @@ class WorkPlanTests(unittest.TestCase):
         one = plans.advance(self.root, path)
         two = plans.advance(self.root, path)
         self.assertEqual(one['items'][0]['current']['answer_file'], two['items'][0]['current']['answer_file'])
+        self.assertIsNone(one['continuation_observation']['unchanged_since_previous'])
+        self.assertTrue(two['continuation_observation']['unchanged_since_previous'])
+        self.assertTrue(two['continuation_observation']['observed_now'])
+        inspected = plans.inspect(self.root, path)
+        self.assertFalse(inspected['continuation_observation']['observed_now'])
         self.assertNotEqual(two['state'], 'blocked')
         self.assertEqual(before, store.event_rows(self.root, self.run))
 

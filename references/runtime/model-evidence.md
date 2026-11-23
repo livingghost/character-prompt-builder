@@ -9,8 +9,11 @@ Search the model author's or provider's documentation for each exact model
 and version before assigning its input workflow. Retain the source and what
 it establishes. Family instructions can support a family-scoped statement;
 they do not establish an undocumented version or an execution offering.
-A platform with automatic backend selection remains unresolved until the
-selected model is known. A restoration interface can have no text input.
+With automatic or undisclosed backend selection, backend-specific facts remain
+unresolved until that model is known. The exact exposed endpoint or host tool
+can still be an evidenced external target; bind that interface and its acquired
+request contract without inventing a backend identifier. A restoration
+interface can have no text input.
 Comma-separated ordinary phrases alone do not establish a tag vocabulary.
 
 Every maintained pack model record declares `prompt_input` under

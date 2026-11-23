@@ -176,6 +176,19 @@ class ChoiceOwnerTests(unittest.TestCase):
             self.edit('/authoring/task/criteria', [], operation='remove')
         self.assertEqual(self.choices, before)
 
+    def test_received_pointer_survives_diagnostics_and_names_git_bash_repair(self):
+        before = copy.deepcopy(self.choices)
+        for pointer in ['C:/Program Files/Git/authoring/task/criteria',
+                '/C:/Program Files/Git/authoring/task/criteria', '/authoring/task/~2bad']:
+            with self.subTest(pointer=pointer), self.assertRaises(ProductionError) as raised:
+                self.edit(pointer, [], operation='add')
+            diagnostic = raised.exception.diagnostic.as_dict()
+            self.assertEqual(diagnostic['pointer'], pointer)
+            self.assertEqual(diagnostic['received_pointer'], pointer)
+            self.assertIn('MSYS_NO_PATHCONV=1', diagnostic['required_action'])
+            self.assertEqual(diagnostic['repair_owner']['file'], 'draft/choices.json')
+        self.assertEqual(self.choices, before)
+
 
 class PublishedChoiceEditTests(unittest.TestCase):
     save_choices = fixtures.InputToolsTests.save_choices
@@ -198,6 +211,9 @@ class PublishedChoiceEditTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         report = json.loads(completed.stdout)
         self.assertTrue(report['ok'])
+        difference = next(row for row in report['edit']['changes']
+            if row['pointer'] == '/authoring/task/criteria')
+        self.assertEqual(difference['after'][0]['text'], 'Review the revised local text.')
         current = c.load(self.root / self.choices_path)
         self.assertEqual(current['authoring']['task']['criteria'][0]['text'], 'Review the revised local text.')
         from input_evidence import InputEvidence

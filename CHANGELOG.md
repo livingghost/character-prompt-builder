@@ -1,5 +1,124 @@
 # Changelog
 
+## 2026.11.23.2
+
+- Preserve `READING_INVOCATION_CONFLICT` details in text reading errors and
+  their retained JSON responses. Show the saved reading owner, context-specific
+  repair instructions and every applicable resume or restart action. Exercise
+  cursor and snapshot conflicts through the public CLI, including same-context
+  resumption and fresh-context redelivery.
+
+## 2026.11.23.1
+
+- Explain prompt-only export beside the authored-save execution guard. Retain
+  image-request preparation as its own operation and preserve the completed
+  authoring work's target, document and source checks when writing prompt text.
+- Open one shared, unapproved initial-authority answer when a task has no
+  registered instruction. Record the actual instruction once, reject missing
+  evidence and concurrent replacement, then assess each item's exact request
+  and stop conditions through the existing execution answer.
+- Show failed preparation findings, repair instructions and the affected
+  choices before detailed plan items. Keep structural readiness separate from
+  publishability, retain the reserved run, and recheck edited input without
+  repeating obsolete diagnostics. Expose the same recovery from current work
+  status and declare comparison inputs in its public schema.
+- Point existing-image editing help at retained, unregistered candidates as
+  well as accepted slots. Start from the saved run, declare actual retained
+  and changed owners, and follow that draft's inspection and reading actions.
+  Select the returned image explicitly without requiring canonical adoption;
+  keep prepared-result changes in an explicit work revision.
+- Select amendment knowledge from actual changed content and target owners.
+  A workflow route change obtains its current contracts without falsely
+  retargeting an unchanged model request or reopening every retained owner.
+  Sparse discovery uses the complete general construction basis; explicit
+  finishing work retains every original specialist section and limitation.
+- Add `read --view text` for complete original source bodies with short
+  continuation controls and a separately retained full JSON response. Keep
+  source ranges, context and reuse facts, diagnostics and binding failures
+  visible. Each read and replay saves a new response; delivery, scope and
+  fresh-context requirements remain unchanged.
+- Distinguish input-guide display selectors from editable owner pointers.
+  A task-change container exposes the semantic edit plan's exact child owner
+  and editing help while retaining the guard against mixed-owner replacement.
+- Continue an explicit compose repair through its existing saved plan. Bind
+  the new draft at publication, recover interrupted bindings and prepared
+  results, and retain previous drafts as comparison inputs. Keep current
+  choices, the immutable run and the actual work-task owner aligned.
+- Begin a reading context with `--fresh-context` and carry its returned
+  `--reading-context` through plan actions. Reuse only complete unchanged
+  source ranges actually delivered in that context. New contexts read the
+  current required bodies again. Generated `--bind-choices` actions attach the
+  completed record to the exact current draft without manual key copying.
+- Support `--page-bytes auto` with an explicitly declared source-text capacity
+  in `--host-page-bytes`. Report required, delivered, reused and remaining
+  source bytes while preserving complete source coverage and replay.
+- Make reading `actions.next` continue the complete remaining scope in bounded
+  pages after an index or section, avoiding a separate call for each small
+  heading while retaining explicit section navigation.
+- Show the exact selection and canonical-use authority requirements beside
+  the shared curation answer. Repair imported catalog adoption and preserve
+  captured registration evidence when continuing after partial publication.
+  Selection and adoption keep independent authorization and formal records.
+- Require both derived-view refresh and Studio validation before completing
+  the plan's verification milestone and owning work task. Preserve completed
+  results while questions or independent work remain unresolved.
+- Report the current owner, plan continuation, actual structured edit and
+  repair responsibility. Preserve received JSON Pointers and give a concrete
+  Windows Git Bash path-conversion repair. Compare successive continuation
+  observations without treating a diagnostic fingerprint as execution authority.
+- Aggregate recorded workflow effort with `logs --summary`: command and stage
+  duration, reading pages and bytes, structured edits, failures, recovery,
+  pending-answer intervals and current plan inputs. Keep unobserved host and
+  active author time explicit and separate overlapping measurements.
+- Clarify new host-image work, the external target when its backend is not
+  disclosed, and one named plan item per separate illustration. Diagnose an
+  unlisted target at its real owner instead of suggesting a substitute model.
+  Scope each copied prompt, output count and review criterion to its own item,
+  retaining complete-set requirements in the commission. Explain pack warnings
+  through their effect on the requested work.
+- Validate explicit route and feature names for every requested item before
+  opening work or saving its plan, with the exact source pointer to repair.
+  Distinguish independent recurring-character images from managed temporal or
+  causal continuity while retaining whole-subject identity and reference review.
+- Explain task-local shared definitions as valid identity sources within their
+  current commission. Preserve source, carrier and whole-subject review checks
+  without implying canonical adoption. Declare depicted subjects and their
+  whole-subject review at the actual input owners. Point field help at the current owner
+  to avoid an unnecessarily large field-catalogue response.
+- Retain the next and remaining authoring stages in compact reports, and
+  distinguish current blockers from fields deferred to later stages. Structural
+  readiness still supplies no author judgment or permission to publish.
+- Refresh saved-plan inspections from current inputs without changing the
+  authoring stage, and prefer the plan's verified reserved run after preparation.
+  Inspect an explicitly selected draft alone; keep other registered branches
+  available as comparison actions without repeating their stale diagnostics.
+  Bind its saved result, completion command and reading continuation to that
+  selected owner. Keep every current-revision branch when no source is selected,
+  and retain earlier inputs for explicit comparison or reuse by a new plan.
+- Keep each reading page's current continuation and recovery actions, with
+  complete selection reasons and whole-scope navigation in its source index.
+  Clarify the separate source-byte and host-output budgets and reuse completed
+  same-context knowledge across separately bound image drafts.
+- Return a verified reading owner and executable recovery when a saved cursor
+  is combined with conflicting initial selectors. Preserve an explicitly
+  selected matching context; restart actual source delivery when no current
+  context was selected or a fresh read was requested.
+- Reacquire authoring navigation from the current selected input after a Studio
+  or Skill relocation, preserving the original context as creation evidence.
+  Explain the criteria field named by identity diagnostics through its existing
+  production-task schema without requiring the complete field catalogue.
+- Distinguish the first authority declaration from additional grants under an
+  existing registration. Point initial status and command help at the actual
+  schema and template without granting permission or changing execution gates.
+- Name an external result's `--artifact` when its host output lies outside the
+  Studio. Keep the existing path boundary and explain how to copy the returned
+  file into the Studio and receive the same run and response without a new host
+  call. Normalize repeated artifacts through the shared file-argument owner.
+- Distinguish replay of a truncated tool response from fresh reading after
+  model-context compaction or a summary handoff. Explain the existing recovery
+  actions beside each page while retaining current choices, images, prepared
+  runs and completed work; rebuilding knowledge does not repeat production.
+
 ## 2026.11.22.3
 
 - Preserve the actual work-task binding when repairing a retained candidate from another task's run. Keep the repaired draft registered and inspectable without changing its source-run provenance.

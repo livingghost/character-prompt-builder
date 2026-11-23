@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+import re
 from typing import Any
 
 import authoring_work as pointers
@@ -17,6 +18,10 @@ from production_diagnostics import ProductionError
 
 
 _UNSET = object()
+POINTER_SHELL_GUIDANCE = (
+    'Pass the exact JSON Pointer, beginning with /, using only ~0 or ~1 escapes. '
+    'In Windows Git Bash, prefix this command with MSYS_NO_PATHCONV=1; '
+    'quoting alone does not disable its automatic path conversion.')
 TASK_OWNERS = frozenset({'route', 'features', 'artifact', 'execution', 'criteria', 'direction',
     'recording', 'world_views', 'moment_views', 'scene_materials', 'upload_sources'})
 TOP_OWNERS = frozenset({'target', 'reading', 'visual', 'validation', 'external'})
@@ -254,8 +259,13 @@ def apply_edit(choices: dict, pointer: str, value: Any = _UNSET, *, operation: s
         parts = tuple(pointers._tokens(pointer))
         owner = editable_owner(pointer)
     except ValueError as error:
-        _error(str(error), file=file, pointer='', cause='choice-pointer-invalid',
-            required_action='Use a JSON Pointer with / separators and only ~0 or ~1 escapes.')
+        _error(str(error), file=file, pointer=pointer, cause='choice-pointer-invalid',
+            received_pointer=pointer, required_action=POINTER_SHELL_GUIDANCE)
+    if owner is None and isinstance(pointer, str) and (
+            re.match(r'^/?[A-Za-z]:[/\\]', pointer) or pointer.startswith('\\\\')):
+        _error('The received pointer has filesystem-path syntax instead of an authored JSON Pointer.',
+            file=file, pointer=pointer, cause='choice-pointer-invalid', received_pointer=pointer,
+            required_action=POINTER_SHELL_GUIDANCE)
     if owner is None or _generated(parts) or _source_measurement(parts):
         action = 'Select a specific authored owner from explain-inputs; mixed-owner parents and generated fields are protected.'
         if parts[:3] == ('authoring', 'task', 'sources'):
@@ -326,7 +336,16 @@ def edit_choices(root: Path, choices_path: str, pointer: str, *, operation: str 
     def transform(choices, basis, reader):
         value = _UNSET if value_file is None else reader.json(reader.select(value_file))
         updated = apply_edit(choices, pointer, value, operation=operation, file=choices_path)
+        from production_inputs import normalize_task_choices
         return updated, basis, {'edit': {'pointer': pointer, 'operation': operation,
-            'owner': {'file': choices_path, 'pointer': editable_owner(pointer)}}}
+            'owner': {'file': choices_path, 'pointer': editable_owner(pointer)},
+            'changes': pointers.changes(normalize_task_choices(choices), updated)}}
 
-    return update_draft(root, choices_path, transform, operation='edit-choices')
+    result = update_draft(root, choices_path, transform, operation='edit-choices')
+    import operation_context
+    current = operation_context.current()
+    if current is not None:
+        current.link(choices=choices_path)
+        current.event('authored_edit', choices=choices_path, pointer=pointer, operation=operation,
+                      changed=bool(result['changed']), owner=result['edit']['owner'])
+    return result
