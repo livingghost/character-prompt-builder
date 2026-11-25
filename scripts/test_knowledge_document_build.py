@@ -114,7 +114,8 @@ class GeneratedDocumentCheckTests(unittest.TestCase):
                                    release_include=('knowledge', 'references'), release_exclude_names=())
         for ending, changed_ending in (('\n', '\r\n'), ('\r\n', '\n')):
             with self.subTest(ending=ending), tempfile.TemporaryDirectory(prefix='knowledge-check-newlines-') as temporary:
-                root = Path(temporary)
+                # Keep the patched root equal to resolved paths of generated files.
+                root = Path(temporary).resolve()
                 identifier = 'references/current'
                 canonical = root / record_path(identifier)
                 canonical.parent.mkdir(parents=True)

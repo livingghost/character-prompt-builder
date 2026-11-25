@@ -75,7 +75,8 @@ class Runner(unittest.TestCase):
 
     def runner_source(self):
         """Small declared source tree for scheduling and reporting contracts."""
-        source = self.work / "runner-source"
+        # Windows may expose TEMP through an 8.3 alias; copied paths are resolved.
+        source = (self.work / "runner-source").resolve()
         source.mkdir()
         metadata = run_checks.load_package_metadata(ROOT)
         for relative in metadata.release_include:

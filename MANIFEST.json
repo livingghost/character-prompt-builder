@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1474,
-  "total_bytes_excluding_manifest": 27279653,
+  "total_bytes_excluding_manifest": 27279968,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 163026,
-      "sha256": "8770dc501de5a073aad9192507d787b5ff9d0946d8b476fc140d1122b952c025"
+      "bytes": 163152,
+      "sha256": "4744acbf45aab4e6b6ce59dc302683f7402bceaffb80541370fd1059cbc3fa36"
     },
     {
       "path": "CLAUDE.md",
@@ -6246,8 +6246,8 @@
     },
     {
       "path": "scripts/run_checks_smoke_test.py",
-      "bytes": 27034,
-      "sha256": "29cb39bc12ffe23a3393d8eadbb6a90e178b187858cc4b8ebcc0a42a54eec9e0"
+      "bytes": 27129,
+      "sha256": "22eb41fe930db7e464510f05d89b353382b9604fa18b25a347c99299ed2d410a"
     },
     {
       "path": "scripts/runtime_evidence.py",
@@ -6726,8 +6726,8 @@
     },
     {
       "path": "scripts/test_knowledge_document_build.py",
-      "bytes": 21659,
-      "sha256": "155deb80fed3dfb64a04464b67b075cc44f9d9e3973aa50cdb817bb35d9e203b"
+      "bytes": 21753,
+      "sha256": "5e2314309404efd466f3b7f240eb8243493b30bdccbc030cbc097038b566d6af"
     },
     {
       "path": "scripts/test_knowledge_documents.py",
