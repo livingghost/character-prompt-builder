@@ -2,8 +2,8 @@
 
 ## 2026.11.25.6
 
-- Normalize temporary fixture roots before comparing copied paths, including
-  Windows 8.3 aliases used by the hosted runner.
+- Resolve the copy source and temporary fixture roots before comparing paths,
+  including Windows 8.3 aliases used by the hosted runner.
 - Name each changed document by its document ID in reading-source diagnostics.
   Preserve the structured change details and the current reading repair action.
 - Explain complete-section reuse across receipts separately from the byte

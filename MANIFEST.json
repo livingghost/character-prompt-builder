@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1474,
-  "total_bytes_excluding_manifest": 27279968,
+  "total_bytes_excluding_manifest": 27280096,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 163152,
-      "sha256": "4744acbf45aab4e6b6ce59dc302683f7402bceaffb80541370fd1059cbc3fa36"
+      "bytes": 163163,
+      "sha256": "e8bbd3449ef987c2c8a54c61316b5de3788000f3aaad4677737320cb0bbe0b97"
     },
     {
       "path": "CLAUDE.md",
@@ -5556,8 +5556,8 @@
     },
     {
       "path": "scripts/package.py",
-      "bytes": 50552,
-      "sha256": "70e0728ff24d694df6c79991e831eee29d4393f7ad72fd33f8e5f3d2e8fca539"
+      "bytes": 50669,
+      "sha256": "8387ac41d91d69ade791a6a2b93fdf9276622cf87743c6d81062e547096c72ac"
     },
     {
       "path": "scripts/package_full.py",

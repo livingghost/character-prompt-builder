@@ -121,6 +121,8 @@ def copy_runtime_tree(
     excluded_subtrees: Sequence[str] = (),
     exclude_names: Sequence[str] = (),
 ) -> None:
+    # iter_release_files resolves its root; relative_to uses that same spelling.
+    source = Path(source).resolve()
     children = list(iter_release_files(
         source,
         include,
